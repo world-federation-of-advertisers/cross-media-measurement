@@ -22,14 +22,14 @@ import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions.Labe
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions.LabelType.MANIFEST
 import org.wfanet.measurement.common.mapConcurrently
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
-import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.Companion.signatureBlobKeyFor
-import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.VerifiedBlob
+import org.wfanet.panelmatch.client.storage.VerifyingStorageClient
+import org.wfanet.panelmatch.client.storage.VerifyingStorageClient.VerifiedBlob
+import org.wfanet.panelmatch.client.storage.signatureBlobKeyFor
 import org.wfanet.panelmatch.common.ShardedFileName
 
 /** Implements CopyFromSharedStorageStep. */
 class CopyFromSharedStorageTask(
-  private val source: VerifiedStorageClient,
+  private val source: VerifyingStorageClient,
   private val destination: StorageClient,
   private val copyOptions: CopyOptions,
   private val sourceBlobKey: String,
@@ -48,7 +48,7 @@ class CopyFromSharedStorageTask(
     }
   }
 
-  private suspend fun writeManifestOutputs(blob: VerifiedBlob) {
+  private suspend fun writeManifestOutputs(blob: VerifyingStorageClient.VerifiedBlob) {
     val manifestBytes = blob.toByteString()
     val shardedFileName = ShardedFileName(manifestBytes.toStringUtf8())
 

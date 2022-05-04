@@ -22,11 +22,13 @@ import org.wfanet.panelmatch.client.storage.StorageDetails.PlatformCase
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.certificates.CertificateManager
 import org.wfanet.panelmatch.common.storage.StorageFactory
+import org.wfanet.panelmatch.protocol.namedSignature
 
 private val EXPLICITLY_SUPPORTED_STORAGE_TYPES = setOf(PlatformCase.AWS, PlatformCase.GCS)
 
 /**
- * Builds [VerifiedStorageClient]s for shared blobs within a particular Exchange.
+ * Builds [VerifyingStorageClient]s and [SigningStorageClient]s for shared blobs within a particular
+ * Exchange.
  *
  * @param certificateManager passed into VerifiedStorageClient
  * @param sharedStorageFactories provides [StorageFactories][StorageFactory] by storage type
@@ -39,16 +41,47 @@ class SharedStorageSelector(
   private val storageDetailsProvider: StorageDetailsProvider
 ) {
 
-  /** Builds a [VerifiedStorageClient] for the current Exchange. */
-  suspend fun getSharedStorage(
+  /**
+   * Builds and returns a new [VerifyingStorageClient] for reading blobs from shared storage and
+   * verifying their signatures. Note that for non-manifest blobs, the returned client can only be
+   * used to verify [blobKey]. For manifest blobs, it can also be used to verify all blob shards.
+   */
+  suspend fun getVerifyingStorage(
+    blobKey: String,
     storageType: StorageType,
     context: ExchangeContext
-  ): VerifiedStorageClient {
+  ): VerifyingStorageClient {
     val storageDetails = storageDetailsProvider.get(context.recurringExchangeId)
-    require(storageDetails.visibility == StorageDetails.Visibility.SHARED)
-    validateStorageType(storageType, storageDetails.platformCase)
-    val storageClient = getStorageFactory(storageDetails, context).build()
-    return VerifiedStorageClient(storageClient, context, certificateManager)
+    validateStorageType(storageType, storageDetails)
+
+    val storageFactory = getStorageFactory(storageDetails, context)
+    val storageClient = storageFactory.build()
+    val namedSignature = storageClient.getBlobSignature(blobKey)
+    val x509 =
+      certificateManager.getCertificate(
+        context.exchangeDateKey,
+        context.partnerName,
+        namedSignature.certificateName
+      )
+    return VerifyingStorageClient(storageFactory, x509)
+  }
+
+  /**
+   * Builds and returns a new [SigningStorageClient] for writing blobs and their signatures to
+   * shared storage.
+   */
+  suspend fun getSigningStorage(
+    storageType: StorageType,
+    context: ExchangeContext
+  ): SigningStorageClient {
+    val storageDetails = storageDetailsProvider.get(context.recurringExchangeId)
+    validateStorageType(storageType, storageDetails)
+
+    val storageFactory = getStorageFactory(storageDetails, context)
+    val (x509, privateKey, certName) =
+      certificateManager.getExchangeKeyPair(context.exchangeDateKey)
+    val signatureTemplate = namedSignature { certificateName = certName }
+    return SigningStorageClient(storageFactory, x509, privateKey, signatureTemplate)
   }
 
   private fun getStorageFactory(
@@ -63,7 +96,9 @@ class SharedStorageSelector(
     return buildStorageFactory(storageDetails, context.exchangeDateKey)
   }
 
-  private fun validateStorageType(storageType: StorageType, platform: PlatformCase) {
+  private fun validateStorageType(storageType: StorageType, storageDetails: StorageDetails) {
+    require(storageDetails.visibility == StorageDetails.Visibility.SHARED)
+    val platform = storageDetails.platformCase
     when (storageType) {
       GOOGLE_CLOUD_STORAGE -> require(platform == PlatformCase.GCS)
       AMAZON_S3 -> require(platform == PlatformCase.AWS)

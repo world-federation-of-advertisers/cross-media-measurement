@@ -17,32 +17,43 @@ package org.wfanet.panelmatch.client.storage.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.kotlin.toByteStringUtf8
 import kotlin.test.assertFailsWith
+import org.junit.Before
 import org.junit.Test
+import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.storage.BlobNotFoundException
-import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
+import org.wfanet.panelmatch.client.storage.SigningStorageClient
+import org.wfanet.panelmatch.client.storage.VerifyingStorageClient
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 
 private const val KEY = "some/arbitrary.key"
 private val VALUE = "<some-arbitrary-value>".toByteStringUtf8()
 
 abstract class VerifiedStorageClientTest {
-  abstract val storage: VerifiedStorageClient
+  private lateinit var verifyingStorage: VerifyingStorageClient
+  private lateinit var signingStorage: SigningStorageClient
+  abstract val underlyingClient: StorageClient
+
+  @Before
+  fun setUp() {
+    verifyingStorage = makeTestVerifyingStorageClient(underlyingClient)
+    signingStorage = makeTestSigningStorageClient(underlyingClient)
+  }
 
   @Test
   fun writeThenRead() = runBlockingTest {
-    storage.writeBlob(KEY, VALUE)
-    assertThat(storage.getBlob(KEY).toByteString()).isEqualTo(VALUE)
+    signingStorage.writeBlob(KEY, VALUE)
+    assertThat(verifyingStorage.getBlob(KEY).toByteString()).isEqualTo(VALUE)
   }
 
   @Test
   fun readMissingKeyFails() = runBlockingTest {
-    assertFailsWith<BlobNotFoundException> { storage.getBlob(KEY) }
+    assertFailsWith<BlobNotFoundException> { verifyingStorage.getBlob(KEY) }
   }
 
   @Test
   fun writeSameKeyTwice() = runBlockingTest {
-    storage.writeBlob(KEY, "a-different-value".toByteStringUtf8())
-    storage.writeBlob(KEY, VALUE)
-    assertThat(storage.getBlob(KEY).toByteString()).isEqualTo(VALUE)
+    signingStorage.writeBlob(KEY, "a-different-value".toByteStringUtf8())
+    signingStorage.writeBlob(KEY, VALUE)
+    assertThat(verifyingStorage.getBlob(KEY).toByteString()).isEqualTo(VALUE)
   }
 }

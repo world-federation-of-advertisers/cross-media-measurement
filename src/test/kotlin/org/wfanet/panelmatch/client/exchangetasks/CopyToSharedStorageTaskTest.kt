@@ -24,8 +24,9 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions.LabelType
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.copyOptions
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
-import org.wfanet.panelmatch.client.storage.VerifiedStorageClient.Companion.signatureBlobKeyFor
-import org.wfanet.panelmatch.client.storage.testing.makeTestVerifiedStorageClient
+import org.wfanet.panelmatch.client.storage.signatureBlobKeyFor
+import org.wfanet.panelmatch.client.storage.testing.makeTestSigningStorageClient
+import org.wfanet.panelmatch.client.storage.testing.makeTestVerifyingStorageClient
 import org.wfanet.panelmatch.common.testing.runBlockingTest
 
 private const val SOURCE_BLOB_KEY = "source-blob-key"
@@ -41,7 +42,8 @@ private val SHARD_CONTENTS2 = "shard-2-contents".toByteStringUtf8()
 class CopyToSharedStorageTaskTest {
   private val source = InMemoryStorageClient()
   private val destinationClient = InMemoryStorageClient()
-  private val destination = makeTestVerifiedStorageClient(destinationClient)
+  private val destination = makeTestSigningStorageClient(destinationClient)
+  private val verifyingStorage = makeTestVerifyingStorageClient(destinationClient)
 
   private suspend fun executeTask(labelType: LabelType) {
     CopyToSharedStorageTask(
@@ -64,7 +66,8 @@ class CopyToSharedStorageTaskTest {
     executeTask(LabelType.BLOB)
 
     // Does not throw; verifies signature:
-    assertThat(destination.getBlob(DESTINATION_BLOB_KEY).toByteString()).isEqualTo(BLOB_CONTENTS)
+    assertThat(verifyingStorage.getBlob(DESTINATION_BLOB_KEY).toByteString())
+      .isEqualTo(BLOB_CONTENTS)
 
     assertThat(destinationClient.contents.keys)
       .containsExactly(DESTINATION_BLOB_KEY, signatureBlobKeyFor(DESTINATION_BLOB_KEY))
@@ -78,10 +81,10 @@ class CopyToSharedStorageTaskTest {
 
     executeTask(LabelType.MANIFEST)
 
-    assertThat(destination.getBlob(DESTINATION_BLOB_KEY).toByteString())
+    assertThat(verifyingStorage.getBlob(DESTINATION_BLOB_KEY).toByteString())
       .isEqualTo(MANIFEST_CONTENTS)
-    assertThat(destination.getBlob(SHARD_BLOB_KEY1).toByteString()).isEqualTo(SHARD_CONTENTS1)
-    assertThat(destination.getBlob(SHARD_BLOB_KEY2).toByteString()).isEqualTo(SHARD_CONTENTS2)
+    assertThat(verifyingStorage.getBlob(SHARD_BLOB_KEY1).toByteString()).isEqualTo(SHARD_CONTENTS1)
+    assertThat(verifyingStorage.getBlob(SHARD_BLOB_KEY2).toByteString()).isEqualTo(SHARD_CONTENTS2)
 
     assertThat(destinationClient.contents.keys)
       .containsExactly(

@@ -25,15 +25,17 @@ import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.panelmatch.client.common.ExchangeContext
 import org.wfanet.panelmatch.client.storage.PrivateStorageSelector
 import org.wfanet.panelmatch.client.storage.SharedStorageSelector
+import org.wfanet.panelmatch.client.storage.SigningStorageClient
 import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.client.storage.StorageDetails.PlatformCase
 import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
-import org.wfanet.panelmatch.client.storage.VerifiedStorageClient
+import org.wfanet.panelmatch.client.storage.VerifyingStorageClient
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.certificates.testing.TestCertificateManager
 import org.wfanet.panelmatch.common.secrets.MutableSecretMap
 import org.wfanet.panelmatch.common.storage.StorageFactory
 import org.wfanet.panelmatch.common.storage.testing.InMemoryStorageFactory
+import org.wfanet.panelmatch.protocol.namedSignature
 
 private fun makeTestStorageFactoryMap(
   underlyingStorage: StorageFactory
@@ -88,8 +90,19 @@ private val TEST_CONTEXT =
     WORKFLOW.stepsList.first()
   )
 
-fun makeTestVerifiedStorageClient(
+fun makeTestVerifyingStorageClient(
   underlyingClient: StorageClient = InMemoryStorageClient()
-): VerifiedStorageClient {
-  return VerifiedStorageClient(underlyingClient, TEST_CONTEXT, TestCertificateManager)
+): VerifyingStorageClient {
+  return VerifyingStorageClient({ underlyingClient }, TestCertificateManager.CERTIFICATE)
+}
+
+fun makeTestSigningStorageClient(
+  underlyingClient: StorageClient = InMemoryStorageClient()
+): SigningStorageClient {
+  return SigningStorageClient(
+    { underlyingClient },
+    TestCertificateManager.CERTIFICATE,
+    TestCertificateManager.PRIVATE_KEY,
+    namedSignature { certificateName = TestCertificateManager.RESOURCE_NAME }
+  )
 }

@@ -27,4 +27,14 @@ interface ExchangeTask {
    * @return Executed output. It is a map from the labels to the payload associated with the label.
    */
   suspend fun execute(input: Map<String, StorageClient.Blob>): Map<String, Flow<ByteString>>
+
+  /**
+   * Indicates whether the executor running this task should skip reading inputs before calling
+   * [execute]. If true, input blob presence is not verified and an empty map is passed to [execute]
+   * . Otherwise, input blobs are read and passed to [execute], and the task will not run if any
+   * input blobs are missing.
+   *
+   * Defaults to false.
+   */
+  fun skipReadInput(): Boolean = false
 }

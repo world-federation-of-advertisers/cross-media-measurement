@@ -17,6 +17,6 @@ package org.wfanet.panelmatch.common.storage
 import java.io.Serializable
 import org.wfanet.measurement.storage.StorageClient
 
-interface StorageFactory : Serializable {
+fun interface StorageFactory : Serializable {
   fun build(): StorageClient
 }
