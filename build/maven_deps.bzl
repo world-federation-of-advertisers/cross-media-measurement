@@ -52,10 +52,8 @@ _ARTIFACTS = {
 }
 
 def cross_media_measurement_maven_artifacts():
-    """Collects the Maven artifacts for panel-exchange-client.
-    Returns:
-        A dict of Maven artifact name to version.
-    """
+    """Collects the Maven artifacts for cross-media-measurement."""
+
     common_jvm_artifacts = artifacts.list_to_dict(
         # TODO(@SanjayVas): Fix common_jvm_maven_artifacts to return a dict like
         # its documentation says.

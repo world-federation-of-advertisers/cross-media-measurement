@@ -31,6 +31,14 @@ load(
     "cross_media_measurement_maven_excluded_artifacts",
     "cross_media_measurement_maven_override_targets",
 )
+load("@rules_jvm_external//:repositories.bzl", "rules_jvm_external_deps")
+
+rules_jvm_external_deps()
+
+load("@rules_jvm_external//:setup.bzl", "rules_jvm_external_setup")
+
+rules_jvm_external_setup()
+
 load("@wfa_common_jvm//build/maven:artifacts.bzl", "artifacts")
 load("@rules_jvm_external//:defs.bzl", "maven_install")
 
