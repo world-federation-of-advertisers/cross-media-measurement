@@ -38,14 +38,6 @@ message Metric {
   message ImpressionCountParams {}
   // Parameters that are used to generate `Watch Duration` metric.
   message WatchDurationParams {}
-  // Parameters that are used to generate `Reach Curve` metric.
-  message ReachCurveParams {
-    // Number of points that should be plotted on the reach curve
-    int32 number_plotting_points = 1;
-
-    // Maximum impression count that should be plotted
-    int64 max_impression_count = 2;
-  }
 
   // Types of metrics that can be selected to be in a `Report`.
   oneof metric_type {
@@ -57,9 +49,6 @@ message Metric {
     ImpressionCountParams impression_count = 3;
     // The watch duration given a set of event groups.
     WatchDurationParams watch_duration = 4;
-    // The reach curve that provides estimated reach frequency across different
-    // spend ratios given a set of event groups.
-    ReachCurveParams reach_curve = 5;
   }
 
   // Whether the results for a given time interval is cumulative with those of
