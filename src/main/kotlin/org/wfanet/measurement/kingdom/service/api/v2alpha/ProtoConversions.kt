@@ -82,7 +82,7 @@ fun InternalMeasurement.State.toState(): State =
     InternalMeasurement.State.FAILED -> State.FAILED
     InternalMeasurement.State.CANCELLED -> State.CANCELLED
     InternalMeasurement.State.STATE_UNSPECIFIED, InternalMeasurement.State.UNRECOGNIZED ->
-        State.STATE_UNSPECIFIED
+      State.STATE_UNSPECIFIED
   }
 
 /** Convert a public [State] to an internal [InternalMeasurement.State]. */
@@ -190,8 +190,8 @@ fun InternalMeasurement.toMeasurement(): Measurement {
       source.dataProvidersMap.entries.map(Map.Entry<Long, DataProviderValue>::toDataProviderEntry)
     if (source.details.protocolConfig.protocolCase !=
         InternalProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
-      ) {
-        protocolConfig = source.details.protocolConfig.toProtocolConfig()
+    ) {
+      protocolConfig = source.details.protocolConfig.toProtocolConfig()
     }
     state = source.state.toState()
     results +=
@@ -200,14 +200,12 @@ fun InternalMeasurement.toMeasurement(): Measurement {
         resultPair {
           if (it.externalAggregatorDuchyId.isNotBlank()) {
             certificate =
-              DuchyCertificateKey(
-                it.externalAggregatorDuchyId, certificateApiId
-              )
-              .toName()
+              DuchyCertificateKey(it.externalAggregatorDuchyId, certificateApiId).toName()
           } else if (it.externalDataProviderId != 0L) {
             certificate =
               DataProviderCertificateKey(
-                externalIdToApiId(it.externalDataProviderId), certificateApiId
+                externalIdToApiId(it.externalDataProviderId),
+                certificateApiId
               )
               .toName()
           }
@@ -228,9 +226,10 @@ fun DataProviderValue.toDataProviderEntryValue(dataProviderId: String): DataProv
   return DataProviderEntryKt.value {
     dataProviderCertificate =
       DataProviderCertificateKey(
-        dataProviderId, externalIdToApiId(externalDataProviderCertificateId)
-      )
-      .toName()
+          dataProviderId,
+          externalIdToApiId(externalDataProviderCertificateId)
+        )
+        .toName()
     dataProviderPublicKey = signedData {
       data = dataProviderValue.dataProviderPublicKey
       signature = dataProviderPublicKeySignature
