@@ -14,7 +14,6 @@
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.pow
 
