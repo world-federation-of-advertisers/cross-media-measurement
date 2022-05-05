@@ -75,7 +75,7 @@ fun InternalMeasurement.State.toState(): State =
   when (this) {
     InternalMeasurement.State.PENDING_REQUISITION_PARAMS,
     InternalMeasurement.State.PENDING_REQUISITION_FULFILLMENT ->
-        State.AWAITING_REQUISITION_FULFILLMENT
+      State.AWAITING_REQUISITION_FULFILLMENT
     InternalMeasurement.State.PENDING_PARTICIPANT_CONFIRMATION,
     InternalMeasurement.State.PENDING_COMPUTATION -> State.COMPUTING
     InternalMeasurement.State.SUCCEEDED -> State.SUCCEEDED
@@ -115,7 +115,7 @@ fun InternalMeasurement.Failure.Reason.toReason(): Failure.Reason =
     InternalMeasurement.Failure.Reason.CERTIFICATE_REVOKED -> Failure.Reason.CERTIFICATE_REVOKED
     InternalMeasurement.Failure.Reason.REQUISITION_REFUSED -> Failure.Reason.REQUISITION_REFUSED
     InternalMeasurement.Failure.Reason.COMPUTATION_PARTICIPANT_FAILED ->
-        Failure.Reason.COMPUTATION_PARTICIPANT_FAILED
+      Failure.Reason.COMPUTATION_PARTICIPANT_FAILED
     InternalMeasurement.Failure.Reason.REASON_UNSPECIFIED,
     InternalMeasurement.Failure.Reason.UNRECOGNIZED -> Failure.Reason.REASON_UNSPECIFIED
   }
@@ -172,16 +172,16 @@ fun InternalMeasurement.toMeasurement(): Measurement {
   return measurement {
     name =
       MeasurementKey(
-        externalIdToApiId(source.externalMeasurementConsumerId),
-        externalIdToApiId(source.externalMeasurementId)
-      )
-      .toName()
+          externalIdToApiId(source.externalMeasurementConsumerId),
+          externalIdToApiId(source.externalMeasurementId)
+        )
+        .toName()
     measurementConsumerCertificate =
       MeasurementConsumerCertificateKey(
-        externalIdToApiId(source.externalMeasurementConsumerId),
-        externalIdToApiId(source.externalMeasurementConsumerCertificateId)
-      )
-      .toName()
+          externalIdToApiId(source.externalMeasurementConsumerId),
+          externalIdToApiId(source.externalMeasurementConsumerCertificateId)
+        )
+        .toName()
     measurementSpec = signedData {
       data = source.details.measurementSpec
       signature = source.details.measurementSpecSignature
@@ -189,7 +189,8 @@ fun InternalMeasurement.toMeasurement(): Measurement {
     dataProviders +=
       source.dataProvidersMap.entries.map(Map.Entry<Long, DataProviderValue>::toDataProviderEntry)
     if (source.details.protocolConfig.protocolCase !=
-      InternalProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET) {
+        InternalProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
+      ) {
         protocolConfig = source.details.protocolConfig.toProtocolConfig()
     }
     state = source.state.toState()
@@ -199,7 +200,10 @@ fun InternalMeasurement.toMeasurement(): Measurement {
         resultPair {
           if (it.externalAggregatorDuchyId.isNotBlank()) {
             certificate =
-              DuchyCertificateKey(it.externalAggregatorDuchyId, certificateApiId).toName()
+              DuchyCertificateKey(
+                it.externalAggregatorDuchyId, certificateApiId
+              )
+              .toName()
           } else if (it.externalDataProviderId != 0L) {
             certificate =
               DataProviderCertificateKey(
@@ -250,18 +254,18 @@ fun Map.Entry<Long, DataProviderValue>.toDataProviderEntry(): DataProviderEntry 
  * @throws [IllegalStateException] if MeasurementType not specified
  */
 fun Measurement.toInternal(
-    measurementConsumerCertificateKey: MeasurementConsumerCertificateKey,
-    dataProvidersMap: Map<Long, DataProviderValue>,
-    measurementSpecProto: MeasurementSpec
+  measurementConsumerCertificateKey: MeasurementConsumerCertificateKey,
+  dataProvidersMap: Map<Long, DataProviderValue>,
+  measurementSpecProto: MeasurementSpec
 ): InternalMeasurement {
   val publicMeasurement = this
 
   return internalMeasurement {
     providedMeasurementId = measurementReferenceId
     externalMeasurementConsumerId =
-        apiIdToExternalId(measurementConsumerCertificateKey.measurementConsumerId)
+      apiIdToExternalId(measurementConsumerCertificateKey.measurementConsumerId)
     externalMeasurementConsumerCertificateId =
-        apiIdToExternalId(measurementConsumerCertificateKey.certificateId)
+      apiIdToExternalId(measurementConsumerCertificateKey.certificateId)
     dataProviders.putAll(dataProvidersMap)
     details = details {
       apiVersion = Version.V2_ALPHA.string
@@ -284,7 +288,7 @@ fun Measurement.toInternal(
         MeasurementSpec.MeasurementTypeCase.IMPRESSION,
         MeasurementSpec.MeasurementTypeCase.DURATION -> {}
         MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
-            error("MeasurementType not set.")
+          error("MeasurementType not set.")
       }
     }
   }
@@ -350,7 +354,7 @@ fun ExchangeStepAttempt.State.toInternal(): InternalExchangeStepAttempt.State {
 }
 
 fun Iterable<ExchangeStepAttempt.DebugLog>.toInternal():
-    Iterable<ExchangeStepAttemptDetails.DebugLog> {
+  Iterable<ExchangeStepAttemptDetails.DebugLog> {
   return map { apiProto ->
     ExchangeStepAttemptDetailsKt.debugLog {
       time = apiProto.time
@@ -440,15 +444,16 @@ fun ExchangeWorkflow.toInternal(): InternalExchangeWorkflow {
         stepIndex = index
         party = step.party.toInternal()
         prerequisiteStepIndices +=
-          step.inputLabelsMap
+          step
+            .inputLabelsMap
             .values
             .flatMap { value ->
               val prerequisites = labelsMap.getOrDefault(value, emptyList())
               prerequisites.forEach { (stepId, stepIndex) ->
                 require(step.hasCopyFromPreviousExchangeStep() || stepIndex < index) {
                   "Step ${step.stepId} with index $index cannot depend on step $stepId with" +
-                      " index $stepIndex. To depend on another step, the index must be greater than" +
-                      " the prerequisite step"
+                    " index $stepIndex. To depend on another step, the index must be greater than" +
+                    " the prerequisite step"
                 }
               }
               prerequisites.map { it.second }

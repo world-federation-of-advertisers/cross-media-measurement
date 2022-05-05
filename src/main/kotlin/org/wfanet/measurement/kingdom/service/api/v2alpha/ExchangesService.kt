@@ -55,12 +55,14 @@ class ExchangesService(
           externalRecurringExchangeId = apiIdToExternalId(key.recurringExchangeId)
           date = LocalDate.parse(key.exchangeId).toProtoDate()
           this.provider = provider
-        })
+        }
+      )
     val exchangeSteps =
       internalExchangeSteps.streamExchangeSteps(
         streamExchangeStepsRequest {
           filter { externalRecurringExchangeIds += apiIdToExternalId(key.recurringExchangeId) }
-        })
+        }
+      )
 
     val externalExchangeWorkflow = getExchangeWorkflow(internalExchange)
     val graphvizString = createGraphViz(externalExchangeWorkflow, exchangeSteps.toList())
