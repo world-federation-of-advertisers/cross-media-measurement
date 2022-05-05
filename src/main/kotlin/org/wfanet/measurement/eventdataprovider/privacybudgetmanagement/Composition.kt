@@ -24,13 +24,6 @@ data class AdvancedCompositionKey(
   val totalDelta: Float
 )
 
-data class ChargeWithRepetitions(val epsilon: Float, val delta: Float, val count: Int) {
-
-  fun isEquivalentTo(other: ChargeWithRepetitions): Boolean =
-    (abs(this.epsilon - other.epsilon) < PrivacyBudgetLedgerConstants.EPSILON_EPSILON) &&
-      (abs(this.delta - other.delta) < PrivacyBudgetLedgerConstants.DELTA_EPSILON)
-}
-
 object Composition {
   /** Memoized computation of binomial coefficients. */
   private val coeffs = ConcurrentHashMap<Pair<Int, Int>, Float>()
@@ -83,7 +76,7 @@ object Composition {
 
   /**
    * Computes total DP parameters after applying an algorithm with given privacy parameters multiple
-   * times and checks if it exceeds given limits
+   * times.
    *
    * Using the optimal advanced composition theorem, Theorem 3.3 from the paper Kairouz, Oh,
    * Viswanath. "The Composition Theorem for Differential Privacy", to compute the total DP

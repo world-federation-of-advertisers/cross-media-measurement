@@ -13,6 +13,8 @@
  */
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
+import kotlin.math.abs
+
 object PrivacyBudgetLedgerConstants {
   /**
    * Two differential privacy values are considered equal if they are within this amount of each
@@ -21,6 +23,12 @@ object PrivacyBudgetLedgerConstants {
   const val EPSILON_EPSILON = 1.0E-9
   const val DELTA_EPSILON = 1.0E-12
 }
+
+data class ChargeWithRepetitions(val epsilon: Float, val delta: Float, val count: Int)
+
+fun ChargeWithRepetitions.isEquivalentTo(other: ChargeWithRepetitions): Boolean =
+  (abs(this.epsilon - other.epsilon) < PrivacyBudgetLedgerConstants.EPSILON_EPSILON) &&
+    (abs(this.delta - other.delta) < PrivacyBudgetLedgerConstants.DELTA_EPSILON)
 
 /** Manages and updates privacy budget data. */
 class PrivacyBudgetLedger(
