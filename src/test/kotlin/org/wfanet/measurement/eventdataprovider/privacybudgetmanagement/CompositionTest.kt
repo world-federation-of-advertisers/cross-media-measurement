@@ -16,11 +16,11 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 
-class AdvancedCompositionTest {
+class CompositionTest {
   @Test
   fun `advanced composition computation works as expected`() {
     assertThat(
-        AdvancedComposition.totalPrivacyBudgetUsageUnderAdvancedComposition(
+        Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
           PrivacyCharge(1.0f, 0.0f),
           30,
           0.0f
@@ -28,7 +28,7 @@ class AdvancedCompositionTest {
       )
       .isEqualTo(30.0f)
     assertThat(
-        AdvancedComposition.totalPrivacyBudgetUsageUnderAdvancedComposition(
+        Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
           PrivacyCharge(1.0f, 0.001f),
           30,
           0.06f
@@ -36,7 +36,7 @@ class AdvancedCompositionTest {
       )
       .isEqualTo(22.0f)
     assertThat(
-        AdvancedComposition.totalPrivacyBudgetUsageUnderAdvancedComposition(
+        Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
           PrivacyCharge(1.0f, 0.001f),
           30,
           0.1f
@@ -44,7 +44,7 @@ class AdvancedCompositionTest {
       )
       .isEqualTo(20.0f)
     assertThat(
-        AdvancedComposition.totalPrivacyBudgetUsageUnderAdvancedComposition(
+        Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
           PrivacyCharge(1.0f, 0.2f),
           1,
           0.1f
@@ -52,7 +52,7 @@ class AdvancedCompositionTest {
       )
       .isEqualTo(null)
     assertThat(
-        AdvancedComposition.totalPrivacyBudgetUsageUnderAdvancedComposition(
+        Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
           PrivacyCharge(1.0f, 0.01f),
           30,
           0.26f

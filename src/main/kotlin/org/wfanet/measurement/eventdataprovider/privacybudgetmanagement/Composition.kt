@@ -14,6 +14,7 @@
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.pow
 
@@ -23,10 +24,18 @@ data class AdvancedCompositionKey(
   val totalDelta: Float
 )
 
-/** Memoized computation of binomial coefficients. */
-object AdvancedComposition {
-  private val memoizedCoeffs = ConcurrentHashMap<Pair<Int, Int>, Float>()
-  private val memoizedResults = HashMap<AdvancedCompositionKey, Float?>()
+data class ChargeWithRepetitions(val epsilon: Float, val delta: Float, val count: Int) {
+
+  fun isEquivalentTo(other: ChargeWithRepetitions): Boolean =
+    (abs(this.epsilon - other.epsilon) < PrivacyBudgetLedgerConstants.EPSILON_EPSILON) &&
+      (abs(this.delta - other.delta) < PrivacyBudgetLedgerConstants.DELTA_EPSILON)
+}
+
+object Composition {
+  /** Memoized computation of binomial coefficients. */
+  private val coeffs = ConcurrentHashMap<Pair<Int, Int>, Float>()
+  /** Memoized computation of advanced composition results. */
+  private val advancedCompositionResults = HashMap<AdvancedCompositionKey, Float?>()
 
   /**
    * Computes the number of distinct ways to choose k items from a set of n.
@@ -44,7 +53,7 @@ object AdvancedComposition {
     } else if (n - k < k) {
       coeff(n, n - k)
     } else {
-      memoizedCoeffs.getOrPut(n to k) { coeff(n - 1, k - 1) + coeff(n - 1, k) }
+      coeffs.getOrPut(n to k) { coeff(n - 1, k - 1) + coeff(n - 1, k) }
     }
   }
 
@@ -74,7 +83,7 @@ object AdvancedComposition {
 
   /**
    * Computes total DP parameters after applying an algorithm with given privacy parameters multiple
-   * times.
+   * times and checks if it exceeds given limits
    *
    * Using the optimal advanced composition theorem, Theorem 3.3 from the paper Kairouz, Oh,
    * Viswanath. "The Composition Theorem for Differential Privacy", to compute the total DP
@@ -95,12 +104,56 @@ object AdvancedComposition {
    * delta)^repetitionCount, for which no guarantee of (totalEpsilon, totalDelta)-DP is possible for
    * any value of totalEpsilon.
    */
-  fun totalPrivacyBudgetUsageUnderAdvancedComposition(
+  private fun totalPrivacyBudgetUsageUnderAdvancedComposition(
     charge: PrivacyCharge,
     repetitionCount: Int,
     totalDelta: Float
   ): Float? =
-    memoizedResults.getOrPut(AdvancedCompositionKey(charge, repetitionCount, totalDelta)) {
-      calculateAdvancedComposition(charge, repetitionCount, totalDelta)
-    }
+    advancedCompositionResults.getOrPut(
+      AdvancedCompositionKey(charge, repetitionCount, totalDelta)
+    ) { calculateAdvancedComposition(charge, repetitionCount, totalDelta) }
+
+  /**
+   * Computes total DP parameters after applying advanced composition algorithm with given privacy
+   * parameters multiple times and checks if it exceeds given limits
+   *
+   * @param charges List of privacy charges for a single bucket group
+   * @param maximumTotalEpsilon
+   * @param maximumTotalEpsilon
+   *
+   * @return true if budget is exceeded false o/w
+   */
+  fun exceedsUnderAdvancedComposition(
+    charges: List<ChargeWithRepetitions>,
+    maximumTotalDelta: Float,
+    maximumTotalEpsilon: Float
+  ): Boolean {
+    val advancedCompositionEpsilon =
+      totalPrivacyBudgetUsageUnderAdvancedComposition(
+        PrivacyCharge(charges[0].epsilon, charges[0].delta),
+        charges.sumOf { it.count },
+        maximumTotalDelta
+      )
+    return if (advancedCompositionEpsilon != null) advancedCompositionEpsilon > maximumTotalEpsilon
+    else true
+  }
+
+  /**
+   * Computes total DP parameters after applying simple composition algorithm with given privacy
+   * parameters and checks if it exceeds given limits
+   *
+   * @param charges List of privacy charges for a single bucket group
+   * @param maximumTotalEpsilon
+   * @param maximumTotalEpsilon
+   *
+   * @return true if budget is exceeded false o/w
+   */
+  fun exceedsUnderSimpleComposition(
+    charges: List<ChargeWithRepetitions>,
+    maximumTotalDelta: Float,
+    maximumTotalEpsilon: Float
+  ) =
+    (charges.sumOf { it.epsilon.toDouble() * it.count.toDouble() } >
+      maximumTotalEpsilon.toDouble()) ||
+      (charges.sumOf { it.delta.toDouble() * it.count.toDouble() } > maximumTotalDelta.toDouble())
 }
