@@ -72,18 +72,18 @@ import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 
 /** Converts an internal [InternalMeasurement.State] to a public [State]. */
 fun InternalMeasurement.State.toState(): State =
-    when (this) {
-      InternalMeasurement.State.PENDING_REQUISITION_PARAMS,
-      InternalMeasurement.State.PENDING_REQUISITION_FULFILLMENT ->
-          State.AWAITING_REQUISITION_FULFILLMENT
-      InternalMeasurement.State.PENDING_PARTICIPANT_CONFIRMATION,
-      InternalMeasurement.State.PENDING_COMPUTATION -> State.COMPUTING
-      InternalMeasurement.State.SUCCEEDED -> State.SUCCEEDED
-      InternalMeasurement.State.FAILED -> State.FAILED
-      InternalMeasurement.State.CANCELLED -> State.CANCELLED
-      InternalMeasurement.State.STATE_UNSPECIFIED, InternalMeasurement.State.UNRECOGNIZED ->
-          State.STATE_UNSPECIFIED
-    }
+  when (this) {
+    InternalMeasurement.State.PENDING_REQUISITION_PARAMS,
+    InternalMeasurement.State.PENDING_REQUISITION_FULFILLMENT ->
+        State.AWAITING_REQUISITION_FULFILLMENT
+    InternalMeasurement.State.PENDING_PARTICIPANT_CONFIRMATION,
+    InternalMeasurement.State.PENDING_COMPUTATION -> State.COMPUTING
+    InternalMeasurement.State.SUCCEEDED -> State.SUCCEEDED
+    InternalMeasurement.State.FAILED -> State.FAILED
+    InternalMeasurement.State.CANCELLED -> State.CANCELLED
+    InternalMeasurement.State.STATE_UNSPECIFIED, InternalMeasurement.State.UNRECOGNIZED ->
+        State.STATE_UNSPECIFIED
+  }
 
 /** Convert a public [State] to an internal [InternalMeasurement.State]. */
 fun State.toInternalState(): List<InternalMeasurement.State> {
@@ -91,32 +91,34 @@ fun State.toInternalState(): List<InternalMeasurement.State> {
   return when (this) {
     State.AWAITING_REQUISITION_FULFILLMENT -> {
       listOf(
-          InternalMeasurement.State.PENDING_REQUISITION_PARAMS,
-          InternalMeasurement.State.PENDING_REQUISITION_FULFILLMENT)
+        InternalMeasurement.State.PENDING_REQUISITION_PARAMS,
+        InternalMeasurement.State.PENDING_REQUISITION_FULFILLMENT
+      )
     }
     State.COMPUTING -> {
       listOf(
-          InternalMeasurement.State.PENDING_PARTICIPANT_CONFIRMATION,
-          InternalMeasurement.State.PENDING_COMPUTATION)
+        InternalMeasurement.State.PENDING_PARTICIPANT_CONFIRMATION,
+        InternalMeasurement.State.PENDING_COMPUTATION
+      )
     }
     State.SUCCEEDED -> listOf(InternalMeasurement.State.SUCCEEDED)
     State.FAILED -> listOf(InternalMeasurement.State.FAILED)
     State.CANCELLED -> listOf(InternalMeasurement.State.CANCELLED)
     State.STATE_UNSPECIFIED, State.UNRECOGNIZED ->
-        listOf(InternalMeasurement.State.STATE_UNSPECIFIED)
+      listOf(InternalMeasurement.State.STATE_UNSPECIFIED)
   }
 }
 
 /** Converts an internal [InternalMeasurement.Failure.Reason] to a public [Failure.Reason]. */
 fun InternalMeasurement.Failure.Reason.toReason(): Failure.Reason =
-    when (this) {
-      InternalMeasurement.Failure.Reason.CERTIFICATE_REVOKED -> Failure.Reason.CERTIFICATE_REVOKED
-      InternalMeasurement.Failure.Reason.REQUISITION_REFUSED -> Failure.Reason.REQUISITION_REFUSED
-      InternalMeasurement.Failure.Reason.COMPUTATION_PARTICIPANT_FAILED ->
-          Failure.Reason.COMPUTATION_PARTICIPANT_FAILED
-      InternalMeasurement.Failure.Reason.REASON_UNSPECIFIED,
-      InternalMeasurement.Failure.Reason.UNRECOGNIZED -> Failure.Reason.REASON_UNSPECIFIED
-    }
+  when (this) {
+    InternalMeasurement.Failure.Reason.CERTIFICATE_REVOKED -> Failure.Reason.CERTIFICATE_REVOKED
+    InternalMeasurement.Failure.Reason.REQUISITION_REFUSED -> Failure.Reason.REQUISITION_REFUSED
+    InternalMeasurement.Failure.Reason.COMPUTATION_PARTICIPANT_FAILED ->
+        Failure.Reason.COMPUTATION_PARTICIPANT_FAILED
+    InternalMeasurement.Failure.Reason.REASON_UNSPECIFIED,
+    InternalMeasurement.Failure.Reason.UNRECOGNIZED -> Failure.Reason.REASON_UNSPECIFIED
+  }
 
 fun InternalDifferentialPrivacyParams.toDifferentialPrivacyParams(): DifferentialPrivacyParams {
   val source = this
@@ -133,14 +135,14 @@ fun InternalProtocolConfig.toProtocolConfig(): ProtocolConfig {
     name = ProtocolConfigKey(source.externalProtocolConfigId).toName()
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     measurementType =
-        when (source.measurementType) {
-          InternalProtocolConfig.MeasurementType.MEASUREMENT_TYPE_UNSPECIFIED ->
-              ProtocolConfig.MeasurementType.MEASUREMENT_TYPE_UNSPECIFIED
-          InternalProtocolConfig.MeasurementType.REACH_AND_FREQUENCY ->
-              ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
-          InternalProtocolConfig.MeasurementType.UNRECOGNIZED ->
-              error("MeasurementType unrecognized.")
-        }
+      when (source.measurementType) {
+        InternalProtocolConfig.MeasurementType.MEASUREMENT_TYPE_UNSPECIFIED ->
+          ProtocolConfig.MeasurementType.MEASUREMENT_TYPE_UNSPECIFIED
+        InternalProtocolConfig.MeasurementType.REACH_AND_FREQUENCY ->
+          ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
+        InternalProtocolConfig.MeasurementType.UNRECOGNIZED ->
+          error("MeasurementType unrecognized.")
+      }
     if (source.hasLiquidLegionsV2()) {
       liquidLegionsV2 = liquidLegionsV2 {
         if (source.liquidLegionsV2.hasSketchParams()) {
@@ -169,42 +171,45 @@ fun InternalMeasurement.toMeasurement(): Measurement {
   }
   return measurement {
     name =
-        MeasurementKey(
-                externalIdToApiId(source.externalMeasurementConsumerId),
-                externalIdToApiId(source.externalMeasurementId))
-            .toName()
+      MeasurementKey(
+        externalIdToApiId(source.externalMeasurementConsumerId),
+        externalIdToApiId(source.externalMeasurementId)
+      )
+      .toName()
     measurementConsumerCertificate =
-        MeasurementConsumerCertificateKey(
-                externalIdToApiId(source.externalMeasurementConsumerId),
-                externalIdToApiId(source.externalMeasurementConsumerCertificateId))
-            .toName()
+      MeasurementConsumerCertificateKey(
+        externalIdToApiId(source.externalMeasurementConsumerId),
+        externalIdToApiId(source.externalMeasurementConsumerCertificateId)
+      )
+      .toName()
     measurementSpec = signedData {
       data = source.details.measurementSpec
       signature = source.details.measurementSpecSignature
     }
     dataProviders +=
-        source.dataProvidersMap.entries.map(Map.Entry<Long, DataProviderValue>::toDataProviderEntry)
+      source.dataProvidersMap.entries.map(Map.Entry<Long, DataProviderValue>::toDataProviderEntry)
     if (source.details.protocolConfig.protocolCase !=
-        InternalProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET) {
-      protocolConfig = source.details.protocolConfig.toProtocolConfig()
+      InternalProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET) {
+        protocolConfig = source.details.protocolConfig.toProtocolConfig()
     }
     state = source.state.toState()
     results +=
-        source.resultsList.map {
-          val certificateApiId = externalIdToApiId(it.externalCertificateId)
-          resultPair {
-            if (it.externalAggregatorDuchyId.isNotBlank()) {
-              certificate =
-                  DuchyCertificateKey(it.externalAggregatorDuchyId, certificateApiId).toName()
-            } else if (it.externalDataProviderId != 0L) {
-              certificate =
-                  DataProviderCertificateKey(
-                          externalIdToApiId(it.externalDataProviderId), certificateApiId)
-                      .toName()
-            }
-            encryptedResult = it.encryptedResult
+      source.resultsList.map {
+        val certificateApiId = externalIdToApiId(it.externalCertificateId)
+        resultPair {
+          if (it.externalAggregatorDuchyId.isNotBlank()) {
+            certificate =
+              DuchyCertificateKey(it.externalAggregatorDuchyId, certificateApiId).toName()
+          } else if (it.externalDataProviderId != 0L) {
+            certificate =
+              DataProviderCertificateKey(
+                externalIdToApiId(it.externalDataProviderId), certificateApiId
+              )
+              .toName()
           }
+          encryptedResult = it.encryptedResult
         }
+      }
     measurementReferenceId = source.providedMeasurementId
     failure = failure {
       reason = source.details.failure.reason.toReason()
@@ -218,9 +223,10 @@ fun DataProviderValue.toDataProviderEntryValue(dataProviderId: String): DataProv
   val dataProviderValue = this
   return DataProviderEntryKt.value {
     dataProviderCertificate =
-        DataProviderCertificateKey(
-                dataProviderId, externalIdToApiId(externalDataProviderCertificateId))
-            .toName()
+      DataProviderCertificateKey(
+        dataProviderId, externalIdToApiId(externalDataProviderCertificateId)
+      )
+      .toName()
     dataProviderPublicKey = signedData {
       data = dataProviderValue.dataProviderPublicKey
       signature = dataProviderPublicKeySignature
@@ -287,11 +293,12 @@ fun Measurement.toInternal(
 /** @throws [IllegalStateException] if InternalExchange.State not specified */
 fun InternalExchange.toV2Alpha(graphvizRepresentation: String): Exchange {
   val exchangeKey =
-      ExchangeKey(
-          dataProviderId = null,
-          modelProviderId = null,
-          recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
-          exchangeId = date.toLocalDate().toString())
+    ExchangeKey(
+      dataProviderId = null,
+      modelProviderId = null,
+      recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
+      exchangeId = date.toLocalDate().toString()
+    )
   return exchange {
     name = exchangeKey.toName()
     date = this@toV2Alpha.date
@@ -316,10 +323,11 @@ private val InternalExchange.v2AlphaState: Exchange.State
 /** @throws [IllegalStateException] if InternalExchangeStep.State not specified */
 fun InternalExchangeStep.toV2Alpha(): ExchangeStep {
   val exchangeStepKey =
-      ExchangeStepKey(
-          recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
-          exchangeId = date.toLocalDate().toString(),
-          exchangeStepId = stepIndex.toString())
+    ExchangeStepKey(
+      recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
+      exchangeId = date.toLocalDate().toString(),
+      exchangeStepId = stepIndex.toString()
+    )
   return exchangeStep {
     name = exchangeStepKey.toName()
     state = v2AlphaState
@@ -354,11 +362,12 @@ fun Iterable<ExchangeStepAttempt.DebugLog>.toInternal():
 /** @throws [IllegalStateException] if InternalExchangeStepAttempt.State not specified */
 fun InternalExchangeStepAttempt.toV2Alpha(): ExchangeStepAttempt {
   val key =
-      ExchangeStepAttemptKey(
-          recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
-          exchangeId = date.toLocalDate().toString(),
-          exchangeStepId = stepIndex.toString(),
-          exchangeStepAttemptId = this@toV2Alpha.attemptNumber.toString())
+    ExchangeStepAttemptKey(
+      recurringExchangeId = externalIdToApiId(externalRecurringExchangeId),
+      exchangeId = date.toLocalDate().toString(),
+      exchangeStepId = stepIndex.toString(),
+      exchangeStepAttemptId = this@toV2Alpha.attemptNumber.toString()
+    )
   return exchangeStepAttempt {
     name = key.toName()
     attemptNumber = this@toV2Alpha.attemptNumber
@@ -426,28 +435,28 @@ fun ExchangeWorkflow.toInternal(): InternalExchangeWorkflow {
     }
   }
   val internalSteps =
-      stepsList.mapIndexed { index, step ->
-        ExchangeWorkflowKt.step {
-          stepIndex = index
-          party = step.party.toInternal()
-          prerequisiteStepIndices +=
-              step.inputLabelsMap
-                  .values
-                  .flatMap { value ->
-                    val prerequisites = labelsMap.getOrDefault(value, emptyList())
-                    prerequisites.forEach { (stepId, stepIndex) ->
-                      require(step.hasCopyFromPreviousExchangeStep() || stepIndex < index) {
-                        "Step ${step.stepId} with index $index cannot depend on step $stepId with" +
-                            " index $stepIndex. To depend on another step, the index must be greater than" +
-                            " the prerequisite step"
-                      }
-                    }
-                    prerequisites.map { it.second }
-                  }
-                  .filter { it < index }
-                  .toSet()
-        }
+    stepsList.mapIndexed { index, step ->
+      ExchangeWorkflowKt.step {
+        stepIndex = index
+        party = step.party.toInternal()
+        prerequisiteStepIndices +=
+          step.inputLabelsMap
+            .values
+            .flatMap { value ->
+              val prerequisites = labelsMap.getOrDefault(value, emptyList())
+              prerequisites.forEach { (stepId, stepIndex) ->
+                require(step.hasCopyFromPreviousExchangeStep() || stepIndex < index) {
+                  "Step ${step.stepId} with index $index cannot depend on step $stepId with" +
+                      " index $stepIndex. To depend on another step, the index must be greater than" +
+                      " the prerequisite step"
+                }
+              }
+              prerequisites.map { it.second }
+            }
+            .filter { it < index }
+            .toSet()
       }
+    }
 
   return exchangeWorkflow { steps += internalSteps }
 }

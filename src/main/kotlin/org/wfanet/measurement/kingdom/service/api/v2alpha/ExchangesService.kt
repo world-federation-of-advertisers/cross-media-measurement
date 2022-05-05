@@ -42,25 +42,25 @@ import org.wfanet.measurement.internal.kingdom.streamExchangeStepsRequest
 import org.wfanet.measurement.tools.createGraphViz
 
 class ExchangesService(
-    private val internalExchanges: ExchangesCoroutineStub,
-    private val internalExchangeSteps: ExchangeStepsCoroutineStub
+  private val internalExchanges: ExchangesCoroutineStub,
+  private val internalExchangeSteps: ExchangeStepsCoroutineStub
 ) : ExchangesCoroutineImplBase() {
   override suspend fun getExchange(request: GetExchangeRequest): Exchange {
     val provider = validateRequestProvider(getProvider(request))
 
     val key = grpcRequireNotNull(ExchangeKey.fromName(request.name))
     val internalExchange =
-        internalExchanges.getExchange(
-            getExchangeRequest {
-              externalRecurringExchangeId = apiIdToExternalId(key.recurringExchangeId)
-              date = LocalDate.parse(key.exchangeId).toProtoDate()
-              this.provider = provider
-            })
+      internalExchanges.getExchange(
+        getExchangeRequest {
+          externalRecurringExchangeId = apiIdToExternalId(key.recurringExchangeId)
+          date = LocalDate.parse(key.exchangeId).toProtoDate()
+          this.provider = provider
+        })
     val exchangeSteps =
-        internalExchangeSteps.streamExchangeSteps(
-            streamExchangeStepsRequest {
-              filter { externalRecurringExchangeIds += apiIdToExternalId(key.recurringExchangeId) }
-            })
+      internalExchangeSteps.streamExchangeSteps(
+        streamExchangeStepsRequest {
+          filter { externalRecurringExchangeIds += apiIdToExternalId(key.recurringExchangeId) }
+        })
 
     val externalExchangeWorkflow = getExchangeWorkflow(internalExchange)
     val graphvizString = createGraphViz(externalExchangeWorkflow, exchangeSteps.toList())
@@ -86,15 +86,15 @@ private fun getProvider(request: GetExchangeRequest): String {
     PartyCase.DATA_PROVIDER -> request.dataProvider
     PartyCase.MODEL_PROVIDER -> request.modelProvider
     else ->
-        failGrpc(Status.UNAUTHENTICATED) {
-          "Caller identity is neither DataProvider nor ModelProvider"
-        }
+      failGrpc(Status.UNAUTHENTICATED) {
+        "Caller identity is neither DataProvider nor ModelProvider"
+      }
   }
 }
 
 private fun getExchangeWorkflow(internalExchange: InternalExchange): ExchangeWorkflow {
   val recurringExchange =
-      RecurringExchange.parser().parseFrom(internalExchange.serializedRecurringExchange)
+    RecurringExchange.parser().parseFrom(internalExchange.serializedRecurringExchange)
   val recurringExchangeDetails = recurringExchange.details
   return ExchangeWorkflow.parser().parseFrom(recurringExchangeDetails.externalExchangeWorkflow)
 }

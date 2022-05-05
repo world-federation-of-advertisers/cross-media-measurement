@@ -80,10 +80,10 @@ private val INTERNAL_EXCHANGE = internalExchange {
 class ExchangesServiceTest {
 
   private val internalService: InternalExchangesCoroutineImplBase =
-      mockService() { onBlocking { getExchange(any()) }.thenReturn(INTERNAL_EXCHANGE) }
+    mockService() { onBlocking { getExchange(any()) }.thenReturn(INTERNAL_EXCHANGE) }
 
   private val internalExchangeStepsService: InternalExchangeStepsCoroutineImplBase =
-      mockService() { onBlocking { streamExchangeSteps(any()) }.thenReturn(emptyFlow()) }
+    mockService() { onBlocking { streamExchangeSteps(any()) }.thenReturn(emptyFlow()) }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalService) }
   @get:Rule
@@ -92,9 +92,9 @@ class ExchangesServiceTest {
   }
 
   private val service =
-      ExchangesService(
-          InternalExchangesCoroutineStub(grpcTestServerRule.channel),
-          InternalExchangeStepsCoroutineStub(grpcTestServerRuleExchangeSteps.channel))
+    ExchangesService(
+      InternalExchangesCoroutineStub(grpcTestServerRule.channel),
+      InternalExchangeStepsCoroutineStub(grpcTestServerRuleExchangeSteps.channel))
 
   private fun getExchange(init: GetExchangeRequestKt.Dsl.() -> Unit): Exchange = runBlocking {
     service.getExchange(getExchangeRequest(init))
@@ -104,12 +104,12 @@ class ExchangesServiceTest {
   fun `getExchange unauthenticated`() {
     val exchangeKey = ExchangeKey(null, null, externalIdToApiId(RECURRING_EXCHANGE_ID), EXCHANGE_ID)
     val e =
-        assertFailsWith<StatusRuntimeException> {
-          getExchange {
-            name = exchangeKey.toName()
-            dataProvider = DATA_PROVIDER
-          }
+      assertFailsWith<StatusRuntimeException> {
+        getExchange {
+          name = exchangeKey.toName()
+          dataProvider = DATA_PROVIDER
         }
+      }
     assertThat(e.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 
@@ -123,30 +123,32 @@ class ExchangesServiceTest {
 
     val exchangeKey = ExchangeKey(null, null, externalIdToApiId(RECURRING_EXCHANGE_ID), EXCHANGE_ID)
     val response =
-        withPrincipal(principal) {
-          getExchange {
-            name = exchangeKey.toName()
-            dataProvider = DATA_PROVIDER
-          }
+      withPrincipal(principal) {
+        getExchange {
+          name = exchangeKey.toName()
+          dataProvider = DATA_PROVIDER
         }
+      }
 
     assertThat(response)
-        .isEqualTo(
-            exchange {
-              name = exchangeKey.toName()
-              date = DATE
-              state = Exchange.State.ACTIVE
-              auditTrailHash = AUDIT_TRAIL_HASH
-              graphvizRepresentation = GRAPHVIZ_REPRESENTATION
-            })
+      .isEqualTo(
+        exchange {
+          name = exchangeKey.toName()
+          date = DATE
+          state = Exchange.State.ACTIVE
+          auditTrailHash = AUDIT_TRAIL_HASH
+          graphvizRepresentation = GRAPHVIZ_REPRESENTATION
+        }
+      )
 
     verifyProtoArgument(internalService, InternalExchangesCoroutineImplBase::getExchange)
-        .isEqualTo(
-            internalGetExchangeRequest {
-              externalRecurringExchangeId = RECURRING_EXCHANGE_ID
-              date = DATE
-              this.provider = provider
-            })
+      .isEqualTo(
+        internalGetExchangeRequest {
+          externalRecurringExchangeId = RECURRING_EXCHANGE_ID
+          date = DATE
+          this.provider = provider
+        }
+      )
   }
 
   @Test
@@ -158,15 +160,15 @@ class ExchangesServiceTest {
 
   @Test
   fun listExchanges() =
-      runBlocking<Unit> {
-        assertFailsWith(NotImplementedError::class) {
-          service.listExchanges(ListExchangesRequest.getDefaultInstance())
-        }
+    runBlocking<Unit> {
+      assertFailsWith(NotImplementedError::class) {
+        service.listExchanges(ListExchangesRequest.getDefaultInstance())
       }
+    }
 
   @Test
   fun uploadAuditTrail() =
-      runBlocking<Unit> {
-        assertFailsWith(NotImplementedError::class) { service.uploadAuditTrail(emptyFlow()) }
-      }
+    runBlocking<Unit> {
+      assertFailsWith(NotImplementedError::class) { service.uploadAuditTrail(emptyFlow()) }
+    }
 }
