@@ -39,7 +39,7 @@ import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.getExchangeRequest
 import org.wfanet.measurement.internal.kingdom.streamExchangeStepsRequest
-import org.wfanet.measurement.tools.createGraphViz
+
 
 class ExchangesService(
   private val internalExchanges: ExchangesCoroutineStub,
@@ -65,10 +65,10 @@ class ExchangesService(
       )
 
     val externalExchangeWorkflow = getExchangeWorkflow(internalExchange)
-    val graphvizString = createGraphViz(externalExchangeWorkflow, exchangeSteps.toList())
+    //val graphvizString = createGraphViz(externalExchangeWorkflow, exchangeSteps.toList())
 
     return try {
-      internalExchange.toV2Alpha(graphvizString)
+      internalExchange.toV2Alpha("")
     } catch (e: Throwable) {
       failGrpc(Status.INVALID_ARGUMENT) { e.message ?: "Failed to convert InternalExchange" }
     }
