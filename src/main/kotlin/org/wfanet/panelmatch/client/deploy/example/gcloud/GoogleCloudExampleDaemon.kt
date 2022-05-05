@@ -132,7 +132,7 @@ private class GoogleCloudExampleDaemon : ExampleDaemon() {
   )
   private var dataflowDiskSize by Delegates.notNull<Int>()
 
-  private interface Options : DataflowPipelineOptions, SdkHarnessOptions
+  interface Options : DataflowPipelineOptions, SdkHarnessOptions
 
   override fun makePipelineOptions(): PipelineOptions {
     return PipelineOptionsFactory.`as`(Options::class.java).apply {
