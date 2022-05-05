@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
 import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.ErrorCode
@@ -84,6 +85,12 @@ class SpannerEventGroupMetadataDescriptorsService(
   override suspend fun updateEventGroupMetadataDescriptor(
     request: UpdateEventGroupMetadataDescriptorRequest
   ): EventGroupMetadataDescriptor {
+    grpcRequire(request.eventGroupMetadataDescriptor.externalDataProviderId > 0L) {
+      "ExternalDataProviderId unspecified"
+    }
+    grpcRequire(request.eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId > 0L) {
+      "ExternalEventGroupMetadataDescriptorId unspecified"
+    }
     try {
       return UpdateEventGroupMetadataDescriptor(request.eventGroupMetadataDescriptor)
         .execute(client, idGenerator)

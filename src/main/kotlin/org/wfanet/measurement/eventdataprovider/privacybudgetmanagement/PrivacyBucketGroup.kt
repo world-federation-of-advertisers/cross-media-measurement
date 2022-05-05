@@ -34,7 +34,7 @@ data class PrivacyBucketGroup(
   val ageGroup: AgeGroup,
   val gender: Gender,
   val vidSampleStart: Float,
-  val vidSampleWidth: Float,
+  val vidSampleWidth: Float
 ) {
   init {
     if (this.vidSampleStart + this.vidSampleWidth > 1) {
@@ -60,10 +60,11 @@ data class PrivacyBucketGroup(
       return false
     }
 
-    val vidSampleEnd1 = this.vidSampleStart + this.vidSampleWidth
-    val vidSampleEnd2 = otherBucketGroup.vidSampleStart + otherBucketGroup.vidSampleWidth
+    val thisVidSampleEnd = this.vidSampleStart + this.vidSampleWidth
+    val otherVidSampleEnd = otherBucketGroup.vidSampleStart + otherBucketGroup.vidSampleWidth
 
-    return (this.vidSampleStart <= vidSampleEnd2) &&
-      (otherBucketGroup.vidSampleStart <= vidSampleEnd1)
+    // Vid ranges are half-open intervals. [0.1, 0.2) does not overlap with vid[0.2, 0.3)
+    return this.vidSampleStart < otherVidSampleEnd &&
+      otherBucketGroup.vidSampleStart < thisVidSampleEnd
   }
 }

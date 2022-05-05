@@ -13,47 +13,51 @@
  */
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
-import kotlin.test.assertEquals
+import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 
 class AdvancedCompositionTest {
   @Test
-  fun `binomial coefficients compute as expected`() {
-    val binom = Binom()
-    assertEquals(binom.coeff(0, 0), 1.0f)
-    assertEquals(binom.coeff(1, 0), 1.0f)
-    assertEquals(binom.coeff(1, 1), 1.0f)
-    assertEquals(binom.coeff(2, 0), 1.0f)
-    assertEquals(binom.coeff(2, 1), 2.0f)
-    assertEquals(binom.coeff(2, 2), 1.0f)
-    assertEquals(binom.coeff(3, 0), 1.0f)
-    assertEquals(binom.coeff(3, 1), 3.0f)
-    assertEquals(binom.coeff(3, 2), 3.0f)
-    assertEquals(binom.coeff(3, 3), 1.0f)
-    assertEquals(binom.coeff(20, 10), 184756.0f)
-  }
-
-  @Test
-  fun `advanced composition`() {
-    assertEquals(
-      totalPrivacyBudgetUsageUnderAdvancedComposition(PrivacyCharge(1.0f, 0.0f), 30, 0.0f),
-      30.0f
-    )
-    assertEquals(
-      totalPrivacyBudgetUsageUnderAdvancedComposition(PrivacyCharge(1.0f, 0.001f), 30, 0.06f),
-      22.0f
-    )
-    assertEquals(
-      totalPrivacyBudgetUsageUnderAdvancedComposition(PrivacyCharge(1.0f, 0.001f), 30, 0.1f),
-      20.0f
-    )
-    assertEquals(
-      totalPrivacyBudgetUsageUnderAdvancedComposition(PrivacyCharge(1.0f, 0.2f), 1, 0.1f),
-      null
-    )
-    assertEquals(
-      totalPrivacyBudgetUsageUnderAdvancedComposition(PrivacyCharge(1.0f, 0.01f), 30, 0.26f),
-      null
-    )
+  fun `advanced composition computation works as expected`() {
+    assertThat(
+        AdvancedComposition.totalPrivacyBudgetUsageUnderAdvancedComposition(
+          PrivacyCharge(1.0f, 0.0f),
+          30,
+          0.0f
+        )
+      )
+      .isEqualTo(30.0f)
+    assertThat(
+        AdvancedComposition.totalPrivacyBudgetUsageUnderAdvancedComposition(
+          PrivacyCharge(1.0f, 0.001f),
+          30,
+          0.06f
+        )
+      )
+      .isEqualTo(22.0f)
+    assertThat(
+        AdvancedComposition.totalPrivacyBudgetUsageUnderAdvancedComposition(
+          PrivacyCharge(1.0f, 0.001f),
+          30,
+          0.1f
+        )
+      )
+      .isEqualTo(20.0f)
+    assertThat(
+        AdvancedComposition.totalPrivacyBudgetUsageUnderAdvancedComposition(
+          PrivacyCharge(1.0f, 0.2f),
+          1,
+          0.1f
+        )
+      )
+      .isEqualTo(null)
+    assertThat(
+        AdvancedComposition.totalPrivacyBudgetUsageUnderAdvancedComposition(
+          PrivacyCharge(1.0f, 0.01f),
+          30,
+          0.26f
+        )
+      )
+      .isEqualTo(null)
   }
 }

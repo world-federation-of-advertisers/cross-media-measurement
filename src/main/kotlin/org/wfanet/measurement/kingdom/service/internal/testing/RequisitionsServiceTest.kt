@@ -54,7 +54,6 @@ import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt.filte
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
-import org.wfanet.measurement.internal.kingdom.getRequisitionByDataProviderIdRequest
 import org.wfanet.measurement.internal.kingdom.getRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest
@@ -546,8 +545,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
     val requisition =
       service.getRequisition(
         getRequisitionRequest {
-          externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
-          externalMeasurementId = measurement.externalMeasurementId
+          this.externalDataProviderId = externalDataProviderId
           this.externalRequisitionId = externalRequisitionId
         }
       )
@@ -595,7 +593,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
   }
 
   @Test
-  fun `getRequisition returns expected direct measurement`() = runBlocking {
+  fun `getRequisition returns expected direct requisition`() = runBlocking {
     val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
     val dataProviderValue = dataProvider.toDataProviderValue()
     val measurement =
@@ -624,8 +622,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
     val requisition =
       service.getRequisition(
         getRequisitionRequest {
-          externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
-          externalMeasurementId = measurement.externalMeasurementId
+          externalDataProviderId = listedRequisition.externalDataProviderId
           externalRequisitionId = listedRequisition.externalRequisitionId
         }
       )
@@ -657,78 +654,6 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
     assertThat(requisition)
       .ignoringFields(Requisition.UPDATE_TIME_FIELD_NUMBER, Requisition.DUCHIES_FIELD_NUMBER)
       .isEqualTo(expectedRequisition)
-    assertThat(requisition).isEqualTo(listedRequisition)
-  }
-
-  @Test
-  fun `getRequisitionByDataProviderId returns measurement`() = runBlocking {
-    val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
-    val measurement =
-      population.createComputedMeasurement(
-        dataServices.measurementsService,
-        population.createMeasurementConsumer(
-          dataServices.measurementConsumersService,
-          dataServices.accountsService
-        ),
-        "measurement",
-        dataProvider
-      )
-    val listedRequisition =
-      service
-        .streamRequisitions(
-          streamRequisitionsRequest {
-            filter = filter {
-              externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
-              externalMeasurementId = measurement.externalMeasurementId
-            }
-          }
-        )
-        .first()
-    val externalRequisitionId = listedRequisition.externalRequisitionId
-
-    val requisition =
-      service.getRequisitionByDataProviderId(
-        getRequisitionByDataProviderIdRequest {
-          externalDataProviderId = dataProvider.externalDataProviderId
-          this.externalRequisitionId = externalRequisitionId
-        }
-      )
-    assertThat(requisition).isEqualTo(listedRequisition)
-  }
-
-  @Test
-  fun `getRequisitionByDataProviderId returns direct requisition`() = runBlocking {
-    val dataProvider = population.createDataProvider(dataServices.dataProvidersService)
-    val measurement =
-      population.createDirectMeasurement(
-        dataServices.measurementsService,
-        population.createMeasurementConsumer(
-          dataServices.measurementConsumersService,
-          dataServices.accountsService
-        ),
-        "measurement",
-        dataProvider
-      )
-    val listedRequisition =
-      service
-        .streamRequisitions(
-          streamRequisitionsRequest {
-            filter = filter {
-              externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
-              externalMeasurementId = measurement.externalMeasurementId
-            }
-          }
-        )
-        .first()
-    val externalRequisitionId = listedRequisition.externalRequisitionId
-
-    val requisition =
-      service.getRequisitionByDataProviderId(
-        getRequisitionByDataProviderIdRequest {
-          externalDataProviderId = dataProvider.externalDataProviderId
-          this.externalRequisitionId = externalRequisitionId
-        }
-      )
     assertThat(requisition).isEqualTo(listedRequisition)
   }
 
@@ -786,8 +711,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
       .isEqualTo(
         service.getRequisition(
           getRequisitionRequest {
-            externalMeasurementId = measurement.externalMeasurementId
-            externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+            externalDataProviderId = requisition.externalDataProviderId
             externalRequisitionId = requisition.externalRequisitionId
           }
         )
@@ -856,8 +780,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
       .isEqualTo(
         service.getRequisition(
           getRequisitionRequest {
-            externalMeasurementId = measurement.externalMeasurementId
-            externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+            externalDataProviderId = requisitions[1].externalDataProviderId
             externalRequisitionId = requisitions[1].externalRequisitionId
           }
         )
@@ -1077,8 +1000,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
       .isEqualTo(
         service.getRequisition(
           getRequisitionRequest {
-            externalMeasurementId = measurement.externalMeasurementId
-            externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+            externalDataProviderId = requisition.externalDataProviderId
             externalRequisitionId = requisition.externalRequisitionId
           }
         )
@@ -1139,8 +1061,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         .isEqualTo(
           service.getRequisition(
             getRequisitionRequest {
-              externalMeasurementId = measurement.externalMeasurementId
-              externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+              externalDataProviderId = requisitions[1].externalDataProviderId
               externalRequisitionId = requisitions[1].externalRequisitionId
             }
           )
@@ -1303,8 +1224,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
       .isEqualTo(
         service.getRequisition(
           getRequisitionRequest {
-            externalMeasurementId = measurement.externalMeasurementId
-            externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+            externalDataProviderId = requisition.externalDataProviderId
             externalRequisitionId = requisition.externalRequisitionId
           }
         )

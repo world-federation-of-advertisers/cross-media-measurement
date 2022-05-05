@@ -18,6 +18,8 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import java.nio.file.Paths
 import java.time.Duration
+import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.logging.Logger
 import kotlin.random.Random
 import kotlinx.coroutines.delay
@@ -29,6 +31,7 @@ import org.wfanet.estimation.ValueHistogram
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvider
+import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
@@ -36,7 +39,6 @@ import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.EventTemplates
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
@@ -72,12 +74,15 @@ import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
+import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.loadLibrary
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
@@ -156,7 +161,22 @@ class FrontendSimulator(
       createMeasurement(measurementConsumer, runId, ::newImpressionMeasurementSpec)
     logger.info("Created impression measurement ${createdImpressionMeasurement.name}.")
 
-    // TODO(@tristanvuong): get result and compare it to the expected result
+    var impressionResults = getImpressionResults(createdImpressionMeasurement.name)
+    while (impressionResults.isEmpty()) {
+      logger.info("Fulfillment not done yet, wait for another 30 seconds.")
+      delay(Duration.ofSeconds(30).toMillis())
+      impressionResults = getImpressionResults(createdImpressionMeasurement.name)
+    }
+
+    impressionResults.forEach {
+      val result = parseAndVerifyResult(it)
+      assertThat(result.impression.value)
+        .isEqualTo(
+          // EdpSimulator sets it to this value.
+          apiIdToExternalId(DataProviderCertificateKey.fromName(it.certificate)!!.dataProviderId)
+        )
+    }
+    logger.info("Impression result is equal to the expected result. Correctness Test passes.")
   }
 
   /** A sequence of operations done in the simulator involving a duration measurement. */
@@ -167,7 +187,22 @@ class FrontendSimulator(
       createMeasurement(measurementConsumer, runId, ::newDurationMeasurementSpec)
     logger.info("Created duration measurement ${createdDurationMeasurement.name}.")
 
-    // TODO(@tristanvuong): get results and compare it to the expected result
+    var durationResults = getDurationResults(createdDurationMeasurement.name)
+    while (durationResults.isEmpty()) {
+      logger.info("Fulfillment not done yet, wait for another 30 seconds.")
+      delay(Duration.ofSeconds(30).toMillis())
+      durationResults = getDurationResults(createdDurationMeasurement.name)
+    }
+
+    durationResults.forEach {
+      val result = parseAndVerifyResult(it)
+      assertThat(result.watchDuration.value.seconds)
+        .isEqualTo(
+          // EdpSimulator sets it to this value.
+          apiIdToExternalId(DataProviderCertificateKey.fromName(it.certificate)!!.dataProviderId)
+        )
+    }
+    logger.info("Duration result is equal to the expected result. Correctness Test passes.")
   }
 
   /** Compare two [Result]s within the differential privacy error range. */
@@ -189,7 +224,10 @@ class FrontendSimulator(
   private suspend fun createMeasurement(
     measurementConsumer: MeasurementConsumer,
     runId: String,
-    newMeasurementSpec: (data: ByteString, nonceHashes: MutableList<ByteString>) -> MeasurementSpec
+    newMeasurementSpec:
+      (
+        serializedMeasurementPublicKey: ByteString,
+        nonceHashes: MutableList<ByteString>) -> MeasurementSpec
   ): Measurement {
     val eventGroups = listEventGroups(measurementConsumer.name)
 
@@ -219,6 +257,34 @@ class FrontendSimulator(
   }
 
   /** Gets the result of a [Measurement] if it is succeeded. */
+  private suspend fun getImpressionResults(measurementName: String): List<Measurement.ResultPair> {
+    val measurement =
+      measurementsClient
+        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+        .getMeasurement(getMeasurementRequest { name = measurementName })
+    logger.info("Current Measurement state is: " + measurement.state)
+    if (measurement.state == Measurement.State.FAILED) {
+      logger.warning("Failure reason: " + measurement.failure.reason)
+      logger.warning("Failure message: " + measurement.failure.message)
+    }
+    return measurement.resultsList.toList()
+  }
+
+  /** Gets the result of a [Measurement] if it is succeeded. */
+  private suspend fun getDurationResults(measurementName: String): List<Measurement.ResultPair> {
+    val measurement =
+      measurementsClient
+        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+        .getMeasurement(getMeasurementRequest { name = measurementName })
+    logger.info("Current Measurement state is: " + measurement.state)
+    if (measurement.state == Measurement.State.FAILED) {
+      logger.warning("Failure reason: " + measurement.failure.reason)
+      logger.warning("Failure message: " + measurement.failure.message)
+    }
+    return measurement.resultsList.toList()
+  }
+
+  /** Gets the result of a [Measurement] if it is succeeded. */
   private suspend fun getComputedResult(measurementName: String): Result? {
     val measurement =
       measurementsClient
@@ -234,7 +300,11 @@ class FrontendSimulator(
     }
 
     val resultPair = measurement.resultsList[0]
-    val aggregatorCertificate =
+    return parseAndVerifyResult(resultPair)
+  }
+
+  private suspend fun parseAndVerifyResult(resultPair: Measurement.ResultPair): Result {
+    val certificate =
       certificateCache.getOrPut(resultPair.certificate) {
         certificatesClient
           .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
@@ -246,13 +316,8 @@ class FrontendSimulator(
     @Suppress("BlockingMethodInNonBlockingContext") // Not blocking I/O.
     val result = Result.parseFrom(signedResult.data)
 
-    if (!verifyResult(
-        signedResult.signature,
-        result,
-        readCertificate(aggregatorCertificate.x509Der)
-      )
-    ) {
-      error("Aggregator signature of the result is invalid.")
+    if (!verifyResult(signedResult.signature, result, readCertificate(certificate.x509Der))) {
+      error("Signature of the result is invalid.")
     }
     return result
   }
@@ -326,7 +391,10 @@ class FrontendSimulator(
       reachAndFrequency = reachAndFrequency {
         reachPrivacyParams = outputDpParams
         frequencyPrivacyParams = outputDpParams
-        vidSamplingInterval = vidSamplingInterval { width = 1.0f }
+        vidSamplingInterval = vidSamplingInterval {
+          start = 0.0f
+          width = 1.0f
+        }
       }
       this.nonceHashes += nonceHashes
     }
@@ -394,31 +462,7 @@ class FrontendSimulator(
       .getDataProvider(request)
   }
 
-  /**
-   * Creates a CEL filter using Event Templates names to qualify each variable in expression.
-   *
-   * @param registeredEventTemplates Fully-qualified protobuf message types (e.g.
-   * wfa.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate)
-   */
-  private fun createFilterExpression(registeredEventTemplates: Iterable<String>): String {
-    val eventGroupTemplateNameMap: Map<String, String> =
-      registeredEventTemplates
-        .map { it to (EventTemplates.getEventTemplateForType(it)!!).name }
-        .toMap()
-
-    if (eventTemplateFilters.isEmpty()) {
-      return ""
-    }
-
-    return eventTemplateFilters
-      .map {
-        if (!eventGroupTemplateNameMap.containsKey(it.key)) {
-          error("EventGroup is not registered to the template ${it.key}")
-        }
-        "${eventGroupTemplateNameMap[it.key]}.${it.value}"
-      }
-      .reduce { acc, string -> "$acc && $string" }
-  }
+  private fun createFilterExpression(): String = eventTemplateFilters.values.joinToString(" && ")
 
   private suspend fun createDataProviderEntry(
     eventGroup: EventGroup,
@@ -427,14 +471,18 @@ class FrontendSimulator(
   ): DataProviderEntry {
     val dataProvider = getDataProvider(extractDataProviderName(eventGroup.name))
 
-    val eventFilterExpression =
-      createFilterExpression(eventGroup.eventTemplatesList.map { it.type })
+    val eventFilterExpression = createFilterExpression()
 
     val requisitionSpec = requisitionSpec {
       eventGroups += eventGroupEntry {
         key = eventGroup.name
         value =
           RequisitionSpecKt.EventGroupEntryKt.value {
+            collectionInterval = timeInterval {
+              startTime =
+                LocalDate.now().minusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+              endTime = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+            }
             filter = eventFilter { expression = eventFilterExpression }
           }
       }
