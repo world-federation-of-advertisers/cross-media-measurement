@@ -43,8 +43,7 @@ fun createGraphViz(exchangeWorkflow: ExchangeWorkflow, exchangeSteps: List<Excha
           set("shape" to STEP_SHAPE)
           set(
             "label" to
-              step.stepId.plus(": ").plus(stepIndexToStep.get(step.stepId)?.stepStateToString())
-          )
+              step.stepId.plus(": ").plus(stepIndexToStep[step.stepId.toInt()]?.stepStateToString()))
         }
 
         for (label in step.outputLabelsMap.values) {
