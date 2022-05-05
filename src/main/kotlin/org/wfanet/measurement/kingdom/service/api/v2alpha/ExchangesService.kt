@@ -17,7 +17,6 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import io.grpc.Status
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.Exchange
 import org.wfanet.measurement.api.v2alpha.ExchangeKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
@@ -39,7 +38,6 @@ import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.getExchangeRequest
 import org.wfanet.measurement.internal.kingdom.streamExchangeStepsRequest
-
 
 class ExchangesService(
   private val internalExchanges: ExchangesCoroutineStub,
