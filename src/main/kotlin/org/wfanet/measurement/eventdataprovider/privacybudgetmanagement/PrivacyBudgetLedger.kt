@@ -26,9 +26,17 @@ object PrivacyBudgetLedgerConstants {
 
 data class ChargeWithRepetitions(val epsilon: Float, val delta: Float, val count: Int)
 
+fun ChargeWithRepetitions.totalEpsilon(): Double = epsilon.toDouble() * count
+
+fun ChargeWithRepetitions.totalDelta(): Double = delta.toDouble() * count
+
+fun Float.approximatelyEqualTo(other: Float, maximumDifference: Double): Boolean {
+  return abs(this - other) < maximumDifference
+}
+
 fun ChargeWithRepetitions.isEquivalentTo(other: ChargeWithRepetitions): Boolean =
-  (abs(this.epsilon - other.epsilon) < PrivacyBudgetLedgerConstants.EPSILON_EPSILON) &&
-    (abs(this.delta - other.delta) < PrivacyBudgetLedgerConstants.DELTA_EPSILON)
+  this.epsilon.approximatelyEqualTo(other.epsilon, PrivacyBudgetLedgerConstants.EPSILON_EPSILON) &&
+    this.delta.approximatelyEqualTo(other.delta, PrivacyBudgetLedgerConstants.DELTA_EPSILON)
 
 /** Manages and updates privacy budget data. */
 class PrivacyBudgetLedger(
@@ -123,9 +131,8 @@ class PrivacyBudgetLedger(
     maximumTotalDelta: Float,
     maximumTotalEpsilon: Float
   ) =
-    (charges.sumOf { it.epsilon.toDouble() * it.count.toDouble() } >
-      maximumTotalEpsilon.toDouble()) ||
-      (charges.sumOf { it.delta.toDouble() * it.count.toDouble() } > maximumTotalDelta.toDouble())
+    (charges.sumOf { it.totalEpsilon() } > maximumTotalEpsilon.toDouble()) ||
+      (charges.sumOf { it.totalDelta() } > maximumTotalDelta.toDouble())
 
   /**
    * Tests whether a given privacy bucket is exceeded.
