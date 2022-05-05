@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import io.grpc.Status
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.Exchange
 import org.wfanet.measurement.api.v2alpha.ExchangeKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
@@ -38,6 +39,7 @@ import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.getExchangeRequest
 import org.wfanet.measurement.internal.kingdom.streamExchangeStepsRequest
+import org.wfanet.measurement.tools.createGraphViz
 
 class ExchangesService(
   private val internalExchanges: ExchangesCoroutineStub,
@@ -63,10 +65,10 @@ class ExchangesService(
       )
 
     val externalExchangeWorkflow = getExchangeWorkflow(internalExchange)
-    // val graphvizString = createGraphViz(externalExchangeWorkflow, exchangeSteps.toList())
+    val graphvizString = createGraphViz(externalExchangeWorkflow, exchangeSteps.toList())
 
     return try {
-      internalExchange.toV2Alpha("")
+      internalExchange.toV2Alpha(graphvizString)
     } catch (e: Throwable) {
       failGrpc(Status.INVALID_ARGUMENT) { e.message ?: "Failed to convert InternalExchange" }
     }
