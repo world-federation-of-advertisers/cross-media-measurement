@@ -67,6 +67,8 @@ private const val EXCHANGE_ID = "2021-03-14"
 
 private val AUDIT_TRAIL_HASH = ByteString.copyFromUtf8("some arbitrary audit_trail_hash")
 
+private const val GRAPHVIZ_REPRESENTATION = "digraph {\n  splines=\"ortho\"\n}\n"
+
 private val INTERNAL_EXCHANGE = internalExchange {
   externalRecurringExchangeId = RECURRING_EXCHANGE_ID
   date = DATE
@@ -135,6 +137,7 @@ class ExchangesServiceTest {
               date = DATE
               state = Exchange.State.ACTIVE
               auditTrailHash = AUDIT_TRAIL_HASH
+              graphvizRepresentation = GRAPHVIZ_REPRESENTATION
             })
 
     verifyProtoArgument(internalService, InternalExchangesCoroutineImplBase::getExchange)
