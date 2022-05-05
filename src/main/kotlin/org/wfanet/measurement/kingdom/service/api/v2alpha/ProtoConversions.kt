@@ -203,11 +203,11 @@ fun InternalMeasurement.toMeasurement(): Measurement {
               DuchyCertificateKey(it.externalAggregatorDuchyId, certificateApiId).toName()
           } else if (it.externalDataProviderId != 0L) {
             certificate =
-              DataProviderCertificateKey(
-                externalIdToApiId(it.externalDataProviderId),
-                certificateApiId
-              )
-              .toName()
+                DataProviderCertificateKey(
+                  externalIdToApiId(it.externalDataProviderId),
+                  certificateApiId
+                )
+                .toName()
           }
           encryptedResult = it.encryptedResult
         }

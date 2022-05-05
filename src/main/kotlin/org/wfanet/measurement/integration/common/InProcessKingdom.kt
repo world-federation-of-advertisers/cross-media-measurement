@@ -146,8 +146,7 @@ class InProcessKingdom(
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
           AccountsService(internalAccountsClient, redirectUri)
-            .withAccountAuthenticationServerInterceptor(
-              internalAccountsClient, redirectUri),
+            .withAccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri),
           MeasurementConsumersService(internalMeasurementConsumersClient)
             .withMetadataPrincipalIdentities()
             .withAccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri)
