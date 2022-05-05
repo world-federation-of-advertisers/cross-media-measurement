@@ -282,6 +282,7 @@ fun Measurement.toInternal(
   }
 }
 
+/** @throws [IllegalStateException] if InternalExchange.State not specified */
 fun InternalExchange.toV2Alpha(graphvizRepresentation: String): Exchange {
   val exchangeKey =
       ExchangeKey(
@@ -306,7 +307,7 @@ private val InternalExchange.v2AlphaState: Exchange.State
       InternalExchange.State.SUCCEEDED -> Exchange.State.SUCCEEDED
       InternalExchange.State.FAILED -> Exchange.State.FAILED
       InternalExchange.State.STATE_UNSPECIFIED, InternalExchange.State.UNRECOGNIZED ->
-          failGrpc(Status.INTERNAL) { "Invalid state: $this" }
+        error("Invalid ExchangeStep state: $this")
     }
   }
 
@@ -328,7 +329,7 @@ fun InternalExchangeStep.toV2Alpha(): ExchangeStep {
 fun ExchangeStepAttempt.State.toInternal(): InternalExchangeStepAttempt.State {
   return when (this) {
     ExchangeStepAttempt.State.STATE_UNSPECIFIED, ExchangeStepAttempt.State.UNRECOGNIZED ->
-        failGrpc { "Invalid State: $this" }
+      error("Invalid ExchangeStep state: $this")
     ExchangeStepAttempt.State.ACTIVE -> InternalExchangeStepAttempt.State.ACTIVE
     ExchangeStepAttempt.State.SUCCEEDED -> InternalExchangeStepAttempt.State.SUCCEEDED
     ExchangeStepAttempt.State.FAILED -> InternalExchangeStepAttempt.State.FAILED
