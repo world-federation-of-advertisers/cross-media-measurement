@@ -52,7 +52,7 @@ message EventGroup {
     // The type of the Event Template. A fully-qualified protobuf message type.
     string type = 1 [(google.api.field_behavior) = REQUIRED];
 
-    // TODO(@SanjayVas) Add metadata
+    // TODO(@chipingyeh) Add metadata
   }
 
   // The `EventTemplate`s that events associated with this `EventGroup` conform
