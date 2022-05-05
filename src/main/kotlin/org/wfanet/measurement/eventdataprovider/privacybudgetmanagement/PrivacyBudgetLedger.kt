@@ -95,6 +95,30 @@ class PrivacyBudgetLedger(
     context.commit()
   }
 
+  private fun exceedsUnderAdvancedComposition(
+    charges: List<ChargeWithRepetitions>,
+    maximumTotalDelta: Float,
+    maximumTotalEpsilon: Float
+  ): Boolean {
+    val advancedCompositionEpsilon =
+      Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
+        PrivacyCharge(charges[0].epsilon, charges[0].delta),
+        charges.sumOf { it.count },
+        maximumTotalDelta
+      )
+    return if (advancedCompositionEpsilon != null) advancedCompositionEpsilon > maximumTotalEpsilon
+    else true
+  }
+
+  fun exceedsUnderSimpleComposition(
+    charges: List<ChargeWithRepetitions>,
+    maximumTotalDelta: Float,
+    maximumTotalEpsilon: Float
+  ) =
+    (charges.sumOf { it.epsilon.toDouble() * it.count.toDouble() } >
+      maximumTotalEpsilon.toDouble()) ||
+      (charges.sumOf { it.delta.toDouble() * it.count.toDouble() } > maximumTotalDelta.toDouble())
+
   /**
    * Tests whether a given privacy bucket is exceeded.
    *
@@ -122,12 +146,7 @@ class PrivacyBudgetLedger(
     // We can save some privacy budget by using the advanced composition theorem if
     // all the charges are equivalent.
     return if (allCharges.all { allCharges[0].isEquivalentTo(it) })
-      Composition.exceedsUnderAdvancedComposition(
-        allCharges,
-        maximumTotalDelta,
-        maximumTotalEpsilon
-      )
-    else
-      Composition.exceedsUnderSimpleComposition(allCharges, maximumTotalDelta, maximumTotalEpsilon)
+      exceedsUnderAdvancedComposition(allCharges, maximumTotalDelta, maximumTotalEpsilon)
+    else exceedsUnderSimpleComposition(allCharges, maximumTotalDelta, maximumTotalEpsilon)
   }
 }

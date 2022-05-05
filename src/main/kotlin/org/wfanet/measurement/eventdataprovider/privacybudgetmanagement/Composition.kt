@@ -104,7 +104,7 @@ object Composition {
    * delta)^repetitionCount, for which no guarantee of (totalEpsilon, totalDelta)-DP is possible for
    * any value of totalEpsilon.
    */
-  private fun totalPrivacyBudgetUsageUnderAdvancedComposition(
+  fun totalPrivacyBudgetUsageUnderAdvancedComposition(
     charge: PrivacyCharge,
     repetitionCount: Int,
     totalDelta: Float
@@ -112,48 +112,4 @@ object Composition {
     advancedCompositionResults.getOrPut(
       AdvancedCompositionKey(charge, repetitionCount, totalDelta)
     ) { calculateAdvancedComposition(charge, repetitionCount, totalDelta) }
-
-  /**
-   * Computes total DP parameters after applying advanced composition algorithm with given privacy
-   * parameters multiple times and checks if it exceeds given limits
-   *
-   * @param charges List of privacy charges for a single bucket group
-   * @param maximumTotalEpsilon
-   * @param maximumTotalEpsilon
-   *
-   * @return true if budget is exceeded false o/w
-   */
-  fun exceedsUnderAdvancedComposition(
-    charges: List<ChargeWithRepetitions>,
-    maximumTotalDelta: Float,
-    maximumTotalEpsilon: Float
-  ): Boolean {
-    val advancedCompositionEpsilon =
-      totalPrivacyBudgetUsageUnderAdvancedComposition(
-        PrivacyCharge(charges[0].epsilon, charges[0].delta),
-        charges.sumOf { it.count },
-        maximumTotalDelta
-      )
-    return if (advancedCompositionEpsilon != null) advancedCompositionEpsilon > maximumTotalEpsilon
-    else true
-  }
-
-  /**
-   * Computes total DP parameters after applying simple composition algorithm with given privacy
-   * parameters and checks if it exceeds given limits
-   *
-   * @param charges List of privacy charges for a single bucket group
-   * @param maximumTotalEpsilon
-   * @param maximumTotalEpsilon
-   *
-   * @return true if budget is exceeded false o/w
-   */
-  fun exceedsUnderSimpleComposition(
-    charges: List<ChargeWithRepetitions>,
-    maximumTotalDelta: Float,
-    maximumTotalEpsilon: Float
-  ) =
-    (charges.sumOf { it.epsilon.toDouble() * it.count.toDouble() } >
-      maximumTotalEpsilon.toDouble()) ||
-      (charges.sumOf { it.delta.toDouble() * it.count.toDouble() } > maximumTotalDelta.toDouble())
 }
