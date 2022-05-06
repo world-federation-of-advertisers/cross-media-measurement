@@ -50,7 +50,7 @@ class CompositionTest {
           0.1f
         )
       )
-      .isEqualTo(null)
+      .isEqualTo(Float.MAX_VALUE)
     assertThat(
         Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
           PrivacyCharge(1.0f, 0.01f),
@@ -58,6 +58,6 @@ class CompositionTest {
           0.26f
         )
       )
-      .isEqualTo(null)
+      .isEqualTo(Float.MAX_VALUE)
   }
 }
