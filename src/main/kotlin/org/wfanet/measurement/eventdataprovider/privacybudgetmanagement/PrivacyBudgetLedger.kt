@@ -26,15 +26,15 @@ object PrivacyBudgetLedgerConstants {
 
 data class ChargeWithRepetitions(val epsilon: Float, val delta: Float, val count: Int)
 
-fun ChargeWithRepetitions.totalEpsilon(): Double = epsilon.toDouble() * count
+private fun ChargeWithRepetitions.totalEpsilon(): Double = epsilon.toDouble() * count
 
-fun ChargeWithRepetitions.totalDelta(): Double = delta.toDouble() * count
+private fun ChargeWithRepetitions.totalDelta(): Double = delta.toDouble() * count
 
-fun Float.approximatelyEqualTo(other: Float, maximumDifference: Double): Boolean {
+private fun Float.approximatelyEqualTo(other: Float, maximumDifference: Double): Boolean {
   return abs(this - other) < maximumDifference
 }
 
-fun ChargeWithRepetitions.isEquivalentTo(other: ChargeWithRepetitions): Boolean =
+private fun ChargeWithRepetitions.isEquivalentTo(other: ChargeWithRepetitions): Boolean =
   this.epsilon.approximatelyEqualTo(other.epsilon, PrivacyBudgetLedgerConstants.EPSILON_EPSILON) &&
     this.delta.approximatelyEqualTo(other.delta, PrivacyBudgetLedgerConstants.DELTA_EPSILON)
 
