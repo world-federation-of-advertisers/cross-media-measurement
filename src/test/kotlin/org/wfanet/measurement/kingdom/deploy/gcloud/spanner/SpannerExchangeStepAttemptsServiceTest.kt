@@ -35,13 +35,13 @@ import org.wfanet.measurement.internal.kingdom.ExchangesGrpcKt.ExchangesCoroutin
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
 import org.wfanet.measurement.kingdom.deploy.common.service.KingdomDataServices
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.kingdom.service.internal.testing.ExchangeStepAttemptsServiceTest
 
 @RunWith(JUnit4::class)
 class SpannerExchangeStepAttemptsServiceTest : ExchangeStepAttemptsServiceTest() {
 
-  @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
+  @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(Schemata.KINGDOM_CHANGELOG_PATH)
   private val clock = Clock.systemUTC()
 
   override fun newExchangeStepAttemptsService(

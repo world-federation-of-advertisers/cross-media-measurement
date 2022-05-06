@@ -25,7 +25,7 @@ import org.wfanet.measurement.kingdom.deploy.common.service.KingdomDataServices
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerDataServices
 
 class KingdomDataServicesProviderRule : ProviderRule<KingdomDataServices> {
-  private val spannerDatabase = SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
+  private val spannerDatabase = SpannerEmulatorDatabaseRule(Schemata.KINGDOM_CHANGELOG_PATH)
   private val clock = Clock.systemUTC()
   private val idGenerator = RandomIdGenerator(clock)
   private val databaseClient: AsyncDatabaseClient by lazy { spannerDatabase.databaseClient }
