@@ -147,11 +147,11 @@ class FilterTestEventQuery(val events: Map<Int, TestEvent>) : EventQuery() {
     val program =
       EventFilters.compileProgram(
         eventFilter.expression,
-        testEvent {},
+        listOf(testEvent {}),
       )
     return sequence {
       for (vid in events.keys.toList()) {
-        if (EventFilters.matches(events.get(vid) as Message, program)) {
+        if (EventFilters.matches(listOf(events.get(vid)) as List<Message>, program)) {
           yield(vid.toLong())
         }
       }
