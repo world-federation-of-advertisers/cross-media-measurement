@@ -115,16 +115,12 @@ class PrivacyBudgetLedger(
     charges: List<ChargeWithRepetitions>,
     maximumTotalDelta: Float,
     maximumTotalEpsilon: Float
-  ): Boolean {
-    val advancedCompositionEpsilon =
-      Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
-        PrivacyCharge(charges[0].epsilon, charges[0].delta),
-        charges.sumOf { it.count },
-        maximumTotalDelta
-      )
-    return if (advancedCompositionEpsilon != null) advancedCompositionEpsilon > maximumTotalEpsilon
-    else true
-  }
+  ): Boolean =
+    Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
+      PrivacyCharge(charges[0].epsilon, charges[0].delta),
+      charges.sumOf { it.count },
+      maximumTotalDelta
+    ) > maximumTotalEpsilon
 
   fun exceedsUnderSimpleComposition(
     charges: List<ChargeWithRepetitions>,

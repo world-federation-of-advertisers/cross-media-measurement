@@ -27,7 +27,7 @@ object Composition {
   /** Memoized computation of binomial coefficients. */
   private val coeffs = ConcurrentHashMap<Pair<Int, Int>, Float>()
   /** Memoized computation of advanced composition results. */
-  private val advancedCompositionResults = HashMap<AdvancedCompositionKey, Float?>()
+  private val advancedCompositionResults = ConcurrentHashMap<AdvancedCompositionKey, Float>()
 
   /**
    * Computes the number of distinct ways to choose k items from a set of n.
@@ -53,7 +53,7 @@ object Composition {
     charge: PrivacyCharge,
     repetitionCount: Int,
     totalDelta: Float
-  ): Float? {
+  ): Float {
     val epsilon = charge.epsilon
     val delta = charge.delta
     val k = repetitionCount
@@ -70,7 +70,7 @@ object Composition {
         return epsilon * (k - 2 * i).toFloat()
       }
     }
-    return null
+    return Float.MAX_VALUE
   }
 
   /**
@@ -100,7 +100,7 @@ object Composition {
     charge: PrivacyCharge,
     repetitionCount: Int,
     totalDelta: Float
-  ): Float? =
+  ): Float =
     advancedCompositionResults.getOrPut(
       AdvancedCompositionKey(charge, repetitionCount, totalDelta)
     ) { calculateAdvancedComposition(charge, repetitionCount, totalDelta) }
