@@ -24,6 +24,7 @@ import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.Computatio
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDatabaseReader
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDatabaseTransactor
 import org.wfanet.measurement.gcloud.spanner.SpannerFlags
+import org.wfanet.measurement.gcloud.spanner.usingSpanner
 import picocli.CommandLine
 
 /** Implementation of [ComputationsServer] using Google Cloud Spanner. */

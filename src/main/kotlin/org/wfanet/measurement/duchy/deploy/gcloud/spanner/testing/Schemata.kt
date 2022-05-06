@@ -14,28 +14,19 @@
 
 package org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing
 
-import java.io.File
-import java.nio.file.Paths
-import org.wfanet.measurement.common.getRuntimePath
-import org.wfanet.measurement.gcloud.spanner.testing.SpannerSchema
+import java.nio.file.Path
+import org.wfanet.measurement.common.getJarResourcePath
 
-private val SCHEMA_DIR =
-  Paths.get(
-    "wfa_measurement_system",
-    "src",
-    "main",
-    "kotlin",
-    "org",
-    "wfanet",
-    "measurement",
-    "duchy",
-    "deploy",
-    "gcloud",
-    "spanner"
-  )
+object Schemata {
+  private const val DUCHY_SPANNER_RESOURCE_PREFIX = "duchy/spanner"
 
-private fun schemaFile(filename: String): File {
-  return checkNotNull(getRuntimePath(SCHEMA_DIR.resolve(filename))).toFile()
+  private fun getResourcePath(fileName: String): Path {
+    val resourceName = "$DUCHY_SPANNER_RESOURCE_PREFIX/$fileName"
+    val classLoader: ClassLoader = Thread.currentThread().contextClassLoader
+    return requireNotNull(classLoader.getJarResourcePath(resourceName)) {
+      "Resource $resourceName not found"
+    }
+  }
+
+  val DUCHY_CHANGELOG_PATH: Path = getResourcePath("changelog.yaml")
 }
-
-val COMPUTATIONS_SCHEMA = SpannerSchema(schemaFile("computations.sdl"))

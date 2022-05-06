@@ -19,6 +19,7 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.gcloud.spanner.SpannerFlags
+import org.wfanet.measurement.gcloud.spanner.usingSpanner
 import org.wfanet.measurement.kingdom.deploy.common.server.KingdomDataServer
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerDataServices
 import picocli.CommandLine

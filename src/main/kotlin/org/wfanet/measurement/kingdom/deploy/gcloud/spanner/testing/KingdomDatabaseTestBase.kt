@@ -17,4 +17,4 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing
 import org.wfanet.measurement.gcloud.spanner.testing.UsingSpannerEmulator
 
 // TODO(@yunyeng): Delete once not used.
-abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(KINGDOM_SCHEMA)
+abstract class KingdomDatabaseTestBase : UsingSpannerEmulator(Schemata.KINGDOM_CHANGELOG_PATH)
