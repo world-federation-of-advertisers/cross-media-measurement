@@ -47,7 +47,7 @@ class ExchangesService(private val internalExchanges: ExchangesCoroutineStub) :
           this.provider = provider
         }
       )
-    return internalExchange.toV2Alpha()
+    return internalExchange.toV2Alpha("")
   }
 
   override suspend fun listExchanges(request: ListExchangesRequest): ListExchangesResponse {
