@@ -122,7 +122,7 @@ class PrivacyBudgetLedger(
       maximumTotalDelta
     ) > maximumTotalEpsilon
 
-  fun exceedsUnderSimpleComposition(charges: List<ChargeWithRepetitions>) =
+  private fun exceedsUnderSimpleComposition(charges: List<ChargeWithRepetitions>) =
     (charges.sumOf { it.totalEpsilon() } > maximumTotalEpsilon.toDouble()) ||
       (charges.sumOf { it.totalDelta() } > maximumTotalDelta.toDouble())
 
