@@ -25,7 +25,7 @@ data class AdvancedCompositionKey(
 
 object Composition {
   /** Memoized computation of binomial coefficients. */
-  private val coeffs = ConcurrentHashMap<Pair<Int, Int>, Float>()
+  private val coeffs = ConcurrentHashMap<Pair<Int, Int>, Int>()
   /** Memoized computation of advanced composition results. */
   private val advancedCompositionResults = ConcurrentHashMap<AdvancedCompositionKey, Float>()
 
@@ -37,11 +37,11 @@ object Composition {
    * @return The number of distinct ways to draw k items from a set of size n. Alternatively, the
    * coefficient of x^k in the expansion of (1 + x)^n.
    */
-  private fun coeff(n: Int, k: Int): Float {
+  private fun coeff(n: Int, k: Int): Int {
     return if ((n < 0) || (k < 0) || (n < k)) {
-      0.0f
+      0
     } else if ((k == 0) || (n == k)) {
-      1.0f
+      1
     } else if (n - k < k) {
       coeff(n, n - k)
     } else {
@@ -62,7 +62,7 @@ object Composition {
       var deltaI = 0.0f
       for (l in 0..i - 1) {
         deltaI +=
-          coeff(k, l) *
+          coeff(k, l).toFloat() *
             (exp(epsilon * (k - l).toFloat()) - exp(epsilon * (k - 2 * i + l).toFloat()))
       }
       deltaI /= (1.0f + exp(epsilon)).pow(k)

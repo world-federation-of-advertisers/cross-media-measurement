@@ -34,6 +34,12 @@ private fun Float.approximatelyEqualTo(other: Float, maximumDifference: Double):
   return abs(this - other) < maximumDifference
 }
 
+private fun PrivacyCharge.toChargeWithRepetitions(repetitionCount: Int = 1): ChargeWithRepetitions =
+  ChargeWithRepetitions(epsilon, delta, repetitionCount)
+
+private fun PrivacyBudgetLedgerEntry.toChargeWithRepetitions(): ChargeWithRepetitions =
+  privacyCharge.toChargeWithRepetitions(repetitionCount)
+
 private fun ChargeWithRepetitions.isEquivalentTo(other: ChargeWithRepetitions): Boolean =
   this.epsilon.approximatelyEqualTo(other.epsilon, PrivacyBudgetLedgerConstants.EPSILON_EPSILON) &&
     this.delta.approximatelyEqualTo(other.delta, PrivacyBudgetLedgerConstants.DELTA_EPSILON)
@@ -141,14 +147,8 @@ class PrivacyBudgetLedger(
   ): Boolean {
 
     val allCharges: List<ChargeWithRepetitions> =
-      charges.map { ChargeWithRepetitions(it.epsilon, it.delta, 1) } +
-        ledgerEntries.map {
-          ChargeWithRepetitions(
-            it.privacyCharge.epsilon,
-            it.privacyCharge.delta,
-            it.repetitionCount
-          )
-        }
+      charges.map { it.toChargeWithRepetitions() } +
+        ledgerEntries.map { it.toChargeWithRepetitions() }
 
     // We can save some privacy budget by using the advanced composition theorem if
     // all the charges are equivalent.
