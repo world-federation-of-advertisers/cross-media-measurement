@@ -73,7 +73,7 @@ class SpannerAccountsService(
         )
         .execute(client, idGenerator)
     } catch (e: AccountNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) {
         "Creator's Account not found. " + e.contextToString()
       }
     } catch (e: PermissionDeniedException) {
