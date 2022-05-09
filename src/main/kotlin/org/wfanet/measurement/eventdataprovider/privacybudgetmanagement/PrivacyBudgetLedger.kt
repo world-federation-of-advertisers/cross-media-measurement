@@ -30,19 +30,19 @@ private fun ChargeWithRepetitions.totalEpsilon(): Double = epsilon.toDouble() * 
 
 private fun ChargeWithRepetitions.totalDelta(): Double = delta.toDouble() * count
 
+private fun ChargeWithRepetitions.isEquivalentTo(other: ChargeWithRepetitions): Boolean =
+  this.epsilon.approximatelyEqualTo(other.epsilon, PrivacyBudgetLedgerConstants.EPSILON_EPSILON) &&
+    this.delta.approximatelyEqualTo(other.delta, PrivacyBudgetLedgerConstants.DELTA_EPSILON)
+
 private fun Float.approximatelyEqualTo(other: Float, maximumDifference: Double): Boolean {
   return abs(this - other) < maximumDifference
 }
 
-private fun PrivacyCharge.toChargeWithRepetitions(repetitionCount: Int = 1): ChargeWithRepetitions =
+private fun PrivacyCharge.toChargeWithRepetitions(repetitionCount: Int): ChargeWithRepetitions =
   ChargeWithRepetitions(epsilon, delta, repetitionCount)
 
 private fun PrivacyBudgetLedgerEntry.toChargeWithRepetitions(): ChargeWithRepetitions =
   privacyCharge.toChargeWithRepetitions(repetitionCount)
-
-private fun ChargeWithRepetitions.isEquivalentTo(other: ChargeWithRepetitions): Boolean =
-  this.epsilon.approximatelyEqualTo(other.epsilon, PrivacyBudgetLedgerConstants.EPSILON_EPSILON) &&
-    this.delta.approximatelyEqualTo(other.delta, PrivacyBudgetLedgerConstants.DELTA_EPSILON)
 
 /** Manages and updates privacy budget data. */
 class PrivacyBudgetLedger(
@@ -147,7 +147,7 @@ class PrivacyBudgetLedger(
   ): Boolean {
 
     val allCharges: List<ChargeWithRepetitions> =
-      charges.map { it.toChargeWithRepetitions() } +
+      charges.map { it.toChargeWithRepetitions(1) } +
         ledgerEntries.map { it.toChargeWithRepetitions() }
 
     // We can save some privacy budget by using the advanced composition theorem if
