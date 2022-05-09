@@ -155,7 +155,7 @@ class DecryptQueryResults(
 
     val groupedDecryptedResults: PCollection<KV<JoinKeyIdentifier, List<@JvmWildcard Plaintext>>> =
       individualDecryptedResults
-        .groupByKey()
+        .groupByKey("Group Decrypted Results by JoinKeyIdentifier")
         .map("Map to List of Plaintext") { kvOf(it.key, it.value.flatten()) }
         .setCoder(plaintextListCoder)
 

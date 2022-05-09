@@ -148,7 +148,9 @@ inline fun <reified KeyT, reified LeftT, reified RightT, reified OutT> PCollecti
   return KeyedPCollectionTuple.of(leftTag, this)
     .and(rightTag, right)
     .apply("$name/CoGroupByKey", CoGroupByKey.create())
-    .parDo(name) { transform(it.key, it.value.getAll(leftTag), it.value.getAll(rightTag)) }
+    .parDo("$name/Transform") {
+      transform(it.key, it.value.getAll(leftTag), it.value.getAll(rightTag))
+    }
 }
 
 /**
