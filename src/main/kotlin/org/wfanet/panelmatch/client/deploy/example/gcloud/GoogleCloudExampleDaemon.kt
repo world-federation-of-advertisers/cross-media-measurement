@@ -132,6 +132,13 @@ private class GoogleCloudExampleDaemon : ExampleDaemon() {
   )
   private var dataflowDiskSize by Delegates.notNull<Int>()
 
+  @set:Option(
+    names = ["--dataflow-max-num-workers"],
+    description = ["Maximum number of workers to use in Dataflow."],
+    defaultValue = "100"
+  )
+  private var dataflowMaxNumWorkers by Delegates.notNull<Int>()
+
   interface Options : DataflowPipelineOptions, SdkHarnessOptions
 
   override fun makePipelineOptions(): PipelineOptions {
@@ -142,6 +149,7 @@ private class GoogleCloudExampleDaemon : ExampleDaemon() {
       tempLocation = dataflowTempLocation
       serviceAccount = dataflowServiceAccount
       workerMachineType = dataflowWorkerMachineType
+      maxNumWorkers = dataflowMaxNumWorkers
       diskSizeGb = dataflowDiskSize
       defaultWorkerLogLevel = DataflowWorkerLoggingOptions.Level.DEBUG
       defaultSdkHarnessLogLevel = SdkHarnessOptions.LogLevel.DEBUG
