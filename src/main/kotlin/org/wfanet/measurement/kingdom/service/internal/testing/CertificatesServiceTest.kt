@@ -171,6 +171,10 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
     assertGetFailsWithMissingCertificate { externalMeasurementConsumerId = measurementConsumerId }
+
+    val modelProviderId =
+      population.createModelProvider(modelProvidersService).externalModelProviderId
+    assertGetFailsWithMissingCertificate { externalModelProviderId = modelProviderId }
   }
 
   private fun assertCreateFailsWithMissingOwner(
@@ -195,6 +199,9 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     }
     assertCreateFailsWithMissingOwner("Measurement Consumer not found") {
       externalMeasurementConsumerId = NOT_AN_ID
+    }
+    assertCreateFailsWithMissingOwner("ModelProvider not found") {
+      externalModelProviderId = NOT_AN_ID
     }
   }
 
@@ -224,6 +231,10 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
     assertCreateCertificateSucceeds { externalMeasurementConsumerId = measurementConsumerId }
+
+    val modelProviderId =
+      population.createModelProvider(modelProvidersService).externalModelProviderId
+    assertCreateCertificateSucceeds { externalModelProviderId = modelProviderId }
   }
 
   private fun assertGetCertificateSucceeds(init: CertificateKt.Dsl.() -> Unit) = runBlocking {
@@ -244,6 +255,8 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           externalMeasurementConsumerId = requestCertificate.externalMeasurementConsumerId
         Certificate.ParentCase.EXTERNAL_DUCHY_ID ->
           externalDuchyId = requestCertificate.externalDuchyId
+        Certificate.ParentCase.EXTERNAL_MODEL_PROVIDER_ID ->
+          externalModelProviderId = requestCertificate.externalModelProviderId
         Certificate.ParentCase.PARENT_NOT_SET -> error("Invalid parentCase")
       }
     }
@@ -262,6 +275,10 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
     assertGetCertificateSucceeds { externalMeasurementConsumerId = measurementConsumerId }
+
+    val modelProviderId =
+      population.createModelProvider(modelProvidersService).externalModelProviderId
+    assertGetCertificateSucceeds { externalModelProviderId = modelProviderId }
   }
 
   @Test

@@ -104,6 +104,9 @@ class SpannerCertificatesService(
           CertificateReader(CertificateReader.ParentType.DUCHY)
             .bindWhereClause(duchyId, externalCertificateId)
         }
+        GetCertificateRequest.ParentCase.EXTERNAL_MODEL_PROVIDER_ID ->
+          CertificateReader(CertificateReader.ParentType.MODEL_PROVIDER)
+            .bindWhereClause(ExternalId(request.externalModelProviderId), externalCertificateId)
         GetCertificateRequest.ParentCase.PARENT_NOT_SET ->
           throw Status.INVALID_ARGUMENT.withDescription("parent not specified").asRuntimeException()
       }
