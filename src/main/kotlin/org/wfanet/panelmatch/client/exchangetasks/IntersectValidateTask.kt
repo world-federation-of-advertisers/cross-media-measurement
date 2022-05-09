@@ -42,7 +42,7 @@ class IntersectValidateTask(
       "${currentData.size} ids were provided, which exceeds the limit of $maxSize"
     }
 
-    if (!isFirstExchange) {
+    if (!isFirstExchange && maximumNewItemsAllowed < maxSize) {
       val oldDataBytes = input.getValue("previous-data").toByteString()
       val oldData: Set<JoinKeyAndId> = parseJoinKeyAndIds(oldDataBytes)
       validateIntersection(currentData, oldData)
