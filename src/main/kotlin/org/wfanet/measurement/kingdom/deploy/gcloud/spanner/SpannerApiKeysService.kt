@@ -40,7 +40,7 @@ class SpannerApiKeysService(
     try {
       return CreateApiKey(request).execute(client, idGenerator)
     } catch (e: MeasurementConsumerNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) {
         "MeasurementConsumer not found. " + e.contextToString()
       }
     } catch (e: KingdomInternalException) {
@@ -56,7 +56,7 @@ class SpannerApiKeysService(
         )
         .execute(client, idGenerator)
     } catch (e: MeasurementConsumerNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) {
         "MeasurementConsumer not found. " + e.contextToString()
       }
     } catch (e: ApiKeyNotFoundException) {
@@ -85,6 +85,6 @@ class SpannerApiKeysService(
         ExternalId(apiKey.externalMeasurementConsumerId)
       )
       ?.measurementConsumer
-      ?: failGrpc(Status.FAILED_PRECONDITION) { "MeasurementConsumer not found" }
+      ?: failGrpc(Status.NOT_FOUND) { "MeasurementConsumer not found" }
   }
 }
