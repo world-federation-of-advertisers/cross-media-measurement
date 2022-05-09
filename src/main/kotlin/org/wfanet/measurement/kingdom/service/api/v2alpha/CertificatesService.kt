@@ -27,6 +27,8 @@ import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.GetCertificateRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.ModelProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.ReleaseCertificateHoldRequest
 import org.wfanet.measurement.api.v2alpha.ResourceKey
 import org.wfanet.measurement.api.v2alpha.RevokeCertificateRequest
@@ -34,6 +36,7 @@ import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.makeDataProviderCertificateName
 import org.wfanet.measurement.api.v2alpha.makeDuchyCertificateName
 import org.wfanet.measurement.api.v2alpha.makeMeasurementConsumerCertificateName
+import org.wfanet.measurement.api.v2alpha.makeModelProviderCertificateName
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
@@ -72,6 +75,7 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
               }
             }
             is MeasurementConsumerKey -> {}
+            is ModelProviderKey -> {}
             else -> {
               failGrpc(Status.PERMISSION_DENIED) {
                 "Caller does not have permission to get a DataProvider's Certificate"
@@ -101,6 +105,8 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
             }
           }
         }
+        is ModelProviderCertificateKey ->
+          externalModelProviderId = apiIdToExternalId(key.modelProviderId)
         else -> failGrpc(Status.INTERNAL) { "Unsupported parent: ${key.toName()}" }
       }
     }
@@ -112,6 +118,7 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
     val dataProviderKey = DataProviderKey.fromName(request.parent)
     val duchyKey = DuchyKey.fromName(request.parent)
     val measurementConsumerKey = MeasurementConsumerKey.fromName(request.parent)
+    val modelProviderKey = ModelProviderKey.fromName(request.parent)
 
     val principal = principalFromCurrentContext
 
@@ -169,6 +176,24 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
             else -> {
               failGrpc(Status.PERMISSION_DENIED) {
                 "Caller does not have permission to create a MeasurementConsumer's Certificate"
+              }
+            }
+          }
+        }
+        modelProviderKey != null -> {
+          externalModelProviderId = apiIdToExternalId(modelProviderKey.modelProviderId)
+
+          when (val resourceKey = principal.resourceKey) {
+            is ModelProviderKey -> {
+              if (apiIdToExternalId(resourceKey.modelProviderId) != externalModelProviderId) {
+                failGrpc(Status.PERMISSION_DENIED) {
+                  "Cannot create another ModelProvider's Certificate"
+                }
+              }
+            }
+            else -> {
+              failGrpc(Status.PERMISSION_DENIED) {
+                "Caller does not have permission to create a ModelProvider's Certificate"
               }
             }
           }
@@ -249,6 +274,25 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
             }
           }
         }
+        is ModelProviderCertificateKey -> {
+          externalModelProviderId = apiIdToExternalId(key.modelProviderId)
+          externalCertificateId = apiIdToExternalId(key.certificateId)
+
+          when (val resourceKey = principal.resourceKey) {
+            is ModelProviderKey -> {
+              if (apiIdToExternalId(resourceKey.modelProviderId) != externalModelProviderId) {
+                failGrpc(Status.PERMISSION_DENIED) {
+                  "Cannot revoke another ModelProvider's Certificate"
+                }
+              }
+            }
+            else -> {
+              failGrpc(Status.PERMISSION_DENIED) {
+                "Caller does not have permission to revoke a ModelProvider's Certificate"
+              }
+            }
+          }
+        }
         else -> failGrpc(Status.INVALID_ARGUMENT) { "Parent unspecified or invalid" }
       }
       revocationState = request.revocationState.toInternal()
@@ -322,6 +366,24 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
             }
           }
         }
+        is ModelProviderCertificateKey -> {
+          externalModelProviderId = apiIdToExternalId(key.modelProviderId)
+
+          when (val resourceKey = principal.resourceKey) {
+            is ModelProviderKey -> {
+              if (apiIdToExternalId(resourceKey.modelProviderId) != externalModelProviderId) {
+                failGrpc(Status.PERMISSION_DENIED) {
+                  "Cannot release another ModelProvider's Certificate"
+                }
+              }
+            }
+            else -> {
+              failGrpc(Status.PERMISSION_DENIED) {
+                "Caller does not have permission to release a ModelProvider's Certificate"
+              }
+            }
+          }
+        }
       }
     }
 
@@ -347,6 +409,11 @@ private fun InternalCertificate.toCertificate(): Certificate {
         makeDataProviderCertificateName(externalIdToApiId(externalDataProviderId), certificateApiId)
       InternalCertificate.ParentCase.EXTERNAL_DUCHY_ID ->
         makeDuchyCertificateName(externalDuchyId, certificateApiId)
+      InternalCertificate.ParentCase.EXTERNAL_MODEL_PROVIDER_ID ->
+        makeModelProviderCertificateName(
+          externalIdToApiId(externalModelProviderId),
+          certificateApiId
+        )
       InternalCertificate.ParentCase.PARENT_NOT_SET ->
         failGrpc(Status.INTERNAL) { "Parent missing" }
     }
@@ -381,6 +448,7 @@ private val CERTIFICATE_PARENT_KEY_PARSERS: List<(String) -> CertificateParentKe
     DataProviderCertificateKey::fromName,
     DuchyCertificateKey::fromName,
     MeasurementConsumerCertificateKey::fromName,
+    ModelProviderCertificateKey::fromName
   )
 
 /** Checks the resource name against multiple certificate [ResourceKey]s to find the right one. */

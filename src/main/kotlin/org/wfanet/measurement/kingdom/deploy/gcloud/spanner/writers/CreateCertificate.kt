@@ -32,8 +32,10 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertSubjectKe
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelProviderReader
 
 /**
  * Creates a certificate in the database.
@@ -50,6 +52,7 @@ class CreateCertificate(private val certificate: Certificate) :
       Certificate.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> "DataProvider"
       Certificate.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> "MeasurementConsumer"
       Certificate.ParentCase.EXTERNAL_DUCHY_ID -> "Duchy"
+      Certificate.ParentCase.EXTERNAL_MODEL_PROVIDER_ID -> "ModelProvider"
       Certificate.ParentCase.PARENT_NOT_SET ->
         throw IllegalArgumentException("Parent field of Certificate is not set")
     }
@@ -94,6 +97,13 @@ class CreateCertificate(private val certificate: Certificate) :
       Certificate.ParentCase.EXTERNAL_DUCHY_ID ->
         DuchyIds.getInternalId(certificate.externalDuchyId)
           ?: throw DuchyNotFoundException(certificate.externalDuchyId)
+      Certificate.ParentCase.EXTERNAL_MODEL_PROVIDER_ID -> {
+        val externalModelProviderId = ExternalId(certificate.externalModelProviderId)
+        ModelProviderReader()
+          .readByExternalModelProviderId(transactionContext, externalModelProviderId)
+          ?.modelProviderId
+          ?: throw ModelProviderNotFoundException(externalModelProviderId)
+      }
       Certificate.ParentCase.PARENT_NOT_SET ->
         throw IllegalArgumentException("Parent field of Certificate is not set")
     }
