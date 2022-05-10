@@ -17,9 +17,8 @@ package org.wfanet.panelmatch.common.beam
 import com.google.protobuf.ByteString
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
-import org.apache.beam.sdk.extensions.protobuf.ByteStringCoder
-import org.apache.beam.sdk.options.ValueProvider
 import org.apache.beam.sdk.transforms.Create
+import org.apache.beam.sdk.transforms.DoFn
 import org.apache.beam.sdk.transforms.PTransform
 import org.apache.beam.sdk.values.PBegin
 import org.apache.beam.sdk.values.PCollection
@@ -32,22 +31,19 @@ class ReadAsSingletonPCollection(
   private val storageFactory: StorageFactory
 ) : PTransform<PBegin, PCollection<ByteString>>() {
   override fun expand(input: PBegin): PCollection<ByteString> {
-    return input.apply(
-      "Read $blobKey",
-      Create.ofProvider(ReadFileProvider(blobKey, storageFactory), ByteStringCoder.of())
-    )
+    return input
+      .apply("Read $blobKey/Create", Create.of(blobKey))
+      .parDo(ReadByteStringFn(storageFactory), name = "Read $blobKey/Read")
   }
 }
 
-private class ReadFileProvider(
-  private val blobKey: String,
-  private val storageFactory: StorageFactory
-) : ValueProvider<ByteString> {
-  override fun get(): ByteString {
-    return runBlocking(Dispatchers.IO) {
-      requireNotNull(storageFactory.build().getBlob(blobKey)?.toByteString())
-    }
+private class ReadByteStringFn(private val storageFactory: StorageFactory) :
+  DoFn<String, ByteString>() {
+  @ProcessElement
+  fun processElement(c: ProcessContext) {
+    val blobKey = c.element()
+    val bytes =
+      runBlocking(Dispatchers.IO) { storageFactory.build().getBlob(blobKey)?.toByteString() }
+    c.output(requireNotNull(bytes))
   }
-
-  override fun isAccessible(): Boolean = true
 }

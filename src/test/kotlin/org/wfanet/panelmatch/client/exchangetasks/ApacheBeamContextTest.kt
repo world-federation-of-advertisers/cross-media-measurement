@@ -55,10 +55,7 @@ class ApacheBeamContextTest : BeamTestBase() {
   @Before
   fun setup() {
     val path = temporaryFolder.root.path
-    storageFactory =
-      object : StorageFactory {
-        override fun build(): StorageClient = FileSystemStorageClient(File(path))
-      }
+    storageFactory = StorageFactory { FileSystemStorageClient(File(path)) }
     storageClient = storageFactory.build()
   }
 
@@ -81,6 +78,8 @@ class ApacheBeamContextTest : BeamTestBase() {
 
     assertThat(context.readBlobAsPCollection(LABEL)).containsInAnyOrder(BLOB_CONTENTS)
     assertThat(context.readBlobAsView(LABEL)).containsInAnyOrder(BLOB_CONTENTS)
+
+    pipeline.run()
   }
 
   @Test
