@@ -44,7 +44,7 @@ fun createExchangeGraphViz(
         node(nodeName) {
           set("color" to color)
           set("shape" to STEP_SHAPE)
-          set("label" to "$step.stepId: ${stepIndexToStep[step.second]?.state?.name}")
+          set("label" to "${step.first.stepId}: ${stepIndexToStep[step.second]?.state?.name}")
         }
 
         for (label in step.first.outputLabelsMap.values) {
