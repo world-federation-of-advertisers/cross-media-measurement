@@ -5,9 +5,9 @@ package(default_visibility = [
 ])
 
 kt_jvm_test(
-    name = "AdvancedCompositionTest",
-    srcs = ["AdvancedCompositionTest.kt"],
-    test_class = "org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AdvancedCompositionTest",
+    name = "CompositionTest",
+    srcs = ["CompositionTest.kt"],
+    test_class = "org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.CompositionTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
