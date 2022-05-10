@@ -194,6 +194,19 @@ class DuchyCertificateNotFoundException(
       )
 }
 
+class ModelProviderCertificateNotFoundException(
+  val externalModelProviderId: ExternalId,
+  externalCertificateId: ExternalId,
+  provideDescription: () -> String = { "ModelProvider's Certificate not found" }
+) : CertificateNotFoundException(externalCertificateId, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_model_provider_id" to externalModelProviderId.toString(),
+        "external_certificate_id" to externalCertificateId.toString()
+      )
+}
+
 class CertificateRevocationStateIllegalException(
   val externalCertificateId: ExternalId,
   val state: Certificate.RevocationState,
