@@ -111,7 +111,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> { eventGroupsService.createEventGroup(eventGroup) }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception).hasMessageThat().contains("DataProvider not found")
   }
 

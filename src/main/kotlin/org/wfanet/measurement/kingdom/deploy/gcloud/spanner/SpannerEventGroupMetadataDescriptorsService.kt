@@ -41,7 +41,7 @@ class SpannerEventGroupMetadataDescriptorsService(
       return CreateEventGroupMetadataDescriptor(eventGroupMetadataDescriptor)
         .execute(client, idGenerator)
     } catch (e: DataProviderNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) {
         "DataProvider not found. " + e.contextToString()
       }
     } catch (e: KingdomInternalException) {

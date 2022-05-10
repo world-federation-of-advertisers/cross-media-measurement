@@ -103,7 +103,7 @@ class SpannerRequisitionsService(
         "Requisition state illegal. " + e.contextToString()
       }
     } catch (e: MeasurementStateIllegalException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) {
         "Measurement state illegal. " + e.contextToString()
       }
     } catch (e: DuchyNotFoundException) {

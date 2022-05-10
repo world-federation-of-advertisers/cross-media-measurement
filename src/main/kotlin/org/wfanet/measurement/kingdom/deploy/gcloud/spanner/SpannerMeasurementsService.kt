@@ -58,7 +58,7 @@ class SpannerMeasurementsService(
         "Certificate is invalid. " + e.contextToString()
       }
     } catch (e: MeasurementConsumerNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) {
         "MeasurementConsumer not found. " + e.contextToString()
       }
     } catch (e: DataProviderNotFoundException) {

@@ -53,11 +53,11 @@ class SpannerPublicKeysService(
         "Certificate not found. " + e.contextToString()
       }
     } catch (e: DataProviderNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) {
         "DataProvider not found. " + e.contextToString()
       }
     } catch (e: MeasurementConsumerNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) {
         "MeasurementConsumer not found. " + e.contextToString()
       }
     } catch (e: KingdomInternalException) {
