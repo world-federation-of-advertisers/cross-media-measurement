@@ -25,8 +25,8 @@ private const val BLOB_SHAPE = "egg"
 private const val STEP_SHAPE = "box"
 
 fun createExchangeGraphViz(
-    exchangeWorkflow: ExchangeWorkflow,
-    exchangeSteps: List<ExchangeStep>
+  exchangeWorkflow: ExchangeWorkflow,
+  exchangeSteps: List<ExchangeStep>
 ): String {
   val stepIndexToStep = exchangeSteps.associateBy { it.stepIndex }
   val steps = exchangeWorkflow.stepsList.mapIndexed { index, step -> Pair(step, index) }

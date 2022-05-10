@@ -76,7 +76,7 @@ private const val EXCHANGE_ID = "2021-03-14"
 private val AUDIT_TRAIL_HASH = ByteString.copyFromUtf8("some arbitrary audit_trail_hash")
 
 private const val GRAPHVIZ_REPRESENTATION =
-    "digraph {\\n  splines=\\\"ortho\\\"\\n}\\n\" -> \"digraph {\\n  splines=\\\"ortho\\\"\\n  Step1 [color=\\\"blue\\\", shape=\\\"box\\\", label=\\\"(step_id: \\\"Step1\\\"\\nparty: DATA_PROVIDER\\ninput_labels {\\n  key: \\\"CopyToSharedStorage\\\"\\n  value: \\\"Step1\\\"\\n}\\ninput_labels {\\n  key: \\\"IntersectAndValidate\\\"\\n  value: \\\"Step2\\\"\\n}\\noutput_labels {\\n  key: \\\"PreprocessEvents\\\"\\n  value: \\\"Step1\\\"\\n}\\n, 0).stepId: null\\\"]\\n  Step1 -> Step1\\n  Step1 -> Step1\\n  Step2 -> Step1\\n  Step2 [color=\\\"blue\\\", shape=\\\"box\\\", label=\\\"(step_id: \\\"Step2\\\"\\nparty: DATA_PROVIDER\\ninput_labels {\\n  key: \\\"GenerateLookupKeys\\\"\\n  value: \\\"Step1\\\"\\n}\\noutput_labels {\\n  key: \\\"CopyToSharedStorage\\\"\\n  value: \\\"Step1\\\"\\n}\\n, 1).stepId: READY\\\"]\\n  Step2 -> Step1\\n  Step1 -> Step2\\n  Step1 [color=\\\"blue\\\", shape=\\\"egg\\\", label=\\\"Step1\\\"]\\n  Step3 [color=\\\"red\\\", shape=\\\"box\\\", label=\\\"(step_id: \\\"Step3\\\"\\nparty: MODEL_PROVIDER\\ninput_labels {\\n  key: \\\"InputStep\\\"\\n  value: \\\"Step1\\\"\\n}\\noutput_labels {\\n  key: \\\"GenerateLookupKeys\\\"\\n  value: \\\"Step1\\\"\\n}\\n, 2).stepId: READY\\\"]\\n  Step3 -> Step1\\n  Step1 -> Step3\\n  Step1 [color=\\\"red\\\", shape=\\\"egg\\\", label=\\\"Step1\\\"]\\n}\\n"
+  "digraph {\\n  splines=\\\"ortho\\\"\\n}\\n\" -> \"digraph {\\n  splines=\\\"ortho\\\"\\n  Step1 [color=\\\"blue\\\", shape=\\\"box\\\", label=\\\"(step_id: \\\"Step1\\\"\\nparty: DATA_PROVIDER\\ninput_labels {\\n  key: \\\"CopyToSharedStorage\\\"\\n  value: \\\"Step1\\\"\\n}\\ninput_labels {\\n  key: \\\"IntersectAndValidate\\\"\\n  value: \\\"Step2\\\"\\n}\\noutput_labels {\\n  key: \\\"PreprocessEvents\\\"\\n  value: \\\"Step1\\\"\\n}\\n, 0).stepId: null\\\"]\\n  Step1 -> Step1\\n  Step1 -> Step1\\n  Step2 -> Step1\\n  Step2 [color=\\\"blue\\\", shape=\\\"box\\\", label=\\\"(step_id: \\\"Step2\\\"\\nparty: DATA_PROVIDER\\ninput_labels {\\n  key: \\\"GenerateLookupKeys\\\"\\n  value: \\\"Step1\\\"\\n}\\noutput_labels {\\n  key: \\\"CopyToSharedStorage\\\"\\n  value: \\\"Step1\\\"\\n}\\n, 1).stepId: READY\\\"]\\n  Step2 -> Step1\\n  Step1 -> Step2\\n  Step1 [color=\\\"blue\\\", shape=\\\"egg\\\", label=\\\"Step1\\\"]\\n  Step3 [color=\\\"red\\\", shape=\\\"box\\\", label=\\\"(step_id: \\\"Step3\\\"\\nparty: MODEL_PROVIDER\\ninput_labels {\\n  key: \\\"InputStep\\\"\\n  value: \\\"Step1\\\"\\n}\\noutput_labels {\\n  key: \\\"GenerateLookupKeys\\\"\\n  value: \\\"Step1\\\"\\n}\\n, 2).stepId: READY\\\"]\\n  Step3 -> Step1\\n  Step1 -> Step3\\n  Step1 [color=\\\"red\\\", shape=\\\"egg\\\", label=\\\"Step1\\\"]\\n}\\n"
 
 private val INTERNAL_EXCHANGE = internalExchange {
   externalRecurringExchangeId = RECURRING_EXCHANGE_ID
@@ -120,22 +120,24 @@ private fun createSerializedRecurringExchangeProto(): ByteString {
 class ExchangesServiceTest {
 
   private val internalService: InternalExchangesCoroutineImplBase =
-      mockService() { onBlocking { getExchange(any()) }.thenReturn(INTERNAL_EXCHANGE) }
+    mockService() { onBlocking { getExchange(any()) }.thenReturn(INTERNAL_EXCHANGE) }
 
   private val internalExchangeStepsService: InternalExchangeStepsCoroutineImplBase =
-      mockService() {
-        onBlocking { streamExchangeSteps(any()) }
-            .thenReturn(
-                flow {
-                  for (i in 1..3) {
-                    emit(
-                        internalExchangeStep {
-                          stepIndex = i
-                          state = ExchangeStep.State.READY
-                        })
-                  }
-                })
-      }
+    mockService() {
+      onBlocking { streamExchangeSteps(any()) }
+        .thenReturn(
+          flow {
+            for (i in 1..3) {
+              emit(
+                internalExchangeStep {
+                  stepIndex = i
+                  state = ExchangeStep.State.READY
+                }
+              )
+            }
+          }
+        )
+    }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalService) }
   @get:Rule
@@ -144,9 +146,9 @@ class ExchangesServiceTest {
   }
 
   private val service =
-      ExchangesService(
-          InternalExchangesCoroutineStub(grpcTestServerRule.channel),
-          InternalExchangeStepsCoroutineStub(grpcTestServerRuleExchangeSteps.channel))
+    ExchangesService(
+      InternalExchangesCoroutineStub(grpcTestServerRule.channel),
+      InternalExchangeStepsCoroutineStub(grpcTestServerRuleExchangeSteps.channel))
 
   private fun getExchange(init: GetExchangeRequestKt.Dsl.() -> Unit): Exchange = runBlocking {
     service.getExchange(getExchangeRequest(init))
@@ -156,12 +158,12 @@ class ExchangesServiceTest {
   fun `getExchange unauthenticated`() {
     val exchangeKey = ExchangeKey(null, null, externalIdToApiId(RECURRING_EXCHANGE_ID), EXCHANGE_ID)
     val e =
-        assertFailsWith<StatusRuntimeException> {
-          getExchange {
-            name = exchangeKey.toName()
-            dataProvider = DATA_PROVIDER
-          }
+      assertFailsWith<StatusRuntimeException> {
+        getExchange {
+          name = exchangeKey.toName()
+          dataProvider = DATA_PROVIDER
         }
+      }
     assertThat(e.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 
@@ -175,30 +177,32 @@ class ExchangesServiceTest {
 
     val exchangeKey = ExchangeKey(null, null, externalIdToApiId(RECURRING_EXCHANGE_ID), EXCHANGE_ID)
     val response =
-        withPrincipal(principal) {
-          getExchange {
-            name = exchangeKey.toName()
-            dataProvider = DATA_PROVIDER
-          }
+      withPrincipal(principal) {
+        getExchange {
+          name = exchangeKey.toName()
+          dataProvider = DATA_PROVIDER
         }
+      }
 
     assertThat(response)
-        .isEqualTo(
-            exchange {
-              name = exchangeKey.toName()
-              date = DATE
-              state = Exchange.State.ACTIVE
-              auditTrailHash = AUDIT_TRAIL_HASH
-              graphvizRepresentation = GRAPHVIZ_REPRESENTATION
-            })
+      .isEqualTo(
+        exchange {
+          name = exchangeKey.toName()
+          date = DATE
+          state = Exchange.State.ACTIVE
+          auditTrailHash = AUDIT_TRAIL_HASH
+          graphvizRepresentation = GRAPHVIZ_REPRESENTATION
+        }
+      )
 
     verifyProtoArgument(internalService, InternalExchangesCoroutineImplBase::getExchange)
-        .isEqualTo(
-            internalGetExchangeRequest {
-              externalRecurringExchangeId = RECURRING_EXCHANGE_ID
-              date = DATE
-              this.provider = provider
-            })
+      .isEqualTo(
+        internalGetExchangeRequest {
+          externalRecurringExchangeId = RECURRING_EXCHANGE_ID
+          date = DATE
+          this.provider = provider
+        }
+      )
   }
 
   @Test
@@ -210,15 +214,15 @@ class ExchangesServiceTest {
 
   @Test
   fun listExchanges() =
-      runBlocking<Unit> {
-        assertFailsWith(NotImplementedError::class) {
-          service.listExchanges(ListExchangesRequest.getDefaultInstance())
-        }
+    runBlocking<Unit> {
+      assertFailsWith(NotImplementedError::class) {
+        service.listExchanges(ListExchangesRequest.getDefaultInstance())
       }
+    }
 
   @Test
   fun uploadAuditTrail() =
-      runBlocking<Unit> {
-        assertFailsWith(NotImplementedError::class) { service.uploadAuditTrail(emptyFlow()) }
-      }
+    runBlocking<Unit> {
+      assertFailsWith(NotImplementedError::class) { service.uploadAuditTrail(emptyFlow()) }
+    }
 }
