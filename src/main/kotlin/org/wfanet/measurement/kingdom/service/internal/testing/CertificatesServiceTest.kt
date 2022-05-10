@@ -183,7 +183,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         runBlocking { certificatesService.createCertificate(certificate) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception).hasMessageThat().contains(expectedMessage)
   }
 
@@ -572,7 +572,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     val exception =
       assertFailsWith<StatusRuntimeException> { certificatesService.revokeCertificate(request) }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception).hasMessageThat().contains("Duchy not found")
   }
 
@@ -949,7 +949,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         certificatesService.releaseCertificateHold(request)
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception).hasMessageThat().contains("Duchy not found")
   }
 

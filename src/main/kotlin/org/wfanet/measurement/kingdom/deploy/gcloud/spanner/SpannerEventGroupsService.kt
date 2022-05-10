@@ -51,7 +51,7 @@ class SpannerEventGroupsService(
         "MeasurementConsumer not found. " + e.contextToString()
       }
     } catch (e: DataProviderNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) {
         "DataProvider not found. " + e.contextToString()
       }
     } catch (e: CertificateIsInvalidException) {

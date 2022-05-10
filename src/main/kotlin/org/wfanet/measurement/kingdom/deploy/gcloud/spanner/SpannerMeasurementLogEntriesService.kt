@@ -45,7 +45,7 @@ class SpannerMeasurementLogEntriesService(
     try {
       return CreateDuchyMeasurementLogEntry(request).execute(client, idGenerator)
     } catch (e: MeasurementNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) {
         "Measurement not found. " + e.contextToString()
       }
     } catch (e: DuchyNotFoundException) {
