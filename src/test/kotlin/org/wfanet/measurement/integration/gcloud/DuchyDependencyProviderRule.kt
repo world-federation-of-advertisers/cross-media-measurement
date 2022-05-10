@@ -30,7 +30,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransacto
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.ComputationMutations
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDatabaseReader
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDatabaseTransactor
-import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.COMPUTATIONS_SCHEMA
+import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
@@ -50,7 +50,7 @@ class DuchyDependencyProviderRule(duchies: Iterable<String>) :
   override val value: (String) -> InProcessDuchy.DuchyDependencies = this::buildDuchyDependencies
 
   private val computationsDatabaseRules: Map<String, SpannerEmulatorDatabaseRule> =
-    duchies.associateWith { SpannerEmulatorDatabaseRule(COMPUTATIONS_SCHEMA) }
+    duchies.associateWith { SpannerEmulatorDatabaseRule(Schemata.DUCHY_CHANGELOG_PATH) }
 
   private fun buildDuchyDependencies(duchyId: String): InProcessDuchy.DuchyDependencies {
     val computationsDatabase =
