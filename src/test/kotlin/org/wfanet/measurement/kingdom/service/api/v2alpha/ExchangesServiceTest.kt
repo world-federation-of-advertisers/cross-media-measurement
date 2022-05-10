@@ -148,7 +148,8 @@ class ExchangesServiceTest {
   private val service =
     ExchangesService(
       InternalExchangesCoroutineStub(grpcTestServerRule.channel),
-      InternalExchangeStepsCoroutineStub(grpcTestServerRuleExchangeSteps.channel))
+      InternalExchangeStepsCoroutineStub(grpcTestServerRuleExchangeSteps.channel)
+    )
 
   private fun getExchange(init: GetExchangeRequestKt.Dsl.() -> Unit): Exchange = runBlocking {
     service.getExchange(getExchangeRequest(init))
