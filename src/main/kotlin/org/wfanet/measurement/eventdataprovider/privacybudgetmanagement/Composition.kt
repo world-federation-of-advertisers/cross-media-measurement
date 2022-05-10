@@ -23,10 +23,11 @@ data class AdvancedCompositionKey(
   val totalDelta: Float
 )
 
-/** Memoized computation of binomial coefficients. */
-object AdvancedComposition {
-  private val memoizedCoeffs = ConcurrentHashMap<Pair<Int, Int>, Float>()
-  private val memoizedResults = HashMap<AdvancedCompositionKey, Float?>()
+object Composition {
+  /** Memoized computation of binomial coefficients. */
+  private val coeffs = ConcurrentHashMap<Pair<Int, Int>, Int>()
+  /** Memoized computation of advanced composition results. */
+  private val advancedCompositionResults = ConcurrentHashMap<AdvancedCompositionKey, Float>()
 
   /**
    * Computes the number of distinct ways to choose k items from a set of n.
@@ -36,15 +37,15 @@ object AdvancedComposition {
    * @return The number of distinct ways to draw k items from a set of size n. Alternatively, the
    * coefficient of x^k in the expansion of (1 + x)^n.
    */
-  private fun coeff(n: Int, k: Int): Float {
+  private fun coeff(n: Int, k: Int): Int {
     return if ((n < 0) || (k < 0) || (n < k)) {
-      0.0f
+      0
     } else if ((k == 0) || (n == k)) {
-      1.0f
+      1
     } else if (n - k < k) {
       coeff(n, n - k)
     } else {
-      memoizedCoeffs.getOrPut(n to k) { coeff(n - 1, k - 1) + coeff(n - 1, k) }
+      coeffs.getOrPut(n to k) { coeff(n - 1, k - 1) + coeff(n - 1, k) }
     }
   }
 
@@ -52,7 +53,7 @@ object AdvancedComposition {
     charge: PrivacyCharge,
     repetitionCount: Int,
     totalDelta: Float
-  ): Float? {
+  ): Float {
     val epsilon = charge.epsilon
     val delta = charge.delta
     val k = repetitionCount
@@ -61,7 +62,7 @@ object AdvancedComposition {
       var deltaI = 0.0f
       for (l in 0..i - 1) {
         deltaI +=
-          coeff(k, l) *
+          coeff(k, l).toFloat() *
             (exp(epsilon * (k - l).toFloat()) - exp(epsilon * (k - 2 * i + l).toFloat()))
       }
       deltaI /= (1.0f + exp(epsilon)).pow(k)
@@ -69,7 +70,7 @@ object AdvancedComposition {
         return epsilon * (k - 2 * i).toFloat()
       }
     }
-    return null
+    return Float.MAX_VALUE
   }
 
   /**
@@ -99,8 +100,8 @@ object AdvancedComposition {
     charge: PrivacyCharge,
     repetitionCount: Int,
     totalDelta: Float
-  ): Float? =
-    memoizedResults.getOrPut(AdvancedCompositionKey(charge, repetitionCount, totalDelta)) {
-      calculateAdvancedComposition(charge, repetitionCount, totalDelta)
-    }
+  ): Float =
+    advancedCompositionResults.getOrPut(
+      AdvancedCompositionKey(charge, repetitionCount, totalDelta)
+    ) { calculateAdvancedComposition(charge, repetitionCount, totalDelta) }
 }
