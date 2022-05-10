@@ -76,7 +76,13 @@ private const val EXCHANGE_ID = "2021-03-14"
 private val AUDIT_TRAIL_HASH = ByteString.copyFromUtf8("some arbitrary audit_trail_hash")
 
 private const val GRAPHVIZ_REPRESENTATION =
-  ""
+  "digraph {\n  splines=\"ortho\"\n  " +
+    "Step1 [color=\"blue\", shape=\"box\", label=\"Step1: null\"]\n  Step1 -> Step1\n  " +
+    "Step1 -> Step1\n  Step2 -> Step1\n  Step2 [color=\"blue\", shape=\"box\", " +
+    "label=\"Step2: READY\"]\n  Step2 -> Step1\n  Step1 -> Step2\n  Step1 [color=\"blue\", " +
+    "shape=\"egg\", label=\"Step1\"]\n  Step3 [color=\"red\", shape=\"box\", " +
+    "label=\"Step3: READY\"]\n  Step3 -> Step1\n  Step1 -> Step3\n  " +
+    "Step1 [color=\"red\", shape=\"egg\", label=\"Step1\"]\n}\n"
 
 private val INTERNAL_EXCHANGE = internalExchange {
   externalRecurringExchangeId = RECURRING_EXCHANGE_ID
