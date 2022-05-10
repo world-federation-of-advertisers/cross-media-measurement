@@ -207,7 +207,7 @@ class ExchangesServiceTest {
           date = DATE
           state = Exchange.State.ACTIVE
           auditTrailHash = AUDIT_TRAIL_HASH
-          graphvizRepresentation = GRAPHVIZ_REPRESENTATION
+          graphvizRepresentation = ""
         }
       )
 
