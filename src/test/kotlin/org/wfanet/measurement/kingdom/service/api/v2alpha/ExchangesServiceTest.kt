@@ -76,7 +76,15 @@ private const val EXCHANGE_ID = "2021-03-14"
 private val AUDIT_TRAIL_HASH = ByteString.copyFromUtf8("some arbitrary audit_trail_hash")
 
 private const val GRAPHVIZ_REPRESENTATION =
-  ""
+  "digraph {\n  splines=\"ortho\"\n  input_hkdf_pepper [color=\"blue\", shape=\"box\", " +
+    "label=\"input-hkdf-pepper: null\"]\n  input_hkdf_pepper -> edp_hkdf_pepper\n  " +
+    "export_hkdf_pepper [color=\"blue\", shape=\"box\", label=\"export-hkdf-pepper: " +
+    "READY\"]\n  export_hkdf_pepper -> hkdf_pepper\n  edp_hkdf_pepper -> export_hkdf_pepper\n  " +
+    "edp_hkdf_pepper [color=\"blue\", shape=\"egg\", label=\"edp-hkdf-pepper\"]\n  " +
+    "hkdf_pepper [color=\"blue\", shape=\"egg\", label=\"hkdf-pepper\"]\n  " +
+    "Step3 [color=\"red\", shape=\"box\", label=\"Step3: READY\"]\n  Step3 -> mp_hkdf_pepper\n  " +
+    "hkdf_pepper -> Step3\n  mp_hkdf_pepper [color=\"red\", shape=\"egg\", " +
+    "label=\"mp-hkdf-pepper\"]\n}\n"
 
 private val INTERNAL_EXCHANGE = internalExchange {
   externalRecurringExchangeId = RECURRING_EXCHANGE_ID
