@@ -53,6 +53,7 @@ maven_install(
     ],
 )
 
+# TODO: Get these from common-jvm
 GRPC_JAVA_VERSION = "1.43.2"
 
 KOTLIN_VERSION = "1.4.31"
