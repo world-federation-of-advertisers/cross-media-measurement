@@ -200,7 +200,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     assertCreateFailsWithMissingOwner("Measurement Consumer not found") {
       externalMeasurementConsumerId = NOT_AN_ID
     }
-    assertCreateFailsWithMissingOwner("ModelProvider not found") {
+    assertCreateFailsWithMissingOwner("Model Provider not found") {
       externalModelProviderId = NOT_AN_ID
     }
   }

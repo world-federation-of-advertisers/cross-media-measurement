@@ -89,13 +89,13 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   }
 
   @Test
-  fun `createAccount throws FAILED_PRECONDITION when creator account not found`() = runBlocking {
+  fun `createAccount throws NOT_FOUND when creator account not found`() = runBlocking {
     val createAccountRequest = account { externalCreatorAccountId = 1L }
 
     val exception =
       assertFailsWith<StatusRuntimeException> { service.createAccount(createAccountRequest) }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
 
   @Test
