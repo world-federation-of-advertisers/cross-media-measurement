@@ -19,12 +19,12 @@ import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.integration.common.InProcessKingdom
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerDataServices
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.Schemata
 
 private const val REDIRECT_URI = "https://localhost:2048"
 
 fun buildKingdomSpannerEmulatorDatabaseRule(): SpannerEmulatorDatabaseRule {
-  return SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
+  return SpannerEmulatorDatabaseRule(Schemata.KINGDOM_CHANGELOG_PATH)
 }
 
 fun buildSpannerInProcessKingdom(
