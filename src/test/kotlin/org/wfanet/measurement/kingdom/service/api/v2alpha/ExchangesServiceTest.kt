@@ -77,21 +77,21 @@ private val AUDIT_TRAIL_HASH = ByteString.copyFromUtf8("some arbitrary audit_tra
 
 private val GRAPHVIZ_REPRESENTATION =
   """
-    digraph {
-      splines = "ortho"
-      input_hkdf_pepper [color="blue", shape="box", label="input-hkdf-pepper: null"]
-      input_hkdf_pepper -> edp_hkdf_pepper
-      export_hkdf_pepper [color="blue", shape="box", label="export-hkdf-pepper: READY"]
-      export_hkdf_pepper -> hkdf_pepper
-      edp_hkdf_pepper -> export_hkdf_pepper
-      edp_hkdf_pepper [color="blue", shape="egg", label="edp-hkdf-pepper"]
-      hkdf_pepper [color="blue", shape="egg", label="hkdf-pepper"]
-      Step3 [color="red", shape="box", label="Step3: READY"]
-      Step3 -> mp_hkdf_pepper
-      hkdf_pepper -> Step3
-      mp_hkdf_pepper [color="red", shape="egg", label="mp-hkdf-pepper"]
-    }
-  """
+  digraph {
+    splines = "ortho"
+    input_hkdf_pepper [color="blue", shape="box", label="input-hkdf-pepper: null"]
+    input_hkdf_pepper -> edp_hkdf_pepper
+    export_hkdf_pepper [color="blue", shape="box", label="export-hkdf-pepper: READY"]
+    export_hkdf_pepper -> hkdf_pepper
+    edp_hkdf_pepper -> export_hkdf_pepper
+    edp_hkdf_pepper [color="blue", shape="egg", label="edp-hkdf-pepper"]
+    hkdf_pepper [color="blue", shape="egg", label="hkdf-pepper"]
+    Step3 [color="red", shape="box", label="Step3: READY"]
+    Step3 -> mp_hkdf_pepper
+    hkdf_pepper -> Step3
+    mp_hkdf_pepper [color="red", shape="egg", label="mp-hkdf-pepper"]
+  }
+  """.trimIndent()
 
 private val INTERNAL_EXCHANGE = internalExchange {
   externalRecurringExchangeId = RECURRING_EXCHANGE_ID
