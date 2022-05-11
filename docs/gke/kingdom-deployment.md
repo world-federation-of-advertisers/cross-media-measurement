@@ -76,20 +76,19 @@ following:
 
 The Kingdom expects its own database within your Spanner instance.
 
-You can use the
-`//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:kingdom.sdl`
-Bazel target to generate a file with the necessary Data Definition Language
-(DDL) to create the database.
+You can use the `//src/main/resources/kingdom/spanner:kingdom.ddl` Bazel target
+to generate a file with the necessary Data Definition Language (DDL) to create
+the database.
 
 ```shell
-bazel build //src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:kingdom.sdl
+bazel build //src/main/resources/kingdom/spanner:kingdom.ddl
 ```
 
-You can then create the `kingdom` database using the `gloud` CLI:
+You can then create the `kingdom` database using the `gcloud` CLI:
 
 ```shell
 gcloud spanner databases create kingdom --instance=dev-instance \
-  --ddl-file=bazel-bin/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/kingdom.sdl
+  --ddl-file=bazel-bin/src/main/resources/kingdom/spanner/kingdom.ddl
 ```
 
 ## Step 2. Build and push the container images
