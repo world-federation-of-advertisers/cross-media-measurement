@@ -186,15 +186,19 @@ kt_jvm_library(
     name = "exchanges_service",
     srcs = ["ExchangesService.kt"],
     deps = [
+        ":exchange_steps_to_graphviz",
         ":proto_conversions",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:providers",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_workflow_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchanges_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/common:provider_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:exchange_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:exchange_steps_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:exchanges_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:recurring_exchange_kt_jvm_proto",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
@@ -363,5 +367,15 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/kingdom:measurement_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+    ],
+)
+
+kt_jvm_library(
+    name = "exchange_steps_to_graphviz",
+    srcs = ["ExchangeStepsToGraphViz.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_workflow_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:exchange_step_kt_jvm_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/graphviz",
     ],
 )

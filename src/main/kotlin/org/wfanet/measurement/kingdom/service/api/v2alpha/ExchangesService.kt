@@ -17,8 +17,10 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import io.grpc.Status
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.Exchange
 import org.wfanet.measurement.api.v2alpha.ExchangeKey
+import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ExchangesGrpcKt.ExchangesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.GetExchangeRequest
 import org.wfanet.measurement.api.v2alpha.GetExchangeRequest.PartyCase
@@ -30,11 +32,18 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.toProtoDate
+import org.wfanet.measurement.internal.kingdom.Exchange as InternalExchange
+import org.wfanet.measurement.internal.kingdom.ExchangeStepsGrpcKt.ExchangeStepsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ExchangesGrpcKt.ExchangesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.RecurringExchange
+import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.getExchangeRequest
+import org.wfanet.measurement.internal.kingdom.streamExchangeStepsRequest
 
-class ExchangesService(private val internalExchanges: ExchangesCoroutineStub) :
-  ExchangesCoroutineImplBase() {
+class ExchangesService(
+  private val internalExchanges: ExchangesCoroutineStub,
+  private val internalExchangeSteps: ExchangeStepsCoroutineStub
+) : ExchangesCoroutineImplBase() {
   override suspend fun getExchange(request: GetExchangeRequest): Exchange {
     val provider = validateRequestProvider(getProvider(request))
 
@@ -47,8 +56,18 @@ class ExchangesService(private val internalExchanges: ExchangesCoroutineStub) :
           this.provider = provider
         }
       )
+    val exchangeSteps =
+      internalExchangeSteps.streamExchangeSteps(
+        streamExchangeStepsRequest {
+          filter { externalRecurringExchangeIds += apiIdToExternalId(key.recurringExchangeId) }
+        }
+      )
+
+    val externalExchangeWorkflow = getExchangeWorkflow(internalExchange)
+    val graphvizString = createExchangeGraphViz(externalExchangeWorkflow, exchangeSteps.toList())
+
     return try {
-      internalExchange.toV2Alpha()
+      internalExchange.toV2Alpha(graphvizString)
     } catch (e: Throwable) {
       failGrpc(Status.INVALID_ARGUMENT) { e.message ?: "Failed to convert InternalExchange" }
     }
@@ -72,4 +91,11 @@ private fun getProvider(request: GetExchangeRequest): String {
         "Caller identity is neither DataProvider nor ModelProvider"
       }
   }
+}
+
+private fun getExchangeWorkflow(internalExchange: InternalExchange): ExchangeWorkflow {
+  val recurringExchange =
+    RecurringExchange.parser().parseFrom(internalExchange.serializedRecurringExchange)
+  val recurringExchangeDetails = recurringExchange.details
+  return ExchangeWorkflow.parser().parseFrom(recurringExchangeDetails.externalExchangeWorkflow)
 }

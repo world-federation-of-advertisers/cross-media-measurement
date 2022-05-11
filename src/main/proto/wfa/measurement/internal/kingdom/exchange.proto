@@ -49,4 +49,12 @@ message Exchange {
   // Serialized ExchangeWorkflow message denormalized from the parent
   // `RecurringExchange`'s `RecurringExchangeDetails`.
   bytes serialized_recurring_exchange = 5;
+
+  // DOT language representation of the Exchange -- this gives the status and
+  // relationship between all steps.
+  //
+  // See https://graphviz.org/doc/info/lang.html for the language specification.
+  //
+  // Output only.
+  string graphviz_representation = 6;
 }

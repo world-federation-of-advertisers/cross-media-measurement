@@ -294,7 +294,7 @@ fun Measurement.toInternal(
 }
 
 /** @throws [IllegalStateException] if InternalExchange.State not specified */
-fun InternalExchange.toV2Alpha(): Exchange {
+fun InternalExchange.toV2Alpha(graphvizRepresentation: String): Exchange {
   val exchangeKey =
     ExchangeKey(
       dataProviderId = null,
@@ -307,8 +307,7 @@ fun InternalExchange.toV2Alpha(): Exchange {
     date = this@toV2Alpha.date
     state = v2AlphaState
     auditTrailHash = details.auditTrailHash
-    // TODO(@yunyeng): Add graphvizRepresentation to Exchange proto.
-    graphvizRepresentation = ""
+    this.graphvizRepresentation = graphvizRepresentation
   }
 }
 
@@ -382,7 +381,6 @@ fun InternalExchangeStepAttempt.toV2Alpha(): ExchangeStepAttempt {
   }
 }
 
-/** @throws [IllegalStateException] if State not specified */
 fun ExchangeStep.State.toInternal(): InternalExchangeStep.State {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
   return when (this) {

@@ -164,7 +164,7 @@ class InProcessKingdom(
             internalExchangeStepsClient
           ),
           ExchangeStepsService(internalExchangeStepsClient),
-          ExchangesService(internalExchangesClient)
+          ExchangesService(internalExchangesClient, internalExchangeStepsClient)
         )
         .forEach {
           addService(it.withMetadataPrincipalIdentities().withVerboseLogging(verboseGrpcLogging))
