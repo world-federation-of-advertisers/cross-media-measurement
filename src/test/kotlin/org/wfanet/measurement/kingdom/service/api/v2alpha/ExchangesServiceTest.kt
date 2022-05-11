@@ -78,7 +78,6 @@ private val AUDIT_TRAIL_HASH = ByteString.copyFromUtf8("some arbitrary audit_tra
 private val GRAPHVIZ_REPRESENTATION =
   """
     digraph {
-      stylesheet = "https://g3doc.corp.google.com/frameworks/g3doc/includes/graphviz-style.css"
       splines = "ortho"
       input_hkdf_pepper [color="blue", shape="box", label="input-hkdf-pepper: null"]
       input_hkdf_pepper -> edp_hkdf_pepper
