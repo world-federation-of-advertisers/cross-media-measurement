@@ -16,12 +16,17 @@ package org.wfanet.panelmatch.common
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.MessageLite
+import java.io.InputStream
 import java.time.Duration
 
 /** Reads length-delimited [T] messages from a [ByteString]. */
-fun <T : MessageLite> ByteString.parseDelimitedMessages(prototype: T): Iterable<T> = Iterable {
+fun <T : MessageLite> ByteString.parseDelimitedMessages(prototype: T): Iterable<T> =
+  newInput().parseDelimitedMessages(prototype)
+
+/** Reads length-delimited [T] messages from an [InputStream]. */
+fun <T : MessageLite> InputStream.parseDelimitedMessages(prototype: T): Iterable<T> = Iterable {
   iterator {
-    newInput().use { inputStream ->
+    this@parseDelimitedMessages.use { inputStream ->
       val parser = prototype.parserForType
       while (true) {
         @Suppress("UNCHECKED_CAST") // MessageLite::getParseForType guarantees this cast is safe.
