@@ -92,7 +92,7 @@ private val GRAPHVIZ_REPRESENTATION =
       hkdf_pepper -> Step3
       mp_hkdf_pepper [color="red", shape="egg", label="mp-hkdf-pepper"]
     }
-  """.trimIndent()
+  """
 
 private val INTERNAL_EXCHANGE = internalExchange {
   externalRecurringExchangeId = RECURRING_EXCHANGE_ID
