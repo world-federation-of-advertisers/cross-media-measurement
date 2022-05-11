@@ -48,22 +48,22 @@ class SpannerEventGroupsService(
       return CreateEventGroup(request).execute(client, idGenerator)
     } catch (e: MeasurementConsumerNotFoundException) {
       e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-        "MeasurementConsumer not found. " + e.contextToString()
+        "MeasurementConsumer not found."
       }
     } catch (e: DataProviderNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) {
-        "DataProvider not found. " + e.contextToString()
+        "DataProvider not found."
       }
     } catch (e: CertificateIsInvalidException) {
       e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-        "MeasurementConsumer's Certificate is invalid. " + e.contextToString()
+        "MeasurementConsumer's Certificate is invalid."
       }
     } catch (e: MeasurementConsumerCertificateNotFoundException) {
       e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-        "MeasurementConsumer's Certificate not found. " + e.contextToString()
+        "MeasurementConsumer's Certificate not found."
       }
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error" }
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
   }
 
@@ -76,22 +76,22 @@ class SpannerEventGroupsService(
       return UpdateEventGroup(request.eventGroup).execute(client, idGenerator)
     } catch (e: EventGroupInvalidArgsException) {
       e.throwStatusRuntimeException(Status.INVALID_ARGUMENT) {
-        "EventGroup modification param is invalid. " + e.contextToString()
+        "EventGroup modification param is invalid."
       }
     } catch (e: CertificateIsInvalidException) {
       e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-        "MeasurementConsumer's Certificate is invalid. " + e.contextToString()
+        "MeasurementConsumer's Certificate is invalid."
       }
     } catch (e: MeasurementConsumerCertificateNotFoundException) {
       e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-        "MeasurementConsumer's Certificate not found. " + e.contextToString()
+        "MeasurementConsumer's Certificate not found."
       }
     } catch (e: EventGroupNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) {
-        "EventGroup not found. " + e.contextToString()
+        "EventGroup not found."
       }
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error" }
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
   }
 

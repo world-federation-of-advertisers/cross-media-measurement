@@ -74,14 +74,14 @@ class SpannerAccountsService(
         .execute(client, idGenerator)
     } catch (e: AccountNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) {
-        "Creator's Account not found. " + e.contextToString()
+        "Creator's Account not found."
       }
     } catch (e: PermissionDeniedException) {
       e.throwStatusRuntimeException(Status.PERMISSION_DENIED) {
-        "Caller does not own the owned measurement consumer. " + e.contextToString()
+        "Caller does not own the owned measurement consumer."
       }
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error" }
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
   }
 
@@ -105,15 +105,15 @@ class SpannerAccountsService(
         .execute(client, idGenerator)
     } catch (e: PermissionDeniedException) {
       e.throwStatusRuntimeException(Status.PERMISSION_DENIED) {
-        "Activation token is not valid for this account. " + e.contextToString()
+        "Activation token is not valid for this account."
       }
     } catch (e: DuplicateAccountIdentityException) {
       e.throwStatusRuntimeException(Status.INVALID_ARGUMENT) {
-        "Issuer and subject pair already exists. " + e.contextToString()
+        "Issuer and subject pair already exists."
       }
     } catch (e: AccountActivationStateIllegalException) {
       e.throwStatusRuntimeException(Status.PERMISSION_DENIED) {
-        "Cannot activate an account again. " + e.contextToString()
+        "Cannot activate an account again. "
       }
     } catch (e: AccountNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) {

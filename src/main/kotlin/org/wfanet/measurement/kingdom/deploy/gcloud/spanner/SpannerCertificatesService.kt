@@ -57,22 +57,22 @@ class SpannerCertificatesService(
       return CreateCertificate(request).execute(client, idGenerator)
     } catch (e: MeasurementConsumerNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) {
-        "Measurement Consumer not found. " + e.contextToString()
+        "Measurement Consumer not found."
       }
     } catch (e: DataProviderNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) {
-        "Data Provider not found. " + e.contextToString()
+        "Data Provider not found."
       }
     } catch (e: ModelProviderNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) {
-        "Model Provider not found. " + e.contextToString()
+        "Model Provider not found."
       }
     } catch (e: CertSubjectKeyIdAlreadyExistsException) {
       e.throwStatusRuntimeException(Status.ALREADY_EXISTS) {
-        "Certificate with the subject key identifier (SKID) already exists. " + e.contextToString()
+        "Certificate with the subject key identifier (SKID) already exists."
       }
     } catch (e: DuchyNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Duchy not found. " + e.contextToString() }
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Duchy not found."}
     } catch (e: KingdomInternalException) {
       e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error" }
     }
