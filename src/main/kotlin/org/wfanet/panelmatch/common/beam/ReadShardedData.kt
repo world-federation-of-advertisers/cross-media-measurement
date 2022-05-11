@@ -17,6 +17,7 @@ package org.wfanet.panelmatch.common.beam
 import com.google.protobuf.ByteString
 import com.google.protobuf.Message
 import com.google.protobuf.MessageLite
+import java.io.InputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.apache.beam.sdk.extensions.protobuf.ProtoCoder
@@ -27,10 +28,11 @@ import org.apache.beam.sdk.transforms.PTransform
 import org.apache.beam.sdk.transforms.ParDo
 import org.apache.beam.sdk.values.PBegin
 import org.apache.beam.sdk.values.PCollection
+import org.wfanet.measurement.storage.StorageClient.Blob
 import org.wfanet.panelmatch.common.ShardedFileName
 import org.wfanet.panelmatch.common.parseDelimitedMessages
 import org.wfanet.panelmatch.common.storage.StorageFactory
-import org.wfanet.panelmatch.common.storage.toByteString
+import org.wfanet.panelmatch.common.storage.newInputStream
 
 /** Reads each file mentioned in [fileSpec] as a [ByteString]. */
 class ReadShardedData<T : Message>(
@@ -59,28 +61,23 @@ private class ReadBlobFn<T : MessageLite>(
   private val storageFactory: StorageFactory
 ) : DoFn<String, T>() {
   private val metricsNamespace = "ReadShardedData"
-  private val fileSizeDistribution = Metrics.distribution(metricsNamespace, "file-sizes")
   private val itemSizeDistribution = Metrics.distribution(metricsNamespace, "item-sizes")
   private val elementCountDistribution = Metrics.distribution(metricsNamespace, "element-counts")
 
   @ProcessElement
-  fun processElement(context: ProcessContext) {
-    val bytes =
-      runBlocking(Dispatchers.IO) {
-        storageFactory.build().getBlob(context.element())?.toByteString()
+  fun processElement(context: ProcessContext) =
+    runBlocking(Dispatchers.IO) {
+      val blob: Blob = storageFactory.build().getBlob(context.element()) ?: return@runBlocking
+      val inputStream: InputStream = blob.newInputStream(this)
+
+      var elements = 0L
+
+      for (message in inputStream.parseDelimitedMessages(prototype)) {
+        itemSizeDistribution.update(message.serializedSize.toLong())
+        context.output(message)
+        elements++
       }
-        ?: return
 
-    fileSizeDistribution.update(bytes.size().toLong())
-
-    var elements = 0L
-
-    for (message in bytes.parseDelimitedMessages(prototype)) {
-      itemSizeDistribution.update(message.serializedSize.toLong())
-      context.output(message)
-      elements++
+      elementCountDistribution.update(elements)
     }
-
-    elementCountDistribution.update(elements)
-  }
 }
