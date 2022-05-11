@@ -186,7 +186,7 @@ import ("strings")
 		_image:           _images["push-spanner-schema-container"]
 		_imagePullPolicy: _duchy_image_pull_policy
 		_args:            [
-					"--databases=\(_duchy.name)_duchy_computations=/app/wfa_measurement_system/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computations.sdl",
+					"--database-schema=\(_duchy.name)_duchy_computations=duchy/spanner/create-computations-schema.sql",
 		] + _spanner_schema_push_flags
 		_jobSpec: {
 			backoffLimit: 0 // Don't retry.

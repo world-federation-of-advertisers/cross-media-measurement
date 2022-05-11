@@ -1,3 +1,5 @@
+-- liquibase formatted sql
+
 -- Copyright 2021 The Cross-Media Measurement Authors
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -67,6 +69,7 @@
 -- computation can begin.
 
 -- X.509 certificates used for consent signaling.
+-- changeset sanjayvas:create-certificates-table dbms:cloudspanner
 CREATE TABLE Certificates (
   CertificateId INT64 NOT NULL,
 
@@ -85,9 +88,11 @@ CREATE TABLE Certificates (
 ) PRIMARY KEY (CertificateId);
 
 -- Enforce that subject key identifier (SKID) is unique.
+-- changeset sanjayvas:create-certificates-by-skid-index dbms:cloudspanner
 CREATE UNIQUE INDEX CertificatesBySubjectKeyIdentifier
   ON Certificates(SubjectKeyIdentifier);
 
+-- changeset sanjayvas:create-duchy-certificates-table dbms:cloudspanner
 CREATE TABLE DuchyCertificates (
   DuchyId INT64 NOT NULL,
   CertificateId INT64 NOT NULL,
@@ -97,9 +102,11 @@ CREATE TABLE DuchyCertificates (
   FOREIGN KEY (CertificateId) REFERENCES Certificates(CertificateId),
 ) PRIMARY KEY (DuchyId, CertificateId);
 
+-- changeset sanjayvas:create-duchy-certificates-by-external-id-index dbms:cloudspanner
 CREATE UNIQUE INDEX DuchyCertificatesByExternalId
   ON DuchyCertificates(DuchyId, ExternalDuchyCertificateId);
 
+-- changeset sanjayvas:create-mc-creation-tokens-table dbms:cloudspanner
 CREATE TABLE MeasurementConsumerCreationTokens (
   MeasurementConsumerCreationTokenId INT64 NOT NULL,
 
@@ -108,9 +115,11 @@ CREATE TABLE MeasurementConsumerCreationTokens (
   CreateTime        TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
 ) PRIMARY KEY (MeasurementConsumerCreationTokenId);
 
+-- changeset sanjayvas:create-mc-creation-tokens-by-hash-index dbms:cloudspanner
 CREATE UNIQUE INDEX MeasurementConsumerCreationTokensByHash
   ON MeasurementConsumerCreationTokens(MeasurementConsumerCreationTokenHash);
 
+-- changeset sanjayvas:create-measurement-consumers-table dbms:cloudspanner
 CREATE TABLE MeasurementConsumers (
   MeasurementConsumerId INT64 NOT NULL,
 
@@ -125,9 +134,11 @@ CREATE TABLE MeasurementConsumers (
 ) PRIMARY KEY (MeasurementConsumerId);
 
 -- For measurement consumer APIs.
+-- changeset sanjayvas:create-measurement-consumers-by-external-id-index dbms:cloudspanner
 CREATE UNIQUE INDEX MeasurementConsumersByExternalId
   ON MeasurementConsumers(ExternalMeasurementConsumerId);
 
+-- changeset sanjayvas:create-mc-api-keys-table dbms:cloudspanner
 CREATE TABLE MeasurementConsumerApiKeys (
   MeasurementConsumerId INT64 NOT NULL,
   ApiKeyId INT64 NOT NULL,
@@ -141,12 +152,15 @@ CREATE TABLE MeasurementConsumerApiKeys (
 ) PRIMARY KEY (MeasurementConsumerId, ApiKeyId),
   INTERLEAVE IN PARENT MeasurementConsumers ON DELETE CASCADE;
 
+-- changeset sanjayvas:create-mc-api-keys-by-external-id-index dbms:cloudspanner
 CREATE UNIQUE INDEX MeasurementConsumerApiKeysByExternalId
   ON MeasurementConsumerApiKeys(MeasurementConsumerId, ExternalMeasurementConsumerApiKeyId);
 
+-- changeset sanjayvas:create-mc-api-keys-by-auth-key-hash-index dbms:cloudspanner
 CREATE UNIQUE INDEX MeasurementConsumerApiKeysByAuthenticationKeyHash
   ON MeasurementConsumerApiKeys(AuthenticationKeyHash);
 
+-- changeset sanjayvas:create-mc-certs-table dbms:cloudspanner
 CREATE TABLE MeasurementConsumerCertificates (
   MeasurementConsumerId INT64 NOT NULL,
   CertificateId INT64 NOT NULL,
@@ -157,13 +171,16 @@ CREATE TABLE MeasurementConsumerCertificates (
 ) PRIMARY KEY (MeasurementConsumerId, CertificateId),
   INTERLEAVE IN PARENT MeasurementConsumers ON DELETE CASCADE;
 
+-- changeset sanjayvas:create-mc-certs-by-external-id-index dbms:cloudspanner
 CREATE UNIQUE INDEX MeasurementConsumerCertificatesByExternalId
   ON MeasurementConsumerCertificates(MeasurementConsumerId, ExternalMeasurementConsumerCertificateId);
 
 -- No Certificate should belong to more than one MeasurementConsumer.
+-- changeset sanjayvas:create-mc-certs-by-cert-id-index dbms:cloudspanner
 CREATE UNIQUE INDEX MeasurementConsumerCertificatesByCertificateId
   ON MeasurementConsumerCertificates(CertificateId);
 
+-- changeset sanjayvas:create-data-providers-table dbms:cloudspanner
 CREATE TABLE DataProviders (
   DataProviderId INT64 NOT NULL,
 
@@ -178,9 +195,11 @@ CREATE TABLE DataProviders (
 ) PRIMARY KEY (DataProviderId);
 
 -- For data provider APIs.
+-- changeset sanjayvas:create-data-providers-by-external-id-index dbms:cloudspanner
 CREATE UNIQUE INDEX DataProvidersByExternalId
   ON DataProviders(ExternalDataProviderId);
 
+-- changeset sanjayvas:create-edp-certs-table dbms:cloudspanner
 CREATE TABLE DataProviderCertificates (
   DataProviderId INT64 NOT NULL,
   CertificateId INT64 NOT NULL,
@@ -191,10 +210,12 @@ CREATE TABLE DataProviderCertificates (
 ) PRIMARY KEY (DataProviderId, CertificateId),
   INTERLEAVE IN PARENT DataProviders ON DELETE CASCADE;
 
+-- changeset sanjayvas:create-edp-certs-by-external-id-index dbms:cloudspanner
 CREATE UNIQUE INDEX DataProviderCertificatesByExternalId
   ON DataProviderCertificates(DataProviderId, ExternalDataProviderCertificateId);
 
 -- No Certificate should belong to more than one DataProvider.
+-- changeset sanjayvas:create-edp-certs-by-cert-id-index dbms:cloudspanner
 CREATE UNIQUE INDEX DataProviderCertificatesByCertificateId
   ON DataProviderCertificates(CertificateId);
 
@@ -218,6 +239,7 @@ CREATE UNIQUE INDEX DataProviderCertificatesByCertificateId
 -- TODO(world-federation-of-advertisers/cross-media-measurement#390): Make the
 -- following columns NOT NULL: UpdateTime, EventGroupDetails,
 -- EventGroupDetailsJson.
+-- changeset sanjayvas:create-event-groups-table dbms:cloudspanner
 CREATE TABLE EventGroups (
   DataProviderId                          INT64 NOT NULL,
   EventGroupId                            INT64 NOT NULL,
@@ -246,6 +268,14 @@ CREATE TABLE EventGroups (
 ) PRIMARY KEY (DataProviderId, EventGroupId),
   INTERLEAVE IN PARENT DataProviders ON DELETE CASCADE;
 
+-- changeset sanjayvas:create-event-groups-by-external-id-index dbms:cloudspanner
+CREATE UNIQUE INDEX EventGroupsByExternalId
+  ON EventGroups(DataProviderId, ExternalEventGroupId);
+-- changeset sanjayvas:create-event-groups-by-provided-id-index dbms:cloudspanner
+CREATE UNIQUE NULL_FILTERED INDEX EventGroupsByProvidedId
+  ON EventGroups(DataProviderId, ProvidedEventGroupId);
+
+-- changeset chipingyeh:create-eg-metadata-descriptors-table dbms:cloudspanner
 CREATE TABLE EventGroupMetadataDescriptors (
   DataProviderId                          INT64 NOT NULL,
   EventGroupMetadataDescriptorId          INT64 NOT NULL,
@@ -254,15 +284,10 @@ CREATE TABLE EventGroupMetadataDescriptors (
   -- wfa.measurement.internal.kingdom.EventGroupMetadataDescriptor.Details serialized proto.
   DescriptorDetails                       BYTES(MAX) NOT NULL,
   DescriptorDetailsJson                   STRING(MAX) NOT NULL,
-
 ) PRIMARY KEY (DataProviderId, EventGroupMetadataDescriptorId),
   INTERLEAVE IN PARENT DataProviders ON DELETE CASCADE;
 
-CREATE UNIQUE INDEX EventGroupsByExternalId
-  ON EventGroups(DataProviderId, ExternalEventGroupId);
-CREATE UNIQUE NULL_FILTERED INDEX EventGroupsByProvidedId
-  ON EventGroups(DataProviderId, ProvidedEventGroupId);
-
+-- changeset sanjayvas:create-measurements-table dbms:cloudspanner
 CREATE TABLE Measurements (
   MeasurementConsumerId              INT64 NOT NULL,
   MeasurementId                      INT64 NOT NULL,
@@ -297,21 +322,26 @@ CREATE TABLE Measurements (
   INTERLEAVE IN PARENT MeasurementConsumers ON DELETE CASCADE;
 
 -- Enable finding Measurements ready to be worked on.
+-- changeset sanjayvas:create-measurements-by-state-index dbms:cloudspanner
 CREATE INDEX MeasurementsByState ON Measurements(State, UpdateTime ASC);
 
 -- Enable finding Measurements by externally generated Foreign ids
+-- changeset sanjayvas:create-measurements-by-provided-id-index dbms:cloudspanner
 CREATE UNIQUE NULL_FILTERED INDEX MeasurementsByProvidedId
   ON Measurements(MeasurementConsumerId, ProvidedMeasurementId);
 
+-- changeset sanjayvas:create-measurements-by-external-id-index dbms:cloudspanner
 CREATE UNIQUE INDEX MeasurementsByExternalId
   ON Measurements(MeasurementConsumerId, ExternalMeasurementId);
 
+-- changeset sanjayvas:create-measurements-by-external-computation-id-index dbms:cloudspanner
 CREATE UNIQUE NULL_FILTERED INDEX MeasurementsByExternalComputationId
   ON Measurements(ExternalComputationId);
 
 -- The Requisition data is actually stored by the Duchy. The Duchy has a map
 -- from the ExternalRequisitionId to the blob storage path for the Requisition
 -- data (i.e. the bytes provided by the Data Provider).
+-- changeset sanjayvas:create-requisitions-table dbms:cloudspanner
 CREATE TABLE Requisitions (
   MeasurementConsumerId       INT64 NOT NULL,
   MeasurementId               INT64 NOT NULL,
@@ -343,18 +373,22 @@ CREATE TABLE Requisitions (
 ) PRIMARY KEY (MeasurementConsumerId, MeasurementId, RequisitionId),
   INTERLEAVE IN PARENT Measurements ON DELETE CASCADE;
 
+-- changeset sanjayvas:create-requisitions-by-external-id-index dbms:cloudspanner
 CREATE UNIQUE INDEX RequisitionsByExternalId
   ON Requisitions(DataProviderId, ExternalRequisitionId);
 
+-- changeset sanjayvas:create-requisitions-by-edp-id-index dbms:cloudspanner
 CREATE UNIQUE INDEX RequisitionsByDataProviderId
   ON Requisitions(MeasurementConsumerId, MeasurementId, DataProviderId);
 
 -- Used to effectively list requisitions that a DataProvider would need to
 -- fulfill
+-- changeset sanjayvas:create-requisitions-by-state-index dbms:cloudspanner
 CREATE INDEX RequisitionsByState ON Requisitions(DataProviderId, State);
 
 -- Stores the details and state of duchies for the computation of parent
 -- Measurement.
+-- changeset sanjayvas:create-computation-participants-table dbms:cloudspanner
 CREATE TABLE ComputationParticipants (
   MeasurementConsumerId       INT64 NOT NULL,
   MeasurementId               INT64 NOT NULL,
@@ -380,6 +414,7 @@ CREATE TABLE ComputationParticipants (
 -- Duchy might send many updates (one or more per stage of the MPC protocol).
 -- This is used to give a bird's eye view of the state of the computations to
 -- help debug and track progress.
+-- changeset sanjayvas:create-measurement-log-entries-table dbms:cloudspanner
 CREATE TABLE MeasurementLogEntries (
   MeasurementConsumerId INT64 NOT NULL,
   MeasurementId INT64 NOT NULL,
@@ -396,6 +431,7 @@ CREATE TABLE MeasurementLogEntries (
 -- Duchy-specific information for a Measurement log entry. There should be a row
 -- in this table for every row in MeasurementLogEntries where the source of the
 -- log event is a Duchy.
+-- changeset sanjayvas:create-duchy-measurement-log-entries-table dbms:cloudspanner
 CREATE TABLE DuchyMeasurementLogEntries (
   MeasurementConsumerId INT64 NOT NULL,
   MeasurementId INT64 NOT NULL,
@@ -413,9 +449,11 @@ CREATE TABLE DuchyMeasurementLogEntries (
 ) PRIMARY KEY (MeasurementConsumerId, MeasurementId, CreateTime),
   INTERLEAVE IN PARENT MeasurementLogEntries ON DELETE CASCADE;
 
+-- changeset sanjayvas:create-duchy-measurement-log-entries-by-external-id-index dbms:cloudspanner
 CREATE UNIQUE INDEX DuchyMeasurementLogEntriesByExternalId
   ON DuchyMeasurementLogEntries(DuchyId, ExternalComputationLogEntryId);
 
+-- changeset tristanvuong2021:create-duchy-measurement-results-table dbms:cloudspanner
 CREATE TABLE DuchyMeasurementResults (
   MeasurementConsumerId INT64 NOT NULL,
   MeasurementId INT64 NOT NULL,
@@ -433,6 +471,7 @@ CREATE TABLE DuchyMeasurementResults (
 ) PRIMARY KEY (MeasurementConsumerId, MeasurementId, DuchyId, CertificateId),
   INTERLEAVE IN PARENT Measurements ON DELETE CASCADE;
 
+-- changeset tristanvuong2021:create-accounts-table dbms:cloudspanner
 CREATE TABLE Accounts (
   AccountId INT64 NOT NULL,
 
@@ -454,9 +493,11 @@ CREATE TABLE Accounts (
   FOREIGN KEY (OwnedMeasurementConsumerId) REFERENCES MeasurementConsumers(MeasurementConsumerId),
 ) PRIMARY KEY (AccountId);
 
+-- changeset tristanvuong2021:create-accounts-by-external-id-index dbms:cloudspanner
 CREATE UNIQUE INDEX AccountsByExternalId
   ON Accounts(ExternalAccountId);
 
+-- changeset tristanvuong2021:create-oidc-identities-table dbms:cloudspanner
 CREATE TABLE OpenIdConnectIdentities (
   AccountId INT64 NOT NULL,
   OpenIdConnectIdentityId INT64 NOT NULL,
@@ -466,9 +507,11 @@ CREATE TABLE OpenIdConnectIdentities (
 ) PRIMARY KEY (AccountId, OpenIdConnectIdentityId),
 INTERLEAVE IN PARENT Accounts ON DELETE CASCADE;
 
+-- changeset tristanvuong2021:create-oidc-identities-by-issuer-and-subject-index dbms:cloudspanner
 CREATE UNIQUE INDEX OpenIdConnectIdentitiesByIssuerAndSubject
   ON OpenIdConnectIdentities(Issuer, Subject);
 
+-- changeset tristanvuong2021:create-oidc-request-params-table dbms:cloudspanner
 CREATE TABLE OpenIdRequestParams (
   OpenIdRequestParamsId INT64 NOT NULL,
 
@@ -481,9 +524,11 @@ CREATE TABLE OpenIdRequestParams (
   ValidSeconds INT64 NOT NULL,
 ) PRIMARY KEY (OpenIdRequestParamsId);
 
+-- changeset tristanvuong2021:create-oidc-request-params-by-external-id-index dbms:cloudspanner
 CREATE UNIQUE INDEX OpenIdRequestParamsByExternalId
   ON OpenIdRequestParams(ExternalOpenIdRequestParamsId);
 
+-- changeset tristanvuong2021:create-mc-owners-table dbms:cloudspanner
 CREATE TABLE MeasurementConsumerOwners (
   AccountId INT64 NOT NULL,
   MeasurementConsumerId INT64 NOT NULL,
