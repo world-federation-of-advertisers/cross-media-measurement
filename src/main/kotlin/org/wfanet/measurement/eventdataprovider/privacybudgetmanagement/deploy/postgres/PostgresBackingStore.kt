@@ -183,50 +183,6 @@ class PostgresBackingStoreTransactionContext(
     }
   }
 
-  override fun updateLedgerEntry(privacyBudgetLedgerEntry: PrivacyBudgetLedgerEntry) {
-    // TODO(@uakyol) Refactor this out as part of making the ledger immutable
-    throwIfTransactionHasEnded(listOf(privacyBudgetLedgerEntry.privacyBucketGroup))
-    val updateEntrySql =
-      """
-        UPDATE LedgerEntries
-        SET
-          MeasurementConsumerId = ?,
-          TransactionId = ?,
-          Date = ?,
-          AgeGroup = CAST(? AS AgeGroup),
-          Gender = CAST(? AS Gender),
-          VidStart = ?,
-          Delta = ?,
-          Epsilon = ?,
-          RepetitionCount = ?
-        WHERE LedgerEntryId = ?
-      """.trimIndent()
-    val privacyBucketGroup = privacyBudgetLedgerEntry.privacyBucketGroup
-    val privacyCharge = privacyBudgetLedgerEntry.privacyCharge
-    connection.prepareStatement(updateEntrySql).use { statement: PreparedStatement ->
-      statement.setString(1, privacyBucketGroup.measurementConsumerId)
-      statement.setLong(2, transactionId)
-      statement.setObject(3, privacyBucketGroup.startingDate)
-      statement.setString(4, privacyBucketGroup.ageGroup.string)
-      statement.setString(5, privacyBucketGroup.gender.string)
-      statement.setFloat(6, privacyBucketGroup.vidSampleStart)
-      statement.setFloat(7, privacyCharge.delta)
-      statement.setFloat(8, privacyCharge.epsilon)
-      statement.setInt(9, privacyBudgetLedgerEntry.repetitionCount)
-      statement.setLong(10, privacyBudgetLedgerEntry.rowId)
-      // TODO(@duliomatos) Make the blocking IO run within a dispatcher using coroutines
-      statement.executeUpdate()
-    }
-  }
-
-  override fun mergePreviousTransaction(previousTransactionId: Long) {
-    TODO("TODO(@uakyol) Implement this function as part of making the ledger immutable")
-  }
-
-  override fun undoPreviousTransaction(previousTransactionId: Long) {
-    TODO("TODO(@uakyol) Implement this function as part of making the ledger immutable")
-  }
-
   override fun commit() {
     connection.commit()
     transactionHasEnded = true

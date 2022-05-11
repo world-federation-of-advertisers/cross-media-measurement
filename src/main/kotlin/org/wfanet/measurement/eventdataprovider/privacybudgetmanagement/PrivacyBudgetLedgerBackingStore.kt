@@ -13,6 +13,8 @@
  */
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
+import java.time.Instant
+
 /**
  * Representation of a single row in the privacy budget ledger backing store. Note that a given
  * PrivacyBucketGroup may have multiple rows associated to it. The total charge to the
@@ -21,11 +23,15 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
  * usage is not as simple as just adding up the charges for the individual rows.
  */
 data class PrivacyBudgetLedgerEntry(
-  val rowId: Long,
-  val transactionId: Long,
   val privacyBucketGroup: PrivacyBucketGroup,
   val privacyCharge: PrivacyCharge,
   val repetitionCount: Int
+)
+
+data class PrivacyBudgetReferenceEntry(
+  val referenceKey: String,
+  val isPositive: Boolean,
+  val createTime: Instant
 )
 
 /** Manages the persistence of privacy budget data. */
@@ -54,7 +60,6 @@ interface PrivacyBudgetLedgerBackingStore : AutoCloseable {
  * PrivacyBudgetLedgerBackingStore should take this into account.
  */
 interface PrivacyBudgetLedgerTransactionContext : AutoCloseable {
-  val transactionId: Long // A unique ID assigned to this transaction.
 
   /**
    * Returns a list of all rows within the privacy budget ledger where the PrivacyBucket of the row
@@ -65,28 +70,14 @@ interface PrivacyBudgetLedgerTransactionContext : AutoCloseable {
   ): List<PrivacyBudgetLedgerEntry>
 
   /** Adds a new row to the PrivacyBudgetLedger specifying a charge to a privacy budget. */
-  fun addLedgerEntry(privacyBucketGroup: PrivacyBucketGroup, privacyCharge: PrivacyCharge)
+  fun addLedgerEntries(
+    privacyBucketGroups: List<PrivacyBucketGroup>,
+    privacyCharges: List<PrivacyCharge>,
+    privacyReference: PrivacyReference
+  )
 
-  /** Updates a row in the PrivacyBudgetLedger. */
-  fun updateLedgerEntry(privacyBudgetLedgerEntry: PrivacyBudgetLedgerEntry)
-
-  /**
-   * Causes the privacy charges from a previous request to be permanently merged into the database.
-   *
-   * One possible implementation is to represent the permanently merged privacy budget charges using
-   * a special transaction ID (for example, 0). When merging a row, if there is an existing row with
-   * the special transaction ID that has the same privacy charge, then the repetition count can be
-   * increased and the merged row can be deleted. Otherwise, the transaction ID for the merged row
-   * can be set to the special transaction ID.
-   */
-  fun mergePreviousTransaction(previousTransactionId: Long)
-
-  /**
-   * Causes the privacy charges from a previous transaction to be reversed.
-   *
-   * This can be implemented by deleting the rows with the previous transaction id.
-   */
-  fun undoPreviousTransaction(previousTransactionId: Long)
+  /** Checks if the charges with the [referenceKey] should be processed. */
+  fun shouldProcess(referenceKey: String, isPositive: Boolean): Boolean
 
   /**
    * Commits the current transaction.

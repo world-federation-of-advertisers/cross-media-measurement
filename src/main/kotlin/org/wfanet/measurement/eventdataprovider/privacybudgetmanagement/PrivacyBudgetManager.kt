@@ -56,11 +56,10 @@ class PrivacyBudgetManager(
    */
   fun chargePrivacyBudget(
     measurementConsumerId: String,
-    requisitionSpec: RequisitionSpec,
+    privacyQuery: PrivacyQuery,
     measurementSpec: MeasurementSpec
   ) {
-    val affectedPrivacyBuckets =
-      filter.getPrivacyBucketGroups(measurementConsumerId, measurementSpec, requisitionSpec)
+    val affectedPrivacyBuckets = filter.getPrivacyBucketGroups(measurementConsumerId, privacyQuery)
     val chargeList = mutableListOf<PrivacyCharge>()
 
     when (measurementSpec.measurementTypeCase) {
@@ -105,6 +104,10 @@ class PrivacyBudgetManager(
       else -> throw IllegalArgumentException("Measurement type not supported")
     }
 
-    ledger.chargePrivacyBucketGroups(affectedPrivacyBuckets, chargeList)
+    ledger.chargePrivacyBucketGroups(
+      privacyQuery.privacyReference,
+      affectedPrivacyBuckets,
+      chargeList
+    )
   }
 }

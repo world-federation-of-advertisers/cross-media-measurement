@@ -17,8 +17,6 @@ import com.google.protobuf.Timestamp
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
@@ -36,22 +34,18 @@ class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
    */
   fun getPrivacyBucketGroups(
     measurementConsumerId: String,
-    measurementSpec: MeasurementSpec,
-    requisitionSpec: RequisitionSpec
+    privacyQuery: PrivacyQuery
   ): List<PrivacyBucketGroup> {
 
-    val vidSamplingIntervalStart = measurementSpec.reachAndFrequency.vidSamplingInterval.start
-    val vidSamplingIntervalWidth = measurementSpec.reachAndFrequency.vidSamplingInterval.width
-    val vidSamplingIntervalEnd = vidSamplingIntervalStart + vidSamplingIntervalWidth
-
-    return requisitionSpec
-      .getEventGroupsList()
+    return privacyQuery.privacyEventGroupSpecs
       .flatMap {
         getPrivacyBucketGroups(
           measurementConsumerId,
-          it.value,
-          vidSamplingIntervalStart,
-          vidSamplingIntervalEnd
+          it.eventFilter,
+          it.startDate,
+          it.endDate,
+          privacyQuery.vidSampleStart,
+          privacyQuery.vidSampleStart + privacyQuery.vidSampleWidth
         )
       }
       .toList()
@@ -59,15 +53,14 @@ class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
 
   private fun getPrivacyBucketGroups(
     measurementConsumerId: String,
-    eventGroupEntryValue: EventGroupEntry.Value,
+    eventFilter: String,
+    startDate: LocalDate,
+    endDate: LocalDate,
     vidSamplingIntervalStart: Float,
     vidSamplingIntervalEnd: Float
   ): Sequence<PrivacyBucketGroup> {
 
-    val program = privacyBucketMapper.toPrivacyFilterProgram(eventGroupEntryValue.filter.expression)
-
-    val startDate: LocalDate = eventGroupEntryValue.collectionInterval.startTime.toLocalDate("UTC")
-    val endDate: LocalDate = eventGroupEntryValue.collectionInterval.endTime.toLocalDate("UTC")
+    val program = privacyBucketMapper.toPrivacyFilterProgram(eventFilter)
 
     val vidsIntervalStartPoints =
       PrivacyLandscape.vidsIntervalStartPoints.filter {
