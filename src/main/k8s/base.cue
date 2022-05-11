@@ -95,6 +95,20 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		_configMapMounts: PodSpec._configMapMounts
 	}
 	_dependencies: [...string]
+	_initContainers: [Name=_]: #Container & {
+		name: Name
+	}
+
+	_initContainers: {
+		for dep in _dependencies {
+			"wait-for-\(dep)": {
+				image: "gcr.io/google-containers/busybox:1.27"
+				command: ["sh", "-c",
+					"until nslookup \(dep); do echo waiting for \(dep); sleep 2; done",
+				]
+			}
+		}
+	}
 
 	restartPolicy: "Always" | "Never" | "OnFailure"
 	containers: [_container]
@@ -107,11 +121,16 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	}]
 	serviceAccountName?: string
 	nodeSelector?: [_=string]: string
-	initContainers: [ for ds in _dependencies {
-		name:  "init-\(ds)"
-		image: "gcr.io/google-containers/busybox:1.27"
-		command: ["sh", "-c", "until nslookup \(ds); do echo waiting for \(ds); sleep 2; done"]
-	}]
+	initContainers: [ for _, initContainer in _initContainers {initContainer}]
+	...
+}
+
+#Probe: {
+	exec: command: [...string]
+	initialDelaySeconds?: uint32
+	periodSeconds?:       uint32
+	timeoutSeconds?:      uint32
+	failureThreshold?:    uint32
 	...
 }
 
@@ -119,16 +138,18 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_secretMounts: [...#SecretMount]
 	_configMapMounts: [...#ConfigMapMount]
 
-	imagePullPolicy: "IfNotPresent" | "Never" | "Always"
+	name:   string
+	image?: string
+	args: [...string]
+	ports: [...{...}]
+	imagePullPolicy?: "IfNotPresent" | "Never" | "Always"
+	command?: [...string]
 	volumeMounts: [ for mount in _configMapMounts + _secretMounts {
 		name:      mount.name
 		mountPath: mount.mountPath
 		readOnly:  true
 	}]
-	readinessProbe?: {
-		exec: command: [...string]
-		periodSeconds: uint32
-	}
+	readinessProbe?: #Probe
 	...
 }
 
@@ -155,7 +176,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			secretName: _secretName
 		}]
 		_configMapMounts: Deployment._configMapMounts
-		_dependencies: Deployment._dependencies
+		_dependencies:    Deployment._dependencies
 	}
 
 	apiVersion: "apps/v1"
@@ -213,7 +234,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 				"--tls-client-cert=/var/run/secrets/files/health_probe_tls.pem",
 				"--tls-client-key=/var/run/secrets/files/health_probe_tls.key",
 			]
-			periodSeconds: 60
+			initialDelaySeconds: 30
+			failureThreshold:    10
 		}}]
 }
 

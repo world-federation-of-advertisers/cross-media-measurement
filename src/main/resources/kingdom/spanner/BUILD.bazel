@@ -1,6 +1,5 @@
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:__subpackages__",
-    "//src/main/kotlin/org/wfanet/measurement/tools:__pkg__",
     "//src/test/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:__subpackages__",
 ])
 
@@ -10,16 +9,4 @@ filegroup(
         "*.yaml",
         "*.sql",
     ]),
-)
-
-# Temporary target for code paths that don't yet handle Liquibase changelogs.
-genrule(
-    name = "gen_kingdom_ddl",
-    srcs = [
-        "create-measurement-schema.sql",
-        "create-exchange-schema.sql",
-    ],
-    outs = ["kingdom.ddl"],
-    cmd = "cat $(SRCS) > $@",
-    visibility = ["//visibility:public"],
 )

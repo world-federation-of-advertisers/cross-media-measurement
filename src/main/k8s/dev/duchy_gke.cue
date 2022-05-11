@@ -15,16 +15,16 @@
 package k8s
 
 _duchy_name:                   string @tag("duchy_name")
-_duchy_cert_name:              string @tag("duchy_cert_name")
 _duchy_protocols_setup_config: string @tag("duchy_protocols_setup_config")
 _secret_name:                  string @tag("secret_name")
+_cloudStorageBucket:           string @tag("cloud_storage_bucket")
+_certificateId:                string @tag("certificate_id")
 
-#KingdomSystemApiTarget:  "system.kingdom.dev.halo-cmm.org:8443"
-#GloudProject:            "halo-cmm-dev"
-#SpannerInstance:         "dev-instance"
-#CloudStorageBucket:      "halo-cmm-dev-bucket"
-#ContainerRegistry:       "gcr.io"
-#ContainerRegistryPrefix: #ContainerRegistry + "/" + #GloudProject
+_duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
+
+#KingdomSystemApiTarget:       "system.kingdom.dev.halo-cmm.org:8443"
+#InternalServerServiceAccount: "internal-server"
+#StorageServiceAccount:        "storage"
 #DefaultResourceConfig: {
 	replicas:              1
 	resourceRequestCpu:    "100m"
@@ -47,7 +47,33 @@ _secret_name:                  string @tag("secret_name")
 	resourceLimitMemory:   "512Mi"
 }
 
-objectSets: [default_deny_ingress_and_egress] + [ for d in duchy {d}]
+objectSets: [
+	default_deny_ingress_and_egress,
+	duchy.deployments,
+	duchy.services,
+	duchy.networkPolicies,
+]
+
+_cloudStorageConfig: #CloudStorageConfig & {
+	bucket: _cloudStorageBucket
+}
+
+_imageSuffixes: [_=string]: string
+_imageSuffixes: {
+	"async-computation-control-server": "duchy/async-computation-control"
+	"computation-control-server":       "duchy/computation-control"
+	"herald-daemon":                    "duchy/herald"
+	"liquid-legions-v2-mill-daemon":    "duchy/liquid-legions-v2-mill"
+	"requisition-fulfillment-server":   "duchy/requisition-fulfillment"
+	"spanner-computations-server":      "duchy/spanner-computations"
+	"update-duchy-schema":              "duchy/spanner-update-schema"
+}
+_imageConfigs: [_=string]: #ImageConfig
+_imageConfigs: {
+	for name, suffix in _imageSuffixes {
+		"\(name)": {repoSuffix: suffix}
+	}
+}
 
 duchy: #Duchy & {
 	_duchy: {
@@ -62,27 +88,11 @@ duchy: #Duchy & {
 		"worker2":    "system.worker2.dev.halo-cmm.org:8443"
 	}
 	_kingdom_system_api_target: #KingdomSystemApiTarget
-	_spanner_schema_push_flags: [
-		"--ignore-already-existing-databases",
-		"--instance-name=" + #SpannerInstance,
-		"--project-name=" + #GloudProject,
-	]
-	_spanner_flags: [
-		"--spanner-instance=" + #SpannerInstance,
-		"--spanner-project=" + #GloudProject,
-	]
-	_blob_storage_flags: [
-		"--google-cloud-storage-bucket=" + #CloudStorageBucket,
-		"--google-cloud-storage-project=" + #GloudProject,
-	]
+	_blob_storage_flags:        _cloudStorageConfig.flags
 	_images: {
-		"async-computation-control-server": #ContainerRegistryPrefix + "/duchy/async-computation-control"
-		"computation-control-server":       #ContainerRegistryPrefix + "/duchy/computation-control"
-		"herald-daemon":                    #ContainerRegistryPrefix + "/duchy/herald"
-		"liquid-legions-v2-mill-daemon":    #ContainerRegistryPrefix + "/duchy/liquid-legions-v2-mill"
-		"requisition-fulfillment-server":   #ContainerRegistryPrefix + "/duchy/requisition-fulfillment"
-		"push-spanner-schema-container":    #ContainerRegistryPrefix + "/setup/push-spanner-schema"
-		"spanner-computations-server":      #ContainerRegistryPrefix + "/duchy/spanner-computations"
+		for name, config in _imageConfigs {
+			"\(name)": config.image
+		}
 	}
 	_resource_configs: {
 		"async-computation-control-server": #DefaultResourceConfig
@@ -94,4 +104,27 @@ duchy: #Duchy & {
 	}
 	_duchy_image_pull_policy: "Always"
 	_verbose_grpc_logging:    "false"
+
+	deployments: {
+		"spanner-computations-server-deployment": {
+			_podSpec: #ServiceAccountPodSpec & {
+				serviceAccountName: #InternalServerServiceAccount
+			}
+		}
+		"liquid-legions-v2-mill-daemon-deployment": {
+			_podSpec: #ServiceAccountPodSpec & {
+				serviceAccountName: #StorageServiceAccount
+			}
+		}
+		"computation-control-server-deployment": {
+			_podSpec: #ServiceAccountPodSpec & {
+				serviceAccountName: #StorageServiceAccount
+			}
+		}
+		"requisition-fulfillment-server-deployment": {
+			_podSpec: #ServiceAccountPodSpec & {
+				serviceAccountName: #StorageServiceAccount
+			}
+		}
+	}
 }

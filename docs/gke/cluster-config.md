@@ -38,6 +38,22 @@ gcloud spanner databases add-iam-policy-binding kingdom \
   --member="serviceAccount:kingdom-internal@halo-kingdom-demo.iam.gserviceaccount.com"
 ```
 
+### Granting Cloud Storage bucket access
+
+Granting a service account access to a Cloud Storage bucket can be done from the
+[Cloud Storage Browser](https://console.cloud.google.com/storage/browser), or
+using [`gsutil`](https://cloud.google.com/storage/docs/gsutil/commands/iam).
+
+For example, if you want to grant a `duchy-storage` service account in the
+`halo-worker1-demo` project full access to objects in the `worker1-duchy`
+bucket:
+
+```shell
+gsutil iam ch \
+  serviceAccount:duchy-storage@halo-worker1-demo.iam.gserviceaccount.com:objectAdmin \
+  gs://worker1-duchy
+```
+
 ## Network Policy
 
 Kubernetes (K8s) network policies can be used to limit network ingress and

@@ -16,10 +16,6 @@ package k8s
 
 _secret_name: string @tag("secret_name")
 
-#GloudProject:            "halo-cmm-dev"
-#SpannerInstance:         "dev-instance"
-#ContainerRegistry:       "gcr.io"
-#ContainerRegistryPrefix: #ContainerRegistry + "/" + #GloudProject
 #DefaultResourceConfig: {
 	replicas:              1
 	resourceRequestCpu:    "100m"
@@ -38,18 +34,30 @@ objectSets: [
 	kingdom.networkPolicies,
 ]
 
+_imageSuffixes: [_=string]: string
+_imageSuffixes: {
+	"gcp-kingdom-data-server":   "kingdom/data-server"
+	"system-api-server":         "kingdom/system-api"
+	"v2alpha-public-api-server": "kingdom/v2alpha-public-api"
+	"update-kingdom-schema":     "kingdom/spanner-update-schema"
+}
+_imageConfigs: [_=string]: #ImageConfig
+_imageConfigs: {
+	for name, suffix in _imageSuffixes {
+		"\(name)": {repoSuffix: suffix}
+	}
+}
+
 kingdom: #Kingdom & {
 	_kingdom_secret_name: _secret_name
-	_spanner_flags: [
-		"--spanner-database=kingdom",
-		"--spanner-instance=" + #SpannerInstance,
-		"--spanner-project=" + #GloudProject,
-	]
+	_spannerConfig: database: "kingdom"
+
 	_images: {
-		"gcp-kingdom-data-server":   #ContainerRegistryPrefix + "/kingdom/data-server"
-		"system-api-server":         #ContainerRegistryPrefix + "/kingdom/system-api"
-		"v2alpha-public-api-server": #ContainerRegistryPrefix + "/kingdom/v2alpha-public-api"
+		for name, config in _imageConfigs {
+			"\(name)": config.image
+		}
 	}
+
 	_resource_configs: {
 		"gcp-kingdom-data-server":   #DefaultResourceConfig
 		"system-api-server":         #DefaultResourceConfig
@@ -60,11 +68,8 @@ kingdom: #Kingdom & {
 
 	deployments: {
 		"gcp-kingdom-data-server": {
-			_podSpec: {
+			_podSpec: #ServiceAccountPodSpec & {
 				serviceAccountName: #InternalServerServiceAccount
-				nodeSelector: {
-					"iam.gke.io/gke-metadata-server-enabled": "true"
-				}
 			}
 		}
 	}

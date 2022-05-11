@@ -18,8 +18,7 @@ package k8s
 	_verboseGrpcServerLogging: bool | *false
 	_verboseGrpcClientLogging: bool | *false
 
-	_spanner_schema_push_flags: [...string]
-	_spanner_flags: [...string]
+	_spannerConfig: #SpannerConfig
 
 	_images: [Name=_]: string
 	_kingdom_image_pull_policy: string
@@ -55,21 +54,6 @@ package k8s
 	jobs: [Name=_]: #Job & {
 		_name: Name
 	}
-	jobs: {
-		"kingdom-push-spanner-schema": {
-			_image:           _images["push-spanner-schema-container"]
-			_imagePullPolicy: _kingdom_image_pull_policy
-			_args:            [
-						"--database-schema=kingdom=kingdom/spanner/kingdom.ddl",
-			] + _spanner_schema_push_flags
-			_jobSpec: {
-				backoffLimit: 0 // Don't retry.
-			}
-			_podSpec: {
-				restartPolicy: "Never"
-			}
-		}
-	}
 
 	deployments: [Name=_]: #ServerDeployment & {
 		_name:                  Name
@@ -84,7 +68,7 @@ package k8s
 		_resourceLimitCpu:      _resource_configs[_name].resourceLimitCpu
 	}
 	deployments: {
-		"gcp-kingdom-data-server": {
+		"gcp-kingdom-data-server": Deployment={
 			_args: [
 				_duchy_info_config_flag,
 				_duchy_id_config_flag,
@@ -93,7 +77,15 @@ package k8s
 				_kingdom_cert_collection_file_flag,
 				_debug_verbose_grpc_server_logging_flag,
 				"--port=8443",
-			] + _spanner_flags
+			] + _spannerConfig.flags
+
+			_podSpec: _initContainers: {
+				"update-kingdom-schema": InitContainer={
+					image:           _images[InitContainer.name]
+					imagePullPolicy: Deployment._imagePullPolicy
+					args:            _spannerConfig.flags
+				}
+			}
 		}
 
 		"system-api-server": {
@@ -179,13 +171,6 @@ package k8s
 				"gcp-kingdom-data-server-app",
 				"v2alpha-public-api-server-app",
 			]
-		}
-		"push-spanner-schema-job": {
-			_app_label: "kingdom-push-spanner-schema-app"
-			_egresses: {
-				// Need to send external traffic to Spanner.
-				any: {}
-			}
 		}
 	}
 }

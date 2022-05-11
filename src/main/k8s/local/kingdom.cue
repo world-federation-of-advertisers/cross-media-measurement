@@ -28,26 +28,12 @@ objectSets: [ for objectSet in kingdom {objectSet}]
 
 kingdom: #Kingdom & {
 	_kingdom_secret_name: _secret_name
-	_spanner_schema_push_flags: [
-		"--create-instance",
-		"--emulator-host=" + (#Target & {name: "spanner-emulator"}).target,
-		"--instance-config-id=spanner-emulator",
-		"--instance-display-name=EmulatorInstance",
-		"--instance-name=emulator-instance",
-		"--instance-node-count=1",
-		"--project-name=cross-media-measurement-system",
-	]
-	_spanner_flags: [
-		"--spanner-database=kingdom",
-		"--spanner-emulator-host=" + (#Target & {name: "spanner-emulator"}).target,
-		"--spanner-instance=emulator-instance",
-		"--spanner-project=cross-media-measurement-system",
-	]
+	_spannerConfig: database: "kingdom"
 	_images: {
-		"push-spanner-schema-container": "bazel/src/main/kotlin/org/wfanet/measurement/tools:push_spanner_schema_image"
-		"gcp-kingdom-data-server":       "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/server:gcp_kingdom_data_server_image"
-		"system-api-server":             "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:system_api_server_image"
-		"v2alpha-public-api-server":     "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:v2alpha_public_api_server_image"
+		"update-kingdom-schema":     "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/tools:update_schema_image"
+		"gcp-kingdom-data-server":   "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/server:gcp_kingdom_data_server_image"
+		"system-api-server":         "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:system_api_server_image"
+		"v2alpha-public-api-server": "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:v2alpha_public_api_server_image"
 	}
 	_resource_configs: {
 		"gcp-kingdom-data-server":   #DefaultResourceConfig

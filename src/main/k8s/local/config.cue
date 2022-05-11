@@ -14,23 +14,8 @@
 
 package k8s
 
-#NetworkPolicy: {
-	_egresses: {
-		gkeMetadataServer: {
-			to: [{ipBlock: cidr: "127.0.0.1/32"}]
-			ports: [{
-				protocol: "TCP"
-				port:     988
-			}]
-		}
-	}
-}
-
-#ServiceAccountPodSpec: {
-	#PodSpec
-
-	serviceAccountName: string
-	nodeSelector: {
-		"iam.gke.io/gke-metadata-server-enabled": "true"
-	}
+#SpannerConfig: {
+	project:      "cross-media-measurement-system"
+	instance:     "emulator-instance"
+	emulatorHost: (#Target & {name: "spanner-emulator"}).target
 }
