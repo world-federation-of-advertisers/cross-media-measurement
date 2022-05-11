@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.tools
+package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Party.DATA_PROVIDER
@@ -29,7 +29,7 @@ fun createExchangeGraphViz(
   exchangeSteps: List<ExchangeStep>
 ): String {
   val stepIndexToStep = exchangeSteps.associateBy { it.stepIndex }
-  val steps = exchangeWorkflow.stepsList.mapIndexed { index, step -> Pair(step, index) }
+  val steps = exchangeWorkflow.stepsList.mapIndexed { index, step -> step to index }
 
   val graph = digraph {
     attributes { set("splines" to "ortho") }
@@ -38,24 +38,24 @@ fun createExchangeGraphViz(
       val color = PARTY_COLOR.getValue(party)
       val outputs = mutableSetOf<String>()
 
-      for (step in partySteps) {
-        val nodeName = step.first.stepId.toNodeName()
+      for ((step, stepIndex) in partySteps) {
+        val nodeName = step.stepId.toNodeName()
 
         node(nodeName) {
           set("color" to color)
           set("shape" to STEP_SHAPE)
-          set("label" to "${step.first.stepId}: ${stepIndexToStep[step.second]?.state?.name}")
+          set("label" to "${step.stepId}: ${stepIndexToStep[stepIndex]?.state?.name}")
         }
 
-        for (label in step.first.outputLabelsMap.values) {
+        for (label in step.outputLabelsMap.values) {
           edge(nodeName to label.toNodeName())
         }
 
-        for (label in step.first.inputLabelsMap.values) {
+        for (label in step.inputLabelsMap.values) {
           edge(label.toNodeName() to nodeName)
         }
 
-        outputs.addAll(step.first.outputLabelsMap.values)
+        outputs.addAll(step.outputLabelsMap.values)
       }
 
       for (output in outputs) {

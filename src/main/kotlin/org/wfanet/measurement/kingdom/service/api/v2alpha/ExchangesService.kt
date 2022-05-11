@@ -39,7 +39,6 @@ import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.getExchangeRequest
 import org.wfanet.measurement.internal.kingdom.streamExchangeStepsRequest
-import org.wfanet.measurement.tools.createExchangeGraphViz
 
 class ExchangesService(
   private val internalExchanges: ExchangesCoroutineStub,
