@@ -46,38 +46,28 @@ class SpannerComputationParticipantsService(
       return SetParticipantRequisitionParams(request).execute(client, idGenerator)
     } catch (e: ComputationParticipantStateIllegalException) {
       e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-        "ComputationParticipant not in CREATED state. " + e.contextToString()
+        "ComputationParticipant not in CREATED state."
       }
     } catch (e: MeasurementStateIllegalException) {
       e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-        "Measurement not in PENDING_REQUISITION_PARAMS state. " + e.contextToString()
+        "Measurement not in PENDING_REQUISITION_PARAMS state."
       }
     } catch (e: ComputationParticipantNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) {
-        "ComputationParticipant not found. " + e.contextToString()
-      }
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "ComputationParticipant not found." }
     } catch (e: DuchyNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-        "Duchy not found. " + e.contextToString()
-      }
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Duchy not found." }
     } catch (e: DuchyCertificateNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-        "Duchy's Certificate not found. " + e.contextToString()
-      }
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Duchy's Certificate not found." }
     } catch (e: CertificateIsInvalidException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-        "Certificate is invalid. " + e.contextToString()
-      }
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Certificate is invalid." }
     } catch (e: DuplicateAccountIdentityException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-        "Account Identity duplicated. " + e.contextToString()
-      }
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Account Identity duplicated." }
     } catch (e: AccountActivationStateIllegalException) {
       e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-        "Account activation state illegal. " + e.contextToString()
+        "Account activation state illegal."
       }
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error" }
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
   }
 
@@ -87,19 +77,13 @@ class SpannerComputationParticipantsService(
     try {
       return FailComputationParticipant(request).execute(client, idGenerator)
     } catch (e: ComputationParticipantNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) {
-        "ComputationParticipant not found. " + e.contextToString()
-      }
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "ComputationParticipant not found." }
     } catch (e: DuchyNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-        "Duchy not found. " + e.contextToString()
-      }
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Duchy not found." }
     } catch (e: MeasurementStateIllegalException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-        "Measurement state is illegal. " + e.contextToString()
-      }
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Measurement state is illegal." }
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error" }
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
   }
 
@@ -109,23 +93,17 @@ class SpannerComputationParticipantsService(
     try {
       return ConfirmComputationParticipant(request).execute(client, idGenerator)
     } catch (e: ComputationParticipantNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) {
-        "ComputationParticipant not found. " + e.contextToString()
-      }
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "ComputationParticipant not found." }
     } catch (e: ComputationParticipantStateIllegalException) {
       e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-        "ComputationParticipant in illegal state. " + e.contextToString()
+        "ComputationParticipant in illegal state."
       }
     } catch (e: DuchyNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-        "Duchy not found. " + e.contextToString()
-      }
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Duchy not found." }
     } catch (e: MeasurementStateIllegalException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-        "Measurement in illegal state. " + e.contextToString()
-      }
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Measurement in illegal state." }
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error" }
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
   }
 }

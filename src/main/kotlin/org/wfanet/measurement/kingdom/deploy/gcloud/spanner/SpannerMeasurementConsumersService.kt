@@ -58,18 +58,16 @@ class SpannerMeasurementConsumersService(
         .execute(client, idGenerator)
     } catch (e: PermissionDeniedException) {
       e.throwStatusRuntimeException(Status.PERMISSION_DENIED) {
-        "Measurement Consumer creation token is not valid. " + e.contextToString()
+        "Measurement Consumer creation token is not valid."
       }
     } catch (e: AccountNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-        "Account not found. " + e.contextToString()
-      }
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Account not found." }
     } catch (e: AccountActivationStateIllegalException) {
       e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-        "Account has not been activated yet. " + e.contextToString()
+        "Account has not been activated yet."
       }
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error" }
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
   }
 
@@ -95,15 +93,11 @@ class SpannerMeasurementConsumersService(
         )
         .execute(client, idGenerator)
     } catch (e: AccountNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-        "Account not found. " + e.contextToString()
-      }
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Account not found." }
     } catch (e: MeasurementConsumerNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) {
-        "MeasurementConsumer not found. " + e.contextToString()
-      }
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "MeasurementConsumer not found." }
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error" }
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
   }
 
@@ -117,19 +111,15 @@ class SpannerMeasurementConsumersService(
         )
         .execute(client, idGenerator)
     } catch (e: AccountNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-        "Account not found. " + e.contextToString()
-      }
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Account not found." }
     } catch (e: MeasurementConsumerNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) {
-        "MeasurementConsumer not found. " + e.contextToString()
-      }
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "MeasurementConsumer not found." }
     } catch (e: PermissionDeniedException) {
       e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-        "Account doesn't own MeasurementConsumer. " + e.contextToString()
+        "Account doesn't own MeasurementConsumer."
       }
     } catch (e: KingdomInternalException) {
-      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error" }
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
   }
 }

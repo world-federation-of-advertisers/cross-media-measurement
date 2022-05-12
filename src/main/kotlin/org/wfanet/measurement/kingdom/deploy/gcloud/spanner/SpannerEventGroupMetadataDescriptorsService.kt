@@ -41,9 +41,7 @@ class SpannerEventGroupMetadataDescriptorsService(
       return CreateEventGroupMetadataDescriptor(eventGroupMetadataDescriptor)
         .execute(client, idGenerator)
     } catch (e: DataProviderNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) {
-        "DataProvider not found. " + e.contextToString()
-      }
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "DataProvider not found." }
     } catch (e: KingdomInternalException) {
       e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error" }
     }
@@ -75,9 +73,7 @@ class SpannerEventGroupMetadataDescriptorsService(
       return UpdateEventGroupMetadataDescriptor(request.eventGroupMetadataDescriptor)
         .execute(client, idGenerator)
     } catch (e: EventGroupMetadataDescriptorNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) {
-        "EventGroupMetadataDescriptor not found. " + e.contextToString()
-      }
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "EventGroupMetadataDescriptor not found." }
     } catch (e: KingdomInternalException) {
       e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error" }
     }

@@ -54,10 +54,12 @@ sealed class KingdomInternalException : Exception {
     val metadata = Metadata()
     metadata.put(ProtoUtils.keyForProto(info), info)
 
-    throw status.withDescription(provideDescription() + contextToString()).asRuntimeException(metadata)
+    throw status
+      .withDescription(provideDescription() + contextToString())
+      .asRuntimeException(metadata)
   }
 
-  private fun contextToString() = context.entries.joinToString(prefix=" ", separator = " ")
+  private fun contextToString() = context.entries.joinToString(prefix = " ", separator = " ")
 }
 
 fun StatusRuntimeException.getErrorInfo(): ErrorInfo? {

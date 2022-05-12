@@ -47,13 +47,9 @@ class SpannerEventGroupsService(
     try {
       return CreateEventGroup(request).execute(client, idGenerator)
     } catch (e: MeasurementConsumerNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-        "MeasurementConsumer not found."
-      }
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "MeasurementConsumer not found." }
     } catch (e: DataProviderNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) {
-        "DataProvider not found."
-      }
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "DataProvider not found." }
     } catch (e: CertificateIsInvalidException) {
       e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
         "MeasurementConsumer's Certificate is invalid."
@@ -87,9 +83,7 @@ class SpannerEventGroupsService(
         "MeasurementConsumer's Certificate not found."
       }
     } catch (e: EventGroupNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) {
-        "EventGroup not found."
-      }
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "EventGroup not found." }
     } catch (e: KingdomInternalException) {
       e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
