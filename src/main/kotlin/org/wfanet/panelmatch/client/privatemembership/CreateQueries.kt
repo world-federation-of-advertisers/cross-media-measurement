@@ -36,13 +36,14 @@ import org.wfanet.panelmatch.client.common.shardIdOf
 import org.wfanet.panelmatch.client.common.unencryptedQueryOf
 import org.wfanet.panelmatch.client.exchangetasks.JoinKeyIdentifier
 import org.wfanet.panelmatch.common.beam.breakFusion
-import org.wfanet.panelmatch.common.beam.combineIntoList
+import org.wfanet.panelmatch.common.beam.createSequence
 import org.wfanet.panelmatch.common.beam.filter
 import org.wfanet.panelmatch.common.beam.flatten
 import org.wfanet.panelmatch.common.beam.groupByKey
 import org.wfanet.panelmatch.common.beam.keys
 import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.beam.map
+import org.wfanet.panelmatch.common.beam.minus
 import org.wfanet.panelmatch.common.beam.parDo
 import org.wfanet.panelmatch.common.beam.values
 import org.wfanet.panelmatch.common.crypto.AsymmetricKeyPair
@@ -116,25 +117,21 @@ private class CreateQueries(
     val paddingNonceBucket = bucketIdOf(parameters.numBucketsPerShard)
     val numShards = parameters.numShards
 
-    val missingShards: PCollection<KV<ShardId, Iterable<@JvmWildcard BucketQuery>>> =
+    val missingQueries =
       queries
-        .keys("Add Missing Shards/Present Shard Ids")
-        .combineIntoList("Add Missing Shards/Combine Into List")
-        .parDo<List<ShardId>, KV<ShardId, Iterable<@JvmWildcard BucketQuery>>>(
-          "Add Missing Shards"
-        ) { shardIds ->
-          val presentShards = shardIds.map { it.id }.toHashSet()
-          for (shardIndex in 0 until numShards) {
-            if (shardIndex !in presentShards) {
-              yield(kvOf(shardIdOf(shardIndex), emptyList()))
-            }
-          }
+        .pipeline
+        .createSequence(name = "Missing Queries Sequence", n = numShards, parallelism = 1000)
+        .minus(queries.map("Queries Map") { it.key.id }, name = "Missing Queries Minus")
+        .map<Int, KV<ShardId, Iterable<@JvmWildcard BucketQuery>>>("Missing Files Map") {
+          shardIndex: Int ->
+          kvOf(shardIdOf(shardIndex), emptyList())
         }
         .setCoder(queries.coder)
 
     return PCollectionList.of(queries)
-      .and(missingShards)
-      .flatten("Combine Queries and Missing Shards")
+      .and(missingQueries)
+      .flatten("Flatten queries+missingQueries")
+      .breakFusion("Break fusion before EqualizeQueriesPerShardFn")
       .parDo(
         EqualizeQueriesPerShardFn(totalQueriesPerShard, paddingNonceBucket),
         name = "Equalize Queries per Shard"

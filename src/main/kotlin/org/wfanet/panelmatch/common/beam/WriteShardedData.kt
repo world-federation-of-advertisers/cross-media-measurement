@@ -22,7 +22,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import org.apache.beam.sdk.Pipeline
 import org.apache.beam.sdk.transforms.DoFn
-import org.apache.beam.sdk.transforms.Flatten
 import org.apache.beam.sdk.transforms.GroupByKey
 import org.apache.beam.sdk.transforms.PTransform
 import org.apache.beam.sdk.transforms.ParDo
@@ -65,28 +64,28 @@ class WriteShardedData<T : Message>(
   override fun expand(input: PCollection<T>): WriteResult {
     val shardedFileName = ShardedFileName(fileSpec)
     val shardCount = shardedFileName.shardCount
-
     val groupedData: PCollection<KV<Int, Iterable<T>>> =
       input
         .keyBy("Key by Blob") { it.assignToShard(shardCount) }
         .apply("Group by Blob", GroupByKey.create())
 
-    val missingFiles: PCollection<KV<Int, Iterable<T>>> =
-      groupedData.keys("Present Keys").combineIntoList("Combine Present Keys").parDo {
-        val keySet = it.toHashSet()
-        for (i in 0 until shardCount) {
-          if (i !in keySet) {
-            yield(kvOf(i, emptyList<T>().asIterable()))
-          }
-        }
-      }
-
-    missingFiles.coder = groupedData.coder
-
+    val allShardIndices =
+      groupedData.pipeline.createSequence(
+        name = "Missing Files Sequence",
+        n = shardCount,
+        parallelism = 1000
+      )
+    val missingFiles =
+      allShardIndices
+        .minus(groupedData.keys("Grouped Data Keys"))
+        .map("Missing Files Map") { fileIndex -> kvOf(fileIndex, emptyList<T>().asIterable()) }
+        .setCoder(groupedData.coder)
     val filesWritten =
       PCollectionList.of(groupedData)
         .and(missingFiles)
-        .apply("Flatten", Flatten.pCollections())
+        .flatten("Flatten groupedData+missingFiles")
+        .breakFusion("Break Fusion Before WriteFilesFn")
+        .setCoder(groupedData.coder)
         .apply("Write $fileSpec", ParDo.of(WriteFilesFn(fileSpec, storageFactory)))
 
     return WriteResult(filesWritten)

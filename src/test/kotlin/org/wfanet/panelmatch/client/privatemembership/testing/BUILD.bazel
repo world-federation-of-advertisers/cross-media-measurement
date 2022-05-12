@@ -2,7 +2,7 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 kt_jvm_test(
     name = "PlaintextEvaluateQueriesEndToEndTest",
-    timeout = "short",
+    timeout = "moderate",
     srcs = ["PlaintextEvaluateQueriesEndToEndTest.kt"],
     test_class = "org.wfanet.panelmatch.client.privatemembership.testing.PlaintextEvaluateQueriesEndToEndTest",
     deps = [

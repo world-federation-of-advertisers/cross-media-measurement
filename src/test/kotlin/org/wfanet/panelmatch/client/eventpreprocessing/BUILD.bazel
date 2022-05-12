@@ -2,7 +2,7 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 kt_jvm_test(
     name = "BatchingDoFnTest",
-    timeout = "short",
+    timeout = "moderate",
     srcs = ["BatchingDoFnTest.kt"],
     test_class = "org.wfanet.panelmatch.client.eventpreprocessing.BatchingDoFnTest",
     deps = [

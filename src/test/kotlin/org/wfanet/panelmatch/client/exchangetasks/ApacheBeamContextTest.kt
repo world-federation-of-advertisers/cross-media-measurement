@@ -110,9 +110,8 @@ class ApacheBeamContextTest : BeamTestBase() {
     val outputManifests = mapOf("some-output" to ShardedFileName("some-output-blobkey", 1))
     val context =
       ApacheBeamContext(pipeline, outputManifests, mapOf(), mapOf(), mapOf(), storageFactory)
-    val item = stringValue { value = "some-item" }
-
-    with(context) { pcollectionOf("Test Collection", item).writeShardedFiles("some-output") }
+    val items = pcollectionOf("Test Collection", stringValue { value = "some-item" })
+    with(context) { items.writeShardedFiles("some-output") }
 
     pipeline.run()
 
@@ -121,7 +120,7 @@ class ApacheBeamContextTest : BeamTestBase() {
 
     val stringValues = blob.toByteString().parseDelimitedMessages(stringValue {})
 
-    assertThat(stringValues).containsExactly(item)
+    assertThat(stringValues).containsExactly(stringValue { value = "some-item" })
   }
 
   @Test

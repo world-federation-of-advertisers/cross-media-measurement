@@ -225,4 +225,18 @@ class BeamTest : BeamTestBase() {
   fun breakFusionPreservesElementMultiplicity() {
     assertThat(collectionWithDuplicates.breakFusion()).containsInAnyOrder("a", "a", "a")
   }
+
+  @Test
+  fun createSequence() {
+    val sequence = pipeline.createSequence(10, 3)
+    assertThat(sequence).containsInAnyOrder((0..9).toList())
+    pipeline.run()
+  }
+
+  @Test
+  fun minus() {
+    val mainCollection = pcollectionOf("collection", "A", "B", "C")
+    val extraCollection = pcollectionOf("extraCollection", "B", "C", "D", "E")
+    assertThat(extraCollection.minus(mainCollection)).containsInAnyOrder("D", "E")
+  }
 }
