@@ -14,12 +14,14 @@
 
 package org.wfanet.panelmatch.common.beam
 
-import java.util.UUID
+import kotlin.math.ceil
+import org.apache.beam.sdk.Pipeline
 import org.apache.beam.sdk.coders.KvCoder
 import org.apache.beam.sdk.coders.ListCoder
 import org.apache.beam.sdk.coders.NullableCoder
 import org.apache.beam.sdk.transforms.Combine
 import org.apache.beam.sdk.transforms.Count
+import org.apache.beam.sdk.transforms.Create
 import org.apache.beam.sdk.transforms.DoFn
 import org.apache.beam.sdk.transforms.Flatten
 import org.apache.beam.sdk.transforms.GroupByKey
@@ -55,7 +57,7 @@ fun <KeyT, ValueT> PCollection<KV<KeyT, ValueT>>.values(
 }
 
 /** Kotlin convenience helper for [ParDo]. */
-inline fun <InT, reified OutT> PCollection<InT>.parDo(
+fun <InT, OutT> PCollection<InT>.parDo(
   doFn: DoFn<InT, OutT>,
   name: String = "ParDo"
 ): PCollection<OutT> {
@@ -63,7 +65,7 @@ inline fun <InT, reified OutT> PCollection<InT>.parDo(
 }
 
 /** Kotlin convenience helper for [ParDo]. */
-inline fun <InT, reified OutT> PCollection<InT>.parDo(
+inline fun <InT, OutT> PCollection<InT>.parDo(
   name: String = "ParDo",
   crossinline processElement: suspend SequenceScope<OutT>.(InT) -> Unit
 ): PCollection<OutT> {
@@ -136,8 +138,7 @@ fun <T> PCollection<T>.partition(
 }
 
 /** Kotlin convenience helper for a join between two [PCollection]s. */
-inline fun <reified KeyT, reified LeftT, reified RightT, reified OutT> PCollection<
-  KV<KeyT, LeftT>>.join(
+inline fun <KeyT, reified LeftT, reified RightT, OutT> PCollection<KV<KeyT, LeftT>>.join(
   right: PCollection<KV<KeyT, RightT>>,
   name: String = "Join",
   crossinline transform:
@@ -259,21 +260,29 @@ fun <T> PCollection<T>.combineIntoList(name: String = "CombineIntoList"): PColle
     .setCoder(ListCoder.of(coder))
 }
 
-/**
- * Breaks Dataflow fusion by forcing materialization of a [PCollection].
- *
- * This operation can be inserted between operations that have significantly different data sizes or
- * processing requirements to prevent Dataflow from fusing those operations together. Without this,
- * a heavy-processing stage that immediately follows a light-processing stage may be forced to
- * compute on a single worker. By inserting a [BreakFusion], the results of the light-processing
- * stage are materialized, allowing the heavy-processing stage to run with a different number of
- * workers.
- */
-inline fun <reified T> PCollection<T>.breakFusion(name: String = "BreakFusion"): PCollection<T> {
-  return parDo<T, KV<String, T>>("$name/PairWithUUID") {
-      yield(kvOf(UUID.randomUUID().toString(), it))
-    }
-    .groupByKey("$name/GBK")
-    .flatMap("$name/FlatMap") { it.value }
-    .setCoder(this.coder)
+/** Kotlin convenience helper for a fusion break on a PCollection. */
+fun <T> PCollection<T>.breakFusion(name: String = "BreakFusion"): PCollection<T> {
+  return apply(name, BreakFusion()).setCoder(coder)
+}
+
+/** Convenience function for creating a PCollection<Int> from 0 until n. */
+fun Pipeline.createSequence(
+  n: Int,
+  parallelism: Int = 1000,
+  name: String = "CreateSequence"
+): PCollection<Int> {
+  val numPerBatch: Int = ceil(n / parallelism.toFloat()).toInt()
+  return apply("$name/Create", Create.of((0 until parallelism).toList())).parDo("$name/ParDo") {
+    val start = it * numPerBatch
+    val end = minOf(n, start + numPerBatch)
+    yieldAll((start until end).toList())
+  }
+}
+
+/** Convenience function for using Minus PTransform. */
+inline fun <reified T : Any> PCollection<T>.minus(
+  other: PCollection<T>,
+  name: String = "Minus"
+): PCollection<T> {
+  return PCollectionList.of(this).and(other).apply(name, Minus()).setCoder(coder)
 }

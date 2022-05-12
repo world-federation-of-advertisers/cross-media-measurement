@@ -16,7 +16,7 @@ spanner_emulator_test(
 
 spanner_emulator_test(
     name = "SingleStepTest",
-    size = "small",
+    size = "medium",
     srcs = ["SingleStepTest.kt"],
     data = [
         "//src/main/kotlin/org/wfanet/panelmatch/integration/fixtures/edp",
