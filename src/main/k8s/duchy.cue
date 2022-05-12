@@ -17,12 +17,17 @@ package k8s
 import ("strings")
 
 #Duchy: {
-	_duchy: {name: string, protocols_setup_config: string, cs_cert_resource_name: string}
+	_duchy: {
+		name:                   string
+		protocols_setup_config: string
+		cs_cert_resource_name:  string
+	}
 	_duchy_secret_name: string
 	_computation_control_targets: [Name=_]: string
 	_kingdom_system_api_target: string
-	_spanner_schema_push_flags: [...string]
-	_spanner_flags: [...string]
+	_spannerConfig:             #SpannerConfig & {
+		database: "\(_duchy.name)_duchy_computations"
+	}
 	_blob_storage_flags: [...string]
 	_verbose_grpc_logging: "true" | "false"
 
@@ -58,18 +63,18 @@ import ("strings")
 	_debug_verbose_grpc_server_logging_flag:            "--debug-verbose-grpc-server-logging=\(_verbose_grpc_logging)"
 	_computation_control_target_flags: [ for duchyId, target in _computation_control_targets {"--duchy-computation-control-target=\(duchyId)=\(target)"}]
 
-	duchy_service: [Name=_]: #GrpcService & {
+	services: [Name=_]: #GrpcService & {
 		_name:   _object_prefix + Name
 		_system: "duchy"
 	}
-	duchy_service: {
+	services: {
 		"async-computation-control-server": {}
 		"computation-control-server": _type: "LoadBalancer"
 		"spanner-computations-server": {}
 		"requisition-fulfillment-server": _type: "LoadBalancer"
 	}
 
-	duchy_deployment: [Name=_]: #Deployment & {
+	deployments: [Name=_]: #Deployment & {
 		_unprefixed_name:       strings.TrimSuffix(Name, "-deployment")
 		_name:                  _object_prefix + _unprefixed_name
 		_secretName:            _duchy_secret_name
@@ -83,7 +88,7 @@ import ("strings")
 		_resourceLimitCpu:      _resource_configs[_unprefixed_name].resourceLimitCpu
 	}
 
-	duchy_deployment: {
+	deployments: {
 		"herald-daemon-deployment": #Deployment & {
 			_args: [
 				_computations_service_target_flag,
@@ -145,7 +150,7 @@ import ("strings")
 				"--port=8443",
 			] + _blob_storage_flags
 		}
-		"spanner-computations-server-deployment": #ServerDeployment & {
+		"spanner-computations-server-deployment": Deployment=#ServerDeployment & {
 			_args: [
 				_debug_verbose_grpc_server_logging_flag,
 				_duchy_name_flag,
@@ -157,8 +162,15 @@ import ("strings")
 				_kingdom_system_api_cert_host_flag,
 				"--channel-shutdown-timeout=3s",
 				"--port=8443",
-				"--spanner-database=\(_name)_duchy_computations",
-			] + _spanner_flags
+			] + _spannerConfig.flags
+
+			_podSpec: _initContainers: {
+				"\(_object_prefix)update-duchy-schema": {
+					image:           _images["update-duchy-schema"]
+					imagePullPolicy: Deployment._imagePullPolicy
+					args:            _spannerConfig.flags
+				}
+			}
 		}
 		"requisition-fulfillment-server-deployment": #ServerDeployment & {
 			_configMapMounts: [{
@@ -181,26 +193,11 @@ import ("strings")
 		}
 	}
 
-	setup_job: [#Job & {
-		_name:            _duchy.name + "-push-spanner-schema"
-		_image:           _images["push-spanner-schema-container"]
-		_imagePullPolicy: _duchy_image_pull_policy
-		_args:            [
-					"--database-schema=\(_duchy.name)_duchy_computations=duchy/spanner/create-computations-schema.sql",
-		] + _spanner_schema_push_flags
-		_jobSpec: {
-			backoffLimit: 0 // Don't retry.
-		}
-		_podSpec: {
-			restartPolicy: "Never"
-		}
-	}]
-
-	duchy_internal_network_policy: [Name=_]: #NetworkPolicy & {
+	networkPolicies: [Name=_]: #NetworkPolicy & {
 		_name: _object_prefix + Name
 	}
 	// TODO(@wangyaopw): Consider setting GCS and spanner destinations explicityly.
-	duchy_internal_network_policy: {
+	networkPolicies: {
 		"spanner-computations-server": {
 			_app_label: _object_prefix + "spanner-computations-server-app"
 			_sourceMatchLabels: [
@@ -262,13 +259,6 @@ import ("strings")
 		}
 		"herald-daemon": {
 			_app_label: _object_prefix + "herald-daemon-app"
-			_egresses: {
-				// Need to send external traffic.
-				any: {}
-			}
-		}
-		"push-spanner-schema-job": {
-			_app_label: _object_prefix + "push-spanner-schema-app"
 			_egresses: {
 				// Need to send external traffic.
 				any: {}
