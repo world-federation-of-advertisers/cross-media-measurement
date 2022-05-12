@@ -17,7 +17,6 @@ import com.google.protobuf.Timestamp
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
-import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
@@ -101,9 +100,3 @@ class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
     }
   }
 }
-
-// TODO(@uakyol): Update time conversion after getting alignment on civil calendar days.
-private fun Timestamp.toLocalDate(timeZone: String): LocalDate =
-  Instant.ofEpochSecond(this.getSeconds(), this.getNanos().toLong())
-    .atZone(ZoneId.of(timeZone))
-    .toLocalDate()

@@ -19,7 +19,7 @@ import org.junit.Test
 
 class PrivacyBudgetLedgerTest {
 
-  fun createPrivacyReference(id: Int, charge: Boolean = true) =
+  private fun createPrivacyReference(id: Int, charge: Boolean = true) =
     PrivacyReference("RequisitioId${id}", charge)
 
   @Test

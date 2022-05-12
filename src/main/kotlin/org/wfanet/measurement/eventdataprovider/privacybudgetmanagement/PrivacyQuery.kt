@@ -37,6 +37,5 @@ data class PrivacyQuery(
   val privacyEventGroupSpecs: List<PrivacyEventGroupSpec>,
   val vidSampleStart: Float,
   val vidSampleWidth: Float,
-  val privacyCharge: PrivacyCharge,
-  val operativePrivacyFields: Set<String>
+  val privacyCharge: PrivacyCharge
 )
