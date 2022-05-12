@@ -13,15 +13,14 @@
  */
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing
 
+import com.google.common.truth.Truth.assertThat
 import java.time.LocalDate
-import kotlin.test.assertEquals
 import org.junit.Before
 import org.junit.Test
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Gender
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerBackingStore
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerEntry
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerTransactionContext
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyCharge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyReference
@@ -91,55 +90,55 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
           PrivacyReference("RequisitioId1", true)
         )
 
-        assertEquals(2, txContext.findIntersectingLedgerEntries(bucket1).size)
-        assertEquals(1, txContext.findIntersectingLedgerEntries(bucket2).size)
-        assertEquals(1, txContext.findIntersectingLedgerEntries(bucket3).size)
-        assertEquals(0, txContext.findIntersectingLedgerEntries(bucket4).size)
+        val intersectingEntry = txContext.findIntersectingLedgerEntries(bucket1)
+        assertThat(intersectingEntry.size).isEqualTo(1)
+        assertThat(intersectingEntry.get(0).repetitionCount).isEqualTo(2)
+        assertThat(txContext.findIntersectingLedgerEntries(bucket2).size).isEqualTo(1)
+        assertThat(txContext.findIntersectingLedgerEntries(bucket3).size).isEqualTo(1)
+        assertThat(txContext.findIntersectingLedgerEntries(bucket4).size).isEqualTo(0)
       }
     }
   }
 
-//   @Test(timeout = 15000)
-//   fun `addLedgerEntries as a refund decresases repetitionCount`() {
-//     createBackingStore().use { backingStore: PrivacyBudgetLedgerBackingStore ->
-//       backingStore.startTransaction().use { txContext: PrivacyBudgetLedgerTransactionContext ->
-//         val bucket1 =
-//           PrivacyBucketGroup(
-//             "ACME",
-//             LocalDate.parse("2021-07-01"),
-//             LocalDate.parse("2021-07-01"),
-//             AgeGroup.RANGE_35_54,
-//             Gender.MALE,
-//             0.3f,
-//             0.1f
-//           )
+  @Test(timeout = 15000)
+  fun `addLedgerEntries as a refund decresases repetitionCount`() {
+    createBackingStore().use { backingStore: PrivacyBudgetLedgerBackingStore ->
+      backingStore.startTransaction().use { txContext: PrivacyBudgetLedgerTransactionContext ->
+        val bucket1 =
+          PrivacyBucketGroup(
+            "ACME",
+            LocalDate.parse("2021-07-01"),
+            LocalDate.parse("2021-07-01"),
+            AgeGroup.RANGE_35_54,
+            Gender.MALE,
+            0.3f,
+            0.1f
+          )
 
-//         val charge = PrivacyCharge(0.01f, 0.0001f)
-//         txContext.addLedgerEntries(
-//           listOf(bucket1),
-//           listOf(charge),
-//           PrivacyReference("RequisitioId1", true)
-//         )
+        val charge = PrivacyCharge(0.01f, 0.0001f)
+        txContext.addLedgerEntries(
+          listOf(bucket1),
+          listOf(charge),
+          PrivacyReference("RequisitioId1", true)
+        )
 
-//         val matchingLedgerEntries = txContext.findIntersectingLedgerEntries(bucket1)
-//         assertEquals(1, matchingLedgerEntries.size)
+        val matchingLedgerEntries = txContext.findIntersectingLedgerEntries(bucket1)
+        assertThat(matchingLedgerEntries.size).isEqualTo(1)
 
-//         val ledgerEntry = matchingLedgerEntries[0]
-//         assertEquals(1, ledgerEntry.repetitionCount)
+        assertThat(matchingLedgerEntries[0].repetitionCount).isEqualTo(1)
 
-//         val updatedLedgerEntry =
-//           PrivacyBudgetLedgerEntry(ledgerEntry.rowId, ledgerEntry.transactionId, bucket1, charge, 2)
+        txContext.addLedgerEntries(
+          listOf(bucket1),
+          listOf(charge),
+          PrivacyReference("RequisitioId1", false)
+        )
 
-//         txContext.updateLedgerEntry(updatedLedgerEntry)
-
-//         val newMatchingLedgerEntries = txContext.findIntersectingLedgerEntries(bucket1)
-//         assertEquals(1, newMatchingLedgerEntries.size)
-
-//         val newLedgerEntry = newMatchingLedgerEntries[0]
-//         assertEquals(2, newLedgerEntry.repetitionCount)
-//       }
-//     }
-//   }
+        val newMatchingLedgerEntries = txContext.findIntersectingLedgerEntries(bucket1)
+        assertThat(newMatchingLedgerEntries.size).isEqualTo(1)
+        assertThat(newMatchingLedgerEntries[0].repetitionCount).isEqualTo(0)
+      }
+    }
+  }
 
   @Test(timeout = 15000)
   fun `commit() persists a transaction after it closes`() {
@@ -165,11 +164,11 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
       PrivacyReference("RequisitioId1", true)
     )
 
-    assertEquals(1, txContext.findIntersectingLedgerEntries(bucket1).size)
+    assertThat(txContext.findIntersectingLedgerEntries(bucket1).size).isEqualTo(1)
 
     val newBackingStore = createBackingStore()
     newBackingStore.startTransaction().use { newTxContext ->
-      assertEquals(0, newTxContext.findIntersectingLedgerEntries(bucket1).size)
+      assertThat(newTxContext.findIntersectingLedgerEntries(bucket1).size).isEqualTo(0)
     }
 
     txContext.commit()
@@ -177,7 +176,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
     backingStore.close()
 
     newBackingStore.startTransaction().use { newTxContext ->
-      assertEquals(1, newTxContext.findIntersectingLedgerEntries(bucket1).size)
+      assertThat(newTxContext.findIntersectingLedgerEntries(bucket1).size).isEqualTo(1)
     }
     newBackingStore.close()
   }

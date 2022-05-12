@@ -94,7 +94,6 @@ private val DURATION_MEASUREMENT_SPEC = measurementSpec {
 
 @RunWith(JUnit4::class)
 class PrivacyBudgetManagerTest {
-
   private val privacyBucketFilter = PrivacyBucketFilter(TestPrivacyBucketMapper())
 
   private fun createPrivacyReference(id: Int, charge: Boolean = true) =
