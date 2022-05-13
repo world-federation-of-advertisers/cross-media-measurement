@@ -46,7 +46,6 @@ class PrivacyBudgetPostgresSchemaTest {
     val insertSql =
       """
       INSERT INTO LedgerEntries (
-        TransactionId,
         MeasurementConsumerId,
         Date,
         AgeGroup,
@@ -56,7 +55,6 @@ class PrivacyBudgetPostgresSchemaTest {
         Epsilon,
         RepetitionCount
       ) VALUES (
-        nextval('LedgerEntriesTransactionIdSeq'),
         1,
         '2022-01-01',
         '18_34',
