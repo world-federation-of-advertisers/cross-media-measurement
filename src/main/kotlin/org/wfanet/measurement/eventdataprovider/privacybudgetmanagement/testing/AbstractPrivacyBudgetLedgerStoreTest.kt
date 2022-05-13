@@ -85,9 +85,15 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
         val charge = PrivacyCharge(0.01f, 0.0001f)
 
         txContext.addLedgerEntries(
-          listOf(bucket1, bucket1, bucket2, bucket3),
-          listOf(charge),
+          setOf(bucket1, bucket2, bucket3),
+          setOf(charge),
           PrivacyReference("RequisitioId1", true)
+        )
+
+        txContext.addLedgerEntries(
+          setOf(bucket1),
+          setOf(charge),
+          PrivacyReference("RequisitioId2", true)
         )
 
         val intersectingEntry = txContext.findIntersectingLedgerEntries(bucket1)
@@ -117,22 +123,19 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
 
         val charge = PrivacyCharge(0.01f, 0.0001f)
         txContext.addLedgerEntries(
-          listOf(bucket1),
-          listOf(charge),
+          setOf(bucket1),
+          setOf(charge),
           PrivacyReference("RequisitioId1", true)
         )
-
         val matchingLedgerEntries = txContext.findIntersectingLedgerEntries(bucket1)
         assertThat(matchingLedgerEntries.size).isEqualTo(1)
 
         assertThat(matchingLedgerEntries[0].repetitionCount).isEqualTo(1)
-
         txContext.addLedgerEntries(
-          listOf(bucket1),
-          listOf(charge),
+          setOf(bucket1),
+          setOf(charge),
           PrivacyReference("RequisitioId1", false)
         )
-
         val newMatchingLedgerEntries = txContext.findIntersectingLedgerEntries(bucket1)
         assertThat(newMatchingLedgerEntries.size).isEqualTo(1)
         assertThat(newMatchingLedgerEntries[0].repetitionCount).isEqualTo(0)
@@ -157,13 +160,11 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
       )
 
     val charge = PrivacyCharge(0.01f, 0.0001f)
-
     txContext.addLedgerEntries(
-      listOf(bucket1),
-      listOf(charge),
+      setOf(bucket1),
+      setOf(charge),
       PrivacyReference("RequisitioId1", true)
     )
-
     assertThat(txContext.findIntersectingLedgerEntries(bucket1).size).isEqualTo(1)
 
     val newBackingStore = createBackingStore()
@@ -179,5 +180,49 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
       assertThat(newTxContext.findIntersectingLedgerEntries(bucket1).size).isEqualTo(1)
     }
     newBackingStore.close()
+  }
+
+  @Test(timeout = 15000)
+  fun `shouldProcess works correctly`() {
+    val backingStore = createBackingStore()
+    val txContext1 = backingStore.startTransaction()
+    val bucket1 =
+      PrivacyBucketGroup(
+        "ACME",
+        LocalDate.parse("2021-07-01"),
+        LocalDate.parse("2021-07-01"),
+        AgeGroup.RANGE_35_54,
+        Gender.MALE,
+        0.3f,
+        0.1f
+      )
+
+    val charge = PrivacyCharge(0.01f, 0.0001f)
+    // charge works
+    txContext1.addLedgerEntries(
+      setOf(bucket1),
+      setOf(charge),
+      PrivacyReference("RequisitioId1", true)
+    )
+
+    txContext1.commit()
+    val txContext2 = backingStore.startTransaction()
+
+    // charge should not be proccessed if same
+    assertThat(txContext2.shouldProcess("RequisitioId1", true)).isFalse()
+    // but refund is allowed
+    assertThat(txContext2.shouldProcess("RequisitioId1", false)).isTrue()
+    // refund works
+
+    txContext2.addLedgerEntries(
+      setOf(bucket1),
+      setOf(charge),
+      PrivacyReference("RequisitioId1", false)
+    )
+    txContext2.commit()
+    val txContext3 = backingStore.startTransaction()
+    // now charge is allowed again
+    assertThat(txContext3.shouldProcess("RequisitioId1", true)).isTrue()
+    txContext3.commit()
   }
 }

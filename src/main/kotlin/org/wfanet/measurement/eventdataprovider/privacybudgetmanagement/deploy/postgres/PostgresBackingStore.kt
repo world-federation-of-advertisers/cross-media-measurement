@@ -24,6 +24,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyCharge
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyReference
 
 /**
  * A [PrivacyBudgetLedgerBackingStore] implemented in Postgres compatible SQL.
@@ -72,7 +73,7 @@ class PostgresBackingStore(createConnection: () -> Connection) : PrivacyBudgetLe
 }
 
 class PostgresBackingStoreTransactionContext(
-  override val transactionId: Long,
+  val transactionId: Long,
   private val connection: Connection,
 ) : PrivacyBudgetLedgerTransactionContext {
   private var transactionHasEnded = false
@@ -89,6 +90,34 @@ class PostgresBackingStoreTransactionContext(
     }
   }
 
+  private fun getLastReference(referenceKey: String): Boolean? {
+    val selectSql =
+      """
+        SELECT
+          ReferenceKey,
+          IsPositive,
+          CreateTime
+        FROM ReferenceEntries
+        WHERE
+          ReferenceKey = ?
+        Order by CreateTime DESC
+        Limit 1
+      """.trimIndent()
+    connection.prepareStatement(selectSql).use { statement: PreparedStatement ->
+      statement.setString(1, referenceKey)
+      // TODO(@duliomatos) Make the blocking IO run within a dispatcher using coroutines
+      statement.executeQuery().use { rs: ResultSet ->
+        if (rs.next()) {
+          return rs.getBoolean("IsPositive")
+        }
+      }
+    }
+    return null
+  }
+
+  override fun shouldProcess(referenceKey: String, isPositive: Boolean): Boolean =
+    getLastReference(referenceKey)?.xor(isPositive) ?: true
+
   override fun findIntersectingLedgerEntries(
     privacyBucketGroup: PrivacyBucketGroup
   ): List<PrivacyBudgetLedgerEntry> {
@@ -97,8 +126,6 @@ class PostgresBackingStoreTransactionContext(
     val selectBucketSql =
       """
         SELECT
-          LedgerEntryId,
-          TransactionId,
           Delta,
           Epsilon,
           RepetitionCount
@@ -120,36 +147,29 @@ class PostgresBackingStoreTransactionContext(
       statement.executeQuery().use { rs: ResultSet ->
         val entries = ArrayList<PrivacyBudgetLedgerEntry>()
         while (rs.next()) {
-          val rowId = rs.getLong("LedgerEntryId")
-          val transactionId = rs.getLong("TransactionId")
-          val delta = rs.getFloat("Delta")
-          val epsilon = rs.getFloat("Epsilon")
-          val repetitionCount = rs.getInt("RepetitionCount")
-          val entry =
+          entries.add(
             PrivacyBudgetLedgerEntry(
-              rowId,
-              transactionId,
               privacyBucketGroup,
-              PrivacyCharge(epsilon, delta),
-              repetitionCount,
+              PrivacyCharge(rs.getFloat("Epsilon"), rs.getFloat("Delta")),
+              rs.getInt("RepetitionCount"),
             )
-          entries.add(entry)
+          )
         }
         return entries
       }
     }
   }
 
-  override fun addLedgerEntry(
+  private fun addLedgerEntry(
     privacyBucketGroup: PrivacyBucketGroup,
-    privacyCharge: PrivacyCharge
+    privacyCharge: PrivacyCharge,
+    positiveCharge: Boolean = true
   ) {
     throwIfTransactionHasEnded(listOf(privacyBucketGroup))
     val insertEntrySql =
       """
         INSERT into LedgerEntries (
           MeasurementConsumerId,
-          TransactionId,
           Date,
           AgeGroup,
           Gender,
@@ -160,27 +180,68 @@ class PostgresBackingStoreTransactionContext(
         ) VALUES (
           ?,
           ?,
-          ?,
           CAST(? AS AgeGroup),
           CAST(? AS Gender),
           ?,
           ?,
           ?,
           ?)
+      ON CONFLICT (MeasurementConsumerId,
+          Date,
+          AgeGroup,
+          Gender,
+          VidStart,
+          Delta,
+          Epsilon)
+      DO
+         UPDATE SET RepetitionCount = ? + LedgerEntries.RepetitionCount;
       """.trimIndent()
     connection.prepareStatement(insertEntrySql).use { statement: PreparedStatement ->
       statement.setString(1, privacyBucketGroup.measurementConsumerId)
-      statement.setLong(2, transactionId)
-      statement.setObject(3, privacyBucketGroup.startingDate)
-      statement.setString(4, privacyBucketGroup.ageGroup.string)
-      statement.setString(5, privacyBucketGroup.gender.string)
-      statement.setFloat(6, privacyBucketGroup.vidSampleStart)
-      statement.setFloat(7, privacyCharge.delta)
-      statement.setFloat(8, privacyCharge.epsilon)
-      statement.setInt(9, 1) // RepetitionCount
+      statement.setObject(2, privacyBucketGroup.startingDate)
+      statement.setString(3, privacyBucketGroup.ageGroup.string)
+      statement.setString(4, privacyBucketGroup.gender.string)
+      statement.setFloat(5, privacyBucketGroup.vidSampleStart)
+      statement.setFloat(6, privacyCharge.delta)
+      statement.setFloat(7, privacyCharge.epsilon)
+      statement.setInt(8, 1) // RepetitionCount
+      statement.setInt(9, if (positiveCharge) 1 else -1) // RepetitionCount
       // TODO(@duliomatos) Make the blocking IO run within a dispatcher using coroutines
       statement.executeUpdate()
     }
+  }
+
+  private fun addReferenceEntry(privacyReference: PrivacyReference) {
+    val insertEntrySql =
+      """
+        INSERT into ReferenceEntries (
+          ReferenceKey,
+          IsPositive,
+          CreateTime
+        ) VALUES (
+          ?,
+          ?,
+          NOW())
+      """.trimIndent()
+    connection.prepareStatement(insertEntrySql).use { statement: PreparedStatement ->
+      statement.setString(1, privacyReference.referenceKey)
+      statement.setObject(2, privacyReference.isPositive)
+      // TODO(@duliomatos) Make the blocking IO run within a dispatcher using coroutines
+      statement.executeUpdate()
+    }
+  }
+
+  override fun addLedgerEntries(
+    privacyBucketGroups: Set<PrivacyBucketGroup>,
+    privacyCharges: Set<PrivacyCharge>,
+    privacyReference: PrivacyReference
+  ) {
+    for (privacyBucketGroup in privacyBucketGroups) {
+      for (privacyCharge in privacyCharges) {
+        addLedgerEntry(privacyBucketGroup, privacyCharge, privacyReference.isPositive)
+      }
+    }
+    addReferenceEntry(privacyReference)
   }
 
   override fun commit() {

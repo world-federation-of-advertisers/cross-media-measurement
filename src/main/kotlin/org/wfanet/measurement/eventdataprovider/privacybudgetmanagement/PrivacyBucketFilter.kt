@@ -13,10 +13,7 @@
  */
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
-import com.google.protobuf.Timestamp
-import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneId
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
@@ -27,14 +24,14 @@ class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
    * range and demo groups are obtained from this.
    * @param measurementSpec The measurementSpec protobuf that is associated with the query. The VID
    * sampling interval is obtained from from this.
-   * @return A list of potentially affected PrivacyBucketGroups. It is guaranteed that the items in
+   * @return A set of potentially affected PrivacyBucketGroups. It is guaranteed that the items in
    * this list are disjoint. In the current implementation, each privacy bucket group represents a
    * single privacy bucket.
    */
   fun getPrivacyBucketGroups(
     measurementConsumerId: String,
     privacyQuery: PrivacyQuery
-  ): List<PrivacyBucketGroup> {
+  ): Set<PrivacyBucketGroup> {
 
     return privacyQuery.privacyEventGroupSpecs
       .flatMap {
@@ -47,7 +44,7 @@ class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
           privacyQuery.vidSampleStart + privacyQuery.vidSampleWidth
         )
       }
-      .toList()
+      .toSet()
   }
 
   private fun getPrivacyBucketGroups(

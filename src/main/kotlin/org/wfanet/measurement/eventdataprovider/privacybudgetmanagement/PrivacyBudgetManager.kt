@@ -107,7 +107,7 @@ class PrivacyBudgetManager(
     ledger.chargePrivacyBucketGroups(
       privacyQuery.privacyReference,
       filter.getPrivacyBucketGroups(measurementConsumerId, privacyQuery),
-      listOf(privacyQuery.privacyCharge)
+      setOf(privacyQuery.privacyCharge)
     )
 
   /**

@@ -66,9 +66,9 @@ class InMemoryBackingStoreTransactionContext(
   }
 
   override fun shouldProcess(referenceKey: String, isPositive: Boolean): Boolean =
-    referenceLedger
+    transactionReferenceLedger
       .filter { it.referenceKey == referenceKey }
-      .sortedBy { it.createTime }
+      .sortedByDescending { it.createTime }
       .firstOrNull()
       ?.isPositive?.xor(isPositive)
       ?: true
@@ -80,8 +80,8 @@ class InMemoryBackingStoreTransactionContext(
   }
 
   override fun addLedgerEntries(
-    privacyBucketGroups: List<PrivacyBucketGroup>,
-    privacyCharges: List<PrivacyCharge>,
+    privacyBucketGroups: Set<PrivacyBucketGroup>,
+    privacyCharges: Set<PrivacyCharge>,
     privacyReference: PrivacyReference
   ) {
     // Update the balance for all the charges.
