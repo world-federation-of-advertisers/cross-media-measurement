@@ -30,10 +30,10 @@ class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
    */
   fun getPrivacyBucketGroups(
     measurementConsumerId: String,
-    privacyQuery: PrivacyQuery
+    privacyLandscapeMask: PrivacyLandscapeMask
   ): Set<PrivacyBucketGroup> {
 
-    return privacyQuery
+    return privacyLandscapeMask
       .privacyEventGroupSpecs
       .flatMap {
         getPrivacyBucketGroups(
@@ -41,8 +41,8 @@ class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
           it.eventFilter,
           it.startDate,
           it.endDate,
-          privacyQuery.vidSampleStart,
-          privacyQuery.vidSampleStart + privacyQuery.vidSampleWidth
+          privacyLandscapeMask.vidSampleStart,
+          privacyLandscapeMask.vidSampleStart + privacyLandscapeMask.vidSampleWidth
         )
       }
       .toSet()

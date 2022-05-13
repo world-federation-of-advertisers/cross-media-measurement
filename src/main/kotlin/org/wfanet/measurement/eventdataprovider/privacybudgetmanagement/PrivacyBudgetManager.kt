@@ -89,15 +89,17 @@ class PrivacyBudgetManager(
       }
     return PrivacyQuery(
       privacyReference,
-      requisitionSpec.getEventGroupsList().map {
-        PrivacyEventGroupSpec(
-          it.value.filter.expression,
-          it.value.collectionInterval.startTime.toLocalDate("UTC"),
-          it.value.collectionInterval.endTime.toLocalDate("UTC")
-        )
-      },
-      measurementSpec.reachAndFrequency.vidSamplingInterval.start,
-      measurementSpec.reachAndFrequency.vidSamplingInterval.width,
+      PrivacyLandscapeMask(
+        requisitionSpec.getEventGroupsList().map {
+          PrivacyEventGroupSpec(
+            it.value.filter.expression,
+            it.value.collectionInterval.startTime.toLocalDate("UTC"),
+            it.value.collectionInterval.endTime.toLocalDate("UTC")
+          )
+        },
+        measurementSpec.reachAndFrequency.vidSamplingInterval.start,
+        measurementSpec.reachAndFrequency.vidSamplingInterval.width
+      ),
       charge
     )
   }
@@ -106,7 +108,7 @@ class PrivacyBudgetManager(
   private fun chargePrivacyBudget(measurementConsumerId: String, privacyQuery: PrivacyQuery) =
     ledger.chargePrivacyBucketGroups(
       privacyQuery.privacyReference,
-      filter.getPrivacyBucketGroups(measurementConsumerId, privacyQuery),
+      filter.getPrivacyBucketGroups(measurementConsumerId, privacyQuery.privacyLandscapeMask),
       setOf(privacyQuery.privacyCharge)
     )
 

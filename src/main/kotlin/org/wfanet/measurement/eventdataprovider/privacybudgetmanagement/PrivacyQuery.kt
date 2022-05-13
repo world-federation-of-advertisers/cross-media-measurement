@@ -31,11 +31,16 @@ data class PrivacyEventGroupSpec(
   val endDate: LocalDate
 )
 
+/** Represents a mask to the PrivacyLandscape. */
+data class PrivacyLandscapeMask(
+  val privacyEventGroupSpecs: List<PrivacyEventGroupSpec>,
+  val vidSampleStart: Float,
+  val vidSampleWidth: Float
+)
+
 /** Represents multiple charges to the multiple buckets in the PrivacyLandscape. */
 data class PrivacyQuery(
   val privacyReference: PrivacyReference,
-  val privacyEventGroupSpecs: List<PrivacyEventGroupSpec>,
-  val vidSampleStart: Float,
-  val vidSampleWidth: Float,
+  val privacyLandscapeMask: PrivacyLandscapeMask,
   val privacyCharge: PrivacyCharge
 )
