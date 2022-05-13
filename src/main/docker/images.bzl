@@ -42,6 +42,11 @@ COMMON_IMAGES = [
         repository = _PREFIX + "/duchy/spanner-computations",
     ),
     struct(
+        name = "duchy_spanner_update_schema_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/tools:update_schema_image",
+        repository = _PREFIX + "/duchy/spanner-update-schema",
+    ),
+    struct(
         name = "kingdom_data_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/server:gcp_kingdom_data_server_image",
         repository = _PREFIX + "/kingdom/data-server",
@@ -57,6 +62,11 @@ COMMON_IMAGES = [
         repository = _PREFIX + "/kingdom/v2alpha-public-api",
     ),
     struct(
+        name = "kingdom_spanner_update_schema_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/tools:update_schema_image",
+        repository = _PREFIX + "/kingdom/spanner-update-schema",
+    ),
+    struct(
         name = "resource_setup_runner_image",
         image = "//src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:resource_setup_runner_image",
         repository = _PREFIX + "/loadtest/resource-setup",
@@ -65,11 +75,6 @@ COMMON_IMAGES = [
         name = "panel_match_resource_setup_runner_image",
         image = "//src/main/kotlin/org/wfanet/measurement/loadtest/panelmatchresourcesetup:panel_match_resource_setup_runner_image",
         repository = _PREFIX + "/loadtest/panel-match-resource-setup",
-    ),
-    struct(
-        name = "push_spanner_schema_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/tools:push_spanner_schema_image",
-        repository = _PREFIX + "/setup/push-spanner-schema",
     ),
 ]
 
