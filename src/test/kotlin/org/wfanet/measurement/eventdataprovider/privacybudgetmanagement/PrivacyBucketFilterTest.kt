@@ -181,7 +181,7 @@ class PrivacyBucketFilterTest {
   }
 
   @Test
-  fun `Non Privacy Budget Fields may charge more buckets than necessary`() {
+  fun `Non Privacy Budget Fields may charge more bucgkets than necessary`() {
 
     val privacyLandscapeMask =
       PrivacyLandscapeMask(
