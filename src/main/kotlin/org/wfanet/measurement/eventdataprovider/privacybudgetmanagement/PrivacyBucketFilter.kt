@@ -33,7 +33,8 @@ class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
     privacyQuery: PrivacyQuery
   ): Set<PrivacyBucketGroup> {
 
-    return privacyQuery.privacyEventGroupSpecs
+    return privacyQuery
+      .privacyEventGroupSpecs
       .flatMap {
         getPrivacyBucketGroups(
           measurementConsumerId,

@@ -70,7 +70,8 @@ class InMemoryBackingStoreTransactionContext(
       .filter { it.referenceKey == referenceKey }
       .sortedByDescending { it.createTime }
       .firstOrNull()
-      ?.isPositive?.xor(isPositive)
+      ?.isPositive
+      ?.xor(isPositive)
       ?: true
 
   override fun findIntersectingLedgerEntries(
