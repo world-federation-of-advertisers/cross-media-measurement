@@ -147,7 +147,7 @@ class FilterTestEventQuery(val events: Map<Int, TestEvent>) : EventQuery() {
     val program =
       EventFilters.compileProgram(
         eventFilter.expression,
-        testEvent {},
+        testEvent {}
       )
     return sequence {
       for (vid in events.keys.toList()) {
@@ -354,15 +354,16 @@ class EdpSimulatorTest {
       // The list of all the charged privacy bucket groups should be correct based on the filter.
       assertThat(backingStore.balanceLedger.keys)
         .containsExactly(
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now(),
-            LocalDate.now(),
-            PrivacyLandscapeAge.RANGE_18_34,
-            PrivacyLandscapeGender.MALE,
-            0.0f,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
+
+PrivacyBucketGroup(
+  MC_NAME,
+  LocalDate.now(),
+  LocalDate.now(),
+  PrivacyLandscapeAge.RANGE_18_34,
+  PrivacyLandscapeGender.MALE,
+  0.0f,
+  PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+),
           PrivacyBucketGroup(
             MC_NAME,
             LocalDate.now(),
@@ -576,7 +577,8 @@ class EdpSimulatorTest {
 
   companion object {
 
-    @JvmField @ClassRule val temporaryFolder: TemporaryFolder = TemporaryFolder()
+    @JvmField @ClassRule
+    val temporaryFolder: TemporaryFolder = TemporaryFolder()
     fun loadSigningKey(certDerFileName: String, privateKeyDerFileName: String): SigningKeyHandle {
       return loadSigningKey(
         SECRET_FILES_PATH.resolve(certDerFileName).toFile(),
