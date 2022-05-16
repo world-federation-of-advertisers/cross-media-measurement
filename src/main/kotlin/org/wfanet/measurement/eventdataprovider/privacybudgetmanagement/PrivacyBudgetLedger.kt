@@ -72,12 +72,12 @@ class PrivacyBudgetLedger(
     val context = backingStore.startTransaction()
 
     // First check if this refence key already have been proccessed.
-    if (!context.shouldProcess(privacyReference.referenceKey, privacyReference.isPositive)) {
+    if (!context.shouldProcess(privacyReference.referenceKey, privacyReference.isRefund)) {
       return
     }
 
     // Then check if charging the buckets would exceed privacy budget
-    if (privacyReference.isPositive) {
+    if (!privacyReference.isRefund) {
       checkPrivacyBudgetExceeded(context, privacyBucketGroups, privacyCharges)
     }
 

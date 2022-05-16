@@ -30,7 +30,7 @@ data class PrivacyBudgetLedgerEntry(
 
 data class PrivacyBudgetReferenceEntry(
   val referenceKey: String,
-  val isPositive: Boolean,
+  val isRefund: Boolean,
   val createTime: Instant
 )
 
@@ -80,7 +80,7 @@ interface PrivacyBudgetLedgerTransactionContext : AutoCloseable {
   )
 
   /** Checks if the charges with the [referenceKey] should be processed. */
-  fun shouldProcess(referenceKey: String, isPositive: Boolean): Boolean
+  fun shouldProcess(referenceKey: String, isRefund: Boolean): Boolean
 
   // TODO(@uakyol) : expose reference entries for replayability purposes.
 

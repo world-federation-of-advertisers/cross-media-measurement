@@ -95,7 +95,7 @@ class PostgresBackingStoreTransactionContext(
       """
         SELECT
           ReferenceKey,
-          IsPositive,
+          IsRefund,
           CreateTime
         FROM ReferenceEntries
         WHERE
@@ -108,15 +108,15 @@ class PostgresBackingStoreTransactionContext(
       // TODO(@duliomatos) Make the blocking IO run within a dispatcher using coroutines
       statement.executeQuery().use { rs: ResultSet ->
         if (rs.next()) {
-          return rs.getBoolean("IsPositive")
+          return rs.getBoolean("IsRefund")
         }
       }
     }
     return null
   }
 
-  override fun shouldProcess(referenceKey: String, isPositive: Boolean): Boolean =
-    getLastReference(referenceKey)?.xor(isPositive) ?: true
+  override fun shouldProcess(referenceKey: String, IsRefund: Boolean): Boolean =
+    getLastReference(referenceKey)?.xor(IsRefund) ?: true
 
   override fun findIntersectingLedgerEntries(
     privacyBucketGroup: PrivacyBucketGroup
@@ -163,7 +163,7 @@ class PostgresBackingStoreTransactionContext(
   private fun addLedgerEntry(
     privacyBucketGroup: PrivacyBucketGroup,
     privacyCharge: PrivacyCharge,
-    positiveCharge: Boolean = true
+    refundCharge: Boolean = false
   ) {
     throwIfTransactionHasEnded(listOf(privacyBucketGroup))
     val insertEntrySql =
@@ -204,7 +204,7 @@ class PostgresBackingStoreTransactionContext(
       statement.setFloat(5, privacyBucketGroup.vidSampleStart)
       statement.setFloat(6, privacyCharge.delta)
       statement.setFloat(7, privacyCharge.epsilon)
-      statement.setInt(8, if (positiveCharge) 1 else -1) // updated RepetitionCount
+      statement.setInt(8, if (refundCharge) -1 else 1) // update RepetitionCount
       // TODO(@duliomatos) Make the blocking IO run within a dispatcher using coroutines
       statement.executeUpdate()
     }
@@ -215,7 +215,7 @@ class PostgresBackingStoreTransactionContext(
       """
         INSERT into ReferenceEntries (
           ReferenceKey,
-          IsPositive,
+          IsRefund,
           CreateTime
         ) VALUES (
           ?,
@@ -224,7 +224,7 @@ class PostgresBackingStoreTransactionContext(
       """.trimIndent()
     connection.prepareStatement(insertEntrySql).use { statement: PreparedStatement ->
       statement.setString(1, privacyReference.referenceKey)
-      statement.setObject(2, privacyReference.isPositive)
+      statement.setObject(2, privacyReference.isRefund)
       // TODO(@duliomatos) Make the blocking IO run within a dispatcher using coroutines
       statement.executeUpdate()
     }
@@ -237,7 +237,7 @@ class PostgresBackingStoreTransactionContext(
   ) {
     for (privacyBucketGroup in privacyBucketGroups) {
       for (privacyCharge in privacyCharges) {
-        addLedgerEntry(privacyBucketGroup, privacyCharge, privacyReference.isPositive)
+        addLedgerEntry(privacyBucketGroup, privacyCharge, privacyReference.isRefund)
       }
     }
     addReferenceEntry(privacyReference)

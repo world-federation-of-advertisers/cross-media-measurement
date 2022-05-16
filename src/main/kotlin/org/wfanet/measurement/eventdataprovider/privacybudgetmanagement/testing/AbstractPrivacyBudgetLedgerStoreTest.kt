@@ -87,13 +87,13 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
         txContext.addLedgerEntries(
           setOf(bucket1, bucket2, bucket3),
           setOf(charge),
-          PrivacyReference("RequisitioId1", true)
+          PrivacyReference("RequisitioId1", false)
         )
 
         txContext.addLedgerEntries(
           setOf(bucket1),
           setOf(charge),
-          PrivacyReference("RequisitioId2", true)
+          PrivacyReference("RequisitioId2", false)
         )
 
         val intersectingEntry = txContext.findIntersectingLedgerEntries(bucket1)
@@ -125,7 +125,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
         txContext.addLedgerEntries(
           setOf(bucket1),
           setOf(charge),
-          PrivacyReference("RequisitioId1", true)
+          PrivacyReference("RequisitioId1", false)
         )
         val matchingLedgerEntries = txContext.findIntersectingLedgerEntries(bucket1)
         assertThat(matchingLedgerEntries.size).isEqualTo(1)
@@ -134,7 +134,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
         txContext.addLedgerEntries(
           setOf(bucket1),
           setOf(charge),
-          PrivacyReference("RequisitioId1", false)
+          PrivacyReference("RequisitioId1", true)
         )
         val newMatchingLedgerEntries = txContext.findIntersectingLedgerEntries(bucket1)
         assertThat(newMatchingLedgerEntries.size).isEqualTo(1)
@@ -163,7 +163,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
     txContext.addLedgerEntries(
       setOf(bucket1),
       setOf(charge),
-      PrivacyReference("RequisitioId1", true)
+      PrivacyReference("RequisitioId1", false)
     )
     assertThat(txContext.findIntersectingLedgerEntries(bucket1).size).isEqualTo(1)
 
@@ -202,27 +202,27 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
     txContext1.addLedgerEntries(
       setOf(bucket1),
       setOf(charge),
-      PrivacyReference("RequisitioId1", true)
+      PrivacyReference("RequisitioId1", false)
     )
 
     txContext1.commit()
     val txContext2 = backingStore.startTransaction()
 
     // charge should not be proccessed if same
-    assertThat(txContext2.shouldProcess("RequisitioId1", true)).isFalse()
+    assertThat(txContext2.shouldProcess("RequisitioId1", false)).isFalse()
     // but refund is allowed
-    assertThat(txContext2.shouldProcess("RequisitioId1", false)).isTrue()
+    assertThat(txContext2.shouldProcess("RequisitioId1", true)).isTrue()
     // refund works
 
     txContext2.addLedgerEntries(
       setOf(bucket1),
       setOf(charge),
-      PrivacyReference("RequisitioId1", false)
+      PrivacyReference("RequisitioId1", true)
     )
     txContext2.commit()
     val txContext3 = backingStore.startTransaction()
     // now charge is allowed again
-    assertThat(txContext3.shouldProcess("RequisitioId1", true)).isTrue()
+    assertThat(txContext3.shouldProcess("RequisitioId1", false)).isTrue()
     txContext3.commit()
   }
 }

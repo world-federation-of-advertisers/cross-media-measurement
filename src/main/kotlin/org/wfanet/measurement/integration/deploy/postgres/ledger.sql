@@ -47,8 +47,8 @@ CREATE UNIQUE INDEX LedgerEntriesByCharge
 CREATE TABLE ReferenceEntries (
     -- Reference to the element that caused charges.
     ReferenceKey text NOT NULL,
-    -- If the charges were positive or refunds.
-    IsPositive Boolean NOT NULL,
+    -- Wheter the charges were refunds or not.
+    IsRefund Boolean NOT NULL,
     -- Time when the row was inserted.
     CreateTime TIMESTAMP NOT NULL
 );

@@ -32,11 +32,11 @@ import java.time.Instant
  *
  * 3) Where multiple tasks are not expected to update it.
  */
-class InMemoryBackingStore : PrivacyBudgetLedgerBackingStore {
-  val balanceLedger:
+open class InMemoryBackingStore : PrivacyBudgetLedgerBackingStore {
+  protected val balanceLedger:
     MutableMap<PrivacyBucketGroup, MutableMap<PrivacyCharge, PrivacyBudgetLedgerEntry>> =
     mutableMapOf()
-  val referenceLedger: MutableList<PrivacyBudgetReferenceEntry> = mutableListOf()
+  private val referenceLedger: MutableList<PrivacyBudgetReferenceEntry> = mutableListOf()
   private var transactionCount = 0L
 
   override fun startTransaction(): InMemoryBackingStoreTransactionContext {
@@ -59,19 +59,19 @@ class InMemoryBackingStoreTransactionContext(
 
   // Adds a new row to the ledger referencing an element that caused charges to the store this key
   // is usually the requisitionId.
-  private fun addReferenceEntry(referenceKey: String, isPositive: Boolean) {
+  private fun addReferenceEntry(referenceKey: String, isRefund: Boolean) {
     transactionReferenceLedger.add(
-      PrivacyBudgetReferenceEntry(referenceKey, isPositive, Instant.now())
+      PrivacyBudgetReferenceEntry(referenceKey, isRefund, Instant.now())
     )
   }
 
-  override fun shouldProcess(referenceKey: String, isPositive: Boolean): Boolean =
+  override fun shouldProcess(referenceKey: String, isRefund: Boolean): Boolean =
     transactionReferenceLedger
       .filter { it.referenceKey == referenceKey }
       .sortedByDescending { it.createTime }
       .firstOrNull()
-      ?.isPositive
-      ?.xor(isPositive)
+      ?.isRefund
+      ?.xor(isRefund)
       ?: true
 
   override fun findIntersectingLedgerEntries(
@@ -97,15 +97,15 @@ class InMemoryBackingStoreTransactionContext(
           PrivacyBudgetLedgerEntry(
             queryBucketGroup,
             charge,
-            if (privacyReference.isPositive) balanceEntry.repetitionCount + 1
-            else balanceEntry.repetitionCount - 1
+            if (privacyReference.isRefund) balanceEntry.repetitionCount - 1
+            else balanceEntry.repetitionCount + 1
           )
         )
       }
     }
 
     // Record the reference for these charges.
-    addReferenceEntry(privacyReference.referenceKey, privacyReference.isPositive)
+    addReferenceEntry(privacyReference.referenceKey, privacyReference.isRefund)
   }
 
   override fun commit() {
