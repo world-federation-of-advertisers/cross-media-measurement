@@ -19,14 +19,18 @@ Adds external repos necessary for wfa_measurement_system.
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("//build/wfa:repositories.bzl", "wfa_repo_archive")
 
+_PJC_COMMIT = "505ba981d66c9e5e73e18cfa647b4685f74784cb"
+
 def wfa_measurement_system_repositories():
     """Imports all direct dependencies for wfa_measurement_system."""
 
     wfa_repo_archive(
         name = "wfa_common_jvm",
+        # DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#117): Use
+        # version.
+        commit = "3c2a99d830247bedc9720491f517d1c586d5a197",
         repo = "common-jvm",
-        sha256 = "610396d7ab2a53833d060b44f85e346d2788fa4161df950ef0ec224c1cb27ac8",
-        version = "0.34.0",
+        sha256 = "5d27fb66156976b91f78f143ee62eb8ec850a5642a9515bc110f4089d752d545",
     )
 
     wfa_repo_archive(
@@ -79,10 +83,15 @@ def wfa_measurement_system_repositories():
     )
 
     http_archive(
-        name = "rules_pkg",
+        name = "com_google_private_join_and_compute",
         urls = [
-            "https://mirror.bazel.build/github.com/bazelbuild/rules_pkg/releases/download/0.6.0/rules_pkg-0.6.0.tar.gz",
-            "https://github.com/bazelbuild/rules_pkg/releases/download/0.6.0/rules_pkg-0.6.0.tar.gz",
+            "https://github.com/google/private-join-and-compute/archive/{commit}.tar.gz".format(commit = _PJC_COMMIT),
         ],
-        sha256 = "62eeb544ff1ef41d786e329e1536c1d541bb9bcad27ae984d57f18f314018e66",
+        strip_prefix = "private-join-and-compute-{commit}".format(commit = _PJC_COMMIT),
+        sha256 = "b1a83e1bc778fe902b782ae6d06fdf590a1f74684954c05592463ddad75f8ddb",
+        repo_mapping = {
+            # PJC depends on @com_google_protobuf//:protobuf_lite, which isn't
+            # exposed by rules_proto's protobuf_workspace.
+            "@com_google_protobuf": "@com_github_protocolbuffers_protobuf",
+        },
     )
