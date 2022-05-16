@@ -354,16 +354,15 @@ class EdpSimulatorTest {
       // The list of all the charged privacy bucket groups should be correct based on the filter.
       assertThat(backingStore.balanceLedger.keys)
         .containsExactly(
-
-PrivacyBucketGroup(
-  MC_NAME,
-  LocalDate.now(),
-  LocalDate.now(),
-  PrivacyLandscapeAge.RANGE_18_34,
-  PrivacyLandscapeGender.MALE,
-  0.0f,
-  PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-),
+          PrivacyBucketGroup(
+            MC_NAME,
+            LocalDate.now(),
+            LocalDate.now(),
+            PrivacyLandscapeAge.RANGE_18_34,
+            PrivacyLandscapeGender.MALE,
+            0.0f,
+            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+          ),
           PrivacyBucketGroup(
             MC_NAME,
             LocalDate.now(),
