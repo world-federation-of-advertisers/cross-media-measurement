@@ -1,0 +1,17 @@
+load("@io_bazel_rules_docker//java:image.bzl", "java_image")
+
+java_image(
+    name = "update_schema_image",
+    args = [
+        "--changelog=duchy/spanner/changelog.yaml",
+    ],
+    main_class = "org.wfanet.measurement.gcloud.spanner.tools.UpdateSchema",
+    resources = ["//src/main/resources/duchy/spanner"],
+    visibility = [
+        "//src/main/docker:__pkg__",
+        "//src/main/k8s:__subpackages__",
+    ],
+    runtime_deps = [
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/tools:update_schema",
+    ],
+)

@@ -8,6 +8,11 @@ cue_library(
 )
 
 cue_library(
+    name = "spanner",
+    srcs = ["spanner.cue"],
+)
+
+cue_library(
     name = "resource_setup",
     srcs = ["resource_setup.cue"],
     deps = [":base"],
@@ -22,7 +27,10 @@ cue_library(
 cue_library(
     name = "kingdom",
     srcs = ["kingdom.cue"],
-    deps = [":base"],
+    deps = [
+        ":base",
+        ":spanner",
+    ],
 )
 
 cue_library(
