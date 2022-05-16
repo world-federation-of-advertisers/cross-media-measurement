@@ -69,7 +69,10 @@ interface PrivacyBudgetLedgerTransactionContext : AutoCloseable {
     privacyBucketGroup: PrivacyBucketGroup
   ): List<PrivacyBudgetLedgerEntry>
 
-  /** Adds a new row to the PrivacyBudgetLedger specifying a charge to a privacy budget. */
+  /**
+   * Adds new rows to the PrivacyBudgetLedger specifying a charge to a privacy budget, adds the
+   * privacyReference that created these charges
+   */
   fun addLedgerEntries(
     privacyBucketGroups: Set<PrivacyBucketGroup>,
     privacyCharges: Set<PrivacyCharge>,
@@ -79,7 +82,7 @@ interface PrivacyBudgetLedgerTransactionContext : AutoCloseable {
   /** Checks if the charges with the [referenceKey] should be processed. */
   fun shouldProcess(referenceKey: String, isPositive: Boolean): Boolean
 
-  // TODO(@uakyol) : expose reference entries for replayability pourpouses.
+  // TODO(@uakyol) : expose reference entries for replayability purposes.
 
   /**
    * Commits the current transaction.

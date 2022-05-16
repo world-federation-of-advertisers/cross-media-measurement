@@ -76,7 +76,7 @@ class PrivacyBudgetLedger(
       return
     }
 
-    // Then check if charing the buckets would exceed privacy budget
+    // Then check if charging the buckets would exceed privacy budget
     if (privacyReference.isPositive) {
       checkPrivacyBudgetExceeded(context, privacyBucketGroups, privacyCharges)
     }

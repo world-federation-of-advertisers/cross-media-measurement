@@ -185,7 +185,7 @@ class PostgresBackingStoreTransactionContext(
           ?,
           ?,
           ?,
-          ?)
+          1)
       ON CONFLICT (MeasurementConsumerId,
           Date,
           AgeGroup,
@@ -204,8 +204,7 @@ class PostgresBackingStoreTransactionContext(
       statement.setFloat(5, privacyBucketGroup.vidSampleStart)
       statement.setFloat(6, privacyCharge.delta)
       statement.setFloat(7, privacyCharge.epsilon)
-      statement.setInt(8, 1) // RepetitionCount
-      statement.setInt(9, if (positiveCharge) 1 else -1) // RepetitionCount
+      statement.setInt(8, if (positiveCharge) 1 else -1) // updated RepetitionCount
       // TODO(@duliomatos) Make the blocking IO run within a dispatcher using coroutines
       statement.executeUpdate()
     }

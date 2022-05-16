@@ -46,6 +46,18 @@ class PrivacyBudgetManager(
 
   val ledger = PrivacyBudgetLedger(backingStore, maximumPrivacyBudget, maximumTotalDelta)
 
+  /**
+   * Constructs a pbm specific [PrivacyQuery] from given proto messages.
+   *
+   * @param privacyReference representing the reference key and if the charge is a refund.
+   * @param measurementSpec The measurementSpec protobuf that is associated with the query. The VID
+   * sampling interval is obtained from from this.
+   * @param requisitionSpec The requisitionSpec protobuf that is associated with the query. The date
+   * range and demo groups are obtained from this.
+   * @throws PrivacyBudgetManagerException if an error occurs in handling this request. Possible
+   * exceptions could include running out of privacy budget or a failure to commit the transaction
+   * to the database.
+   */
   private fun getPrivacyQuery(
     privacyReference: PrivacyReference,
     requisitionSpec: RequisitionSpec,
@@ -104,7 +116,7 @@ class PrivacyBudgetManager(
     )
   }
 
-  // TODO(@uakyol) : make this function public for then poupouse of replays.
+  // TODO(@uakyol) : make this function public for then purpose of replays.
   private fun chargePrivacyBudget(measurementConsumerId: String, privacyQuery: PrivacyQuery) =
     ledger.chargePrivacyBucketGroups(
       privacyQuery.privacyReference,
