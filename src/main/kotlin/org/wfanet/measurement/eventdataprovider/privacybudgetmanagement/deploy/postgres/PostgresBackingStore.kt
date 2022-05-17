@@ -20,6 +20,7 @@ import java.sql.Statement
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerBackingStore
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerEntry
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetBalanceEntry
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerTransactionContext
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
@@ -120,7 +121,7 @@ class PostgresBackingStoreTransactionContext(
 
   override fun findIntersectingLedgerEntries(
     privacyBucketGroup: PrivacyBucketGroup
-  ): List<PrivacyBudgetLedgerEntry> {
+  ): List<PrivacyBudgetBalanceEntry> {
     throwIfTransactionHasEnded(listOf(privacyBucketGroup))
     assert(privacyBucketGroup.startingDate == privacyBucketGroup.endingDate)
     val selectBucketSql =
@@ -145,10 +146,10 @@ class PostgresBackingStoreTransactionContext(
       statement.setFloat(5, privacyBucketGroup.vidSampleStart)
       // TODO(@duliomatos) Make the blocking IO run within a dispatcher using coroutines
       statement.executeQuery().use { rs: ResultSet ->
-        val entries = ArrayList<PrivacyBudgetLedgerEntry>()
+        val entries = ArrayList<PrivacyBudgetBalanceEntry>()
         while (rs.next()) {
           entries.add(
-            PrivacyBudgetLedgerEntry(
+            PrivacyBudgetBalanceEntry(
               privacyBucketGroup,
               PrivacyCharge(rs.getFloat("Epsilon"), rs.getFloat("Delta")),
               rs.getInt("RepetitionCount"),

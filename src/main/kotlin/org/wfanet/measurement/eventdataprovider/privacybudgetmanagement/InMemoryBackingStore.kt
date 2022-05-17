@@ -34,9 +34,9 @@ import java.time.Instant
  */
 open class InMemoryBackingStore : PrivacyBudgetLedgerBackingStore {
   protected val balanceLedger:
-    MutableMap<PrivacyBucketGroup, MutableMap<PrivacyCharge, PrivacyBudgetLedgerEntry>> =
+    MutableMap<PrivacyBucketGroup, MutableMap<PrivacyCharge, PrivacyBudgetBalanceEntry>> =
     mutableMapOf()
-  private val referenceLedger: MutableList<PrivacyBudgetReferenceEntry> = mutableListOf()
+  private val referenceLedger: MutableList<PrivacyBudgetLedgerEntry> = mutableListOf()
   private var transactionCount = 0L
 
   override fun startTransaction(): InMemoryBackingStoreTransactionContext {
@@ -49,8 +49,8 @@ open class InMemoryBackingStore : PrivacyBudgetLedgerBackingStore {
 
 class InMemoryBackingStoreTransactionContext(
   val balanceLedger:
-    MutableMap<PrivacyBucketGroup, MutableMap<PrivacyCharge, PrivacyBudgetLedgerEntry>>,
-  val referenceLedger: MutableList<PrivacyBudgetReferenceEntry>,
+    MutableMap<PrivacyBucketGroup, MutableMap<PrivacyCharge, PrivacyBudgetBalanceEntry>>,
+  val referenceLedger: MutableList<PrivacyBudgetLedgerEntry>,
   val transactionId: Long,
 ) : PrivacyBudgetLedgerTransactionContext {
 
@@ -61,7 +61,7 @@ class InMemoryBackingStoreTransactionContext(
   // is usually the requisitionId.
   private fun addReferenceEntry(referenceKey: String, isRefund: Boolean) {
     transactionReferenceLedger.add(
-      PrivacyBudgetReferenceEntry(referenceKey, isRefund, Instant.now())
+      PrivacyBudgetLedgerEntry(referenceKey, isRefund, Instant.now())
     )
   }
 
@@ -76,7 +76,7 @@ class InMemoryBackingStoreTransactionContext(
 
   override fun findIntersectingLedgerEntries(
     privacyBucketGroup: PrivacyBucketGroup,
-  ): List<PrivacyBudgetLedgerEntry> {
+  ): List<PrivacyBudgetBalanceEntry> {
     return transactionBalanceLedger.getOrDefault(privacyBucketGroup, mapOf()).values.toList()
   }
 
@@ -91,10 +91,10 @@ class InMemoryBackingStoreTransactionContext(
         val balanceEntries = transactionBalanceLedger.getOrPut(queryBucketGroup) { mutableMapOf() }
 
         val balanceEntry =
-          balanceEntries.getOrPut(charge) { PrivacyBudgetLedgerEntry(queryBucketGroup, charge, 0) }
+          balanceEntries.getOrPut(charge) { PrivacyBudgetBalanceEntry(queryBucketGroup, charge, 0) }
         balanceEntries.put(
           charge,
-          PrivacyBudgetLedgerEntry(
+          PrivacyBudgetBalanceEntry(
             queryBucketGroup,
             charge,
             if (privacyReference.isRefund) balanceEntry.repetitionCount - 1

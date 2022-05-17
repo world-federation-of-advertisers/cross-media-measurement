@@ -41,7 +41,7 @@ private fun Float.approximatelyEqualTo(other: Float, maximumDifference: Double):
 private fun PrivacyCharge.toChargeWithRepetitions(repetitionCount: Int): ChargeWithRepetitions =
   ChargeWithRepetitions(epsilon, delta, repetitionCount)
 
-private fun PrivacyBudgetLedgerEntry.toChargeWithRepetitions(): ChargeWithRepetitions =
+private fun PrivacyBudgetBalanceEntry.toChargeWithRepetitions(): ChargeWithRepetitions =
   privacyCharge.toChargeWithRepetitions(repetitionCount)
 
 /** Manages and updates privacy budget data. */
@@ -133,7 +133,7 @@ class PrivacyBudgetLedger(
    * to be exceeded.
    */
   private fun privacyBudgetIsExceeded(
-    ledgerEntries: Set<PrivacyBudgetLedgerEntry>,
+    ledgerEntries: Set<PrivacyBudgetBalanceEntry>,
     charges: Set<PrivacyCharge>
   ): Boolean {
 

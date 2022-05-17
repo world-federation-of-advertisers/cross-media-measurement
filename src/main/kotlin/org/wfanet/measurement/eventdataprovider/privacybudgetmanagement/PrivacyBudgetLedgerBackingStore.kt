@@ -16,19 +16,24 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 import java.time.Instant
 
 /**
- * Representation of a single row in the privacy budget ledger backing store. Note that a given
- * PrivacyBucketGroup may have multiple rows associated to it. The total charge to the
- * PrivacyBucketGroup is obtained by aggregating all of the charges specified in all of the rows for
- * that bucket group. This aggregation may be non-linear, e.g., determining total privacy budget
- * usage is not as simple as just adding up the charges for the individual rows.
+ * Representation of a balance for [privacyBucketGroup] in the privacy budget ledger backing store.
+ * Note that a given [privacyBucketGroup] may have multiple rows associated to it due to different
+ * [privacyCharge]s. The total charge to the PrivacyBucketGroup is obtained by aggregating all of
+ * the charges specified in all of the rows for that bucket group. This aggregation may be
+ * non-linear, e.g., determining total privacy budget usage is not as simple as just adding up the
+ * charges for the individual rows.
  */
-data class PrivacyBudgetLedgerEntry(
+data class PrivacyBudgetBalanceEntry(
   val privacyBucketGroup: PrivacyBucketGroup,
   val privacyCharge: PrivacyCharge,
   val repetitionCount: Int
 )
 
-data class PrivacyBudgetReferenceEntry(
+/**
+ * Representation of a single query that resulted in multiple charges in the privacy budget ledger
+ * backing store. These entries only exists for replays, and is a list of timestamped transactions.
+ */
+data class PrivacyBudgetLedgerEntry(
   val referenceKey: String,
   val isRefund: Boolean,
   val createTime: Instant
@@ -67,7 +72,7 @@ interface PrivacyBudgetLedgerTransactionContext : AutoCloseable {
    */
   fun findIntersectingLedgerEntries(
     privacyBucketGroup: PrivacyBucketGroup
-  ): List<PrivacyBudgetLedgerEntry>
+  ): List<PrivacyBudgetBalanceEntry>
 
   /**
    * Adds new rows to the PrivacyBudgetLedger specifying a charge to a privacy budget, adds the

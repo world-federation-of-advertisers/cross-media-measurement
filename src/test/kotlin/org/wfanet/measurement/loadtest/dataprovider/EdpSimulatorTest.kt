@@ -86,7 +86,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Gender as PrivacyLandscapeGender
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerEntry
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetBalanceEntry
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyCharge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
@@ -345,7 +345,7 @@ class EdpSimulatorTest {
       )
 
       val balanceLedger:
-        Map<PrivacyBucketGroup, MutableMap<PrivacyCharge, PrivacyBudgetLedgerEntry>> =
+        Map<PrivacyBucketGroup, MutableMap<PrivacyCharge, PrivacyBudgetBalanceEntry>> =
         backingStore.getLedger()
 
       // All the Buckets are only charged once, so all entries should have a repetition count of 1.

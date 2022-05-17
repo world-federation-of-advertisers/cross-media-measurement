@@ -96,8 +96,8 @@ private val DURATION_MEASUREMENT_SPEC = measurementSpec {
 class PrivacyBudgetManagerTest {
   private val privacyBucketFilter = PrivacyBucketFilter(TestPrivacyBucketMapper())
 
-  private fun createPrivacyReference(id: Int, charge: Boolean = true) =
-    PrivacyReference("RequisitioId${id}", charge)
+  private fun createPrivacyReference(id: Int, isRefund: Boolean = false) =
+    PrivacyReference("RequisitioId${id}", isRefund)
 
   private fun PrivacyBudgetManager.assertChargeExceedsPrivacyBudget(
     privacyReference: PrivacyReference,
