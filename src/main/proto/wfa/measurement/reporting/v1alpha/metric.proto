@@ -74,12 +74,11 @@ message Metric {
     // The object of a set operation.
     message Operand {
       oneof operand {
-        // Use another setOperation as an operand to achieve nested set
-        // operations.
-        SetOperation operation = 1;
-        // Resource representing the `EventGroup`s and filter used to define a
-        // set of event groups.
-        ReportingSet reporting_set = 2;
+        // Resource name of a `ReportingSet` describing a set operand.
+        string reporting_set = 1 [(google.api.resource_reference).type =
+                                      "reporting.halo-cmm.org/ReportingSet"];
+        // Nested `SetOperation` to allow for expressions with more terms.
+        SetOperation operation = 2;
       }
     }
 
@@ -98,7 +97,7 @@ message Metric {
     string display_name = 1 [(google.api.field_behavior) = REQUIRED];
 
     // A set operation that specifies the set of event groups.
-    SetOperation set_operation = 2;
+    SetOperation set_operation = 2 [(google.api.field_behavior) = REQUIRED];
   }
 
   // A list of named `SetOperations` on which the same metric will be applied.

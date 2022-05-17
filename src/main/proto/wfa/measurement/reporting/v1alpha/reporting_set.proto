@@ -23,8 +23,8 @@ option java_package = "org.wfanet.measurement.reporting.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "ReportingSetProto";
 
-// Resource representing the `EventGroup`s and filter used to define a reusable
-// set for reporting.
+// Resource that describes a set of events that can be used as an operand for a
+// `SetOperation`.
 message ReportingSet {
   option (google.api.resource) = {
     type: "reporting.halo-cmm.org/ReportingSet"
