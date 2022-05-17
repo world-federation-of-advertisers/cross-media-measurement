@@ -24,9 +24,6 @@ kt_jvm_grpc_proto_library(
 
 proto_and_java_proto_library(
     name = "metric",
-    deps = [
-        ":reporting_set_proto",
-    ],
 )
 
 proto_and_java_proto_library(
