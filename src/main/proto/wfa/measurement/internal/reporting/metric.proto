@@ -54,7 +54,7 @@ message Metric {
     message Operand {
       oneof operand {
         SetOperation operation = 1;
-        ReportingSet reporting_set = 2;
+        fixed64 external_reporting_set_id = 2;
       }
     }
 
