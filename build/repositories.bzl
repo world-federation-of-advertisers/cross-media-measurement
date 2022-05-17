@@ -16,7 +16,6 @@
 Adds external repos necessary for wfa_measurement_system.
 """
 
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("//build/wfa:repositories.bzl", "wfa_repo_archive")
 
 def wfa_measurement_system_repositories():
@@ -24,16 +23,20 @@ def wfa_measurement_system_repositories():
 
     wfa_repo_archive(
         name = "wfa_common_jvm",
+        # DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#117): Use
+        # version.
+        commit = "3c2a99d830247bedc9720491f517d1c586d5a197",
         repo = "common-jvm",
-        sha256 = "610396d7ab2a53833d060b44f85e346d2788fa4161df950ef0ec224c1cb27ac8",
-        version = "0.34.0",
+        sha256 = "5d27fb66156976b91f78f143ee62eb8ec850a5642a9515bc110f4089d752d545",
     )
 
     wfa_repo_archive(
         name = "wfa_common_cpp",
+        # DO_NOT_SUBMIT(world-federation-of-advertisers/common-cpp#30): Use
+        # version.
+        commit = "00986e86b5270b5cb9133f29412f189d9da75048",
         repo = "common-cpp",
-        sha256 = "e8efc0c9f5950aff13a59f21f40ccc31c26fe40c800743f824f92df3a05588b2",
-        version = "0.5.0",
+        sha256 = "63c9c4f749971cff9e32bf9c83530280afb56a748c4a1f1f204b984165a8aac8",
     )
 
     wfa_repo_archive(
@@ -76,13 +79,4 @@ def wfa_measurement_system_repositories():
         repo = "rules_cue",
         sha256 = "62def6a4dc401fd1549e44e2a4e2ae73cf75e6870025329bc78a0150d9a2594a",
         version = "0.1.0",
-    )
-
-    http_archive(
-        name = "rules_pkg",
-        urls = [
-            "https://mirror.bazel.build/github.com/bazelbuild/rules_pkg/releases/download/0.6.0/rules_pkg-0.6.0.tar.gz",
-            "https://github.com/bazelbuild/rules_pkg/releases/download/0.6.0/rules_pkg-0.6.0.tar.gz",
-        ],
-        sha256 = "62eeb544ff1ef41d786e329e1536c1d541bb9bcad27ae984d57f18f314018e66",
     )
