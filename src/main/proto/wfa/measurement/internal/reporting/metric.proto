@@ -49,10 +49,16 @@ message Metric {
     }
     Type type = 1;
 
+    message ReportingSetId {
+      // `MeasurementConsumer` API ID from the kingdom.
+      string measurement_consumer_reference_id = 1;
+      fixed64 external_reporting_set_id = 2;
+    }
+
     message Operand {
       oneof operand {
         SetOperation operation = 1;
-        fixed64 external_reporting_set_id = 2;
+        ReportingSetId reportingSetId = 2;
       }
     }
 
