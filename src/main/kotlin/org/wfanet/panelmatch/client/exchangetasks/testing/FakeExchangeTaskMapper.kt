@@ -15,62 +15,65 @@
 package org.wfanet.panelmatch.client.exchangetasks.testing
 
 import org.wfanet.panelmatch.client.common.ExchangeContext
+import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 
-class FakeExchangeTaskMapper : ExchangeTaskMapper() {
+class FakeExchangeTaskMapper(
+  private val createExchangeTask: (String) -> ExchangeTask = ::FakeExchangeTask
+) : ExchangeTaskMapper() {
   override suspend fun ExchangeContext.commutativeDeterministicEncrypt() =
-    FakeExchangeTask("commutative-deterministic-encrypt")
+    createExchangeTask("commutative-deterministic-encrypt")
 
   override suspend fun ExchangeContext.commutativeDeterministicDecrypt() =
-    FakeExchangeTask("commutative-deterministic-decrypt")
+    createExchangeTask("commutative-deterministic-decrypt")
 
   override suspend fun ExchangeContext.commutativeDeterministicReEncrypt() =
-    FakeExchangeTask("commutative-deterministic-re-encrypt")
+    createExchangeTask("commutative-deterministic-re-encrypt")
 
   override suspend fun ExchangeContext.generateCommutativeDeterministicEncryptionKey() =
-    FakeExchangeTask("generate-commutative-deterministic-encryption-key")
+    createExchangeTask("generate-commutative-deterministic-encryption-key")
 
-  override suspend fun ExchangeContext.preprocessEvents() = FakeExchangeTask("preprocess-events")
+  override suspend fun ExchangeContext.preprocessEvents() = createExchangeTask("preprocess-events")
 
   override suspend fun ExchangeContext.buildPrivateMembershipQueries() =
-    FakeExchangeTask("build-private-membership-queries")
+    createExchangeTask("build-private-membership-queries")
 
   override suspend fun ExchangeContext.executePrivateMembershipQueries() =
-    FakeExchangeTask("execute-private-membership-queries")
+    createExchangeTask("execute-private-membership-queries")
 
   override suspend fun ExchangeContext.decryptMembershipResults() =
-    FakeExchangeTask("decrypt-membership-results")
+    createExchangeTask("decrypt-membership-results")
 
   override suspend fun ExchangeContext.generateSerializedRlweKeyPair() =
-    FakeExchangeTask("generate-serialized-rlwe-key-pair")
+    createExchangeTask("generate-serialized-rlwe-key-pair")
 
   override suspend fun ExchangeContext.generateExchangeCertificate() =
-    FakeExchangeTask("generate-exchange-certificate")
+    createExchangeTask("generate-exchange-certificate")
 
   override suspend fun ExchangeContext.generateLookupKeys() =
-    FakeExchangeTask("generate-lookup-keys")
+    createExchangeTask("generate-lookup-keys")
 
   override suspend fun ExchangeContext.intersectAndValidate() =
-    FakeExchangeTask("intersect-and-validate")
+    createExchangeTask("intersect-and-validate")
 
-  override suspend fun ExchangeContext.input() = FakeExchangeTask("input")
+  override suspend fun ExchangeContext.input() = createExchangeTask("input")
 
   override suspend fun ExchangeContext.copyFromPreviousExchange() =
-    FakeExchangeTask("copy-from-previous-exchange")
+    createExchangeTask("copy-from-previous-exchange")
 
   override suspend fun ExchangeContext.copyFromSharedStorage() =
-    FakeExchangeTask("copy-from-shared-storage")
+    createExchangeTask("copy-from-shared-storage")
 
   override suspend fun ExchangeContext.copyToSharedStorage() =
-    FakeExchangeTask("copy-to-shared-storage")
+    createExchangeTask("copy-to-shared-storage")
 
-  override suspend fun ExchangeContext.hybridEncrypt() = FakeExchangeTask("hybird-encrypt")
+  override suspend fun ExchangeContext.hybridEncrypt() = createExchangeTask("hybird-encrypt")
 
-  override suspend fun ExchangeContext.hybridDecrypt() = FakeExchangeTask("hybrid-decrypt")
+  override suspend fun ExchangeContext.hybridDecrypt() = createExchangeTask("hybrid-decrypt")
 
   override suspend fun ExchangeContext.generateHybridEncryptionKeyPair() =
-    FakeExchangeTask("generate-hybrid-encryption-key-pair")
+    createExchangeTask("generate-hybrid-encryption-key-pair")
 
   override suspend fun ExchangeContext.generateRandomBytes() =
-    FakeExchangeTask("generate-random-bytes")
+    createExchangeTask("generate-random-bytes")
 }

@@ -15,20 +15,30 @@
 package org.wfanet.panelmatch.client.launcher
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import java.time.LocalDate
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.Flow
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.kotlin.any
+import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
+import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt.State
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.StepKt.commutativeDeterministicEncryptStep
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflowKt.step
 import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
 import org.wfanet.measurement.common.asBufferedFlow
+import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
+import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskFailedException
+import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 import org.wfanet.panelmatch.client.exchangetasks.testing.FakeExchangeTaskMapper
 import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidatedExchangeStep
 import org.wfanet.panelmatch.client.launcher.testing.FakeTimeout
@@ -65,15 +75,7 @@ class ExchangeTaskExecutorTest {
     visibility = StorageDetails.Visibility.PRIVATE
   }
 
-  private val exchangeTaskMapper = FakeExchangeTaskMapper()
-
-  private val exchangeTaskExecutor =
-    ExchangeTaskExecutor(
-      apiClient,
-      timeout,
-      testPrivateStorageSelector.selector,
-      exchangeTaskMapper
-    )
+  private val exchangeTaskExecutor = createExchangeTaskExecutor(FakeExchangeTaskMapper())
 
   @Before
   fun setUpStorage() {
@@ -83,9 +85,7 @@ class ExchangeTaskExecutorTest {
 
   @Test
   fun `reads inputs and writes outputs`() = runBlockingTest {
-    val blob = "some-blob".toByteStringUtf8()
-
-    testPrivateStorageSelector.storageClient.writeBlob("b", blob.asBufferedFlow(1024))
+    prepareBlob("some-blob")
 
     exchangeTaskExecutor.execute(VALIDATED_EXCHANGE_STEP, ATTEMPT_KEY)
 
@@ -103,4 +103,62 @@ class ExchangeTaskExecutorTest {
 
     assertThat(testPrivateStorageSelector.storageClient.getBlob("c")).isNull()
   }
+
+  @Test
+  fun `fails with transient attempt state from ExchangeTaskFailedException`() = runBlockingTest {
+    prepareBlob("some-blob")
+
+    val exchangeTaskExecutor =
+      createExchangeTaskExecutor(FakeExchangeTaskMapper(::TransientThrowingExchangeTask))
+
+    assertFailsWith<ExchangeTaskFailedException> {
+      exchangeTaskExecutor.execute(VALIDATED_EXCHANGE_STEP, ATTEMPT_KEY)
+    }
+
+    verify(apiClient).finishExchangeStepAttempt(eq(ATTEMPT_KEY), eq(State.FAILED), any())
+  }
+
+  @Test
+  fun `fails with permanent attempt state from ExchangeTaskFailedException`() = runBlockingTest {
+    prepareBlob("some-blob")
+
+    val exchangeTaskExecutor =
+      createExchangeTaskExecutor(FakeExchangeTaskMapper(::PermanentThrowingExchangeTask))
+
+    assertFailsWith<ExchangeTaskFailedException> {
+      exchangeTaskExecutor.execute(VALIDATED_EXCHANGE_STEP, ATTEMPT_KEY)
+    }
+
+    verify(apiClient).finishExchangeStepAttempt(eq(ATTEMPT_KEY), eq(State.FAILED_STEP), any())
+  }
+
+  private suspend fun prepareBlob(contents: String) {
+    val contentsAsFlow = contents.toByteStringUtf8().asBufferedFlow(1024)
+    testPrivateStorageSelector.storageClient.writeBlob("b", contentsAsFlow)
+  }
+
+  private fun createExchangeTaskExecutor(
+    exchangeTaskMapper: ExchangeTaskMapper
+  ): ExchangeTaskExecutor {
+    return ExchangeTaskExecutor(
+      apiClient,
+      timeout,
+      testPrivateStorageSelector.selector,
+      exchangeTaskMapper
+    )
+  }
+}
+
+private class TransientThrowingExchangeTask(taskName: String) : ExchangeTask {
+  override suspend fun execute(
+    input: Map<String, StorageClient.Blob>
+  ): Map<String, Flow<ByteString>> =
+    throw ExchangeTaskFailedException.ofTransient(IllegalStateException())
+}
+
+private class PermanentThrowingExchangeTask(taskName: String) : ExchangeTask {
+  override suspend fun execute(
+    input: Map<String, StorageClient.Blob>
+  ): Map<String, Flow<ByteString>> =
+    throw ExchangeTaskFailedException.ofPermanent(IllegalStateException())
 }
