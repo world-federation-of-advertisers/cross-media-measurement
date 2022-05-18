@@ -36,7 +36,7 @@ class TestPrivacyBucketMapper : PrivacyBucketMapper {
     try {
       EventFilters.compileProgram(
         filterExpression,
-        testEvent {},
+        listOf(testEvent {}),
         setOf("privacy_budget.age.value", "privacy_budget.gender.value")
       )
     } catch (e: EventFilterValidationException) {

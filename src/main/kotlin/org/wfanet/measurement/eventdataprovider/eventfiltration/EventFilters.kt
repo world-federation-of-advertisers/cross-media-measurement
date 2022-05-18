@@ -43,12 +43,12 @@ object EventFilters {
    */
   fun compileProgram(
     celExpr: String,
-    defaultEventMessage: Message,
+    defaultEventMessages: List<Message>,
     operativeFields: Set<String> = emptySet()
   ): Program =
     EventFilterValidator.compileProgramWithEventMessage(
       celExpr,
-      defaultEventMessage,
+      defaultEventMessages,
       operativeFields
     )
 
@@ -76,8 +76,11 @@ object EventFilters {
    * * [EventFilterException.Code.EVALUATION_ERROR]
    * * [EventFilterException.Code.INVALID_RESULT]
    */
-  fun matches(event: Message, program: Program): Boolean {
-    val variables: Map<String, Any> = event.allFields.entries.associate { it.key.name to it.value }
+  fun matches(events: List<Message>, program: Program): Boolean {
+    val variables: MutableMap<String, Any> = mutableMapOf()
+    for (event in events) {
+      variables.putAll(event.allFields.entries.associate { it.key.name to it.value })
+    }
     val result: Program.EvalResult = program.eval(variables)
     val value: Val = result.`val`
     if (value is Err) {

@@ -33,7 +33,7 @@ class TestPrivacyBucketMapper : PrivacyBucketMapper {
     try {
       EventFilters.compileProgram(
         "privacy_filterable == true",
-        loadTestEvent {},
+        listOf(loadTestEvent {}),
         setOf("privacy_filterable")
       )
     } catch (e: EventFilterValidationException) {

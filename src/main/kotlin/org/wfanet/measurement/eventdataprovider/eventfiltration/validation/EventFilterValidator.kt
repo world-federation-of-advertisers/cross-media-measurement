@@ -14,6 +14,7 @@
 package org.wfanet.measurement.eventdataprovider.eventfiltration.validation
 
 import com.google.api.expr.v1alpha1.Constant
+import com.google.api.expr.v1alpha1.Decl
 import com.google.api.expr.v1alpha1.Expr
 import com.google.api.expr.v1alpha1.Expr.Builder
 import com.google.api.expr.v1alpha1.ParsedExpr
@@ -215,23 +216,30 @@ object EventFilterValidator {
     return this
   }
 
-  private fun createEnv(eventMessage: Message): Env {
-    val typeRegistry: ProtoTypeRegistry = ProtoTypeRegistry.newRegistry(eventMessage)
-    val celVariables =
-      eventMessage.descriptorForType.fields.map { field ->
-        val typeName = field.messageType.fullName
-        val defaultValue = eventMessage.getField(field) as? Message
-        checkNotNull(defaultValue) { "eventMessage field should have Message type" }
-        typeRegistry.registerMessage(defaultValue)
-        Decls.newVar(
-          field.name,
-          Decls.newObjectType(typeName),
-        )
-      }
+  private fun createEnv(eventMessages: List<Message>): Env {
+    val typeRegistry: ProtoTypeRegistry =
+      ProtoTypeRegistry.newRegistry(*eventMessages.toTypedArray())
+    val celVariablesList: MutableList<Decl> = mutableListOf()
+    for (eventMessage in eventMessages) {
+      val celVariables =
+        eventMessage.descriptorForType.fields.map { field ->
+          val typeName = field.messageType.fullName
+          val defaultValue = eventMessage.getField(field) as? Message
+          checkNotNull(defaultValue) { "eventMessage field should have Message type" }
+          typeRegistry.registerMessage(defaultValue)
+          Decls.newVar(
+            field.name,
+            Decls.newObjectType(typeName),
+          )
+        }
+
+      celVariablesList.addAll(celVariables)
+    }
+
     return Env.newEnv(
       EnvOption.customTypeAdapter(typeRegistry),
       EnvOption.customTypeProvider(typeRegistry),
-      EnvOption.declarations(celVariables),
+      EnvOption.declarations(celVariablesList),
     )
   }
 
@@ -269,10 +277,10 @@ object EventFilterValidator {
 
   fun compileProgramWithEventMessage(
     celExpression: String,
-    eventMessage: Message,
+    eventMessages: List<Message>,
     operativeFields: Set<String> = emptySet()
   ): Program {
-    val env = createEnv(eventMessage)
+    val env = createEnv(eventMessages)
     val ast =
       if (operativeFields.isEmpty()) compile(celExpression, env)
       else compileToOperativeNegationNormalForm(celExpression, env, operativeFields)

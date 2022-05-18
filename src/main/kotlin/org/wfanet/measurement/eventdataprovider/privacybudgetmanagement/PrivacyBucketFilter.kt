@@ -95,7 +95,7 @@ class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
                   PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
                 )
               if (EventFilters.matches(
-                  privacyBucketMapper.toEventMessage(privacyBucketGroup),
+                  listOf(privacyBucketMapper.toEventMessage(privacyBucketGroup)),
                   program
                 )
               ) {
