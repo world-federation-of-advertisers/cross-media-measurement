@@ -39,8 +39,12 @@ class ApacheBeamTask(
       ApacheBeamContext(pipeline, outputManifests, outputLabels, inputLabels, input, storageFactory)
     context.executeOnPipeline()
 
-    val finalState = pipeline.run().waitUntilFinish()
-    check(finalState == PipelineResult.State.DONE) { "Pipeline is in state $finalState" }
+    try {
+      val finalState = pipeline.run().waitUntilFinish()
+      check(finalState == PipelineResult.State.DONE) { "Pipeline is in state $finalState" }
+    } catch (e: Exception) {
+      throw ExchangeTaskFailedException.ofPermanent(e)
+    }
 
     return outputManifests.mapValues { flowOf(it.value.spec.toByteStringUtf8()) }
   }

@@ -25,6 +25,7 @@ import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.StorageClient.Blob
 import org.wfanet.panelmatch.client.common.ExchangeContext
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTask
+import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskFailedException
 import org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskMapper
 import org.wfanet.panelmatch.client.launcher.ExchangeStepValidator.ValidatedExchangeStep
 import org.wfanet.panelmatch.client.logger.TaskLog
@@ -61,7 +62,12 @@ class ExchangeTaskExecutor(
         context.tryExecute()
       } catch (e: Exception) {
         logger.addToTaskLog(e, Level.SEVERE)
-        markAsFinished(attemptKey, ExchangeStepAttempt.State.FAILED)
+        val attemptState =
+          when (e) {
+            is ExchangeTaskFailedException -> e.attemptState
+            else -> ExchangeStepAttempt.State.FAILED
+          }
+        markAsFinished(attemptKey, attemptState)
         throw e
       }
     }

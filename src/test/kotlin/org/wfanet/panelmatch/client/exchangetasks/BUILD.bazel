@@ -20,6 +20,19 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "ExchangeTaskFailedExceptionTest",
+    timeout = "short",
+    srcs = ["ExchangeTaskFailedExceptionTest.kt"],
+    test_class = "org.wfanet.panelmatch.client.exchangetasks.ExchangeTaskFailedExceptionTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/panelmatch/client/exchangetasks",
+        "//src/main/proto/wfa/measurement/api/v2alpha:exchange_step_attempt_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_test(
     name = "HybridCryptorTasksTest",
     timeout = "short",
     srcs = ["HybridCryptorTasksTest.kt"],
