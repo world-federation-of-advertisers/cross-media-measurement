@@ -26,10 +26,10 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.stepIsOwnedBy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepReader
 
 /**
- * Streams [ExchangeStep]s matching [filter] from Spanner ordered by ascending updateTime.
+ * Streams ExchangeSteps matching a filter from Spanner ordered by ascending updateTime.
  *
- * @param filter a filter to control which [ExchangeStep]s to return
- * @param limit how many [ExchangeStep]s to return -- if zero, there is no limit
+ * @param requestFilter a filter to control which ExchangeSteps to return
+ * @param limit how many ExchangeSteps to return -- if zero, there is no limit
  */
 class StreamExchangeSteps(requestFilter: StreamExchangeStepsRequest.Filter, limit: Int = 0) :
   SimpleSpannerQuery<ExchangeStepReader.Result>() {
