@@ -16,9 +16,11 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 import java.time.LocalDate
 
 enum class AgeGroup(val string: String) {
-  RANGE_18_34("18_34"),
-  RANGE_35_54("35_54"),
-  ABOVE_54("55+")
+  RANGE_18_34("18_24"),
+  RANGE_25_34("25_34"),
+  RANGE_35_44("35_44"),
+  RANGE_45_54("45_54"),
+  RANGE_55_64("55_64")
 }
 
 enum class Gender(val string: String) {
