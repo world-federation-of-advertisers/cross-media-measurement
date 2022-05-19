@@ -43,7 +43,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
             "ACME",
             LocalDate.parse("2021-07-01"),
             LocalDate.parse("2021-07-01"),
-            AgeGroup.RANGE_35_54,
+            AgeGroup.RANGE_35_44,
             Gender.MALE,
             0.3f,
             0.1f
@@ -54,7 +54,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
             "ACME",
             LocalDate.parse("2021-07-01"),
             LocalDate.parse("2021-07-01"),
-            AgeGroup.RANGE_35_54,
+            AgeGroup.RANGE_35_44,
             Gender.MALE,
             0.5f,
             0.1f
@@ -65,7 +65,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
             "ACME",
             LocalDate.parse("2021-07-01"),
             LocalDate.parse("2021-07-01"),
-            AgeGroup.RANGE_35_54,
+            AgeGroup.RANGE_35_44,
             Gender.FEMALE,
             0.3f,
             0.1f
@@ -76,7 +76,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
             "ACME",
             LocalDate.parse("2021-07-01"),
             LocalDate.parse("2021-07-01"),
-            AgeGroup.RANGE_35_54,
+            AgeGroup.RANGE_35_44,
             Gender.FEMALE,
             0.5f,
             0.1f
@@ -115,7 +115,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
             "ACME",
             LocalDate.parse("2021-07-01"),
             LocalDate.parse("2021-07-01"),
-            AgeGroup.RANGE_35_54,
+            AgeGroup.RANGE_35_44,
             Gender.MALE,
             0.3f,
             0.1f
@@ -153,7 +153,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
         "ACME",
         LocalDate.parse("2021-07-01"),
         LocalDate.parse("2021-07-01"),
-        AgeGroup.RANGE_35_54,
+        AgeGroup.RANGE_35_44,
         Gender.MALE,
         0.3f,
         0.1f
@@ -191,7 +191,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
         "ACME",
         LocalDate.parse("2021-07-01"),
         LocalDate.parse("2021-07-01"),
-        AgeGroup.RANGE_35_54,
+        AgeGroup.RANGE_35_44,
         Gender.MALE,
         0.3f,
         0.1f

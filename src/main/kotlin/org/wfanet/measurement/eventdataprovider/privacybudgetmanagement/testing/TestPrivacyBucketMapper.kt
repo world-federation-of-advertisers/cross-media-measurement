@@ -31,6 +31,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
 
 class TestPrivacyBucketMapper : PrivacyBucketMapper {
+
   override fun toPrivacyFilterProgram(filterExpression: String): Program =
     try {
       EventFilters.compileProgram(
@@ -50,8 +51,10 @@ class TestPrivacyBucketMapper : PrivacyBucketMapper {
       privacyBudget = testPrivacyBudgetTemplate {
         when (privacyBucketGroup.ageGroup) {
           AgeGroup.RANGE_18_34 -> age = ageRange { value = AgeRange.Value.AGE_18_TO_24 }
-          AgeGroup.RANGE_35_54 -> age = ageRange { value = AgeRange.Value.AGE_35_TO_54 }
-          AgeGroup.ABOVE_54 -> age = ageRange { value = AgeRange.Value.AGE_OVER_54 }
+          AgeGroup.RANGE_25_34 -> age = ageRange { value = AgeRange.Value.AGE_25_TO_34 }
+          AgeGroup.RANGE_35_44 -> age = ageRange { value = AgeRange.Value.AGE_35_TO_44 }
+          AgeGroup.RANGE_45_54 -> age = ageRange { value = AgeRange.Value.AGE_45_TO_54 }
+          AgeGroup.RANGE_55_64 -> age = ageRange { value = AgeRange.Value.AGE_55_TO_64 }
         }
         when (privacyBucketGroup.gender) {
           Gender.MALE ->

@@ -76,6 +76,8 @@ class PrivacyBudgetLedger(
       return
     }
 
+    privacyBucketGroups.forEach{println(it)}
+
     // Then check if charging the buckets would exceed privacy budget
     if (!privacyReference.isRefund) {
       checkPrivacyBudgetExceeded(context, privacyBucketGroups, privacyCharges)

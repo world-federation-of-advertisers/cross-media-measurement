@@ -25,7 +25,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpec
  * This is the default value for the total amount that can be charged to a single privacy bucket.
  */
 private const val MAXIMUM_PRIVACY_USAGE_PER_BUCKET = 1.0f
-private const val MAXIMUM_DELTA_PER_BUCKET = 1.0e-9f
+const val MAXIMUM_DELTA_PER_BUCKET = 1.0e-9f
 
 /**
  * Instantiates a privacy budget manager.
