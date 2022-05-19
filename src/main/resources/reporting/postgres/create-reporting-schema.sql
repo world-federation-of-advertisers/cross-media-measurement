@@ -1,3 +1,5 @@
+-- liquibase formatted sql
+
 -- Copyright 2022 The Cross-Media Measurement Authors
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,8 +24,10 @@
 --   │   └── Metrics
 --   │       └── SetOperations
 --   └── ReportingSets
+--       └── ReportingSetEventGroups
 
-CREATE TABLE IF NOT EXISTS Reports (
+-- changeset tristanvuong2021:create-reports-table dbms:postgresql
+CREATE TABLE Reports (
   MeasurementConsumerReferenceId text NOT NULL,
   ReportId bigint NOT NULL,
 
@@ -32,7 +36,6 @@ CREATE TABLE IF NOT EXISTS Reports (
   -- org.wfanet.measurement.internal.reporting.Report.State
   -- protobuf enum encoded as an integer.
   State smallint NOT NULL,
-  Result text,
 
   -- Serialized org.wfanet.measurement.internal.reporting.Report.Details
   -- protobuf message.
@@ -42,10 +45,12 @@ CREATE TABLE IF NOT EXISTS Reports (
   UNIQUE (MeasurementConsumerReferenceId, ExternalReportId)
 );
 
-CREATE INDEX IF NOT EXISTS ReportsByExternalReportId
+-- changeset tristanvuong2021:create-reports-by-external-report-id-index dbms:postgresql
+CREATE INDEX ReportsByExternalReportId
   ON Reports(MeasurementConsumerReferenceId, ExternalReportId);
 
-CREATE TABLE IF NOT EXISTS TimeIntervals (
+-- changeset tristanvuong2021:create-time-intervals-table dbms:postgresql
+CREATE TABLE TimeIntervals (
   MeasurementConsumerReferenceId text NOT NULL,
   ReportId bigint NOT NULL,
 
@@ -55,11 +60,12 @@ CREATE TABLE IF NOT EXISTS TimeIntervals (
   EndSeconds bigint,
   EndNanos integer,
 
-  CONSTRAINT fk_report FOREIGN KEY(MeasurementConsumerReferenceId, ReportId)
+  FOREIGN KEY(MeasurementConsumerReferenceId, ReportId)
     REFERENCES Reports(MeasurementConsumerReferenceId, ReportId)
 );
 
-CREATE TABLE IF NOT EXISTS PeriodicTimeIntervals (
+-- changeset tristanvuong2021:create-periodic-time-intervals-table dbms:postgresql
+CREATE TABLE PeriodicTimeIntervals (
   MeasurementConsumerReferenceId text NOT NULL,
   ReportId bigint NOT NULL,
 
@@ -71,34 +77,32 @@ CREATE TABLE IF NOT EXISTS PeriodicTimeIntervals (
 
   IntervalCount integer,
 
-  CONSTRAINT fk_report FOREIGN KEY(MeasurementConsumerReferenceId, ReportId)
+  FOREIGN KEY(MeasurementConsumerReferenceId, ReportId)
     REFERENCES Reports(MeasurementConsumerReferenceId, ReportId)
 );
 
-CREATE TABLE IF NOT EXISTS Metrics (
+-- changeset tristanvuong2021:create-metrics-table dbms:postgresql
+CREATE TABLE Metrics (
   MeasurementConsumerReferenceId text NOT NULL,
   ReportId bigint NOT NULL,
   MetricId bigint NOT NULL,
-
-  -- Array of direct child SetOperation IDs
-  SetOperations bigint[],
 
   -- Serialized org.wfanet.measurement.internal.reporting.Metric.Details
   -- protobuf message.
   MetricDetails bytea NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerReferenceId, ReportId, MetricId),
-  CONSTRAINT fk_report FOREIGN KEY(MeasurementConsumerReferenceId, ReportId)
+  FOREIGN KEY(MeasurementConsumerReferenceId, ReportId)
     REFERENCES Reports(MeasurementConsumerReferenceId, ReportId)
 );
 
-CREATE TABLE IF NOT EXISTS ReportingSets (
+-- changeset tristanvuong2021:create-reporting-sets-table dbms:postgresql
+CREATE TABLE ReportingSets (
   MeasurementConsumerReferenceId text NOT NULL,
   ReportingSetId bigint NOT NULL,
 
   ExternalReportingSetId bigint NOT NULL,
 
-  EventGroupNames text[] NOT NULL,
   Filter text NOT NULL,
   DisplayName text NOT NULL,
 
@@ -106,14 +110,31 @@ CREATE TABLE IF NOT EXISTS ReportingSets (
   UNIQUE (MeasurementConsumerReferenceId, ExternalReportingSetId)
 );
 
-CREATE INDEX IF NOT EXISTS ReportingSetsByExternalReportingSetId
+-- changeset tristanvuong2021:create-reporting-set-event-groups-table dbms:postgresql
+CREATE TABLE ReportingSetEventGroups (
+  MeasurementConsumerReferenceId text NOT NULL,
+  DataProviderReferenceId text NOT NULL,
+  EventGroupReferenceId text NOT NULL,
+  ReportingSetId bigint NOT NULL,
+
+  PRIMARY KEY(MeasurementConsumerReferenceId, DataProviderReferenceId, EventGroupReferenceId, ReportingSetId),
+  FOREIGN KEY(MeasurementConsumerReferenceId, ReportingSetId)
+    REFERENCES ReportingSets(MeasurementConsumerReferenceId, ReportingSetId)
+);
+
+-- changeset tristanvuong2021:create-reporting-sets-by-external-reporting-set-id-index dbms:postgresql
+CREATE INDEX ReportingSetsByExternalReportingSetId
   ON ReportingSets(MeasurementConsumerReferenceId, ExternalReportingSetId);
 
-CREATE TABLE IF NOT EXISTS SetOperations (
+-- changeset tristanvuong2021:create-set-operations-table dbms:postgresql
+CREATE TABLE SetOperations (
   MeasurementConsumerReferenceId text NOT NULL,
   ReportId bigint NOT NULL,
   MetricId bigint NOT NULL,
   SetOperationId bigint NOT NULL,
+
+  -- Whether SetOperation is a root SetOperation of a Metric.
+  root boolean NOT NULL,
 
   -- org.wfanet.measurement.internal.reporting.Metric.SetOperation.Type
   -- protobuf enum encoded as an integer.
@@ -128,10 +149,10 @@ CREATE TABLE IF NOT EXISTS SetOperations (
 
 
   PRIMARY KEY(MeasurementConsumerReferenceId, ReportId, MetricId, SetOperationId),
-  CONSTRAINT fk_lh_reporting_set FOREIGN KEY(MeasurementConsumerReferenceId, LeftHandReportingSetId)
+  FOREIGN KEY(MeasurementConsumerReferenceId, LeftHandReportingSetId)
     REFERENCES ReportingSets(MeasurementConsumerReferenceId, ReportingSetId),
-  CONSTRAINT fk_rh_reporting_set FOREIGN KEY(MeasurementConsumerReferenceId, RightHandReportingSetId)
+  FOREIGN KEY(MeasurementConsumerReferenceId, RightHandReportingSetId)
     REFERENCES ReportingSets(MeasurementConsumerReferenceId, ReportingSetId),
-  CONSTRAINT fk_metric FOREIGN KEY(MeasurementConsumerReferenceId, ReportId, MetricId)
+  FOREIGN KEY(MeasurementConsumerReferenceId, ReportId, MetricId)
     REFERENCES Metrics(MeasurementConsumerReferenceId, ReportId, MetricId)
 );

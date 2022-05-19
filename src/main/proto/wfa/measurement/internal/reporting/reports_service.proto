@@ -31,14 +31,14 @@ service Reports {
 }
 
 message GetReportRequest {
-  // `MeasurementConsumer` API ID from the kingdom.
+  // `MeasurementConsumer` ID from the CMMS public API.
   string measurement_consumer_reference_id = 1;
   fixed64 external_report_id = 2;
 }
 
 message StreamReportsRequest {
   message Filter {
-    // `MeasurementConsumer` API ID from the kingdom.
+    // `MeasurementConsumer` ID from the CMMS public API.
     string measurement_consumer_reference_id = 1;
     fixed64 external_report_id_after = 2;
   }

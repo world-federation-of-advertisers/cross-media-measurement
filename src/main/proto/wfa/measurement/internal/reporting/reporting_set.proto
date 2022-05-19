@@ -21,12 +21,20 @@ option java_multiple_files = true;
 
 // Proto representation of the internal ReportingSet entity type.
 message ReportingSet {
-  // `MeasurementConsumer` API ID from the kingdom.
+  // `MeasurementConsumer` ID from the CMMS public API.
   string measurement_consumer_reference_id = 1;
   fixed64 external_reporting_set_id = 2;
 
-  // List of `EventGroup` resource names.
-  repeated string event_groups = 3;
+  message EventGroupKey {
+    // `MeasurementConsumer` ID from the CMMS public API.
+    string measurement_consumer_reference_id = 1;
+    // `DataProvider` ID from the CMMS public API.
+    string data_provider_reference_id = 2;
+    // `EventGroup` ID from the CMMS public API.
+    string event_group_reference_id = 3;
+  }
+  repeated EventGroupKey event_group_keys = 3;
+
   // CEL filter predicate.
   string filter = 4;
   string display_name = 5;

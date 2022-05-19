@@ -49,8 +49,8 @@ message Metric {
     }
     Type type = 1;
 
-    message ReportingSetId {
-      // `MeasurementConsumer` API ID from the kingdom.
+    message ReportingSetKey {
+      // `MeasurementConsumer` ID from the CMMS public API.
       string measurement_consumer_reference_id = 1;
       fixed64 external_reporting_set_id = 2;
     }
@@ -58,7 +58,7 @@ message Metric {
     message Operand {
       oneof operand {
         SetOperation operation = 1;
-        ReportingSetId reportingSetId = 2;
+        ReportingSetKey reportingSetId = 2;
       }
     }
 
