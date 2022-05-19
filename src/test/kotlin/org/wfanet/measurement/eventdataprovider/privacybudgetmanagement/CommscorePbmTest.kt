@@ -50,62 +50,6 @@ private const val MEASUREMENT_CONSUMER_ID = "ACME"
 
 const val PRIVACY_BUCKET_VID_SAMPLE_WIDTH = 1f / 300f
 
-private val REQUISITION_SPEC = requisitionSpec {
-  eventGroups += eventGroupEntry {
-    key = "eventGroups/someEventGroup"
-    value =
-      RequisitionSpecKt.EventGroupEntryKt.value {
-        collectionInterval = timeInterval {
-          startTime =
-            LocalDate.now().minusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
-          endTime = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
-        }
-        filter = eventFilter {
-          expression =
-            "privacy_budget.gender.value==0 && privacy_budget.age.value==0 && " +
-              "banner_ad.gender.value == 1"
-        }
-      }
-  }
-}
-
-private val REACH_AND_FREQ_MEASUREMENT_SPEC = measurementSpec {
-  reachAndFrequency = reachAndFrequency {
-    reachPrivacyParams = differentialPrivacyParams {
-      epsilon = 0.01
-      delta = MAXIMUM_DELTA_PER_BUCKET.toDouble()
-    }
-
-    frequencyPrivacyParams = differentialPrivacyParams {
-      epsilon = 0.01
-      delta = MAXIMUM_DELTA_PER_BUCKET.toDouble()
-    }
-
-    vidSamplingInterval = vidSamplingInterval {
-      start = 0.01f
-      width = 0.02f
-    }
-  }
-}
-
-private val IMPRESSION_MEASUREMENT_SPEC = measurementSpec {
-  impression = impression {
-    privacyParams = differentialPrivacyParams {
-      epsilon = 0.3
-      delta = 0.02
-    }
-  }
-}
-
-private val DURATION_MEASUREMENT_SPEC = measurementSpec {
-  impression = impression {
-    privacyParams = differentialPrivacyParams {
-      epsilon = 0.3
-      delta = 0.02
-    }
-  }
-}
-
 @RunWith(JUnit4::class)
 class CommscorePbmTest {
   private val privacyBucketFilter = PrivacyBucketFilter(TestPrivacyBucketMapper())
@@ -136,12 +80,26 @@ class CommscorePbmTest {
   private fun getFilterExpression(elem: JsonElement): String {
     if (elem.isJsonArray()) {
       val arr = elem.getAsJsonArray()
-      // arr.forEach{println(it.getAsString())}
       return arr.map { getSubExpression(it.getAsString()) }.joinToString(" || ")
     }
     return getSubExpression(elem.getAsString())
   }
 
+  private fun getStartOffset(elem: JsonElement):Long{
+    try{
+      return 31 - elem.getAsInt().toLong()
+    } catch (e: Exception) {
+      return elem.getAsString().split("..").get(0).toLong()
+    }
+  }
+
+    private fun getEndOffset(elem: JsonElement):Long{
+    try{
+      return 31 - elem.getAsInt().toLong()
+    } catch (e: Exception) {
+      return elem.getAsString().split("..").get(1).toLong()
+    }
+  }
   private fun constructReqSpec(obj: JsonObject): RequisitionSpec {
     return requisitionSpec {
       eventGroups += eventGroupEntry {
@@ -150,8 +108,8 @@ class CommscorePbmTest {
           RequisitionSpecKt.EventGroupEntryKt.value {
             collectionInterval = timeInterval {
               startTime =
-                LocalDate.now().minusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
-              endTime = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+                LocalDate.now().minusDays(getStartOffset(obj.get("days"))).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+              endTime = LocalDate.now().minusDays(getEndOffset(obj.get("days"))).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
             }
             filter = eventFilter { expression = getFilterExpression(obj.get("demographics")) }
           }
@@ -179,24 +137,13 @@ class CommscorePbmTest {
     }
   }
 
-  private fun PrivacyBudgetManager.assertChargeExceedsPrivacyBudget(
-    measurementSpec: MeasurementSpec
-  ) {
-    val exception =
-      assertFailsWith<PrivacyBudgetManagerException> {
-        chargePrivacyBudget(MEASUREMENT_CONSUMER_ID, REQUISITION_SPEC, measurementSpec)
-      }
-    assertThat(exception.errorType)
-      .isEqualTo(PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED)
-  }
-
   private fun filterRow(obj: JsonObject): Boolean {
     val publisher = obj.get("publisher").getAsString()
     if (publisher != "Google" && publisher != "*") {
       return false
     }
     // if (obj.get("platform").getAsString() != "CrossMedia") return false
-    if (obj.get("query_type").getAsString() != "ReachAndFrequency") return false
+    // if (obj.get("query_type").getAsString() != "ReachAndFrequency") return false
     return true
   }
 
@@ -223,7 +170,7 @@ class CommscorePbmTest {
 
     val backingStore = InMemoryBackingStore()
     val pbm =
-      PrivacyBudgetManager(privacyBucketFilter, backingStore, 5.0f, MAXIMUM_DELTA_PER_BUCKET)
+      PrivacyBudgetManager(privacyBucketFilter, backingStore, 1.0f, MAXIMUM_DELTA_PER_BUCKET)
     for (i in 0..newRows.size - 1) {
       val reqSpec = constructReqSpec(newRows.get(i)!!)
       val measurementSpec = constructMeasurementSpec(newRows.get(i)!!)
