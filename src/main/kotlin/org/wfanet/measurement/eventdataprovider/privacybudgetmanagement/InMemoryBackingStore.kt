@@ -33,7 +33,7 @@ import java.time.Instant
  * 3) Where multiple tasks are not expected to update it.
  */
 open class InMemoryBackingStore : PrivacyBudgetLedgerBackingStore {
-  protected val balanceLedger:
+  protected val balances:
     MutableMap<PrivacyBucketGroup, MutableMap<PrivacyCharge, PrivacyBudgetBalanceEntry>> =
     mutableMapOf()
   private val referenceLedger: MutableList<PrivacyBudgetLedgerEntry> = mutableListOf()
@@ -41,20 +41,20 @@ open class InMemoryBackingStore : PrivacyBudgetLedgerBackingStore {
 
   override fun startTransaction(): InMemoryBackingStoreTransactionContext {
     transactionCount += 1
-    return InMemoryBackingStoreTransactionContext(balanceLedger, referenceLedger, transactionCount)
+    return InMemoryBackingStoreTransactionContext(balances, referenceLedger, transactionCount)
   }
 
   override fun close() {}
 }
 
 class InMemoryBackingStoreTransactionContext(
-  val balanceLedger:
+  val balances:
     MutableMap<PrivacyBucketGroup, MutableMap<PrivacyCharge, PrivacyBudgetBalanceEntry>>,
   val referenceLedger: MutableList<PrivacyBudgetLedgerEntry>,
   val transactionId: Long,
 ) : PrivacyBudgetLedgerTransactionContext {
 
-  private var transactionBalanceLedger = balanceLedger.toMutableMap()
+  private var transactionBalances = balances.toMutableMap()
   private var transactionReferenceLedger = referenceLedger.toMutableList()
 
   // Adds a new row to the ledger referencing an element that caused charges to the store this key
@@ -77,7 +77,7 @@ class InMemoryBackingStoreTransactionContext(
   override fun findIntersectingLedgerEntries(
     privacyBucketGroup: PrivacyBucketGroup,
   ): List<PrivacyBudgetBalanceEntry> {
-    return transactionBalanceLedger.getOrDefault(privacyBucketGroup, mapOf()).values.toList()
+    return transactionBalances.getOrDefault(privacyBucketGroup, mapOf()).values.toList()
   }
 
   override fun addLedgerEntries(
@@ -88,7 +88,7 @@ class InMemoryBackingStoreTransactionContext(
     // Update the balance for all the charges.
     for (queryBucketGroup in privacyBucketGroups) {
       for (charge in privacyCharges) {
-        val balanceEntries = transactionBalanceLedger.getOrPut(queryBucketGroup) { mutableMapOf() }
+        val balanceEntries = transactionBalances.getOrPut(queryBucketGroup) { mutableMapOf() }
 
         val balanceEntry =
           balanceEntries.getOrPut(charge) { PrivacyBudgetBalanceEntry(queryBucketGroup, charge, 0) }
@@ -112,8 +112,8 @@ class InMemoryBackingStoreTransactionContext(
     referenceLedger.clear()
     referenceLedger.addAll(transactionReferenceLedger)
 
-    balanceLedger.clear()
-    balanceLedger.putAll(transactionBalanceLedger)
+    balances.clear()
+    balances.putAll(transactionBalances)
   }
 
   override fun close() {}

@@ -346,7 +346,7 @@ class EdpSimulatorTest {
 
       val balanceLedger:
         Map<PrivacyBucketGroup, MutableMap<PrivacyCharge, PrivacyBudgetBalanceEntry>> =
-        backingStore.getLedger()
+        backingStore.getBalance()
 
       // All the Buckets are only charged once, so all entries should have a repetition count of 1.
       balanceLedger.values

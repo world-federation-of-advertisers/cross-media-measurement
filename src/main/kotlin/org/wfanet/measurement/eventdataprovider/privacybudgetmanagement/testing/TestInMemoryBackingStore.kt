@@ -16,5 +16,5 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.InMemoryBackingStore
 
 class TestInMemoryBackingStore : InMemoryBackingStore(){
-  fun getLedger() = balanceLedger.toMap()
+  fun getBalance() = balances.toMap()
 }
