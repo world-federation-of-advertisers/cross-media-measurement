@@ -73,7 +73,7 @@ class CommscorePbmTest {
 
   private fun getSubExpression(elem: String): String {
     if (elem == "*")
-      return "privacy_budget.gender.value in [0, 1] && privacy_budget.age.value in [0, 1, 2]"
+      return "privacy_budget.gender.value in [0, 1] && privacy_budget.age.value in [0, 1, 2, 3, 4]"
     return "(privacy_budget.gender.value == ${getGender(elem.split(" ").get(0))} && privacy_budget.age.value == ${getAge(elem.split(" ").get(1))})"
   }
 
@@ -170,11 +170,13 @@ class CommscorePbmTest {
 
     val backingStore = InMemoryBackingStore()
     val pbm =
-      PrivacyBudgetManager(privacyBucketFilter, backingStore, 1.0f, MAXIMUM_DELTA_PER_BUCKET)
+      PrivacyBudgetManager(privacyBucketFilter, backingStore, 0.3f, MAXIMUM_DELTA_PER_BUCKET)
     for (i in 0..newRows.size - 1) {
       val reqSpec = constructReqSpec(newRows.get(i)!!)
       val measurementSpec = constructMeasurementSpec(newRows.get(i)!!)
       pbm.chargePrivacyBudget(MEASUREMENT_CONSUMER_ID, reqSpec, measurementSpec)
+      // Thread.sleep(5000)
+      // println("##########################################")
     }
   }
 }
