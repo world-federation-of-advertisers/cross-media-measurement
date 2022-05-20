@@ -1,7 +1,7 @@
 load("@rules_java//java:defs.bzl", "java_binary")
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 
-package(default_visibility = ["//visibility:public"])
+package(default_visibility = ["//visibility:private"])
 
 kt_jvm_library(
     name = "create_resource",
@@ -35,33 +35,4 @@ java_binary(
     main_class = "org.wfanet.measurement.kingdom.deploy.tools.CreateResourceKt",
     tags = ["manual"],
     runtime_deps = [":create_resource"],
-)
-
-kt_jvm_library(
-    name = "simple_report",
-    srcs = ["SimpleReport.kt"],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:flags",
-        "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:data_providers_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_consumer_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_consumers_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_kt_jvm_grpc_proto",
-        "@wfa_common_jvm//imports/java/picocli",
-        "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
-        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
-    ],
-)
-
-java_binary(
-    name = "SimpleReport",
-    main_class = "org.wfanet.measurement.kingdom.deploy.tools.SimpleReportKt",
-    tags = ["manual"],
-    runtime_deps = [":simple_report"],
 )

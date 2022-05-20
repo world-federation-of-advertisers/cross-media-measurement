@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.kingdom.deploy.tools
+package org.wfanet.measurement.kingdom.service.api.v2alpha.tools
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
@@ -156,12 +156,11 @@ class CreateCommand : Runnable {
   )
   private lateinit var measurementReferenceId: String
 
-
   private fun getDataProviderEntry(
     dataProviderStub: DataProvidersCoroutineStub,
     it: DataProviderEntry,
     measurementConsumerSigningKey: SigningKeyHandle,
-    serializedEncryptionPublicKey: ByteString
+    measurementEncryptionPublicKey: ByteString
   ): Measurement.DataProviderEntry {
     return dataProviderEntry {
       val requisitionSpec = requisitionSpec {
@@ -179,7 +178,7 @@ class CreateCommand : Runnable {
             }
           }
         )
-        this.measurementPublicKey = serializedEncryptionPublicKey
+        this.measurementPublicKey = measurementEncryptionPublicKey
         nonce = Random.Default.nextLong()
       }
 
@@ -197,10 +196,10 @@ class CreateCommand : Runnable {
             signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
             encryptionPublicKey {
               format = EncryptionPublicKey.Format.TINK_KEYSET
-              data = serializedEncryptionPublicKey
+              data = dataProvider.publicKey.data
             }
           )
-        nonceHash = hashSha256(encryptedRequisitionSpec)
+        nonceHash = hashSha256(requisitionSpec.nonce)
       }
     }
   }
@@ -224,7 +223,7 @@ class CreateCommand : Runnable {
       )
     val measurementConsumerSigningKey =
       SigningKeyHandle(measurementConsumerCertificate, measurementConsumerPrivateKey)
-    val serializedEncryptionPublicKey = measurementConsumer.publicKey.data
+    val measurementEncryptionPublicKey = measurementConsumer.publicKey.data
 
     val measurement = measurement {
       this.measurementConsumerCertificate = measurementConsumer.certificate
@@ -234,12 +233,12 @@ class CreateCommand : Runnable {
             dataProviderStub,
             it,
             measurementConsumerSigningKey,
-            serializedEncryptionPublicKey
+            measurementEncryptionPublicKey
           )
         }
       )
-      val measurementSpec = measurementSpec {
-        measurementPublicKey = serializedEncryptionPublicKey
+      val unsignedMeasurementSpec = measurementSpec {
+        measurementPublicKey = measurementEncryptionPublicKey
         nonceHashes.addAll(this@measurement.dataProviders.map { it.value.nonceHash })
         reachAndFrequency = reachAndFrequency {
           reachPrivacyParams = differentialPrivacyParams {
@@ -256,7 +255,8 @@ class CreateCommand : Runnable {
           }
         }
       }
-      this.measurementSpec = signMeasurementSpec(measurementSpec, measurementConsumerSigningKey)
+      this.measurementSpec =
+        signMeasurementSpec(unsignedMeasurementSpec, measurementConsumerSigningKey)
       measurementReferenceId = this@CreateCommand.measurementReferenceId
     }
 
