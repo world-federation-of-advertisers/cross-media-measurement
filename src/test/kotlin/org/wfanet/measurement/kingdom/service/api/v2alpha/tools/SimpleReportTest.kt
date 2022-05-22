@@ -23,7 +23,7 @@ import java.io.File
 import java.nio.file.Path
 import java.nio.file.Paths
 import kotlinx.coroutines.runBlocking
-import org.junit.Before
+import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -107,38 +107,43 @@ private val MEASUREMENT = Measurement.getDefaultInstance()
 
 @RunWith(JUnit4::class)
 class SimpleReportTest {
-  private val measurementConsumersServiceMock: MeasurementConsumersCoroutineImplBase =
-    mockService() { onBlocking { getMeasurementConsumer(any()) }.thenReturn(MEASUREMENT_CONSUMER) }
-  private val dataProvidersServiceMock: DataProvidersCoroutineImplBase =
-    mockService() { onBlocking { getDataProvider(any()) }.thenReturn(DATA_PROVIDER) }
-  private val measurementsServiceMock: MeasurementsCoroutineImplBase =
-    mockService() { onBlocking { createMeasurement(any()) }.thenReturn(MEASUREMENT) }
+  companion object {
+    private val measurementConsumersServiceMock: MeasurementConsumersCoroutineImplBase =
+      mockService() {
+        onBlocking { getMeasurementConsumer(any()) }.thenReturn(MEASUREMENT_CONSUMER)
+      }
+    private val dataProvidersServiceMock: DataProvidersCoroutineImplBase =
+      mockService() { onBlocking { getDataProvider(any()) }.thenReturn(DATA_PROVIDER) }
+    private val measurementsServiceMock: MeasurementsCoroutineImplBase =
+      mockService() { onBlocking { createMeasurement(any()) }.thenReturn(MEASUREMENT) }
 
-  @Before
-  fun initServer() {
-    val services: List<ServerServiceDefinition> =
-      listOf(
-        measurementConsumersServiceMock.bindService(),
-        dataProvidersServiceMock.bindService(),
-        measurementsServiceMock.bindService(),
-      )
+    @BeforeClass
+    @JvmStatic
+    fun initServer() {
+      val services: List<ServerServiceDefinition> =
+        listOf(
+          measurementConsumersServiceMock.bindService(),
+          dataProvidersServiceMock.bindService(),
+          measurementsServiceMock.bindService(),
+        )
 
-    val serverCerts =
-      SigningCerts.fromPemFiles(
-        certificateFile = File("$SECRETS_DIR/kingdom_tls.pem"),
-        privateKeyFile = File("$SECRETS_DIR/kingdom_tls.key"),
-        trustedCertCollectionFile = File("$SECRETS_DIR/mc_root.pem")
-      )
+      val serverCerts =
+        SigningCerts.fromPemFiles(
+          certificateFile = File("$SECRETS_DIR/kingdom_tls.pem"),
+          privateKeyFile = File("$SECRETS_DIR/kingdom_tls.key"),
+          trustedCertCollectionFile = File("$SECRETS_DIR/mc_root.pem")
+        )
 
-    CommonServer.fromParameters(
-        PORT,
-        true,
-        serverCerts,
-        ClientAuth.REQUIRE,
-        "kingdom-test",
-        services
-      )
-      .start()
+      CommonServer.fromParameters(
+          PORT,
+          true,
+          serverCerts,
+          ClientAuth.REQUIRE,
+          "kingdom-test",
+          services
+        )
+        .start()
+    }
   }
 
   @Test
