@@ -101,9 +101,9 @@ class CreateCommand : Runnable {
   private lateinit var privateKeyDerFile: File
 
   @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*", heading = "Add DataProviders\n")
-  private lateinit var dataProviderEntries: List<DataProviderEntry>
+  private lateinit var dataProviderInputs: List<DataProviderInput>
 
-  class DataProviderEntry {
+  class DataProviderInput {
     @CommandLine.Option(
       names = ["--data-provider-name"],
       description = ["API resource name of the DataProvider"],
@@ -116,10 +116,10 @@ class CreateCommand : Runnable {
       multiplicity = "1..*",
       heading = "Add EventGroups for a DataProvider\n"
     )
-    lateinit var eventGroupEntries: List<EventGroupEntry>
+    lateinit var eventGroupInputs: List<EventGroupInput>
   }
 
-  class EventGroupEntry {
+  class EventGroupInput {
     @CommandLine.Option(
       names = ["--event-group-name"],
       description = ["API resource name of the EventGroup"],
@@ -158,14 +158,14 @@ class CreateCommand : Runnable {
 
   private fun getDataProviderEntry(
     dataProviderStub: DataProvidersCoroutineStub,
-    it: DataProviderEntry,
+    it: DataProviderInput,
     measurementConsumerSigningKey: SigningKeyHandle,
     measurementEncryptionPublicKey: ByteString
   ): Measurement.DataProviderEntry {
     return dataProviderEntry {
       val requisitionSpec = requisitionSpec {
         eventGroups.addAll(
-          it.eventGroupEntries.map {
+          it.eventGroupInputs.map {
             eventGroupEntry {
               key = it.eventGroupName
               value = eventGroupEntryValue {
@@ -228,7 +228,7 @@ class CreateCommand : Runnable {
     val measurement = measurement {
       this.measurementConsumerCertificate = measurementConsumer.certificate
       dataProviders.addAll(
-        dataProviderEntries.map {
+        dataProviderInputs.map {
           getDataProviderEntry(
             dataProviderStub,
             it,
