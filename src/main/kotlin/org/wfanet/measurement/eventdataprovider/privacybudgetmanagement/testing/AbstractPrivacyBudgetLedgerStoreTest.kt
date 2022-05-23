@@ -25,6 +25,8 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyCharge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyReference
 
+private const val MEASUREMENT_CONSUMER_ID = "MC"
+
 abstract class AbstractPrivacyBudgetLedgerStoreTest {
   protected abstract fun createBackingStore(): PrivacyBudgetLedgerBackingStore
   protected abstract fun recreateSchema()
@@ -87,13 +89,13 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
         txContext.addLedgerEntries(
           setOf(bucket1, bucket2, bucket3),
           setOf(charge),
-          PrivacyReference("RequisitioId1", false)
+          PrivacyReference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", false)
         )
 
         txContext.addLedgerEntries(
           setOf(bucket1),
           setOf(charge),
-          PrivacyReference("RequisitioId2", false)
+          PrivacyReference(MEASUREMENT_CONSUMER_ID, "RequisitioId2", false)
         )
 
         val intersectingEntry = txContext.findIntersectingLedgerEntries(bucket1)
@@ -125,7 +127,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
         txContext.addLedgerEntries(
           setOf(bucket1),
           setOf(charge),
-          PrivacyReference("RequisitioId1", false)
+          PrivacyReference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", false)
         )
         val matchingLedgerEntries = txContext.findIntersectingLedgerEntries(bucket1)
         assertThat(matchingLedgerEntries.size).isEqualTo(1)
@@ -134,7 +136,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
         txContext.addLedgerEntries(
           setOf(bucket1),
           setOf(charge),
-          PrivacyReference("RequisitioId1", true)
+          PrivacyReference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", true)
         )
         val newMatchingLedgerEntries = txContext.findIntersectingLedgerEntries(bucket1)
         assertThat(newMatchingLedgerEntries.size).isEqualTo(1)
@@ -163,7 +165,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
     txContext.addLedgerEntries(
       setOf(bucket1),
       setOf(charge),
-      PrivacyReference("RequisitioId1", false)
+      PrivacyReference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", false)
     )
     assertThat(txContext.findIntersectingLedgerEntries(bucket1).size).isEqualTo(1)
 
@@ -202,7 +204,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
     txContext1.addLedgerEntries(
       setOf(bucket1),
       setOf(charge),
-      PrivacyReference("RequisitioId1", false)
+      PrivacyReference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", false)
     )
 
     txContext1.commit()
@@ -217,7 +219,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
     txContext2.addLedgerEntries(
       setOf(bucket1),
       setOf(charge),
-      PrivacyReference("RequisitioId1", true)
+      PrivacyReference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", true)
     )
     txContext2.commit()
     val txContext3 = backingStore.startTransaction()

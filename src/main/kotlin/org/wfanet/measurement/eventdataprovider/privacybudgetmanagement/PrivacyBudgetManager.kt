@@ -117,10 +117,13 @@ class PrivacyBudgetManager(
   }
 
   // TODO(@uakyol) : make this function public for then purpose of replays.
-  private fun chargePrivacyBudget(measurementConsumerId: String, privacyQuery: PrivacyQuery) =
+  private fun chargePrivacyBudget(privacyQuery: PrivacyQuery) =
     ledger.chargePrivacyBucketGroups(
       privacyQuery.privacyReference,
-      filter.getPrivacyBucketGroups(measurementConsumerId, privacyQuery.privacyLandscapeMask),
+      filter.getPrivacyBucketGroups(
+        privacyQuery.privacyReference.measurementConsumerId,
+        privacyQuery.privacyLandscapeMask
+      ),
       setOf(privacyQuery.privacyCharge)
     )
 
@@ -140,14 +143,9 @@ class PrivacyBudgetManager(
    */
   fun chargePrivacyBudget(
     privacyReference: PrivacyReference,
-    measurementConsumerId: String,
     requisitionSpec: RequisitionSpec,
     measurementSpec: MeasurementSpec
-  ) =
-    chargePrivacyBudget(
-      measurementConsumerId,
-      getPrivacyQuery(privacyReference, requisitionSpec, measurementSpec)
-    )
+  ) = chargePrivacyBudget(getPrivacyQuery(privacyReference, requisitionSpec, measurementSpec))
 }
 
 // TODO(@uakyol): Update time conversion after getting alignment on civil calendar days.

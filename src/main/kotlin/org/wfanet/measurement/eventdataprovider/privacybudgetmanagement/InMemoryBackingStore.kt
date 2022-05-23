@@ -37,12 +37,9 @@ open class InMemoryBackingStore : PrivacyBudgetLedgerBackingStore {
     MutableMap<PrivacyBucketGroup, MutableMap<PrivacyCharge, PrivacyBudgetBalanceEntry>> =
     mutableMapOf()
   private val referenceLedger: MutableList<PrivacyBudgetLedgerEntry> = mutableListOf()
-  private var transactionCount = 0L
 
-  override fun startTransaction(): InMemoryBackingStoreTransactionContext {
-    transactionCount += 1
-    return InMemoryBackingStoreTransactionContext(balances, referenceLedger, transactionCount)
-  }
+  override fun startTransaction(): InMemoryBackingStoreTransactionContext =
+    InMemoryBackingStoreTransactionContext(balances, referenceLedger)
 
   override fun close() {}
 }
@@ -51,7 +48,6 @@ class InMemoryBackingStoreTransactionContext(
   val balances:
     MutableMap<PrivacyBucketGroup, MutableMap<PrivacyCharge, PrivacyBudgetBalanceEntry>>,
   val referenceLedger: MutableList<PrivacyBudgetLedgerEntry>,
-  val transactionId: Long,
 ) : PrivacyBudgetLedgerTransactionContext {
 
   private var transactionBalances = balances.toMutableMap()
@@ -60,9 +56,7 @@ class InMemoryBackingStoreTransactionContext(
   // Adds a new row to the ledger referencing an element that caused charges to the store this key
   // is usually the requisitionId.
   private fun addReferenceEntry(referenceKey: String, isRefund: Boolean) {
-    transactionReferenceLedger.add(
-      PrivacyBudgetLedgerEntry(referenceKey, isRefund, Instant.now())
-    )
+    transactionReferenceLedger.add(PrivacyBudgetLedgerEntry(referenceKey, isRefund, Instant.now()))
   }
 
   override fun shouldProcess(referenceKey: String, isRefund: Boolean): Boolean =
@@ -70,8 +64,7 @@ class InMemoryBackingStoreTransactionContext(
       .filter { it.referenceKey == referenceKey }
       .sortedByDescending { it.createTime }
       .firstOrNull()
-      ?.isRefund
-      ?.xor(isRefund)
+      ?.isRefund?.xor(isRefund)
       ?: true
 
   override fun findIntersectingLedgerEntries(

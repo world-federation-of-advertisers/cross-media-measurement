@@ -97,7 +97,7 @@ class PrivacyBudgetManagerTest {
   private val privacyBucketFilter = PrivacyBucketFilter(TestPrivacyBucketMapper())
 
   private fun createPrivacyReference(id: Int, isRefund: Boolean = false) =
-    PrivacyReference("RequisitioId${id}", isRefund)
+    PrivacyReference(MEASUREMENT_CONSUMER_ID, "RequisitioId${id}", isRefund)
 
   private fun PrivacyBudgetManager.assertChargeExceedsPrivacyBudget(
     privacyReference: PrivacyReference,
@@ -107,7 +107,6 @@ class PrivacyBudgetManagerTest {
       assertFailsWith<PrivacyBudgetManagerException> {
         chargePrivacyBudget(
           privacyReference,
-          MEASUREMENT_CONSUMER_ID,
           REQUISITION_SPEC,
           measurementSpec
         )
@@ -124,7 +123,6 @@ class PrivacyBudgetManagerTest {
       assertFailsWith<PrivacyBudgetManagerException> {
         pbm.chargePrivacyBudget(
           createPrivacyReference(1),
-          MEASUREMENT_CONSUMER_ID,
           REQUISITION_SPEC,
           REACH_AND_FREQ_MEASUREMENT_SPEC
         )
@@ -157,7 +155,6 @@ class PrivacyBudgetManagerTest {
       assertFailsWith<PrivacyBudgetManagerException> {
         pbm.chargePrivacyBudget(
           createPrivacyReference(1),
-          MEASUREMENT_CONSUMER_ID,
           requisitionSpec,
           REACH_AND_FREQ_MEASUREMENT_SPEC
         )
@@ -174,7 +171,6 @@ class PrivacyBudgetManagerTest {
     // The charge succeeds and fills the Privacy Budget.
     pbm.chargePrivacyBudget(
       createPrivacyReference(1),
-      MEASUREMENT_CONSUMER_ID,
       REQUISITION_SPEC,
       REACH_AND_FREQ_MEASUREMENT_SPEC
     )
@@ -191,7 +187,6 @@ class PrivacyBudgetManagerTest {
     // The charge succeeds and fills the Privacy Budget.
     pbm.chargePrivacyBudget(
       createPrivacyReference(1),
-      MEASUREMENT_CONSUMER_ID,
       REQUISITION_SPEC,
       IMPRESSION_MEASUREMENT_SPEC
     )
@@ -208,7 +203,6 @@ class PrivacyBudgetManagerTest {
     // The charge succeeds and fills the Privacy Budget.
     pbm.chargePrivacyBudget(
       createPrivacyReference(1),
-      MEASUREMENT_CONSUMER_ID,
       REQUISITION_SPEC,
       DURATION_MEASUREMENT_SPEC
     )

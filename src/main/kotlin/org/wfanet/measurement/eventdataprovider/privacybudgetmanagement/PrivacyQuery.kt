@@ -22,7 +22,11 @@ data class PrivacyCharge(val epsilon: Float, val delta: Float)
  * Represents an element that caused charges to the manager and wheter or not if those charges were
  * positive or refunds. [referenceKey] is usally requisitionId
  */
-data class PrivacyReference(val referenceKey: String, val isRefund: Boolean)
+data class PrivacyReference(
+  val measurementConsumerId: String,
+  val referenceKey: String,
+  val isRefund: Boolean
+)
 
 /** Represents a privacy filter for one event group. */
 data class PrivacyEventGroupSpec(
