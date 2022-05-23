@@ -21,8 +21,9 @@
 --   ├── Reports
 --   │   ├── TimeIntervals
 --   │   ├── PeriodicTimeIntervals
---   │   └── Metrics
+--   │   ├── Metrics
 --   │       └── SetOperations
+--   │   └── ReportEventGroups
 --   └── ReportingSets
 --       └── ReportingSetEventGroups
 
@@ -94,6 +95,20 @@ CREATE TABLE Metrics (
   PRIMARY KEY(MeasurementConsumerReferenceId, ReportId, MetricId),
   FOREIGN KEY(MeasurementConsumerReferenceId, ReportId)
     REFERENCES Reports(MeasurementConsumerReferenceId, ReportId)
+);
+
+-- changeset tristanvuong2021:create-report-measurements-table dbms:postgresql
+CREATE TABLE ReportMeasurements (
+  MeasurementConsumerReferenceId text NOT NULL,
+  MeasurementReferenceId text NOT NULL,
+  ReportId bigint NOT NULL,
+
+  -- NULL value allowed to represent a measurement that hasn't succeeded.
+  Result bytea,
+
+  PRIMARY KEY(MeasurementConsumerReferenceId, MeasurementReferenceId),
+  FOREIGN KEY(MeasurementConsumerReferenceId, ReportId)
+      REFERENCES Reports(MeasurementConsumerReferenceId, ReportId)
 );
 
 -- changeset tristanvuong2021:create-reporting-sets-table dbms:postgresql

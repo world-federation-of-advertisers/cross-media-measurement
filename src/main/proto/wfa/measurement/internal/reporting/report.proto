@@ -63,6 +63,15 @@ message Report {
   }
   State state = 6;
 
+  message MeasurementKey {
+    // `MeasurementConsumer` ID from the CMMS public API.
+    string measurement_consumer_reference_id = 1;
+    // `Measurement` ID from the CMMS public API.
+    string measurement_reference_id = 2;
+  }
+  // `Measurement` reference IDs for measurements created for the `Report`.
+  repeated MeasurementKey measurements = 7;
+
   message Details {
     // Map of `EventGroup` resource name to filter predicate.
     map<string, string> event_group_filters = 1;
@@ -70,5 +79,5 @@ message Report {
     // Result in CSV format.
     string result = 2;
   }
-  Details details = 7;
+  Details details = 8;
 }
