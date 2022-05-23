@@ -12,12 +12,17 @@ load(
 java_library(
     name = "eventdataprovider",
     runtime_deps = [
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_templates",
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
-        "//src/main/proto/wfa/any_sketch:sketch_kt_jvm_proto",
-        "//src/main/proto/wfa/any_sketch/crypto:sketch_encryption_methods_kt_jvm_proto",
+    ],
+)
+
+
+java_library(
+    name = "api",
+    runtime_deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_templates",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:crypto_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
@@ -26,16 +31,24 @@ java_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_fulfillment_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
-        "@any_sketch_java//src/main/java/org/wfanet/anysketch",
-        "@any_sketch_java//src/main/java/org/wfanet/anysketch:sketch_proto_converter",
-        "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
-        "@any_sketch_java//src/main/java/org/wfanet/sampling:vid_sampler",
+    ],
+)
+
+java_library(
+    name = "common",
+    runtime_deps = [
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:key_storage",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+    ],
+)
+
+java_library(
+    name = "consent",
+    runtime_deps = [
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
     ],
 )
@@ -47,8 +60,19 @@ java_library(
     ],
 )
 
+java_library(
+    name = "sketch",
+    runtime_deps = [
+        "//src/main/proto/wfa/any_sketch:sketch_kt_jvm_proto",
+        "@any_sketch_java//src/main/java/org/wfanet/anysketch",
+        "@any_sketch_java//src/main/java/org/wfanet/anysketch:sketch_proto_converter",
+        "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
+        "@any_sketch_java//src/main/java/org/wfanet/sampling:vid_sampler",
+    ],
+)
+
 java_export(
-    name = "maven-eventdataprovider",
+    name = "maven",
     deploy_env = cross_media_measurement_maven_deploy_env(),
     maven_coordinates = "org.wfanet:cross-media-measurement-eventdataprovider:${TAG_NAME}",
     pom_template = "//deploy:pom_template.xml",
@@ -58,11 +82,70 @@ java_export(
 )
 
 java_export(
-    name = "maven-postgres",
+    name = "maven-api",
     deploy_env = cross_media_measurement_maven_deploy_env(),
-    maven_coordinates = "org.wfanet:cross-media-measurement-eventdataprovider:${TAG_NAME}",
+    maven_coordinates = "org.wfanet:cross-media-measurement-eventdataprovider-api:${TAG_NAME}",
+    pom_template = "//deploy:pom_template.xml",
+    tags = ["no-javadocs"],
+    runtime_deps = [":api"] +
+                   cross_media_measurement_maven_runtime_deps(),
+)
+
+java_export(
+    name = "maven-common",
+    deploy_env = cross_media_measurement_maven_deploy_env(),
+    maven_coordinates = "org.wfanet:cross-media-measurement-eventdataprovider-common:${TAG_NAME}",
+    pom_template = "//deploy:pom_template.xml",
+    tags = ["no-javadocs"],
+    runtime_deps = [":common"] +
+                   cross_media_measurement_maven_runtime_deps(),
+)
+
+java_export(
+    name = "maven-consent",
+    deploy_env = cross_media_measurement_maven_deploy_env(),
+    maven_coordinates = "org.wfanet:cross-media-measurement-eventdataprovider-consent:${TAG_NAME}",
+    pom_template = "//deploy:pom_template.xml",
+    tags = ["no-javadocs"],
+    runtime_deps = [":consent"] +
+                   cross_media_measurement_maven_runtime_deps(),
+)
+
+
+java_export(
+    name = "maven-postgres",
+    deploy_env = cross_media_measurement_maven_deploy_env() + [":maven"],
+    maven_coordinates = "org.wfanet:cross-media-measurement-eventdataprovider-postgres:${TAG_NAME}",
     pom_template = "//deploy:pom_template.xml",
     tags = ["no-javadocs"],
     runtime_deps = [":postgres"] +
                    cross_media_measurement_maven_runtime_deps(),
 )
+
+java_export(
+    name = "maven-sketch",
+    deploy_env = cross_media_measurement_maven_deploy_env(),
+    maven_coordinates = "org.wfanet:cross-media-measurement-eventdataprovider-sketch:${TAG_NAME}",
+    pom_template = "//deploy:pom_template.xml",
+    tags = ["no-javadocs"],
+    runtime_deps = [":sketch"] +
+                   cross_media_measurement_maven_runtime_deps(),
+)
+
+java_export(
+    name = "maven-all",
+    deploy_env = cross_media_measurement_maven_deploy_env(),
+    maven_coordinates = "org.wfanet:cross-media-measurement-eventdataprovider-all:${TAG_NAME}",
+    pom_template = "//deploy:pom_template.xml",
+    tags = ["no-javadocs"],
+    runtime_deps = [
+        ":eventdataprovider",
+        ":api",
+        ":common",
+        ":consent",
+        ":postgres",
+        ":sketch",
+    ] +
+                   cross_media_measurement_maven_runtime_deps(),
+)
+
