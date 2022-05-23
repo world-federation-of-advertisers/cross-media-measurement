@@ -8,8 +8,8 @@ cc_test(
         "//src/main/cc/wfa/panelmatch/common/crypto:aes",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
-        "@tink_base//cc/util:secret_data",
         "@tink_cc//subtle",
+        "@tink_cc//util:secret_data",
         "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
     ],
 )
@@ -40,7 +40,7 @@ cc_test(
         "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest_main",
         "@com_google_private_join_and_compute//private_join_and_compute/crypto:ec_commutative_cipher",
-        "@tink_base//cc/util:secret_data",
+        "@tink_cc//util:secret_data",
         "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
     ],
 )
@@ -54,7 +54,7 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest_main",
         "@com_google_private_join_and_compute//private_join_and_compute/crypto:ec_commutative_cipher",
-        "@tink_base//cc/util:secret_data",
+        "@tink_cc//util:secret_data",
         "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
     ],
 )
@@ -66,9 +66,9 @@ cc_test(
     deps = [
         "//src/main/cc/wfa/panelmatch/common/crypto:hkdf",
         "@com_google_googletest//:gtest_main",
-        "@tink_base//cc/util:secret_data",
-        "@tink_base//cc/util:status",
-        "@tink_base//cc/util:statusor",
+        "@tink_cc//util:secret_data",
+        "@tink_cc//util:status",
+        "@tink_cc//util:statusor",
         "@tink_cc//util:test_util",
         "@wfa_common_cpp//src/main/cc/common_cpp/testing:common_matchers",
         "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
@@ -85,7 +85,7 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
-        "@tink_base//cc/util:secret_data",
+        "@tink_cc//util:secret_data",
         "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
     ],
 )
@@ -101,7 +101,7 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest_main",
-        "@tink_base//cc/util:secret_data",
+        "@tink_cc//util:secret_data",
         "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
     ],
 )
@@ -113,7 +113,7 @@ cc_test(
     deps = [
         "//src/main/cc/wfa/panelmatch/common/crypto:peppered_fingerprinter",
         "@com_google_googletest//:gtest_main",
-        "@tink_base//cc/util:secret_data",
+        "@tink_cc//util:secret_data",
         "@wfa_common_cpp//src/main/cc/common_cpp/fingerprinters",
     ],
 )
@@ -126,7 +126,7 @@ cc_test(
         "//src/main/cc/wfa/panelmatch/common/crypto:random_bytes_key_generator",
         "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest_main",
-        "@tink_base//cc/util:secret_data",
+        "@tink_cc//util:secret_data",
         "@wfa_common_cpp//src/main/cc/common_cpp/testing:status",
     ],
 )

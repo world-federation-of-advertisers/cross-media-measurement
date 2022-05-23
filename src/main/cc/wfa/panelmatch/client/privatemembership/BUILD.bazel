@@ -33,7 +33,7 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
-        "@tink_base//cc/util:secret_data",
+        "@tink_cc//util:secret_data",
         "@wfa_common_cpp//src/main/cc/common_cpp/fingerprinters",
         "@wfa_common_cpp//src/main/cc/common_cpp/macros",
     ],
@@ -72,7 +72,7 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
-        "@tink_base//cc/util:secret_data",
+        "@tink_cc//util:secret_data",
         "@wfa_common_cpp//src/main/cc/common_cpp/macros",
     ],
 )
