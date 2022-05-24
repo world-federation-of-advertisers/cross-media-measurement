@@ -114,8 +114,6 @@ class SpannerCertificatesService(
     grpcRequire(request.parentCase != RevokeCertificateRequest.ParentCase.PARENT_NOT_SET) {
       "RevokeCertificateRequest is missing parent field"
     }
-    // TODO(world-federation-of-advertisers/cross-media-measurement#178) : Update fail conditions
-    // accordingly.
     try {
       return RevokeCertificate(request).execute(client, idGenerator)
     } catch (e: CertificateNotFoundException) {
