@@ -40,10 +40,15 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt.value as eventGroupEntryValue
+import org.junit.AfterClass
+import org.junit.BeforeClass
+import org.mockito.kotlin.reset
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.listMeasurementsResponse
+import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
@@ -104,7 +109,11 @@ private val DATA_PROVIDER = dataProvider {
   publicKey = signedData { data = DATA_PROVIDER_PUBLIC_KEY }
 }
 
-private val MEASUREMENT = Measurement.getDefaultInstance()
+private const val MEASUREMENT_NAME = "$MEASUREMENT_CONSUMER_NAME/measurements/100"
+private val MEASUREMENT = measurement {
+  name = MEASUREMENT_NAME
+}
+private val LIST_MEASUREMENT_RESPONSE = listMeasurementsResponse {}
 
 @RunWith(JUnit4::class)
 class SimpleReportTest {
@@ -113,7 +122,11 @@ class SimpleReportTest {
   private val dataProvidersServiceMock: DataProvidersCoroutineImplBase =
     mockService() { onBlocking { getDataProvider(any()) }.thenReturn(DATA_PROVIDER) }
   private val measurementsServiceMock: MeasurementsCoroutineImplBase =
-    mockService() { onBlocking { createMeasurement(any()) }.thenReturn(MEASUREMENT) }
+    mockService() {
+      onBlocking { createMeasurement(any()) }.thenReturn(MEASUREMENT)
+      onBlocking { listMeasurements(any()) }.thenReturn(LIST_MEASUREMENT_RESPONSE)
+      onBlocking { getMeasurement(any()) }.thenReturn(MEASUREMENT)
+    }
 
   private lateinit var server: CommonServer
   @Before
@@ -341,5 +354,19 @@ class SimpleReportTest {
           }
         }
       )
+  }
+
+  @Test
+  fun `Get command prints specific Measurement in json format`() {
+    val args = arrayOf(
+      "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+      "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+      "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
+      "--api-target=$HOST:$PORT",
+      "--api-cert-host=localhost",
+      "get",
+      "--measurement-name="
+    )
+    CommandLine(SimpleReport()).execute(*args)
   }
 }
