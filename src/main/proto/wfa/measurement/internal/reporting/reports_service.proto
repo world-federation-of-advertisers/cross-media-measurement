@@ -29,8 +29,10 @@ service Reports {
 
   rpc StreamReports(StreamReportsRequest) returns (stream Report);
 
-  // Checks the CMMS for updates to measurements for the `Report` and caches them.
-  rpc RefreshReportMeasurements(RefreshReportMeasurementsRequest) returns (Report);
+  // Checks the CMMS for updates to measurements for the `Report` and caches
+  // them.
+  rpc RefreshReportMeasurements(RefreshReportMeasurementsRequest)
+      returns (Report);
 }
 
 message GetReportRequest {
