@@ -34,6 +34,7 @@ data class PrivacyBudgetBalanceEntry(
  * backing store. These entries only exists for replays, and is a list of timestamped transactions.
  */
 data class PrivacyBudgetLedgerEntry(
+  val measurementConsumerId: String,
   val referenceKey: String,
   val isRefund: Boolean,
   val createTime: Instant

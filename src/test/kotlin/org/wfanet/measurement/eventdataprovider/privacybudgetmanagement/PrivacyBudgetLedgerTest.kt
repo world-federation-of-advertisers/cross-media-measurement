@@ -20,7 +20,7 @@ import org.junit.Test
 class PrivacyBudgetLedgerTest {
 
   private fun createPrivacyReference(id: Int, isRefund: Boolean = false) =
-    PrivacyReference("RequisitioId${id}", isRefund)
+    PrivacyReference("MC1", "RequisitioId${id}", isRefund)
 
   @Test
   fun `Charge works when privacy bucket groups are empty`() {
@@ -159,11 +159,7 @@ class PrivacyBudgetLedgerTest {
     }
 
     // The refund opens up Privacy Budget.
-    ledger.chargePrivacyBucketGroups(
-      createPrivacyReference(31, true),
-      setOf(bucket),
-      setOf(charge)
-    )
+    ledger.chargePrivacyBucketGroups(createPrivacyReference(31, true), setOf(bucket), setOf(charge))
     // Thus, this charge succeeds and fills the budget.
     ledger.chargePrivacyBucketGroups(createPrivacyReference(32), setOf(bucket), setOf(charge))
 

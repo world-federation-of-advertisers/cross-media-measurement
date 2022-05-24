@@ -34,12 +34,10 @@ CREATE TABLE BalanceEntries(
   -- Epsilon for the charge of this ledger entry.
   Epsilon real NOT NULL,
   -- How many times this charge is applied to this Privacy Bucket.
-  RepetitionCount integer NOT NULL);
-
--- Used to query entries efficiently to update RepetitionCount
-CREATE
-  UNIQUE INDEX BalanceEntriesByCharge
-ON BalanceEntries(MeasurementConsumerId, Date, AgeGroup, Gender, VidStart, Delta, Epsilon);
+  RepetitionCount integer NOT NULL,
+  -- Used to query entries efficiently to update RepetitionCount
+  PRIMARY KEY (MeasurementConsumerId, Date, AgeGroup, Gender, VidStart, Delta, Epsilon)
+  );
 
 CREATE TABLE LedgerEntries(
   -- Which Measurement Consumer this Ledger Entry belongs to.
@@ -47,7 +45,7 @@ CREATE TABLE LedgerEntries(
   -- ID from an external system that uniquely identifies the source all charges in a transaction
   -- for a given MeasurementConsumer.
   ReferenceId text NOT NULL,
-  -- Wheter the charges were refunds or not.
+  -- Whether or not the charge is a refund.
   IsRefund Boolean NOT NULL,
   -- Time when the row was inserted.
   CreateTime TIMESTAMP NOT NULL);
@@ -55,4 +53,8 @@ CREATE TABLE LedgerEntries(
 -- Used to query references quickly
 CREATE
   INDEX LedgerEntriesByKey
-ON LedgerEntries(ReferenceId);
+ON LedgerEntries(MeasurementConsumerId, ReferenceId);
+
+
+-- TODO(@uakyol) :  consider adding a table that links LedgerEntries to BalanceEntries for
+-- ad hoc queries

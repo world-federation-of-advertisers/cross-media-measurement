@@ -55,8 +55,15 @@ class InMemoryBackingStoreTransactionContext(
 
   // Adds a new row to the ledger referencing an element that caused charges to the store this key
   // is usually the requisitionId.
-  private fun addReferenceEntry(referenceKey: String, isRefund: Boolean) {
-    transactionReferenceLedger.add(PrivacyBudgetLedgerEntry(referenceKey, isRefund, Instant.now()))
+  private fun addReferenceEntry(privacyReference: PrivacyReference) {
+    transactionReferenceLedger.add(
+      PrivacyBudgetLedgerEntry(
+        privacyReference.measurementConsumerId,
+        privacyReference.referenceKey,
+        privacyReference.isRefund,
+        Instant.now()
+      )
+    )
   }
 
   override fun shouldProcess(referenceKey: String, isRefund: Boolean): Boolean =
@@ -98,7 +105,7 @@ class InMemoryBackingStoreTransactionContext(
     }
 
     // Record the reference for these charges.
-    addReferenceEntry(privacyReference.referenceKey, privacyReference.isRefund)
+    addReferenceEntry(privacyReference)
   }
 
   override fun commit() {
