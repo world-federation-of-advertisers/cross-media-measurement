@@ -1,239 +1,155 @@
 # How to deploy a Halo Duchy on GKE
 
-Last updated: 2022-01-27
+## Background
 
-***The doc is updated to work with commit
-[7fab61049e425bb0edd5fa2802290bf1722254e7](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/429/commits/0b0e10d952f1fbfe4aa665c722e859bdeed9128d).
-Newer changes may require some commands to be updated. Stay tuned.***
+The configuration for the [`dev` environment](../../src/main/k8s/dev) can be
+used as the basis for deploying CMMS components using Google Kubernetes Engine
+(GKE) on another Google Cloud project.
 
 ***Disclaimer***:
 
--   This instruction is just one way of achieving the goal, not necessarily the
-    best approach.
+-   This guide is just one way of achieving the goal, not necessarily the best
+    approach.
 -   Almost all steps can be done via either the
-    [Google Cloud Console](https://console.cloud.google.com/) UI or the GCloud
-    CLI. The doc picks the easier one for each step. But you are free to do it
-    in an alternative way.
+    [Google Cloud Console](https://console.cloud.google.com/) UI or the
+    [`gcloud` CLI](https://cloud.google.com/sdk/gcloud/reference). The doc picks
+    the easier one for each step. But you are free to do it in an alternative
+    way.
 -   All names used in this doc can be replaced with something else. We use
     specific names in the doc for ease of reference.
 -   All quotas and resource configs are just examples, adjust the quota and size
     based on the actual usage.
--   In the doc, we assume we are deploying a duchy named `worker1` to a single
-    region, i.e. `us-central1`. If you are deploying to another region or
-    multiple regions, just need to adjust each step mentioning "region"
-    accordingly.
+-   In the doc, we assume we are deploying to a single region, i.e. us-central1.
+    If you are deploying to another region or multiple regions, just need to
+    adjust each step mentioning "region" accordingly.
 
 ## What are we creating/deploying?
 
--   1 GCP Project
-    -   1 spanner instance
-    -   1 Cloud Storage bucket
-    -   1 GKE cluster
-    -   1 Kubernetes secret
-    -   1 Kubernetes configmap
-    -   4 Kubernetes Service
-        -   worker1-async-computation-control-server (Cluster IP)
-        -   worker1-computation-control-server (External load balancer)
-        -   worker1-requisition-fulfillment-server (External load balancer)
-        -   worker1-spanner-computations-server (Cluster IP)
-    -   6 Kubernetes deployment
-        -   worker1-async-computation-control-server-deployment (gRPC service)
-        -   worker1-computation-control-server-deployment (gRPC service)
-        -   worker1-herald-daemon-deployment (Daemon Job)
-        -   worker1-liquid-legions-v2-mill-daemon-deployment (Daemon Job)
-        -   worker1-requisition-fulfillment-server-deployment (gRPC service)
-        -   worker1-spanner-computations-server-deployment (gRPC service)
-    -   1 Kubernetes Job
-        -   worker1-push-spanner-schema-job
-    -   8 Kubernetes NetworkPolicy
-        -   worker1-async-computation-controls-server-network-policy
-        -   worker1-computation-control-server-network-policy
-        -   worker1-herald-daemon-network-policy
-        -   worker1-liquid-legions-v2-mill-daemon-network-policy
-        -   worker1-push-spanner-schema-job-network-policy
-        -   worker1-requisition-fulfillment-server-network-policy
-        -   worker1-spanner-computations-server-network-policy
-        -   default-deny-ingress-and-egress
+For a Duchy named `worker1`:
+
+-   1 Cloud Spanner database
+-   1 Cloud Storage bucket
+-   1 GKE cluster
+-   1 Kubernetes secret
+-   1 Kubernetes configmap
+-   4 Kubernetes services
+    -   worker1-async-computation-control-server (Cluster IP)
+    -   worker1-computation-control-server (External load balancer)
+    -   worker1-requisition-fulfillment-server (External load balancer)
+    -   worker1-spanner-computations-server (Cluster IP)
+-   6 Kubernetes deployments
+    -   worker1-async-computation-control-server-deployment (gRPC service)
+    -   worker1-computation-control-server-deployment (gRPC service)
+    -   worker1-herald-daemon-deployment (Daemon Job)
+    -   worker1-liquid-legions-v2-mill-daemon-deployment (Daemon Job)
+    -   worker1-requisition-fulfillment-server-deployment (gRPC service)
+    -   worker1-spanner-computations-server-deployment (gRPC service)
+-   8 Kubernetes network policies
+    -   worker1-async-computation-controls-server-network-policy
+    -   worker1-computation-control-server-network-policy
+    -   worker1-herald-daemon-network-policy
+    -   worker1-liquid-legions-v2-mill-daemon-network-policy
+    -   worker1-push-spanner-schema-job-network-policy
+    -   worker1-requisition-fulfillment-server-network-policy
+    -   worker1-spanner-computations-server-network-policy
+    -   default-deny-ingress-and-egress
 
 ## Step 0. Before You Start
 
-See [Machine Setup](machine-setup.md).
+Follow Step 0 of the
+[Kingdom deployment guide](kingdom-deployment.md#step-0-before-you-start).
 
 ## Step 1. Register your duchy with the kingdom (offline)
 
-In order to join the cross-media-measurement system, the duchy needs to first
-register itself with the kingdom. This will be done offline with the help from
-the kingdom operator.
+In order to join the Cross-Media Measurement System, the Duchy needs to first be
+registered with the Kingdom. This will be done offline with the help from the
+Kingdom operator.
 
-The duchy operator needs to share the following information to the kingdom
-operator.
+The Duchy operator needs to share the following information with the Kingdom
+operator:
 
--   The display name (a string, used as externalId) of the duchy (unique among
-    all duchies)
--   public key of root certificate
--   public key of the TLS certificate
--   public key of the consent signaling certificate
+-   The name (a string, used as an ID) of the Duchy (unique amongst all Duchies)
+-   The CA ("root") certificate
+-   A consent signaling ("leaf") certificate
 
-The Kingdom operator will register all corresponding resources for the duchy via
-internal admin tools. The resource ids will be shared with the duchy operator.
+The Kingdom operator will
+[register all corresponding resources](../operations/creating-resources.md) for
+the Duchy via internal admin tools. The resource names will be shared with the
+Duchy operator.
 
-TODO: add a link to the doc about how to onboard a duchy to the system (doesn't
-exist yet)
+## Step 2. Create the database
 
-## Step 2. Create and set up the GCP Project
+The Duchy expects its own database within your Spanner instance. You can create
+one with the `gcloud` CLI. For example, a database named
+`worker1_duchy_computations` in the `dev-instance` instance.
 
-1.  [Register](https://console.cloud.google.com/freetrial) a GCP account.
-2.  In the [Google Cloud console](https://console.cloud.google.com/), create a
-    GCP project with project name `halo work1 demo`, and project id
-    `halo-worker1-demo`. (The project name doesn't matter and can be changed
-    later, but the project id will be used in all our configurations and is
-    immutable, so it is better to choose a good human-readable name for the
-    project id.)
-3.  Set up Billing of the project in the Console -> Billing page.
-4.  Update the project quotas in the Console -> IAM & Admin -> Quotas page If
-    necessary. (The default quota might just work since the kingdom doesn't
-    consume too many resources). You can skip this step for now and come back
-    later if any future operation fails due to "out of quota" errors.
+```shell
+gcloud spanner databases create worker1_duchy_computations \
+  --instance=dev-instance
+```
 
-If you are using an existing project, make sure your account has the `writer`
-role in that project.
+## Step 3. Create the Cloud Storage Bucket
 
-## Step 3. Create the Spanner instance Visit the GCloud console spanner page.
+Each Duchy needs a storage bucket. One can be created from the
+[Console](https://console.cloud.google.com/storage/browser). Note that bucket
+names are public, globally unique, and cannot be changed once created. See
+[Bucket naming guidelines](https://cloud.google.com/storage/docs/naming-buckets).
 
-Visit the GCloud console
-[spanner](https://console.cloud.google.com/spanner/instances) page.
+As the data in this bucket need not be exposed to the public internet, select
+"Enforce public access prevention on this bucket".
 
-1.  Enable the `Cloud Spanner API` if you haven’t done it yet.
-2.  Click Create Instance with
-    -   instance name = `halo-worker1-instance` (You can use whatever name here,
-        but usually we use "-instance" as the suffix)
-    -   regional, us-central1
-    -   Processing units = 100 (cost would be $0.09 per hour)
+## Step 4. Build and push the container images
 
-Notes:
-
--   100 processing units is the minimum value we can choose. It should be good
-    enough before the project is fully launched and we get more traffic.
--   By default, the instance is accessible by all clusters created within this
-    GCP project.
-
-## Step 4. Create the Cloud Storage Bucket
-
-Note: all settings here are just examples. Pick values that make sense in your
-use case.
-
-1.  Visit the GCloud console
-    [Cloud Storage](https://console.cloud.google.com/storage/browser) page
-2.  Click on `CREATE BUCKET`
-3.  Name the bucket `halo-worker1-bucket` or something else.
-4.  Choose Location type = `Region`, and Location = `us-central1`
-5.  Use default settings in other options and click on `CREATE`
-
-The created cloud storage bucket will be accessible by all pods/clusters in the
-`halo-worker1-demo` GCP project.
-
-## Step 5. Prepare the docker images
-
-In this example, we use Google Cloud
-[container-registry](https://cloud.google.com/container-registry) to store our
+The `dev` configuration uses the
+[Container Registry](https://cloud.google.com/container-registry) to store our
 docker images. Enable the Google Container Registry API in the console if you
 haven't done it. If you use other repositories, adjust the commands accordingly.
 
-1.  Clone the halo cross-media-measurement git repository locally, and check out
-    the targeted commit (likely the one mentioned in the beginning of the doc).
-2.  Build and push the binaries to gcr.io by running the following commands
-
-    ```shell
-    bazel run src/main/docker/push_push_spanner_schema_image \
-      -c opt --define container_registry=gcr.io \
-      --define image_repo_prefix=halo-worker1-demo
-
-    bazel run src/main/docker/push_duchy_spanner_computations_server_image \
-      -c opt --define container_registry=gcr.io \
-      --define image_repo_prefix=halo-worker1-demo
-
-    bazel run src/main/docker/push_duchy_requisition_fulfillment_server_image \
-      -c opt --define container_registry=gcr.io \
-      --define image_repo_prefix=halo-worker1-demo
-
-    bazel run src/main/docker/push_duchy_computation_control_server_image \
-      -c opt --define container_registry=gcr.io \
-      --define image_repo_prefix=halo-worker1-demo
-
-    bazel run src/main/docker/push_duchy_async_computation_control_server_image \
-      -c opt --define container_registry=gcr.io \
-      --define image_repo_prefix=halo-worker1-demo
-
-    bazel run src/main/docker/push_duchy_herald_daemon_image \
-      -c opt --define container_registry=gcr.io \
-      --define image_repo_prefix=halo-worker1-demo
-
-    bazel run src/main/docker/push_duchy_liquid_legions_v2_mill_daemon_image \
-      -c opt --define container_registry=gcr.io \
-      --define image_repo_prefix=halo-worker1-demo
-    ```
-
-    You should see log like "Successfully pushed Docker image to
-    gcr.io/halo-worker1- demo/setup/push-spanner-schema:latest".
-
-    Or you can run
-
-    ```shell
-    bazel query 'kind("container_push", //src/main/docker:all)' | xargs -n 1 -o \
-      bazel run -c opt --define container_registry=gcr.io --define \
-      image_repo_prefix=halo-kingdom-demo
-    ```
-
-    Tip: If you're using [Hybrid Development](../building.md#hybrid-development)
-    for containerized builds, replace `bazel run` with
-    `tools/bazel-container-run`.
-
-    The above command builds and pushes all halo binaries one by one. You should
-    see logs like "Successfully pushed Docker image to gcr.io/halo-kingdom-
-    demo/something" multiple times.
-
-    If you see an `UNAUTHORIZED` error, run the following command and retry.
-
-    ```shell
-    gcloud auth configure-docker
-    gcloud auth login
-    ```
-
-## Step 6. Create the Cluster
-
-See [GKE Cluster Configuration](cluster-config.md) for more background.
-
-The following steps assume that you've configured your default project and
-location for the `gcloud` tool.
-
-Tip: The
-[Before you begin](https://cloud.google.com/kubernetes-engine/docs/how-to/creating-a-regional-cluster#before_you_begin)
-section in the *Creating a regional cluster* guide is helpful to set up some
-default configuration for the `gcloud` tool.
-
-Follow the steps in
-[Create a Cloud KMS key](https://cloud.google.com/kubernetes-engine/docs/how-to/encrypting-secrets#creating-key)
-to create a KMS key and grant permission to the GKE service agent to use it.
-
-Let's assume we've created a key named `k8s-secret` in a key ring named
-`test-key-ring` in the `us-central1` region under the `halo-cmm-dev` project.
-The resource name would be the following:
-`projects/halo-cmm-dev/locations/us-central1/keyRings/test-key-ring/cryptoKeys/k8s-secret`.
-We'll use this when creating the cluster.
-
-Tip: For convenience, there is a "Copy resource name" action on the key in the
-Cloud console.
-
-Enable the Kubernetes API in the console if your account hasn't done it. To
-create a cluster named `halo-cmm-worker1-demo-cluster`, run the following
-command:
+Assuming a project named `halo-worker1-demo`, run the following to build the
+images:
 
 ```shell
-gcloud container clusters create halo-cmm-worker1-demo-cluster \
-  --enable-network-policy \
-  --scopes "https://www.googleapis.com/auth/cloud-platform" \
-  --database-encryption-key=projects/halo-cmm-dev/locations/us-central1/keyRings/test-key-ring/cryptoKeys/k8s-secret \
-  --enable-autoscaling --min-nodes 2 --max-nodes 5 --num-nodes 3 \
+bazel query 'filter("push_duchy", kind("container_push", //src/main/docker:all))' |
+  xargs bazel build -c opt --define container_registry=gcr.io \
+  --define image_repo_prefix=halo-worker1-demo
+```
+
+and then push them:
+
+```shell
+bazel query 'filter("push_duchy", kind("container_push", //src/main/docker:all))' |
+  xargs -n 1 bazel run -c opt --define container_registry=gcr.io \
+  --define image_repo_prefix=halo-worker1-demo
+```
+
+You should see output like "Successfully pushed Docker image to
+gcr.io/halo-worker1-demo/duchy/spanner-update-schema:latest"
+
+Tip: If you're using [Hybrid Development](../building.md#hybrid-development) for
+containerized builds, replace `bazel build` with `tools/bazel-container build`
+and `bazel run` with `tools/bazel-container-run`. You'll also want to pass the
+`-o` option to `xargs`.
+
+## Step 5. Create the Cluster
+
+Follow the steps to
+[create resources for the cluster](kingdom-deployment.md#step-3-create-resources-for-the-cluster)
+from the Kingdom deployment guide.
+
+Create an additional service account for storage, granting it the Storage Object
+Admin role on the Storage bucket. See
+[Granting Cloud Storage bucket access](cluster-config.md#granting-cloud-storage-bucket-access).
+
+Enable the Kubernetes API in the console if your account hasn't done it. To
+create a cluster named `worker1-duchy` in the `halo-worker1-demo` project, run
+the following command:
+
+```shell
+gcloud container clusters create worker1-duchy \
+  --enable-network-policy --workload-pool=halo-worker1-demo.svc.id.goog \
+  --service-account="gke-cluster@halo-worker1-demo.iam.gserviceaccount.com" \
+  --database-encryption-key=projects/halo-worker1-demo/locations/us-central1/keyRings/test-key-ring/cryptoKeys/k8s-secret \
+  --num-nodes=3 --enable-autoscaling --min-nodes=2 --max-nodes=5 \
   --machine-type=e2-medium
 ```
 
@@ -250,10 +166,16 @@ machine family (e.g. `c2-standard-4`) which are more expensive.
 To configure `kubectl` to access this cluster, run
 
 ```shell
-gcloud container clusters get-credentials halo-cmm-worker1-demo-cluster
+gcloud container clusters get-credentials worker1-duchy
 ```
 
-## Step 7. Create Kubernetes secrets.
+Now you can follow the steps for
+[creating K8s service accounts](kingdom-deployment.md) from the Kingdom
+deployment guide. Note that you'll need to follow the steps twice for the two
+service accounts. The `dev` configuration assumes that they are named
+`internal-server` and `storage`.
+
+## Step 6. Create Kubernetes secrets
 
 ***(Note: this step does not use any halo code, and you don't need to do it
 within the cross-media-measurement repo.)***
@@ -355,7 +277,7 @@ be used for production environments as doing so would be highly insecure.
 bazel run //src/main/k8s/testing/secretfiles:apply_kustomization
 ```
 
-## Step 8. Create the configmap
+## Step 7. Create the configmap
 
 Create a `authority_key_identifier_to_principal_map.textproto` file with the
 following content. This file contains all EDPs that are allowed to call this
@@ -400,43 +322,41 @@ kubectl create configmap config-files \
 
 Whenever there is a new EDP onboarded to the system, you need to add an entry
 for this EDP. Update this file and run the following command to replace the
-ConfigMap in the kingdom cluster
+ConfigMap in the cluster
 
 ```shell
 kubectl create configmap config-files --output=yaml --dry-run=client \
---from-file=path_to_file/authority_key_identifier_to_principal_map.textproto \
-| kubectl replace -f -
+  --from-file=path_to_file/authority_key_identifier_to_principal_map.textproto |
+  kubectl replace -f -
 ```
 
 You can verify that the config file is successfully update by running
 
 ```shell
-kubectldescribe configmaps config-files
+kubectl describe configmaps config-files
 ```
 
-## Step 9. Update cue files.
+## Step 8. Create the K8s manifest
 
-We recommend that you modify the
-[duchy_gke.cue](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/k8s/dev/duchy_gke.cue)
-file in your local branch and deploy using it directly. Or you can create
-another version of it. But whatever way you do, you keep the changes locally, DO
-NOT COMMIT it.
+Deploying the Duchy to the cluster is generally done by applying a K8s manifest.
+You can use the `dev` configuration as a base to get started. The `dev` manifest
+is a YAML file that is generated from files written in
+[CUE](https://cuelang.org/) using Bazel rules.
 
-First, open the `/src/main/k8s/dev/duchy_gke.cue` file in your local branch.
-Update the tag variables in the beginning to the following values.
+The main file for the `dev` Duchy is
+[`duchy_gke.cue`](../../src/main/k8s/dev/duchy_gke.cue). Some configuration is
+in [`config.cue`](../../src/main/k8s/dev/config.cue) You can modify these file
+to specify your own values for your Google Cloud project and Spanner instance.
+**Do not** push your modifications to the repository.
+
+For example,
 
 ```
 # KingdomSystemApiTarget: "your kingdom's system API domain or subdomain:8443"
 # GloudProject: "halo-worker1-demo"
 # SpannerInstance: "halo-worker1-instance"
 # CloudStorageBucket: "halo-worker1-bucket"
-# ContainerRegistry: "gcr.io"
 ```
-
-If you picked other names in the previous steps, update the value accordingly.
-
-Then in the same file, update the following part to match with the domains you
-plan to use.
 
 ```
 _computation_control_targets: {
@@ -446,30 +366,53 @@ _computation_control_targets: {
 }
 ```
 
-You can also update the memory and cpu request/limit of each pod, as well as the
-number of replicas per deployment.
+You can also modify things such as the memory and CPU request/limit of each pod,
+as well as the number of replicas per deployment.
 
-## Step 10. Deploy the duchy to GKE
-
-Replace the k8s_duchy_secret_name and duchy_cert_name (obtained from the kingdom
-operator offline) in the command, and run
+To generate the YAML manifest from the CUE files, run the following
+(substituting your own values for the `--define` options):
 
 ```shell
-bazel run src/main/kotlin/org/wfanet/measurement/tools:deploy_duchy_to_gke \
-  --define=k8s_duchy_secret_name=certs-and-configs-abcdedf \
-  --define=duchy_name=aggregator \
-  --define=duchy_cert_name=duchies/aggregator/certificates/something \
-  --define=duchy_protocols_setup_config=aggregator_protocols_setup_config.textproto \
-  -- \
-  --yaml-file=duchy_gke.yaml --cluster-name=halo-cmm-aggregator-demo-cluster \
-  --environment=dev
+bazel build //src/main/k8s/dev:worker1_duchy_gke \
+  --define k8s_duchy_secret_name=certs-and-configs-abcdedg \
+  --define duchy_cert_id=SVVse4xWHL0 \
+  --define duchy_storage_bucket=worker1-duchy
 ```
 
-Now all duchy components will be successfully deployed to your GKE cluster. You
-can verify by running
+You can also do your customization to the generated YAML file rather than to the
+CUE file.
+
+Note: The `dev` configuration does not specify a tag or digest for the container
+images. You likely want to change this for a production environment.
+
+## Step 9. Apply the K8s manifest
+
+If you're using a manifest generated by the
+`//src/main/k8s/dev:worker1_duchy_gke` Bazel target, the command to apply that
+manifest is
 
 ```shell
-$ kubectl get deployments
+kubectl apply -f bazel-bin/src/main/k8s/dev/worker1_duchy_gke.yaml
+```
+
+Substitute that path if you're using a different K8s manifest.
+
+Now all Duchy components should be successfully deployed to your GKE cluster.
+You can verify by running
+
+```shell
+kubectl get deployments
+```
+
+and
+
+```shell
+kubectl get services
+```
+
+You should see something like the following:
+
+```
 NAME                                                READY UP-TO-DATE AVAILABLE AGE
 worker1-async-computation-control-server-deployment 1/1   1          1         1m
 worker1-computation-control-server-deployment       1/1   1          1         1m
@@ -477,8 +420,9 @@ worker1-herald-daemon-deployment                    1/1   1          1         1
 worker1-liquid-legions-v2-mill-daemon-deployment    1/1   1          1         1m
 worker1-requisition-fulfillment-server-deployment   1/1   1          1         1m
 worker1-spanner-computations-server-deployment      1/1   1          1         1m
+```
 
-$ kubectl get service
+```
 NAME                                     TYPE         CLUSTER-IP     EXTERNAL-IP    PORT(S)        AGE
 worker1-async-computation-control-server ClusterIP    10.123.249.255 <none>         8443/TCP       1m
 worker1-computation-control-server       LoadBalancer 10.123.250.81  34.134.198.198 8443:31962/TCP 1m
@@ -487,11 +431,7 @@ worker1-spanner-computations-server      ClusterIP    10.123.244.10  <none>     
 kubernetes                               ClusterIP    10.123.240.1   <none>         443/TCP        1m
 ```
 
-Note: If you are not modifying the existing `duchy_gke.cue` file, but are
-creating another cue file in the previous step, you need to update the
-`yaml-file` and `environment` args to make it work.
-
-## Step 11. Make the Duchy accessible on the open internet.
+## Step 10. Make the Duchy accessible on the open internet
 
 ### Reserve the external IPs
 
