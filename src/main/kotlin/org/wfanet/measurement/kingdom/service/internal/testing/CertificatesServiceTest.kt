@@ -712,39 +712,38 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
   }
 
   @Test
-  fun `revokeCertificate throws CertificateRevocationStateIllegalException when requested state illegal`() =
-    runBlocking {
-      val externalDataProviderId =
-        population.createDataProvider(dataProvidersService).externalDataProviderId
+  fun `revokeCertificate throws exception when requested state illegal`() = runBlocking {
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
 
-      val certificate =
-        certificatesService.createCertificate(
-          certificate {
-            this.externalDataProviderId = externalDataProviderId
-            notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
-            notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
-            details = details { x509Der = X509_DER }
-          }
-        )
-
-      certificatesService.revokeCertificate(
-        revokeCertificateRequest {
+    val certificate =
+      certificatesService.createCertificate(
+        certificate {
           this.externalDataProviderId = externalDataProviderId
-          externalCertificateId = certificate.externalCertificateId
-          revocationState = Certificate.RevocationState.REVOKED
+          notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
+          notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
+          details = details { x509Der = X509_DER }
         }
       )
 
-      val request = revokeCertificateRequest {
+    certificatesService.revokeCertificate(
+      revokeCertificateRequest {
         this.externalDataProviderId = externalDataProviderId
         externalCertificateId = certificate.externalCertificateId
-        revocationState = Certificate.RevocationState.HOLD
+        revocationState = Certificate.RevocationState.REVOKED
       }
+    )
 
-      val exception =
-        assertFailsWith<StatusRuntimeException> { certificatesService.revokeCertificate(request) }
-      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    val request = revokeCertificateRequest {
+      this.externalDataProviderId = externalDataProviderId
+      externalCertificateId = certificate.externalCertificateId
+      revocationState = Certificate.RevocationState.HOLD
     }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { certificatesService.revokeCertificate(request) }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
 
   @Test
   fun `releaseCertificateHold throws INVALID_ARGUMENT when parent not specified`() = runBlocking {
