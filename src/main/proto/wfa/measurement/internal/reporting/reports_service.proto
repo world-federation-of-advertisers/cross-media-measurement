@@ -29,10 +29,7 @@ service Reports {
 
   rpc StreamReports(StreamReportsRequest) returns (stream Report);
 
-  // Checks the CMMS for updates to measurements for the `Report` and caches
-  // them.
-  rpc RefreshReportMeasurements(RefreshReportMeasurementsRequest)
-      returns (Report);
+  rpc UpdateReportMeasurement(UpdateReportMeasurementRequest) returns (Report);
 }
 
 message GetReportRequest {
@@ -52,8 +49,9 @@ message StreamReportsRequest {
   int32 limit = 2;
 }
 
-message RefreshReportMeasurementsRequest {
+message UpdateReportMeasurementRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
   string measurement_consumer_reference_id = 1;
   fixed64 external_report_id = 2;
+  Report.MeasurementInfo measurement_info = 3;
 }

@@ -71,15 +71,41 @@ message Report {
 
     enum State {
       STATE_UNSPECIFIED = 0;
-      IN_PROGRESS = 1;
+      PENDING = 1;
       // Completed successfully. Terminal state.
       SUCCEEDED = 2;
       // Completed with failure. Terminal state.
       FAILED = 3;
     }
     // The state of the `Measurement` derived from the CMMS public API.
-    // Output-only.
     State state = 3;
+
+    message Result {
+      message Reach {
+        int64 value = 1;
+      }
+      Reach reach = 1;
+
+      message Frequency {
+        map<int64, double> relative_frequency_distribution = 1;
+      }
+      Frequency frequency = 2;
+
+      message Impression {
+        int64 value = 1;
+      }
+      Impression impression = 3;
+
+      message WatchDuration {
+        google.protobuf.Duration value = 1;
+      }
+      WatchDuration watchDuration = 4;
+    }
+    // The result of the `Measurement` derived from the CMMS public API.
+    Result result = 4;
+
+    // Timestamp when `state` and `result` were last updated. Output-only.
+    google.protobuf.Timestamp update_time = 5;
   }
   // `Measurement` info for measurements created for the `Report`.
   repeated MeasurementInfo measurements = 7;

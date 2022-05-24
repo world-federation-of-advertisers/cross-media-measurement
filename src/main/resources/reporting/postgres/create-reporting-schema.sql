@@ -106,10 +106,11 @@ CREATE TABLE ReportMeasurements (
   -- org.wfanet.measurement.internal.reporting.Report.MeasurementInfo.State
   -- protobuf enum encoded as an integer.
   State smallint NOT NULL,
-  -- NULL value allowed to represent a measurement that hasn't succeeded.
+  -- Serialized org.wfanet.measurement.internal.reporting.Report.MeasurementInfo.Result
+  -- protobuf message.
   Result bytea,
   -- Timestamp in UTC.
-  LastSynced timestamptz NOT NULL,
+  UpdateTime timestamptz NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerReferenceId, MeasurementReferenceId),
   FOREIGN KEY(MeasurementConsumerReferenceId, ReportId)
