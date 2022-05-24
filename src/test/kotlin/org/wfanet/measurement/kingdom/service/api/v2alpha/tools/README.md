@@ -53,21 +53,25 @@ to the executable.
   options within a group does not matter.
 
   ```shell
-  SimpleReport 
-  --tls-cert-file=secretfiles/mc_tls.pem --tls-key-file=secretfiles/mc_tls.key
-  --cert-collection-file=secretfiles/kingdom_root.pem
-  --api-target=localhost:8443
-  --api-cert-host=localhost
-  create
-  --measurement-consumer-name=measurementConsumers/777
-  --private-key-der-file=secretfiles/mc_cs_private.der
-  --measurement-ref-id=9999
-  --data-provider-name=dataProviders/1
-  --event-group-name=dataProviders/1/eventGroups/1 --event-filter-expression=abcd
-  --event-filter-start-time=100 --event-filter-end-time=200
-  --event-group-name=dataProviders/1/eventGroups/2 --event-filter-expression=efgh
-  --event-filter-start-time=300 --event-filter-end-time=400
-  --data-provider-name=dataProviders/2
-  --event-group-name=dataProviders/2/eventGroups/1 --event-filter-expression=ijk
-  --event-filter-start-time=400 --event-filter-end-time=500
+  SimpleReport \
+  --tls-cert-file=secretfiles/mc_tls.pem --tls-key-file=secretfiles/mc_tls.key \
+  --cert-collection-file=secretfiles/kingdom_root.pem \
+  --api-target=localhost:8443 --api-cert-host=localhost \
+  create \
+  --measurement-consumer=measurementConsumers/777 \
+  --private-key-der-file=secretfiles/mc_cs_private.der \
+  --measurement-ref-id=9999 \
+  --data-provider=dataProviders/1 \
+  --event-group=dataProviders/1/eventGroups/1 \
+  --event-filter="video_ad.age.value == 1" \
+  --event-start-time=2022-05-22T01:00:00+00:00 \
+  --event-end-time=2022-05-24T05:00:00+00:00 \
+  --event-group=dataProviders/1/eventGroups/2 \
+  --event-filter="video_ad.age.value == 2" \
+  --event-start-time=2022-05-22T01:22:32-05:00 \
+  --event-end-time=2022-05-23T03:14:55-05:00 \
+  --data-provider=dataProviders/2 \
+  --event-group=dataProviders/2/eventGroups/1 \
+  --event-start-time=2022-04-22T01:19:42+03:00 \
+  --event-end-time=2022-05-22T01:56:12+05:00
   ```

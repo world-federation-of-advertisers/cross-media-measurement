@@ -15,9 +15,11 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha.tools
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.Timestamp
 import com.google.protobuf.timestamp
 import io.grpc.Channel
 import java.io.File
+import java.time.OffsetDateTime
 import kotlin.random.Random
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -87,11 +89,11 @@ class CreateCommand : Runnable {
   @CommandLine.ParentCommand private lateinit var parent: SimpleReport
 
   @CommandLine.Option(
-    names = ["--measurement-consumer-name"],
+    names = ["--measurement-consumer"],
     description = ["API resource name of the MeasurementConsumer"],
     required = true
   )
-  private lateinit var measurementConsumerName: String
+  private lateinit var measurementConsumer: String
 
   @CommandLine.Option(
     names = ["--private-key-der-file"],
@@ -103,13 +105,21 @@ class CreateCommand : Runnable {
   @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*", heading = "Add DataProviders\n")
   private lateinit var dataProviderInputs: List<DataProviderInput>
 
+  private fun String.toTimestamp(): Timestamp {
+    val instant = OffsetDateTime.parse(this).toInstant()
+    return timestamp {
+      seconds = instant.epochSecond
+      nanos = instant.nano
+    }
+  }
+
   class DataProviderInput {
     @CommandLine.Option(
-      names = ["--data-provider-name"],
+      names = ["--data-provider"],
       description = ["API resource name of the DataProvider"],
       required = true,
     )
-    lateinit var dataProviderName: String
+    lateinit var name: String
 
     @CommandLine.ArgGroup(
       exclusive = false,
@@ -121,32 +131,32 @@ class CreateCommand : Runnable {
 
   class EventGroupInput {
     @CommandLine.Option(
-      names = ["--event-group-name"],
+      names = ["--event-group"],
       description = ["API resource name of the EventGroup"],
       required = true,
     )
-    lateinit var eventGroupName: String
+    lateinit var name: String
 
     @CommandLine.Option(
-      names = ["--event-filter-expression"],
+      names = ["--event-filter"],
       description = ["Raw CEL expression of EventFilter"],
       required = false,
     )
-    lateinit var eventFilter: String
+    var eventFilter: String = ""
 
     @CommandLine.Option(
-      names = ["--event-filter-start-time"],
-      description = ["Start time of EventFilter range"],
-      required = false,
+      names = ["--event-start-time"],
+      description = ["Start time of Event range in ISO 8601 format"],
+      required = true,
     )
-    var eventFilterStartTime: Long = 0L
+    lateinit var eventStartTime: String
 
     @CommandLine.Option(
-      names = ["--event-filter-end-time"],
-      description = ["End time of EventFilter range"],
-      required = false,
+      names = ["--event-end-time"],
+      description = ["End time of Event range in ISO 8601 format"],
+      required = true,
     )
-    var eventFilterEndTime: Long = 0L
+    lateinit var eventEndTime: String
   }
 
   @CommandLine.Option(
@@ -167,13 +177,14 @@ class CreateCommand : Runnable {
         eventGroups.addAll(
           it.eventGroupInputs.map {
             eventGroupEntry {
-              key = it.eventGroupName
+              key = it.name
               value = eventGroupEntryValue {
                 collectionInterval = timeInterval {
-                  startTime = timestamp { seconds = it.eventFilterStartTime }
-                  endTime = timestamp { seconds = it.eventFilterEndTime }
+                  startTime = it.eventStartTime.toTimestamp()
+                  endTime = it.eventEndTime.toTimestamp()
                 }
-                filter = eventFilter { expression = it.eventFilter }
+                if (it.eventFilter.isNotEmpty())
+                  filter = eventFilter { expression = it.eventFilter }
               }
             }
           }
@@ -182,15 +193,15 @@ class CreateCommand : Runnable {
         nonce = Random.Default.nextLong()
       }
 
-      key = it.dataProviderName
+      key = it.name
       val dataProvider =
         runBlocking(Dispatchers.IO) {
-          dataProviderStub.getDataProvider(getDataProviderRequest { name = it.dataProviderName })
+          dataProviderStub.getDataProvider(getDataProviderRequest { name = it.name })
         }
       value = dataProviderEntryValue {
         dataProviderCertificate = dataProvider.certificate
         dataProviderPublicKey = dataProvider.publicKey
-        dataProviderCertificate = "${it.dataProviderName}/certificates/1"
+        dataProviderCertificate = "${it.name}/certificates/1"
         encryptedRequisitionSpec =
           encryptRequisitionSpec(
             signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
@@ -212,7 +223,7 @@ class CreateCommand : Runnable {
     val measurementConsumer =
       runBlocking(Dispatchers.IO) {
         measurementConsumerStub.getMeasurementConsumer(
-          getMeasurementConsumerRequest { name = measurementConsumerName }
+          getMeasurementConsumerRequest { name = measurementConsumer }
         )
       }
     val measurementConsumerCertificate = readCertificate(measurementConsumer.certificateDer)
@@ -275,7 +286,7 @@ class ListCommand : Runnable {
   @CommandLine.ParentCommand private lateinit var parent: SimpleReport
 
   @CommandLine.Option(
-    names = ["--mc-name"],
+    names = ["--measurement-consumer"],
     description = ["API resource name of the Measurement Consumer"],
     required = true,
   )

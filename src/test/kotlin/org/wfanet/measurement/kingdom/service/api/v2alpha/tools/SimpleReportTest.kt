@@ -16,12 +16,13 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha.tools
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.Timestamp
 import com.google.protobuf.timestamp
 import io.grpc.ServerServiceDefinition
 import io.netty.handler.ssl.ClientAuth
-import java.io.File
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.time.OffsetDateTime
 import kotlinx.coroutines.runBlocking
 import org.junit.BeforeClass
 import org.junit.Test
@@ -105,6 +106,13 @@ private val DATA_PROVIDER = dataProvider {
 
 private val MEASUREMENT = Measurement.getDefaultInstance()
 
+private val TIME_STRING_1 = "2022-05-22T01:00:00+00:00"
+private val TIME_STRING_2 = "2022-05-24T05:00:00+00:00"
+private val TIME_STRING_3 = "2022-05-22T01:22:32-05:00"
+private val TIME_STRING_4 = "2022-05-23T03:14:55-05:00"
+private val TIME_STRING_5 = "2022-04-22T01:19:42+03:00"
+private val TIME_STRING_6 = "2022-05-22T01:56:12+05:00"
+
 @RunWith(JUnit4::class)
 class SimpleReportTest {
   companion object {
@@ -129,9 +137,9 @@ class SimpleReportTest {
 
       val serverCerts =
         SigningCerts.fromPemFiles(
-          certificateFile = File("$SECRETS_DIR/kingdom_tls.pem"),
-          privateKeyFile = File("$SECRETS_DIR/kingdom_tls.key"),
-          trustedCertCollectionFile = File("$SECRETS_DIR/mc_root.pem")
+          certificateFile = SECRETS_DIR.resolve("kingdom_tls.pem").toFile(),
+          privateKeyFile = SECRETS_DIR.resolve("kingdom_tls.key").toFile(),
+          trustedCertCollectionFile = SECRETS_DIR.resolve("mc_root.pem").toFile(),
         )
 
       CommonServer.fromParameters(
@@ -146,30 +154,41 @@ class SimpleReportTest {
     }
   }
 
+  private fun String.toTimestamp(): Timestamp {
+    val instant = OffsetDateTime.parse(this).toInstant()
+    return timestamp {
+      seconds = instant.epochSecond
+      nanos = instant.nano
+    }
+  }
+
   @Test
   fun `Create command call public api with valid Measurement`() {
-    val input =
-      """
-      --tls-cert-file=$SECRETS_DIR/mc_tls.pem
-      --tls-key-file=$SECRETS_DIR/mc_tls.key
-      --cert-collection-file=$SECRETS_DIR/kingdom_root.pem
-      --api-target=$HOST:$PORT
-      --api-cert-host=localhost
-      create
-      --measurement-consumer-name=measurementConsumers/777
-      --private-key-der-file=$SECRETS_DIR/mc_cs_private.der
-      --measurement-ref-id=9999
-      --data-provider-name=dataProviders/1
-      --event-group-name=dataProviders/1/eventGroups/1 --event-filter-expression=abcd
-      --event-filter-start-time=100 --event-filter-end-time=200
-      --event-group-name=dataProviders/1/eventGroups/2 --event-filter-expression=efgh
-      --event-filter-start-time=300 --event-filter-end-time=400
-      --data-provider-name=dataProviders/2
-      --event-group-name=dataProviders/2/eventGroups/1 --event-filter-expression=ijk
-      --event-filter-start-time=400 --event-filter-end-time=500
-      """.trimIndent()
-
-    val args = input.split(" ", "\n").toTypedArray()
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
+        "--api-target=$HOST:$PORT",
+        "--api-cert-host=localhost",
+        "create",
+        "--measurement-consumer=measurementConsumers/777",
+        "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
+        "--measurement-ref-id=9999",
+        "--data-provider=dataProviders/1",
+        "--event-group=dataProviders/1/eventGroups/1",
+        "--event-filter=abcd",
+        "--event-start-time=$TIME_STRING_1",
+        "--event-end-time=$TIME_STRING_2",
+        "--event-group=dataProviders/1/eventGroups/2",
+        "--event-start-time=$TIME_STRING_3",
+        "--event-end-time=$TIME_STRING_4",
+        "--data-provider=dataProviders/2",
+        "--event-group=dataProviders/2/eventGroups/1",
+        "--event-filter=ijk",
+        "--event-start-time=$TIME_STRING_5",
+        "--event-end-time=$TIME_STRING_6",
+      )
     CommandLine(SimpleReport()).execute(*args)
 
     val request =
@@ -239,8 +258,8 @@ class SimpleReportTest {
               key = "dataProviders/1/eventGroups/1"
               value = eventGroupEntryValue {
                 collectionInterval = timeInterval {
-                  startTime = timestamp { seconds = 100 }
-                  endTime = timestamp { seconds = 200 }
+                  startTime = TIME_STRING_1.toTimestamp()
+                  endTime = TIME_STRING_2.toTimestamp()
                 }
                 filter = eventFilter { expression = "abcd" }
               }
@@ -251,10 +270,9 @@ class SimpleReportTest {
               key = "dataProviders/1/eventGroups/2"
               value = eventGroupEntryValue {
                 collectionInterval = timeInterval {
-                  startTime = timestamp { seconds = 300 }
-                  endTime = timestamp { seconds = 400 }
+                  startTime = TIME_STRING_3.toTimestamp()
+                  endTime = TIME_STRING_4.toTimestamp()
                 }
-                filter = eventFilter { expression = "efgh" }
               }
             }
           )
@@ -288,8 +306,8 @@ class SimpleReportTest {
               key = "dataProviders/2/eventGroups/1"
               value = eventGroupEntryValue {
                 collectionInterval = timeInterval {
-                  startTime = timestamp { seconds = 400 }
-                  endTime = timestamp { seconds = 500 }
+                  startTime = TIME_STRING_5.toTimestamp()
+                  endTime = TIME_STRING_6.toTimestamp()
                 }
                 filter = eventFilter { expression = "ijk" }
               }
