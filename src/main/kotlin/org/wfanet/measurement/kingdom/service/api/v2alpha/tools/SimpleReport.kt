@@ -425,7 +425,13 @@ class ListCommand : Runnable {
           listMeasurementsRequest { parent = measurementConsumerName }
         )
       }
-    print(response.toJson())
+    response.measurementList.map {
+      if (it.state == Measurement.State.FAILED) {
+        println(it.name + " FAILED - " + it.failure.reason + ": " + it.failure.message)
+      } else {
+        println(it.name + " " + it.state)
+      }
+    }
   }
 }
 

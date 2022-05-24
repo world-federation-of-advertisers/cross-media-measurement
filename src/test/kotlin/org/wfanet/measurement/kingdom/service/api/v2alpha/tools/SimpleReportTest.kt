@@ -40,9 +40,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt.value as eventGroupEntryValue
-import org.junit.AfterClass
-import org.junit.BeforeClass
-import org.mockito.kotlin.reset
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.dataProvider
@@ -113,7 +111,24 @@ private const val MEASUREMENT_NAME = "$MEASUREMENT_CONSUMER_NAME/measurements/10
 private val MEASUREMENT = measurement {
   name = MEASUREMENT_NAME
 }
-private val LIST_MEASUREMENT_RESPONSE = listMeasurementsResponse {}
+private val LIST_MEASUREMENT_RESPONSE = listMeasurementsResponse {
+  measurement.add(measurement {
+    name = "$MEASUREMENT_CONSUMER_NAME/measurements/101"
+    state = Measurement.State.AWAITING_REQUISITION_FULFILLMENT
+  })
+  measurement.add(measurement {
+    name = "$MEASUREMENT_CONSUMER_NAME/measurements/102"
+    state = Measurement.State.SUCCEEDED
+  })
+  measurement.add(measurement {
+    name = "$MEASUREMENT_CONSUMER_NAME/measurements/102"
+    state = Measurement.State.FAILED
+    failure = failure {
+      reason = Measurement.Failure.Reason.REQUISITION_REFUSED
+      message = "Privacy budget exceeded."
+    }
+  })
+}
 
 @RunWith(JUnit4::class)
 class SimpleReportTest {
@@ -357,7 +372,21 @@ class SimpleReportTest {
   }
 
   @Test
-  fun `Get command prints specific Measurement in json format`() {
+  fun `List command call public api with correct request`() {
+    val args = arrayOf(
+      "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+      "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+      "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
+      "--api-target=$HOST:$PORT",
+      "--api-cert-host=localhost",
+      "list",
+      "--mc-name=$MEASUREMENT_CONSUMER_NAME"
+    )
+    CommandLine(SimpleReport()).execute(*args)
+  }
+
+  @Test
+  fun `Get command call public api with correct request`() {
     val args = arrayOf(
       "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
       "--tls-key-file=$SECRETS_DIR/mc_tls.key",
@@ -365,7 +394,7 @@ class SimpleReportTest {
       "--api-target=$HOST:$PORT",
       "--api-cert-host=localhost",
       "get",
-      "--measurement-name="
+      "--measurement-name=$MEASUREMENT_NAME"
     )
     CommandLine(SimpleReport()).execute(*args)
   }
