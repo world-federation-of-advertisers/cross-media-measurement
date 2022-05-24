@@ -23,7 +23,8 @@ import java.io.File
 import java.nio.file.Path
 import java.nio.file.Paths
 import kotlinx.coroutines.runBlocking
-import org.junit.BeforeClass
+import org.junit.After
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -107,47 +108,49 @@ private val MEASUREMENT = Measurement.getDefaultInstance()
 
 @RunWith(JUnit4::class)
 class SimpleReportTest {
-  companion object {
-    private val measurementConsumersServiceMock: MeasurementConsumersCoroutineImplBase =
-      mockService() {
-        onBlocking { getMeasurementConsumer(any()) }.thenReturn(MEASUREMENT_CONSUMER)
-      }
-    private val dataProvidersServiceMock: DataProvidersCoroutineImplBase =
-      mockService() { onBlocking { getDataProvider(any()) }.thenReturn(DATA_PROVIDER) }
-    private val measurementsServiceMock: MeasurementsCoroutineImplBase =
-      mockService() { onBlocking { createMeasurement(any()) }.thenReturn(MEASUREMENT) }
+  private val measurementConsumersServiceMock: MeasurementConsumersCoroutineImplBase =
+    mockService() { onBlocking { getMeasurementConsumer(any()) }.thenReturn(MEASUREMENT_CONSUMER) }
+  private val dataProvidersServiceMock: DataProvidersCoroutineImplBase =
+    mockService() { onBlocking { getDataProvider(any()) }.thenReturn(DATA_PROVIDER) }
+  private val measurementsServiceMock: MeasurementsCoroutineImplBase =
+    mockService() { onBlocking { createMeasurement(any()) }.thenReturn(MEASUREMENT) }
 
-    @BeforeClass
-    @JvmStatic
-    fun initServer() {
-      val services: List<ServerServiceDefinition> =
-        listOf(
-          measurementConsumersServiceMock.bindService(),
-          dataProvidersServiceMock.bindService(),
-          measurementsServiceMock.bindService(),
-        )
+  private lateinit var server: CommonServer
+  @Before
+  fun initServer() {
+    val services: List<ServerServiceDefinition> =
+      listOf(
+        measurementConsumersServiceMock.bindService(),
+        dataProvidersServiceMock.bindService(),
+        measurementsServiceMock.bindService(),
+      )
 
-      val serverCerts =
-        SigningCerts.fromPemFiles(
-          certificateFile = File("$SECRETS_DIR/kingdom_tls.pem"),
-          privateKeyFile = File("$SECRETS_DIR/kingdom_tls.key"),
-          trustedCertCollectionFile = File("$SECRETS_DIR/mc_root.pem")
-        )
+    val serverCerts =
+      SigningCerts.fromPemFiles(
+        certificateFile = File("$SECRETS_DIR/kingdom_tls.pem"),
+        privateKeyFile = File("$SECRETS_DIR/kingdom_tls.key"),
+        trustedCertCollectionFile = File("$SECRETS_DIR/mc_root.pem")
+      )
 
+    server =
       CommonServer.fromParameters(
-          PORT,
-          true,
-          serverCerts,
-          ClientAuth.REQUIRE,
-          "kingdom-test",
-          services
-        )
-        .start()
-    }
+        PORT,
+        true,
+        serverCerts,
+        ClientAuth.REQUIRE,
+        "kingdom-test",
+        services
+      )
+    server.start()
+  }
+
+  @After
+  fun shutdownServer() {
+    server.server.shutdown()
   }
 
   @Test
-  fun `Create command call public api with valid Measurement`() {
+  fun `Create command call public api with correct DataProvider info and EventGroup info`() {
     val input =
       """
       --tls-cert-file=$SECRETS_DIR/mc_tls.pem
@@ -156,6 +159,7 @@ class SimpleReportTest {
       --api-target=$HOST:$PORT
       --api-cert-host=localhost
       create
+      --type=IMPRESSION
       --measurement-consumer-name=measurementConsumers/777
       --private-key-der-file=$SECRETS_DIR/mc_cs_private.der
       --measurement-ref-id=9999
@@ -189,25 +193,11 @@ class SimpleReportTest {
       .isTrue()
     val nonceHashes = measurement.dataProvidersList.map { it.value.nonceHash }
     assertThat(measurementSpec)
+      .comparingExpectedFieldsOnly()
       .isEqualTo(
         measurementSpec {
           measurementPublicKey = MEASUREMENT_PUBLIC_KEY
           this.nonceHashes.addAll(nonceHashes)
-          reachAndFrequency = reachAndFrequency {
-            reachPrivacyParams = differentialPrivacyParams {
-              epsilon = 1.0
-              delta = 1.0
-            }
-            frequencyPrivacyParams = differentialPrivacyParams {
-              epsilon = 1.0
-              delta = 1.0
-            }
-            vidSamplingInterval =
-              MeasurementSpecKt.vidSamplingInterval {
-                start = 0.0f
-                width = 1.0f
-              }
-          }
         }
       )
     assertThat(measurement.measurementReferenceId).isEqualTo("9999")
@@ -295,6 +285,60 @@ class SimpleReportTest {
               }
             }
           )
+        }
+      )
+  }
+
+  @Test
+  fun `Create command call public api with correct ReachAndFrequency params`() {
+    val input =
+      """
+      --tls-cert-file=$SECRETS_DIR/mc_tls.pem
+      --tls-key-file=$SECRETS_DIR/mc_tls.key
+      --cert-collection-file=$SECRETS_DIR/kingdom_root.pem
+      --api-target=$HOST:$PORT
+      --api-cert-host=localhost
+      create
+      --type=REACH_AND_FREQUENCY
+      --reach-privacy-epsilon=2.0 --reach-privacy-delta=3.0
+      --frequency-privacy-epsilon=4.0 --frequency-privacy-delta=5.0
+      --vid-sampling-start=6.0 --vid-sampling-width=7.0
+      --measurement-consumer-name=measurementConsumers/777
+      --private-key-der-file=$SECRETS_DIR/mc_cs_private.der
+      --data-provider-name=dataProviders/1
+      --event-group-name=dataProviders/1/eventGroups/1 --event-filter-expression=abcd
+      --event-filter-start-time=100 --event-filter-end-time=200
+      """.trimIndent()
+
+    val args = input.split(" ", "\n").toTypedArray()
+    CommandLine(SimpleReport()).execute(*args)
+
+    val request =
+      captureFirst<CreateMeasurementRequest> {
+        runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
+      }
+    val measurement = request.measurement
+
+    val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
+    assertThat(measurementSpec)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        measurementSpec {
+          reachAndFrequency = reachAndFrequency {
+            reachPrivacyParams = differentialPrivacyParams {
+              epsilon = 2.0
+              delta = 3.0
+            }
+            frequencyPrivacyParams = differentialPrivacyParams {
+              epsilon = 4.0
+              delta = 5.0
+            }
+            vidSamplingInterval =
+              MeasurementSpecKt.vidSamplingInterval {
+                start = 6.0f
+                width = 7.0f
+              }
+          }
         }
       )
   }

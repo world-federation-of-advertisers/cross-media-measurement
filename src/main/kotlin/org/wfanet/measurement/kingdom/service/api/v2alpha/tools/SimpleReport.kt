@@ -27,6 +27,11 @@ import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt.value as dataProviderEntryValue
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec.Duration
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec.Impression
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec.ReachAndFrequency
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
@@ -100,24 +105,109 @@ class CreateCommand : Runnable {
   )
   private lateinit var privateKeyDerFile: File
 
-  @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*", heading = "Add DataProviders\n")
-  private lateinit var dataProviderInputs: List<DataProviderInput>
+  @CommandLine.Option(
+    names = ["--measurement-ref-id"],
+    description = ["Measurement reference id"],
+    required = false,
+  )
+  private var measurementRefId: String? = null
 
-  class DataProviderInput {
+  // Measurement type params
+  enum class MeasurementType {
+    REACH_AND_FREQUENCY,
+    IMPRESSION,
+    DURATION,
+  }
+
+  class MeasurementParams {
     @CommandLine.Option(
-      names = ["--data-provider-name"],
-      description = ["API resource name of the DataProvider"],
+      names = ["--type"],
+      description = ["Measurement Type from one of (\${COMPLETION-CANDIDATES})"],
       required = true,
     )
-    lateinit var dataProviderName: String
+    lateinit var type: MeasurementType
 
-    @CommandLine.ArgGroup(
-      exclusive = false,
-      multiplicity = "1..*",
-      heading = "Add EventGroups for a DataProvider\n"
+    @CommandLine.Option(
+      names = ["--reach-privacy-epsilon"],
+      description = ["Epsilon value of reach privacy params"],
+      defaultValue = "1.0",
+      required = false,
     )
-    lateinit var eventGroupInputs: List<EventGroupInput>
+    var reachPrivacyEpsilon: Double = 0.0
+
+    @CommandLine.Option(
+      names = ["--reach-privacy-delta"],
+      defaultValue = "1.0",
+      description = ["Delta value of reach privacy params"],
+      required = false,
+    )
+    var reachPrivacyDelta: Double = 0.0
+
+    @CommandLine.Option(
+      names = ["--frequency-privacy-epsilon"],
+      defaultValue = "1.0",
+      description = ["Epsilon value of frequency privacy params"],
+      required = false,
+    )
+    var frequencyPrivacyEpsilon: Double = 0.0
+
+    @CommandLine.Option(
+      names = ["--frequency-privacy-delta"],
+      defaultValue = "1.0",
+      description = ["Epsilon value of frequency privacy params"],
+      required = false,
+    )
+    var frequencyPrivacyDelta: Double = 0.0
+
+    @CommandLine.Option(
+      names = ["--privacy-epsilon"],
+      defaultValue = "1.0",
+      description = ["Epsilon value of privacy params"],
+      required = false,
+    )
+    var privacyEpsilon: Double = 0.0
+
+    @CommandLine.Option(
+      names = ["--privacy-delta"],
+      defaultValue = "1.0",
+      description = ["Epsilon value of privacy params"],
+      required = false,
+    )
+    var privacyDelta: Double = 0.0
+
+    @CommandLine.Option(
+      names = ["--vid-sampling-start"],
+      defaultValue = "0.0",
+      description = ["Start point of vid sampling interval"],
+      required = false,
+    )
+    var vidSamplingStart: Float = 0.0F
+
+    @CommandLine.Option(
+      names = ["--vid-sampling-width"],
+      defaultValue = "1.0",
+      description = ["Width of vid sampling interval"],
+      required = false,
+    )
+    var vidSamplingWidth: Float = 0.0F
+
+    @CommandLine.Option(
+      names = ["--max-frequency"],
+      defaultValue = "1",
+      description = ["Maximum frequency per user"],
+      required = false,
+    )
+    var maximumFrequencyPerUser: Int = 0
+
+    @CommandLine.Option(
+      names = ["--max-duration"],
+      defaultValue = "1",
+      description = ["Maximum watch duration per user"],
+      required = false,
+    )
+    var maximumWatchDurationPerUser: Int = 0
   }
+  @CommandLine.Mixin lateinit var measurementParams: MeasurementParams
 
   class EventGroupInput {
     @CommandLine.Option(
@@ -149,12 +239,24 @@ class CreateCommand : Runnable {
     var eventFilterEndTime: Long = 0L
   }
 
-  @CommandLine.Option(
-    names = ["--measurement-ref-id"],
-    description = ["Measurement reference id"],
-    required = false,
-  )
-  private lateinit var measurementReferenceId: String
+  class DataProviderInput {
+    @CommandLine.Option(
+      names = ["--data-provider-name"],
+      description = ["API resource name of the DataProvider"],
+      required = true,
+    )
+    lateinit var dataProviderName: String
+
+    @CommandLine.ArgGroup(
+      exclusive = false,
+      multiplicity = "1..*",
+      heading = "Add EventGroups for a DataProvider\n"
+    )
+    lateinit var eventGroupInputs: List<EventGroupInput>
+  }
+
+  @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*", heading = "Add DataProviders\n")
+  private lateinit var dataProviderInputs: List<DataProviderInput>
 
   private fun getDataProviderEntry(
     dataProviderStub: DataProvidersCoroutineStub,
@@ -204,6 +306,43 @@ class CreateCommand : Runnable {
     }
   }
 
+  private fun getReachAndFrequency(): ReachAndFrequency {
+    return reachAndFrequency {
+      reachPrivacyParams = differentialPrivacyParams {
+        epsilon = measurementParams.reachPrivacyEpsilon
+        delta = measurementParams.reachPrivacyDelta
+      }
+      frequencyPrivacyParams = differentialPrivacyParams {
+        epsilon = measurementParams.frequencyPrivacyEpsilon
+        delta = measurementParams.frequencyPrivacyDelta
+      }
+      vidSamplingInterval = vidSamplingInterval {
+        start = measurementParams.vidSamplingStart
+        width = measurementParams.vidSamplingWidth
+      }
+    }
+  }
+
+  private fun getImpression(): Impression {
+    return impression {
+      privacyParams = differentialPrivacyParams {
+        epsilon = measurementParams.privacyEpsilon
+        delta = measurementParams.privacyDelta
+      }
+      maximumFrequencyPerUser = maximumFrequencyPerUser
+    }
+  }
+
+  private fun getDuration(): Duration {
+    return duration {
+      privacyParams = differentialPrivacyParams {
+        epsilon = measurementParams.privacyEpsilon
+        delta = measurementParams.privacyDelta
+      }
+      maximumWatchDurationPerUser = maximumWatchDurationPerUser
+    }
+  }
+
   override fun run() {
     val measurementConsumerStub = MeasurementConsumersCoroutineStub(parent.channel)
     val measurementStub = MeasurementsCoroutineStub(parent.channel)
@@ -240,24 +379,21 @@ class CreateCommand : Runnable {
       val unsignedMeasurementSpec = measurementSpec {
         measurementPublicKey = measurementEncryptionPublicKey
         nonceHashes.addAll(this@measurement.dataProviders.map { it.value.nonceHash })
-        reachAndFrequency = reachAndFrequency {
-          reachPrivacyParams = differentialPrivacyParams {
-            epsilon = 1.0
-            delta = 1.0
+        when (measurementParams.type) {
+          MeasurementType.REACH_AND_FREQUENCY -> {
+            reachAndFrequency = getReachAndFrequency()
           }
-          frequencyPrivacyParams = differentialPrivacyParams {
-            epsilon = 1.0
-            delta = 1.0
+          MeasurementType.IMPRESSION -> {
+            impression = getImpression()
           }
-          vidSamplingInterval = vidSamplingInterval {
-            start = 0.0f
-            width = 1.0f
+          MeasurementType.DURATION -> {
+            duration = getDuration()
           }
         }
       }
       this.measurementSpec =
         signMeasurementSpec(unsignedMeasurementSpec, measurementConsumerSigningKey)
-      measurementReferenceId = this@CreateCommand.measurementReferenceId
+      measurementReferenceId = measurementRefId ?: ""
     }
 
     val response =
