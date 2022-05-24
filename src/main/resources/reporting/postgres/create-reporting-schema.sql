@@ -23,7 +23,8 @@
 --   │   ├── PeriodicTimeIntervals
 --   │   ├── Metrics
 --   │       └── SetOperations
---   │   └── ReportEventGroups
+--   │   └── ReportMeasurements
+--   ├── Measurements
 --   └── ReportingSets
 --       └── ReportingSetEventGroups
 
@@ -97,11 +98,10 @@ CREATE TABLE Metrics (
     REFERENCES Reports(MeasurementConsumerReferenceId, ReportId)
 );
 
--- changeset tristanvuong2021:create-report-measurements-table dbms:postgresql
-CREATE TABLE ReportMeasurements (
+-- changeset tristanvuong2021:create-measurements-table dbms:postgresql
+CREATE TABLE Measurements (
   MeasurementConsumerReferenceId text NOT NULL,
   MeasurementReferenceId text NOT NULL,
-  ReportId bigint NOT NULL,
 
   -- org.wfanet.measurement.internal.reporting.Report.MeasurementInfo.State
   -- protobuf enum encoded as an integer.
@@ -110,9 +110,18 @@ CREATE TABLE ReportMeasurements (
   -- protobuf message.
   Result bytea,
   -- Timestamp in UTC.
-  UpdateTime timestamptz NOT NULL,
+  UpdateTime timestamp NOT NULL,
 
-  PRIMARY KEY(MeasurementConsumerReferenceId, MeasurementReferenceId),
+  PRIMARY KEY(MeasurementConsumerReferenceId, MeasurementReferenceId)
+);
+
+-- changeset tristanvuong2021:create-report-measurements-table dbms:postgresql
+CREATE TABLE ReportMeasurements (
+  MeasurementConsumerReferenceId text NOT NULL,
+  MeasurementReferenceId text NOT NULL,
+  ReportId bigint NOT NULL,
+
+  PRIMARY KEY(MeasurementConsumerReferenceId, MeasurementReferenceId, ReportId),
   FOREIGN KEY(MeasurementConsumerReferenceId, ReportId)
       REFERENCES Reports(MeasurementConsumerReferenceId, ReportId)
 );
