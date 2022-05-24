@@ -108,6 +108,7 @@ CREATE TABLE ReportMeasurements (
   State smallint NOT NULL,
   -- NULL value allowed to represent a measurement that hasn't succeeded.
   Result bytea,
+  -- Timestamp in UTC.
   LastSynced timestamptz NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerReferenceId, MeasurementReferenceId),

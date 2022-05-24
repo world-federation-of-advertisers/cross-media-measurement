@@ -70,12 +70,12 @@ message Report {
     string measurement_reference_id = 2;
 
     enum State {
-      // Default value. This value is unused.
       STATE_UNSPECIFIED = 0;
+      IN_PROGRESS = 1;
       // Completed successfully. Terminal state.
-      SUCCEEDED = 1;
+      SUCCEEDED = 2;
       // Completed with failure. Terminal state.
-      FAILED = 2;
+      FAILED = 3;
     }
     // The state of the `Measurement` derived from the CMMS public API.
     // Output-only.
