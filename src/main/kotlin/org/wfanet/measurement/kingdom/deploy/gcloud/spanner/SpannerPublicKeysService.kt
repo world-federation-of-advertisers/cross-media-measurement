@@ -15,16 +15,17 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
-import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.PublicKeysGrpcKt
 import org.wfanet.measurement.internal.kingdom.UpdatePublicKeyRequest
 import org.wfanet.measurement.internal.kingdom.UpdatePublicKeyResponse
 import org.wfanet.measurement.internal.kingdom.updatePublicKeyResponse
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.UpdatePublicKey
 
 class SpannerPublicKeysService(
@@ -47,34 +48,14 @@ class SpannerPublicKeysService(
     try {
       UpdatePublicKey(request).execute(client, idGenerator)
       return updatePublicKeyResponse {}
+    } catch (e: CertificateNotFoundException) {
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Certificate not found." }
+    } catch (e: DataProviderNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "DataProvider not found." }
+    } catch (e: MeasurementConsumerNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "MeasurementConsumer not found." }
     } catch (e: KingdomInternalException) {
-      when (e.code) {
-        ErrorCode.CERTIFICATE_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "Certificate not found" }
-        ErrorCode.DATA_PROVIDER_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
-        ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND ->
-          failGrpc(Status.NOT_FOUND) { "MeasurementConsumer not found" }
-        ErrorCode.CERTIFICATE_IS_INVALID,
-        ErrorCode.DUCHY_NOT_FOUND,
-        ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
-        ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
-        ErrorCode.ACCOUNT_NOT_FOUND,
-        ErrorCode.API_KEY_NOT_FOUND,
-        ErrorCode.PERMISSION_DENIED,
-        ErrorCode.MODEL_PROVIDER_NOT_FOUND,
-        ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-        ErrorCode.MEASUREMENT_NOT_FOUND,
-        ErrorCode.MEASUREMENT_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
-        ErrorCode.REQUISITION_NOT_FOUND,
-        ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-        ErrorCode.REQUISITION_STATE_ILLEGAL,
-        ErrorCode.EVENT_GROUP_INVALID_ARGS,
-        ErrorCode.EVENT_GROUP_NOT_FOUND,
-        ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,
-        ErrorCode.UNKNOWN_ERROR,
-        ErrorCode.UNRECOGNIZED -> throw e
-      }
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
   }
 }

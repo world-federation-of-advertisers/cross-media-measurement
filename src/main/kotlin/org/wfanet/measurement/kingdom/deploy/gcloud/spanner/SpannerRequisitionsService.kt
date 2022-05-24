@@ -21,7 +21,6 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
-import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.GetRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.RefuseRequisitionRequest
@@ -29,7 +28,11 @@ import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.Refusal
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamRequisitions
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.FulfillRequisition
@@ -91,35 +94,16 @@ class SpannerRequisitionsService(
 
     try {
       return FulfillRequisition(request).execute(client, idGenerator)
+    } catch (e: RequisitionNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Requisition not found." }
+    } catch (e: RequisitionStateIllegalException) {
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Requisition state illegal." }
+    } catch (e: MeasurementStateIllegalException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Measurement state illegal." }
+    } catch (e: DuchyNotFoundException) {
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Duchy not found." }
     } catch (e: KingdomInternalException) {
-      val status: Status =
-        when (e.code) {
-          ErrorCode.REQUISITION_NOT_FOUND -> Status.NOT_FOUND
-          ErrorCode.REQUISITION_STATE_ILLEGAL,
-          ErrorCode.MEASUREMENT_STATE_ILLEGAL,
-          ErrorCode.DUCHY_NOT_FOUND -> Status.FAILED_PRECONDITION
-          ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
-          ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
-          ErrorCode.ACCOUNT_NOT_FOUND,
-          ErrorCode.API_KEY_NOT_FOUND,
-          ErrorCode.PERMISSION_DENIED,
-          ErrorCode.MEASUREMENT_NOT_FOUND,
-          ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
-          ErrorCode.DATA_PROVIDER_NOT_FOUND,
-          ErrorCode.MODEL_PROVIDER_NOT_FOUND,
-          ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-          ErrorCode.CERTIFICATE_NOT_FOUND,
-          ErrorCode.CERTIFICATE_IS_INVALID,
-          ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-          ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-          ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
-          ErrorCode.EVENT_GROUP_INVALID_ARGS,
-          ErrorCode.EVENT_GROUP_NOT_FOUND,
-          ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,
-          ErrorCode.UNKNOWN_ERROR,
-          ErrorCode.UNRECOGNIZED -> throw e
-        }
-      throw status.withCause(e).asRuntimeException()
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
   }
 
@@ -137,35 +121,14 @@ class SpannerRequisitionsService(
 
     try {
       return RefuseRequisition(request).execute(client, idGenerator)
+    } catch (e: RequisitionNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Requisition not found." }
+    } catch (e: RequisitionStateIllegalException) {
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Requisition state illegal." }
+    } catch (e: MeasurementStateIllegalException) {
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Measurement state illegal." }
     } catch (e: KingdomInternalException) {
-      when (e.code) {
-        ErrorCode.REQUISITION_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "Requisition not found" }
-        ErrorCode.REQUISITION_STATE_ILLEGAL ->
-          failGrpc(Status.FAILED_PRECONDITION) { "Requisition is in wrong state" }
-        ErrorCode.MEASUREMENT_STATE_ILLEGAL ->
-          failGrpc(Status.FAILED_PRECONDITION) { "Measurement is in wrong state" }
-        ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
-        ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
-        ErrorCode.ACCOUNT_NOT_FOUND,
-        ErrorCode.API_KEY_NOT_FOUND,
-        ErrorCode.PERMISSION_DENIED,
-        ErrorCode.DUCHY_NOT_FOUND,
-        ErrorCode.MEASUREMENT_NOT_FOUND,
-        ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
-        ErrorCode.DATA_PROVIDER_NOT_FOUND,
-        ErrorCode.MODEL_PROVIDER_NOT_FOUND,
-        ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-        ErrorCode.CERTIFICATE_NOT_FOUND,
-        ErrorCode.CERTIFICATE_IS_INVALID,
-        ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-        ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
-        ErrorCode.EVENT_GROUP_INVALID_ARGS,
-        ErrorCode.EVENT_GROUP_NOT_FOUND,
-        ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,
-        ErrorCode.UNKNOWN_ERROR,
-        ErrorCode.UNRECOGNIZED -> throw e
-      }
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
   }
 }
