@@ -63,14 +63,26 @@ message Report {
   }
   State state = 6;
 
-  message MeasurementKey {
+  message MeasurementInfo {
     // `MeasurementConsumer` ID from the CMMS public API.
     string measurement_consumer_reference_id = 1;
     // `Measurement` ID from the CMMS public API.
     string measurement_reference_id = 2;
+
+    enum State {
+      // Default value. This value is unused.
+      STATE_UNSPECIFIED = 0;
+      // Completed successfully. Terminal state.
+      SUCCEEDED = 1;
+      // Completed with failure. Terminal state.
+      FAILED = 2;
+    }
+    // The state of the `Measurement` derived from the CMMS public API.
+    // Output-only.
+    State state = 3;
   }
-  // `Measurement` reference IDs for measurements created for the `Report`.
-  repeated MeasurementKey measurements = 7;
+  // `Measurement` info for measurements created for the `Report`.
+  repeated MeasurementInfo measurements = 7;
 
   message Details {
     // Map of `EventGroup` resource name to filter predicate.

@@ -103,8 +103,12 @@ CREATE TABLE ReportMeasurements (
   MeasurementReferenceId text NOT NULL,
   ReportId bigint NOT NULL,
 
+  -- org.wfanet.measurement.internal.reporting.Report.MeasurementInfo.State
+  -- protobuf enum encoded as an integer.
+  State smallint NOT NULL,
   -- NULL value allowed to represent a measurement that hasn't succeeded.
   Result bytea,
+  LastSynced timestamptz NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerReferenceId, MeasurementReferenceId),
   FOREIGN KEY(MeasurementConsumerReferenceId, ReportId)
@@ -149,7 +153,7 @@ CREATE TABLE SetOperations (
   SetOperationId bigint NOT NULL,
 
   -- Whether SetOperation is a root SetOperation of a Metric.
-  root boolean NOT NULL,
+  Root boolean NOT NULL,
 
   -- org.wfanet.measurement.internal.reporting.Metric.SetOperation.Type
   -- protobuf enum encoded as an integer.
