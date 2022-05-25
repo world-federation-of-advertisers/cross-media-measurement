@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.kingdom.service.api.v2alpha.tools
+package org.wfanet.measurement.api.v2alpha.tools
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
@@ -169,8 +169,8 @@ class SimpleReportTest {
         "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
         "--tls-key-file=$SECRETS_DIR/mc_tls.key",
         "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
-        "--api-target=$HOST:$PORT",
-        "--api-cert-host=localhost",
+        "--kingdom-public-api-target=$HOST:$PORT",
+        "--kingdom-public-api-cert-host=localhost",
         "create",
         "--measurement-consumer=measurementConsumers/777",
         "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",

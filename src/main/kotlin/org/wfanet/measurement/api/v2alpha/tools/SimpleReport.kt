@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.kingdom.service.api.v2alpha.tools
+package org.wfanet.measurement.api.v2alpha.tools
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
@@ -64,7 +64,7 @@ import picocli.CommandLine
 
 class ApiFlags {
   @CommandLine.Option(
-    names = ["--api-target"],
+    names = ["--kingdom-public-api-target"],
     description = ["gRPC target (authority) of the Kingdom public API server"],
     required = true,
   )
@@ -72,7 +72,7 @@ class ApiFlags {
     private set
 
   @CommandLine.Option(
-    names = ["--api-cert-host"],
+    names = ["--kingdom-public-api-cert-host"],
     description =
       [
         "Expected hostname (DNS-ID) in the Kingdom public API server's TLS certificate.",
