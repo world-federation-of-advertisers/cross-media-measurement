@@ -19,11 +19,9 @@ import com.google.protobuf.timestamp
 import io.grpc.Channel
 import java.io.File
 import kotlin.random.Random
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
-import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt.value as dataProviderEntryValue
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
@@ -36,11 +34,16 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt.value as eventGroupEntryValue
+import com.google.protobuf.kotlin.toByteString
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.Measurement
+import org.wfanet.measurement.api.v2alpha.Measurement.*
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
@@ -50,19 +53,24 @@ import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
+import org.wfanet.measurement.common.crypto.tink.testing.loadPrivateKey
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.toJson
+import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
+import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
+import org.wfanet.measurement.kingdom.service.api.v2alpha.withAuthenticationKey
 import picocli.CommandLine
 
 class ApiFlags {
@@ -263,7 +271,7 @@ class CreateCommand : Runnable {
     it: DataProviderInput,
     measurementConsumerSigningKey: SigningKeyHandle,
     measurementEncryptionPublicKey: ByteString
-  ): Measurement.DataProviderEntry {
+  ): DataProviderEntry {
     return dataProviderEntry {
       val requisitionSpec = requisitionSpec {
         eventGroups.addAll(
@@ -286,7 +294,7 @@ class CreateCommand : Runnable {
 
       key = it.dataProviderName
       val dataProvider =
-        runBlocking(Dispatchers.IO) {
+        runBlocking {
           dataProviderStub.getDataProvider(getDataProviderRequest { name = it.dataProviderName })
         }
       value = dataProviderEntryValue {
@@ -349,7 +357,7 @@ class CreateCommand : Runnable {
     val dataProviderStub = DataProvidersCoroutineStub(parent.channel)
 
     val measurementConsumer =
-      runBlocking(Dispatchers.IO) {
+      runBlocking {
         measurementConsumerStub.getMeasurementConsumer(
           getMeasurementConsumerRequest { name = measurementConsumerName }
         )
@@ -397,7 +405,7 @@ class CreateCommand : Runnable {
     }
 
     val response =
-      runBlocking(Dispatchers.IO) {
+      runBlocking {
         measurementStub.createMeasurement(
           createMeasurementRequest { this.measurement = measurement }
         )
@@ -420,13 +428,13 @@ class ListCommand : Runnable {
   override fun run() {
     val measurementStub = MeasurementsCoroutineStub(parent.channel)
     val response =
-      runBlocking(Dispatchers.IO) {
+      runBlocking {
         measurementStub.listMeasurements(
           listMeasurementsRequest { parent = measurementConsumerName }
         )
       }
     response.measurementList.map {
-      if (it.state == Measurement.State.FAILED) {
+      if (it.state == State.FAILED) {
         println(it.name + " FAILED - " + it.failure.reason + ": " + it.failure.message)
       } else {
         println(it.name + " " + it.state)
@@ -446,14 +454,75 @@ class GetCommand : Runnable {
   )
   private lateinit var measurementName: String
 
+  @CommandLine.Option(
+    names = ["--encryption-private-key-file"],
+    description = ["MeasurementConsumer's EncryptionPrivateKey"],
+    required = true
+  )
+  private lateinit var privateKeyDerFile: File
+
+  private val privateKeyHandle: PrivateKeyHandle by lazy {
+    loadPrivateKey(privateKeyDerFile)
+  }
+
+
+  private fun printMeasurementState(measurement: Measurement) {
+    if (measurement.state == State.FAILED) {
+      println("State: FAILED - " + measurement.failure.reason + ": " + measurement.failure.message)
+    } else {
+      println("State: ${measurement.state}")
+    }
+  }
+
+  private fun getMeasurementResult(
+    resultPair: ResultPair,
+    certificateStub: CertificatesCoroutineStub
+  ): Result {
+    val certificate = runBlocking {
+      certificateStub.getCertificate(getCertificateRequest { name = resultPair.certificate })
+    }
+
+    val signedResult =
+      decryptResult(resultPair.encryptedResult, privateKeyHandle)
+
+    val result = Result.parseFrom(signedResult.data)
+
+    if (!verifyResult(signedResult.signature, result, readCertificate(certificate.x509Der))) {
+      error("Signature of the result is invalid.")
+    }
+    return result
+  }
+
+  private fun printMeasurementResult(result: Result) {
+    if (result.hasReach())  println("Reach - ${result.reach.value}")
+    if (result.hasFrequency()) {
+      println("Frequency - ")
+      result.frequency.relativeFrequencyDistribution.forEach {
+        println("\t${it.key}  ${it.value}")
+      }
+    }
+    if (result.hasImpression()) {
+      println("Impression - ${result.impression.value}")
+    }
+    if (result.hasWatchDuration()) {
+      println("WatchDuration - ${result.watchDuration.value.seconds} seconds {${result.watchDuration.value.nanos}} nanos")
+    }
+  }
+
   override fun run() {
     val measurementStub = MeasurementsCoroutineStub(parent.channel)
-    val measurement =
-      runBlocking(Dispatchers.IO) {
-        measurementStub.getMeasurement(getMeasurementRequest { name = measurementName })
+    val certificateStub = CertificatesCoroutineStub(parent.channel)
+    val measurement = runBlocking {
+      measurementStub.getMeasurement(getMeasurementRequest { name = measurementName })
+    }
+
+    printMeasurementState(measurement)
+    if (measurement.state == State.SUCCEEDED) {
+      measurement.resultsList.map {
+        val result = getMeasurementResult(it, certificateStub)
+        printMeasurementResult(result)
       }
-    // print measurement
-    print(measurement.toJson())
+    }
   }
 }
 

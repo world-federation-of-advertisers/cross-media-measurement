@@ -40,7 +40,10 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt.value as eventGroupEntryValue
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.result
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.dataProvider
@@ -111,6 +114,22 @@ private const val MEASUREMENT_NAME = "$MEASUREMENT_CONSUMER_NAME/measurements/10
 private val MEASUREMENT = measurement {
   name = MEASUREMENT_NAME
 }
+private val SUCCEEDED_MEASUREMENT = measurement {
+  name = MEASUREMENT_NAME
+  state = Measurement.State.SUCCEEDED
+
+  results.add(resultPair{
+    val result = result {
+      reach = reach {
+        value = 4096
+
+      }
+    }
+    certificate = DATA_PROVIDER_CERTIFICATE_NAME
+  })
+
+}
+
 private val LIST_MEASUREMENT_RESPONSE = listMeasurementsResponse {
   measurement.add(measurement {
     name = "$MEASUREMENT_CONSUMER_NAME/measurements/101"
@@ -140,7 +159,7 @@ class SimpleReportTest {
     mockService() {
       onBlocking { createMeasurement(any()) }.thenReturn(MEASUREMENT)
       onBlocking { listMeasurements(any()) }.thenReturn(LIST_MEASUREMENT_RESPONSE)
-      onBlocking { getMeasurement(any()) }.thenReturn(MEASUREMENT)
+      onBlocking { getMeasurement(any()) }.thenReturn(SUCCEEDED_MEASUREMENT)
     }
 
   private lateinit var server: CommonServer
