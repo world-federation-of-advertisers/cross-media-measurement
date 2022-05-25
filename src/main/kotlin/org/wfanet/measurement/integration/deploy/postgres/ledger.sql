@@ -18,6 +18,7 @@ AS ENUM('M', 'F');
 CREATE TYPE AgeGroup
 AS ENUM('18_34', '35_54', '55+');
 
+-- TODO(@uakyol): consider normalizing this table by splitting (Delta, Epsilon) pair to other table
 CREATE TABLE PrivacyBucketCharges(
   -- Which Measurement Consumer this PrivacyBucket belongs to.
   MeasurementConsumerId text NOT NULL,
@@ -56,5 +57,5 @@ CREATE
 ON LedgerEntries(MeasurementConsumerId, ReferenceId);
 
 
--- TODO(@uakyol) :  consider adding a table that links LedgerEntries to BalanceEntries for
+-- TODO(@uakyol): consider adding a table that links LedgerEntries to BalanceEntries for
 -- ad hoc queries
