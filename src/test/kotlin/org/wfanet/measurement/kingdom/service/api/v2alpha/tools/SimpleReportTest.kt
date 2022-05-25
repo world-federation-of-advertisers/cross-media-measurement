@@ -40,7 +40,11 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt.value as eventGroupEntryValue
-import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
+import com.google.protobuf.ByteString
+import com.google.protobuf.duration
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.result
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
@@ -48,6 +52,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.listMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
@@ -56,7 +61,9 @@ import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
+import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.tink.testing.loadPrivateKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.CommonServer
@@ -66,6 +73,8 @@ import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
+import org.wfanet.measurement.consent.client.duchy.encryptResult
+import org.wfanet.measurement.consent.client.duchy.signResult
 import picocli.CommandLine
 
 private const val HOST = "localhost"
@@ -110,6 +119,20 @@ private val DATA_PROVIDER = dataProvider {
   publicKey = signedData { data = DATA_PROVIDER_PUBLIC_KEY }
 }
 
+private val AGGREGATOR_CERTIFICATE_DER = SECRETS_DIR.resolve("aggregator_cs_cert.der").toFile().readByteString()
+private val AGGREGATOR_PRIVATE_KEY_DER = SECRETS_DIR.resolve("aggregator_cs_private.der").toFile().readByteString()
+private val AGGREGATOR_SIGNING_KEY: SigningKeyHandle by lazy {
+  val consentSignal509Cert = readCertificate(AGGREGATOR_CERTIFICATE_DER)
+  SigningKeyHandle(
+    consentSignal509Cert,
+    readPrivateKey(
+      AGGREGATOR_PRIVATE_KEY_DER,
+      consentSignal509Cert.publicKey.algorithm
+    )
+  )
+}
+private val AGGREGATOR_
+
 private const val MEASUREMENT_NAME = "$MEASUREMENT_CONSUMER_NAME/measurements/100"
 private val MEASUREMENT = measurement {
   name = MEASUREMENT_NAME
@@ -118,16 +141,51 @@ private val SUCCEEDED_MEASUREMENT = measurement {
   name = MEASUREMENT_NAME
   state = Measurement.State.SUCCEEDED
 
-  results.add(resultPair{
+  val measurementPublicKey = encryptionPublicKey {
+    format = EncryptionPublicKey.Format.TINK_KEYSET
+    data = MEASUREMENT_PUBLIC_KEY
+  }
+  results += resultPair {
     val result = result {
-      reach = reach {
+      reach = ResultKt.reach {
         value = 4096
-
       }
     }
+    encryptedResult = getEncryptedResult(result, measurementPublicKey)
     certificate = DATA_PROVIDER_CERTIFICATE_NAME
-  })
-
+  }
+  results += resultPair {
+    val result = result {
+      frequency = ResultKt.frequency {
+        relativeFrequencyDistribution.put(1, 1.0 / 6)
+        relativeFrequencyDistribution.put(2, 3.0 / 6)
+        relativeFrequencyDistribution.put(3, 2.0 / 6)
+        }
+      }
+    encryptedResult = getEncryptedResult(result, measurementPublicKey)
+    certificate = DATA_PROVIDER_CERTIFICATE_NAME
+  }
+  results += resultPair {
+    val result = result {
+      impression = ResultKt.impression {
+        value = 4096
+      }
+    }
+    encryptedResult = getEncryptedResult(result, measurementPublicKey)
+    certificate = DATA_PROVIDER_CERTIFICATE_NAME
+  }
+  results += resultPair {
+    val result = result {
+      watchDuration = ResultKt.watchDuration {
+        value = duration {
+          seconds = 100
+          nanos = 99
+        }
+      }
+    }
+    encryptedResult = getEncryptedResult(result, measurementPublicKey)
+    certificate = DATA_PROVIDER_CERTIFICATE_NAME
+  }
 }
 
 private val LIST_MEASUREMENT_RESPONSE = listMeasurementsResponse {
@@ -149,6 +207,11 @@ private val LIST_MEASUREMENT_RESPONSE = listMeasurementsResponse {
   })
 }
 
+private fun getEncryptedResult(result: Measurement.Result, publicKey: EncryptionPublicKey): ByteString {
+  val signedResult = signResult(result, AGGREGATOR_SIGNING_KEY)
+  return encryptResult(signedResult, publicKey)
+}
+
 @RunWith(JUnit4::class)
 class SimpleReportTest {
   private val measurementConsumersServiceMock: MeasurementConsumersCoroutineImplBase =
@@ -161,6 +224,8 @@ class SimpleReportTest {
       onBlocking { listMeasurements(any()) }.thenReturn(LIST_MEASUREMENT_RESPONSE)
       onBlocking { getMeasurement(any()) }.thenReturn(SUCCEEDED_MEASUREMENT)
     }
+  private val certificatesServiceMock: CertificatesCoroutineImplBase =
+    mockService() { onBlocking { getCertificate(any()) }.thenReturn(DATA_PROVIDER) }
 
   private lateinit var server: CommonServer
   @Before

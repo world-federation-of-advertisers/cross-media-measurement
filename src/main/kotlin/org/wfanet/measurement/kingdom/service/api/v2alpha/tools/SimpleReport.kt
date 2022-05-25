@@ -34,10 +34,8 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt.value as eventGroupEntryValue
-import com.google.protobuf.kotlin.toByteString
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Measurement
-import org.wfanet.measurement.api.v2alpha.Measurement.*
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
@@ -70,7 +68,6 @@ import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisit
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
-import org.wfanet.measurement.kingdom.service.api.v2alpha.withAuthenticationKey
 import picocli.CommandLine
 
 class ApiFlags {
@@ -271,7 +268,7 @@ class CreateCommand : Runnable {
     it: DataProviderInput,
     measurementConsumerSigningKey: SigningKeyHandle,
     measurementEncryptionPublicKey: ByteString
-  ): DataProviderEntry {
+  ): Measurement.DataProviderEntry {
     return dataProviderEntry {
       val requisitionSpec = requisitionSpec {
         eventGroups.addAll(
@@ -337,7 +334,7 @@ class CreateCommand : Runnable {
         epsilon = measurementParams.privacyEpsilon
         delta = measurementParams.privacyDelta
       }
-      maximumFrequencyPerUser = maximumFrequencyPerUser
+      maximumFrequencyPerUser = measurementParams.maximumFrequencyPerUser
     }
   }
 
@@ -347,7 +344,7 @@ class CreateCommand : Runnable {
         epsilon = measurementParams.privacyEpsilon
         delta = measurementParams.privacyDelta
       }
-      maximumWatchDurationPerUser = maximumWatchDurationPerUser
+      maximumWatchDurationPerUser = measurementParams.maximumWatchDurationPerUser
     }
   }
 
@@ -434,7 +431,7 @@ class ListCommand : Runnable {
         )
       }
     response.measurementList.map {
-      if (it.state == State.FAILED) {
+      if (it.state == Measurement.State.FAILED) {
         println(it.name + " FAILED - " + it.failure.reason + ": " + it.failure.message)
       } else {
         println(it.name + " " + it.state)
@@ -467,7 +464,7 @@ class GetCommand : Runnable {
 
 
   private fun printMeasurementState(measurement: Measurement) {
-    if (measurement.state == State.FAILED) {
+    if (measurement.state == Measurement.State.FAILED) {
       println("State: FAILED - " + measurement.failure.reason + ": " + measurement.failure.message)
     } else {
       println("State: ${measurement.state}")
@@ -475,9 +472,9 @@ class GetCommand : Runnable {
   }
 
   private fun getMeasurementResult(
-    resultPair: ResultPair,
+    resultPair: Measurement.ResultPair,
     certificateStub: CertificatesCoroutineStub
-  ): Result {
+  ): Measurement.Result {
     val certificate = runBlocking {
       certificateStub.getCertificate(getCertificateRequest { name = resultPair.certificate })
     }
@@ -485,7 +482,7 @@ class GetCommand : Runnable {
     val signedResult =
       decryptResult(resultPair.encryptedResult, privateKeyHandle)
 
-    val result = Result.parseFrom(signedResult.data)
+    val result = Measurement.Result.parseFrom(signedResult.data)
 
     if (!verifyResult(signedResult.signature, result, readCertificate(certificate.x509Der))) {
       error("Signature of the result is invalid.")
@@ -493,11 +490,11 @@ class GetCommand : Runnable {
     return result
   }
 
-  private fun printMeasurementResult(result: Result) {
+  private fun printMeasurementResult(result: Measurement.Result) {
     if (result.hasReach())  println("Reach - ${result.reach.value}")
     if (result.hasFrequency()) {
       println("Frequency - ")
-      result.frequency.relativeFrequencyDistribution.forEach {
+      result.frequency.relativeFrequencyDistributionMap.forEach {
         println("\t${it.key}  ${it.value}")
       }
     }
@@ -517,7 +514,7 @@ class GetCommand : Runnable {
     }
 
     printMeasurementState(measurement)
-    if (measurement.state == State.SUCCEEDED) {
+    if (measurement.state == Measurement.State.SUCCEEDED) {
       measurement.resultsList.map {
         val result = getMeasurementResult(it, certificateStub)
         printMeasurementResult(result)
