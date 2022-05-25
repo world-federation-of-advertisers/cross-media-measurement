@@ -50,6 +50,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.result
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
+import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
@@ -131,7 +132,9 @@ private val AGGREGATOR_SIGNING_KEY: SigningKeyHandle by lazy {
     )
   )
 }
-private val AGGREGATOR_
+private val AGGREGATOR_CERTIFICATE = certificate {
+  x509Der = AGGREGATOR_CERTIFICATE_DER
+}
 
 private const val MEASUREMENT_NAME = "$MEASUREMENT_CONSUMER_NAME/measurements/100"
 private val MEASUREMENT = measurement {
@@ -225,7 +228,7 @@ class SimpleReportTest {
       onBlocking { getMeasurement(any()) }.thenReturn(SUCCEEDED_MEASUREMENT)
     }
   private val certificatesServiceMock: CertificatesCoroutineImplBase =
-    mockService() { onBlocking { getCertificate(any()) }.thenReturn(DATA_PROVIDER) }
+    mockService() { onBlocking { getCertificate(any()) }.thenReturn(AGGREGATOR_CERTIFICATE) }
 
   private lateinit var server: CommonServer
   @Before
