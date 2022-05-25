@@ -85,8 +85,13 @@ interface PrivacyBudgetLedgerTransactionContext : AutoCloseable {
     reference: Reference
   )
 
-  /** Checks if the charges with the [referenceId] should be processed. */
-  fun shouldProcess(referenceId: String, isRefund: Boolean): Boolean
+  /**
+   * Checks if the charges with the [referenceId] should be processed. This can return an inaccurate
+   * result if having multiple in-flight entries with the same (MC ID, reference ID). This is
+   * because we only check that isRefund is the opposite of the most recent recorded ledger entry
+   * for that tuple.
+   */
+  fun shouldProcess(reference:Reference): Boolean
 
   // TODO(@uakyol) : expose reference entries for replayability purposes.
 

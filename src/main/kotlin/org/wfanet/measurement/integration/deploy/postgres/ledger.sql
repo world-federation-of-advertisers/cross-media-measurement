@@ -18,7 +18,7 @@ AS ENUM('M', 'F');
 CREATE TYPE AgeGroup
 AS ENUM('18_34', '35_54', '55+');
 
-CREATE TABLE Balances(
+CREATE TABLE PrivacyBucketCharges(
   -- Which Measurement Consumer this PrivacyBucket belongs to.
   MeasurementConsumerId text NOT NULL,
   -- Day for this PrivacyBucket. DD-MM-YYYY.

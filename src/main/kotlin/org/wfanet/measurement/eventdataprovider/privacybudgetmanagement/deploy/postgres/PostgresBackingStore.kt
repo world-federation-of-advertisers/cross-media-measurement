@@ -17,13 +17,13 @@ import java.sql.Connection
 import java.sql.PreparedStatement
 import java.sql.ResultSet
 import java.sql.Statement
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Charge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetBalanceEntry
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerBackingStore
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerTransactionContext
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Charge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
 
 /**
@@ -82,21 +82,21 @@ class PostgresBackingStoreTransactionContext(
     }
   }
 
-  private fun getLastReference(referenceId: String): Boolean? {
+  private fun getLastReference(measurementConsumerId: String, referenceId: String): Boolean? {
     val selectSql =
       """
         SELECT
-          ReferenceId,
           IsRefund,
           CreateTime
         FROM LedgerEntries
         WHERE
-          ReferenceId = ?
+          MeasurementConsumerId = ? AND ReferenceId = ?
         Order by CreateTime DESC
         Limit 1
       """.trimIndent()
     connection.prepareStatement(selectSql).use { statement: PreparedStatement ->
-      statement.setString(1, referenceId)
+      statement.setString(1, measurementConsumerId)
+      statement.setString(2, referenceId)
       // TODO(@duliomatos) Make the blocking IO run within a dispatcher using coroutines
       statement.executeQuery().use { rs: ResultSet ->
         if (rs.next()) {
@@ -107,8 +107,10 @@ class PostgresBackingStoreTransactionContext(
     return null
   }
 
-  override fun shouldProcess(referenceId: String, IsRefund: Boolean): Boolean =
-    getLastReference(referenceId)?.xor(IsRefund) ?: true
+  override fun shouldProcess(reference: Reference): Boolean =
+    getLastReference(reference.measurementConsumerId, reference.referenceId)
+      ?.xor(reference.isRefund)
+      ?: true
 
   override fun findIntersectingLedgerEntries(
     privacyBucketGroup: PrivacyBucketGroup
@@ -121,7 +123,7 @@ class PostgresBackingStoreTransactionContext(
           Delta,
           Epsilon,
           RepetitionCount
-        FROM Balances
+        FROM PrivacyBucketCharges
         WHERE
           MeasurementConsumerId = ?
           AND Date = ?
@@ -160,7 +162,7 @@ class PostgresBackingStoreTransactionContext(
     throwIfTransactionHasEnded(listOf(privacyBucketGroup))
     val insertEntrySql =
       """
-        INSERT into Balances (
+        INSERT into PrivacyBucketCharges (
           MeasurementConsumerId,
           Date,
           AgeGroup,
@@ -186,7 +188,7 @@ class PostgresBackingStoreTransactionContext(
           Delta,
           Epsilon)
       DO
-         UPDATE SET RepetitionCount = ? + Balances.RepetitionCount;
+         UPDATE SET RepetitionCount = ? + PrivacyBucketCharges.RepetitionCount;
       """.trimIndent()
     connection.prepareStatement(insertEntrySql).use { statement: PreparedStatement ->
       statement.setString(1, privacyBucketGroup.measurementConsumerId)

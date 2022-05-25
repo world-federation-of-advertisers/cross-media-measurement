@@ -18,11 +18,11 @@ import java.time.LocalDate
 import org.junit.Before
 import org.junit.Test
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Charge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Gender
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerBackingStore
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerTransactionContext
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Charge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
 
 private const val MEASUREMENT_CONSUMER_ID = "MC"
@@ -146,6 +146,52 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
   }
 
   @Test(timeout = 15000)
+  fun `addLedgerEntries works for different MCs with the same referenceId`() {
+    val requisitionId = "RequisitioId1"
+    createBackingStore().use { backingStore: PrivacyBudgetLedgerBackingStore ->
+      backingStore.startTransaction().use { txContext: PrivacyBudgetLedgerTransactionContext ->
+        val bucket1 =
+          PrivacyBucketGroup(
+            "ACME",
+            LocalDate.parse("2021-07-01"),
+            LocalDate.parse("2021-07-01"),
+            AgeGroup.RANGE_35_54,
+            Gender.MALE,
+            0.3f,
+            0.1f
+          )
+
+        val charge = Charge(0.01f, 0.0001f)
+        txContext.addLedgerEntries(
+          setOf(bucket1),
+          setOf(charge),
+          Reference(MEASUREMENT_CONSUMER_ID, requisitionId, false)
+        )
+        val matchingLedgerEntries = txContext.findIntersectingLedgerEntries(bucket1)
+        assertThat(matchingLedgerEntries.size).isEqualTo(1)
+
+        assertThat(matchingLedgerEntries[0].repetitionCount).isEqualTo(1)
+        txContext.addLedgerEntries(
+          setOf(bucket1),
+          setOf(charge),
+          Reference(MEASUREMENT_CONSUMER_ID, requisitionId, true)
+        )
+        val newMatchingLedgerEntries = txContext.findIntersectingLedgerEntries(bucket1)
+        assertThat(newMatchingLedgerEntries.size).isEqualTo(1)
+        assertThat(newMatchingLedgerEntries[0].repetitionCount).isEqualTo(0)
+
+        txContext.addLedgerEntries(
+          setOf(bucket1),
+          setOf(charge),
+          Reference("otherMeasurementConsumerId", requisitionId, false)
+        )
+        val otherMcMatchingLedgerEntries = txContext.findIntersectingLedgerEntries(bucket1)
+        assertThat(otherMcMatchingLedgerEntries.size).isEqualTo(1)
+      }
+    }
+  }
+
+  @Test(timeout = 15000)
   fun `commit() persists a transaction after it closes`() {
     val backingStore = createBackingStore()
     val txContext = backingStore.startTransaction()
@@ -211,9 +257,11 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
     val txContext2 = backingStore.startTransaction()
 
     // charge should not be proccessed if same
-    assertThat(txContext2.shouldProcess("RequisitioId1", false)).isFalse()
+    assertThat(txContext2.shouldProcess(Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", false)))
+      .isFalse()
     // but refund is allowed
-    assertThat(txContext2.shouldProcess("RequisitioId1", true)).isTrue()
+    assertThat(txContext2.shouldProcess(Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", true)))
+      .isTrue()
     // refund works
 
     txContext2.addLedgerEntries(
@@ -224,7 +272,47 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
     txContext2.commit()
     val txContext3 = backingStore.startTransaction()
     // now charge is allowed again
-    assertThat(txContext3.shouldProcess("RequisitioId1", false)).isTrue()
+    assertThat(txContext3.shouldProcess(Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", false)))
+      .isTrue()
     txContext3.commit()
+  }
+
+  @Test(timeout = 15000)
+  fun `shouldProcess works correctly for Multiple MCs`() {
+    val backingStore = createBackingStore()
+    val txContext1 = backingStore.startTransaction()
+    val requisitionId = "RequisitioId1"
+    val bucket1 =
+      PrivacyBucketGroup(
+        "ACME",
+        LocalDate.parse("2021-07-01"),
+        LocalDate.parse("2021-07-01"),
+        AgeGroup.RANGE_35_54,
+        Gender.MALE,
+        0.3f,
+        0.1f
+      )
+
+    val charge = Charge(0.01f, 0.0001f)
+    // charge works
+    txContext1.addLedgerEntries(
+      setOf(bucket1),
+      setOf(charge),
+      Reference(MEASUREMENT_CONSUMER_ID, requisitionId, false)
+    )
+
+    txContext1.commit()
+    val txContext2 = backingStore.startTransaction()
+
+    // charge should not be proccessed if same
+    assertThat(txContext2.shouldProcess(Reference(MEASUREMENT_CONSUMER_ID, requisitionId, false)))
+      .isFalse()
+    // but other measurement consumer can charge with the same RequisitionId is allowed
+    assertThat(
+        txContext2.shouldProcess(Reference("OtherMeasurementConsumer", requisitionId, false))
+      )
+      .isTrue()
+
+    txContext2.commit()
   }
 }

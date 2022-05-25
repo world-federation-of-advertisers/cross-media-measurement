@@ -45,7 +45,7 @@ class PrivacyBudgetPostgresSchemaTest {
     val statement = connection.createStatement()
     val insertSql =
       """
-      INSERT INTO Balances (
+      INSERT INTO PrivacyBucketCharges (
         MeasurementConsumerId,
         Date,
         AgeGroup,
@@ -66,7 +66,7 @@ class PrivacyBudgetPostgresSchemaTest {
       );
       """
     val selectSql = """
-      SELECT Gender, Delta from Balances
+      SELECT Gender, Delta from PrivacyBucketCharges
       """
     statement.execute(schema)
     statement.execute(insertSql)

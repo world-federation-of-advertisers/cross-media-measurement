@@ -36,7 +36,8 @@ open class InMemoryBackingStore : PrivacyBudgetLedgerBackingStore {
   protected val balances:
     MutableMap<PrivacyBucketGroup, MutableMap<Charge, PrivacyBudgetBalanceEntry>> =
     mutableMapOf()
-  private val referenceLedger: MutableList<PrivacyBudgetLedgerEntry> = mutableListOf()
+  private val referenceLedger: MutableMap<String, MutableList<PrivacyBudgetLedgerEntry>> =
+    mutableMapOf()
 
   override fun startTransaction(): InMemoryBackingStoreTransactionContext =
     InMemoryBackingStoreTransactionContext(balances, referenceLedger)
@@ -45,33 +46,35 @@ open class InMemoryBackingStore : PrivacyBudgetLedgerBackingStore {
 }
 
 class InMemoryBackingStoreTransactionContext(
-  val balances:
-    MutableMap<PrivacyBucketGroup, MutableMap<Charge, PrivacyBudgetBalanceEntry>>,
-  val referenceLedger: MutableList<PrivacyBudgetLedgerEntry>,
+  val balances: MutableMap<PrivacyBucketGroup, MutableMap<Charge, PrivacyBudgetBalanceEntry>>,
+  val referenceLedger: MutableMap<String, MutableList<PrivacyBudgetLedgerEntry>>,
 ) : PrivacyBudgetLedgerTransactionContext {
 
   private var transactionBalances = balances.toMutableMap()
-  private var transactionReferenceLedger = referenceLedger.toMutableList()
+  private var transactionReferenceLedger = referenceLedger.toMutableMap()
 
   // Adds a new row to the ledger referencing an element that caused charges to the store this key
   // is usually the requisitionId.
-  private fun addReferenceEntry(privacyReference: Reference) {
-    transactionReferenceLedger.add(
+  private fun addReferenceEntry(reference: Reference) {
+    val measurementConsumerLedger =
+      transactionReferenceLedger.getOrPut(reference.measurementConsumerId) { mutableListOf() }
+    measurementConsumerLedger.add(
       PrivacyBudgetLedgerEntry(
-        privacyReference.measurementConsumerId,
-        privacyReference.referenceId,
-        privacyReference.isRefund,
+        reference.measurementConsumerId,
+        reference.referenceId,
+        reference.isRefund,
         Instant.now()
       )
     )
   }
 
-  override fun shouldProcess(referenceId: String, isRefund: Boolean): Boolean =
+  override fun shouldProcess(reference: Reference): Boolean =
     transactionReferenceLedger
-      .filter { it.referenceId == referenceId }
-      .sortedByDescending { it.createTime }
-      .firstOrNull()
-      ?.isRefund?.xor(isRefund)
+      .get(reference.measurementConsumerId)
+      ?.filter { it.referenceId == reference.referenceId }
+      ?.sortedByDescending { it.createTime }
+      ?.firstOrNull()
+      ?.isRefund?.xor(reference.isRefund)
       ?: true
 
   override fun findIntersectingLedgerEntries(
@@ -110,7 +113,7 @@ class InMemoryBackingStoreTransactionContext(
 
   override fun commit() {
     referenceLedger.clear()
-    referenceLedger.addAll(transactionReferenceLedger)
+    referenceLedger.putAll(transactionReferenceLedger)
 
     balances.clear()
     balances.putAll(transactionBalances)
