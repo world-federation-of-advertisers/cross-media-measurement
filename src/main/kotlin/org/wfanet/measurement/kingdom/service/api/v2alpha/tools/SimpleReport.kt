@@ -102,11 +102,18 @@ class CreateCommand : Runnable {
   )
   private lateinit var privateKeyDerFile: File
 
+  @CommandLine.Option(
+    names = ["--measurement-ref-id"],
+    description = ["Measurement reference id"],
+    required = false,
+  )
+  private lateinit var measurementReferenceId: String
+
   @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*", heading = "Add DataProviders\n")
   private lateinit var dataProviderInputs: List<DataProviderInput>
 
-  private fun String.toTimestamp(): Timestamp {
-    val instant = OffsetDateTime.parse(this).toInstant()
+  private fun convertToTimestamp(date: OffsetDateTime): Timestamp {
+    val instant = date.toInstant()
     return timestamp {
       seconds = instant.epochSecond
       nanos = instant.nano
@@ -120,6 +127,7 @@ class CreateCommand : Runnable {
       required = true,
     )
     lateinit var name: String
+      private set
 
     @CommandLine.ArgGroup(
       exclusive = false,
@@ -127,6 +135,7 @@ class CreateCommand : Runnable {
       heading = "Add EventGroups for a DataProvider\n"
     )
     lateinit var eventGroupInputs: List<EventGroupInput>
+      private set
   }
 
   class EventGroupInput {
@@ -136,35 +145,33 @@ class CreateCommand : Runnable {
       required = true,
     )
     lateinit var name: String
+      private set
 
     @CommandLine.Option(
       names = ["--event-filter"],
       description = ["Raw CEL expression of EventFilter"],
       required = false,
+      defaultValue = ""
     )
-    var eventFilter: String = ""
+    lateinit var eventFilter: String
+      private set
 
     @CommandLine.Option(
       names = ["--event-start-time"],
       description = ["Start time of Event range in ISO 8601 format"],
       required = true,
     )
-    lateinit var eventStartTime: String
+    lateinit var eventStartTime: OffsetDateTime
+      private set
 
     @CommandLine.Option(
       names = ["--event-end-time"],
       description = ["End time of Event range in ISO 8601 format"],
       required = true,
     )
-    lateinit var eventEndTime: String
+    lateinit var eventEndTime: OffsetDateTime
+      private set
   }
-
-  @CommandLine.Option(
-    names = ["--measurement-ref-id"],
-    description = ["Measurement reference id"],
-    required = false,
-  )
-  private lateinit var measurementReferenceId: String
 
   private fun getDataProviderEntry(
     dataProviderStub: DataProvidersCoroutineStub,
@@ -174,21 +181,20 @@ class CreateCommand : Runnable {
   ): Measurement.DataProviderEntry {
     return dataProviderEntry {
       val requisitionSpec = requisitionSpec {
-        eventGroups.addAll(
+        eventGroups +=
           it.eventGroupInputs.map {
             eventGroupEntry {
               key = it.name
               value = eventGroupEntryValue {
                 collectionInterval = timeInterval {
-                  startTime = it.eventStartTime.toTimestamp()
-                  endTime = it.eventEndTime.toTimestamp()
+                  startTime = convertToTimestamp(it.eventStartTime)
+                  endTime = convertToTimestamp(it.eventEndTime)
                 }
                 if (it.eventFilter.isNotEmpty())
                   filter = eventFilter { expression = it.eventFilter }
               }
             }
           }
-        )
         this.measurementPublicKey = measurementEncryptionPublicKey
         nonce = Random.Default.nextLong()
       }
@@ -238,7 +244,7 @@ class CreateCommand : Runnable {
 
     val measurement = measurement {
       this.measurementConsumerCertificate = measurementConsumer.certificate
-      dataProviders.addAll(
+      dataProviders +=
         dataProviderInputs.map {
           getDataProviderEntry(
             dataProviderStub,
@@ -247,10 +253,9 @@ class CreateCommand : Runnable {
             measurementEncryptionPublicKey
           )
         }
-      )
       val unsignedMeasurementSpec = measurementSpec {
         measurementPublicKey = measurementEncryptionPublicKey
-        nonceHashes.addAll(this@measurement.dataProviders.map { it.value.nonceHash })
+        nonceHashes += this@measurement.dataProviders.map { it.value.nonceHash }
         reachAndFrequency = reachAndFrequency {
           reachPrivacyParams = differentialPrivacyParams {
             epsilon = 1.0
