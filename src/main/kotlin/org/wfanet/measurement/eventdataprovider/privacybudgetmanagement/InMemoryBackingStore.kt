@@ -82,12 +82,12 @@ class InMemoryBackingStoreTransactionContext(
 
   override fun addLedgerEntries(
     privacyBucketGroups: Set<PrivacyBucketGroup>,
-    Charges: Set<Charge>,
-    privacyReference: Reference
+    charges: Set<Charge>,
+    reference: Reference
   ) {
     // Update the balance for all the charges.
     for (queryBucketGroup in privacyBucketGroups) {
-      for (charge in Charges) {
+      for (charge in charges) {
         val balanceEntries = transactionBalances.getOrPut(queryBucketGroup) { mutableMapOf() }
 
         val balanceEntry =
@@ -97,7 +97,7 @@ class InMemoryBackingStoreTransactionContext(
           PrivacyBudgetBalanceEntry(
             queryBucketGroup,
             charge,
-            if (privacyReference.isRefund) balanceEntry.repetitionCount - 1
+            if (reference.isRefund) balanceEntry.repetitionCount - 1
             else balanceEntry.repetitionCount + 1
           )
         )
@@ -105,7 +105,7 @@ class InMemoryBackingStoreTransactionContext(
     }
 
     // Record the reference for these charges.
-    addReferenceEntry(privacyReference)
+    addReferenceEntry(reference)
   }
 
   override fun commit() {

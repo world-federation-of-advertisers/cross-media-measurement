@@ -228,14 +228,14 @@ class PostgresBackingStoreTransactionContext(
   override fun addLedgerEntries(
     privacyBucketGroups: Set<PrivacyBucketGroup>,
     privacyCharges: Set<Charge>,
-    privacyReference: Reference
+    reference: Reference
   ) {
     for (privacyBucketGroup in privacyBucketGroups) {
       for (privacyCharge in privacyCharges) {
-        addBalanceEntry(privacyBucketGroup, privacyCharge, privacyReference.isRefund)
+        addBalanceEntry(privacyBucketGroup, privacyCharge, reference.isRefund)
       }
     }
-    addLedgerEntry(privacyReference)
+    addLedgerEntry(reference)
   }
 
   override fun commit() {

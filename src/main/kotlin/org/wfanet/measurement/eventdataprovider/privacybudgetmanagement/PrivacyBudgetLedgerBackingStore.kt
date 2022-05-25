@@ -85,8 +85,8 @@ interface PrivacyBudgetLedgerTransactionContext : AutoCloseable {
     reference: Reference
   )
 
-  /** Checks if the charges with the [referenceKey] should be processed. */
-  fun shouldProcess(referenceKey: String, isRefund: Boolean): Boolean
+  /** Checks if the charges with the [referenceId] should be processed. */
+  fun shouldProcess(referenceId: String, isRefund: Boolean): Boolean
 
   // TODO(@uakyol) : expose reference entries for replayability purposes.
 
