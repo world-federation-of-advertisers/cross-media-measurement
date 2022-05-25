@@ -18,7 +18,7 @@ AS ENUM('M', 'F');
 CREATE TYPE AgeGroup
 AS ENUM('18_34', '35_54', '55+');
 
-CREATE TABLE BalanceEntries(
+CREATE TABLE Balances(
   -- Which Measurement Consumer this PrivacyBucket belongs to.
   MeasurementConsumerId text NOT NULL,
   -- Day for this PrivacyBucket. DD-MM-YYYY.
@@ -52,7 +52,7 @@ CREATE TABLE LedgerEntries(
 
 -- Used to query references quickly
 CREATE
-  INDEX LedgerEntriesByKey
+  INDEX LedgerEntriesByReferenceId
 ON LedgerEntries(MeasurementConsumerId, ReferenceId);
 
 

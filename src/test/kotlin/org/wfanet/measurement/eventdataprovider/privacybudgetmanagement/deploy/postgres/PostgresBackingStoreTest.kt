@@ -61,7 +61,7 @@ class PostgresBackingStoreTest : AbstractPrivacyBudgetLedgerStoreTest() {
         statement.executeUpdate(
           """
           DROP TABLE IF EXISTS LedgerEntries CASCADE;
-          DROP TABLE IF EXISTS BalanceEntries CASCADE;
+          DROP TABLE IF EXISTS Balances CASCADE;
           DROP TYPE IF EXISTS Gender CASCADE;
           DROP TYPE IF EXISTS AgeGroup CASCADE;
         """.trimIndent()

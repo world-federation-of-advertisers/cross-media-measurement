@@ -21,7 +21,7 @@ class CompositionTest {
   fun `advanced composition computation works as expected`() {
     assertThat(
         Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
-          PrivacyCharge(1.0f, 0.0f),
+          Charge(1.0f, 0.0f),
           30,
           0.0f
         )
@@ -29,7 +29,7 @@ class CompositionTest {
       .isEqualTo(30.0f)
     assertThat(
         Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
-          PrivacyCharge(1.0f, 0.001f),
+          Charge(1.0f, 0.001f),
           30,
           0.06f
         )
@@ -37,7 +37,7 @@ class CompositionTest {
       .isEqualTo(22.0f)
     assertThat(
         Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
-          PrivacyCharge(1.0f, 0.001f),
+          Charge(1.0f, 0.001f),
           30,
           0.1f
         )
@@ -45,7 +45,7 @@ class CompositionTest {
       .isEqualTo(20.0f)
     assertThat(
         Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
-          PrivacyCharge(1.0f, 0.2f),
+          Charge(1.0f, 0.2f),
           1,
           0.1f
         )
@@ -53,7 +53,7 @@ class CompositionTest {
       .isEqualTo(Float.MAX_VALUE)
     assertThat(
         Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
-          PrivacyCharge(1.0f, 0.01f),
+          Charge(1.0f, 0.01f),
           30,
           0.26f
         )

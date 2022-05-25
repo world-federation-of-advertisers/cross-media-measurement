@@ -47,9 +47,9 @@ class PrivacyBudgetManager(
   val ledger = PrivacyBudgetLedger(backingStore, maximumPrivacyBudget, maximumTotalDelta)
 
   /**
-   * Constructs a pbm specific [PrivacyQuery] from given proto messages.
+   * Constructs a pbm specific [Query] from given proto messages.
    *
-   * @param privacyReference representing the reference key and if the charge is a refund.
+   * @param reference representing the reference key and if the charge is a refund.
    * @param measurementSpec The measurementSpec protobuf that is associated with the query. The VID
    * sampling interval is obtained from from this.
    * @param requisitionSpec The requisitionSpec protobuf that is associated with the query. The date
@@ -59,14 +59,14 @@ class PrivacyBudgetManager(
    * to the database.
    */
   private fun getPrivacyQuery(
-    privacyReference: PrivacyReference,
+    reference: Reference,
     requisitionSpec: RequisitionSpec,
     measurementSpec: MeasurementSpec
-  ): PrivacyQuery {
+  ): Query {
     val charge =
       when (measurementSpec.measurementTypeCase) {
         MeasurementTypeCase.REACH_AND_FREQUENCY ->
-          PrivacyCharge(
+          Charge(
             measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon.toFloat() +
               measurementSpec.reachAndFrequency.frequencyPrivacyParams.epsilon.toFloat(),
             measurementSpec.reachAndFrequency.reachPrivacyParams.delta.toFloat() +
@@ -88,22 +88,22 @@ class PrivacyBudgetManager(
         // }
 
         MeasurementTypeCase.IMPRESSION ->
-          PrivacyCharge(
+          Charge(
             measurementSpec.impression.privacyParams.epsilon.toFloat(),
             measurementSpec.impression.privacyParams.delta.toFloat()
           )
         MeasurementTypeCase.DURATION ->
-          PrivacyCharge(
+          Charge(
             measurementSpec.duration.privacyParams.epsilon.toFloat(),
             measurementSpec.duration.privacyParams.delta.toFloat()
           )
         else -> throw IllegalArgumentException("Measurement type not supported")
       }
-    return PrivacyQuery(
-      privacyReference,
-      PrivacyLandscapeMask(
+    return Query(
+      reference,
+      LandscapeMask(
         requisitionSpec.getEventGroupsList().map {
-          PrivacyEventGroupSpec(
+          EventGroupSpec(
             it.value.filter.expression,
             it.value.collectionInterval.startTime.toLocalDate("UTC"),
             it.value.collectionInterval.endTime.toLocalDate("UTC")
@@ -117,21 +117,21 @@ class PrivacyBudgetManager(
   }
 
   // TODO(@uakyol) : make this function public for then purpose of replays.
-  private fun chargePrivacyBudget(privacyQuery: PrivacyQuery) =
+  private fun chargePrivacyBudget(query: Query) =
     ledger.chargePrivacyBucketGroups(
-      privacyQuery.privacyReference,
+      query.reference,
       filter.getPrivacyBucketGroups(
-        privacyQuery.privacyReference.measurementConsumerId,
-        privacyQuery.privacyLandscapeMask
+        query.reference.measurementConsumerId,
+        query.landscapeMask
       ),
-      setOf(privacyQuery.privacyCharge)
+      setOf(query.charge)
     )
 
   /**
    * Charges all of the privacy buckets identified by the given measurementSpec and requisitionSpec,
    * if possible.
    *
-   * @param privacyReference representing the reference key and if the charge is a refund.
+   * @param Reference representing the reference key and if the charge is a refund.
    * @param measurementConsumerId that the charges are for.
    * @param requisitionSpec The requisitionSpec protobuf that is associated with the query. The date
    * range and demo groups are obtained from this.
@@ -142,10 +142,10 @@ class PrivacyBudgetManager(
    * to the database.
    */
   fun chargePrivacyBudget(
-    privacyReference: PrivacyReference,
+    reference: Reference,
     requisitionSpec: RequisitionSpec,
     measurementSpec: MeasurementSpec
-  ) = chargePrivacyBudget(getPrivacyQuery(privacyReference, requisitionSpec, measurementSpec))
+  ) = chargePrivacyBudget(getPrivacyQuery(reference, requisitionSpec, measurementSpec))
 }
 
 // TODO(@uakyol): Update time conversion after getting alignment on civil calendar days.

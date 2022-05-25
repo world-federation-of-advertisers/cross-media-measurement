@@ -30,11 +30,11 @@ class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
    */
   fun getPrivacyBucketGroups(
     measurementConsumerId: String,
-    privacyLandscapeMask: PrivacyLandscapeMask
+    privacyLandscapeMask: LandscapeMask
   ): Set<PrivacyBucketGroup> {
 
     return privacyLandscapeMask
-      .privacyEventGroupSpecs
+      .eventGroupSpecs
       .flatMap {
         getPrivacyBucketGroups(
           measurementConsumerId,

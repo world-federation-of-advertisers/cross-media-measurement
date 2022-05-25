@@ -96,11 +96,11 @@ private val DURATION_MEASUREMENT_SPEC = measurementSpec {
 class PrivacyBudgetManagerTest {
   private val privacyBucketFilter = PrivacyBucketFilter(TestPrivacyBucketMapper())
 
-  private fun createPrivacyReference(id: Int, isRefund: Boolean = false) =
-    PrivacyReference(MEASUREMENT_CONSUMER_ID, "RequisitioId${id}", isRefund)
+  private fun createReference(id: Int, isRefund: Boolean = false) =
+    Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId${id}", isRefund)
 
   private fun PrivacyBudgetManager.assertChargeExceedsPrivacyBudget(
-    privacyReference: PrivacyReference,
+    privacyReference: Reference,
     measurementSpec: MeasurementSpec
   ) {
     val exception =
@@ -122,7 +122,7 @@ class PrivacyBudgetManagerTest {
     val exception =
       assertFailsWith<PrivacyBudgetManagerException> {
         pbm.chargePrivacyBudget(
-          createPrivacyReference(1),
+          createReference(1),
           REQUISITION_SPEC,
           REACH_AND_FREQ_MEASUREMENT_SPEC
         )
@@ -154,7 +154,7 @@ class PrivacyBudgetManagerTest {
     val exception =
       assertFailsWith<PrivacyBudgetManagerException> {
         pbm.chargePrivacyBudget(
-          createPrivacyReference(1),
+          createReference(1),
           requisitionSpec,
           REACH_AND_FREQ_MEASUREMENT_SPEC
         )
@@ -170,13 +170,13 @@ class PrivacyBudgetManagerTest {
 
     // The charge succeeds and fills the Privacy Budget.
     pbm.chargePrivacyBudget(
-      createPrivacyReference(1),
+      createReference(1),
       REQUISITION_SPEC,
       REACH_AND_FREQ_MEASUREMENT_SPEC
     )
 
     // Second charge should exceed the budget.
-    pbm.assertChargeExceedsPrivacyBudget(createPrivacyReference(2), REACH_AND_FREQ_MEASUREMENT_SPEC)
+    pbm.assertChargeExceedsPrivacyBudget(createReference(2), REACH_AND_FREQ_MEASUREMENT_SPEC)
   }
 
   @Test
@@ -186,13 +186,13 @@ class PrivacyBudgetManagerTest {
 
     // The charge succeeds and fills the Privacy Budget.
     pbm.chargePrivacyBudget(
-      createPrivacyReference(1),
+      createReference(1),
       REQUISITION_SPEC,
       IMPRESSION_MEASUREMENT_SPEC
     )
 
     // Second charge should exceed the budget.
-    pbm.assertChargeExceedsPrivacyBudget(createPrivacyReference(2), IMPRESSION_MEASUREMENT_SPEC)
+    pbm.assertChargeExceedsPrivacyBudget(createReference(2), IMPRESSION_MEASUREMENT_SPEC)
   }
 
   @Test
@@ -202,12 +202,12 @@ class PrivacyBudgetManagerTest {
 
     // The charge succeeds and fills the Privacy Budget.
     pbm.chargePrivacyBudget(
-      createPrivacyReference(1),
+      createReference(1),
       REQUISITION_SPEC,
       DURATION_MEASUREMENT_SPEC
     )
 
     // Second charge should exceed the budget.
-    pbm.assertChargeExceedsPrivacyBudget(createPrivacyReference(2), DURATION_MEASUREMENT_SPEC)
+    pbm.assertChargeExceedsPrivacyBudget(createReference(2), DURATION_MEASUREMENT_SPEC)
   }
 }

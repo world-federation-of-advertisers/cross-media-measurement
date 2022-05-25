@@ -34,7 +34,7 @@ import java.time.Instant
  */
 open class InMemoryBackingStore : PrivacyBudgetLedgerBackingStore {
   protected val balances:
-    MutableMap<PrivacyBucketGroup, MutableMap<PrivacyCharge, PrivacyBudgetBalanceEntry>> =
+    MutableMap<PrivacyBucketGroup, MutableMap<Charge, PrivacyBudgetBalanceEntry>> =
     mutableMapOf()
   private val referenceLedger: MutableList<PrivacyBudgetLedgerEntry> = mutableListOf()
 
@@ -46,7 +46,7 @@ open class InMemoryBackingStore : PrivacyBudgetLedgerBackingStore {
 
 class InMemoryBackingStoreTransactionContext(
   val balances:
-    MutableMap<PrivacyBucketGroup, MutableMap<PrivacyCharge, PrivacyBudgetBalanceEntry>>,
+    MutableMap<PrivacyBucketGroup, MutableMap<Charge, PrivacyBudgetBalanceEntry>>,
   val referenceLedger: MutableList<PrivacyBudgetLedgerEntry>,
 ) : PrivacyBudgetLedgerTransactionContext {
 
@@ -55,20 +55,20 @@ class InMemoryBackingStoreTransactionContext(
 
   // Adds a new row to the ledger referencing an element that caused charges to the store this key
   // is usually the requisitionId.
-  private fun addReferenceEntry(privacyReference: PrivacyReference) {
+  private fun addReferenceEntry(privacyReference: Reference) {
     transactionReferenceLedger.add(
       PrivacyBudgetLedgerEntry(
         privacyReference.measurementConsumerId,
-        privacyReference.referenceKey,
+        privacyReference.referenceId,
         privacyReference.isRefund,
         Instant.now()
       )
     )
   }
 
-  override fun shouldProcess(referenceKey: String, isRefund: Boolean): Boolean =
+  override fun shouldProcess(referenceId: String, isRefund: Boolean): Boolean =
     transactionReferenceLedger
-      .filter { it.referenceKey == referenceKey }
+      .filter { it.referenceId == referenceId }
       .sortedByDescending { it.createTime }
       .firstOrNull()
       ?.isRefund?.xor(isRefund)
@@ -82,12 +82,12 @@ class InMemoryBackingStoreTransactionContext(
 
   override fun addLedgerEntries(
     privacyBucketGroups: Set<PrivacyBucketGroup>,
-    privacyCharges: Set<PrivacyCharge>,
-    privacyReference: PrivacyReference
+    Charges: Set<Charge>,
+    privacyReference: Reference
   ) {
     // Update the balance for all the charges.
     for (queryBucketGroup in privacyBucketGroups) {
-      for (charge in privacyCharges) {
+      for (charge in Charges) {
         val balanceEntries = transactionBalances.getOrPut(queryBucketGroup) { mutableMapOf() }
 
         val balanceEntry =

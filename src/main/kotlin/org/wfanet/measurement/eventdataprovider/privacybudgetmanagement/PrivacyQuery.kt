@@ -16,35 +16,35 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 import java.time.LocalDate
 
 /** Represents a charge that will be made to a privacy budget */
-data class PrivacyCharge(val epsilon: Float, val delta: Float)
+data class Charge(val epsilon: Float, val delta: Float)
 
 /**
  * Represents an element that caused charges to the manager and wheter or not if those charges were
  * positive or refunds. [referenceKey] is usally requisitionId
  */
-data class PrivacyReference(
+data class Reference(
   val measurementConsumerId: String,
-  val referenceKey: String,
+  val referenceId: String,
   val isRefund: Boolean
 )
 
 /** Represents a privacy filter for one event group. */
-data class PrivacyEventGroupSpec(
+data class EventGroupSpec(
   val eventFilter: String,
   val startDate: LocalDate,
   val endDate: LocalDate
 )
 
 /** Represents a mask to the PrivacyLandscape. */
-data class PrivacyLandscapeMask(
-  val privacyEventGroupSpecs: List<PrivacyEventGroupSpec>,
+data class LandscapeMask(
+  val eventGroupSpecs: List<EventGroupSpec>,
   val vidSampleStart: Float,
   val vidSampleWidth: Float
 )
 
 /** Represents multiple charges to the multiple buckets in the PrivacyLandscape. */
-data class PrivacyQuery(
-  val privacyReference: PrivacyReference,
-  val privacyLandscapeMask: PrivacyLandscapeMask,
-  val privacyCharge: PrivacyCharge
+data class Query(
+  val reference: Reference,
+  val landscapeMask: LandscapeMask,
+  val charge: Charge
 )

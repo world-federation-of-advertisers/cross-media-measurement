@@ -44,9 +44,9 @@ class PrivacyBucketFilterTest {
   @Test
   fun `Mapper fails for invalid filter expression`() {
     val privacyLandscapeMask =
-      PrivacyLandscapeMask(
+      LandscapeMask(
         listOf(
-          PrivacyEventGroupSpec(
+          EventGroupSpec(
             "privacy_budget.age.value",
             LocalDate.now(ZoneId.of("UTC")).minusDays(1).atStartOfDay().toLocalDate(),
             LocalDate.now(ZoneId.of("UTC")).atStartOfDay().toLocalDate()
@@ -65,9 +65,9 @@ class PrivacyBucketFilterTest {
   fun `Filter succeeds for filter expression with only privacy budget Fields`() {
 
     val privacyLandscapeMask =
-      PrivacyLandscapeMask(
+      LandscapeMask(
         listOf(
-          PrivacyEventGroupSpec(
+          EventGroupSpec(
             "privacy_budget.age.value in [0] && privacy_budget.gender.value == 1",
             LocalDate.now(ZoneId.of("UTC")).minusDays(1).atStartOfDay().toLocalDate(),
             LocalDate.now(ZoneId.of("UTC")).atStartOfDay().toLocalDate()
@@ -124,9 +124,9 @@ class PrivacyBucketFilterTest {
   fun `Mapper succeeds with privacy budget Field and non Privacy budget fields`() {
 
     val privacyLandscapeMask =
-      PrivacyLandscapeMask(
+      LandscapeMask(
         listOf(
-          PrivacyEventGroupSpec(
+          EventGroupSpec(
             "privacy_budget.age.value in [0] && privacy_budget.gender.value == 1 && " +
               "banner_ad.gender.value == 1",
             LocalDate.now(ZoneId.of("UTC")).minusDays(1).atStartOfDay().toLocalDate(),
@@ -184,9 +184,9 @@ class PrivacyBucketFilterTest {
   fun `Non Privacy Budget Fields may charge more bucgkets than necessary`() {
 
     val privacyLandscapeMask =
-      PrivacyLandscapeMask(
+      LandscapeMask(
         listOf(
-          PrivacyEventGroupSpec(
+          EventGroupSpec(
             "privacy_budget.age.value in [0] && privacy_budget.gender.value == 1 || " +
               "banner_ad.gender.value == 1",
             LocalDate.now(ZoneId.of("UTC")).minusDays(1).atStartOfDay().toLocalDate(),
