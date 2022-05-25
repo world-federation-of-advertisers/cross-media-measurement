@@ -160,7 +160,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
       assertFailsWith<StatusRuntimeException> {
         computationParticipantsService.setParticipantRequisitionParams(request)
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception).hasMessageThat().contains("Duchy not found")
   }
 
@@ -194,7 +194,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         computationParticipantsService.setParticipantRequisitionParams(request)
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("Computation participant not found")
+    assertThat(exception).hasMessageThat().contains("ComputationParticipant not found")
   }
 
   @Test
@@ -228,9 +228,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
           computationParticipantsService.setParticipantRequisitionParams(request)
         }
       assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-      assertThat(exception)
-        .hasMessageThat()
-        .contains("Certificate for Computation participant not found")
+      assertThat(exception).hasMessageThat().contains("Duchy's Certificate not found")
     }
 
   @Test
@@ -710,7 +708,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         )
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    assertThat(exception).hasMessageThat().contains("Measurement State is Illegal")
+    assertThat(exception).hasMessageThat().contains("Measurement state is illegal")
   }
 
   @Test

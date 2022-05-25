@@ -118,10 +118,6 @@ main() {
   host_bazelisk_cache_dir="$(ensure_host_bazelisk_cache_dir)"
   readonly host_bazelisk_cache_dir
 
-  local output_volume
-  output_volume="$(get_output_volume)"
-  readonly output_volume
-
   mkdir -p "${OUTPUT_BASE}"
 
   local -a docker_options=(
@@ -141,8 +137,6 @@ main() {
       "type=bind,source=${host_output_user_root},target=${OUTPUT_USER_ROOT}"
     '--mount'
       "type=bind,source=${host_bazelisk_cache_dir},target=${BAZELISK_HOME}"
-    '--mount'
-      "type=volume,source=${output_volume},target=${OUTPUT_BASE}"
     '--mount'
       "type=bind,source=${docker_socket},target=/var/run/docker.sock"
     "--workdir=${PWD}"
@@ -166,14 +160,27 @@ main() {
     )
   fi
 
+  if [[ "${OSTYPE}" == 'linux'* ]]; then
+    docker_options+=(
+      '--mount'
+        "type=bind,source=${OUTPUT_BASE},target=${OUTPUT_BASE}"
+    )
+  else
+    # Mount OUTPUT_BASE as a named volume to avoid potential filesystem
+    # incompatibilities.
+
+    local output_volume
+    output_volume="$(get_output_volume)"
+    readonly output_volume
+
+    docker_options+=(
+      '--mount'
+        "type=volume,source=${output_volume},target=${OUTPUT_BASE}"
+    )
+  fi
+
   if ! is_rootless; then
     local -r owner="${EUID}:${GROUPS[0]}"
-
-    # Set volume ownership.
-    ${DOCKER} run --rm \
-      --mount type=volume,source="${output_volume}",target="${OUTPUT_BASE}" \
-      --entrypoint=/bin/sh "${IMAGE}" \
-      -c "touch ${OUTPUT_BASE}/.initialized && chown ${owner} ${OUTPUT_BASE}"
 
     docker_options+=(
       "--user=${owner}"
@@ -208,8 +215,7 @@ main() {
     "${DOCKER}" cp "$HOME/.bazelrc" "${container_id}:${CONTAINER_HOME}/"
   fi
 
-  echo "Running in Bazel container with output volume ${output_volume}:" \
-    "${command} $*" >&2
+  echo "Running in Bazel container: ${command} $*" >&2
   exec "${DOCKER}" start --attach --interactive "${container_id}"
 }
 
