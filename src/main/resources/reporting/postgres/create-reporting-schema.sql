@@ -123,7 +123,9 @@ CREATE TABLE ReportMeasurements (
 
   PRIMARY KEY(MeasurementConsumerReferenceId, MeasurementReferenceId, ReportId),
   FOREIGN KEY(MeasurementConsumerReferenceId, ReportId)
-      REFERENCES Reports(MeasurementConsumerReferenceId, ReportId)
+      REFERENCES Reports(MeasurementConsumerReferenceId, ReportId),
+  FOREIGN KEY(MeasurementConsumerReferenceId, MeasurementConsumerReferenceId)
+        REFERENCES Measurements(MeasurementConsumerReferenceId, MeasurementReferenceId)
 );
 
 -- changeset tristanvuong2021:create-reporting-sets-table dbms:postgresql
