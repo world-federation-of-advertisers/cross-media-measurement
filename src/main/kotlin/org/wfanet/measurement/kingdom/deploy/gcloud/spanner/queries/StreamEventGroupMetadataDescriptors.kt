@@ -42,7 +42,8 @@ class StreamEventGroupMetadataDescriptors(
     val conjuncts = mutableListOf<String>()
     if (filter.externalEventGroupMetadataDescriptorIdsList.isNotEmpty()) {
       conjuncts.add(
-        "ExternalEventGroupMetadataDescriptorId IN UNNEST(@$EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_IDS)"
+        "ExternalEventGroupMetadataDescriptorId IN " +
+          "UNNEST(@$EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_IDS)"
       )
       bind(EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_IDS)
         .toInt64Array(filter.externalEventGroupMetadataDescriptorIdsList.map { it.toLong() })
@@ -59,7 +60,8 @@ class StreamEventGroupMetadataDescriptors(
         """
           ((ExternalDataProviderId > @$EXTERNAL_DATA_PROVIDER_ID_AFTER)
           OR (ExternalDataProviderId = @$EXTERNAL_DATA_PROVIDER_ID_AFTER
-          AND ExternalEventGroupMetadataDescriptorId > @$EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_ID_AFTER))
+          AND ExternalEventGroupMetadataDescriptorId >
+          @$EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_ID_AFTER))
         """.trimIndent()
       )
       bind(EXTERNAL_DATA_PROVIDER_ID_AFTER).to(filter.externalDataProviderIdAfter)
