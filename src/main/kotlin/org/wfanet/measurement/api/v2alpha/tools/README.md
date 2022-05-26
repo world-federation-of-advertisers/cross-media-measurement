@@ -91,14 +91,14 @@ to the executable.
   --data-provider=dataProviders/1 \
   --event-group=dataProviders/1/eventGroups/1 \
   --event-filter="video_ad.age.value == 1" \
-  --event-start-time=2022-05-22T01:00:00+00:00 \
-  --event-end-time=2022-05-24T05:00:00+00:00 \
+  --event-start-time=2022-05-22T01:00:00.000Z \
+  --event-end-time=2022-05-24T05:00:00.000Z \
   --event-group=dataProviders/1/eventGroups/2 \
   --event-filter="video_ad.age.value == 2" \
-  --event-start-time=2022-05-22T01:22:32-05:00 \
-  --event-end-time=2022-05-23T03:14:55-05:00 \
+  --event-start-time=2022-05-22T01:22:32.250Z \
+  --event-end-time=2022-05-23T03:14:55.450Z \
   --data-provider=dataProviders/2 \
   --event-group=dataProviders/2/eventGroups/1 \
-  --event-start-time=2022-04-22T01:19:42+03:00 \
-  --event-end-time=2022-05-22T01:56:12+05:00
+  --event-start-time=2022-04-22T01:19:42.336Z \
+  --event-end-time=2022-05-22T01:56:12.257Z
   ```

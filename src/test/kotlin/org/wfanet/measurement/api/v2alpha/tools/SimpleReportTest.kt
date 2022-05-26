@@ -106,12 +106,12 @@ private val DATA_PROVIDER = dataProvider {
 
 private val MEASUREMENT = Measurement.getDefaultInstance()
 
-private val TIME_STRING_1 = "2022-05-22T01:00:00+00:00"
-private val TIME_STRING_2 = "2022-05-24T05:00:00+00:00"
-private val TIME_STRING_3 = "2022-05-22T01:22:32-05:00"
-private val TIME_STRING_4 = "2022-05-23T03:14:55-05:00"
-private val TIME_STRING_5 = "2022-04-22T01:19:42+03:00"
-private val TIME_STRING_6 = "2022-05-22T01:56:12+05:00"
+private val TIME_STRING_1 = "2022-05-22T01:00:00.000Z"
+private val TIME_STRING_2 = "2022-05-24T05:00:00.000Z"
+private val TIME_STRING_3 = "2022-05-22T01:22:32.122Z"
+private val TIME_STRING_4 = "2022-05-23T03:14:55.876Z"
+private val TIME_STRING_5 = "2022-04-22T01:19:42.567Z"
+private val TIME_STRING_6 = "2022-05-22T01:56:12.483Z"
 
 @RunWith(JUnit4::class)
 class SimpleReportTest {

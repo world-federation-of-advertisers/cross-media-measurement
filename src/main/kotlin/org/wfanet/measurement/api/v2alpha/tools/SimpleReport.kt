@@ -19,7 +19,7 @@ import com.google.protobuf.Timestamp
 import com.google.protobuf.timestamp
 import io.grpc.Channel
 import java.io.File
-import java.time.OffsetDateTime
+import java.time.Instant
 import kotlin.random.Random
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -112,8 +112,7 @@ class CreateCommand : Runnable {
   @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*", heading = "Add DataProviders\n")
   private lateinit var dataProviderInputs: List<DataProviderInput>
 
-  private fun convertToTimestamp(date: OffsetDateTime): Timestamp {
-    val instant = date.toInstant()
+  private fun convertToTimestamp(instant: Instant): Timestamp {
     return timestamp {
       seconds = instant.epochSecond
       nanos = instant.nano
@@ -158,18 +157,18 @@ class CreateCommand : Runnable {
 
     @CommandLine.Option(
       names = ["--event-start-time"],
-      description = ["Start time of Event range in ISO 8601 format"],
+      description = ["Start time of Event range in ISO 8601 format of UTC"],
       required = true,
     )
-    lateinit var eventStartTime: OffsetDateTime
+    lateinit var eventStartTime: Instant
       private set
 
     @CommandLine.Option(
       names = ["--event-end-time"],
-      description = ["End time of Event range in ISO 8601 format"],
+      description = ["End time of Event range in ISO 8601 format of UTC"],
       required = true,
     )
-    lateinit var eventEndTime: OffsetDateTime
+    lateinit var eventEndTime: Instant
       private set
   }
 
