@@ -16,12 +16,14 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha.tools
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
-import io.grpc.Channel
+import io.grpc.ManagedChannel
 import java.io.File
 import kotlin.random.Random
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt.value as dataProviderEntryValue
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
@@ -34,8 +36,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt.value as eventGroupEntryValue
-import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
@@ -60,7 +60,6 @@ import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.tink.testing.loadPrivateKey
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
-import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
@@ -290,10 +289,9 @@ class CreateCommand : Runnable {
       }
 
       key = it.dataProviderName
-      val dataProvider =
-        runBlocking {
-          dataProviderStub.getDataProvider(getDataProviderRequest { name = it.dataProviderName })
-        }
+      val dataProvider = runBlocking {
+        dataProviderStub.getDataProvider(getDataProviderRequest { name = it.dataProviderName })
+      }
       value = dataProviderEntryValue {
         dataProviderCertificate = dataProvider.certificate
         dataProviderPublicKey = dataProvider.publicKey
@@ -353,12 +351,11 @@ class CreateCommand : Runnable {
     val measurementStub = MeasurementsCoroutineStub(parent.channel)
     val dataProviderStub = DataProvidersCoroutineStub(parent.channel)
 
-    val measurementConsumer =
-      runBlocking {
-        measurementConsumerStub.getMeasurementConsumer(
-          getMeasurementConsumerRequest { name = measurementConsumerName }
-        )
-      }
+    val measurementConsumer = runBlocking {
+      measurementConsumerStub.getMeasurementConsumer(
+        getMeasurementConsumerRequest { name = measurementConsumerName }
+      )
+    }
     val measurementConsumerCertificate = readCertificate(measurementConsumer.certificateDer)
     val measurementConsumerPrivateKey =
       readPrivateKey(
@@ -401,13 +398,12 @@ class CreateCommand : Runnable {
       measurementReferenceId = measurementRefId ?: ""
     }
 
-    val response =
-      runBlocking {
-        measurementStub.createMeasurement(
-          createMeasurementRequest { this.measurement = measurement }
-        )
-      }
+    val response = runBlocking {
+      measurementStub.createMeasurement(createMeasurementRequest { this.measurement = measurement })
+    }
     print(response.toJson())
+
+    parent.channel.shutdown()
   }
 }
 
@@ -424,12 +420,9 @@ class ListCommand : Runnable {
 
   override fun run() {
     val measurementStub = MeasurementsCoroutineStub(parent.channel)
-    val response =
-      runBlocking {
-        measurementStub.listMeasurements(
-          listMeasurementsRequest { parent = measurementConsumerName }
-        )
-      }
+    val response = runBlocking {
+      measurementStub.listMeasurements(listMeasurementsRequest { parent = measurementConsumerName })
+    }
     response.measurementList.map {
       if (it.state == Measurement.State.FAILED) {
         println(it.name + " FAILED - " + it.failure.reason + ": " + it.failure.message)
@@ -437,6 +430,8 @@ class ListCommand : Runnable {
         println(it.name + " " + it.state)
       }
     }
+
+    parent.channel.shutdown()
   }
 }
 
@@ -458,10 +453,7 @@ class GetCommand : Runnable {
   )
   private lateinit var privateKeyDerFile: File
 
-  private val privateKeyHandle: PrivateKeyHandle by lazy {
-    loadPrivateKey(privateKeyDerFile)
-  }
-
+  private val privateKeyHandle: PrivateKeyHandle by lazy { loadPrivateKey(privateKeyDerFile) }
 
   private fun printMeasurementState(measurement: Measurement) {
     if (measurement.state == Measurement.State.FAILED) {
@@ -479,8 +471,7 @@ class GetCommand : Runnable {
       certificateStub.getCertificate(getCertificateRequest { name = resultPair.certificate })
     }
 
-    val signedResult =
-      decryptResult(resultPair.encryptedResult, privateKeyHandle)
+    val signedResult = decryptResult(resultPair.encryptedResult, privateKeyHandle)
 
     val result = Measurement.Result.parseFrom(signedResult.data)
 
@@ -491,7 +482,7 @@ class GetCommand : Runnable {
   }
 
   private fun printMeasurementResult(result: Measurement.Result) {
-    if (result.hasReach())  println("Reach - ${result.reach.value}")
+    if (result.hasReach()) println("Reach - ${result.reach.value}")
     if (result.hasFrequency()) {
       println("Frequency - ")
       result.frequency.relativeFrequencyDistributionMap.forEach {
@@ -502,7 +493,9 @@ class GetCommand : Runnable {
       println("Impression - ${result.impression.value}")
     }
     if (result.hasWatchDuration()) {
-      println("WatchDuration - ${result.watchDuration.value.seconds} seconds ${result.watchDuration.value.nanos} nanos")
+      println(
+        "WatchDuration - ${result.watchDuration.value.seconds} seconds ${result.watchDuration.value.nanos} nanos"
+      )
     }
   }
 
@@ -520,6 +513,8 @@ class GetCommand : Runnable {
         printMeasurementResult(result)
       }
     }
+
+    parent.channel.shutdown()
   }
 }
 
@@ -539,7 +534,7 @@ class SimpleReport : Runnable {
   @CommandLine.Mixin private lateinit var tlsFlags: TlsFlags
   @CommandLine.Mixin private lateinit var apiFlags: ApiFlags
 
-  val channel: Channel by lazy {
+  val channel: ManagedChannel by lazy {
     val clientCerts =
       SigningCerts.fromPemFiles(
         certificateFile = tlsFlags.certFile,
@@ -547,7 +542,6 @@ class SimpleReport : Runnable {
         trustedCertCollectionFile = tlsFlags.certCollectionFile
       )
     buildMutualTlsChannel(apiFlags.apiTarget, clientCerts, apiFlags.apiCertHost)
-      .withVerboseLogging(true)
   }
   override fun run() {}
 }
