@@ -43,7 +43,10 @@ message Metric {
   oneof metric_type {
     // The count of unique audiences reached given a set of event groups.
     ReachParams reach = 1;
-    // The reach frequency histogram given a set of event groups.
+    // The reach frequency histogram given a set of event groups. Currently, we
+    // only support union operations for frequency histograms. Any other
+    // operations on frequency histograms won't guarantee the result is a
+    // frequency histogram.
     FrequencyHistogramParams frequency_histogram = 2;
     // The impression count given a set of event groups.
     ImpressionCountParams impression_count = 3;
@@ -101,5 +104,6 @@ message Metric {
   }
 
   // A list of named `SetOperations` on which the same metric will be applied.
-  repeated NamedSetOperation set_operations = 7;
+  repeated NamedSetOperation set_operations = 7
+      [(google.api.field_behavior) = REQUIRED];
 }

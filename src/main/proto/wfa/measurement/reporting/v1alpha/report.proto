@@ -36,9 +36,12 @@ message Report {
   string name = 1;
 
   // Representation of a Measurement Consumer entity.
-  string measurement_consumer = 2 [(google.api.resource_reference) = {
-    type: "halo.wfanet.org/MeasurementConsumer"
-  }];
+  string measurement_consumer = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "halo.wfanet.org/MeasurementConsumer"
+    }
+  ];
 
   // Map entry of `EventGroup` to filter predicate.
   message EventGroupFilter {
@@ -59,6 +62,7 @@ message Report {
       [(google.api.field_behavior) = REQUIRED];
 
   // Types of time intervals for metric aggregation.
+  // REQUIRED
   oneof time {
     // A list of time intervals with different start times and end times.
     TimeIntervals time_intervals = 4;
