@@ -23,11 +23,23 @@ option java_multiple_files = true;
 
 // Internal service for persistence of Report entities.
 service Reports {
-  rpc CreateReport(Report) returns (Report);
+  rpc CreateReport(CreateReportRequest) returns (Report);
 
   rpc GetReport(GetReportRequest) returns (Report);
 
   rpc StreamReports(StreamReportsRequest) returns (stream Report);
+}
+
+message CreateReportRequest {
+  Report report = 1;
+
+  message MeasurementKey {
+    // `MeasurementConsumer` ID from the CMMS public API.
+    string measurement_consumer_reference_id = 1;
+    // `Measurement` ID from the CMMS public API.
+    string measurement_reference_id = 2;
+  }
+  repeated MeasurementKey measurements = 2;
 }
 
 message GetReportRequest {

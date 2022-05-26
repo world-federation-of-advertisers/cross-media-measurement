@@ -65,7 +65,7 @@ message Report {
   // Depends on `Measurement` states. Output-only.
   State state = 6;
 
-  // List of `Measurement` for the `Report`.
+  // List of `Measurement` for the `Report`. Output-only.
   repeated Measurement measurements = 7;
 
   message Details {
