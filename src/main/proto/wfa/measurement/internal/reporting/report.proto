@@ -62,6 +62,7 @@ message Report {
     // Completed with failure. Terminal state.
     FAILED = 3;
   }
+  // Depends on `Measurement` states. Output-only.
   State state = 6;
 
   // List of `Measurement` for the `Report`.
@@ -71,7 +72,7 @@ message Report {
     // Map of `EventGroup` resource name to filter predicate.
     map<string, string> event_group_filters = 1;
 
-    // Result in CSV format.
+    // Result in CSV format. Set only when `state` is `SUCCEEDED`. Output-only.
     string result = 2;
   }
   Details details = 8;

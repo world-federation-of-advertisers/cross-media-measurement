@@ -27,7 +27,9 @@ service Reports {
 
   rpc GetMeasurement(GetMeasurementRequest) returns (Measurement);
 
-  rpc UpdateMeasurement(UpdateMeasurementRequest) returns (Measurement);
+  rpc SetMeasurementResult(SetMeasurementResultRequest) returns (Measurement);
+
+  rpc SetMeasurementFailure(SetMeasurementFailureRequest) returns (Measurement);
 }
 
 message CreateMeasurementRequest {
@@ -42,7 +44,17 @@ message GetMeasurementRequest {
   bytes request = 1;
 }
 
-message UpdateMeasurementRequest {
+message SetMeasurementResultRequest {
+  // `MeasurementConsumer` ID from the CMMS public API.
+  string measurement_consumer_reference_id = 1;
+  // `Measurement` ID from the CMMS public API.
+  string measurement_reference_id = 2;
+
+  Measurement.State state = 3;
+  Measurement.Result result = 5;
+}
+
+message SetMeasurementFailureRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
   string measurement_consumer_reference_id = 1;
   // `Measurement` ID from the CMMS public API.
@@ -50,5 +62,4 @@ message UpdateMeasurementRequest {
 
   Measurement.State state = 3;
   Measurement.Failure failure = 4;
-  Measurement.Result result = 5;
 }
