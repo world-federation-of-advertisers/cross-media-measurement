@@ -125,6 +125,10 @@ CREATE TABLE Measurements (
   PRIMARY KEY(MeasurementConsumerReferenceId, MeasurementReferenceId)
 );
 
+-- changeset tristanvuong2021:create-measurements-by-request-index dbms:postgresql
+CREATE INDEX MeasurementsByRequest
+  ON Measurements(Request);
+
 -- changeset tristanvuong2021:create-report-measurements-table dbms:postgresql
 CREATE TABLE ReportMeasurements (
   MeasurementConsumerReferenceId text NOT NULL,
@@ -152,6 +156,10 @@ CREATE TABLE ReportingSets (
   UNIQUE (MeasurementConsumerReferenceId, ExternalReportingSetId)
 );
 
+-- changeset tristanvuong2021:create-reporting-sets-by-external-reporting-set-id-index dbms:postgresql
+CREATE INDEX ReportingSetsByExternalReportingSetId
+  ON ReportingSets(MeasurementConsumerReferenceId, ExternalReportingSetId);
+
 -- changeset tristanvuong2021:create-reporting-set-event-groups-table dbms:postgresql
 CREATE TABLE ReportingSetEventGroups (
   MeasurementConsumerReferenceId text NOT NULL,
@@ -163,10 +171,6 @@ CREATE TABLE ReportingSetEventGroups (
   FOREIGN KEY(MeasurementConsumerReferenceId, ReportingSetId)
     REFERENCES ReportingSets(MeasurementConsumerReferenceId, ReportingSetId)
 );
-
--- changeset tristanvuong2021:create-reporting-sets-by-external-reporting-set-id-index dbms:postgresql
-CREATE INDEX ReportingSetsByExternalReportingSetId
-  ON ReportingSets(MeasurementConsumerReferenceId, ExternalReportingSetId);
 
 -- changeset tristanvuong2021:create-set-operations-table dbms:postgresql
 CREATE TABLE SetOperations (
