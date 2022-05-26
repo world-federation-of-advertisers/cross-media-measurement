@@ -70,7 +70,7 @@ to the executable.
 * Create
 
   Assuming you have a private key for `MeasurementConsumer` containing
-  [`mc_cs_private.der`](../../../../../../../k8s/testing/secretfiles/mc_cs_private.tink)
+  [`mc_cs_private.der`](../../../../../../../k8s/testing/secretfiles/mc_cs_private.der)
   at `secretfiles/mc_cs_private.pb`.
 
   Given that the `Measurement` contains 2 `DataProviderEntries` of `dataProviders/1`
