@@ -1,7 +1,10 @@
 load("@rules_java//java:defs.bzl", "java_binary")
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 
-package(default_visibility = ["//src/test/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha/tools:__subpackages__"])
+package(
+    default_testonly = True,
+    default_visibility = ["//src/test/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha/tools:__subpackages__"],
+)
 
 kt_jvm_library(
     name = "simple_report",
@@ -21,6 +24,7 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",

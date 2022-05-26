@@ -48,6 +48,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.result
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.certificate
@@ -238,6 +239,7 @@ class SimpleReportTest {
         measurementConsumersServiceMock.bindService(),
         dataProvidersServiceMock.bindService(),
         measurementsServiceMock.bindService(),
+        certificatesServiceMock.bindService(),
       )
 
     val serverCerts =
@@ -459,6 +461,51 @@ class SimpleReportTest {
   }
 
   @Test
+  fun `Create command call public api with correct Impression params`() {
+    val input =
+      """
+      --tls-cert-file=$SECRETS_DIR/mc_tls.pem
+      --tls-key-file=$SECRETS_DIR/mc_tls.key
+      --cert-collection-file=$SECRETS_DIR/kingdom_root.pem
+      --api-target=$HOST:$PORT
+      --api-cert-host=localhost
+      create
+      --type=IMPRESSION
+      --privacy-epsilon=2.0 --privacy-delta=3.0
+      --max-frequency=1000
+      --measurement-consumer-name=measurementConsumers/777
+      --private-key-der-file=$SECRETS_DIR/mc_cs_private.der
+      --data-provider-name=dataProviders/1
+      --event-group-name=dataProviders/1/eventGroups/1 --event-filter-expression=abcd
+      --event-filter-start-time=100 --event-filter-end-time=200
+      """.trimIndent()
+
+    val args = input.split(" ", "\n").toTypedArray()
+    CommandLine(SimpleReport()).execute(*args)
+
+    val request =
+      captureFirst<CreateMeasurementRequest> {
+        runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
+      }
+    val measurement = request.measurement
+
+    val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
+    assertThat(measurementSpec)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        measurementSpec {
+          impression = impression {
+            privacyParams = differentialPrivacyParams {
+              epsilon = measurementParams.privacyEpsilon
+              delta = measurementParams.privacyDelta
+            }
+            maximumFrequencyPerUser = measurementParams.maximumFrequencyPerUser
+          }
+        }
+      )
+  }
+
+  @Test
   fun `List command call public api with correct request`() {
     val args = arrayOf(
       "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
@@ -481,7 +528,8 @@ class SimpleReportTest {
       "--api-target=$HOST:$PORT",
       "--api-cert-host=localhost",
       "get",
-      "--measurement-name=$MEASUREMENT_NAME"
+      "--measurement-name=$MEASUREMENT_NAME",
+      "--encryption-private-key-file=$SECRETS_DIR/mc_enc_private.tink",
     )
     CommandLine(SimpleReport()).execute(*args)
   }

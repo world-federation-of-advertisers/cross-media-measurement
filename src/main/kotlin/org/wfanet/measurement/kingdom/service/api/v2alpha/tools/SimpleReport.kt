@@ -502,7 +502,7 @@ class GetCommand : Runnable {
       println("Impression - ${result.impression.value}")
     }
     if (result.hasWatchDuration()) {
-      println("WatchDuration - ${result.watchDuration.value.seconds} seconds {${result.watchDuration.value.nanos}} nanos")
+      println("WatchDuration - ${result.watchDuration.value.seconds} seconds ${result.watchDuration.value.nanos} nanos")
     }
   }
 
