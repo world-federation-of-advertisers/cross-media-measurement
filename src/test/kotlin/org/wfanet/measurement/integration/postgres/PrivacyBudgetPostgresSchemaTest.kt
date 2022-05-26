@@ -76,7 +76,7 @@ class PrivacyBudgetPostgresSchemaTest {
     assertEquals(0.1f, result.getFloat("delta"))
   }
 
-    @Test
+  @Test
   fun `privacy budget ledger can be written and read`() {
     val connection: Connection = pg.embeddedPostgres.postgresDatabase.connection
     val statement = connection.createStatement()
@@ -94,7 +94,8 @@ class PrivacyBudgetPostgresSchemaTest {
         NOW()
       );
       """
-    val selectSql = """
+    val selectSql =
+      """
       SELECT MeasurementConsumerId, ReferenceId, IsRefund from LedgerEntries
       """
     statement.execute(schema)

@@ -83,12 +83,12 @@ import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup as PrivacyLandscapeAge
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Charge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Gender as PrivacyLandscapeGender
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetBalanceEntry
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Charge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestInMemoryBackingStore
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
@@ -344,8 +344,7 @@ class EdpSimulatorTest {
         getExpectedResult(matchingVids, vidSamplingIntervalStart, vidSamplingIntervalWidth)
       )
 
-      val balanceLedger:
-        Map<PrivacyBucketGroup, MutableMap<Charge, PrivacyBudgetBalanceEntry>> =
+      val balanceLedger: Map<PrivacyBucketGroup, MutableMap<Charge, PrivacyBudgetBalanceEntry>> =
         backingStore.getBalance()
 
       // All the Buckets are only charged once, so all entries should have a repetition count of 1.

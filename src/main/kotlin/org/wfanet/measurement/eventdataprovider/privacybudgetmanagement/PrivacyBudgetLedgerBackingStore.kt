@@ -87,14 +87,13 @@ interface PrivacyBudgetLedgerTransactionContext : AutoCloseable {
 
   /**
    * See if there's an existing ledger entry by assuming that the timestamp is either
-   * 1. that of the most recent entry if the most recent entry with (MC ID, Reference ID)
-   * also has the same value for isRefund, or
-   * 2. now.
-   * This can return an inaccurate result if having multiple in-flight entries with the same
+   * 1. that of the most recent entry if the most recent entry with (MC ID, Reference ID) also has
+   * the same value for isRefund, or
+   * 2. now. This can return an inaccurate result if having multiple in-flight entries with the same
    * (MC ID, reference ID). This is because we only check that isRefund is the opposite of the most
    * recent recorded ledger entry for that tuple.
    */
-  fun hasLedgerEntry(reference:Reference): Boolean
+  fun hasLedgerEntry(reference: Reference): Boolean
 
   // TODO(@uakyol) : expose reference entries for replayability purposes.
 

@@ -105,11 +105,7 @@ class PrivacyBudgetManagerTest {
   ) {
     val exception =
       assertFailsWith<PrivacyBudgetManagerException> {
-        chargePrivacyBudget(
-          privacyReference,
-          REQUISITION_SPEC,
-          measurementSpec
-        )
+        chargePrivacyBudget(privacyReference, REQUISITION_SPEC, measurementSpec)
       }
     assertThat(exception.errorType)
       .isEqualTo(PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED)
@@ -169,11 +165,7 @@ class PrivacyBudgetManagerTest {
     val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
 
     // The charge succeeds and fills the Privacy Budget.
-    pbm.chargePrivacyBudget(
-      createReference(1),
-      REQUISITION_SPEC,
-      REACH_AND_FREQ_MEASUREMENT_SPEC
-    )
+    pbm.chargePrivacyBudget(createReference(1), REQUISITION_SPEC, REACH_AND_FREQ_MEASUREMENT_SPEC)
 
     // Second charge should exceed the budget.
     pbm.assertChargeExceedsPrivacyBudget(createReference(2), REACH_AND_FREQ_MEASUREMENT_SPEC)
@@ -185,11 +177,7 @@ class PrivacyBudgetManagerTest {
     val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
 
     // The charge succeeds and fills the Privacy Budget.
-    pbm.chargePrivacyBudget(
-      createReference(1),
-      REQUISITION_SPEC,
-      IMPRESSION_MEASUREMENT_SPEC
-    )
+    pbm.chargePrivacyBudget(createReference(1), REQUISITION_SPEC, IMPRESSION_MEASUREMENT_SPEC)
 
     // Second charge should exceed the budget.
     pbm.assertChargeExceedsPrivacyBudget(createReference(2), IMPRESSION_MEASUREMENT_SPEC)
@@ -201,11 +189,7 @@ class PrivacyBudgetManagerTest {
     val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
 
     // The charge succeeds and fills the Privacy Budget.
-    pbm.chargePrivacyBudget(
-      createReference(1),
-      REQUISITION_SPEC,
-      DURATION_MEASUREMENT_SPEC
-    )
+    pbm.chargePrivacyBudget(createReference(1), REQUISITION_SPEC, DURATION_MEASUREMENT_SPEC)
 
     // Second charge should exceed the budget.
     pbm.assertChargeExceedsPrivacyBudget(createReference(2), DURATION_MEASUREMENT_SPEC)

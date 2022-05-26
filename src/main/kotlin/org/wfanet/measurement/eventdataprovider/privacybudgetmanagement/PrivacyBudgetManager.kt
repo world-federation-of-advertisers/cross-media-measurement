@@ -120,10 +120,7 @@ class PrivacyBudgetManager(
   private fun chargePrivacyBudget(query: Query) =
     ledger.chargePrivacyBucketGroups(
       query.reference,
-      filter.getPrivacyBucketGroups(
-        query.reference.measurementConsumerId,
-        query.landscapeMask
-      ),
+      filter.getPrivacyBucketGroups(query.reference.measurementConsumerId, query.landscapeMask),
       setOf(query.charge)
     )
 

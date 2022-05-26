@@ -43,8 +43,4 @@ data class LandscapeMask(
 )
 
 /** Represents multiple charges to the multiple buckets in the PrivacyLandscape. */
-data class Query(
-  val reference: Reference,
-  val landscapeMask: LandscapeMask,
-  val charge: Charge
-)
+data class Query(val reference: Reference, val landscapeMask: LandscapeMask, val charge: Charge)

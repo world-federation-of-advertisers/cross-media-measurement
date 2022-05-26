@@ -39,11 +39,7 @@ class PrivacyBudgetLedgerTest {
     val charge = Charge(1.0f, 0.01f)
 
     // The charges succeed and fills the Privacy Budget.
-    ledger.chargePrivacyBucketGroups(
-      createReference(0),
-      setOf<PrivacyBucketGroup>(),
-      setOf(charge)
-    )
+    ledger.chargePrivacyBucketGroups(createReference(0), setOf<PrivacyBucketGroup>(), setOf(charge))
     ledger.chargePrivacyBucketGroups(createReference(1), setOf(bucket), setOf(charge))
 
     // Charge should exceed the budget.
@@ -185,26 +181,10 @@ class PrivacyBudgetLedgerTest {
       )
 
     // The charges succeed and fills the Privacy Budget.
-    ledger.chargePrivacyBucketGroups(
-      createReference(0),
-      setOf(bucket),
-      setOf(Charge(0.4f, 0.001f))
-    )
-    ledger.chargePrivacyBucketGroups(
-      createReference(1),
-      setOf(bucket),
-      setOf(Charge(0.3f, 0.001f))
-    )
-    ledger.chargePrivacyBucketGroups(
-      createReference(2),
-      setOf(bucket),
-      setOf(Charge(0.2f, 0.001f))
-    )
-    ledger.chargePrivacyBucketGroups(
-      createReference(3),
-      setOf(bucket),
-      setOf(Charge(0.1f, 0.001f))
-    )
+    ledger.chargePrivacyBucketGroups(createReference(0), setOf(bucket), setOf(Charge(0.4f, 0.001f)))
+    ledger.chargePrivacyBucketGroups(createReference(1), setOf(bucket), setOf(Charge(0.3f, 0.001f)))
+    ledger.chargePrivacyBucketGroups(createReference(2), setOf(bucket), setOf(Charge(0.2f, 0.001f)))
+    ledger.chargePrivacyBucketGroups(createReference(3), setOf(bucket), setOf(Charge(0.1f, 0.001f)))
 
     // Charge should exceed the budget.
     assertFailsWith<PrivacyBudgetManagerException> {
@@ -297,8 +277,7 @@ class PrivacyBudgetLedgerTest {
         0.1f
       )
 
-    val chargeList =
-      setOf(Charge(0.5f, 0.001f), Charge(0.3f, 0.001f), Charge(0.2f, 0.001f))
+    val chargeList = setOf(Charge(0.5f, 0.001f), Charge(0.3f, 0.001f), Charge(0.2f, 0.001f))
 
     // The charges succeed and fills the Privacy Budget.
     ledger.chargePrivacyBucketGroups(createReference(0), setOf(bucket), chargeList)
