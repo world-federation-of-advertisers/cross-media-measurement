@@ -271,7 +271,9 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
         )
         .toList()
 
-    if (eventGroupMetadataDescriptor1.externalEventGroupMetadataDescriptorId < eventGroupMetadataDescriptor2.externalEventGroupMetadataDescriptorId) {
+    if (eventGroupMetadataDescriptor1.externalEventGroupMetadataDescriptorId <
+        eventGroupMetadataDescriptor2.externalEventGroupMetadataDescriptorId
+    ) {
       assertThat(eventGroupMetadataDescriptors)
         .comparingExpectedFieldsOnly()
         .containsExactly(eventGroupMetadataDescriptor1, eventGroupMetadataDescriptor2)
@@ -315,7 +317,8 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
         )
         .toList()
 
-    assertThat(eventGroupMetadataDescriptors).containsAnyOf(eventGroupMetadataDescriptor1, eventGroupMetadataDescriptor2)
+    assertThat(eventGroupMetadataDescriptors)
+      .containsAnyOf(eventGroupMetadataDescriptor1, eventGroupMetadataDescriptor2)
     assertThat(eventGroupMetadataDescriptors).hasSize(1)
 
     val eventGroupMetadataDescriptors2: List<EventGroupMetadataDescriptor> =
@@ -324,7 +327,8 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
           streamEventGroupMetadataDescriptorsRequest {
             filter = filter {
               this.externalDataProviderId = externalDataProviderId
-              externalEventGroupMetadataDescriptorIdAfter = eventGroupMetadataDescriptors[0].externalEventGroupMetadataDescriptorId
+              externalEventGroupMetadataDescriptorIdAfter =
+                eventGroupMetadataDescriptors[0].externalEventGroupMetadataDescriptorId
               externalDataProviderIdAfter = eventGroupMetadataDescriptors[0].externalDataProviderId
             }
             limit = 1
@@ -333,22 +337,24 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
         .toList()
 
     assertThat(eventGroupMetadataDescriptors2).hasSize(1)
-    assertThat(eventGroupMetadataDescriptors2).containsAnyOf(eventGroupMetadataDescriptor1, eventGroupMetadataDescriptor2)
+    assertThat(eventGroupMetadataDescriptors2)
+      .containsAnyOf(eventGroupMetadataDescriptor1, eventGroupMetadataDescriptor2)
     assertThat(eventGroupMetadataDescriptors2[0].externalEventGroupMetadataDescriptorId)
       .isGreaterThan(eventGroupMetadataDescriptors[0].externalEventGroupMetadataDescriptorId)
   }
 
   @Test
-  fun `streamEventGroupMetadataDescriptors respects externalEventGroupMetadataDescriptorIds`(): Unit = runBlocking {
+  fun `streamEventGroupMetadataDescriptors respects externalEventGroupMetadataDescriptorIds`():
+    Unit = runBlocking {
     val externalDataProviderId =
       population.createDataProvider(dataProvidersService).externalDataProviderId
 
-      eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
-        eventGroupMetadataDescriptor {
-          this.externalDataProviderId = externalDataProviderId
-          details = DETAILS
-        }
-      )
+    eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
+      eventGroupMetadataDescriptor {
+        this.externalDataProviderId = externalDataProviderId
+        details = DETAILS
+      }
+    )
 
     val eventGroupMetadataDescriptor2 =
       eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
@@ -362,13 +368,18 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
       eventGroupMetadataDescriptorService
         .streamEventGroupMetadataDescriptors(
           streamEventGroupMetadataDescriptorsRequest {
-            filter = filter { this.externalDataProviderId = externalDataProviderId
-            this.externalEventGroupMetadataDescriptorIds += eventGroupMetadataDescriptor2.externalEventGroupMetadataDescriptorId}
+            filter = filter {
+              this.externalDataProviderId = externalDataProviderId
+              this.externalEventGroupMetadataDescriptorIds +=
+                eventGroupMetadataDescriptor2.externalEventGroupMetadataDescriptorId
+            }
           }
         )
         .toList()
 
-    assertThat(eventGroupMetadataDescriptors).comparingExpectedFieldsOnly().containsExactly(eventGroupMetadataDescriptor2)
+    assertThat(eventGroupMetadataDescriptors)
+      .comparingExpectedFieldsOnly()
+      .containsExactly(eventGroupMetadataDescriptor2)
   }
 }
 

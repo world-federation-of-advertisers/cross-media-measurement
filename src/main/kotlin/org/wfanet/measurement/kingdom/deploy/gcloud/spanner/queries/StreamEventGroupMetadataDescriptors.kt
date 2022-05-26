@@ -20,31 +20,41 @@ import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupMetadataDescriptorReader
 
-class StreamEventGroupMetadataDescriptors(requestFilter: StreamEventGroupMetadataDescriptorsRequest.Filter, limit: Int = 0) :
-  SimpleSpannerQuery<EventGroupMetadataDescriptorReader.Result>() {
+class StreamEventGroupMetadataDescriptors(
+  requestFilter: StreamEventGroupMetadataDescriptorsRequest.Filter,
+  limit: Int = 0
+) : SimpleSpannerQuery<EventGroupMetadataDescriptorReader.Result>() {
   override val reader =
     EventGroupMetadataDescriptorReader().fillStatementBuilder {
       appendWhereClause(requestFilter)
-      appendClause("ORDER BY ExternalDataProviderId ASC, ExternalEventGroupMetadataDescriptorId ASC")
+      appendClause(
+        "ORDER BY ExternalDataProviderId ASC, ExternalEventGroupMetadataDescriptorId ASC"
+      )
       if (limit > 0) {
         appendClause("LIMIT @$LIMIT")
         bind(LIMIT to limit.toLong())
       }
     }
 
-  private fun Statement.Builder.appendWhereClause(filter: StreamEventGroupMetadataDescriptorsRequest.Filter) {
+  private fun Statement.Builder.appendWhereClause(
+    filter: StreamEventGroupMetadataDescriptorsRequest.Filter
+  ) {
     val conjuncts = mutableListOf<String>()
     if (filter.externalEventGroupMetadataDescriptorIdsList.isNotEmpty()) {
-          conjuncts.add("ExternalEventGroupMetadataDescriptorId IN UNNEST(@$EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_IDS)")
-          bind(EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_IDS)
-            .toInt64Array(filter.externalEventGroupMetadataDescriptorIdsList.map { it.toLong() })
-        }
+      conjuncts.add(
+        "ExternalEventGroupMetadataDescriptorId IN UNNEST(@$EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_IDS)"
+      )
+      bind(EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_IDS)
+        .toInt64Array(filter.externalEventGroupMetadataDescriptorIdsList.map { it.toLong() })
+    }
     if (filter.externalDataProviderId != 0L) {
       conjuncts.add("ExternalDataProviderId = @$EXTERNAL_DATA_PROVIDER_ID")
       bind(EXTERNAL_DATA_PROVIDER_ID to filter.externalDataProviderId)
     }
 
-    if (filter.externalEventGroupMetadataDescriptorIdAfter != 0L && filter.externalDataProviderIdAfter != 0L) {
+    if (filter.externalEventGroupMetadataDescriptorIdAfter != 0L &&
+        filter.externalDataProviderIdAfter != 0L
+    ) {
       conjuncts.add(
         """
           ((ExternalDataProviderId > @$EXTERNAL_DATA_PROVIDER_ID_AFTER)
@@ -53,7 +63,8 @@ class StreamEventGroupMetadataDescriptors(requestFilter: StreamEventGroupMetadat
         """.trimIndent()
       )
       bind(EXTERNAL_DATA_PROVIDER_ID_AFTER).to(filter.externalDataProviderIdAfter)
-      bind(EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_ID_AFTER).to(filter.externalEventGroupMetadataDescriptorIdAfter)
+      bind(EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_ID_AFTER)
+        .to(filter.externalEventGroupMetadataDescriptorIdAfter)
     }
 
     if (conjuncts.isEmpty()) {
@@ -66,10 +77,12 @@ class StreamEventGroupMetadataDescriptors(requestFilter: StreamEventGroupMetadat
 
   companion object {
     const val LIMIT = "limit"
-    const val EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_IDS = "externalEventGroupMetadataDescriptorIds"
+    const val EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_IDS =
+      "externalEventGroupMetadataDescriptorIds"
     const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
     const val EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_ID = "externalEventGroupMetadataDescriptorId"
-    const val EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_ID_AFTER = "externalEventGroupMetadataDescriptorIdAfter"
+    const val EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_ID_AFTER =
+      "externalEventGroupMetadataDescriptorIdAfter"
     const val EXTERNAL_DATA_PROVIDER_ID_AFTER = "externalDataProviderIdAfter"
   }
 }

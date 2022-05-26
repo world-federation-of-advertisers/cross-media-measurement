@@ -129,9 +129,11 @@ class SpannerEventGroupMetadataDescriptorsService(
     }
   }
 
-  override fun streamEventGroupMetadataDescriptors(request: StreamEventGroupMetadataDescriptorsRequest): Flow<EventGroupMetadataDescriptor> {
-    return StreamEventGroupMetadataDescriptors(request.filter, request.limit).execute(client.singleUse()).map {
-      it.eventGroupMetadataDescriptor
-    }
+  override fun streamEventGroupMetadataDescriptors(
+    request: StreamEventGroupMetadataDescriptorsRequest
+  ): Flow<EventGroupMetadataDescriptor> {
+    return StreamEventGroupMetadataDescriptors(request.filter, request.limit)
+      .execute(client.singleUse())
+      .map { it.eventGroupMetadataDescriptor }
   }
 }
