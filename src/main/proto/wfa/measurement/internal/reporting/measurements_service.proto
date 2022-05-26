@@ -25,6 +25,8 @@ option java_multiple_files = true;
 service Reports {
   rpc CreateMeasurement(CreateMeasurementRequest) returns (Measurement);
 
+  rpc GetMeasurement(GetMeasurementRequest) returns (Measurement);
+
   rpc UpdateMeasurement(UpdateMeasurementRequest) returns (Measurement);
 }
 
@@ -33,6 +35,11 @@ message CreateMeasurementRequest {
 
   // Serialized `CreateMeasurementRequest` from the CMMS public API.
   bytes request = 2;
+}
+
+message GetMeasurementRequest {
+  // Serialized `CreateMeasurementRequest` from the CMMS public API.
+  bytes request = 1;
 }
 
 message UpdateMeasurementRequest {
