@@ -20,7 +20,7 @@ import org.junit.Test
 class PrivacyBudgetLedgerTest {
 
   private fun createReference(id: Int, isRefund: Boolean = false) =
-    Reference("MC1", "RequisitioId${id}", isRefund)
+    Reference("MC1", "RequisitioId$id", isRefund)
 
   @Test
   fun `Charge works when privacy bucket groups are empty`() {

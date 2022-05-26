@@ -97,7 +97,7 @@ class PrivacyBudgetManagerTest {
   private val privacyBucketFilter = PrivacyBucketFilter(TestPrivacyBucketMapper())
 
   private fun createReference(id: Int, isRefund: Boolean = false) =
-    Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId${id}", isRefund)
+    Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId$id", isRefund)
 
   private fun PrivacyBudgetManager.assertChargeExceedsPrivacyBudget(
     privacyReference: Reference,
