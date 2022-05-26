@@ -40,6 +40,7 @@ message Metric {
   message WatchDurationParams {}
 
   // Types of metrics that can be selected to be in a `Report`.
+  // REQUIRED
   oneof metric_type {
     // The count of unique audiences reached given a set of event groups.
     ReachParams reach = 1;
