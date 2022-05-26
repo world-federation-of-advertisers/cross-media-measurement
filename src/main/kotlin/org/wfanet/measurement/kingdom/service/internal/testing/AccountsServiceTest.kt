@@ -257,7 +257,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
           service.activateAccount(activateAccountRequest.copy { identity = openIdConnectIdentity2 })
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     }
 
   @Test
@@ -290,7 +290,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
           )
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     }
 
   @Test
@@ -432,7 +432,7 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
           )
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     }
 
   @Test
