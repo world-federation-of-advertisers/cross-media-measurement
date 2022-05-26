@@ -103,12 +103,22 @@ CREATE TABLE Measurements (
   MeasurementConsumerReferenceId text NOT NULL,
   MeasurementReferenceId text NOT NULL,
 
+  -- Serialized org.wfanet.measurement.api.xxx.CreateMeasurementRequest
+  -- protobuf message.
+  Request bytea NOT NULL,
+
   -- org.wfanet.measurement.internal.reporting.Report.MeasurementInfo.State
   -- protobuf enum encoded as an integer.
   State smallint NOT NULL,
-  -- Serialized org.wfanet.measurement.internal.reporting.Report.MeasurementInfo.Result
+
+  -- Serialized org.wfanet.measurement.internal.reporting.Measurement.Failure
+  -- protobuf message.
+  Failure bytea,
+
+  -- Serialized org.wfanet.measurement.internal.reporting.Measurement.Result
   -- protobuf message.
   Result bytea,
+
   -- Timestamp in UTC.
   UpdateTime timestamp NOT NULL,
 
@@ -124,7 +134,7 @@ CREATE TABLE ReportMeasurements (
   PRIMARY KEY(MeasurementConsumerReferenceId, MeasurementReferenceId, ReportId),
   FOREIGN KEY(MeasurementConsumerReferenceId, ReportId)
       REFERENCES Reports(MeasurementConsumerReferenceId, ReportId),
-  FOREIGN KEY(MeasurementConsumerReferenceId, MeasurementConsumerReferenceId)
+  FOREIGN KEY(MeasurementConsumerReferenceId, MeasurementReferenceId)
         REFERENCES Measurements(MeasurementConsumerReferenceId, MeasurementReferenceId)
 );
 

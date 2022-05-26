@@ -16,33 +16,32 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting;
 
-import "wfa/measurement/internal/reporting/report.proto";
+import "wfa/measurement/internal/reporting/measurement.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting";
 option java_multiple_files = true;
 
-// Internal service for persistence of Report entities.
+// Internal service for persistence of Measurement entities.
 service Reports {
-  rpc CreateReport(Report) returns (Report);
+  rpc CreateMeasurement(CreateMeasurementRequest) returns (Measurement);
 
-  rpc GetReport(GetReportRequest) returns (Report);
-
-  rpc StreamReports(StreamReportsRequest) returns (stream Report);
+  rpc UpdateMeasurement(UpdateMeasurementRequest) returns (Measurement);
 }
 
-message GetReportRequest {
+message CreateMeasurementRequest {
+  Measurement measurement = 1;
+
+  // Serialized `CreateMeasurementRequest` from the CMMS public API.
+  bytes request = 2;
+}
+
+message UpdateMeasurementRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
   string measurement_consumer_reference_id = 1;
-  fixed64 external_report_id = 2;
-}
+  // `Measurement` ID from the CMMS public API.
+  string measurement_reference_id = 2;
 
-message StreamReportsRequest {
-  message Filter {
-    // `MeasurementConsumer` ID from the CMMS public API.
-    string measurement_consumer_reference_id = 1;
-    fixed64 external_report_id_after = 2;
-  }
-  Filter filter = 1;
-
-  int32 limit = 2;
+  Measurement.State state = 3;
+  Measurement.Failure failure = 4;
+  Measurement.Result result = 5;
 }
