@@ -74,7 +74,8 @@ class InMemoryBackingStoreTransactionContext(
       ?.filter { it.referenceId == reference.referenceId }
       ?.sortedByDescending { it.createTime }
       ?.firstOrNull()
-      ?.isRefund?.xor(reference.isRefund)
+      ?.isRefund
+      ?.xor(reference.isRefund)
       ?: true
 
   override fun findIntersectingLedgerEntries(
