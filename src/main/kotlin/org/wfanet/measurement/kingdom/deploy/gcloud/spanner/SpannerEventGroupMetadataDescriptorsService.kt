@@ -15,6 +15,8 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -23,8 +25,10 @@ import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptor
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetEventGroupMetadataDescriptorRequest
+import org.wfanet.measurement.internal.kingdom.StreamEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.internal.kingdom.UpdateEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamEventGroupMetadataDescriptors
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupMetadataDescriptorReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateEventGroupMetadataDescriptor
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.UpdateEventGroupMetadataDescriptor
@@ -122,6 +126,12 @@ class SpannerEventGroupMetadataDescriptorsService(
         ErrorCode.UNKNOWN_ERROR,
         ErrorCode.UNRECOGNIZED -> throw e
       }
+    }
+  }
+
+  override fun streamEventGroupMetadataDescriptors(request: StreamEventGroupMetadataDescriptorsRequest): Flow<EventGroupMetadataDescriptor> {
+    return StreamEventGroupMetadataDescriptors(request.filter, request.limit).execute(client.singleUse()).map {
+      it.eventGroupMetadataDescriptor
     }
   }
 }

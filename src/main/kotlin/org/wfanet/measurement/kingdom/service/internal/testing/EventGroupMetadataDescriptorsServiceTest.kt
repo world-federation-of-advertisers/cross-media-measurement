@@ -22,6 +22,7 @@ import io.grpc.StatusRuntimeException
 import java.time.Clock
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
@@ -34,9 +35,11 @@ import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProviders
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptor
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorKt.details
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.StreamEventGroupMetadataDescriptorsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.eventGroupMetadataDescriptor
 import org.wfanet.measurement.internal.kingdom.getEventGroupMetadataDescriptorRequest
+import org.wfanet.measurement.internal.kingdom.streamEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.internal.kingdom.updateEventGroupMetadataDescriptorRequest
 
 private const val RANDOM_SEED = 1
@@ -236,6 +239,136 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
           .also { it.details = updatedEventGroupMetadataDescriptor.details }
           .build()
       )
+  }
+
+  @Test
+  fun `streamEventGroupMetadataDescriptors returns all descriptors in order`(): Unit = runBlocking {
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+
+    val eventGroupMetadataDescriptor1 =
+      eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
+        eventGroupMetadataDescriptor {
+          this.externalDataProviderId = externalDataProviderId
+          details = DETAILS
+        }
+      )
+
+    val eventGroupMetadataDescriptor2 =
+      eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
+        eventGroupMetadataDescriptor {
+          this.externalDataProviderId = externalDataProviderId
+          details = DETAILS
+        }
+      )
+
+    val eventGroupMetadataDescriptors: List<EventGroupMetadataDescriptor> =
+      eventGroupMetadataDescriptorService
+        .streamEventGroupMetadataDescriptors(
+          streamEventGroupMetadataDescriptorsRequest {
+            filter = filter { this.externalDataProviderId = externalDataProviderId }
+          }
+        )
+        .toList()
+
+    if (eventGroupMetadataDescriptor1.externalEventGroupMetadataDescriptorId < eventGroupMetadataDescriptor2.externalEventGroupMetadataDescriptorId) {
+      assertThat(eventGroupMetadataDescriptors)
+        .comparingExpectedFieldsOnly()
+        .containsExactly(eventGroupMetadataDescriptor1, eventGroupMetadataDescriptor2)
+        .inOrder()
+    } else {
+      assertThat(eventGroupMetadataDescriptors)
+        .comparingExpectedFieldsOnly()
+        .containsExactly(eventGroupMetadataDescriptor2, eventGroupMetadataDescriptor1)
+        .inOrder()
+    }
+  }
+
+  @Test
+  fun `streamEventGroupMetadataDescriptors can get one page at a time`(): Unit = runBlocking {
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+
+    val eventGroupMetadataDescriptor1 =
+      eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
+        eventGroupMetadataDescriptor {
+          this.externalDataProviderId = externalDataProviderId
+          details = DETAILS
+        }
+      )
+
+    val eventGroupMetadataDescriptor2 =
+      eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
+        eventGroupMetadataDescriptor {
+          this.externalDataProviderId = externalDataProviderId
+          details = DETAILS
+        }
+      )
+
+    val eventGroupMetadataDescriptors: List<EventGroupMetadataDescriptor> =
+      eventGroupMetadataDescriptorService
+        .streamEventGroupMetadataDescriptors(
+          streamEventGroupMetadataDescriptorsRequest {
+            filter = filter { this.externalDataProviderId = externalDataProviderId }
+            limit = 1
+          }
+        )
+        .toList()
+
+    assertThat(eventGroupMetadataDescriptors).containsAnyOf(eventGroupMetadataDescriptor1, eventGroupMetadataDescriptor2)
+    assertThat(eventGroupMetadataDescriptors).hasSize(1)
+
+    val eventGroupMetadataDescriptors2: List<EventGroupMetadataDescriptor> =
+      eventGroupMetadataDescriptorService
+        .streamEventGroupMetadataDescriptors(
+          streamEventGroupMetadataDescriptorsRequest {
+            filter = filter {
+              this.externalDataProviderId = externalDataProviderId
+              externalEventGroupMetadataDescriptorIdAfter = eventGroupMetadataDescriptors[0].externalEventGroupMetadataDescriptorId
+              externalDataProviderIdAfter = eventGroupMetadataDescriptors[0].externalDataProviderId
+            }
+            limit = 1
+          }
+        )
+        .toList()
+
+    assertThat(eventGroupMetadataDescriptors2).hasSize(1)
+    assertThat(eventGroupMetadataDescriptors2).containsAnyOf(eventGroupMetadataDescriptor1, eventGroupMetadataDescriptor2)
+    assertThat(eventGroupMetadataDescriptors2[0].externalEventGroupMetadataDescriptorId)
+      .isGreaterThan(eventGroupMetadataDescriptors[0].externalEventGroupMetadataDescriptorId)
+  }
+
+  @Test
+  fun `streamEventGroupMetadataDescriptors respects externalEventGroupMetadataDescriptorIds`(): Unit = runBlocking {
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+
+      eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
+        eventGroupMetadataDescriptor {
+          this.externalDataProviderId = externalDataProviderId
+          details = DETAILS
+        }
+      )
+
+    val eventGroupMetadataDescriptor2 =
+      eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
+        eventGroupMetadataDescriptor {
+          this.externalDataProviderId = externalDataProviderId
+          details = DETAILS
+        }
+      )
+
+    val eventGroupMetadataDescriptors: List<EventGroupMetadataDescriptor> =
+      eventGroupMetadataDescriptorService
+        .streamEventGroupMetadataDescriptors(
+          streamEventGroupMetadataDescriptorsRequest {
+            filter = filter { this.externalDataProviderId = externalDataProviderId
+            this.externalEventGroupMetadataDescriptorIds += eventGroupMetadataDescriptor2.externalEventGroupMetadataDescriptorId}
+          }
+        )
+        .toList()
+
+    assertThat(eventGroupMetadataDescriptors).comparingExpectedFieldsOnly().containsExactly(eventGroupMetadataDescriptor2)
   }
 }
 
