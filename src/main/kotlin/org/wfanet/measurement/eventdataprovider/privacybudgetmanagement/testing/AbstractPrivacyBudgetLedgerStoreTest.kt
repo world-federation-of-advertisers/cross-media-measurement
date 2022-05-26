@@ -231,7 +231,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
   }
 
   @Test(timeout = 15000)
-  fun `shouldProcess works correctly`() {
+  fun `hasLedgerEntry works correctly`() {
     val backingStore = createBackingStore()
     val txContext1 = backingStore.startTransaction()
     val bucket1 =
@@ -257,10 +257,12 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
     val txContext2 = backingStore.startTransaction()
 
     // charge should not be proccessed if same
-    assertThat(txContext2.shouldProcess(Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", false)))
+    assertThat(
+        txContext2.hasLedgerEntry(Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", false))
+      )
       .isFalse()
     // but refund is allowed
-    assertThat(txContext2.shouldProcess(Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", true)))
+    assertThat(txContext2.hasLedgerEntry(Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", true)))
       .isTrue()
     // refund works
 
@@ -272,13 +274,15 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
     txContext2.commit()
     val txContext3 = backingStore.startTransaction()
     // now charge is allowed again
-    assertThat(txContext3.shouldProcess(Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", false)))
+    assertThat(
+        txContext3.hasLedgerEntry(Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", false))
+      )
       .isTrue()
     txContext3.commit()
   }
 
   @Test(timeout = 15000)
-  fun `shouldProcess works correctly for Multiple MCs`() {
+  fun `hasLedgerEntry works correctly for Multiple MCs`() {
     val backingStore = createBackingStore()
     val txContext1 = backingStore.startTransaction()
     val requisitionId = "RequisitioId1"
@@ -305,11 +309,11 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
     val txContext2 = backingStore.startTransaction()
 
     // charge should not be proccessed if same
-    assertThat(txContext2.shouldProcess(Reference(MEASUREMENT_CONSUMER_ID, requisitionId, false)))
+    assertThat(txContext2.hasLedgerEntry(Reference(MEASUREMENT_CONSUMER_ID, requisitionId, false)))
       .isFalse()
     // but other measurement consumer can charge with the same RequisitionId is allowed
     assertThat(
-        txContext2.shouldProcess(Reference("OtherMeasurementConsumer", requisitionId, false))
+        txContext2.hasLedgerEntry(Reference("OtherMeasurementConsumer", requisitionId, false))
       )
       .isTrue()
 

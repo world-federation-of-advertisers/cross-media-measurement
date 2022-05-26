@@ -68,7 +68,7 @@ class InMemoryBackingStoreTransactionContext(
     )
   }
 
-  override fun shouldProcess(reference: Reference): Boolean =
+  override fun hasLedgerEntry(reference: Reference): Boolean =
     transactionReferenceLedger
       .get(reference.measurementConsumerId)
       ?.filter { it.referenceId == reference.referenceId }

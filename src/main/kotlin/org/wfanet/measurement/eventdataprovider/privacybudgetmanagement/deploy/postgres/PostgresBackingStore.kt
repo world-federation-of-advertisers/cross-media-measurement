@@ -107,7 +107,7 @@ class PostgresBackingStoreTransactionContext(
     return null
   }
 
-  override fun shouldProcess(reference: Reference): Boolean =
+  override fun hasLedgerEntry(reference: Reference): Boolean =
     getLastReference(reference.measurementConsumerId, reference.referenceId)
       ?.xor(reference.isRefund)
       ?: true
@@ -229,12 +229,12 @@ class PostgresBackingStoreTransactionContext(
 
   override fun addLedgerEntries(
     privacyBucketGroups: Set<PrivacyBucketGroup>,
-    privacyCharges: Set<Charge>,
+    charges: Set<Charge>,
     reference: Reference
   ) {
     for (privacyBucketGroup in privacyBucketGroups) {
-      for (privacyCharge in privacyCharges) {
-        addBalanceEntry(privacyBucketGroup, privacyCharge, reference.isRefund)
+      for (charge in charges) {
+        addBalanceEntry(privacyBucketGroup, charge, reference.isRefund)
       }
     }
     addLedgerEntry(reference)
