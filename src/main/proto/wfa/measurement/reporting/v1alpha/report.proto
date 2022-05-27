@@ -58,6 +58,7 @@ message Report {
   }
 
   // A Map with `EventGroup`s as the keys and filter predicates as the values.
+  // All event groups used in this report need to be listed here.
   repeated EventGroupFilter event_group_filters = 3
       [(google.api.field_behavior) = REQUIRED];
 

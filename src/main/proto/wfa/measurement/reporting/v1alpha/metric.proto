@@ -78,7 +78,9 @@ message Metric {
     // The object of a set operation.
     message Operand {
       oneof operand {
-        // Resource name of a `ReportingSet` describing a set operand.
+        // Resource name of a `ReportingSet` describing a set operand. Note that
+        // the reporting set can’t include event groups that are not defined in
+        // `Report.event_group_filters`.
         string reporting_set = 1 [(google.api.resource_reference).type =
                                       "reporting.halo-cmm.org/ReportingSet"];
         // Nested `SetOperation` to allow for expressions with more terms.
