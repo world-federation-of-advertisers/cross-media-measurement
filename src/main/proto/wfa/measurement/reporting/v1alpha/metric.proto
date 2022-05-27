@@ -18,7 +18,6 @@ package wfa.measurement.reporting.v1alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
-import "wfa/measurement/reporting/v1alpha/reporting_set.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v1alpha";
 option java_multiple_files = true;
@@ -79,8 +78,8 @@ message Metric {
     message Operand {
       oneof operand {
         // Resource name of a `ReportingSet` describing a set operand. Note that
-        // the reporting set can’t include event groups that are not defined in
-        // `Report.event_group_filters`.
+        // the reporting set is constrained by the `EventGroupUniverse` defined
+        // in the `Report`.
         string reporting_set = 1 [(google.api.resource_reference).type =
                                       "reporting.halo-cmm.org/ReportingSet"];
         // Nested `SetOperation` to allow for expressions with more terms.
