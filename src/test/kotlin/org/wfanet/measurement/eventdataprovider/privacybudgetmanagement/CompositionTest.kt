@@ -59,5 +59,14 @@ class CompositionTest {
         )
       )
       .isEqualTo(Float.MAX_VALUE)
+    assertThat(
+        Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
+          PrivacyCharge(0.01f, 1.0e-12.toFloat()),
+          200,
+          1.0e-9.toFloat()
+        )
+      )
+      .isWithin(0.0001f)
+      .of(1.31999f)
   }
 }

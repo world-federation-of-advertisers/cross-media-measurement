@@ -15,6 +15,7 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.exp
+import kotlin.math.ln
 import kotlin.math.pow
 
 data class AdvancedCompositionKey(
@@ -24,29 +25,36 @@ data class AdvancedCompositionKey(
 )
 
 object Composition {
-  /** Memoized computation of binomial coefficients. */
-  private val coeffs = ConcurrentHashMap<Pair<Int, Int>, Int>()
+  /** Memoized computation of log-factorials. */
+  private val logFactorials = ConcurrentHashMap<Int, Float>()
+
+  init {
+    logFactorials.put(0, 0.0f)
+  }
+
   /** Memoized computation of advanced composition results. */
   private val advancedCompositionResults = ConcurrentHashMap<AdvancedCompositionKey, Float>()
 
   /**
-   * Computes the number of distinct ways to choose k items from a set of n.
+   * Log of factorial.
+   *
+   * @param k Value whose factorial is to be computed.
+   * @return log(1 * 2 * ... * k)
+   */
+  private fun logFactorial(k: Int): Float {
+    return logFactorials.getOrPut(k) { ln(k.toFloat()) + logFactorial(k - 1) }
+  }
+
+  /**
+   * Computes log of the number of distinct ways to choose k items from a set of n.
    *
    * @param n The size of the set.
    * @param k The size of the subset that is drawn.
-   * @return The number of distinct ways to draw k items from a set of size n. Alternatively, the
-   * coefficient of x^k in the expansion of (1 + x)^n.
+   * @return The log of the number of distinct ways to draw k items from a set of size n.
+   * Alternatively, the log of the coefficient of x^k in the expansion of (1 + x)^n.
    */
-  private fun coeff(n: Int, k: Int): Int {
-    return if ((n < 0) || (k < 0) || (n < k)) {
-      0
-    } else if ((k == 0) || (n == k)) {
-      1
-    } else if (n - k < k) {
-      coeff(n, n - k)
-    } else {
-      coeffs.getOrPut(n to k) { coeff(n - 1, k - 1) + coeff(n - 1, k) }
-    }
+  private fun logBinomial(n: Int, k: Int): Float {
+    return logFactorial(n) - logFactorial(k) - logFactorial(n - k)
   }
 
   private fun calculateAdvancedComposition(
@@ -62,8 +70,8 @@ object Composition {
       var deltaI = 0.0f
       for (l in 0..i - 1) {
         deltaI +=
-          coeff(k, l).toFloat() *
-            (exp(epsilon * (k - l).toFloat()) - exp(epsilon * (k - 2 * i + l).toFloat()))
+          exp(logBinomial(k, l) + (epsilon * (k - l).toFloat())) -
+            exp(logBinomial(k, l) + epsilon * (k - 2 * i + l).toFloat())
       }
       deltaI /= (1.0f + exp(epsilon)).pow(k)
       if (1.0f - (1 - delta).pow(k) * (1.0f - deltaI) <= totalDelta) {
