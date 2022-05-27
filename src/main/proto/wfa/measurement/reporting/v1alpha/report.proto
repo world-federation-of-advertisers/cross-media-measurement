@@ -54,7 +54,7 @@ message Report {
     ];
 
     // Filter predicate in CEL.
-    string value = 2 [(google.api.field_behavior) = REQUIRED];
+    string value = 2;
   }
 
   // A Map with `EventGroup`s as the keys and filter predicates as the values.
