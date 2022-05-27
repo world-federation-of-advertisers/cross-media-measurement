@@ -43,23 +43,29 @@ message Report {
     }
   ];
 
-  // Map entry of `EventGroup` to filter predicate.
-  message EventGroupFilter {
-    // Key of the map entry, which is an `EventGroup` resource name. Required.
-    string key = 1 [
-      (google.api.field_behavior) = REQUIRED,
-      (google.api.resource_reference) = {
-        type: "reporting.halo-cmm.org/EventGroup"
-      }
-    ];
+  // Define the universe for all sets of event groups  in `metrics`.
+  message EventGroupUniverse {
+    // Map entry of `EventGroup` to filter predicate.
+    message EventGroupEntry {
+      // Key of the map entry, which is an `EventGroup` resource name.
+      string key = 1 [
+        (google.api.field_behavior) = REQUIRED,
+        (google.api.resource_reference) = {
+          type: "reporting.halo-cmm.org/EventGroup"
+        }
+      ];
 
-    // Filter predicate in CEL.
-    string value = 2;
+      // Filter predicate in CEL. If unspecified, evaluates to `true`.
+      string value = 2;
+    }
+
+    // A Map with `EventGroup`s as the keys and filter predicates as the values.
+    repeated EventGroupEntry event_group_entries = 1;
   }
 
-  // A Map with `EventGroup`s as the keys and filter predicates as the values.
-  // All event groups used in this report need to be listed here.
-  repeated EventGroupFilter event_group_filters = 3
+  // The universe that defines all sets of event groups in `metrics`. Events
+  // from event groups that aren't listed here won't be included.
+  EventGroupUniverse event_group_universe = 3
       [(google.api.field_behavior) = REQUIRED];
 
   // Types of time intervals for metric aggregation.
