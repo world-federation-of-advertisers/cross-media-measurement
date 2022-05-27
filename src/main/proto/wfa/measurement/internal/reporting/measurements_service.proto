@@ -50,8 +50,7 @@ message SetMeasurementResultRequest {
   // `Measurement` ID from the CMMS public API.
   string measurement_reference_id = 2;
 
-  Measurement.State state = 3;
-  Measurement.Result result = 5;
+  Measurement.Result result = 3;
 }
 
 message SetMeasurementFailureRequest {
@@ -60,6 +59,5 @@ message SetMeasurementFailureRequest {
   // `Measurement` ID from the CMMS public API.
   string measurement_reference_id = 2;
 
-  Measurement.State state = 3;
-  Measurement.Failure failure = 4;
+  Measurement.Failure failure = 3;
 }
