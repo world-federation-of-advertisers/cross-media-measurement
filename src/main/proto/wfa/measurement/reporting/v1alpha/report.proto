@@ -60,7 +60,8 @@ message Report {
     }
 
     // A Map with `EventGroup`s as the keys and filter predicates as the values.
-    repeated EventGroupEntry event_group_entries = 1;
+    repeated EventGroupEntry event_group_entries = 1
+        [(google.api.field_behavior) = REQUIRED];
   }
 
   // The universe that defines all sets of event groups in `metrics`. Events
