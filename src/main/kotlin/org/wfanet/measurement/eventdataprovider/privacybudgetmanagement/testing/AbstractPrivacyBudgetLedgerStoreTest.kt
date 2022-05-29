@@ -37,7 +37,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
   }
 
   @Test(timeout = 15000)
-  fun `findIntersectingEntries finds ledger entries`() {
+  fun `findIntersectingBalanceEntries finds balance entries`() {
     createBackingStore().use { backingStore: PrivacyBudgetLedgerBackingStore ->
       backingStore.startTransaction().use { txContext: PrivacyBudgetLedgerTransactionContext ->
         val bucket1 =
@@ -98,12 +98,12 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
           Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId2", false)
         )
 
-        val intersectingEntry = txContext.findIntersectingLedgerEntries(bucket1)
+        val intersectingEntry = txContext.findIntersectingBalanceEntries(bucket1)
         assertThat(intersectingEntry.size).isEqualTo(1)
         assertThat(intersectingEntry.get(0).repetitionCount).isEqualTo(2)
-        assertThat(txContext.findIntersectingLedgerEntries(bucket2).size).isEqualTo(1)
-        assertThat(txContext.findIntersectingLedgerEntries(bucket3).size).isEqualTo(1)
-        assertThat(txContext.findIntersectingLedgerEntries(bucket4).size).isEqualTo(0)
+        assertThat(txContext.findIntersectingBalanceEntries(bucket2).size).isEqualTo(1)
+        assertThat(txContext.findIntersectingBalanceEntries(bucket3).size).isEqualTo(1)
+        assertThat(txContext.findIntersectingBalanceEntries(bucket4).size).isEqualTo(0)
       }
     }
   }
@@ -129,24 +129,24 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
           setOf(charge),
           Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", false)
         )
-        val matchingLedgerEntries = txContext.findIntersectingLedgerEntries(bucket1)
-        assertThat(matchingLedgerEntries.size).isEqualTo(1)
+        val matchingBalanceEntries = txContext.findIntersectingBalanceEntries(bucket1)
+        assertThat(matchingBalanceEntries.size).isEqualTo(1)
 
-        assertThat(matchingLedgerEntries[0].repetitionCount).isEqualTo(1)
+        assertThat(matchingBalanceEntries[0].repetitionCount).isEqualTo(1)
         txContext.addLedgerEntries(
           setOf(bucket1),
           setOf(charge),
           Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", true)
         )
-        val newMatchingLedgerEntries = txContext.findIntersectingLedgerEntries(bucket1)
-        assertThat(newMatchingLedgerEntries.size).isEqualTo(1)
-        assertThat(newMatchingLedgerEntries[0].repetitionCount).isEqualTo(0)
+        val newmatchingBalanceEntries = txContext.findIntersectingBalanceEntries(bucket1)
+        assertThat(newmatchingBalanceEntries.size).isEqualTo(1)
+        assertThat(newmatchingBalanceEntries[0].repetitionCount).isEqualTo(0)
       }
     }
   }
 
   @Test(timeout = 15000)
-  fun `addLedgerEntries works for different MCs with the same referenceId`() {
+  fun `addLedgerEntries for different MCs and same referenceId don't point to same balances`() {
     val requisitionId = "RequisitioId1"
     createBackingStore().use { backingStore: PrivacyBudgetLedgerBackingStore ->
       backingStore.startTransaction().use { txContext: PrivacyBudgetLedgerTransactionContext ->
@@ -167,26 +167,26 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
           setOf(charge),
           Reference(MEASUREMENT_CONSUMER_ID, requisitionId, false)
         )
-        val matchingLedgerEntries = txContext.findIntersectingLedgerEntries(bucket1)
-        assertThat(matchingLedgerEntries.size).isEqualTo(1)
+        val matchingBalanceEntries = txContext.findIntersectingBalanceEntries(bucket1)
+        assertThat(matchingBalanceEntries.size).isEqualTo(1)
 
-        assertThat(matchingLedgerEntries[0].repetitionCount).isEqualTo(1)
+        assertThat(matchingBalanceEntries[0].repetitionCount).isEqualTo(1)
         txContext.addLedgerEntries(
           setOf(bucket1),
           setOf(charge),
           Reference(MEASUREMENT_CONSUMER_ID, requisitionId, true)
         )
-        val newMatchingLedgerEntries = txContext.findIntersectingLedgerEntries(bucket1)
-        assertThat(newMatchingLedgerEntries.size).isEqualTo(1)
-        assertThat(newMatchingLedgerEntries[0].repetitionCount).isEqualTo(0)
+        val newMatchingBalanceEntries = txContext.findIntersectingBalanceEntries(bucket1)
+        assertThat(newMatchingBalanceEntries.size).isEqualTo(1)
+        assertThat(newMatchingBalanceEntries[0].repetitionCount).isEqualTo(0)
 
         txContext.addLedgerEntries(
           setOf(bucket1),
           setOf(charge),
           Reference("otherMeasurementConsumerId", requisitionId, false)
         )
-        val otherMcMatchingLedgerEntries = txContext.findIntersectingLedgerEntries(bucket1)
-        assertThat(otherMcMatchingLedgerEntries.size).isEqualTo(1)
+        val otherMcMatchingBalanceEntries = txContext.findIntersectingBalanceEntries(bucket1)
+        assertThat(otherMcMatchingBalanceEntries.size).isEqualTo(1)
       }
     }
   }
@@ -213,11 +213,11 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
       setOf(charge),
       Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", false)
     )
-    assertThat(txContext.findIntersectingLedgerEntries(bucket1).size).isEqualTo(1)
+    assertThat(txContext.findIntersectingBalanceEntries(bucket1).size).isEqualTo(1)
 
     val newBackingStore = createBackingStore()
     newBackingStore.startTransaction().use { newTxContext ->
-      assertThat(newTxContext.findIntersectingLedgerEntries(bucket1).size).isEqualTo(0)
+      assertThat(newTxContext.findIntersectingBalanceEntries(bucket1).size).isEqualTo(0)
     }
 
     txContext.commit()
@@ -225,13 +225,13 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
     backingStore.close()
 
     newBackingStore.startTransaction().use { newTxContext ->
-      assertThat(newTxContext.findIntersectingLedgerEntries(bucket1).size).isEqualTo(1)
+      assertThat(newTxContext.findIntersectingBalanceEntries(bucket1).size).isEqualTo(1)
     }
     newBackingStore.close()
   }
 
   @Test(timeout = 15000)
-  fun `hasLedgerEntry works correctly`() {
+  fun `hasLedgerEntry returns true when ledger entry with same isRefund is found false o w`() {
     val backingStore = createBackingStore()
     val txContext1 = backingStore.startTransaction()
     val bucket1 =
@@ -282,7 +282,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
   }
 
   @Test(timeout = 15000)
-  fun `hasLedgerEntry works correctly for Multiple MCs`() {
+  fun `hasLedgerEntry returns true for ledger entry with same isRefund for Multiple MCs`() {
     val backingStore = createBackingStore()
     val txContext1 = backingStore.startTransaction()
     val requisitionId = "RequisitioId1"

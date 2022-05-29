@@ -71,13 +71,13 @@ interface PrivacyBudgetLedgerTransactionContext : AutoCloseable {
    * Returns a list of all rows within the privacy budget ledger where the PrivacyBucket of the row
    * intersects with the given privacyBucket.
    */
-  fun findIntersectingLedgerEntries(
+  fun findIntersectingBalanceEntries(
     privacyBucketGroup: PrivacyBucketGroup
   ): List<PrivacyBudgetBalanceEntry>
 
   /**
-   * Adds new rows to the PrivacyBudgetLedger specifying a charge to a privacy budget, adds the
-   * privacyReference that created these charges
+   * Adds new entries to the PrivacyBudgetLedger specifying a charge to a privacy budget, adds the
+   * [reference] that created these charges
    */
   fun addLedgerEntries(
     privacyBucketGroups: Set<PrivacyBucketGroup>,
@@ -86,6 +86,8 @@ interface PrivacyBudgetLedgerTransactionContext : AutoCloseable {
   )
 
   /**
+   * Returns whether this backing store has a ledger entry for [reference].
+   *
    * See if there's an existing ledger entry by assuming that the timestamp is either
    * 1. that of the most recent entry if the most recent entry with (MC ID, Reference ID) also has
    * the same value for isRefund, or

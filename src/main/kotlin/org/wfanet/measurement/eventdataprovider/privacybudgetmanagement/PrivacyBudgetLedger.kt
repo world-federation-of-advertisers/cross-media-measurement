@@ -96,7 +96,7 @@ class PrivacyBudgetLedger(
     // Check if any of the charges causes the budget to be overcharged
     val failedBucketList =
       privacyBucketGroups.filter {
-        privacyBudgetIsExceeded(context.findIntersectingLedgerEntries(it).toSet(), charges)
+        privacyBudgetIsExceeded(context.findIntersectingBalanceEntries(it).toSet(), charges)
       }
 
     if (!failedBucketList.isEmpty()) {
@@ -126,20 +126,20 @@ class PrivacyBudgetLedger(
   /**
    * Tests whether a given privacy bucket is exceeded.
    *
-   * @param ledgerEntries is a list of PrivacyBudgetLedgerEntries that all refer to the same
+   * @param balanceEntries is a list of [PrivacyBudgetBalanceEntry] that all refer to the same
    * underlying privacy bucket.
    * @param charges is a list of charges that are to be added to this privacy bucket.
    * @return true if adding the charges would cause the total privacy budget usage for this bucket
    * to be exceeded.
    */
   private fun privacyBudgetIsExceeded(
-    ledgerEntries: Set<PrivacyBudgetBalanceEntry>,
+    balanceEntries: Set<PrivacyBudgetBalanceEntry>,
     charges: Set<Charge>
   ): Boolean {
 
     val allCharges: List<ChargeWithRepetitions> =
       charges.map { it.toChargeWithRepetitions(1) } +
-        ledgerEntries.map { it.toChargeWithRepetitions() }
+        balanceEntries.map { it.toChargeWithRepetitions() }
 
     // We can save some privacy budget by using the advanced composition theorem if
     // all the charges are equivalent.

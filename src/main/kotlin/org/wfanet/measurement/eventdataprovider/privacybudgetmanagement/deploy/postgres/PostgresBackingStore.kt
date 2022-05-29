@@ -112,7 +112,7 @@ class PostgresBackingStoreTransactionContext(
       ?.xor(reference.isRefund)
       ?: true
 
-  override fun findIntersectingLedgerEntries(
+  override fun findIntersectingBalanceEntries(
     privacyBucketGroup: PrivacyBucketGroup
   ): List<PrivacyBudgetBalanceEntry> {
     throwIfTransactionHasEnded(listOf(privacyBucketGroup))

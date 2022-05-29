@@ -78,7 +78,7 @@ class InMemoryBackingStoreTransactionContext(
       ?.xor(reference.isRefund)
       ?: true
 
-  override fun findIntersectingLedgerEntries(
+  override fun findIntersectingBalanceEntries(
     privacyBucketGroup: PrivacyBucketGroup,
   ): List<PrivacyBudgetBalanceEntry> {
     return transactionBalances.getOrDefault(privacyBucketGroup, mapOf()).values.toList()
