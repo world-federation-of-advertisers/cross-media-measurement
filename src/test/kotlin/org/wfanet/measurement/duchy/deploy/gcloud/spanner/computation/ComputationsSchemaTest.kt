@@ -25,12 +25,12 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.COMPUTATIONS_SCHEMA
+import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.gcloud.spanner.testing.UsingSpannerEmulator
 import org.wfanet.measurement.gcloud.spanner.testing.assertQueryReturns
 
 @RunWith(JUnit4::class)
-class ComputationsSchemaTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
+class ComputationsSchemaTest : UsingSpannerEmulator(Schemata.DUCHY_CHANGELOG_PATH) {
 
   private val computationId: Long = 85740L
 

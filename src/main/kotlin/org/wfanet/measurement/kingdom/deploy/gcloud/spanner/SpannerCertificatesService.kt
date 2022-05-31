@@ -25,12 +25,18 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.GetCertificateRequest
 import org.wfanet.measurement.internal.kingdom.ReleaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.RevokeCertificateRequest
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertSubjectKeyIdAlreadyExistsException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateRevocationStateIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.BaseSpannerReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateCertificate
@@ -49,38 +55,20 @@ class SpannerCertificatesService(
     // accordingly.
     try {
       return CreateCertificate(request).execute(client, idGenerator)
-    } catch (e: KingdomInternalException) {
-      when (e.code) {
-        ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND ->
-          failGrpc(Status.NOT_FOUND) { "MeasurementConsumer not found" }
-        ErrorCode.DATA_PROVIDER_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
-        ErrorCode.MODEL_PROVIDER_NOT_FOUND ->
-          failGrpc(Status.NOT_FOUND) { "ModelProvider not found" }
-        ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS ->
-          failGrpc(Status.ALREADY_EXISTS) {
-            "Certificate with the same subject key identifier (SKID) already exists."
-          }
-        ErrorCode.DUCHY_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "Duchy not found" }
-        ErrorCode.API_KEY_NOT_FOUND,
-        ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
-        ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
-        ErrorCode.ACCOUNT_NOT_FOUND,
-        ErrorCode.PERMISSION_DENIED,
-        ErrorCode.CERTIFICATE_NOT_FOUND,
-        ErrorCode.CERTIFICATE_IS_INVALID,
-        ErrorCode.MEASUREMENT_NOT_FOUND,
-        ErrorCode.MEASUREMENT_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
-        ErrorCode.REQUISITION_NOT_FOUND,
-        ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-        ErrorCode.REQUISITION_STATE_ILLEGAL,
-        ErrorCode.EVENT_GROUP_INVALID_ARGS,
-        ErrorCode.EVENT_GROUP_NOT_FOUND,
-        ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,
-        ErrorCode.UNKNOWN_ERROR,
-        ErrorCode.UNRECOGNIZED -> throw e
+    } catch (e: MeasurementConsumerNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Measurement Consumer not found." }
+    } catch (e: DataProviderNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Data Provider not found." }
+    } catch (e: ModelProviderNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Model Provider not found." }
+    } catch (e: CertSubjectKeyIdAlreadyExistsException) {
+      e.throwStatusRuntimeException(Status.ALREADY_EXISTS) {
+        "Certificate with the subject key identifier (SKID) already exists."
       }
+    } catch (e: DuchyNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Duchy not found." }
+    } catch (e: KingdomInternalException) {
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error" }
     }
   }
 
@@ -108,6 +96,9 @@ class SpannerCertificatesService(
           CertificateReader(CertificateReader.ParentType.DUCHY)
             .bindWhereClause(duchyId, externalCertificateId)
         }
+        GetCertificateRequest.ParentCase.EXTERNAL_MODEL_PROVIDER_ID ->
+          CertificateReader(CertificateReader.ParentType.MODEL_PROVIDER)
+            .bindWhereClause(ExternalId(request.externalModelProviderId), externalCertificateId)
         GetCertificateRequest.ParentCase.PARENT_NOT_SET ->
           throw Status.INVALID_ARGUMENT.withDescription("parent not specified").asRuntimeException()
       }
@@ -123,37 +114,14 @@ class SpannerCertificatesService(
     grpcRequire(request.parentCase != RevokeCertificateRequest.ParentCase.PARENT_NOT_SET) {
       "RevokeCertificateRequest is missing parent field"
     }
-    // TODO(world-federation-of-advertisers/cross-media-measurement#178) : Update fail conditions
-    // accordingly.
     try {
       return RevokeCertificate(request).execute(client, idGenerator)
+    } catch (e: CertificateNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Certificate not found." }
+    } catch (e: DuchyNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Duchy not found." }
     } catch (e: KingdomInternalException) {
-      when (e.code) {
-        ErrorCode.CERTIFICATE_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "Certificate not found" }
-        ErrorCode.DUCHY_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "Duchy not found" }
-        ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
-        ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
-        ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
-        ErrorCode.API_KEY_NOT_FOUND,
-        ErrorCode.ACCOUNT_NOT_FOUND,
-        ErrorCode.PERMISSION_DENIED,
-        ErrorCode.DATA_PROVIDER_NOT_FOUND,
-        ErrorCode.MODEL_PROVIDER_NOT_FOUND,
-        ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-        ErrorCode.MEASUREMENT_NOT_FOUND,
-        ErrorCode.MEASUREMENT_STATE_ILLEGAL,
-        ErrorCode.CERTIFICATE_IS_INVALID,
-        ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
-        ErrorCode.REQUISITION_NOT_FOUND,
-        ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-        ErrorCode.REQUISITION_STATE_ILLEGAL,
-        ErrorCode.EVENT_GROUP_INVALID_ARGS,
-        ErrorCode.EVENT_GROUP_NOT_FOUND,
-        ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,
-        ErrorCode.UNKNOWN_ERROR,
-        ErrorCode.UNRECOGNIZED -> throw e
-      }
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error" }
     }
   }
 
@@ -161,38 +129,16 @@ class SpannerCertificatesService(
     grpcRequire(request.parentCase != ReleaseCertificateHoldRequest.ParentCase.PARENT_NOT_SET) {
       "ReleaseCertificateHoldRequest is missing parent field"
     }
-    // TODO(world-federation-of-advertisers/cross-media-measurement#178) : Update fail conditions
-    // accordingly.
     try {
       return ReleaseCertificateHold(request).execute(client, idGenerator)
+    } catch (e: CertificateNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Certificate not found." }
+    } catch (e: DuchyNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Duchy not found." }
+    } catch (e: CertificateRevocationStateIllegalException) {
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Certificate is in wrong State." }
     } catch (e: KingdomInternalException) {
-      when (e.code) {
-        ErrorCode.CERTIFICATE_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "Certificate not found" }
-        ErrorCode.DUCHY_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "Duchy not found" }
-        ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL ->
-          failGrpc(Status.FAILED_PRECONDITION) { "Certificate is in wrong State." }
-        ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
-        ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
-        ErrorCode.ACCOUNT_NOT_FOUND,
-        ErrorCode.API_KEY_NOT_FOUND,
-        ErrorCode.PERMISSION_DENIED,
-        ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
-        ErrorCode.DATA_PROVIDER_NOT_FOUND,
-        ErrorCode.MODEL_PROVIDER_NOT_FOUND,
-        ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-        ErrorCode.MEASUREMENT_NOT_FOUND,
-        ErrorCode.CERTIFICATE_IS_INVALID,
-        ErrorCode.MEASUREMENT_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
-        ErrorCode.REQUISITION_NOT_FOUND,
-        ErrorCode.REQUISITION_STATE_ILLEGAL,
-        ErrorCode.EVENT_GROUP_INVALID_ARGS,
-        ErrorCode.EVENT_GROUP_NOT_FOUND,
-        ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,
-        ErrorCode.UNKNOWN_ERROR,
-        ErrorCode.UNRECOGNIZED -> throw e
-      }
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error" }
     }
   }
 }

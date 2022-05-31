@@ -1,0 +1,105 @@
+// Copyright 2022 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.reporting.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "wfa/measurement/reporting/v1alpha/reporting_set.proto";
+
+option java_package = "org.wfanet.measurement.reporting.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "MetricProto";
+
+// Definition of a computed metric for a `Report` in terms of set operations.
+message Metric {
+  // Parameters that are used to generate `Reach` metric.
+  message ReachParams {}
+  // Parameters that are used to generate `Frequency Histogram` metric.
+  message FrequencyHistogramParams {
+    // Maximum frequency cut-off value in the frequency histogram. Counts with
+    // frequency higher than `max_frequency` will be aggregated together.
+    int32 max_frequency = 1;
+  }
+  // Parameters that are used to generate `Impression Count` metric.
+  message ImpressionCountParams {}
+  // Parameters that are used to generate `Watch Duration` metric.
+  message WatchDurationParams {}
+
+  // Types of metrics that can be selected to be in a `Report`.
+  oneof metric_type {
+    // The count of unique audiences reached given a set of event groups.
+    ReachParams reach = 1;
+    // The reach frequency histogram given a set of event groups.
+    FrequencyHistogramParams frequency_histogram = 2;
+    // The impression count given a set of event groups.
+    ImpressionCountParams impression_count = 3;
+    // The watch duration given a set of event groups.
+    WatchDurationParams watch_duration = 4;
+  }
+
+  // Whether the results for a given time interval is cumulative with those of
+  // previous time intervals.
+  bool cumulative = 6;
+
+  // Represents a binary set operation.
+  message SetOperation {
+    // Types of set operators.
+    enum Type {
+      // Default value. This value is unused.
+      TYPE_UNSPECIFIED = 0;
+      // The set union operation.
+      UNION = 1;
+      // The set difference operation.
+      DIFFERENCE = 2;
+      // The set intersection operation.
+      INTERSECTION = 3;
+    }
+    // The type of set operator that will be applied on the operands.
+    Type type = 1 [(google.api.field_behavior) = REQUIRED];
+
+    // The object of a set operation.
+    message Operand {
+      oneof operand {
+        // Resource name of a `ReportingSet` describing a set operand.
+        string reporting_set = 1 [(google.api.resource_reference).type =
+                                      "reporting.halo-cmm.org/ReportingSet"];
+        // Nested `SetOperation` to allow for expressions with more terms.
+        SetOperation operation = 2;
+      }
+    }
+
+    // Left-hand side operand of the operation.
+    Operand lhs = 3 [(google.api.field_behavior) = REQUIRED];
+    // Right-hand side operand of the operation. If not specified, implies the
+    // empty set.
+    Operand rhs = 4;
+  }
+
+  // A `SetOperation` associated with a name.
+  message NamedSetOperation {
+    // The name of the set for display purposes.
+    //
+    // e.g. this may be a column or row header in CSV output.
+    string display_name = 1 [(google.api.field_behavior) = REQUIRED];
+
+    // A set operation that specifies the set of event groups.
+    SetOperation set_operation = 2 [(google.api.field_behavior) = REQUIRED];
+  }
+
+  // A list of named `SetOperations` on which the same metric will be applied.
+  repeated NamedSetOperation set_operations = 7;
+}

@@ -36,6 +36,8 @@ import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.ModelProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.Principal
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.copy
@@ -44,9 +46,11 @@ import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.releaseCertificateHoldRequest
 import org.wfanet.measurement.api.v2alpha.revokeCertificateRequest
 import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
+import org.wfanet.measurement.api.v2alpha.testing.makeModelProvider
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withDuchyPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
+import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withPrincipal
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
@@ -72,6 +76,9 @@ import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest as inter
 private val DATA_PROVIDER_NAME = makeDataProvider(12345L)
 private val DATA_PROVIDER_NAME_2 = makeDataProvider(12346L)
 private val DATA_PROVIDER_CERTIFICATE_NAME = "$DATA_PROVIDER_NAME/certificates/AAAAAAAAAcg"
+private val MODEL_PROVIDER_NAME = makeModelProvider(23456L)
+private val MODEL_PROVIDER_NAME_2 = makeModelProvider(23457L)
+private val MODEL_PROVIDER_CERTIFICATE_NAME = "$MODEL_PROVIDER_NAME/certificates/AAAAAAAAAcg"
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 private const val MEASUREMENT_CONSUMER_NAME_2 = "measurementConsumers/BBBBBBBBBHs"
 private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
@@ -99,6 +106,8 @@ class CertificatesServiceTest {
               externalMeasurementConsumerId = request.externalMeasurementConsumerId
             InternalGetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID ->
               externalDuchyId = request.externalDuchyId
+            InternalGetCertificateRequest.ParentCase.EXTERNAL_MODEL_PROVIDER_ID ->
+              externalModelProviderId = request.externalModelProviderId
             InternalGetCertificateRequest.ParentCase.PARENT_NOT_SET -> error("Invalid case")
           }
         }
@@ -304,6 +313,32 @@ class CertificatesServiceTest {
   }
 
   @Test
+  fun `getCertificate succeeds for MP caller when getting MP certificate`() {
+    assertGetCertificateRequestSucceeds(
+      Principal.ModelProvider(ModelProviderKey.fromName(MODEL_PROVIDER_NAME)!!),
+      MODEL_PROVIDER_CERTIFICATE_NAME,
+      internalGetCertificateRequest {
+        val key = ModelProviderCertificateKey.fromName(MODEL_PROVIDER_CERTIFICATE_NAME)!!
+        externalModelProviderId = apiIdToExternalId(key.modelProviderId)
+        externalCertificateId = apiIdToExternalId(key.certificateId)
+      }
+    )
+  }
+
+  @Test
+  fun `getCertificate succeeds for MP caller when getting Duchy certificate`() {
+    assertGetCertificateRequestSucceeds(
+      Principal.ModelProvider(ModelProviderKey.fromName(MODEL_PROVIDER_NAME)!!),
+      DUCHY_CERTIFICATE_NAME,
+      internalGetCertificateRequest {
+        val key = DuchyCertificateKey.fromName(DUCHY_CERTIFICATE_NAME)!!
+        externalDuchyId = key.duchyId
+        externalCertificateId = apiIdToExternalId(key.certificateId)
+      }
+    )
+  }
+
+  @Test
   fun `getCertificate throws UNAUTHENTICATED when no principal is found`() {
     val request = getCertificateRequest { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME }
 
@@ -405,6 +440,29 @@ class CertificatesServiceTest {
   }
 
   @Test
+  fun `createCertificate returns certificate when MP caller is found`() {
+    val key = ModelProviderCertificateKey.fromName(MODEL_PROVIDER_CERTIFICATE_NAME)!!
+    val externalModelProviderId = apiIdToExternalId(key.modelProviderId)
+    val externalCertificateId = apiIdToExternalId(key.certificateId)
+
+    assertCreateCertificateRequestSucceeds(
+      INTERNAL_CERTIFICATE.copy {
+        clearExternalDataProviderId()
+        this.externalModelProviderId = externalModelProviderId
+        this.externalCertificateId = externalCertificateId
+      },
+      Principal.ModelProvider(ModelProviderKey.fromName(MODEL_PROVIDER_NAME)!!),
+      MODEL_PROVIDER_NAME,
+      CERTIFICATE.copy { name = MODEL_PROVIDER_CERTIFICATE_NAME },
+      INTERNAL_CERTIFICATE.copy {
+        clearExternalDataProviderId()
+        clearExternalCertificateId()
+        this.externalModelProviderId = externalModelProviderId
+      }
+    )
+  }
+
+  @Test
   fun `createCertificate throws INVALID_ARGUMENT when parent is missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -440,6 +498,22 @@ class CertificatesServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> { runBlocking { service.createCertificate(request) } }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `createCertificate throws PERMISSION_DENIED when no authorization for MP certificate`() {
+    val request = createCertificateRequest {
+      parent = MODEL_PROVIDER_NAME
+      certificate = CERTIFICATE.copy { name = MODEL_PROVIDER_CERTIFICATE_NAME }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.createCertificate(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
@@ -537,6 +611,22 @@ class CertificatesServiceTest {
   }
 
   @Test
+  fun `createCertificate throws PERMISSION_DENIED when MP caller doesn't match parent`() {
+    val request = createCertificateRequest {
+      parent = MODEL_PROVIDER_NAME
+      certificate = CERTIFICATE.copy { name = MODEL_PROVIDER_CERTIFICATE_NAME }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME_2) {
+          runBlocking { service.createCertificate(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
   fun `revokeCertificate returns certificate with RevocationState set when EDP caller`() {
     assertRevokeCertificateRequestSucceeds(
       INTERNAL_CERTIFICATE.copy { revocationState = InternalCertificate.RevocationState.REVOKED },
@@ -606,6 +696,33 @@ class CertificatesServiceTest {
   }
 
   @Test
+  fun `revokeCertificate returns certificate with RevocationState set when MP caller`() {
+    val key = ModelProviderCertificateKey.fromName(MODEL_PROVIDER_CERTIFICATE_NAME)!!
+    val externalModelProviderId = apiIdToExternalId(key.modelProviderId)
+    val externalCertificateId = apiIdToExternalId(key.certificateId)
+
+    assertRevokeCertificateRequestSucceeds(
+      INTERNAL_CERTIFICATE.copy {
+        revocationState = InternalCertificate.RevocationState.REVOKED
+        clearExternalDataProviderId()
+        this.externalModelProviderId = externalModelProviderId
+        this.externalCertificateId = externalCertificateId
+      },
+      Principal.ModelProvider(ModelProviderKey.fromName(MODEL_PROVIDER_NAME)!!),
+      MODEL_PROVIDER_CERTIFICATE_NAME,
+      internalRevokeCertificateRequest {
+        this.externalModelProviderId = externalModelProviderId
+        this.externalCertificateId = externalCertificateId
+        revocationState = InternalCertificate.RevocationState.REVOKED
+      },
+      CERTIFICATE.copy {
+        name = MODEL_PROVIDER_CERTIFICATE_NAME
+        revocationState = Certificate.RevocationState.REVOKED
+      }
+    )
+  }
+
+  @Test
   fun `revokeCertificate throws INVALID_ARGUMENT when name is missing`() {
     val exception =
       withDataProviderPrincipal(DATA_PROVIDER_NAME) {
@@ -641,6 +758,22 @@ class CertificatesServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> { runBlocking { service.revokeCertificate(request) } }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `revokeCertificate throws PERMISSION_DENIED when no authorization for MP certificate`() {
+    val request = revokeCertificateRequest {
+      name = MODEL_PROVIDER_CERTIFICATE_NAME
+      revocationState = Certificate.RevocationState.REVOKED
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.revokeCertificate(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
@@ -738,6 +871,22 @@ class CertificatesServiceTest {
   }
 
   @Test
+  fun `revokeCertificate throws PERMISSION_DENIED when MP caller doesn't match parent`() {
+    val request = revokeCertificateRequest {
+      name = MODEL_PROVIDER_CERTIFICATE_NAME
+      revocationState = Certificate.RevocationState.REVOKED
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME_2) {
+          runBlocking { service.revokeCertificate(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
   fun `releaseCertificateHold returns EDP certificate when EDP caller`() {
     assertReleaseCertificateHoldRequestSucceeds(
       INTERNAL_CERTIFICATE,
@@ -771,6 +920,28 @@ class CertificatesServiceTest {
         this.externalCertificateId = externalCertificateId
       },
       CERTIFICATE.copy { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME }
+    )
+  }
+
+  @Test
+  fun `releaseCertificateHold returns MP certificate when MP caller`() {
+    val key = ModelProviderCertificateKey.fromName(MODEL_PROVIDER_CERTIFICATE_NAME)!!
+    val externalModelProviderId = apiIdToExternalId(key.modelProviderId)
+    val externalCertificateId = apiIdToExternalId(key.certificateId)
+
+    assertReleaseCertificateHoldRequestSucceeds(
+      INTERNAL_CERTIFICATE.copy {
+        clearExternalDataProviderId()
+        this.externalModelProviderId = externalModelProviderId
+        this.externalCertificateId = externalCertificateId
+      },
+      Principal.ModelProvider(ModelProviderKey.fromName(MODEL_PROVIDER_NAME)!!),
+      MODEL_PROVIDER_CERTIFICATE_NAME,
+      internalReleaseCertificateHoldRequest {
+        this.externalModelProviderId = externalModelProviderId
+        this.externalCertificateId = externalCertificateId
+      },
+      CERTIFICATE.copy { name = MODEL_PROVIDER_CERTIFICATE_NAME }
     )
   }
 
@@ -844,12 +1015,38 @@ class CertificatesServiceTest {
   }
 
   @Test
+  fun `releaseCertificate throws PERMISSION_DENIED when MP caller doesn't match parent`() {
+    val request = releaseCertificateHoldRequest { name = MODEL_PROVIDER_CERTIFICATE_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME_2) {
+          runBlocking { service.releaseCertificateHold(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
   fun `releaseCertificate throws PERMISSION_DENIED when duchy caller doesn't match parent`() {
     val request = releaseCertificateHoldRequest { name = DUCHY_CERTIFICATE_NAME }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withDuchyPrincipal(DUCHY_NAME_2) { runBlocking { service.releaseCertificateHold(request) } }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `releaseCertificate throws PERMISSION_DENIED when no authorization to release MP cert`() {
+    val request = releaseCertificateHoldRequest { name = MODEL_PROVIDER_CERTIFICATE_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.releaseCertificateHold(request) }
+        }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }

@@ -16,10 +16,20 @@ syntax = "proto3";
 
 package wfa.measurement.loadtest.config;
 
+import "wfa/measurement/api/v2alpha/event_annotations.proto";
+
 option java_package = "org.wfanet.measurement.loadtest.config";
 option java_multiple_files = true;
 
 message LoadTestEvent {
-  // Whether or not this event can be filtered by the privacy bucket filter.
-  bool privacy_filterable = 1;
+  message Privacy {
+    option (.wfa.measurement.api.v2alpha.event_field) = {
+      display_name: "Privacy"
+    };
+
+    // Whether or not this event can be filtered by the privacy bucket filter.
+    bool filterable = 1;
+  }
+
+  Privacy privacy = 1;
 }
