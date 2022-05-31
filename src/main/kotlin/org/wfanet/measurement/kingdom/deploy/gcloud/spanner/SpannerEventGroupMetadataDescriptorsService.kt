@@ -1,4 +1,4 @@
-// Copyright 2021 The Cross-Media Measurement Authors
+// Copyright 2022 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -38,11 +38,10 @@ class SpannerEventGroupMetadataDescriptorsService(
   private val client: AsyncDatabaseClient
 ) : EventGroupMetadataDescriptorsCoroutineImplBase() {
   override suspend fun createEventGroupMetadataDescriptor(
-    eventGroupMetadataDescriptor: EventGroupMetadataDescriptor
+    request: EventGroupMetadataDescriptor
   ): EventGroupMetadataDescriptor {
     try {
-      return CreateEventGroupMetadataDescriptor(eventGroupMetadataDescriptor)
-        .execute(client, idGenerator)
+      return CreateEventGroupMetadataDescriptor(request).execute(client, idGenerator)
     } catch (e: KingdomInternalException) {
       when (e.code) {
         ErrorCode.DATA_PROVIDER_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
