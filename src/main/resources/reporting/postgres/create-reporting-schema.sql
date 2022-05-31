@@ -127,7 +127,7 @@ CREATE TABLE Measurements (
 
 -- changeset tristanvuong2021:create-measurements-by-request-index dbms:postgresql
 CREATE INDEX MeasurementsByRequest
-  ON Measurements(Request);
+  ON Measurements(MeasurementConsumerReferenceId, Request);
 
 -- changeset tristanvuong2021:create-report-measurements-table dbms:postgresql
 CREATE TABLE ReportMeasurements (
