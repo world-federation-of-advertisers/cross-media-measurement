@@ -19,8 +19,8 @@ import com.google.protobuf.Timestamp
 import com.google.protobuf.timestamp
 import io.grpc.Channel
 import java.io.File
+import java.security.SecureRandom
 import java.time.Instant
-import kotlin.random.Random
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
@@ -172,16 +172,18 @@ class CreateCommand : Runnable {
       private set
   }
 
+  private val secureRandom = SecureRandom.getInstance("SHA1PRNG")
+
   private fun getDataProviderEntry(
     dataProviderStub: DataProvidersCoroutineStub,
-    it: DataProviderInput,
+    dataProviderInput: DataProviderInput,
     measurementConsumerSigningKey: SigningKeyHandle,
     measurementEncryptionPublicKey: ByteString
   ): Measurement.DataProviderEntry {
     return dataProviderEntry {
       val requisitionSpec = requisitionSpec {
         eventGroups +=
-          it.eventGroupInputs.map {
+          dataProviderInput.eventGroupInputs.map {
             eventGroupEntry {
               key = it.name
               value = eventGroupEntryValue {
@@ -195,18 +197,17 @@ class CreateCommand : Runnable {
             }
           }
         this.measurementPublicKey = measurementEncryptionPublicKey
-        nonce = Random.Default.nextLong()
+        nonce = secureRandom.nextLong()
       }
 
-      key = it.name
+      key = dataProviderInput.name
       val dataProvider =
         runBlocking(Dispatchers.IO) {
-          dataProviderStub.getDataProvider(getDataProviderRequest { name = it.name })
+          dataProviderStub.getDataProvider(getDataProviderRequest { name = dataProviderInput.name })
         }
       value = dataProviderEntryValue {
         dataProviderCertificate = dataProvider.certificate
         dataProviderPublicKey = dataProvider.publicKey
-        dataProviderCertificate = "${it.name}/certificates/1"
         encryptedRequisitionSpec =
           encryptRequisitionSpec(
             signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
