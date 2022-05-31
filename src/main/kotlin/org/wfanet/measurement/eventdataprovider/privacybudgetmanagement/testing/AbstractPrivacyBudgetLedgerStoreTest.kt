@@ -42,7 +42,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
       backingStore.startTransaction().use { txContext: PrivacyBudgetLedgerTransactionContext ->
         val bucket1 =
           PrivacyBucketGroup(
-            "ACME",
+            MEASUREMENT_CONSUMER_ID,
             LocalDate.parse("2021-07-01"),
             LocalDate.parse("2021-07-01"),
             AgeGroup.RANGE_35_54,
@@ -53,7 +53,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
 
         val bucket2 =
           PrivacyBucketGroup(
-            "ACME",
+            MEASUREMENT_CONSUMER_ID,
             LocalDate.parse("2021-07-01"),
             LocalDate.parse("2021-07-01"),
             AgeGroup.RANGE_35_54,
@@ -64,7 +64,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
 
         val bucket3 =
           PrivacyBucketGroup(
-            "ACME",
+            MEASUREMENT_CONSUMER_ID,
             LocalDate.parse("2021-07-01"),
             LocalDate.parse("2021-07-01"),
             AgeGroup.RANGE_35_54,
@@ -75,7 +75,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
 
         val bucket4 =
           PrivacyBucketGroup(
-            "ACME",
+            MEASUREMENT_CONSUMER_ID,
             LocalDate.parse("2021-07-01"),
             LocalDate.parse("2021-07-01"),
             AgeGroup.RANGE_35_54,
@@ -114,7 +114,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
       backingStore.startTransaction().use { txContext: PrivacyBudgetLedgerTransactionContext ->
         val bucket1 =
           PrivacyBucketGroup(
-            "ACME",
+            MEASUREMENT_CONSUMER_ID,
             LocalDate.parse("2021-07-01"),
             LocalDate.parse("2021-07-01"),
             AgeGroup.RANGE_35_54,
@@ -148,11 +148,12 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
   @Test(timeout = 15000)
   fun `addLedgerEntries for different MCs and same referenceId don't point to same balances`() {
     val requisitionId = "RequisitioId1"
+    val otherMeasurementConsumerId = "otherMeasurementConsumerId"
     createBackingStore().use { backingStore: PrivacyBudgetLedgerBackingStore ->
       backingStore.startTransaction().use { txContext: PrivacyBudgetLedgerTransactionContext ->
-        val bucket1 =
+        val bucket =
           PrivacyBucketGroup(
-            "ACME",
+            MEASUREMENT_CONSUMER_ID,
             LocalDate.parse("2021-07-01"),
             LocalDate.parse("2021-07-01"),
             AgeGroup.RANGE_35_54,
@@ -160,33 +161,30 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
             0.3f,
             0.1f
           )
-
+        val bucketForOtherMC = bucket.copy(measurementConsumerId = otherMeasurementConsumerId)
         val charge = Charge(0.01f, 0.0001f)
+
         txContext.addLedgerEntries(
-          setOf(bucket1),
+          setOf(bucket),
           setOf(charge),
           Reference(MEASUREMENT_CONSUMER_ID, requisitionId, false)
         )
-        val matchingBalanceEntries = txContext.findIntersectingBalanceEntries(bucket1)
+
+        txContext.addLedgerEntries(
+          setOf(bucketForOtherMC),
+          setOf(charge),
+          Reference(otherMeasurementConsumerId, requisitionId, false)
+        )
+
+        val matchingBalanceEntries = txContext.findIntersectingBalanceEntries(bucket)
+        val otherMcMatchingBalanceEntries =
+          txContext.findIntersectingBalanceEntries(bucketForOtherMC)
+
         assertThat(matchingBalanceEntries.size).isEqualTo(1)
-
         assertThat(matchingBalanceEntries[0].repetitionCount).isEqualTo(1)
-        txContext.addLedgerEntries(
-          setOf(bucket1),
-          setOf(charge),
-          Reference(MEASUREMENT_CONSUMER_ID, requisitionId, true)
-        )
-        val newMatchingBalanceEntries = txContext.findIntersectingBalanceEntries(bucket1)
-        assertThat(newMatchingBalanceEntries.size).isEqualTo(1)
-        assertThat(newMatchingBalanceEntries[0].repetitionCount).isEqualTo(0)
 
-        txContext.addLedgerEntries(
-          setOf(bucket1),
-          setOf(charge),
-          Reference("otherMeasurementConsumerId", requisitionId, false)
-        )
-        val otherMcMatchingBalanceEntries = txContext.findIntersectingBalanceEntries(bucket1)
         assertThat(otherMcMatchingBalanceEntries.size).isEqualTo(1)
+        assertThat(otherMcMatchingBalanceEntries[0].repetitionCount).isEqualTo(1)
       }
     }
   }
@@ -198,7 +196,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
 
     val bucket1 =
       PrivacyBucketGroup(
-        "ACME",
+        MEASUREMENT_CONSUMER_ID,
         LocalDate.parse("2021-07-01"),
         LocalDate.parse("2021-07-01"),
         AgeGroup.RANGE_35_54,
@@ -236,7 +234,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
     val txContext1 = backingStore.startTransaction()
     val bucket1 =
       PrivacyBucketGroup(
-        "ACME",
+        MEASUREMENT_CONSUMER_ID,
         LocalDate.parse("2021-07-01"),
         LocalDate.parse("2021-07-01"),
         AgeGroup.RANGE_35_54,
@@ -288,7 +286,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
     val requisitionId = "RequisitioId1"
     val bucket1 =
       PrivacyBucketGroup(
-        "ACME",
+        MEASUREMENT_CONSUMER_ID,
         LocalDate.parse("2021-07-01"),
         LocalDate.parse("2021-07-01"),
         AgeGroup.RANGE_35_54,
