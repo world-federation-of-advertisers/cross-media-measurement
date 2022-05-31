@@ -87,6 +87,9 @@ example:
 tools/bazel-container test //src/test/...
 ```
 
+Note: This script specifies the appropriate host platform to Bazel, so you
+should not use the `--host_platform` option when using it.
+
 Note that if you don't need to interact with the code on your host machine, it
 may be simpler to use the Bash shell (`/bin/bash`) as your entry point and run
 all of your commands from inside the container. You may even want to install
@@ -114,32 +117,11 @@ use the container for building/deploying image targets using the
 `tools/bazel-container` script. You can even run targets built inside the
 container on your host machine.
 
-Note: This script specifies the appropriate host platform to Bazel, so you
-should not use the `--host_platform` option when using it.
-
-The `tools/bazel-container` script uses a Docker volume for Bazel output. The
-script prints the volume name to `STDERR` when it's run. You can use this to
-determine the mount point of the volume and create a symlink to it within
-workspace directory.
-
-Suppose the script indicates that it's using a volume named
-`bazel-output-b471b3a2d1215b70045d7f5bfa478e3e`. We can create a
-`bazel-container-output` symlink to point to the volume's mount point:
-
-```shell
-ln -s $(docker volume inspect bazel-output-b471b3a2d1215b70045d7f5bfa478e3e --format '{{.Mountpoint}}') bazel-container-output
-```
-
-We can then use the `--script_path` option to the `run` subcommand to output a
-script that we can run from the host machine. For example, we can build and run
-the target
-`//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/mill/liquidlegionsv2:ForwardedStorageLiquidLegionsV2MillDaemon`
-as follows:
-
-```shell
-tools/bazel-container run --script_path="$PWD/bazel-container-output/mill-daemon" //src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/mill/liquidlegionsv2:ForwardedStorageLiquidLegionsV2MillDaemon && \
-bazel-container-output/mill-daemon
-```
+When running on Linux, the script will write its output to the
+`bazel-container-output` directory inside of your working directory. We can use
+the `--script_path` option to the `run` subcommand to output a script that we
+can run from the host machine. The `tools/bazel-container-run` script will do
+this for you, so you can use it in place of `bazel run`.
 
 ## Local Kubernetes
 

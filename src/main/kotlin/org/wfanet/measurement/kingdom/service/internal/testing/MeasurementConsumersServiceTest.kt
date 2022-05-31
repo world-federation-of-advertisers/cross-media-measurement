@@ -195,7 +195,7 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
         )
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
   }
 
   @Test
@@ -275,31 +275,32 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
   }
 
   @Test
-  fun `addMeasurementConsumerOwner throws NOT_FOUND when Account doesn't exist`() = runBlocking {
-    val account = population.createAccount(accountsService)
-    population.activateAccount(accountsService, account)
-    val measurementConsumer =
-      measurementConsumersService.createMeasurementConsumer(
-        createMeasurementConsumerRequest {
-          measurementConsumer = MEASUREMENT_CONSUMER
-          externalAccountId = account.externalAccountId
-          measurementConsumerCreationTokenHash =
-            hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
-        }
-      )
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        measurementConsumersService.addMeasurementConsumerOwner(
-          addMeasurementConsumerOwnerRequest {
-            externalAccountId = 1L
-            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+  fun `addMeasurementConsumerOwner throws FAILED_PRECONDITION when Account doesn't exist`() =
+    runBlocking {
+      val account = population.createAccount(accountsService)
+      population.activateAccount(accountsService, account)
+      val measurementConsumer =
+        measurementConsumersService.createMeasurementConsumer(
+          createMeasurementConsumerRequest {
+            measurementConsumer = MEASUREMENT_CONSUMER
+            externalAccountId = account.externalAccountId
+            measurementConsumerCreationTokenHash =
+              hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
           }
         )
-      }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-  }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          measurementConsumersService.addMeasurementConsumerOwner(
+            addMeasurementConsumerOwnerRequest {
+              externalAccountId = 1L
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
 
   @Test
   fun `addMeasurementConsumerOwner adds Account as new owner of MC`() = runBlocking {
@@ -356,31 +357,32 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
   }
 
   @Test
-  fun `removeMeasurementConsumerOwner throws NOT_FOUND when Account doesn't exist`() = runBlocking {
-    val account = population.createAccount(accountsService)
-    population.activateAccount(accountsService, account)
-    val measurementConsumer =
-      measurementConsumersService.createMeasurementConsumer(
-        createMeasurementConsumerRequest {
-          measurementConsumer = MEASUREMENT_CONSUMER
-          externalAccountId = account.externalAccountId
-          measurementConsumerCreationTokenHash =
-            hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
-        }
-      )
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        measurementConsumersService.removeMeasurementConsumerOwner(
-          removeMeasurementConsumerOwnerRequest {
-            externalAccountId = 1L
-            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+  fun `removeMeasurementConsumerOwner throws FAILED_PRECONDITION when Account doesn't exist`() =
+    runBlocking {
+      val account = population.createAccount(accountsService)
+      population.activateAccount(accountsService, account)
+      val measurementConsumer =
+        measurementConsumersService.createMeasurementConsumer(
+          createMeasurementConsumerRequest {
+            measurementConsumer = MEASUREMENT_CONSUMER
+            externalAccountId = account.externalAccountId
+            measurementConsumerCreationTokenHash =
+              hashSha256(population.createMeasurementConsumerCreationToken(accountsService))
           }
         )
-      }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-  }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          measurementConsumersService.removeMeasurementConsumerOwner(
+            removeMeasurementConsumerOwnerRequest {
+              externalAccountId = 1L
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
 
   @Test
   fun `removeMeasurementConsumerOwner throws FAILED_PRECONDITION when Account doesn't own MC`() =

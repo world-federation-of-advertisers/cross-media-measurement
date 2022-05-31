@@ -1,3 +1,5 @@
+-- liquibase formatted sql
+
 -- Copyright 2020 The Cross-Media Measurement Authors
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -40,6 +42,7 @@
 --   MPC Nodes. There are multiple stages to each computation at each
 --   Node. This table keeps track of when work is being done and/or
 --   needs to be done to move a computation along.
+-- changeset wangyaopw:create-computations-table dbms:cloudspanner
 CREATE TABLE Computations (
   -- The local identifier of the computation.
   ComputationId INT64 NOT NULL,
@@ -104,14 +107,17 @@ CREATE TABLE Computations (
 
 -- Query computations ready for work. All computations that can be worked on
 -- have a non null LockExpirationTime.
+-- changeset wangyaopw:create-computations-by-lock-expiration-index dbms:cloudspanner
 CREATE NULL_FILTERED INDEX ComputationsByLockExpirationTime
   ON Computations(Protocol, LockExpirationTime ASC, UpdateTime ASC)
   STORING (ComputationStage, GlobalComputationId);
 
 -- Query computations by the owner of the lock.
+-- changeset wangyaopw:create-computations-by-lock-owner-index dbms:cloudspanner
 CREATE INDEX ComputationsByLockOwner ON Computations(LockOwner);
 
 -- Enable querying by global computation id.
+-- changeset wangyaopw:create-computations-by-global-id-index dbms:cloudspanner
 CREATE UNIQUE INDEX ComputationsByGlobalId ON Computations(GlobalComputationId);
 
 -- Requisitions
@@ -119,6 +125,7 @@ CREATE UNIQUE INDEX ComputationsByGlobalId ON Computations(GlobalComputationId);
 --   the BLOB store, and the path to the BLOB is recorded in this table.
 --   If the path is set, the requisition is fulfilled at this duchy. Otherwise,
 --   it is not fulfilled yet or fulfilled at other duchies.
+-- changeset wangyaopw:create-requisitions-table dbms:cloudspanner
 CREATE TABLE Requisitions (
   -- The local identifier of the parent computation.
   ComputationId INT64 NOT NULL,
@@ -150,6 +157,7 @@ CREATE TABLE Requisitions (
 INTERLEAVE IN PARENT Computations ON DELETE CASCADE;
 
 -- Enable querying by ExternalRequisitionId and RequisitionFingerprint.
+-- changeset wangyaopw:create-requisitions-by-external-id-index dbms:cloudspanner
 CREATE UNIQUE INDEX RequisitionsByExternalId ON Requisitions(
   ExternalRequisitionId,
   RequisitionFingerprint
@@ -159,6 +167,7 @@ CREATE UNIQUE INDEX RequisitionsByExternalId ON Requisitions(
 --   Running history of stage transitions for a computation. A stage may
 --   be tried multiple times, although it is expected to succeed the on
 --   the first attempt.
+-- changeset wangyaopw:create-computation-stages-table dbms:cloudspanner
 CREATE TABLE ComputationStages (
   -- The local identifier of the computation.
   ComputationId INT64 NOT NULL,
@@ -218,6 +227,7 @@ CREATE TABLE ComputationStages (
 --   outputs can be created with all output names, but thie PathToBlob set
 --   to null. Once  all the output BLOBs have a non null path, the stage
 --   can be considered finished.
+-- changeset wangyaopw:create-computation-blob-refs-table dbms:cloudspanner
 CREATE TABLE ComputationBlobReferences (
   -- The local identifier of the computation.
   ComputationId INT64 NOT NULL,
@@ -248,6 +258,7 @@ CREATE TABLE ComputationBlobReferences (
 --   Running history of attempts for running a stage of a computation.
 --   It is generally expected that each stage will be attempted once,
 --   but it is possible for Mill to fail mid operation.
+-- changeset wangyaopw:create-computation-stage-attempts-table dbms:cloudspanner
 CREATE TABLE ComputationStageAttempts (
   -- The local identifier of the computation.
   ComputationId INT64 NOT NULL,
@@ -300,6 +311,7 @@ CREATE TABLE ComputationStageAttempts (
 --
 --   Job crashes, transient network connectivity issues, or other factors could lead to
 --   some missing entries in this table.
+-- changeset wangyaopw:create-computation-stats-table dbms:cloudspanner
 CREATE TABLE ComputationStats (
   -- The local identifier of the computation.
   ComputationId INT64 NOT NULL,

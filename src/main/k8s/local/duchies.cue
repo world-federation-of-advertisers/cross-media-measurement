@@ -86,20 +86,6 @@ duchies: [ for duchyConfig in _duchyConfigs {
 		_duchy_secret_name:           _secret_name
 		_computation_control_targets: _computationControlTargets
 		_kingdom_system_api_target:   #KingdomSystemApiTarget
-		_spanner_schema_push_flags: [
-			"--create-instance",
-			"--emulator-host=" + #SpannerEmulatorHost,
-			"--instance-config-id=spanner-emulator",
-			"--instance-display-name=EmulatorInstance",
-			"--instance-name=emulator-instance",
-			"--instance-node-count=1",
-			"--project-name=cross-media-measurement-system",
-		]
-		_spanner_flags: [
-			"--spanner-emulator-host=" + #SpannerEmulatorHost,
-			"--spanner-instance=emulator-instance",
-			"--spanner-project=cross-media-measurement-system",
-		]
 		_blob_storage_flags: [
 			"--forwarded-storage-service-target=" + (#Target & {name: "fake-storage-server"}).target,
 			"--forwarded-storage-cert-host=localhost",
@@ -110,8 +96,8 @@ duchies: [ for duchyConfig in _duchyConfigs {
 			"herald-daemon":                    "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/herald:herald_daemon_image"
 			"liquid-legions-v2-mill-daemon":    "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/mill/liquidlegionsv2:forwarded_storage_liquid_legions_v2_mill_daemon_image"
 			"requisition-fulfillment-server":   "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:forwarded_storage_requisition_fulfillment_server_image"
-			"push-spanner-schema-container":    "bazel/src/main/kotlin/org/wfanet/measurement/tools:push_spanner_schema_image"
 			"spanner-computations-server":      "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:spanner_computations_server_image"
+			"update-duchy-schema":              "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/tools:update_schema_image"
 		}
 		_resource_configs: {
 			"async-computation-control-server": #DefaultResourceConfig

@@ -35,9 +35,9 @@ sure you have a domain you can configure.***
 Follow the steps in [Kingdom Deployment](kingdom-deployment.md), with the
 following modifications:
 
-*   Use
-    the[testing secret files](kingdom-deployment.md#secret-files-for-testing)
-    for your K8s secret.
+*   Use the
+    [testing secret files](kingdom-deployment.md#secret-files-for-testing) for
+    your K8s secret.
 
 ## Step 2. Set up Kingdom API resources
 
@@ -58,7 +58,7 @@ You can build and push the container for this job by running (substituting the
 values for your container registry):
 
 ```shell
-bazel run src/main/docker/push_resource_setup_runner_image \
+bazel run //src/main/docker:push_resource_setup_runner_image \
   -c opt --define container_registry=gcr.io \
   --define image_repo_prefix=halo-kingdom-demo
 ```
@@ -171,21 +171,7 @@ the moment, this is just the public API server.
 kubectl rollout restart deployments/v2alpha-public-api-server-deployment
 ```
 
-## Step 3. Create a Cloud Storage Buckets
-
-While it's possible that multiple Duchies can use the same bucket, it may be
-safer to create a separate bucket for each Duchy. The simulators can share a
-single bucket, or share one of the Duchy buckets.
-
-1.  Visit the [Cloud Storage](https://console.cloud.google.com/storage/browser)
-    page in the Google Cloud console.
-2.  Click on `CREATE BUCKET`
-3.  Give the bucket a unique name.
-4.  Using a single region (e.g. `us-central1`) is fine, but it's best if it's
-    the same one you deployed the Kingdom in.
-5.  Use default settings in other options and click on `CREATE`
-
-## Step 4. Prepare EDP test data
+## Step 3. Prepare EDP test data
 
 The EDP simulators read their labelled events from a dataset in Google Cloud
 BigQuery. We can upload pre-generated synthetic test data from the
@@ -225,14 +211,22 @@ parameters in the Frontend simulator and create different measurements.)***
 
 Now this synthetic test data is ready to use in the correctness test.
 
-## Step 5. Create the Duchy clusters
+## Step 4. Deploy the Duchies
 
-For this you can see the relevant section in
-[Duchy Deployment](duchy-deployment.md#step-6-create-the-cluster). You'll need
-to create three Duchy clusters.
+Follow the steps in the [Duchy deployment guide](duchy-deployment.md). You'll
+need to repeat the process for each of the three Duchies for the correctness
+test: `aggregator`, `worker1`, and `worker2`.
 
-You'll also need to create the K8s Secret and ConfigMap in each of these
-clusters.
+There are separate BUILD targets to generate a manifest for each of the three
+Duchies:
+
+*   `//src/main/k8s/dev:aggregator_duchy_gke`
+*   `//src/main/k8s/dev:worker1_duchy_gke`
+*   `//src/main/k8s/dev:worker2_duchy_gke`
+
+You'll only need to build and push the images once,and you can share the IAM
+service accounts across the Duchies. You will need a separate cluster for each
+Duchy.
 
 Tip: Don't forget to use the `gcloud` CLI to switch which cluster `kubectl` is
 connected to. e.g.
@@ -241,84 +235,7 @@ connected to. e.g.
 gcloud container clusters get-credentials halo-cmm-aggregator-demo-cluster
 ```
 
-## Step 6. Deploy the Duchies
-
-### Create the K8s Manifest
-
-Deploying a Duchy to a cluster is generally done by applying a K8s manifest. You
-can use the `dev` configuration as a base to get started. The `dev` manifest is
-a YAML file that is generated from files written in [CUE](https://cuelang.org/)
-using Bazel rules.
-
-The main file for a `dev` Duchy is
-[`duchy_gke.cue`](../../src/main/k8s/dev/duchy_gke.cue). You can modify this
-file to specify the values for your Google Cloud project. **Do not** push your
-modifications to the repository.
-
-For example,
-
-```
-# KingdomSystemApiTarget: "<kingdom system API server IP or hostname>:8443"
-# GloudProject: "halo-cmm-demo"
-# SpannerInstance: "demo-instance"
-# CloudStorageBucket: "halo-cmm-demo-bucket"
-```
-
-Then in the same file, update the following section with the hostnames you
-intend to point to each Duchy's system API server:
-
-```
-_computation_control_targets: {
-  "aggregator": "<your aggregator's system API domain>:8443"
-  "worker1": "<your worker1's system API domain>:8443"
-  "worker2": "<your worker2's system API domain>:8443"
-}
-```
-
-You can also modify things such as the memory and CPU request/limit of each pod,
-as well as the number of replicas per deployment. You can also do your
-customization to the generated YAML file rather than to the CUE file.
-
-Note: The `dev` configuration does not specify a tag or digest for the container
-images. You likely want to change this for a production environment.
-
-To generate a Duchy YAML manifest from the CUE files, use one the commands below
-(substituting the appropriate secret name and certificate resource name). By
-default, each of these commands will output a manifest file at
-`bazel-bin/src/main/k8s/dev/duchy_gke.yaml`. You can then apply the manifest in
-the appropriate cluster using `kubectl`.
-
-#### `aggregator`
-
-```shell
-bazel build //src/main/k8s/dev:duchy_gke \
-  --define=k8s_duchy_secret_name=certs-and-configs-gb46dm7468 \
-  --define=duchy_name=aggregator \
-  --define=duchy_cert_name=duchies/aggregator/certificates/DTDmi5he1do \
-  --define=duchy_protocols_setup_config=aggregator_protocols_setup_config.textproto
-```
-
-#### `worker1`
-
-```shell
-bazel build //src/main/k8s/dev:duchy_gke \
-  --define=k8s_duchy_secret_name=certs-and-configs-gb46dm7468 \
-  --define=duchy_name=worker1 \
-  --define=duchy_cert_name=duchies/worker1/certificates/Vr9cWmehKZM \
-  --define=duchy_protocols_setup_config=non_aggregator_protocols_setup_config.textproto
-```
-
-#### `worker2`
-
-```shell
-bazel build //src/main/k8s/dev:duchy_gke \
-  --define=k8s_duchy_secret_name=certs-and-configs-gb46dm7468 \
-  --define=duchy_name=worker2 \
-  --define=duchy_cert_name=duchies/worker2/certificates/QBC5Lphe1p0 \
-  --define=duchy_protocols_setup_config=non_aggregator_protocols_setup_config.textproto
-```
-
-## Step 7. Update Duchy DNS records
+## Step 5. Update Duchy DNS records
 
 You can obtain the public IPs of a Duchy's public API and system API servers
 using the following command
@@ -390,32 +307,32 @@ INFO: @Mill worker2-liquid-legions-v2-mill-daemon-deployment-55cdf8f78d7gxf:
 No computation available, waiting for the next poll... ...
 ```
 
-## Step 8. Deploy the EDP Simulators
+## Step 6. Deploy the EDP Simulators
 
 In this step, we deploy 6 EDP simulators in the same GCP clusters. Each of them
 acts as one of the 6 different EDPs.
 
-1.  Open the `/src/main/k8s/dev/edp_simulator_gke.cue` file in your local
-    branch. Update the tag variables in the beginning to the following values.
+1.  Create Cloud Storage bucket
 
+    While it may be possible to share one of a Duchy bucket, it's probably safer
+    to create a separate storage bucket for the simulators. Follow the same
+    process as creating a storage bucket for a Duchy.
+
+2.  Create K8s cluster
+
+    ```shell
+    gcloud container clusters create halo-cmm-simulator-demo-cluster \
+    --num-nodes=2 --enable-autoscaling --min-nodes=2 --max-nodes=4 \
+    --machine-type=e2-medium
     ```
-    #KingdomPublicApiTarget: "your kingdom public API domain/subdomain:8443"
-    #DuchyPublicApiTarget: "your kingdom system API domain/subdomain:8443"
-    #GloudProject: "halo-cmm-demo"
-    #CloudStorageBucket:"halo-cmm-demo-bucket"
-    #ContainerRegistry: "gcr.io"
-    ```
 
-    If you picked other names in the previous steps, update the value
-    accordingly.
-
-2.  connect to the simulator cluster in `kubectl` by running:
+3.  Configure `kubectl` to connect to the cluster
 
     ```shell
     gcloud container clusters get-credentials halo-cmm-simulator-demo-cluster
     ```
 
-3.  Create the k8s secret which contains the certificates and config files used
+4.  Create the k8s secret which contains the certificates and config files used
     by the EDP simulators.
 
     ```shell
@@ -426,25 +343,56 @@ acts as one of the 6 different EDPs.
     secret should be the same as the one in the kingdom cluster. And in our
     case, it is certs-and-configs-gb46dm7468
 
-4.  Deploy all 6 EDP simulators by running
+5.  Push container image
 
     ```shell
-    bazel run \
-      //src/main/kotlin/org/wfanet/measurement/tools:deploy_edp_simulator_to_gke \
+    bazel run -c opt //src/main/docker:push_gcs_edp_simulator_runner_image \
+      --define container_registry=gcr.io \
+      --define image_repo_prefix=halo-cmm-demo
+    ```
+
+6.  Generate K8s manifests
+
+    The CUE files for the EDP simulators are
+    [`config.cue`](../../src/main/k8s/dev/config.cue) and
+    [`edp_simulator_gke.cue`](../../src/main/k8s/dev/edp_simulator_gke.cue).
+
+    Update the definitions in these files for your configuration. For example:
+
+    ```
+    #GloudProject: "halo-cmm-demo"
+    #ContainerRegistry: "gcr.io"
+    ```
+
+    ```
+    #KingdomPublicApiTarget: "your kingdom public API domain/subdomain:8443"
+    #DuchyPublicApiTarget:   "your kingdom system API domain/subdomain:8443"
+    #BigQueryTableName:      "demo.labelled_events"
+    ```
+
+    Generate the manifest using the `//src/main/k8s/dev:edp_simulator_gke`
+    target:
+
+    ```shell
+    bazel build //src/main/k8s/dev:edp_simulator_gke \
       --define=k8s_simulator_secret_name=certs-and-configs-gb46dm7468 \
+      --define=simulator_storage_bucket=halo-cmm-demo-bucket \
       --define=mc_name=measurementConsumers/TGWOaWehLQ8 \
       --define=edp1_name=dataProviders/HRL1wWehTSM \
       --define=edp2_name=dataProviders/djQdz2ehSSE \
       --define=edp3_name=dataProviders/SQ99TmehSA8 \
       --define=edp4_name=dataProviders/TBZkB5heuL0 \
       --define=edp5_name=dataProviders/HOCBxZheuS8 \
-      --define=edp6_name=dataProviders/VGExFmehRhY \
-      -- \
-      --yaml-file=edp_simulator_gke.yaml \
-      --cluster-name=halo-cmm-simulator-demo-cluster --environment=dev
+      --define=edp6_name=dataProviders/VGExFmehRhY
     ```
 
-5.  Verify everything is fine.
+7.  Apply the K8s manifest
+
+    ```shell
+    k8s apply -f bazel-bin/src/main/k8s/dev/edp_simulator_gke.yaml
+    ```
+
+8.  Verify everything is fine.
 
     ```shell
     $ kubectl get pods NAME READY STATUS RESTARTS AGE
@@ -473,11 +421,12 @@ acts as one of the 6 different EDPs.
     INFO: No unfulfilled requisition. Polling again later... ...
     ```
 
-## Step 9 (Final one). Deploy the Frontend simulator and complete the correctness test
+## Step 7. Deploy the Frontend simulator test runner
 
 Now the kingdom + 3 duchies + 6 EDP simulators are all deployed and running. We
 can deploy the Frontend simulator to act as the measurement consumer and create
-a measurement. Then, the frontendSimulator will
+a measurement. The Frontend simulator acts as the test runner for the
+correctness test. It works by:
 
 -   periodically (time interval of 30s) polling from the kingdom to get the
     result of the measurement.
@@ -492,24 +441,41 @@ a measurement. Then, the frontendSimulator will
     gcloud container clusters get-credentials halo-cmm-simulator-demo-cluster
     ```
 
-2.  Create the k8s secret
+2.  Create the K8s secret
 
     ```shell
     bazel run //src/main/k8s/testing/secretfiles:apply_kustomization
     ```
 
-3.  Deploy the frontend simulator job ( replace the mc_name and mc_api_key
-    first)
+3.  Push container image
 
     ```shell
-    bazel run \
-      //src/main/kotlin/org/wfanet/measurement/tools:deploy_frontend_simulator_to_gke \
+    bazel run -c opt //src/main/docker:gcs_frontend_simulator_runner_image \
+      --define container_registry=gcr.io \
+      --define image_repo_prefix=halo-cmm-demo
+    ```
+
+4.  Generate the K8s manifest
+
+    Similar to what we did for the EDP simulator, you may need to adjust some of
+    the definitions in
+    [`frontend_simulator_gke.cue`](../../src/main/k8s/dev/frontend_simulator_gke.cue).
+
+    Generate the manifest using the `//src/main/k8s/dev:frontend_simulator_gke`
+    target:
+
+    ```shell
+    bazel build //src/main/k8s/dev:frontend_simulator_gke \
       --define=k8s_simulator_secret_name=certs-and-configs-gb46dm7468 \
+      --define=simulator_storage_bucket=halo-cmm-demo-bucket \
       --define=mc_name=measurementConsumers/TGWOaWehLQ8 \
-      --define=mc_api_key=ZEhkVZhe1Q0 \
-      -- \
-      --yaml-file=frontend_simulator_gke.yaml \
-      --cluster-name=halo-cmm-simulator-demo-cluster --environment=dev
+      --define=mc_api_key=ZEhkVZhe1Q0
+    ```
+
+5.  Apply the K8s manifest
+
+    ```shell
+    k8s apply -f bazel-bin/src/main/k8s/dev/frontend_simulator_gke.yaml
     ```
 
 The frontend simulator job takes about 6 minutes to complete, since that is how

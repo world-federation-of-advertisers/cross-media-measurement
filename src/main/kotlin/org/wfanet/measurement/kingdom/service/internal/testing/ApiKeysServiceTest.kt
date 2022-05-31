@@ -103,7 +103,7 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
   }
 
   @Test
-  fun `createApiKey throws NOT FOUND when measurement consumer doesn't exist`() = runBlocking {
+  fun `createApiKey throws NOT_FOUND when measurement consumer doesn't exist`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         apiKeysService.createApiKey(
@@ -115,7 +115,7 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("Measurement Consumer not found")
+    assertThat(exception).hasMessageThat().contains("MeasurementConsumer not found")
   }
 
   @Test
@@ -145,7 +145,7 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
   }
 
   @Test
-  fun `deleteApiKey throws NOT FOUND when measurement consumer doesn't exist`() = runBlocking {
+  fun `deleteApiKey throws NOT_FOUND when measurement consumer doesn't exist`() = runBlocking {
     val externalMeasurementConsumerId =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
@@ -172,7 +172,7 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("Measurement Consumer not found")
+    assertThat(exception).hasMessageThat().contains("MeasurementConsumer not found")
   }
 
   @Test

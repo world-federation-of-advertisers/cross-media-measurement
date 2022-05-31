@@ -25,14 +25,17 @@ import org.wfanet.measurement.internal.kingdom.ActivateAccountRequest
 import org.wfanet.measurement.internal.kingdom.AuthenticateAccountRequest
 import org.wfanet.measurement.internal.kingdom.CreateMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.internal.kingdom.CreateMeasurementConsumerCreationTokenResponse
-import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.GenerateOpenIdRequestParamsRequest
 import org.wfanet.measurement.internal.kingdom.GetOpenIdRequestParamsRequest
 import org.wfanet.measurement.internal.kingdom.OpenIdRequestParams
 import org.wfanet.measurement.internal.kingdom.ReplaceAccountIdentityRequest
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenResponse
 import org.wfanet.measurement.internal.kingdom.openIdRequestParams
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountActivationStateIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuplicateAccountIdentityException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.PermissionDeniedException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.AccountReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.OpenIdConnectIdentityReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.OpenIdRequestParamsReader
@@ -69,36 +72,14 @@ class SpannerAccountsService(
           externalOwnedMeasurementConsumerId = externalOwnedMeasurementConsumerId
         )
         .execute(client, idGenerator)
-    } catch (e: KingdomInternalException) {
-      when (e.code) {
-        ErrorCode.ACCOUNT_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "Creator account not found" }
-        ErrorCode.PERMISSION_DENIED ->
-          failGrpc(Status.PERMISSION_DENIED) {
-            "Caller does not own the owned measurement consumer"
-          }
-        ErrorCode.API_KEY_NOT_FOUND,
-        ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
-        ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
-        ErrorCode.REQUISITION_NOT_FOUND,
-        ErrorCode.REQUISITION_STATE_ILLEGAL,
-        ErrorCode.MEASUREMENT_STATE_ILLEGAL,
-        ErrorCode.DUCHY_NOT_FOUND,
-        ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
-        ErrorCode.MODEL_PROVIDER_NOT_FOUND,
-        ErrorCode.MEASUREMENT_NOT_FOUND,
-        ErrorCode.DATA_PROVIDER_NOT_FOUND,
-        ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-        ErrorCode.CERTIFICATE_NOT_FOUND,
-        ErrorCode.CERTIFICATE_IS_INVALID,
-        ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
-        ErrorCode.EVENT_GROUP_INVALID_ARGS,
-        ErrorCode.EVENT_GROUP_NOT_FOUND,
-        ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,
-        ErrorCode.UNKNOWN_ERROR,
-        ErrorCode.UNRECOGNIZED -> throw e
+    } catch (e: AccountNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Creator's Account not found." }
+    } catch (e: PermissionDeniedException) {
+      e.throwStatusRuntimeException(Status.PERMISSION_DENIED) {
+        "Caller does not own the owned measurement consumer."
       }
+    } catch (e: KingdomInternalException) {
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
   }
 
@@ -120,37 +101,22 @@ class SpannerAccountsService(
           subject = request.identity.subject
         )
         .execute(client, idGenerator)
-    } catch (e: KingdomInternalException) {
-      when (e.code) {
-        ErrorCode.PERMISSION_DENIED ->
-          failGrpc(Status.PERMISSION_DENIED) { "Activation token is not valid for this account" }
-        ErrorCode.DUPLICATE_ACCOUNT_IDENTITY ->
-          failGrpc(Status.INVALID_ARGUMENT) { "Issuer and subject pair already exists" }
-        ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL ->
-          failGrpc(Status.PERMISSION_DENIED) { "Cannot activate an account again" }
-        ErrorCode.ACCOUNT_NOT_FOUND ->
-          failGrpc(Status.NOT_FOUND) { "Account to activate has not been found" }
-        ErrorCode.API_KEY_NOT_FOUND,
-        ErrorCode.CERTIFICATE_IS_INVALID,
-        ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-        ErrorCode.MODEL_PROVIDER_NOT_FOUND,
-        ErrorCode.REQUISITION_NOT_FOUND,
-        ErrorCode.REQUISITION_STATE_ILLEGAL,
-        ErrorCode.MEASUREMENT_STATE_ILLEGAL,
-        ErrorCode.DUCHY_NOT_FOUND,
-        ErrorCode.MEASUREMENT_NOT_FOUND,
-        ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
-        ErrorCode.DATA_PROVIDER_NOT_FOUND,
-        ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-        ErrorCode.CERTIFICATE_NOT_FOUND,
-        ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
-        ErrorCode.EVENT_GROUP_INVALID_ARGS,
-        ErrorCode.EVENT_GROUP_NOT_FOUND,
-        ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,
-        ErrorCode.UNKNOWN_ERROR,
-        ErrorCode.UNRECOGNIZED -> throw e
+    } catch (e: PermissionDeniedException) {
+      e.throwStatusRuntimeException(Status.PERMISSION_DENIED) {
+        "Activation token is not valid for this account."
       }
+    } catch (e: DuplicateAccountIdentityException) {
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+        "Issuer and subject pair already exists."
+      }
+    } catch (e: AccountActivationStateIllegalException) {
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+        "Cannot activate an account again. "
+      }
+    } catch (e: AccountNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Account to activate has not been found." }
+    } catch (e: KingdomInternalException) {
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error" }
     }
   }
 
@@ -162,35 +128,18 @@ class SpannerAccountsService(
           subject = request.identity.subject
         )
         .execute(client, idGenerator)
-    } catch (e: KingdomInternalException) {
-      when (e.code) {
-        ErrorCode.DUPLICATE_ACCOUNT_IDENTITY ->
-          failGrpc(Status.INVALID_ARGUMENT) { "Issuer and subject pair already exists" }
-        ErrorCode.ACCOUNT_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "Account was not found" }
-        ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL ->
-          failGrpc(Status.FAILED_PRECONDITION) { "Account has not been activated yet" }
-        ErrorCode.API_KEY_NOT_FOUND,
-        ErrorCode.PERMISSION_DENIED,
-        ErrorCode.REQUISITION_NOT_FOUND,
-        ErrorCode.MODEL_PROVIDER_NOT_FOUND,
-        ErrorCode.REQUISITION_STATE_ILLEGAL,
-        ErrorCode.MEASUREMENT_STATE_ILLEGAL,
-        ErrorCode.DUCHY_NOT_FOUND,
-        ErrorCode.MEASUREMENT_NOT_FOUND,
-        ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
-        ErrorCode.DATA_PROVIDER_NOT_FOUND,
-        ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-        ErrorCode.CERTIFICATE_NOT_FOUND,
-        ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-        ErrorCode.CERTIFICATE_IS_INVALID,
-        ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
-        ErrorCode.EVENT_GROUP_INVALID_ARGS,
-        ErrorCode.EVENT_GROUP_NOT_FOUND,
-        ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,
-        ErrorCode.UNKNOWN_ERROR,
-        ErrorCode.UNRECOGNIZED -> throw e
+    } catch (e: DuplicateAccountIdentityException) {
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+        "Issuer and subject pair already exists."
       }
+    } catch (e: AccountNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Account was not found." }
+    } catch (e: AccountActivationStateIllegalException) {
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+        "Account has not been activated yet."
+      }
+    } catch (e: KingdomInternalException) {
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
   }
 
