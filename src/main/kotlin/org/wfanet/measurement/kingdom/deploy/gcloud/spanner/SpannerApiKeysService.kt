@@ -23,9 +23,10 @@ import org.wfanet.measurement.internal.kingdom.ApiKey
 import org.wfanet.measurement.internal.kingdom.ApiKeysGrpcKt
 import org.wfanet.measurement.internal.kingdom.AuthenticateApiKeyRequest
 import org.wfanet.measurement.internal.kingdom.DeleteApiKeyRequest
-import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ApiKeyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerApiKeyReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateApiKey
@@ -38,34 +39,10 @@ class SpannerApiKeysService(
   override suspend fun createApiKey(request: ApiKey): ApiKey {
     try {
       return CreateApiKey(request).execute(client, idGenerator)
+    } catch (e: MeasurementConsumerNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "MeasurementConsumer not found." }
     } catch (e: KingdomInternalException) {
-      when (e.code) {
-        ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND ->
-          failGrpc(Status.NOT_FOUND) { "Measurement Consumer not found" }
-        ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
-        ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
-        ErrorCode.DATA_PROVIDER_NOT_FOUND,
-        ErrorCode.MODEL_PROVIDER_NOT_FOUND,
-        ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-        ErrorCode.DUCHY_NOT_FOUND,
-        ErrorCode.API_KEY_NOT_FOUND,
-        ErrorCode.ACCOUNT_NOT_FOUND,
-        ErrorCode.PERMISSION_DENIED,
-        ErrorCode.CERTIFICATE_NOT_FOUND,
-        ErrorCode.CERTIFICATE_IS_INVALID,
-        ErrorCode.MEASUREMENT_NOT_FOUND,
-        ErrorCode.MEASUREMENT_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
-        ErrorCode.REQUISITION_NOT_FOUND,
-        ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-        ErrorCode.REQUISITION_STATE_ILLEGAL,
-        ErrorCode.EVENT_GROUP_INVALID_ARGS,
-        ErrorCode.EVENT_GROUP_NOT_FOUND,
-        ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,
-        ErrorCode.UNKNOWN_ERROR,
-        ErrorCode.UNRECOGNIZED -> throw e
-      }
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error" }
     }
   }
 
@@ -76,34 +53,12 @@ class SpannerApiKeysService(
           externalMeasurementConsumerId = ExternalId(request.externalMeasurementConsumerId)
         )
         .execute(client, idGenerator)
+    } catch (e: MeasurementConsumerNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "MeasurementConsumer not found." }
+    } catch (e: ApiKeyNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Api Key not found." }
     } catch (e: KingdomInternalException) {
-      when (e.code) {
-        ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND ->
-          failGrpc(Status.NOT_FOUND) { "Measurement Consumer not found" }
-        ErrorCode.API_KEY_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "Api Key not found" }
-        ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
-        ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
-        ErrorCode.DATA_PROVIDER_NOT_FOUND,
-        ErrorCode.MODEL_PROVIDER_NOT_FOUND,
-        ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-        ErrorCode.DUCHY_NOT_FOUND,
-        ErrorCode.ACCOUNT_NOT_FOUND,
-        ErrorCode.PERMISSION_DENIED,
-        ErrorCode.CERTIFICATE_NOT_FOUND,
-        ErrorCode.CERTIFICATE_IS_INVALID,
-        ErrorCode.MEASUREMENT_NOT_FOUND,
-        ErrorCode.MEASUREMENT_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
-        ErrorCode.REQUISITION_NOT_FOUND,
-        ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-        ErrorCode.REQUISITION_STATE_ILLEGAL,
-        ErrorCode.EVENT_GROUP_INVALID_ARGS,
-        ErrorCode.EVENT_GROUP_NOT_FOUND,
-        ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,
-        ErrorCode.UNKNOWN_ERROR,
-        ErrorCode.UNRECOGNIZED -> throw e
-      }
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
   }
 
@@ -124,6 +79,6 @@ class SpannerApiKeysService(
         ExternalId(apiKey.externalMeasurementConsumerId)
       )
       ?.measurementConsumer
-      ?: failGrpc(Status.NOT_FOUND) { "Measurement Consumer not found" }
+      ?: failGrpc(Status.NOT_FOUND) { "MeasurementConsumer not found" }
   }
 }

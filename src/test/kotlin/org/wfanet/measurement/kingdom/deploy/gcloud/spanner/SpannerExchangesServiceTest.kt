@@ -26,14 +26,14 @@ import org.wfanet.measurement.internal.kingdom.ExchangesGrpcKt.ExchangesCoroutin
 import org.wfanet.measurement.internal.kingdom.ModelProvider
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
 import org.wfanet.measurement.kingdom.deploy.common.service.KingdomDataServices
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateModelProvider
 import org.wfanet.measurement.kingdom.service.internal.testing.ExchangesServiceTest
 
 @RunWith(JUnit4::class)
 class SpannerExchangesServiceTest : ExchangesServiceTest() {
 
-  @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
+  @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(Schemata.KINGDOM_CHANGELOG_PATH)
   private val clock = Clock.systemUTC()
 
   override fun createModelProvider(idGenerator: IdGenerator): ModelProvider {

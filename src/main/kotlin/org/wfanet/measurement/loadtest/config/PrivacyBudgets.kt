@@ -25,6 +25,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
+import org.wfanet.measurement.loadtest.config.LoadTestEventKt.privacy
 
 class TestPrivacyBucketMapper : PrivacyBucketMapper {
 
@@ -32,9 +33,9 @@ class TestPrivacyBucketMapper : PrivacyBucketMapper {
   override fun toPrivacyFilterProgram(filterExpression: String): Program =
     try {
       EventFilters.compileProgram(
-        "privacy_filterable == true",
+        "privacy.filterable == true",
         loadTestEvent {},
-        setOf("privacy_filterable")
+        setOf("privacy.filterable")
       )
     } catch (e: EventFilterValidationException) {
       throw PrivacyBudgetManagerException(
@@ -44,7 +45,7 @@ class TestPrivacyBucketMapper : PrivacyBucketMapper {
     }
   /** To not charge any buckets, [privacyBucketGroup] is ignored and set to be not filterable. */
   override fun toEventMessage(privacyBucketGroup: PrivacyBucketGroup): Message {
-    return loadTestEvent { privacyFilterable = false }
+    return loadTestEvent { privacy = privacy { filterable = false } }
   }
 }
 

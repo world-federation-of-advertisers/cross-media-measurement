@@ -24,14 +24,3 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
     ],
 )
-
-genrule(
-    name = "concat_kingdom",
-    srcs = [
-        "measurement.sdl",
-        "exchange.sdl",
-    ],
-    outs = ["kingdom.sdl"],
-    cmd = "cat $(SRCS) > $@",
-    visibility = ["//visibility:public"],
-)

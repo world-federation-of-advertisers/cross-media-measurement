@@ -15,16 +15,16 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.CreateDuchyMeasurementLogEntryRequest
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
-import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry.ErrorDetails.Type.TRANSIENT
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateDuchyMeasurementLogEntry
 
 class SpannerMeasurementLogEntriesService(
@@ -44,33 +44,12 @@ class SpannerMeasurementLogEntriesService(
 
     try {
       return CreateDuchyMeasurementLogEntry(request).execute(client, idGenerator)
+    } catch (e: MeasurementNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Measurement not found." }
+    } catch (e: DuchyNotFoundException) {
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Duchy not found." }
     } catch (e: KingdomInternalException) {
-      when (e.code) {
-        ErrorCode.MEASUREMENT_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "Measurement not found" }
-        ErrorCode.DUCHY_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "Duchy not found" }
-        ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
-        ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
-        ErrorCode.ACCOUNT_NOT_FOUND,
-        ErrorCode.API_KEY_NOT_FOUND,
-        ErrorCode.PERMISSION_DENIED,
-        ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
-        ErrorCode.MEASUREMENT_STATE_ILLEGAL,
-        ErrorCode.DATA_PROVIDER_NOT_FOUND,
-        ErrorCode.MODEL_PROVIDER_NOT_FOUND,
-        ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-        ErrorCode.CERTIFICATE_NOT_FOUND,
-        ErrorCode.CERTIFICATE_IS_INVALID,
-        ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
-        ErrorCode.REQUISITION_NOT_FOUND,
-        ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-        ErrorCode.REQUISITION_STATE_ILLEGAL,
-        ErrorCode.EVENT_GROUP_INVALID_ARGS,
-        ErrorCode.EVENT_GROUP_NOT_FOUND,
-        ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,
-        ErrorCode.UNKNOWN_ERROR,
-        ErrorCode.UNRECOGNIZED -> throw e
-      }
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error" }
     }
   }
 }

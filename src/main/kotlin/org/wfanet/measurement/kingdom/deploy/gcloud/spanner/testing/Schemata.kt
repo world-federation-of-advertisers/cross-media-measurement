@@ -14,26 +14,19 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing
 
-import java.nio.file.Paths
-import org.wfanet.measurement.common.getRuntimePath
-import org.wfanet.measurement.gcloud.spanner.testing.SpannerSchema
+import java.nio.file.Path
+import org.wfanet.measurement.common.getJarResourcePath
 
-private val SCHEMA_DIR =
-  Paths.get(
-    "wfa_measurement_system",
-    "src",
-    "main",
-    "kotlin",
-    "org",
-    "wfanet",
-    "measurement",
-    "kingdom",
-    "deploy",
-    "gcloud",
-    "spanner"
-  )
+object Schemata {
+  private const val KINGDOM_SPANNER_RESOURCE_PREFIX = "kingdom/spanner"
 
-private val KINGDOM_SCHEMA_FILE =
-  checkNotNull(getRuntimePath(SCHEMA_DIR.resolve("kingdom.sdl"))).toFile()
+  private fun getResourcePath(fileName: String): Path {
+    val resourceName = "$KINGDOM_SPANNER_RESOURCE_PREFIX/$fileName"
+    val classLoader: ClassLoader = Thread.currentThread().contextClassLoader
+    return requireNotNull(classLoader.getJarResourcePath(resourceName)) {
+      "Resource $resourceName not found"
+    }
+  }
 
-val KINGDOM_SCHEMA = SpannerSchema(KINGDOM_SCHEMA_FILE)
+  val KINGDOM_CHANGELOG_PATH: Path = getResourcePath("changelog.yaml")
+}

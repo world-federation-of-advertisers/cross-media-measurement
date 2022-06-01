@@ -24,6 +24,26 @@ object PrivacyBudgetLedgerConstants {
   const val DELTA_EPSILON = 1.0E-12
 }
 
+data class ChargeWithRepetitions(val epsilon: Float, val delta: Float, val count: Int)
+
+private fun ChargeWithRepetitions.totalEpsilon(): Double = epsilon.toDouble() * count
+
+private fun ChargeWithRepetitions.totalDelta(): Double = delta.toDouble() * count
+
+private fun ChargeWithRepetitions.isEquivalentTo(other: ChargeWithRepetitions): Boolean =
+  this.epsilon.approximatelyEqualTo(other.epsilon, PrivacyBudgetLedgerConstants.EPSILON_EPSILON) &&
+    this.delta.approximatelyEqualTo(other.delta, PrivacyBudgetLedgerConstants.DELTA_EPSILON)
+
+private fun Float.approximatelyEqualTo(other: Float, maximumDifference: Double): Boolean {
+  return abs(this - other) < maximumDifference
+}
+
+private fun PrivacyCharge.toChargeWithRepetitions(repetitionCount: Int): ChargeWithRepetitions =
+  ChargeWithRepetitions(epsilon, delta, repetitionCount)
+
+private fun PrivacyBudgetLedgerEntry.toChargeWithRepetitions(): ChargeWithRepetitions =
+  privacyCharge.toChargeWithRepetitions(repetitionCount)
+
 /** Manages and updates privacy budget data. */
 class PrivacyBudgetLedger(
   val backingStore: PrivacyBudgetLedgerBackingStore,
@@ -97,13 +117,20 @@ class PrivacyBudgetLedger(
     context.commit()
   }
 
-  data class ChargeWithRepetitions(val epsilon: Float, val delta: Float, val count: Int) {
+  private fun exceedsUnderAdvancedComposition(
+    chargeEpsilon: Float,
+    chargeDelta: Float,
+    numCharges: Int
+  ): Boolean =
+    Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
+      PrivacyCharge(chargeEpsilon, chargeDelta),
+      numCharges,
+      maximumTotalDelta
+    ) > maximumTotalEpsilon
 
-    fun isEquivalentTo(other: ChargeWithRepetitions): Boolean {
-      return (abs(this.epsilon - other.epsilon) < PrivacyBudgetLedgerConstants.EPSILON_EPSILON) &&
-        (abs(this.delta - other.delta) < PrivacyBudgetLedgerConstants.DELTA_EPSILON)
-    }
-  }
+  private fun exceedsUnderSimpleComposition(charges: List<ChargeWithRepetitions>) =
+    (charges.sumOf { it.totalEpsilon() } > maximumTotalEpsilon.toDouble()) ||
+      (charges.sumOf { it.totalDelta() } > maximumTotalDelta.toDouble())
 
   /**
    * Tests whether a given privacy bucket is exceeded.
@@ -119,45 +146,18 @@ class PrivacyBudgetLedger(
     charges: List<PrivacyCharge>
   ): Boolean {
 
-    val nonUniqueCharges = mutableListOf<ChargeWithRepetitions>()
-    for (entry in ledgerEntries) {
-      nonUniqueCharges.add(
-        ChargeWithRepetitions(
-          entry.privacyCharge.epsilon,
-          entry.privacyCharge.delta,
-          entry.repetitionCount
-        )
+    val allCharges: List<ChargeWithRepetitions> =
+      charges.map { it.toChargeWithRepetitions(1) } +
+        ledgerEntries.map { it.toChargeWithRepetitions() }
+
+    // We can save some privacy budget by using the advanced composition theorem if
+    // all the charges are equivalent.
+    return if (allCharges.all { allCharges[0].isEquivalentTo(it) })
+      exceedsUnderAdvancedComposition(
+        allCharges[0].epsilon,
+        allCharges[0].delta,
+        allCharges.sumOf { it.count }
       )
-    }
-    for (charge in charges) {
-      nonUniqueCharges.add(ChargeWithRepetitions(charge.epsilon, charge.delta, 1))
-    }
-
-    var allChargesEquivalent = true
-    for (i in 1..nonUniqueCharges.size - 1) {
-      if (!nonUniqueCharges[0].isEquivalentTo(nonUniqueCharges[i])) {
-        allChargesEquivalent = false
-        break
-      }
-    }
-
-    if (allChargesEquivalent) {
-      val nCharges = nonUniqueCharges.sumOf { it.count }
-      val advancedCompositionEpsilon =
-        AdvancedComposition.totalPrivacyBudgetUsageUnderAdvancedComposition(
-          PrivacyCharge(nonUniqueCharges[0].epsilon, nonUniqueCharges[0].delta),
-          nCharges,
-          maximumTotalDelta
-        )
-      val budgetExceeded =
-        if (advancedCompositionEpsilon != null) advancedCompositionEpsilon > maximumTotalEpsilon
-        else true
-      return budgetExceeded
-    } else {
-      val totalEpsilon = nonUniqueCharges.sumOf { it.epsilon.toDouble() * it.count.toDouble() }
-      val totalDelta = nonUniqueCharges.sumOf { it.delta.toDouble() * it.count.toDouble() }
-      return (totalEpsilon > maximumTotalEpsilon.toDouble()) ||
-        (totalDelta > maximumTotalDelta.toDouble())
-    }
+    else exceedsUnderSimpleComposition(allCharges)
   }
 }

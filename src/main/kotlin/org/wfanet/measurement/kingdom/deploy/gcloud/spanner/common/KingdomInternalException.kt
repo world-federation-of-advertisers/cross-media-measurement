@@ -54,10 +54,12 @@ sealed class KingdomInternalException : Exception {
     val metadata = Metadata()
     metadata.put(ProtoUtils.keyForProto(info), info)
 
-    throw status.withDescription(provideDescription()).asRuntimeException(metadata)
+    throw status
+      .withDescription(provideDescription() + contextToString())
+      .asRuntimeException(metadata)
   }
 
-  fun contextToString() = context.entries.joinToString(separator = " ")
+  private fun contextToString() = context.entries.joinToString(prefix = " ", separator = " ")
 }
 
 fun StatusRuntimeException.getErrorInfo(): ErrorInfo? {
@@ -190,6 +192,19 @@ class DuchyCertificateNotFoundException(
     get() =
       mapOf(
         "external_duchy_id" to externalDuchyId,
+        "external_certificate_id" to externalCertificateId.toString()
+      )
+}
+
+class ModelProviderCertificateNotFoundException(
+  val externalModelProviderId: ExternalId,
+  externalCertificateId: ExternalId,
+  provideDescription: () -> String = { "ModelProvider's Certificate not found" }
+) : CertificateNotFoundException(externalCertificateId, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_model_provider_id" to externalModelProviderId.toString(),
         "external_certificate_id" to externalCertificateId.toString()
       )
 }
