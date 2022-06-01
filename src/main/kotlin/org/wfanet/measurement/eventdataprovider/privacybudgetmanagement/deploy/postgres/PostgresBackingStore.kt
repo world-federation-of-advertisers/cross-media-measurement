@@ -33,8 +33,6 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Referenc
  * by the backing store and should not be used outside this backing store.
  */
 class PostgresBackingStore(createConnection: () -> Connection) : PrivacyBudgetLedgerBackingStore {
-  // TODO(@duliomatos1) to redesign this to reduce connection lifetime, e.g. using a Connection for
-  // a single transaction/operation and then closing it
   private val connection = createConnection()
   init {
     connection.autoCommit = false
@@ -109,10 +107,13 @@ class PostgresBackingStoreTransactionContext(
     return null
   }
 
-  override fun hasLedgerEntry(reference: Reference): Boolean =
-    getLastReference(reference.measurementConsumerId, reference.referenceId)
-      ?.xor(reference.isRefund)
-      ?: true
+  override fun hasLedgerEntry(reference: Reference): Boolean {
+    val lastReference = getLastReference(reference.measurementConsumerId, reference.referenceId)
+    if (lastReference == null) {
+      return false
+    }
+    return reference.isRefund == lastReference
+  }
 
   override fun findIntersectingBalanceEntries(
     privacyBucketGroup: PrivacyBucketGroup

@@ -192,6 +192,18 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
   }
 
   @Test(timeout = 15000)
+  fun `hasLedgerEntry returns false when ledger is empty`() {
+    val backingStore = createBackingStore()
+    val txContext1 = backingStore.startTransaction()
+    assertThat(
+        txContext1.hasLedgerEntry(Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", false))
+      )
+      .isFalse()
+    txContext1.commit()
+    txContext1.close()
+  }
+
+  @Test(timeout = 15000)
   fun `commit() persists a transaction after it closes`() {
     val backingStore = createBackingStore()
     val txContext = backingStore.startTransaction()
@@ -256,16 +268,17 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
     txContext1.commit()
     val txContext2 = backingStore.startTransaction()
 
-    // charge should not be proccessed if same
+    // backing store already has the ledger entry
     assertThat(
         txContext2.hasLedgerEntry(Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", false))
       )
-      .isFalse()
+      .isTrue()
+
     // but refund is allowed
     assertThat(txContext2.hasLedgerEntry(Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", true)))
-      .isTrue()
-    // refund works
+      .isFalse()
 
+    // refund works
     txContext2.addLedgerEntries(
       setOf(bucket1),
       setOf(charge),
@@ -277,7 +290,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
     assertThat(
         txContext3.hasLedgerEntry(Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", false))
       )
-      .isTrue()
+      .isFalse()
     txContext3.commit()
   }
 
@@ -308,14 +321,14 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
     txContext1.commit()
     val txContext2 = backingStore.startTransaction()
 
-    // charge should not be proccessed if same
+    // backing store already has the ledger entry
     assertThat(txContext2.hasLedgerEntry(Reference(MEASUREMENT_CONSUMER_ID, requisitionId, false)))
-      .isFalse()
+      .isTrue()
     // but other measurement consumer can charge with the same RequisitionId is allowed
     assertThat(
         txContext2.hasLedgerEntry(Reference("OtherMeasurementConsumer", requisitionId, false))
       )
-      .isTrue()
+      .isFalse()
 
     txContext2.commit()
   }

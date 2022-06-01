@@ -68,15 +68,19 @@ class InMemoryBackingStoreTransactionContext(
     )
   }
 
-  override fun hasLedgerEntry(reference: Reference): Boolean =
-    transactionReferenceLedger
-      .get(reference.measurementConsumerId)
-      ?.filter { it.referenceId == reference.referenceId }
-      ?.sortedByDescending { it.createTime }
-      ?.firstOrNull()
-      ?.isRefund
-      ?.xor(reference.isRefund)
-      ?: true
+  override fun hasLedgerEntry(reference: Reference): Boolean {
+    val lastEntry =
+      transactionReferenceLedger
+        .get(reference.measurementConsumerId)
+        ?.filter { it.referenceId == reference.referenceId }
+        ?.sortedByDescending { it.createTime }
+        ?.firstOrNull()
+
+    if (lastEntry == null) {
+      return false
+    }
+    return lastEntry.isRefund == reference.isRefund
+  }
 
   override fun findIntersectingBalanceEntries(
     privacyBucketGroup: PrivacyBucketGroup,

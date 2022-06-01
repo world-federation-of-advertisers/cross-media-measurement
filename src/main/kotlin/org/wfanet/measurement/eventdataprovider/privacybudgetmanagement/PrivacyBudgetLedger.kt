@@ -72,7 +72,7 @@ class PrivacyBudgetLedger(
     val context = backingStore.startTransaction()
 
     // First check if this refence key already have been proccessed.
-    if (!context.hasLedgerEntry(reference)) {
+    if (context.hasLedgerEntry(reference)) {
       return
     }
 
