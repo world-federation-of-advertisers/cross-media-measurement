@@ -22,6 +22,7 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.Certificate
+import org.wfanet.measurement.internal.kingdom.Certificate.RevocationState
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
@@ -29,6 +30,7 @@ import org.wfanet.measurement.internal.kingdom.RevokeCertificateRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateRevocationStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
@@ -115,6 +117,16 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
           throw IllegalStateException("RevokeCertificateRequest is missing parent field.")
       }
 
+    val revocationState = certificateResult.certificate.revocationState
+    if (request.revocationState == RevocationState.REVOCATION_STATE_UNSPECIFIED ||
+        (revocationState == RevocationState.REVOKED &&
+          request.revocationState == RevocationState.HOLD)
+    ) {
+      throw CertificateRevocationStateIllegalException(externalCertificateId, revocationState) {
+        "Certificate is in $revocationState state, cannot set to ${request.revocationState}."
+      }
+    }
+
     transactionContext.bufferUpdateMutation("Certificates") {
       set("CertificateId" to certificateResult.certificateId.value)
       set("RevocationState" to request.revocationState)
@@ -183,7 +195,7 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
       else -> {}
     }
 
-    return certificateResult.certificate.copy { revocationState = request.revocationState }
+    return certificateResult.certificate.copy { this.revocationState = request.revocationState }
   }
 
   override fun ResultScope<Certificate>.buildResult(): Certificate {
