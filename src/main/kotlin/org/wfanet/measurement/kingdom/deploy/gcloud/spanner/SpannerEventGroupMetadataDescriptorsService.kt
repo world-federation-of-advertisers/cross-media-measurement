@@ -1,4 +1,4 @@
-// Copyright 2021 The Cross-Media Measurement Authors
+// Copyright 2022 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,8 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -22,10 +24,12 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptor
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetEventGroupMetadataDescriptorRequest
+import org.wfanet.measurement.internal.kingdom.StreamEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.internal.kingdom.UpdateEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupMetadataDescriptorNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamEventGroupMetadataDescriptors
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupMetadataDescriptorReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateEventGroupMetadataDescriptor
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.UpdateEventGroupMetadataDescriptor
@@ -35,11 +39,10 @@ class SpannerEventGroupMetadataDescriptorsService(
   private val client: AsyncDatabaseClient
 ) : EventGroupMetadataDescriptorsCoroutineImplBase() {
   override suspend fun createEventGroupMetadataDescriptor(
-    eventGroupMetadataDescriptor: EventGroupMetadataDescriptor
+    request: EventGroupMetadataDescriptor
   ): EventGroupMetadataDescriptor {
     try {
-      return CreateEventGroupMetadataDescriptor(eventGroupMetadataDescriptor)
-        .execute(client, idGenerator)
+      return CreateEventGroupMetadataDescriptor(request).execute(client, idGenerator)
     } catch (e: DataProviderNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "DataProvider not found." }
     } catch (e: KingdomInternalException) {
@@ -77,5 +80,13 @@ class SpannerEventGroupMetadataDescriptorsService(
     } catch (e: KingdomInternalException) {
       e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error" }
     }
+  }
+
+  override fun streamEventGroupMetadataDescriptors(
+    request: StreamEventGroupMetadataDescriptorsRequest
+  ): Flow<EventGroupMetadataDescriptor> {
+    return StreamEventGroupMetadataDescriptors(request.filter, request.limit)
+      .execute(client.singleUse())
+      .map { it.eventGroupMetadataDescriptor }
   }
 }
