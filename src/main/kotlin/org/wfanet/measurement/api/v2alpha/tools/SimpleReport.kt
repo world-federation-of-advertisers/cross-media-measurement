@@ -256,6 +256,7 @@ class CreateCommand : Runnable {
       val unsignedMeasurementSpec = measurementSpec {
         measurementPublicKey = measurementEncryptionPublicKey
         nonceHashes += this@measurement.dataProviders.map { it.value.nonceHash }
+        // TODO(@renjiez): Set values by user's input
         reachAndFrequency = reachAndFrequency {
           reachPrivacyParams = differentialPrivacyParams {
             epsilon = 1.0
