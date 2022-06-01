@@ -21,6 +21,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Charge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Gender
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetBalanceEntry
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerBackingStore
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerTransactionContext
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
@@ -98,12 +99,13 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
           Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId2", false)
         )
 
-        val intersectingEntry = txContext.findIntersectingBalanceEntries(bucket1)
-        assertThat(intersectingEntry.size).isEqualTo(1)
-        assertThat(intersectingEntry.get(0).repetitionCount).isEqualTo(2)
-        assertThat(txContext.findIntersectingBalanceEntries(bucket2).size).isEqualTo(1)
-        assertThat(txContext.findIntersectingBalanceEntries(bucket3).size).isEqualTo(1)
-        assertThat(txContext.findIntersectingBalanceEntries(bucket4).size).isEqualTo(0)
+        val intersectingEntries: List<PrivacyBudgetBalanceEntry> =
+          txContext.findIntersectingBalanceEntries(bucket1)
+        assertThat(intersectingEntries).hasSize(1)
+        assertThat(intersectingEntries.get(0).repetitionCount).isEqualTo(2)
+        assertThat(txContext.findIntersectingBalanceEntries(bucket2)).hasSize(1)
+        assertThat(txContext.findIntersectingBalanceEntries(bucket3)).hasSize(1)
+        assertThat(txContext.findIntersectingBalanceEntries(bucket4)).hasSize(0)
       }
     }
   }

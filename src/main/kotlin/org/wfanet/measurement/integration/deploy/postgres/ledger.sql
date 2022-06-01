@@ -19,6 +19,7 @@ CREATE TYPE AgeGroup
 AS ENUM('18_34', '35_54', '55+');
 
 -- TODO(@uakyol): consider normalizing this table by splitting (Delta, Epsilon) pair to other table
+-- TODO(@uakyol): migrate this to Liquibase changelog format.
 CREATE TABLE PrivacyBucketCharges(
   -- Which Measurement Consumer this PrivacyBucket belongs to.
   MeasurementConsumerId text NOT NULL,
