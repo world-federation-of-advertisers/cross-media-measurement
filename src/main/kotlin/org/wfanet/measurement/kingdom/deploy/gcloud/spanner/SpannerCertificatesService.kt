@@ -120,6 +120,8 @@ class SpannerCertificatesService(
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "Certificate not found." }
     } catch (e: DuchyNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "Duchy not found." }
+    } catch (e: CertificateRevocationStateIllegalException) {
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Certificate is in wrong State." }
     } catch (e: KingdomInternalException) {
       e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error" }
     }
