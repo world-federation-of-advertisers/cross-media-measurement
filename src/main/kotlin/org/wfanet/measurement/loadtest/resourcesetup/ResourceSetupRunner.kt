@@ -20,7 +20,7 @@ import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt.ApiKeysCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.common.crypto.testing.SigningCertsTesting
+import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.testing.loadPublicKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
@@ -38,7 +38,7 @@ import picocli.CommandLine
 )
 private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
   val clientCerts =
-    SigningCertsTesting.fromPemFiles(
+    SigningCerts.fromPemFiles(
       certificateFile = flags.tlsFlags.certFile,
       privateKeyFile = flags.tlsFlags.privateKeyFile,
       trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
