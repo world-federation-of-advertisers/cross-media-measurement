@@ -73,6 +73,17 @@ proto_library(
     ],
 )
 
+java_proto_library(
+    name = "reporting_set_java_proto",
+    deps = [":reporting_set_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "reporting_set_kt_jvm_proto",
+    srcs = [":reporting_set_proto"],
+    deps = [":reporting_set_java_proto"],
+)
+
 proto_library(
     name = "time_interval_proto",
     srcs = ["time_interval.proto"],
