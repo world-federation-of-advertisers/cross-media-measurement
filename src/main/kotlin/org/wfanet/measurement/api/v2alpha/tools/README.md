@@ -97,6 +97,13 @@ to the executable.
   --kingdom-public-api-cert-host=public.kingdom.dev.halo-cmm.org \
   create \
   --measurement-consumer=measurementConsumers/777 \
+  --reach-and-frequency \
+  --reach-privacy-epsilon=2.0 \
+  --reach-privacy-delta=3.0 \
+  --frequency-privacy-epsilon=4.0 \
+  --frequency-privacy-delta=5.0 \
+  --vid-sampling-start=6.0 \
+  --vid-sampling-width=7.0 \
   --private-key-der-file=secretfiles/mc_cs_private.der \
   --measurement-ref-id=9999 \
   --data-provider=dataProviders/1 \
