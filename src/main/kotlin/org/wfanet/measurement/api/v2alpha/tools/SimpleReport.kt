@@ -119,116 +119,164 @@ class CreateCommand : Runnable {
   )
   private lateinit var measurementReferenceId: String
 
-  enum class MeasurementType {
-    REACH_AND_FREQUENCY,
-    IMPRESSION,
-    DURATION,
-  }
+  @CommandLine.ArgGroup(
+    exclusive = true,
+    multiplicity = "1",
+    heading = "Specify one of the measurement types with its params\n"
+  )
+  lateinit var measurementParams: MeasurementParams
 
   class MeasurementParams {
-    @CommandLine.Option(
-      names = ["--type"],
-      description = ["Measurement Type from one of (\${COMPLETION-CANDIDATES})"],
-      required = true,
-    )
-    lateinit var type: MeasurementType
-      private set
+    class ReachAndFrequencyParams {
+      @CommandLine.Option(
+        names = ["--reach-and-frequency"],
+        description = ["Measurement Type of ReachAndFrequency"],
+        required = true,
+      )
+      var selected: Boolean = false
+        private set
 
-    @CommandLine.Option(
-      names = ["--reach-privacy-epsilon"],
-      description = ["Epsilon value of reach privacy params"],
-      required = false,
-    )
-    var reachPrivacyEpsilon: Double = 1.0
-      private set
+      @CommandLine.Option(
+        names = ["--reach-privacy-epsilon"],
+        description = ["Epsilon value of reach privacy params"],
+        required = true,
+      )
+      var reachPrivacyEpsilon: Double = 1.0
+        private set
 
-    @CommandLine.Option(
-      names = ["--reach-privacy-delta"],
-      description = ["Delta value of reach privacy params"],
-      required = false,
-    )
-    var reachPrivacyDelta: Double = 1.0
-      private set
+      @CommandLine.Option(
+        names = ["--reach-privacy-delta"],
+        description = ["Delta value of reach privacy params"],
+        required = true,
+      )
+      var reachPrivacyDelta: Double = 1.0
+        private set
 
-    @CommandLine.Option(
-      names = ["--frequency-privacy-epsilon"],
-      description = ["Epsilon value of frequency privacy params"],
-      required = false,
-    )
-    var frequencyPrivacyEpsilon: Double = 1.0
-      private set
+      @CommandLine.Option(
+        names = ["--frequency-privacy-epsilon"],
+        description = ["Epsilon value of frequency privacy params"],
+        required = true,
+      )
+      var frequencyPrivacyEpsilon: Double = 1.0
+        private set
 
-    @CommandLine.Option(
-      names = ["--frequency-privacy-delta"],
-      description = ["Epsilon value of frequency privacy params"],
-      required = false,
-    )
-    var frequencyPrivacyDelta: Double = 1.0
-      private set
+      @CommandLine.Option(
+        names = ["--frequency-privacy-delta"],
+        description = ["Epsilon value of frequency privacy params"],
+        required = true,
+      )
+      var frequencyPrivacyDelta: Double = 1.0
+        private set
 
-    @CommandLine.Option(
-      names = ["--privacy-epsilon"],
-      description = ["Epsilon value of privacy params"],
-      required = false,
-    )
-    var privacyEpsilon: Double = 1.0
-      private set
+      @CommandLine.Option(
+        names = ["--vid-sampling-start"],
+        description = ["Start point of vid sampling interval"],
+        required = true,
+      )
+      var vidSamplingStart: Float = 0.0F
+        private set
 
-    @CommandLine.Option(
-      names = ["--privacy-delta"],
-      description = ["Epsilon value of privacy params"],
-      required = false,
-    )
-    var privacyDelta: Double = 1.0
-      private set
+      @CommandLine.Option(
+        names = ["--vid-sampling-width"],
+        description = ["Width of vid sampling interval"],
+        required = true,
+      )
+      var vidSamplingWidth: Float = 1.0F
+        private set
+    }
 
-    @CommandLine.Option(
-      names = ["--vid-sampling-start"],
-      description = ["Start point of vid sampling interval"],
-      required = false,
-    )
-    var vidSamplingStart: Float = 0.0F
-      private set
+    class ImpressionParams {
+      @CommandLine.Option(
+        names = ["--impression"],
+        description = ["Measurement Type of Impression"],
+        required = true,
+      )
+      var selected: Boolean = false
+        private set
 
-    @CommandLine.Option(
-      names = ["--vid-sampling-width"],
-      description = ["Width of vid sampling interval"],
-      required = false,
-    )
-    var vidSamplingWidth: Float = 1.0F
-      private set
+      @CommandLine.Option(
+        names = ["--impression-privacy-epsilon"],
+        description = ["Epsilon value of impression privacy params"],
+        required = true,
+      )
+      var privacyEpsilon: Double = 1.0
+        private set
 
-    @CommandLine.Option(
-      names = ["--max-frequency"],
-      description = ["Maximum frequency per user"],
-      required = false,
-    )
-    var maximumFrequencyPerUser: Int = 1
-      private set
+      @CommandLine.Option(
+        names = ["--impression-privacy-delta"],
+        description = ["Epsilon value of impression privacy params"],
+        required = true,
+      )
+      var privacyDelta: Double = 1.0
+        private set
 
-    @CommandLine.Option(
-      names = ["--max-duration"],
-      description = ["Maximum watch duration per user"],
-      required = false,
+      @CommandLine.Option(
+        names = ["--max-frequency"],
+        description = ["Maximum frequency per user"],
+        required = true,
+      )
+      var maximumFrequencyPerUser: Int = 1
+        private set
+    }
+
+    class DurationParams {
+      @CommandLine.Option(
+        names = ["--duration"],
+        description = ["Measurement Type of Duration"],
+        required = true,
+      )
+      var selected: Boolean = false
+        private set
+
+      @CommandLine.Option(
+        names = ["--duration-privacy-epsilon"],
+        description = ["Epsilon value of duration privacy params"],
+        required = true,
+      )
+      var privacyEpsilon: Double = 1.0
+        private set
+
+      @CommandLine.Option(
+        names = ["--duration-privacy-delta"],
+        description = ["Epsilon value of duration privacy params"],
+        required = true,
+      )
+      var privacyDelta: Double = 1.0
+        private set
+
+      @CommandLine.Option(
+        names = ["--max-duration"],
+        description = ["Maximum watch duration per user"],
+        required = true,
+      )
+      var maximumWatchDurationPerUser: Int = 1
+        private set
+    }
+
+    @CommandLine.ArgGroup(
+      exclusive = false,
+      heading = "Measurement type ReachAndFrequency and params\n"
     )
-    var maximumWatchDurationPerUser: Int = 1
-      private set
+    var reachAndFrequency = ReachAndFrequencyParams()
+    @CommandLine.ArgGroup(exclusive = false, heading = "Measurement type Impression and params\n")
+    var impression = ImpressionParams()
+    @CommandLine.ArgGroup(exclusive = false, heading = "Measurement type Duration and params\n")
+    var duration = DurationParams()
   }
-  @CommandLine.Mixin lateinit var measurementParams: MeasurementParams
 
   private fun getReachAndFrequency(): ReachAndFrequency {
     return reachAndFrequency {
       reachPrivacyParams = differentialPrivacyParams {
-        epsilon = measurementParams.reachPrivacyEpsilon
-        delta = measurementParams.reachPrivacyDelta
+        epsilon = measurementParams.reachAndFrequency.reachPrivacyEpsilon
+        delta = measurementParams.reachAndFrequency.reachPrivacyDelta
       }
       frequencyPrivacyParams = differentialPrivacyParams {
-        epsilon = measurementParams.frequencyPrivacyEpsilon
-        delta = measurementParams.frequencyPrivacyDelta
+        epsilon = measurementParams.reachAndFrequency.frequencyPrivacyEpsilon
+        delta = measurementParams.reachAndFrequency.frequencyPrivacyDelta
       }
       vidSamplingInterval = vidSamplingInterval {
-        start = measurementParams.vidSamplingStart
-        width = measurementParams.vidSamplingWidth
+        start = measurementParams.reachAndFrequency.vidSamplingStart
+        width = measurementParams.reachAndFrequency.vidSamplingWidth
       }
     }
   }
@@ -236,20 +284,20 @@ class CreateCommand : Runnable {
   private fun getImpression(): Impression {
     return impression {
       privacyParams = differentialPrivacyParams {
-        epsilon = measurementParams.privacyEpsilon
-        delta = measurementParams.privacyDelta
+        epsilon = measurementParams.impression.privacyEpsilon
+        delta = measurementParams.impression.privacyDelta
       }
-      maximumFrequencyPerUser = measurementParams.maximumFrequencyPerUser
+      maximumFrequencyPerUser = measurementParams.impression.maximumFrequencyPerUser
     }
   }
 
   private fun getDuration(): Duration {
     return duration {
       privacyParams = differentialPrivacyParams {
-        epsilon = measurementParams.privacyEpsilon
-        delta = measurementParams.privacyDelta
+        epsilon = measurementParams.duration.privacyEpsilon
+        delta = measurementParams.duration.privacyDelta
       }
-      maximumWatchDurationPerUser = measurementParams.maximumWatchDurationPerUser
+      maximumWatchDurationPerUser = measurementParams.duration.maximumWatchDurationPerUser
     }
   }
 
@@ -400,18 +448,13 @@ class CreateCommand : Runnable {
       val unsignedMeasurementSpec = measurementSpec {
         measurementPublicKey = measurementEncryptionPublicKey
         nonceHashes += this@measurement.dataProviders.map { it.value.nonceHash }
-        when (measurementParams.type) {
-          MeasurementType.REACH_AND_FREQUENCY -> {
-            reachAndFrequency = getReachAndFrequency()
-          }
-          MeasurementType.IMPRESSION -> {
-            impression = getImpression()
-          }
-          MeasurementType.DURATION -> {
-            duration = getDuration()
-          }
-        }
+        if (measurementParams.reachAndFrequency.selected) {
+          reachAndFrequency = getReachAndFrequency()
+        } else if (measurementParams.impression.selected) {
+          impression = getImpression()
+        } else duration = getDuration()
       }
+
       this.measurementSpec =
         signMeasurementSpec(unsignedMeasurementSpec, measurementConsumerSigningKey)
       measurementReferenceId = this@CreateCommand.measurementReferenceId
