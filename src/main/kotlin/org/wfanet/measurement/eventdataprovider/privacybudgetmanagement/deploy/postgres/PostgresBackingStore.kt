@@ -33,6 +33,8 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Referenc
  * by the backing store and should not be used outside this backing store.
  */
 class PostgresBackingStore(createConnection: () -> Connection) : PrivacyBudgetLedgerBackingStore {
+  // TODO(@duliomatos1) : redesign this to reduce connection lifetime, e.g. using a Connection for
+  // a single transaction/operation and then closing it.
   private val connection = createConnection()
   init {
     connection.autoCommit = false
