@@ -13,13 +13,7 @@
  */
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
-import com.google.protobuf.Timestamp
-import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneId
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.api.v2alpha.RequisitionSpec
-import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
@@ -30,44 +24,40 @@ class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
    * range and demo groups are obtained from this.
    * @param measurementSpec The measurementSpec protobuf that is associated with the query. The VID
    * sampling interval is obtained from from this.
-   * @return A list of potentially affected PrivacyBucketGroups. It is guaranteed that the items in
+   * @return A set of potentially affected PrivacyBucketGroups. It is guaranteed that the items in
    * this list are disjoint. In the current implementation, each privacy bucket group represents a
    * single privacy bucket.
    */
   fun getPrivacyBucketGroups(
     measurementConsumerId: String,
-    measurementSpec: MeasurementSpec,
-    requisitionSpec: RequisitionSpec
-  ): List<PrivacyBucketGroup> {
+    privacyLandscapeMask: PrivacyLandscapeMask
+  ): Set<PrivacyBucketGroup> {
 
-    val vidSamplingIntervalStart = measurementSpec.reachAndFrequency.vidSamplingInterval.start
-    val vidSamplingIntervalWidth = measurementSpec.reachAndFrequency.vidSamplingInterval.width
-    val vidSamplingIntervalEnd = vidSamplingIntervalStart + vidSamplingIntervalWidth
-
-    return requisitionSpec
-      .getEventGroupsList()
+    return privacyLandscapeMask
+      .privacyEventGroupSpecs
       .flatMap {
         getPrivacyBucketGroups(
           measurementConsumerId,
-          it.value,
-          vidSamplingIntervalStart,
-          vidSamplingIntervalEnd
+          it.eventFilter,
+          it.startDate,
+          it.endDate,
+          privacyLandscapeMask.vidSampleStart,
+          privacyLandscapeMask.vidSampleStart + privacyLandscapeMask.vidSampleWidth
         )
       }
-      .toList()
+      .toSet()
   }
 
   private fun getPrivacyBucketGroups(
     measurementConsumerId: String,
-    eventGroupEntryValue: EventGroupEntry.Value,
+    eventFilter: String,
+    startDate: LocalDate,
+    endDate: LocalDate,
     vidSamplingIntervalStart: Float,
     vidSamplingIntervalEnd: Float
   ): Sequence<PrivacyBucketGroup> {
 
-    val program = privacyBucketMapper.toPrivacyFilterProgram(eventGroupEntryValue.filter.expression)
-
-    val startDate: LocalDate = eventGroupEntryValue.collectionInterval.startTime.toLocalDate("UTC")
-    val endDate: LocalDate = eventGroupEntryValue.collectionInterval.endTime.toLocalDate("UTC")
+    val program = privacyBucketMapper.toPrivacyFilterProgram(eventFilter)
 
     val vidsIntervalStartPoints =
       PrivacyLandscape.vidsIntervalStartPoints.filter {
@@ -108,9 +98,3 @@ class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
     }
   }
 }
-
-// TODO(@uakyol): Update time conversion after getting alignment on civil calendar days.
-private fun Timestamp.toLocalDate(timeZone: String): LocalDate =
-  Instant.ofEpochSecond(this.getSeconds(), this.getNanos().toLong())
-    .atZone(ZoneId.of(timeZone))
-    .toLocalDate()

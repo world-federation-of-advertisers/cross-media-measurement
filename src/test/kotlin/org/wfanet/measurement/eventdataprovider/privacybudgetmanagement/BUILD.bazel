@@ -66,6 +66,33 @@ kt_jvm_test(
     ],
 )
 
+filegroup(
+    name = "queries",
+    srcs = glob([
+        "*.json"
+    ]),
+)
+
+
+kt_jvm_test(
+    name = "CommscorePbmTest",
+    srcs = ["CommscorePbmTest.kt"],
+    test_class = "org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.CommscorePbmTest",
+    resources=[":queries"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement:privacy_budget_manager",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/testing",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler/testing",
+    ],
+)
+
+
 kt_jvm_test(
     name = "PrivacyBucketGroupTest",
     srcs = ["PrivacyBucketGroupTest.kt"],

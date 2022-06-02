@@ -22,12 +22,8 @@ CREATE TYPE AgeGroup AS ENUM ('18_34', '35_54', '55+');
 CREATE SEQUENCE LedgerEntriesTransactionIdSeq AS bigint START WITH 100;
 
 CREATE TABLE LedgerEntries (
-    -- A unique key associated with this row to allow for subsequent updates and deletions.
-    LedgerEntryId bigserial PRIMARY KEY,
     -- Which Measurement Consumer this PrivacyBucket belongs to.
     MeasurementConsumerId text NOT NULL,
-    -- ID for the transaction this entry belongs to.
-    TransactionId bigint NOT NULL,
     -- Day for this PrivacyBucket. DD-MM-YYYY.
     Date Date NOT NULL,
     -- Age for this PrivacyBucket.
@@ -44,8 +40,17 @@ CREATE TABLE LedgerEntries (
     RepetitionCount integer NOT NULL
 );
 -- Used to query entries efficiently to update RepetitionCount
-CREATE INDEX LedgerEntriesByCharge
+CREATE UNIQUE INDEX LedgerEntriesByCharge
   ON LedgerEntries
   (MeasurementConsumerId, Date, AgeGroup, Gender, VidStart, Delta, Epsilon);
--- Used to rollback transactions
-CREATE INDEX LedgerEntriesByTransaction ON LedgerEntries (TransactionId);
+
+CREATE TABLE ReferenceEntries (
+    -- Reference to the element that caused charges.
+    ReferenceKey text NOT NULL,
+    -- Wheter the charges were refunds or not.
+    IsRefund Boolean NOT NULL,
+    -- Time when the row was inserted.
+    CreateTime TIMESTAMP NOT NULL
+);
+-- Used to query references quickly
+CREATE INDEX ReferenceEntriesByKey ON ReferenceEntries(ReferenceKey);

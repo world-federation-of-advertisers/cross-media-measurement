@@ -11,7 +11,10 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
+package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing
 
-/** Represents a charge that will be made to a privacy budget */
-data class PrivacyCharge(val epsilon: Float, val delta: Float)
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.InMemoryBackingStore
+
+class TestInMemoryBackingStore : InMemoryBackingStore(){
+  fun getBalance() = balances.toMap()
+}

@@ -13,19 +13,30 @@
  */
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
+import java.time.Instant
+
 /**
- * Representation of a single row in the privacy budget ledger backing store. Note that a given
- * PrivacyBucketGroup may have multiple rows associated to it. The total charge to the
- * PrivacyBucketGroup is obtained by aggregating all of the charges specified in all of the rows for
- * that bucket group. This aggregation may be non-linear, e.g., determining total privacy budget
- * usage is not as simple as just adding up the charges for the individual rows.
+ * Representation of a balance for [privacyBucketGroup] in the privacy budget ledger backing store.
+ * Note that a given [privacyBucketGroup] may have multiple rows associated to it due to different
+ * [privacyCharge]s. The total charge to the PrivacyBucketGroup is obtained by aggregating all of
+ * the charges specified in all of the rows for that bucket group. This aggregation may be
+ * non-linear, e.g., determining total privacy budget usage is not as simple as just adding up the
+ * charges for the individual rows.
  */
-data class PrivacyBudgetLedgerEntry(
-  val rowId: Long,
-  val transactionId: Long,
+data class PrivacyBudgetBalanceEntry(
   val privacyBucketGroup: PrivacyBucketGroup,
   val privacyCharge: PrivacyCharge,
   val repetitionCount: Int
+)
+
+/**
+ * Representation of a single query that resulted in multiple charges in the privacy budget ledger
+ * backing store. These entries only exists for replays, and is a list of timestamped transactions.
+ */
+data class PrivacyBudgetLedgerEntry(
+  val referenceKey: String,
+  val isRefund: Boolean,
+  val createTime: Instant
 )
 
 /** Manages the persistence of privacy budget data. */
@@ -54,7 +65,6 @@ interface PrivacyBudgetLedgerBackingStore : AutoCloseable {
  * PrivacyBudgetLedgerBackingStore should take this into account.
  */
 interface PrivacyBudgetLedgerTransactionContext : AutoCloseable {
-  val transactionId: Long // A unique ID assigned to this transaction.
 
   /**
    * Returns a list of all rows within the privacy budget ledger where the PrivacyBucket of the row
@@ -62,31 +72,22 @@ interface PrivacyBudgetLedgerTransactionContext : AutoCloseable {
    */
   fun findIntersectingLedgerEntries(
     privacyBucketGroup: PrivacyBucketGroup
-  ): List<PrivacyBudgetLedgerEntry>
-
-  /** Adds a new row to the PrivacyBudgetLedger specifying a charge to a privacy budget. */
-  fun addLedgerEntry(privacyBucketGroup: PrivacyBucketGroup, privacyCharge: PrivacyCharge)
-
-  /** Updates a row in the PrivacyBudgetLedger. */
-  fun updateLedgerEntry(privacyBudgetLedgerEntry: PrivacyBudgetLedgerEntry)
+  ): List<PrivacyBudgetBalanceEntry>
 
   /**
-   * Causes the privacy charges from a previous request to be permanently merged into the database.
-   *
-   * One possible implementation is to represent the permanently merged privacy budget charges using
-   * a special transaction ID (for example, 0). When merging a row, if there is an existing row with
-   * the special transaction ID that has the same privacy charge, then the repetition count can be
-   * increased and the merged row can be deleted. Otherwise, the transaction ID for the merged row
-   * can be set to the special transaction ID.
+   * Adds new rows to the PrivacyBudgetLedger specifying a charge to a privacy budget, adds the
+   * privacyReference that created these charges
    */
-  fun mergePreviousTransaction(previousTransactionId: Long)
+  fun addLedgerEntries(
+    privacyBucketGroups: Set<PrivacyBucketGroup>,
+    privacyCharges: Set<PrivacyCharge>,
+    privacyReference: PrivacyReference
+  )
 
-  /**
-   * Causes the privacy charges from a previous transaction to be reversed.
-   *
-   * This can be implemented by deleting the rows with the previous transaction id.
-   */
-  fun undoPreviousTransaction(previousTransactionId: Long)
+  /** Checks if the charges with the [referenceKey] should be processed. */
+  fun shouldProcess(referenceKey: String, isRefund: Boolean): Boolean
+
+  // TODO(@uakyol) : expose reference entries for replayability purposes.
 
   /**
    * Commits the current transaction.
