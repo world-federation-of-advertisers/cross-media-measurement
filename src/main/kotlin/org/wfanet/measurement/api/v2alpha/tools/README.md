@@ -94,7 +94,6 @@ to the executable.
   --tls-cert-file=secretfiles/mc_tls.pem --tls-key-file=secretfiles/mc_tls.key \
   --cert-collection-file=secretfiles/kingdom_root.pem \
   --kingdom-public-api-target=public.kingdom.dev.halo-cmm.org:8443 \
-  --kingdom-public-api-cert-host=public.kingdom.dev.halo-cmm.org \
   create \
   --measurement-consumer=measurementConsumers/777 \
   --reach-and-frequency \
@@ -128,7 +127,6 @@ to the executable.
   --tls-cert-file=secretfiles/mc_tls.pem --tls-key-file=secretfiles/mc_tls.key \
   --cert-collection-file=secretfiles/kingdom_root.pem \
   --kingdom-public-api-target=public.kingdom.dev.halo-cmm.org:8443 \
-  --kingdom-public-api-cert-host=public.kingdom.dev.halo-cmm.org \
   list \
   --measurement-consumer=measurementConsumers/777
   ```
@@ -143,7 +141,6 @@ to the executable.
   --tls-cert-file=secretfiles/mc_tls.pem --tls-key-file=secretfiles/mc_tls.key \
   --cert-collection-file=secretfiles/kingdom_root.pem \
   --kingdom-public-api-target=public.kingdom.dev.halo-cmm.org:8443 \
-  --kingdom-public-api-cert-host=public.kingdom.dev.halo-cmm.org \
   get \
   --measurement=measurementConsumers/777/measurements/100 \
   --encryption-private-key-file=secretfiles/mc_enc_private.tink

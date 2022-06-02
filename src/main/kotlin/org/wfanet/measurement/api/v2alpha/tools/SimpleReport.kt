@@ -21,6 +21,7 @@ import io.grpc.ManagedChannel
 import java.io.File
 import java.security.SecureRandom
 import java.time.Instant
+import kotlin.properties.Delegates
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
@@ -133,55 +134,55 @@ class CreateCommand : Runnable {
         description = ["Measurement Type of ReachAndFrequency"],
         required = true,
       )
-      var selected: Boolean = false
+      var selected = false
         private set
 
-      @CommandLine.Option(
+      @set:CommandLine.Option(
         names = ["--reach-privacy-epsilon"],
         description = ["Epsilon value of reach privacy params"],
         required = true,
       )
-      var reachPrivacyEpsilon: Double = 1.0
+      var reachPrivacyEpsilon by Delegates.notNull<Double>()
         private set
 
-      @CommandLine.Option(
+      @set:CommandLine.Option(
         names = ["--reach-privacy-delta"],
         description = ["Delta value of reach privacy params"],
         required = true,
       )
-      var reachPrivacyDelta: Double = 1.0
+      var reachPrivacyDelta by Delegates.notNull<Double>()
         private set
 
-      @CommandLine.Option(
+      @set:CommandLine.Option(
         names = ["--frequency-privacy-epsilon"],
         description = ["Epsilon value of frequency privacy params"],
         required = true,
       )
-      var frequencyPrivacyEpsilon: Double = 1.0
+      var frequencyPrivacyEpsilon by Delegates.notNull<Double>()
         private set
 
-      @CommandLine.Option(
+      @set:CommandLine.Option(
         names = ["--frequency-privacy-delta"],
         description = ["Epsilon value of frequency privacy params"],
         required = true,
       )
-      var frequencyPrivacyDelta: Double = 1.0
+      var frequencyPrivacyDelta by Delegates.notNull<Double>()
         private set
 
-      @CommandLine.Option(
+      @set:CommandLine.Option(
         names = ["--vid-sampling-start"],
         description = ["Start point of vid sampling interval"],
         required = true,
       )
-      var vidSamplingStart: Float = 0.0F
+      var vidSamplingStart by Delegates.notNull<Float>()
         private set
 
-      @CommandLine.Option(
+      @set:CommandLine.Option(
         names = ["--vid-sampling-width"],
         description = ["Width of vid sampling interval"],
         required = true,
       )
-      var vidSamplingWidth: Float = 1.0F
+      var vidSamplingWidth by Delegates.notNull<Float>()
         private set
     }
 
@@ -191,31 +192,31 @@ class CreateCommand : Runnable {
         description = ["Measurement Type of Impression"],
         required = true,
       )
-      var selected: Boolean = false
+      var selected = false
         private set
 
-      @CommandLine.Option(
+      @set:CommandLine.Option(
         names = ["--impression-privacy-epsilon"],
         description = ["Epsilon value of impression privacy params"],
         required = true,
       )
-      var privacyEpsilon: Double = 1.0
+      var privacyEpsilon by Delegates.notNull<Double>()
         private set
 
-      @CommandLine.Option(
+      @set:CommandLine.Option(
         names = ["--impression-privacy-delta"],
         description = ["Epsilon value of impression privacy params"],
         required = true,
       )
-      var privacyDelta: Double = 1.0
+      var privacyDelta by Delegates.notNull<Double>()
         private set
 
-      @CommandLine.Option(
+      @set:CommandLine.Option(
         names = ["--max-frequency"],
         description = ["Maximum frequency per user"],
         required = true,
       )
-      var maximumFrequencyPerUser: Int = 1
+      var maximumFrequencyPerUser by Delegates.notNull<Int>()
         private set
     }
 
@@ -225,31 +226,31 @@ class CreateCommand : Runnable {
         description = ["Measurement Type of Duration"],
         required = true,
       )
-      var selected: Boolean = false
+      var selected = false
         private set
 
-      @CommandLine.Option(
+      @set:CommandLine.Option(
         names = ["--duration-privacy-epsilon"],
         description = ["Epsilon value of duration privacy params"],
         required = true,
       )
-      var privacyEpsilon: Double = 1.0
+      var privacyEpsilon by Delegates.notNull<Double>()
         private set
 
-      @CommandLine.Option(
+      @set:CommandLine.Option(
         names = ["--duration-privacy-delta"],
         description = ["Epsilon value of duration privacy params"],
         required = true,
       )
-      var privacyDelta: Double = 1.0
+      var privacyDelta by Delegates.notNull<Double>()
         private set
 
-      @CommandLine.Option(
+      @set:CommandLine.Option(
         names = ["--max-duration"],
         description = ["Maximum watch duration per user"],
         required = true,
       )
-      var maximumWatchDurationPerUser: Int = 1
+      var maximumWatchDurationPerUser by Delegates.notNull<Int>()
         private set
     }
 
