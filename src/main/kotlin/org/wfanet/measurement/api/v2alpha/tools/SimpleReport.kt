@@ -132,86 +132,87 @@ class CreateCommand : Runnable {
       required = true,
     )
     lateinit var type: MeasurementType
+      private set
 
     @CommandLine.Option(
       names = ["--reach-privacy-epsilon"],
       description = ["Epsilon value of reach privacy params"],
-      defaultValue = "1.0",
       required = false,
     )
-    var reachPrivacyEpsilon: Double = 0.0
+    var reachPrivacyEpsilon: Double = 1.0
+      private set
 
     @CommandLine.Option(
       names = ["--reach-privacy-delta"],
-      defaultValue = "1.0",
       description = ["Delta value of reach privacy params"],
       required = false,
     )
-    var reachPrivacyDelta: Double = 0.0
+    var reachPrivacyDelta: Double = 1.0
+      private set
 
     @CommandLine.Option(
       names = ["--frequency-privacy-epsilon"],
-      defaultValue = "1.0",
       description = ["Epsilon value of frequency privacy params"],
       required = false,
     )
-    var frequencyPrivacyEpsilon: Double = 0.0
+    var frequencyPrivacyEpsilon: Double = 1.0
+      private set
 
     @CommandLine.Option(
       names = ["--frequency-privacy-delta"],
-      defaultValue = "1.0",
       description = ["Epsilon value of frequency privacy params"],
       required = false,
     )
-    var frequencyPrivacyDelta: Double = 0.0
+    var frequencyPrivacyDelta: Double = 1.0
+      private set
 
     @CommandLine.Option(
       names = ["--privacy-epsilon"],
-      defaultValue = "1.0",
       description = ["Epsilon value of privacy params"],
       required = false,
     )
-    var privacyEpsilon: Double = 0.0
+    var privacyEpsilon: Double = 1.0
+      private set
 
     @CommandLine.Option(
       names = ["--privacy-delta"],
-      defaultValue = "1.0",
       description = ["Epsilon value of privacy params"],
       required = false,
     )
-    var privacyDelta: Double = 0.0
+    var privacyDelta: Double = 1.0
+      private set
 
     @CommandLine.Option(
       names = ["--vid-sampling-start"],
-      defaultValue = "0.0",
       description = ["Start point of vid sampling interval"],
       required = false,
     )
     var vidSamplingStart: Float = 0.0F
+      private set
 
     @CommandLine.Option(
       names = ["--vid-sampling-width"],
-      defaultValue = "1.0",
       description = ["Width of vid sampling interval"],
       required = false,
     )
-    var vidSamplingWidth: Float = 0.0F
+    var vidSamplingWidth: Float = 1.0F
+      private set
 
     @CommandLine.Option(
       names = ["--max-frequency"],
-      defaultValue = "1",
       description = ["Maximum frequency per user"],
       required = false,
     )
-    var maximumFrequencyPerUser: Int = 0
+    var maximumFrequencyPerUser: Int = 1
+      private set
 
     @CommandLine.Option(
       names = ["--max-duration"],
-      defaultValue = "1",
       description = ["Maximum watch duration per user"],
       required = false,
     )
-    var maximumWatchDurationPerUser: Int = 0
+    var maximumWatchDurationPerUser: Int = 1
+      private set
   }
   @CommandLine.Mixin lateinit var measurementParams: MeasurementParams
 
