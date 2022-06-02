@@ -89,6 +89,8 @@ class PrivacyBudgetLedger(
       )
     }
 
+        // println(privacyBucketGroups)
+
     for (queryBucketGroup in privacyBucketGroupList) {
       val matchingLedgerEntries = context.findIntersectingLedgerEntries(queryBucketGroup)
       for (charge in privacyCharges) {
