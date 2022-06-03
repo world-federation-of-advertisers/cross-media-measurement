@@ -97,12 +97,12 @@ to the executable.
   create \
   --measurement-consumer=measurementConsumers/777 \
   --reach-and-frequency \
-  --reach-privacy-epsilon=2.0 \
-  --reach-privacy-delta=3.0 \
-  --frequency-privacy-epsilon=4.0 \
-  --frequency-privacy-delta=5.0 \
-  --vid-sampling-start=6.0 \
-  --vid-sampling-width=7.0 \
+  --reach-privacy-epsilon=0.0033 \
+  --reach-privacy-delta=0.0 \
+  --frequency-privacy-epsilon=0.115 \
+  --frequency-privacy-delta=0.0 \
+  --vid-sampling-start=48.0 \
+  --vid-sampling-width=142.0 \
   --private-key-der-file=secretfiles/mc_cs_private.der \
   --measurement-ref-id=9999 \
   --data-provider=dataProviders/1 \
