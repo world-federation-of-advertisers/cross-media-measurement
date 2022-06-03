@@ -20,6 +20,7 @@ import com.google.protobuf.timestamp
 import io.grpc.ManagedChannel
 import java.io.File
 import java.security.SecureRandom
+import java.time.Duration as JavaDuration
 import java.time.Instant
 import kotlin.properties.Delegates
 import kotlinx.coroutines.Dispatchers
@@ -64,6 +65,7 @@ import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.tink.testing.loadPrivateKey
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
@@ -468,8 +470,6 @@ class CreateCommand : Runnable {
         )
       }
     print(response)
-
-    parent.channel.shutdown()
   }
 }
 
@@ -500,8 +500,6 @@ class ListCommand : Runnable {
         println(it.name + " " + it.state)
       }
     }
-
-    parent.channel.shutdown()
   }
 }
 
@@ -585,8 +583,6 @@ class GetCommand : Runnable {
         printMeasurementResult(result)
       }
     }
-
-    parent.channel.shutdown()
   }
 }
 
@@ -614,6 +610,7 @@ class SimpleReport : Runnable {
         trustedCertCollectionFile = tlsFlags.certCollectionFile
       )
     buildMutualTlsChannel(apiFlags.apiTarget, clientCerts, apiFlags.apiCertHost)
+      .withShutdownTimeout(JavaDuration.ofSeconds(1))
   }
   override fun run() {}
 }
