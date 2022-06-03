@@ -616,7 +616,7 @@ class SimpleReport : Runnable {
 }
 
 /**
- * Creates resources within the Kingdom.
+ * Create, list or get a `Measurement` by calling the public Kingdom API.
  *
  * Use the `help` command to see usage details.
  */
