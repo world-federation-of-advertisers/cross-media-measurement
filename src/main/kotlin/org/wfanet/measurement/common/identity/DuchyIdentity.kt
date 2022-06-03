@@ -106,7 +106,7 @@ fun BindableService.withDuchyIdentities(): ServerServiceDefinition =
  * Usage: val someStub = SomeServiceCoroutineStub(channel).withDuchyId("MyDuchyId")
  */
 fun <T : AbstractStub<T>> T.withDuchyId(duchyId: String): T {
-  val metadata = Metadata()
-  metadata.put(DUCHY_ID_METADATA_KEY, duchyId)
-  return MetadataUtils.attachHeaders(this, metadata)
+  val extraHeaders = Metadata()
+  extraHeaders.put(DUCHY_ID_METADATA_KEY, duchyId)
+  return withInterceptors(MetadataUtils.newAttachHeadersInterceptor(extraHeaders))
 }
