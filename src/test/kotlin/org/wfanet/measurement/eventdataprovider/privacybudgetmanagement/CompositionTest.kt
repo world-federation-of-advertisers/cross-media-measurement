@@ -67,6 +67,15 @@ class CompositionTest {
         )
       )
       .isWithin(0.0001f)
-      .of(1.31999f)
+      .of(0.78f)
+    assertThat(
+        Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
+          PrivacyCharge(0.0042f, 0.0f),
+          1880,
+          1.0e-9.toFloat()
+        )
+      )
+      .isWithin(0.001f)
+      .of(1.0f)
   }
 }

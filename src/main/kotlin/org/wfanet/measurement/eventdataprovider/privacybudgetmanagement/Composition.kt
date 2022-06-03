@@ -26,10 +26,10 @@ data class AdvancedCompositionKey(
 
 object Composition {
   /** Memoized computation of log-factorials. */
-  private val logFactorials = ConcurrentHashMap<Int, Float>()
+  private val logFactorials = ConcurrentHashMap<Int, Double>()
 
   init {
-    logFactorials.put(0, 0.0f)
+    logFactorials.put(0, 0.0)
   }
 
   /** Memoized computation of advanced composition results. */
@@ -41,8 +41,8 @@ object Composition {
    * @param k Value whose factorial is to be computed.
    * @return log(1 * 2 * ... * k)
    */
-  private fun logFactorial(k: Int): Float {
-    return logFactorials.getOrPut(k) { ln(k.toFloat()) + logFactorial(k - 1) }
+  private fun logFactorial(k: Int): Double {
+    return logFactorials.getOrPut(k) { ln(k.toDouble()) + logFactorial(k - 1) }
   }
 
   /**
@@ -53,7 +53,7 @@ object Composition {
    * @return The log of the number of distinct ways to draw k items from a set of size n.
    * Alternatively, the log of the coefficient of x^k in the expansion of (1 + x)^n.
    */
-  private fun logBinomial(n: Int, k: Int): Float {
+  private fun logBinomial(n: Int, k: Int): Double {
     return logFactorial(n) - logFactorial(k) - logFactorial(n - k)
   }
 
@@ -62,20 +62,20 @@ object Composition {
     repetitionCount: Int,
     totalDelta: Float
   ): Float {
-    val epsilon = charge.epsilon
-    val delta = charge.delta
+    val epsilon = charge.epsilon.toDouble()
+    val delta = charge.delta.toDouble()
     val k = repetitionCount
+    val logDeltaIDivisor = -k.toDouble() * ln(1.0 + exp(epsilon))
     // The calculation follows Theorem 3.3 of https://arxiv.org/pdf/1311.0776.pdf
     for (i in k / 2 downTo 0) {
-      var deltaI = 0.0f
+      var deltaI = 0.0
       for (l in 0..i - 1) {
         deltaI +=
-          exp(logBinomial(k, l) + (epsilon * (k - l).toFloat())) -
-            exp(logBinomial(k, l) + epsilon * (k - 2 * i + l).toFloat())
+          exp(logBinomial(k, l) + logDeltaIDivisor + (epsilon * (k - l).toDouble())) -
+            exp(logBinomial(k, l) + logDeltaIDivisor + epsilon * (k - 2 * i + l).toDouble())
       }
-      deltaI /= (1.0f + exp(epsilon)).pow(k)
-      if (1.0f - (1 - delta).pow(k) * (1.0f - deltaI) <= totalDelta) {
-        return epsilon * (k - 2 * i).toFloat()
+      if (1.0 - (1 - delta).pow(k) * (1.0 - deltaI) <= totalDelta) {
+        return (epsilon * (k - 2 * i)).toFloat()
       }
     }
     return Float.MAX_VALUE
