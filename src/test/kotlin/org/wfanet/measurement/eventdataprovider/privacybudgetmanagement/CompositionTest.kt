@@ -41,7 +41,7 @@ class CompositionTest {
       .isEqualTo(Float.MAX_VALUE)
     assertThat(
         Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
-          PrivacyCharge(0.01f, 1.0e-12.toFloat()),
+          Charge(0.01f, 1.0e-12.toFloat()),
           200,
           1.0e-9.toFloat()
         )
@@ -50,7 +50,7 @@ class CompositionTest {
       .of(0.78f)
     assertThat(
         Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
-          PrivacyCharge(0.0042f, 0.0f),
+          Charge(0.0042f, 0.0f),
           1880,
           1.0e-9.toFloat()
         )
