@@ -74,7 +74,7 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signRequisition
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
 import picocli.CommandLine
 
-class ApiFlags {
+private class ApiFlags {
   @CommandLine.Option(
     names = ["--kingdom-public-api-target"],
     description = ["gRPC target (authority) of the Kingdom public API server"],
