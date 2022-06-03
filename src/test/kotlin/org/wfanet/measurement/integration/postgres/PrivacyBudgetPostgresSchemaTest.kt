@@ -40,13 +40,12 @@ class PrivacyBudgetPostgresSchemaTest {
   }
 
   @Test
-  fun `privacy budget ledger can be written and read`() {
+  fun `privacy budget balance can be written and read`() {
     val connection: Connection = pg.embeddedPostgres.postgresDatabase.connection
     val statement = connection.createStatement()
     val insertSql =
       """
-      INSERT INTO LedgerEntries (
-        TransactionId,
+      INSERT INTO PrivacyBucketCharges (
         MeasurementConsumerId,
         Date,
         AgeGroup,
@@ -56,8 +55,7 @@ class PrivacyBudgetPostgresSchemaTest {
         Epsilon,
         RepetitionCount
       ) VALUES (
-        nextval('LedgerEntriesTransactionIdSeq'),
-        1,
+        'MC1',
         '2022-01-01',
         '18_34',
         'F',
@@ -68,7 +66,7 @@ class PrivacyBudgetPostgresSchemaTest {
       );
       """
     val selectSql = """
-      SELECT Gender, Delta from LedgerEntries
+      SELECT Gender, Delta from PrivacyBucketCharges
       """
     statement.execute(schema)
     statement.execute(insertSql)
@@ -76,5 +74,36 @@ class PrivacyBudgetPostgresSchemaTest {
     result.next()
     assertEquals("F", result.getString("gender"))
     assertEquals(0.1f, result.getFloat("delta"))
+  }
+
+  @Test
+  fun `privacy budget ledger can be written and read`() {
+    val connection: Connection = pg.embeddedPostgres.postgresDatabase.connection
+    val statement = connection.createStatement()
+    val insertSql =
+      """
+      INSERT INTO LedgerEntries (
+        MeasurementConsumerId,
+        ReferenceId,
+        IsRefund,
+        CreateTime
+      ) VALUES (
+        'MC1',
+        'Ref1',
+        false,
+        NOW()
+      );
+      """
+    val selectSql =
+      """
+      SELECT MeasurementConsumerId, ReferenceId, IsRefund from LedgerEntries
+      """
+    statement.execute(schema)
+    statement.execute(insertSql)
+    val result: ResultSet = statement.executeQuery(selectSql)
+    result.next()
+    assertEquals("MC1", result.getString("measurementConsumerId"))
+    assertEquals("Ref1", result.getString("referenceId"))
+    assertEquals(false, result.getBoolean("isRefund"))
   }
 }

@@ -38,11 +38,11 @@ private fun Float.approximatelyEqualTo(other: Float, maximumDifference: Double):
   return abs(this - other) < maximumDifference
 }
 
-private fun PrivacyCharge.toChargeWithRepetitions(repetitionCount: Int): ChargeWithRepetitions =
+private fun Charge.toChargeWithRepetitions(repetitionCount: Int): ChargeWithRepetitions =
   ChargeWithRepetitions(epsilon, delta, repetitionCount)
 
-private fun PrivacyBudgetLedgerEntry.toChargeWithRepetitions(): ChargeWithRepetitions =
-  privacyCharge.toChargeWithRepetitions(repetitionCount)
+private fun PrivacyBudgetBalanceEntry.toChargeWithRepetitions(): ChargeWithRepetitions =
+  charge.toChargeWithRepetitions(repetitionCount)
 
 /** Manages and updates privacy budget data. */
 class PrivacyBudgetLedger(
@@ -60,61 +60,52 @@ class PrivacyBudgetLedger(
    * to commit an update to the database.
    */
   fun chargePrivacyBucketGroups(
-    privacyBucketGroups: Iterable<PrivacyBucketGroup>,
-    privacyCharges: Iterable<PrivacyCharge>
+    reference: Reference,
+    privacyBucketGroups: Set<PrivacyBucketGroup>,
+    charges: Set<Charge>
   ) {
-    val privacyBucketGroupList = privacyBucketGroups.toList()
-    if (privacyBucketGroupList.size == 0) {
-      return
-    }
 
-    val privacyChargesList = privacyCharges.toList()
-    if (privacyChargesList.size == 0) {
+    if (privacyBucketGroups.isEmpty() || charges.isEmpty()) {
       return
     }
 
     val context = backingStore.startTransaction()
-    val failedBucketList = mutableListOf<PrivacyBucketGroup>()
-    for (queryBucketGroup in privacyBucketGroupList) {
-      val matchingLedgerEntries = context.findIntersectingLedgerEntries(queryBucketGroup)
-      if (privacyBudgetIsExceeded(matchingLedgerEntries, privacyChargesList)) {
-        failedBucketList.add(queryBucketGroup)
-      }
+
+    // First check if this refence key already have been proccessed.
+    if (context.hasLedgerEntry(reference)) {
+      return
     }
-    if (failedBucketList.size > 0) {
+
+    // Then check if charging the buckets would exceed privacy budget
+    if (!reference.isRefund) {
+      checkPrivacyBudgetExceeded(context, privacyBucketGroups, charges)
+    }
+
+    // Then charge the buckets
+    context.addLedgerEntries(privacyBucketGroups, charges, reference)
+
+    context.commit()
+  }
+
+  private fun checkPrivacyBudgetExceeded(
+    context: PrivacyBudgetLedgerTransactionContext,
+    privacyBucketGroups: Set<PrivacyBucketGroup>,
+    charges: Set<Charge>
+  ) {
+
+    // Check if any of the charges causes the budget to be overcharged
+    val failedBucketList =
+      privacyBucketGroups.filter {
+        privacyBudgetIsExceeded(context.findIntersectingBalanceEntries(it).toSet(), charges)
+      }
+
+    if (!failedBucketList.isEmpty()) {
       context.commit()
       throw PrivacyBudgetManagerException(
         PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED,
         failedBucketList
       )
     }
-
-    for (queryBucketGroup in privacyBucketGroupList) {
-      val matchingLedgerEntries = context.findIntersectingLedgerEntries(queryBucketGroup)
-      for (charge in privacyCharges) {
-        var matchingChargeFound = false
-        for (ledgerEntry in matchingLedgerEntries) {
-          if (charge.equals(ledgerEntry.privacyCharge)) {
-            matchingChargeFound = true
-            val newLedgerEntry =
-              PrivacyBudgetLedgerEntry(
-                ledgerEntry.rowId,
-                ledgerEntry.transactionId,
-                ledgerEntry.privacyBucketGroup,
-                ledgerEntry.privacyCharge,
-                ledgerEntry.repetitionCount + 1
-              )
-            context.updateLedgerEntry(newLedgerEntry)
-            break
-          }
-        }
-        if (!matchingChargeFound) {
-          context.addLedgerEntry(queryBucketGroup, charge)
-        }
-      }
-    }
-
-    context.commit()
   }
 
   private fun exceedsUnderAdvancedComposition(
@@ -123,7 +114,7 @@ class PrivacyBudgetLedger(
     numCharges: Int
   ): Boolean =
     Composition.totalPrivacyBudgetUsageUnderAdvancedComposition(
-      PrivacyCharge(chargeEpsilon, chargeDelta),
+      Charge(chargeEpsilon, chargeDelta),
       numCharges,
       maximumTotalDelta
     ) > maximumTotalEpsilon
@@ -135,20 +126,20 @@ class PrivacyBudgetLedger(
   /**
    * Tests whether a given privacy bucket is exceeded.
    *
-   * @param ledgerEntries is a list of PrivacyBudgetLedgerEntries that all refer to the same
+   * @param balanceEntries is a list of [PrivacyBudgetBalanceEntry] that all refer to the same
    * underlying privacy bucket.
    * @param charges is a list of charges that are to be added to this privacy bucket.
    * @return true if adding the charges would cause the total privacy budget usage for this bucket
    * to be exceeded.
    */
   private fun privacyBudgetIsExceeded(
-    ledgerEntries: List<PrivacyBudgetLedgerEntry>,
-    charges: List<PrivacyCharge>
+    balanceEntries: Set<PrivacyBudgetBalanceEntry>,
+    charges: Set<Charge>
   ): Boolean {
 
     val allCharges: List<ChargeWithRepetitions> =
       charges.map { it.toChargeWithRepetitions(1) } +
-        ledgerEntries.map { it.toChargeWithRepetitions() }
+        balanceEntries.map { it.toChargeWithRepetitions() }
 
     // We can save some privacy budget by using the advanced composition theorem if
     // all the charges are equivalent.
