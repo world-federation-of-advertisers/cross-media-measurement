@@ -227,7 +227,8 @@ class FrontendSimulator(
     newMeasurementSpec:
       (
         serializedMeasurementPublicKey: ByteString,
-        nonceHashes: MutableList<ByteString>) -> MeasurementSpec
+        nonceHashes: MutableList<ByteString>
+      ) -> MeasurementSpec
   ): Measurement {
     val eventGroups = listEventGroups(measurementConsumer.name)
 
@@ -391,10 +392,10 @@ class FrontendSimulator(
       reachAndFrequency = reachAndFrequency {
         reachPrivacyParams = outputDpParams
         frequencyPrivacyParams = outputDpParams
-        vidSamplingInterval = vidSamplingInterval {
-          start = 0.0f
-          width = 1.0f
-        }
+      }
+      vidSamplingInterval = vidSamplingInterval {
+        start = 0.0f
+        width = 1.0f
       }
       this.nonceHashes += nonceHashes
     }
@@ -410,6 +411,10 @@ class FrontendSimulator(
         privacyParams = outputDpParams
         maximumFrequencyPerUser = 1
       }
+      vidSamplingInterval = vidSamplingInterval {
+        start = 0.0f
+        width = 1.0f
+      }
       this.nonceHashes += nonceHashes
     }
   }
@@ -423,6 +428,10 @@ class FrontendSimulator(
       duration = duration {
         privacyParams = outputDpParams
         maximumWatchDurationPerUser = 1
+      }
+      vidSamplingInterval = vidSamplingInterval {
+        start = 0.0f
+        width = 1.0f
       }
       this.nonceHashes += nonceHashes
     }

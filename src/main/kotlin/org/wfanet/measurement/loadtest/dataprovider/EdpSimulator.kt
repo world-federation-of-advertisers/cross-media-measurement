@@ -61,7 +61,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.watchDuration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -267,7 +266,7 @@ class EdpSimulator(
     requisitionSpec: RequisitionSpec
   ) =
     try {
-      privacyBudgetManager.chargePrivacyBudget(
+      privacyBudgetManager.charge(
         Reference(measurementConsumerName, requisitionName, false),
         requisitionSpec,
         measurementSpec
@@ -292,8 +291,6 @@ class EdpSimulator(
     requisitionSpec: RequisitionSpec
   ): Sketch {
     chargePrivacyBudget(requisitionName, measurementSpec, requisitionSpec)
-    val vidSamplingIntervalStart = measurementSpec.reachAndFrequency.vidSamplingInterval.start
-    val vidSamplingIntervalWidth = measurementSpec.reachAndFrequency.vidSamplingInterval.width
 
     val anySketch: AnySketch = SketchProtos.toAnySketch(sketchConfig)
     logger.info("Generating Sketch...")
@@ -302,8 +299,8 @@ class EdpSimulator(
     populateAnySketch(
       requisitionSpec.eventGroupsList[0].value.filter,
       VidSampler(VID_SAMPLER_HASH_FUNCTION),
-      vidSamplingIntervalStart,
-      vidSamplingIntervalWidth,
+      measurementSpec.vidSamplingInterval.start,
+      measurementSpec.vidSamplingInterval.width,
       anySketch
     )
 
