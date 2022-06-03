@@ -32,6 +32,10 @@ service EventGroupMetadataDescriptors {
   rpc UpdateEventGroupMetadataDescriptor(
       UpdateEventGroupMetadataDescriptorRequest)
       returns (EventGroupMetadataDescriptor);
+
+  rpc StreamEventGroupMetadataDescriptors(
+      StreamEventGroupMetadataDescriptorsRequest)
+      returns (stream EventGroupMetadataDescriptor);
 }
 
 message GetEventGroupMetadataDescriptorRequest {
@@ -41,4 +45,14 @@ message GetEventGroupMetadataDescriptorRequest {
 
 message UpdateEventGroupMetadataDescriptorRequest {
   EventGroupMetadataDescriptor event_group_metadata_descriptor = 1;
+}
+
+message StreamEventGroupMetadataDescriptorsRequest {
+  // Filter criteria as a conjunction of specified fields. Repeated fields are
+  // disjunctions of their items.
+  message Filter {
+    fixed64 external_data_provider_id = 1;
+    repeated fixed64 external_event_group_metadata_descriptor_ids = 2;
+  }
+  Filter filter = 1;
 }

@@ -19,7 +19,7 @@ import kotlin.math.ln
 import kotlin.math.pow
 
 data class AdvancedCompositionKey(
-  val charge: PrivacyCharge,
+  val charge: Charge,
   val repetitionCount: Int,
   val totalDelta: Float
 )
@@ -58,7 +58,7 @@ object Composition {
   }
 
   private fun calculateAdvancedComposition(
-    charge: PrivacyCharge,
+    charge: Charge,
     repetitionCount: Int,
     totalDelta: Float
   ): Float {
@@ -105,7 +105,7 @@ object Composition {
    * any value of totalEpsilon.
    */
   fun totalPrivacyBudgetUsageUnderAdvancedComposition(
-    charge: PrivacyCharge,
+    charge: Charge,
     repetitionCount: Int,
     totalDelta: Float
   ): Float =

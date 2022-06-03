@@ -31,7 +31,6 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
 
 class TestPrivacyBucketMapper : PrivacyBucketMapper {
-
   override fun toPrivacyFilterProgram(filterExpression: String): Program =
     try {
       EventFilters.compileProgram(

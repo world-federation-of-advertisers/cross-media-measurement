@@ -12,40 +12,51 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-CREATE TYPE Gender AS ENUM ('M', 'F');
-CREATE TYPE AgeGroup AS ENUM ('18_34', '35_54', '55+');
+CREATE TYPE Gender
+AS ENUM('M', 'F');
 
--- This sequence will be referenced as `TransactionId` field at `LedgerEntries` table
--- being incremented only at the start of any transaction.
--- This will allow for transaction rollback functionality after a commit.
--- The special value of 0 is reserved for merged transactions.
-CREATE SEQUENCE LedgerEntriesTransactionIdSeq AS bigint START WITH 100;
+CREATE TYPE AgeGroup
+AS ENUM('18_34', '35_54', '55+');
 
-CREATE TABLE LedgerEntries (
-    -- A unique key associated with this row to allow for subsequent updates and deletions.
-    LedgerEntryId bigserial PRIMARY KEY,
-    -- Which Measurement Consumer this PrivacyBucket belongs to.
-    MeasurementConsumerId text NOT NULL,
-    -- ID for the transaction this entry belongs to.
-    TransactionId bigint NOT NULL,
-    -- Day for this PrivacyBucket. DD-MM-YYYY.
-    Date Date NOT NULL,
-    -- Age for this PrivacyBucket.
-    AgeGroup AgeGroup NOT NULL,
-    -- Gender for this PrivacyBucket.
-    Gender Gender NOT NULL,
-    -- Start of the Vid range for this PrivacyBucket. Bucket vid's ranges from VidStart to VidStart + 0.1.
-    VidStart real NOT NULL,
-    -- Delta for the charge of this ledger entry.
-    Delta real NOT NULL,
-    -- Epsilon for the charge of this ledger entry.
-    Epsilon real NOT NULL,
-    -- How many times this charge is applied to this Privacy Bucket.
-    RepetitionCount integer NOT NULL
-);
--- Used to query entries efficiently to update RepetitionCount
-CREATE INDEX LedgerEntriesByCharge
-  ON LedgerEntries
-  (MeasurementConsumerId, Date, AgeGroup, Gender, VidStart, Delta, Epsilon);
--- Used to rollback transactions
-CREATE INDEX LedgerEntriesByTransaction ON LedgerEntries (TransactionId);
+-- TODO(@uakyol): consider normalizing this table by splitting (Delta, Epsilon) pair to other table
+-- TODO(@uakyol): migrate this to Liquibase changelog format.
+CREATE TABLE PrivacyBucketCharges(
+  -- Which Measurement Consumer this PrivacyBucket belongs to.
+  MeasurementConsumerId text NOT NULL,
+  -- Day for this PrivacyBucket. DD-MM-YYYY.
+  Date Date NOT NULL,
+  -- Age for this PrivacyBucket.
+  AgeGroup AgeGroup NOT NULL,
+  -- Gender for this PrivacyBucket.
+  Gender Gender NOT NULL,
+  -- Start of the Vid range for this PrivacyBucket. Bucket vid's ranges from VidStart to VidStart + 0.1.
+  VidStart real NOT NULL,
+  -- Delta for the charge of this ledger entry.
+  Delta real NOT NULL,
+  -- Epsilon for the charge of this ledger entry.
+  Epsilon real NOT NULL,
+  -- How many times this charge is applied to this Privacy Bucket.
+  RepetitionCount integer NOT NULL,
+  -- Used to query entries efficiently to update RepetitionCount
+  PRIMARY KEY (MeasurementConsumerId, Date, AgeGroup, Gender, VidStart, Delta, Epsilon)
+  );
+
+CREATE TABLE LedgerEntries(
+  -- Which Measurement Consumer this Ledger Entry belongs to.
+  MeasurementConsumerId text NOT NULL,
+  -- ID from an external system that uniquely identifies the source all charges in a transaction
+  -- for a given MeasurementConsumer.
+  ReferenceId text NOT NULL,
+  -- Whether or not the charge is a refund.
+  IsRefund Boolean NOT NULL,
+  -- Time when the row was inserted.
+  CreateTime TIMESTAMP NOT NULL);
+
+-- Used to query references quickly
+CREATE
+  INDEX LedgerEntriesByReferenceId
+ON LedgerEntries(MeasurementConsumerId, ReferenceId);
+
+
+-- TODO(@uakyol): consider adding a table that links LedgerEntries to BalanceEntries for
+-- ad hoc queries
