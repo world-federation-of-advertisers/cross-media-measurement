@@ -27,6 +27,12 @@ kubectl get secrets
 ```
 
 You will need to substitute the correct secret name in later commands.
+Use the following command to save the secret name in an environment variable
+for later use.
+
+```shell
+export HALO_SECRETNAME=`kubectl get secrets | grep 'certs-and-configs' | awk '{ print $1; }'`
+```
 
 ### Create Empty `config-files` ConfigMap
 
@@ -49,7 +55,7 @@ includes an in-memory Spanner emulator as well as ephemeral blob storage.
 
 ```shell
 bazel run //src/main/k8s/local:emulators_kind \
-  --define=k8s_secret_name=certs-and-configs-k8888kc6gg
+  --define=k8s_secret_name=$HALO_SECRETNAME
 ```
 
 ## Resource Setup
@@ -61,9 +67,9 @@ resource setup and then update configurations and restart some Kingdom services.
 
 ```shell
 bazel run //src/main/k8s/local:kingdom_kind \
-  --define=k8s_secret_name=certs-and-configs-k8888kc6gg
+  --define=k8s_secret_name=$HALO_SECRETNAME
 bazel run //src/main/k8s/local:resource_setup_kind \
-  --define=k8s_secret_name=certs-and-configs-k8888kc6gg
+  --define=k8s_secret_name=$HALO_SECRETNAME
 ```
 
 After the resource setup job has completed, you can obtain the created resource
@@ -73,49 +79,47 @@ names from its logs.
 kubectl logs jobs/resource-setup-job
 ```
 
+After this step is complete, execute the `get_resource_ids` script to extract
+the resource names into environment variables:
+
+```shell
+source src/main/k8s/local/get_resource_ids.sh
+```
+
+Check that the resource ids were properly extracted with the following command
+```shell
+export -p | grep HALO
+```
+
+You should see output similar to the following:
+
+```
+declare -x HALO_AGGREGATORCERT="duchies/aggregator/certificates/ZTOFCs6PiNU"
+declare -ax HALO_DATAPROVIDERS=([0]="dataProviders/cav1ejFwcuQ" [1]="dataProviders/ayLuhs6PjFo" [2]="dataProviders/S6pNOjFwdG0" [3]="dataProviders/BCFda86Pisw" [4]="dataProviders/UNZeJDFwdf8" [5]="dataProviders/UjjosTFwdmI")
+declare -x HALO_MC="measurementConsumers/PFU08s6PkWU"
+declare -x HALO_MC_APIKEY="EapJic6Pjxs"
+declare -x HALO_SECRETNAME="certs-and-configs-7kgbg7g2t7"
+declare -x HALO_WORKER1CERT="duchies/worker1/certificates/KEPD-c6PiG0"
+declare -x HALO_WORKER2CERT="duchies/worker2/certificates/OGAPF86PiAk"
+```
+
+If any of these environment variables are missing or empty, you will need to go back
+and figure out what went wrong.
+
 ### Update `config-files` ConfigMap
 
 After resource-setup-job has completed, we can fill in the config files and
-update the `config-files` ConfigMap.
+update the `config-files` ConfigMap.  Use the following script:
 
-Create the file `authority_key_identifier_to_principal_map.textproto` with the
-content below, substituting the appropriate resource names. The AKIDs come from
-the EDP certificates in [secretfiles](../testing/secretfiles).
-
-```prototext
-# proto-file: src/main/proto/wfa/measurement/config/authority_key_to_principal_map.proto
-# proto-message: AuthorityKeyToPrincipalMap
-entries {
-  authority_key_identifier: "\xD6\x65\x86\x86\xD8\x7E\xD2\xC4\xDA\xD8\xDF\x76\x39\x66\x21\x3A\xC2\x92\xCC\xE2"
-  principal_resource_name: "dataProviders/OljiQHRz-E4"
-}
-entries {
-  authority_key_identifier: "\x6F\x57\x36\x3D\x7C\x5A\x49\x7C\xD1\x68\x57\xCD\xA0\x44\xDF\x68\xBA\xD1\xBA\x86"
-  principal_resource_name: "dataProviders/Fegw_3Rz-2Y"
-}
-entries {
-  authority_key_identifier: "\xEE\xB8\x30\x10\x0A\xDB\x8F\xEC\x33\x3B\x0A\x5B\x85\xDF\x4B\x2C\x06\x8F\x8E\x28"
-  principal_resource_name: "dataProviders/aeULv4uMBDg"
-}
-entries {
-  authority_key_identifier: "\x74\x72\x6D\xF6\xC0\x44\x42\x61\x7D\x9F\xF7\x3F\xF7\xB2\xAC\x0F\x9D\xB0\xCA\xCC"
-  principal_resource_name: "dataProviders/d2QIG4uMA8s"
-}
-entries {
-  authority_key_identifier: "\xA6\xED\xBA\xEA\x3F\x9A\xE0\x72\x95\xBF\x1E\xD2\xCB\xC8\x6B\x1E\x0B\x39\x47\xE9"
-  principal_resource_name: "dataProviders/IjDOL3Rz_PY"
-}
-entries {
-  authority_key_identifier: "\xA7\x36\x39\x6B\xDC\xB4\x79\xC3\xFF\x08\xB6\x02\x60\x36\x59\x84\x3B\xDE\xDB\x93"
-  principal_resource_name: "dataProviders/U8rTiHRz_b4"
-}
+```shell
+bazel run //src/main/k8s/local:build_authority_key_identifier_to_principal_map
 ```
 
-Update the ConfigMap, passing the `--from-file` option for each config file.
+Now update the ConfigMap:
 
 ```shell
 kubectl create configmap config-files --output=yaml --dry-run=client \
-  --from-file=authority_key_identifier_to_principal_map.textproto \
+  --from-file=/tmp/authority_key_identifier_to_principal_map.textproto \
   | kubectl replace -f -
 ```
 
@@ -133,7 +137,7 @@ example to pick up new changes, you can do so with the following command:
 
 ```shell
 bazel run //src/main/k8s/local:kingdom_kind \
-  --define=k8s_secret_name=certs-and-configs-k8888kc6gg
+  --define=k8s_secret_name=$HALO_SECRETNAME
 ```
 
 ## Deploy Duchies
@@ -144,10 +148,10 @@ secret name and Certificate resource names in the command below.
 
 ```shell
 bazel run //src/main/k8s/local:duchies_kind \
-  --define=k8s_secret_name=certs-and-configs-k8888kc6gg \
-  --define=aggregator_cert_name=duchies/aggregator/certificates/f3yI3aoXukM \
-  --define=worker1_cert_name=duchies/worker1/certificates/QtffTVXoRno \
-  --define=worker2_cert_name=duchies/worker2/certificates/eIYIf6oXuSM
+  --define=k8s_secret_name=$HALO_SECRETNAME \
+  --define=aggregator_cert_name=$HALO_AGGREGATORCERT \
+  --define=worker1_cert_name=$HALO_WORKER1CERT \
+  --define=worker2_cert_name=$HALO_WORKER2CERT
 ```
 
 ## Deploy EDP Simulators
@@ -159,14 +163,14 @@ below. These should match the resource names specified in
 
 ```shell
 bazel run //src/main/k8s/local:edp_simulators_kind \
-  --define=k8s_secret_name=certs-and-configs-k8888kc6gg \
-  --define=mc_name=measurementConsumers/FS1n8aTrck0 \
-  --define=edp1_name=dataProviders/OljiQHRz-E4 \
-  --define=edp2_name=dataProviders/Fegw_3Rz-2Y \
-  --define=edp3_name=dataProviders/aeULv4uMBDg \
-  --define=edp4_name=dataProviders/d2QIG4uMA8s \
-  --define=edp5_name=dataProviders/IjDOL3Rz_PY \
-  --define=edp6_name=dataProviders/U8rTiHRz_b4
+  --define=k8s_secret_name=$HALO_SECRETNAME
+  --define=mc_name=$HALO_MC \
+  --define=edp1_name=${HALO_DATAPROVIDERS[0]} \
+  --define=edp2_name=${HALO_DATAPROVIDERS[1]} \
+  --define=edp3_name=${HALO_DATAPROVIDERS[2]} \
+  --define=edp4_name=${HALO_DATAPROVIDERS[3]} \
+  --define=edp5_name=${HALO_DATAPROVIDERS[4]} \
+  --define=edp6_name=${HALO_DATAPROVIDERS[5]}
 ```
 
 ## Deploy MC Frontend Simulator
@@ -176,7 +180,7 @@ the result.
 
 ```shell
 bazel run //src/main/k8s/local:mc_frontend_simulator_kind \
-  --define=k8s_secret_name=certs-and-configs-k8888kc6gg \
-  --define=mc_name=measurementConsumers/FS1n8aTrck0 \
-  --define=mc_api_key=He941S1h2XI
+  --define=k8s_secret_name=$HALO_SECRETNAME \
+  --define=mc_name=$HALO_MC \
+  --define=mc_api_key=$HALO_MC_APIKEY
 ```

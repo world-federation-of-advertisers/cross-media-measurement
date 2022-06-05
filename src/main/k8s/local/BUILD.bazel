@@ -227,3 +227,8 @@ k8s_apply(
     imports = FRONTEND_SIMULATOR_IMAGE_IMPORTS,
     tags = ["manual"],
 )
+
+py_binary(
+    name = "build_authority_key_identifier_to_principal_map",
+    srcs = ["build_authority_key_identifier_to_principal_map.py"],
+)
