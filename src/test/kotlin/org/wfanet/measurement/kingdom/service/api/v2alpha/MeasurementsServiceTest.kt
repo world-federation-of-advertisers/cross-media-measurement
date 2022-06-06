@@ -549,6 +549,7 @@ class MeasurementsServiceTest {
                         MEASUREMENT_SPEC
                           .copy {
                             clearReachAndFrequency()
+                            clearVidSamplingInterval()
                             reachAndFrequency = reachAndFrequency {
                               reachPrivacyParams = differentialPrivacyParams {
                                 epsilon = 1.0
