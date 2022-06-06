@@ -10,14 +10,13 @@ import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt
 import org.wfanet.measurement.internal.reporting.StreamReportingSetsRequest
 import org.wfanet.measurement.reporting.deploy.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.deploy.postgres.writers.CreateReportingSet
-import reactor.core.publisher.Mono
 
 class PostgresReportingSetsService(
   private val idGenerator: IdGenerator,
-  private val getConnection: () -> Mono<Connection>
+  private val getConnection: suspend () -> Connection
 ) : ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase() {
   override suspend fun createReportingSet(request: ReportingSet): ReportingSet {
-    val connection = getConnection().awaitFirst()
+    val connection = getConnection()
     try {
       val monoResult = CreateReportingSet(request).execute(connection, idGenerator)
       return monoResult.awaitFirst()
@@ -28,7 +27,7 @@ class PostgresReportingSetsService(
 
   override fun streamReportingSets(request: StreamReportingSetsRequest): Flow<ReportingSet> {
     return ReportingSetReader()
-      .listReportingSets(getConnection(), request.filter, request.limit)
+      .listReportingSets(request.filter, request.limit, getConnection)
       .map { result -> result.reportingSet }
   }
 }

@@ -20,6 +20,7 @@ import com.opentable.db.postgres.junit.PreparedDbRule
 import io.r2dbc.spi.Connection
 import io.r2dbc.spi.ConnectionFactories
 import io.r2dbc.spi.ConnectionFactoryOptions
+import kotlinx.coroutines.reactive.awaitFirst
 import org.junit.Rule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -36,7 +37,7 @@ class PostgresReportingSetsServiceTest : ReportingSetsServiceTest<PostgresReport
       LiquibasePreparer.forClasspathLocation(REPORTING_CHANGELOG_PATH.toString())
     )
 
-  private fun createConnection(): Mono<Connection> {
+  private suspend fun createConnection(): Connection {
     val connectionInfo = db.connectionInfo
 
     val regex = Regex(":${connectionInfo.port}/.*")
@@ -55,7 +56,7 @@ class PostgresReportingSetsServiceTest : ReportingSetsServiceTest<PostgresReport
         .build()
 
     val connectionFactory = ConnectionFactories.get(connectionFactoryOptions)
-    return Mono.from(connectionFactory.create())
+    return Mono.from(connectionFactory.create()).awaitFirst()
   }
 
   override fun newService(

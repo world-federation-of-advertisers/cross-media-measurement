@@ -6,13 +6,11 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.reactive.asFlow
-import kotlinx.coroutines.reactive.awaitFirst
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.internal.reporting.ReportingSet
 import org.wfanet.measurement.internal.reporting.StreamReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.copy
 import org.wfanet.measurement.internal.reporting.reportingSet
-import reactor.core.publisher.Mono
 
 class ReportingSetReader : PostgresReader<ReportingSetReader.Result>() {
   data class Result(
@@ -41,9 +39,9 @@ class ReportingSetReader : PostgresReader<ReportingSetReader.Result>() {
     )
 
   fun listReportingSets(
-    monoConnection: Mono<Connection>,
     filter: StreamReportingSetsRequest.Filter,
     limit: Int = 0,
+    getConnection: suspend () -> Connection,
   ): Flow<Result> {
     builder.appendLine(
       """
@@ -55,7 +53,7 @@ class ReportingSetReader : PostgresReader<ReportingSetReader.Result>() {
     builder.appendLine("LIMIT $3")
 
     return flow {
-      val connection = monoConnection.awaitFirst()
+      val connection = getConnection()
       try {
         val statement =
           connection
