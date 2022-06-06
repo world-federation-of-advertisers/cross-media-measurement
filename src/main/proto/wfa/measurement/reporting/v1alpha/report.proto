@@ -35,6 +35,10 @@ message Report {
   // Resource name.
   string name = 1;
 
+  // Used as the prefix of the idempotency keys of internal measurements. This
+  // value must be unique among `Report`s for the parent `MeasurementConsumer`.
+  string report_idempotency_key = 2;
+
   // Representation of a Measurement Consumer entity.
   string measurement_consumer = 2 [
     (google.api.field_behavior) = REQUIRED,
@@ -96,6 +100,6 @@ message Report {
   // Report state.
   State state = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
 
-  // Result in CSV format.
-  string result = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Results in CSV format. Each result can be seen as one table.
+  repeated string results = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
