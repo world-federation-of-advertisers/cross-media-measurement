@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteString
 import io.grpc.Status
 import java.security.cert.CertificateException
 import java.security.cert.X509Certificate
@@ -52,6 +53,10 @@ fun CertificateKt.Dsl.fillCertificateFromDer(certificateDer: ByteString) {
         .withDescription("Cannot parse $CERTIFICATE_DER_FIELD_NAME")
         .asRuntimeException()
     }
+  fillFromX509(x509Certificate, certificateDer)
+}
+
+fun CertificateKt.Dsl.fillFromX509(x509Certificate: X509Certificate, encoded: ByteString? = null) {
   val skid: ByteString =
     grpcRequireNotNull(x509Certificate.subjectKeyIdentifier) {
       "Cannot find Subject Key Identifier of $CERTIFICATE_DER_FIELD_NAME"
@@ -60,5 +65,5 @@ fun CertificateKt.Dsl.fillCertificateFromDer(certificateDer: ByteString) {
   subjectKeyIdentifier = skid
   notValidBefore = x509Certificate.notBefore.toInstant().toProtoTime()
   notValidAfter = x509Certificate.notAfter.toInstant().toProtoTime()
-  details = details { x509Der = certificateDer }
+  details = details { x509Der = encoded ?: x509Certificate.encoded.toByteString() }
 }
