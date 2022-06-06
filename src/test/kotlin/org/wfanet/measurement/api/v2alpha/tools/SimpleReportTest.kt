@@ -292,8 +292,8 @@ class SimpleReportTest {
         "--kingdom-public-api-target=$HOST:$PORT",
         "create",
         "--impression",
-        "--impression-privacy-epsilon=2.0",
-        "--impression-privacy-delta=3.0",
+        "--impression-privacy-epsilon=0.015",
+        "--impression-privacy-delta=0.0",
         "--max-frequency=1000",
         "--measurement-consumer=measurementConsumers/777",
         "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
@@ -431,12 +431,12 @@ class SimpleReportTest {
         "create",
         "--measurement-consumer=measurementConsumers/777",
         "--reach-and-frequency",
-        "--reach-privacy-epsilon=2.0",
-        "--reach-privacy-delta=3.0",
-        "--frequency-privacy-epsilon=4.0",
-        "--frequency-privacy-delta=5.0",
-        "--vid-sampling-start=6.0",
-        "--vid-sampling-width=7.0",
+        "--reach-privacy-epsilon=0.015",
+        "--reach-privacy-delta=0.0",
+        "--frequency-privacy-epsilon=0.02",
+        "--frequency-privacy-delta=0.0",
+        "--vid-sampling-start=0.1",
+        "--vid-sampling-width=0.2",
         "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
         "--data-provider=dataProviders/1",
         "--event-group=dataProviders/1/eventGroups/1",
@@ -459,17 +459,17 @@ class SimpleReportTest {
         measurementSpec {
           reachAndFrequency = reachAndFrequency {
             reachPrivacyParams = differentialPrivacyParams {
-              epsilon = 2.0
-              delta = 3.0
+              epsilon = 0.015
+              delta = 0.0
             }
             frequencyPrivacyParams = differentialPrivacyParams {
-              epsilon = 4.0
-              delta = 5.0
+              epsilon = 0.02
+              delta = 0.0
             }
             vidSamplingInterval =
               MeasurementSpecKt.vidSamplingInterval {
-                start = 6.0f
-                width = 7.0f
+                start = 0.1f
+                width = 0.2f
               }
           }
         }
@@ -487,8 +487,8 @@ class SimpleReportTest {
         "create",
         "--measurement-consumer=measurementConsumers/777",
         "--impression",
-        "--impression-privacy-epsilon=2.0",
-        "--impression-privacy-delta=3.0",
+        "--impression-privacy-epsilon=0.015",
+        "--impression-privacy-delta=0.0",
         "--max-frequency=1000",
         "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
         "--data-provider=dataProviders/1",
@@ -512,8 +512,8 @@ class SimpleReportTest {
         measurementSpec {
           impression = impression {
             privacyParams = differentialPrivacyParams {
-              epsilon = 2.0
-              delta = 3.0
+              epsilon = 0.015
+              delta = 0.0
             }
             maximumFrequencyPerUser = 1000
           }
@@ -532,8 +532,8 @@ class SimpleReportTest {
         "create",
         "--measurement-consumer=measurementConsumers/777",
         "--duration",
-        "--duration-privacy-epsilon=2.0",
-        "--duration-privacy-delta=3.0",
+        "--duration-privacy-epsilon=0.015",
+        "--duration-privacy-delta=0.0",
         "--max-duration=1000",
         "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
         "--data-provider=dataProviders/1",
@@ -557,8 +557,8 @@ class SimpleReportTest {
         measurementSpec {
           duration = duration {
             privacyParams = differentialPrivacyParams {
-              epsilon = 2.0
-              delta = 3.0
+              epsilon = 0.015
+              delta = 0.0
             }
             maximumWatchDurationPerUser = 1000
           }
