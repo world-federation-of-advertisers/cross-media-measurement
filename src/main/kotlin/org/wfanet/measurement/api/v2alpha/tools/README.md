@@ -101,8 +101,8 @@ to the executable.
   --reach-privacy-delta=0.0 \
   --frequency-privacy-epsilon=0.115 \
   --frequency-privacy-delta=0.0 \
-  --vid-sampling-start=48.0 \
-  --vid-sampling-width=142.0 \
+  --vid-sampling-start=0.16 \
+  --vid-sampling-width=0.016667 \
   --private-key-der-file=secretfiles/mc_cs_private.der \
   --measurement-ref-id=9999 \
   --data-provider=dataProviders/1 \
