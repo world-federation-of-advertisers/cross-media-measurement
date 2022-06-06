@@ -90,7 +90,7 @@ CREATE TABLE PeriodicTimeIntervals (
 CREATE TABLE RowNames (
   MeasurementConsumerReferenceId text NOT NULL,
   ReportId bigint NOT NULL,
-  RowId bigint NOT NULL
+  RowId bigint NOT NULL,
 
   RowName text NOT NULL,
 
