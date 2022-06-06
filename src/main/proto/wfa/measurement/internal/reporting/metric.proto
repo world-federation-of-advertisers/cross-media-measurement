@@ -23,10 +23,15 @@ option java_multiple_files = true;
 message Metric {
   message ReachParams {}
   message FrequencyHistogramParams {
-    int32 max_frequency = 1;
+    int32 maximum_frequency_per_user = 1;
   }
-  message ImpressionCountParams {}
-  message WatchDurationParams {}
+  message ImpressionCountParams {
+    int32 maximum_frequency_per_user = 1;
+  }
+  message WatchDurationParams {
+    // In seconds.
+    int32 maximum_watch_duration_per_user = 1;
+  }
 
   message Details {
     oneof metric_type {

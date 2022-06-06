@@ -73,6 +73,10 @@ message Report {
     // Map of `EventGroup` resource name to filter predicate.
     map<string, string> event_group_filters = 1;
 
+    // Set operation calculations are done for each set operation for a given
+    // `Metric`, which is column by column. Having a list of columns here makes
+    // it easier to store the results while doing the calculations. The csv
+    // should still be generated row by row.
     message Result {
       message ScalarTable {
         // Map of row numbers to row names.
