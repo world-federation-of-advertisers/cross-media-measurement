@@ -143,11 +143,12 @@ bazel run //src/main/k8s/local:kingdom_kind \
 ## Deploy Duchies
 
 The testing environment uses three Duchies: an aggregator and two workers, named
-`aggregator`, `worker1`, and `worker2` respectively. Substitute the appropriate
-secret name and Certificate resource names in the command below.
+`aggregator`, `worker1`, and `worker2` respectively. The encryption libraries require
+a specific version of glibc, and so the `tools/bazel-container-run` script must be
+used.  The full command line is as follows:
 
 ```shell
-bazel run //src/main/k8s/local:duchies_kind \
+tools/bazel-container-run //src/main/k8s/local:duchies_kind \
   --define=k8s_secret_name=$HALO_SECRETNAME \
   --define=aggregator_cert_name=$HALO_AGGREGATORCERT \
   --define=worker1_cert_name=$HALO_WORKER1CERT \
@@ -157,13 +158,11 @@ bazel run //src/main/k8s/local:duchies_kind \
 ## Deploy EDP Simulators
 
 The testing environment simulates six DataProviders, named `edp1` through
-`edp6`. Substitute the appropriate secret name and resource names in the command
-below. These should match the resource names specified in
-`authority_key_identifier_to_principal_map.textproto` above.
+`edp6`. Here too `tools/bazel-container-run` must be used:
 
 ```shell
-bazel run //src/main/k8s/local:edp_simulators_kind \
-  --define=k8s_secret_name=$HALO_SECRETNAME
+tools/bazel-container-run //src/main/k8s/local:edp_simulators_kind \
+  --define=k8s_secret_name=$HALO_SECRETNAME \
   --define=mc_name=$HALO_MC \
   --define=edp1_name=${HALO_DATAPROVIDERS[0]} \
   --define=edp2_name=${HALO_DATAPROVIDERS[1]} \
@@ -179,8 +178,14 @@ This is a job that tests correctness by creating a Measurement and validating
 the result.
 
 ```shell
-bazel run //src/main/k8s/local:mc_frontend_simulator_kind \
+tools/bazel-container-run //src/main/k8s/local:mc_frontend_simulator_kind \
   --define=k8s_secret_name=$HALO_SECRETNAME \
   --define=mc_name=$HALO_MC \
   --define=mc_api_key=$HALO_MC_APIKEY
+```
+
+To see the results of the correctness test:
+
+```shell
+kubectl logs -f jobs/frontend-simulator-job
 ```
