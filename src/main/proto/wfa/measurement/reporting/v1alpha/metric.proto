@@ -34,9 +34,18 @@ message Metric {
     int32 max_frequency = 1;
   }
   // Parameters that are used to generate `Impression Count` metric.
-  message ImpressionCountParams {}
+  message ImpressionCountParams {
+    // Maximum frequency per user that will be included in this measurement.
+    int32 maximum_frequency_per_user = 1;
+  }
   // Parameters that are used to generate `Watch Duration` metric.
-  message WatchDurationParams {}
+  message WatchDurationParams {
+    // Maximum frequency per user that will be included in this measurement.
+    int32 maximum_frequency_per_user = 1;
+    // Maximum watch duration per user that will be included in this
+    // measurement.
+    int32 maximum_watch_duration_per_user = 2;
+  }
 
   // Types of metrics that can be selected to be in a `Report`.
   // REQUIRED
