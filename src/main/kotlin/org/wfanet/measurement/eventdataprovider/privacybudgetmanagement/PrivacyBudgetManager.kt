@@ -116,8 +116,8 @@ class PrivacyBudgetManager(
     )
   }
 
-  private fun check(query: Query) =
-    ledger.check(
+  private fun chargingWillExceedPrivacyBudget(query: Query) =
+    ledger.chargingWillExceedPrivacyBudget(
       query.reference,
       filter.getPrivacyBucketGroups(query.reference.measurementConsumerId, query.landscapeMask),
       setOf(query.charge)
@@ -142,14 +142,14 @@ class PrivacyBudgetManager(
    * @param measurementSpec The measurementSpec protobuf that is associated with the query. The VID
    * sampling interval is obtained from from this.
    * @throws PrivacyBudgetManagerException if an error occurs in handling this request. Possible
-   * exceptions could include running out of privacy budget or a failure to commit the transaction
-   * to the database.
+   * exceptions could include a failure to commit the transaction to the database.
    */
-  fun check(
+  fun chargingWillExceedPrivacyBudget(
     reference: Reference,
     requisitionSpec: RequisitionSpec,
     measurementSpec: MeasurementSpec
-  ) = check(getPrivacyQuery(reference, requisitionSpec, measurementSpec))
+  ): Boolean =
+    chargingWillExceedPrivacyBudget(getPrivacyQuery(reference, requisitionSpec, measurementSpec))
 
   /**
    * Charges all of the privacy buckets identified by the given measurementSpec and requisitionSpec,

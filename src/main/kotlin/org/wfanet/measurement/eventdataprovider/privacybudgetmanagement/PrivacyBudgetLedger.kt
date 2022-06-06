@@ -55,26 +55,35 @@ class PrivacyBudgetLedger(
    * For each privacy bucket group in the list of PrivacyBucketGroups, checks if adding each of the
    * privacy charges to that group would make anyone of them exceed their budget.
    *
-   * @throws PrivacyBudgetManagerException if the attempt to charge the privacy bucket groups would
-   * exceed the allowed budget.
+   * @throws PrivacyBudgetManagerException if there is an error commiting the transaction to the
+   * database.
    */
-  fun check(
+  fun chargingWillExceedPrivacyBudget(
     reference: Reference,
     privacyBucketGroups: Set<PrivacyBucketGroup>,
     charges: Set<Charge>
-  ) {
+  ): Boolean {
 
     if (privacyBucketGroups.isEmpty() || charges.isEmpty()) {
-      return
+      return false
     }
 
     // Check if the budget would be exceeded if charges were to be applied.
-    checkPrivacyBudgetExceeded(
-      backingStore.startTransaction(),
-      reference,
-      privacyBucketGroups,
-      charges
-    )
+    try {
+      checkPrivacyBudgetExceeded(
+        backingStore.startTransaction(),
+        reference,
+        privacyBucketGroups,
+        charges
+      )
+    } catch (e: PrivacyBudgetManagerException) {
+      if (e.errorType == PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED) {
+        return true
+      }
+      throw e
+    }
+
+    return false
   }
 
   /**

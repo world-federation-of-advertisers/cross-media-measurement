@@ -114,12 +114,8 @@ class PrivacyBudgetManagerTest {
     privacyReference: Reference,
     measurementSpec: MeasurementSpec
   ) {
-    val exception =
-      assertFailsWith<PrivacyBudgetManagerException> {
-        check(privacyReference, REQUISITION_SPEC, measurementSpec)
-      }
-    assertThat(exception.errorType)
-      .isEqualTo(PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED)
+    assertThat(chargingWillExceedPrivacyBudget(privacyReference, REQUISITION_SPEC, measurementSpec))
+      .isTrue()
   }
 
   @Test
@@ -168,9 +164,17 @@ class PrivacyBudgetManagerTest {
     val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
 
     // The check succeeds, charges would have filled the Privacy Budget.
-    pbm.check(createReference(1), REQUISITION_SPEC, REACH_AND_FREQ_MEASUREMENT_SPEC)
+    pbm.chargingWillExceedPrivacyBudget(
+      createReference(1),
+      REQUISITION_SPEC,
+      REACH_AND_FREQ_MEASUREMENT_SPEC
+    )
     // It succeeds again because charges are not applied with check
-    pbm.check(createReference(2), REQUISITION_SPEC, REACH_AND_FREQ_MEASUREMENT_SPEC)
+    pbm.chargingWillExceedPrivacyBudget(
+      createReference(2),
+      REQUISITION_SPEC,
+      REACH_AND_FREQ_MEASUREMENT_SPEC
+    )
   }
 
   @Test
