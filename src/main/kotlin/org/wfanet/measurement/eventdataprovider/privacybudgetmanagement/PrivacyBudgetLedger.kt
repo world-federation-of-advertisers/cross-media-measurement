@@ -68,21 +68,16 @@ class PrivacyBudgetLedger(
       return false
     }
 
-    // Check if the budget would be exceeded if charges were to be applied.
-    try {
-      checkPrivacyBudgetExceeded(
-        backingStore.startTransaction(),
-        reference,
-        privacyBucketGroups,
-        charges
-      )
-    } catch (e: PrivacyBudgetManagerException) {
-      if (e.errorType == PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED) {
-        return true
-      }
-      throw e
+    val context = backingStore.startTransaction()
+    // Check if this refence key already have been proccessed.
+    if (context.hasLedgerEntry(reference)) {
+      return false
     }
 
+    // Check if the budget would be exceeded if charges were to be applied.=
+    if (!getExceededPrivacyBuckets(context, privacyBucketGroups, charges).isEmpty()) {
+      return true
+    }
     return false
   }
 
@@ -115,20 +110,31 @@ class PrivacyBudgetLedger(
     context.commit()
   }
 
-  private fun checkPrivacyBudgetExceeded(
+  private fun getExceededPrivacyBuckets(
     context: PrivacyBudgetLedgerTransactionContext,
     privacyBucketGroups: Set<PrivacyBucketGroup>,
     charges: Set<Charge>
-  ) {
+  ): List<PrivacyBucketGroup> {
 
     // Check if any of the charges causes the budget to be overcharged
     val failedBucketList =
       privacyBucketGroups.filter {
         privacyBudgetIsExceeded(context.findIntersectingBalanceEntries(it).toSet(), charges)
       }
-
     if (!failedBucketList.isEmpty()) {
       context.commit()
+    }
+
+    return failedBucketList
+  }
+
+  private fun checkPrivacyBudgetExceeded(
+    context: PrivacyBudgetLedgerTransactionContext,
+    privacyBucketGroups: Set<PrivacyBucketGroup>,
+    charges: Set<Charge>
+  ) {
+    val failedBucketList = getExceededPrivacyBuckets(context, privacyBucketGroups, charges)
+    if (!failedBucketList.isEmpty()) {
       throw PrivacyBudgetManagerException(
         PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED,
         failedBucketList
