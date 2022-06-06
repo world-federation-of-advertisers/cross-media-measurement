@@ -66,11 +66,10 @@ private val REACH_AND_FREQ_MEASUREMENT_SPEC = measurementSpec {
       epsilon = 0.3
       delta = 0.01
     }
-
-    vidSamplingInterval = vidSamplingInterval {
-      start = 0.01f
-      width = 0.02f
-    }
+  }
+  vidSamplingInterval = vidSamplingInterval {
+    start = 0.01f
+    width = 0.02f
   }
 }
 

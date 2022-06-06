@@ -484,8 +484,8 @@ class MeasurementsServiceTest {
                                 epsilon = 1.0
                                 delta = 1.0
                               }
-                              vidSamplingInterval = vidSamplingInterval { width = 1.0F }
                             }
+                            vidSamplingInterval = vidSamplingInterval { width = 1.0F }
                           }
                           .toByteString()
                       signature = UPDATE_TIME.toByteString()
@@ -519,8 +519,8 @@ class MeasurementsServiceTest {
                                 epsilon = 1.0
                                 delta = 1.0
                               }
-                              vidSamplingInterval = vidSamplingInterval { width = 1.0F }
                             }
+                            vidSamplingInterval = vidSamplingInterval { width = 1.0F }
                           }
                           .toByteString()
                       signature = UPDATE_TIME.toByteString()
@@ -1296,8 +1296,8 @@ class MeasurementsServiceTest {
           epsilon = 1.0
           delta = 1.0
         }
-        vidSamplingInterval = vidSamplingInterval { width = 1.0f }
       }
+      vidSamplingInterval = vidSamplingInterval { width = 1.0f }
       nonceHashes += ByteString.copyFromUtf8("foo")
     }
 

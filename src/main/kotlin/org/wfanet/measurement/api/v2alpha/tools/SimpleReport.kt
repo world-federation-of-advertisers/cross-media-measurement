@@ -257,6 +257,10 @@ class CreateCommand : Runnable {
         measurementPublicKey = measurementEncryptionPublicKey
         nonceHashes += this@measurement.dataProviders.map { it.value.nonceHash }
         // TODO(@renjiez): Set values by user's input
+        vidSamplingInterval = vidSamplingInterval {
+          start = 0.0f
+          width = 1.0f
+        }
         reachAndFrequency = reachAndFrequency {
           reachPrivacyParams = differentialPrivacyParams {
             epsilon = 1.0
@@ -265,10 +269,6 @@ class CreateCommand : Runnable {
           frequencyPrivacyParams = differentialPrivacyParams {
             epsilon = 1.0
             delta = 1.0
-          }
-          vidSamplingInterval = vidSamplingInterval {
-            start = 0.0f
-            width = 1.0f
           }
         }
       }
