@@ -17,11 +17,13 @@ package org.wfanet.measurement.duchy.daemon.herald
 import io.grpc.Status
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.throttler.Throttler
@@ -60,11 +62,7 @@ class Herald(
   private val blobStorageBucket: String = "computation-blob-storage",
   private val maxAttempts: Int = 10
 ) {
-
-  // If one of the GlobalScope coroutines launched by `start` fails, it populates this.
-  // TODO(world-federation-of-advertisers/cross-media-measurement#87): Fail the computation and
-  //  carry on instead of crashing the herald.
-  private lateinit var attemptException: Throwable
+  private val retryScope = CoroutineScope(Dispatchers.IO)
 
   /**
    * Syncs the status of computations stored at the kingdom with those stored locally continually in
@@ -97,9 +95,12 @@ class Herald(
    * computations from the system computation service.
    */
   suspend fun syncStatuses(continuationToken: String): String {
-    if (this::attemptException.isInitialized) {
-      throw attemptException
+    for (job in retryScope.coroutineContext.job.children) {
+      job.join()
     }
+    // TODO(world-federation-of-advertisers/cross-media-measurement#87): Fail the computation and
+    // carry on instead of crashing the herald.
+    retryScope.ensureActive()
 
     var lastProcessedContinuationToken = continuationToken
     logger.info("Reading stream of active computations since $continuationToken.")
@@ -165,26 +166,31 @@ class Herald(
    * Attempts the block once and if that fails, launches a coroutine to continue retrying in the
    * background. Retrying is necessary since there is a race condition between the mill updating
    * local computation state and the herald retrieving a systemComputation update from the kingdom.
+   *
+   * TODO(@SanjayVas): Fix this unusual pattern by either doing all of the attempts in another
+   * coroutine scope (making this function non-suspending) or suspend until they're all done.
    */
   private suspend fun runWithRetry(
     systemComputation: Computation,
     block: suspend (systemComputation: Computation) -> Unit
   ) {
     val globalId = systemComputation.key.computationId
-    val attempt: suspend () -> Boolean = { runCatching { block(systemComputation) }.isSuccess }
-    if (!attempt()) {
-      // TODO: use another scope other than the GlobalScope.
-      GlobalScope.launch(Dispatchers.IO) {
+    if (!runCatching { block(systemComputation) }.isSuccess) {
+      retryScope.launch(Dispatchers.IO) {
+        var attemptResult: Result<Unit>? = null
         for (i in 2..maxAttempts) {
           logger.info("[id=$globalId] Attempt #$i")
           delay(timeMillis = minOf((1L shl i) * 1000L, 60_000L))
-          if (attempt()) {
+          attemptResult = kotlin.runCatching { block(systemComputation) }
+          if (attemptResult.isSuccess) {
             return@launch
           }
         }
+
+        val cause: Throwable = attemptResult!!.exceptionOrNull()!!
         val message = "[id=$globalId] Giving up after $maxAttempts attempts"
-        logger.severe(message)
-        attemptException = IllegalStateException(message)
+        logger.log(Level.SEVERE, message, cause)
+        throw IllegalStateException(message, cause)
       }
     }
   }
