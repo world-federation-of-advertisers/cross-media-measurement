@@ -267,7 +267,7 @@ class EdpSimulator(
     requisitionSpec: RequisitionSpec
   ) =
     try {
-      privacyBudgetManager.chargePrivacyBudget(
+      privacyBudgetManager.charge(
         Reference(measurementConsumerName, requisitionName, false),
         requisitionSpec,
         measurementSpec
