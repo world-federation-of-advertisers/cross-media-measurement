@@ -31,7 +31,7 @@ private const val FILTER_EXPRESSION =
 class PrivacyBudgetManagerTest {
   private val privacyBucketFilter = PrivacyBucketFilter(TestPrivacyBucketMapper())
 
-  private fun createQuery(referenceId: String, expression:String = FILTER_EXPRESSION) =
+  private fun createQuery(referenceId: String, expression: String = FILTER_EXPRESSION) =
     Query(
       Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
       LandscapeMask(
@@ -55,7 +55,9 @@ class PrivacyBudgetManagerTest {
     val backingStore = InMemoryBackingStore()
     val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 1.0f, 0.01f)
     val exception =
-      assertFailsWith<PrivacyBudgetManagerException> { pbm.chargePrivacyBudget(createQuery("referenceId1")) }
+      assertFailsWith<PrivacyBudgetManagerException> {
+        pbm.chargePrivacyBudget(createQuery("referenceId1"))
+      }
     assertThat(exception.errorType)
       .isEqualTo(PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED)
   }
