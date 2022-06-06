@@ -266,10 +266,10 @@ class CreateCommand : Runnable {
             epsilon = 1.0
             delta = 1.0
           }
-          vidSamplingInterval = vidSamplingInterval {
-            start = 0.0f
-            width = 1.0f
-          }
+        }
+        vidSamplingInterval = vidSamplingInterval {
+          start = 0.0f
+          width = 1.0f
         }
       }
       this.measurementSpec =

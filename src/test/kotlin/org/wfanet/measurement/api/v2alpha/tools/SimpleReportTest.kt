@@ -221,12 +221,12 @@ class SimpleReportTest {
               epsilon = 1.0
               delta = 1.0
             }
-            vidSamplingInterval =
-              MeasurementSpecKt.vidSamplingInterval {
-                start = 0.0f
-                width = 1.0f
-              }
           }
+          vidSamplingInterval =
+            MeasurementSpecKt.vidSamplingInterval {
+              start = 0.0f
+              width = 1.0f
+            }
         }
       )
     assertThat(measurement.measurementReferenceId).isEqualTo("9999")

@@ -66,11 +66,10 @@ private val REACH_AND_FREQ_MEASUREMENT_SPEC = measurementSpec {
       epsilon = 0.3
       delta = 0.01
     }
-
-    vidSamplingInterval = vidSamplingInterval {
-      start = 0.01f
-      width = 0.02f
-    }
+  }
+  vidSamplingInterval = vidSamplingInterval {
+    start = 0.01f
+    width = 0.02f
   }
 }
 
@@ -105,30 +104,38 @@ class PrivacyBudgetManagerTest {
   ) {
     val exception =
       assertFailsWith<PrivacyBudgetManagerException> {
-        chargePrivacyBudget(privacyReference, REQUISITION_SPEC, measurementSpec)
+        charge(privacyReference, REQUISITION_SPEC, measurementSpec)
+      }
+    assertThat(exception.errorType)
+      .isEqualTo(PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED)
+  }
+
+  private fun PrivacyBudgetManager.assertCheckExceedsPrivacyBudget(
+    privacyReference: Reference,
+    measurementSpec: MeasurementSpec
+  ) {
+    val exception =
+      assertFailsWith<PrivacyBudgetManagerException> {
+        check(privacyReference, REQUISITION_SPEC, measurementSpec)
       }
     assertThat(exception.errorType)
       .isEqualTo(PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED)
   }
 
   @Test
-  fun `chargePrivacyBudget throws PRIVACY_BUDGET_EXCEEDED when given a large single charge`() {
+  fun `charge throws PRIVACY_BUDGET_EXCEEDED when given a large single charge`() {
     val backingStore = InMemoryBackingStore()
     val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 1.0f, 0.01f)
     val exception =
       assertFailsWith<PrivacyBudgetManagerException> {
-        pbm.chargePrivacyBudget(
-          createReference(1),
-          REQUISITION_SPEC,
-          REACH_AND_FREQ_MEASUREMENT_SPEC
-        )
+        pbm.charge(createReference(1), REQUISITION_SPEC, REACH_AND_FREQ_MEASUREMENT_SPEC)
       }
     assertThat(exception.errorType)
       .isEqualTo(PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED)
   }
 
   @Test
-  fun `chargePrivacyBudget throws INVALID_PRIVACY_BUCKET_FILTER when given wrong event filter`() {
+  fun `charge throws INVALID_PRIVACY_BUCKET_FILTER when given wrong event filter`() {
     val backingStore = InMemoryBackingStore()
     val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
 
@@ -149,14 +156,21 @@ class PrivacyBudgetManagerTest {
 
     val exception =
       assertFailsWith<PrivacyBudgetManagerException> {
-        pbm.chargePrivacyBudget(
-          createReference(1),
-          requisitionSpec,
-          REACH_AND_FREQ_MEASUREMENT_SPEC
-        )
+        pbm.charge(createReference(1), requisitionSpec, REACH_AND_FREQ_MEASUREMENT_SPEC)
       }
     assertThat(exception.errorType)
       .isEqualTo(PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER)
+  }
+
+  @Test
+  fun `checks  privacy budget can be charged empty pbm`() {
+    val backingStore = InMemoryBackingStore()
+    val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
+
+    // The check succeeds, charges would have filled the Privacy Budget.
+    pbm.check(createReference(1), REQUISITION_SPEC, REACH_AND_FREQ_MEASUREMENT_SPEC)
+    // It succeeds again because charges are not applied with check
+    pbm.check(createReference(2), REQUISITION_SPEC, REACH_AND_FREQ_MEASUREMENT_SPEC)
   }
 
   @Test
@@ -165,10 +179,22 @@ class PrivacyBudgetManagerTest {
     val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
 
     // The charge succeeds and fills the Privacy Budget.
-    pbm.chargePrivacyBudget(createReference(1), REQUISITION_SPEC, REACH_AND_FREQ_MEASUREMENT_SPEC)
+    pbm.charge(createReference(1), REQUISITION_SPEC, REACH_AND_FREQ_MEASUREMENT_SPEC)
 
-    // Second charge should exceed the budget.
+    // Second charge would have exceeded the budget.
     pbm.assertChargeExceedsPrivacyBudget(createReference(2), REACH_AND_FREQ_MEASUREMENT_SPEC)
+  }
+
+  @Test
+  fun `checks exceeded privacy budget for reach and frequency measurement`() {
+    val backingStore = InMemoryBackingStore()
+    val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
+
+    // The charge succeeds and fills the Privacy Budget.
+    pbm.charge(createReference(1), REQUISITION_SPEC, REACH_AND_FREQ_MEASUREMENT_SPEC)
+
+    // Check fail because charges would have exceeded the budget.
+    pbm.assertCheckExceedsPrivacyBudget(createReference(2), REACH_AND_FREQ_MEASUREMENT_SPEC)
   }
 
   @Test
@@ -177,10 +203,22 @@ class PrivacyBudgetManagerTest {
     val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
 
     // The charge succeeds and fills the Privacy Budget.
-    pbm.chargePrivacyBudget(createReference(1), REQUISITION_SPEC, IMPRESSION_MEASUREMENT_SPEC)
+    pbm.charge(createReference(1), REQUISITION_SPEC, IMPRESSION_MEASUREMENT_SPEC)
 
     // Second charge should exceed the budget.
     pbm.assertChargeExceedsPrivacyBudget(createReference(2), IMPRESSION_MEASUREMENT_SPEC)
+  }
+
+  @Test
+  fun `checks exceeded privacy budget for impression measurement`() {
+    val backingStore = InMemoryBackingStore()
+    val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
+
+    // The charge succeeds and fills the Privacy Budget.
+    pbm.charge(createReference(1), REQUISITION_SPEC, IMPRESSION_MEASUREMENT_SPEC)
+
+    // Check fail because charges would have exceeded the budget.
+    pbm.assertCheckExceedsPrivacyBudget(createReference(2), IMPRESSION_MEASUREMENT_SPEC)
   }
 
   @Test
@@ -189,9 +227,21 @@ class PrivacyBudgetManagerTest {
     val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
 
     // The charge succeeds and fills the Privacy Budget.
-    pbm.chargePrivacyBudget(createReference(1), REQUISITION_SPEC, DURATION_MEASUREMENT_SPEC)
+    pbm.charge(createReference(1), REQUISITION_SPEC, DURATION_MEASUREMENT_SPEC)
 
     // Second charge should exceed the budget.
     pbm.assertChargeExceedsPrivacyBudget(createReference(2), DURATION_MEASUREMENT_SPEC)
+  }
+
+  @Test
+  fun `checks exceeded privacy budget for duration measurement`() {
+    val backingStore = InMemoryBackingStore()
+    val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
+
+    // The charge succeeds and fills the Privacy Budget.
+    pbm.charge(createReference(1), REQUISITION_SPEC, DURATION_MEASUREMENT_SPEC)
+
+    // Check fail because charges would have exceeded the budget.
+    pbm.assertCheckExceedsPrivacyBudget(createReference(2), DURATION_MEASUREMENT_SPEC)
   }
 }

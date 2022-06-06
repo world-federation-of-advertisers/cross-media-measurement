@@ -52,6 +52,32 @@ class PrivacyBudgetLedger(
 ) {
 
   /**
+   * For each privacy bucket group in the list of PrivacyBucketGroups, checks if adding each of the
+   * privacy charges to that group would make anyone of them exceed their budget.
+   *
+   * @throws PrivacyBudgetManagerException if the attempt to charge the privacy bucket groups would
+   * exceed the allowed budget.
+   */
+  fun check(
+    reference: Reference,
+    privacyBucketGroups: Set<PrivacyBucketGroup>,
+    charges: Set<Charge>
+  ) {
+
+    if (privacyBucketGroups.isEmpty() || charges.isEmpty()) {
+      return
+    }
+
+    // Check if the budget would be exceeded if charges were to be applied.
+    checkPrivacyBudgetExceeded(
+      backingStore.startTransaction(),
+      reference,
+      privacyBucketGroups,
+      charges
+    )
+  }
+
+  /**
    * For each privacy bucket group in the list of PrivacyBucketGroups, adds each of the privacy
    * charges to that group.
    *
@@ -59,7 +85,7 @@ class PrivacyBudgetLedger(
    * unsuccessful. Possible causes could include exceeding available privacy budget or an inability
    * to commit an update to the database.
    */
-  fun chargePrivacyBucketGroups(
+  fun charge(
     reference: Reference,
     privacyBucketGroups: Set<PrivacyBucketGroup>,
     charges: Set<Charge>
@@ -71,15 +97,8 @@ class PrivacyBudgetLedger(
 
     val context = backingStore.startTransaction()
 
-    // First check if this refence key already have been proccessed.
-    if (context.hasLedgerEntry(reference)) {
-      return
-    }
-
-    // Then check if charging the buckets would exceed privacy budget
-    if (!reference.isRefund) {
-      checkPrivacyBudgetExceeded(context, privacyBucketGroups, charges)
-    }
+    // First check if the budget would be exceeded if charges were to be applied.
+    checkPrivacyBudgetExceeded(context, reference, privacyBucketGroups, charges)
 
     // Then charge the buckets
     context.addLedgerEntries(privacyBucketGroups, charges, reference)
@@ -105,6 +124,24 @@ class PrivacyBudgetLedger(
         PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED,
         failedBucketList
       )
+    }
+  }
+
+  private fun checkPrivacyBudgetExceeded(
+    context: PrivacyBudgetLedgerTransactionContext,
+    reference: Reference,
+    privacyBucketGroups: Set<PrivacyBucketGroup>,
+    charges: Set<Charge>
+  ) {
+
+    // First check if this refence key already have been proccessed.
+    if (context.hasLedgerEntry(reference)) {
+      return
+    }
+
+    // Then check if charging the buckets would exceed privacy budget
+    if (!reference.isRefund) {
+      checkPrivacyBudgetExceeded(context, privacyBucketGroups, charges)
     }
   }
 

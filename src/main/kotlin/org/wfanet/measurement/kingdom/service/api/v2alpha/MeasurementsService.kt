@@ -222,6 +222,8 @@ private fun MeasurementSpec.validate() {
     "Duplicated values found in nonce_hashes"
   }
 
+  grpcRequire(vidSamplingInterval.width > 0) { "Vid sampling interval is unspecified" }
+
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
   when (measurementTypeCase) {
     MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
@@ -232,9 +234,6 @@ private fun MeasurementSpec.validate() {
       grpcRequire(reachAndFrequency.frequencyPrivacyParams.hasEpsilonAndDeltaSet()) {
         "Frequency privacy params are unspecified"
       }
-
-      val vidSamplingInterval = reachAndFrequency.vidSamplingInterval
-      grpcRequire(vidSamplingInterval.width > 0) { "Vid sampling interval is unspecified" }
     }
     MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {
       grpcRequire(impression.privacyParams.hasEpsilonAndDeltaSet()) {
