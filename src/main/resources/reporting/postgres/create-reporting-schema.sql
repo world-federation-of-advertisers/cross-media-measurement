@@ -238,7 +238,7 @@ CREATE TABLE WeightedMeasurement (
 
   PRIMARY KEY(MeasurementConsumerReferenceId, ReportId, MetricId, SetOperationCalculationId, WeightedMeasurementId),
   FOREIGN KEY(MeasurementConsumerReferenceId, ReportId, RowId)
-    REFERENCES RowNames(MeasurementConsumerReferenceId. ReportId, RowId),
+    REFERENCES RowNames(MeasurementConsumerReferenceId, ReportId, RowId),
   FOREIGN KEY(MeasurementConsumerReferenceId, ReportId, MetricId, SetOperationCalculationId, MeasurementCalculationId)
     REFERENCES SetOperationCalculations(MeasurementConsumerReferenceId, ReportId, MetricId, SetOperationCalculationId,
   FOREIGN KEY(MeasurementConsumerReferenceId, MeasurementReferenceId)
