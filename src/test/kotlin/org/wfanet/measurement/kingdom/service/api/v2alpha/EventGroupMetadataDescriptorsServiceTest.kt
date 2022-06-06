@@ -20,6 +20,7 @@ import com.google.protobuf.DescriptorProtos.FileDescriptorSet
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -31,6 +32,8 @@ import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorKey
+import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
+import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
@@ -60,11 +63,18 @@ private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 
 private val EVENT_GROUP_METADATA_DESCRIPTOR_NAME =
   "$DATA_PROVIDER_NAME/eventGroupMetadataDescriptors/AAAAAAAAAHs"
+private val EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2 =
+  "$DATA_PROVIDER_NAME/eventGroupMetadataDescriptors/AAAAAAAABHs"
 private val FILE_DESCRIPTOR_SET = FileDescriptorSet.getDefaultInstance()
 private val API_VERSION = Version.V2_ALPHA
 private val EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID =
   apiIdToExternalId(
     EventGroupMetadataDescriptorKey.fromName(EVENT_GROUP_METADATA_DESCRIPTOR_NAME)!!
+      .eventGroupMetadataDescriptorId
+  )
+private val EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID_2 =
+  apiIdToExternalId(
+    EventGroupMetadataDescriptorKey.fromName(EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2)!!
       .eventGroupMetadataDescriptorId
   )
 
@@ -97,6 +107,15 @@ class EventGroupMetadataDescriptorsServiceTest {
         .thenReturn(INTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR)
       onBlocking { updateEventGroupMetadataDescriptor(any()) }
         .thenReturn(INTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR)
+      onBlocking { streamEventGroupMetadataDescriptors(any()) }
+        .thenReturn(
+          flowOf(
+            INTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR,
+            INTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR.copy {
+              externalEventGroupMetadataDescriptorId = EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID_2
+            }
+          )
+        )
     }
 
   @get:Rule
@@ -323,6 +342,45 @@ class EventGroupMetadataDescriptorsServiceTest {
       assertFailsWith<StatusRuntimeException> {
         withDataProviderPrincipal(DATA_PROVIDER_NAME_2) {
           runBlocking { service.updateEventGroupMetadataDescriptor(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `batchGetEventGroupMetadataDescriptors returns descriptors`() {
+    val request = batchGetEventGroupMetadataDescriptorsRequest {
+      parent = DATA_PROVIDER_NAME
+      names += listOf(EVENT_GROUP_METADATA_DESCRIPTOR_NAME, EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2)
+    }
+
+    val result =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.batchGetEventGroupMetadataDescriptors(request) }
+      }
+
+    val expected = batchGetEventGroupMetadataDescriptorsResponse {
+      eventGroupMetadataDescriptors +=
+        listOf(
+          EVENT_GROUP_METADATA_DESCRIPTOR,
+          EVENT_GROUP_METADATA_DESCRIPTOR.copy { name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2 }
+        )
+    }
+
+    assertThat(result).isEqualTo(expected)
+  }
+
+  @Test
+  fun `batchGetEventGroupMetadataDescriptors throws PERMISSION_DENIED when edp doesn't match`() {
+    val request = batchGetEventGroupMetadataDescriptorsRequest {
+      parent = DATA_PROVIDER_NAME_2
+      names += listOf(EVENT_GROUP_METADATA_DESCRIPTOR_NAME)
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.batchGetEventGroupMetadataDescriptors(request) }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
