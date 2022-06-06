@@ -48,11 +48,13 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
           .rowsUpdated.awaitFirst()
     )
 
-    CoroutineScope(Dispatchers.IO).launch {
-      reportingSet.eventGroupKeysList
-        .map { async { insertReportingSetEventGroup(connection, it, internalReportingSetId) } }
-        .awaitAll()
-    }
+    CoroutineScope(Dispatchers.IO)
+      .launch {
+        reportingSet.eventGroupKeysList
+          .map { async { insertReportingSetEventGroup(connection, it, internalReportingSetId) } }
+          .awaitAll()
+      }
+      .join()
 
     return reportingSet.copy { this.externalReportingSetId = externalReportingSetId }
   }

@@ -17,6 +17,7 @@ package org.wfanet.measurement.reporting.deploy.postgres.writers
 import io.r2dbc.spi.Connection
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.logging.Logger
+import kotlinx.coroutines.reactive.awaitFirst
 import org.wfanet.measurement.common.identity.IdGenerator
 import reactor.core.publisher.Mono
 
@@ -59,10 +60,10 @@ abstract class PostgresWriter<T> {
    *
    * @return the output of [runTransaction]
    */
-  suspend fun execute(connection: Connection, idGenerator: IdGenerator): Mono<T> {
+  suspend fun execute(connection: Connection, idGenerator: IdGenerator): T {
     logger.fine("Running ${this::class.simpleName} transaction")
     check(executed.compareAndSet(false, true)) { "Cannot execute PostgresWriter multiple times" }
-    return runTransaction(connection, idGenerator)
+    return runTransaction(connection, idGenerator).awaitFirst()
   }
 
   companion object {

@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.reactive.asFlow
+import kotlinx.coroutines.reactive.awaitFirstOrNull
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.internal.reporting.ReportingSet
 import org.wfanet.measurement.internal.reporting.StreamReportingSetsRequest
@@ -81,7 +82,7 @@ class ReportingSetReader : PostgresReader<ReportingSetReader.Result>() {
           emit(reportingSetResult)
         }
       } finally {
-        connection.close()
+        connection.close().awaitFirstOrNull()
       }
     }
   }

@@ -3,7 +3,7 @@ package org.wfanet.measurement.reporting.deploy.postgres
 import io.r2dbc.spi.Connection
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.reactive.awaitFirst
+import kotlinx.coroutines.reactive.awaitFirstOrNull
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.internal.reporting.ReportingSet
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt
@@ -18,10 +18,9 @@ class PostgresReportingSetsService(
   override suspend fun createReportingSet(request: ReportingSet): ReportingSet {
     val connection = getConnection()
     try {
-      val monoResult = CreateReportingSet(request).execute(connection, idGenerator)
-      return monoResult.awaitFirst()
+      return CreateReportingSet(request).execute(connection, idGenerator)
     } finally {
-      connection.close()
+      connection.close().awaitFirstOrNull()
     }
   }
 

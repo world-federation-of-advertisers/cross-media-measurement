@@ -30,7 +30,6 @@ import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.internal.reporting.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.StreamReportingSetsRequestKt
-import org.wfanet.measurement.internal.reporting.copy
 import org.wfanet.measurement.internal.reporting.reportingSet
 import org.wfanet.measurement.internal.reporting.streamReportingSetsRequest
 
@@ -96,7 +95,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
       filter = "filter"
       displayName = "displayName"
     }
-    service.createReportingSet(reportingSet1)
+    val createdReportingSet1 = service.createReportingSet(reportingSet1)
 
     val reportingSet2 = reportingSet {
       measurementConsumerReferenceId = "1234"
@@ -124,8 +123,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         .toList()
 
     assertThat(reportingSets.size).isEqualTo(1)
-    assertThat(reportingSets[0])
-      .isEqualTo(reportingSet1.copy { externalReportingSetId = FIXED_EXTERNAL_ID })
+    assertThat(reportingSets[0]).isEqualTo(createdReportingSet1)
   }
 
   @Test
@@ -141,7 +139,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
       filter = "filter"
       displayName = "displayName"
     }
-    service.createReportingSet(reportingSet1)
+    val createdReportingSet1 = service.createReportingSet(reportingSet1)
 
     val reportingSet2 = reportingSet {
       measurementConsumerReferenceId = "4321"
@@ -168,8 +166,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         .toList()
 
     assertThat(reportingSets.size).isEqualTo(1)
-    assertThat(reportingSets[0])
-      .isEqualTo(reportingSet1.copy { externalReportingSetId = FIXED_EXTERNAL_ID })
+    assertThat(reportingSets[0]).isEqualTo(createdReportingSet1)
   }
 
   @Test
@@ -200,7 +197,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
     }
     idGenerator.internalId = InternalId(FIXED_INTERNAL_ID + 1)
     idGenerator.externalId = ExternalId(FIXED_EXTERNAL_ID + 1)
-    service.createReportingSet(reportingSet2)
+    val createdReportingSet2 = service.createReportingSet(reportingSet2)
 
     val reportingSets =
       service
@@ -217,7 +214,6 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         .toList()
 
     assertThat(reportingSets.size).isEqualTo(1)
-    assertThat(reportingSets[0])
-      .isEqualTo(reportingSet2.copy { externalReportingSetId = FIXED_EXTERNAL_ID + 1 })
+    assertThat(reportingSets[0]).isEqualTo(createdReportingSet2)
   }
 }
