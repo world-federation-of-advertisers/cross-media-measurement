@@ -23,27 +23,11 @@ option java_multiple_files = true;
 
 // Internal service for persistence of Measurement entities.
 service Reports {
-  rpc CreateMeasurement(CreateMeasurementRequest) returns (Measurement);
-
-  rpc GetMeasurement(GetMeasurementRequest) returns (Measurement);
+  rpc CreateMeasurement(Measurement) returns (Measurement);
 
   rpc SetMeasurementResult(SetMeasurementResultRequest) returns (Measurement);
 
   rpc SetMeasurementFailure(SetMeasurementFailureRequest) returns (Measurement);
-}
-
-message CreateMeasurementRequest {
-  Measurement measurement = 1;
-
-  // Serialized `CreateMeasurementRequest` from the CMMS public API.
-  bytes request = 2;
-}
-
-message GetMeasurementRequest {
-  // `MeasurementConsumer` ID from the CMMS public API.
-  string measurement_consumer_reference_id = 1;
-  // Serialized `CreateMeasurementRequest` from the CMMS public API.
-  bytes request = 2;
 }
 
 message SetMeasurementResultRequest {

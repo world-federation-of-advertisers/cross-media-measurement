@@ -64,9 +64,23 @@ message Metric {
 
     Operand lhs = 2;
     Operand rhs = 3;
-
-    string display_name = 4;
   }
 
-  repeated SetOperation set_operations = 2;
+  message MeasurementCalculation {
+    string row_name = 1;
+
+    message WeightedMeasurement {
+      // `Measurement` ID from the CMMS public API.
+      string measurement_reference_id = 1;
+      int32 coefficient = 2;
+    }
+    repeated WeightedMeasurement weighted_measurements = 2;
+  }
+
+  message SetOperationCalculation {
+    string display_name = 1;
+    SetOperation set_operation = 2;
+    repeated MeasurementCalculation measurement_calculation = 3;
+  }
+  repeated SetOperationCalculation set_operation_calculations = 2;
 }

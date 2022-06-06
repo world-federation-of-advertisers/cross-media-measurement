@@ -65,15 +65,46 @@ message Report {
   // Depends on `Measurement` states. Output-only.
   State state = 6;
 
-  // List of `Measurement` for the `Report`. Output-only.
-  repeated Measurement measurements = 7;
+  // Map of `Measurement` ID from the CMMS API to the `Measurement` for the
+  // `Report`. Output-only.
+  map<string, Measurement> measurements = 7;
 
   message Details {
     // Map of `EventGroup` resource name to filter predicate.
     map<string, string> event_group_filters = 1;
 
-    // Result in CSV format. Set only when `state` is `SUCCEEDED`. Output-only.
-    string result = 2;
+    message Result {
+      message ScalarTable {
+        // Map of row numbers to row names.
+        map<int32, string> row_names = 1;
+        message Column {
+          string column_name = 1;
+          // Map of row numbers to set operation results.
+          map<int32, int32> set_operations = 2;
+        }
+        repeated Column column = 2;
+      }
+      ScalarTable scalar_table = 1;
+
+      message HistogramTable {
+        message Row {
+          string row_name = 1;
+          int32 frequency = 2;
+        }
+        // Map of row numbers to row data.
+        map<int32, Row> rows = 1;
+        message Column {
+          string column_name = 1;
+          // Map of row numbers to set operation results.
+          map<int32, int32> set_operations = 2;
+        }
+        repeated Column column = 2;
+      }
+      HistogramTable histogram_table = 2;
+    }
+
+    // Set only when `state` is `SUCCEEDED`. Output-only.
+    Result result = 2;
   }
   Details details = 8;
 }

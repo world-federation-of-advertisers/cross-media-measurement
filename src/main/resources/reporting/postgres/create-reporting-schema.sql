@@ -21,8 +21,11 @@
 --   ├── Reports
 --   │   ├── TimeIntervals
 --   │   ├── PeriodicTimeIntervals
+--   │   ├── RowNames
 --   │   ├── Metrics
---   │       └── SetOperations
+--   │       └── SetOperationCalculations
+--   │           ├── SetOperations
+--   │           └── WeightedMeasurements
 --   │   └── ReportMeasurements
 --   ├── Measurements
 --   └── ReportingSets
@@ -83,6 +86,19 @@ CREATE TABLE PeriodicTimeIntervals (
     REFERENCES Reports(MeasurementConsumerReferenceId, ReportId)
 );
 
+-- changeset tristanvuong2021:create-row-names-table dbms:postgresql
+CREATE TABLE RowNames (
+  MeasurementConsumerReferenceId text NOT NULL,
+  ReportId bigint NOT NULL,
+  RowId bigint NOT NULL
+
+  RowName text NOT NULL,
+
+  PRIMARY KEY(MeasurementConsumerReferenceId, ReportId, RowId),
+  FOREIGN KEY(MeasurementConsumerReferenceId, ReportId)
+      REFERENCES Reports(MeasurementConsumerReferenceId, ReportId)
+);
+
 -- changeset tristanvuong2021:create-metrics-table dbms:postgresql
 CREATE TABLE Metrics (
   MeasurementConsumerReferenceId text NOT NULL,
@@ -102,10 +118,6 @@ CREATE TABLE Metrics (
 CREATE TABLE Measurements (
   MeasurementConsumerReferenceId text NOT NULL,
   MeasurementReferenceId text NOT NULL,
-
-  -- Serialized org.wfanet.measurement.api.xxx.CreateMeasurementRequest
-  -- protobuf message.
-  Request bytea NOT NULL,
 
   -- org.wfanet.measurement.internal.reporting.Report.MeasurementInfo.State
   -- protobuf enum encoded as an integer.
@@ -179,13 +191,9 @@ CREATE TABLE SetOperations (
   MetricId bigint NOT NULL,
   SetOperationId bigint NOT NULL,
 
-  -- Whether SetOperation is a root SetOperation of a Metric.
-  Root boolean NOT NULL,
-
   -- org.wfanet.measurement.internal.reporting.Metric.SetOperation.Type
   -- protobuf enum encoded as an integer.
   Type smallint NOT NULL,
-  DisplayName text NOT NULL,
 
   LeftHandSetOperationId bigint,
   RightHandSetOperationId bigint,
@@ -201,4 +209,42 @@ CREATE TABLE SetOperations (
     REFERENCES ReportingSets(MeasurementConsumerReferenceId, ReportingSetId),
   FOREIGN KEY(MeasurementConsumerReferenceId, ReportId, MetricId)
     REFERENCES Metrics(MeasurementConsumerReferenceId, ReportId, MetricId)
+);
+
+-- changeset tristanvuong2021:create-set-operation-calculations-table dbms:postgresql
+CREATE TABLE SetOperationCalculations (
+  MeasurementConsumerReferenceId text NOT NULL,
+  ReportId bigint NOT NULL,
+  MetricId bigint NOT NULL,
+  SetOperationCalculationId bigint NOT NULL,
+
+  DisplayName text NOT NULL,
+  SetOperationId bigint NOT NULL,
+
+  PRIMARY KEY(MeasurementConsumerReferenceId, ReportId, MetricId, SetOperationCalculationId),
+  FOREIGN KEY(MeasurementConsumerReferenceId, ReportId, MetricId)
+    REFERENCES Metrics(MeasurementConsumerReferenceId, ReportId, MetricId),
+  FOREIGN KEY(MeasurementConsumerReferenceId, ReportId, MetricId, SetOperationId)
+    REFERENCES SetOperations(MeasurementConsumerReferenceId, ReportId, MetricId, SetOperationId)
+);
+
+-- changeset tristanvuong2021:create-weighted-measurements-table dbms:postgresql
+CREATE TABLE WeightedMeasurement (
+  MeasurementConsumerReferenceId text NOT NULL,
+  ReportId bigint NOT NULL,
+  MetricId bigint NOT NULL,
+  SetOperationCalculationId bigint NOT NULL,
+  WeightedMeasurementId bigint NOT NULL,
+
+  RowId bigint NOT NULL,
+  MeasurementReferenceId text NOT NULL,
+  Coefficient integer NOT NULL,
+
+  PRIMARY KEY(MeasurementConsumerReferenceId, ReportId, MetricId, SetOperationCalculationId, WeightedMeasurementId),
+  FOREIGN KEY(MeasurementConsumerReferenceId, ReportId, RowId)
+    REFERENCES RowNames(MeasurementConsumerReferenceId. ReportId, RowId),
+  FOREIGN KEY(MeasurementConsumerReferenceId, ReportId, MetricId, SetOperationCalculationId, MeasurementCalculationId)
+    REFERENCES SetOperationCalculations(MeasurementConsumerReferenceId, ReportId, MetricId, SetOperationCalculationId,
+  FOREIGN KEY(MeasurementConsumerReferenceId, MeasurementReferenceId)
+    REFERENCES Measurements(MeasurementConsumerReferenceId, MeasurementReferenceId)
 );
