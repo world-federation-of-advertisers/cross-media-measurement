@@ -609,11 +609,7 @@ class SimpleReport : Runnable {
 
   @CommandLine.Option(
     names = ["--api-key"],
-    description =
-      [
-        "Expected hostname (DNS-ID) in the Kingdom public API server's TLS certificate.",
-        "This overrides derivation of the TLS DNS-ID from --kingdom-public-api-target.",
-      ],
+    description = ["API authentication key for the MeasurementConsumer"],
     required = true,
   )
   lateinit var apiAuthenticationKey: String
