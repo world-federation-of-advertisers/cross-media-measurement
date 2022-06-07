@@ -59,7 +59,6 @@ class PrivacyBudgetLedger(
    * database.
    */
   fun chargingWillExceedPrivacyBudget(
-    reference: Reference,
     privacyBucketGroups: Set<PrivacyBucketGroup>,
     charges: Set<Charge>
   ): Boolean {
@@ -69,11 +68,6 @@ class PrivacyBudgetLedger(
     }
 
     backingStore.startTransaction().use { context: PrivacyBudgetLedgerTransactionContext ->
-      // Check if this refence key already have been proccessed.
-      if (context.hasLedgerEntry(reference)) {
-        return false
-      }
-
       // Check if the budget would be exceeded if charges were to be applied.=
       if (!getExceededPrivacyBuckets(context, privacyBucketGroups, charges).isEmpty()) {
         return true
@@ -109,6 +103,12 @@ class PrivacyBudgetLedger(
       context.addLedgerEntries(privacyBucketGroups, charges, reference)
 
       context.commit()
+    }
+  }
+
+  fun hasLedgerEntry(reference: Reference): Boolean {
+    backingStore.startTransaction().use { context: PrivacyBudgetLedgerTransactionContext ->
+      return context.hasLedgerEntry(reference)
     }
   }
 
