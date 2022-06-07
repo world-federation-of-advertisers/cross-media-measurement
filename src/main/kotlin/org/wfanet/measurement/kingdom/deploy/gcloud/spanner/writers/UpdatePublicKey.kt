@@ -20,7 +20,6 @@ import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.DataProvider
-import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.UpdatePublicKeyRequest
 import org.wfanet.measurement.internal.kingdom.copy
@@ -36,10 +35,11 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
 /**
  * Updates the public key details for a [MeasurementConsumer] or a [DataProvider].
  *
- * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [ErrorCode.CERTIFICATE_NOT_FOUND]
- * * [ErrorCode.DATA_PROVIDER_NOT_FOUND]
- * * [ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND]
+ * Throws a subclass of [KingdomInternalException] on [execute].
+ * @throws [MeasurementConsumerCertificateNotFoundException] MeasurementConsumer's Certificate not
+ * found
+ * @throws [DataProviderNotFoundException] DataProvider not found
+ * @throws [MeasurementConsumerNotFoundException] MeasurementConsumer not found
  */
 class UpdatePublicKey(private val request: UpdatePublicKeyRequest) : SimpleSpannerWriter<Unit>() {
 

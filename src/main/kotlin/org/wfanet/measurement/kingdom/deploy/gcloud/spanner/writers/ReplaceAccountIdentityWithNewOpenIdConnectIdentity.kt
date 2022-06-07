@@ -19,7 +19,6 @@ import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.AccountKt
-import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountActivationStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountNotFoundException
@@ -31,10 +30,12 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.OpenIdConnec
 /**
  * Replace an existing account identity with a new username identity in the database.
  *
- * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [ErrorCode.ACCOUNT_NOT_FOUND]
- * * [ErrorCode.DUPLICATE_ACCOUNT_IDENTITY]
- * * [ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL]
+ * Throws a subclass of [KingdomInternalException] on [execute].
+ * @throws [AccountNotFoundException] Account not found
+ * @throws [DuplicateAccountIdentityException] Duplicated Account identity with the same issuer and
+ * subject
+ * @throws [AccountActivationStateIllegalException] Account Activation state is UNACTIVATED or
+ * identity not found
  */
 class ReplaceAccountIdentityWithNewOpenIdConnectIdentity(
   private val externalAccountId: ExternalId,
