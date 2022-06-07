@@ -122,14 +122,30 @@ class CreateCommand : Runnable {
   )
   private lateinit var measurementReferenceId: String
 
+  @set:CommandLine.Option(
+    names = ["--vid-sampling-start"],
+    description = ["Start point of vid sampling interval"],
+    required = true,
+  )
+  var vidSamplingStart by Delegates.notNull<Float>()
+    private set
+
+  @set:CommandLine.Option(
+    names = ["--vid-sampling-width"],
+    description = ["Width of vid sampling interval"],
+    required = true,
+  )
+  var vidSamplingWidth by Delegates.notNull<Float>()
+    private set
+
   @CommandLine.ArgGroup(
     exclusive = true,
     multiplicity = "1",
     heading = "Specify one of the measurement types with its params\n"
   )
-  lateinit var measurementParams: MeasurementParams
+  lateinit var measurementTypeParams: MeasurementTypeParams
 
-  class MeasurementParams {
+  class MeasurementTypeParams {
     class ReachAndFrequencyParams {
       @CommandLine.Option(
         names = ["--reach-and-frequency"],
@@ -169,22 +185,6 @@ class CreateCommand : Runnable {
         required = true,
       )
       var frequencyPrivacyDelta by Delegates.notNull<Double>()
-        private set
-
-      @set:CommandLine.Option(
-        names = ["--vid-sampling-start"],
-        description = ["Start point of vid sampling interval"],
-        required = true,
-      )
-      var vidSamplingStart by Delegates.notNull<Float>()
-        private set
-
-      @set:CommandLine.Option(
-        names = ["--vid-sampling-width"],
-        description = ["Width of vid sampling interval"],
-        required = true,
-      )
-      var vidSamplingWidth by Delegates.notNull<Float>()
         private set
     }
 
@@ -270,16 +270,12 @@ class CreateCommand : Runnable {
   private fun getReachAndFrequency(): ReachAndFrequency {
     return reachAndFrequency {
       reachPrivacyParams = differentialPrivacyParams {
-        epsilon = measurementParams.reachAndFrequency.reachPrivacyEpsilon
-        delta = measurementParams.reachAndFrequency.reachPrivacyDelta
+        epsilon = measurementTypeParams.reachAndFrequency.reachPrivacyEpsilon
+        delta = measurementTypeParams.reachAndFrequency.reachPrivacyDelta
       }
       frequencyPrivacyParams = differentialPrivacyParams {
-        epsilon = measurementParams.reachAndFrequency.frequencyPrivacyEpsilon
-        delta = measurementParams.reachAndFrequency.frequencyPrivacyDelta
-      }
-      vidSamplingInterval = vidSamplingInterval {
-        start = measurementParams.reachAndFrequency.vidSamplingStart
-        width = measurementParams.reachAndFrequency.vidSamplingWidth
+        epsilon = measurementTypeParams.reachAndFrequency.frequencyPrivacyEpsilon
+        delta = measurementTypeParams.reachAndFrequency.frequencyPrivacyDelta
       }
     }
   }
@@ -287,20 +283,20 @@ class CreateCommand : Runnable {
   private fun getImpression(): Impression {
     return impression {
       privacyParams = differentialPrivacyParams {
-        epsilon = measurementParams.impression.privacyEpsilon
-        delta = measurementParams.impression.privacyDelta
+        epsilon = measurementTypeParams.impression.privacyEpsilon
+        delta = measurementTypeParams.impression.privacyDelta
       }
-      maximumFrequencyPerUser = measurementParams.impression.maximumFrequencyPerUser
+      maximumFrequencyPerUser = measurementTypeParams.impression.maximumFrequencyPerUser
     }
   }
 
   private fun getDuration(): Duration {
     return duration {
       privacyParams = differentialPrivacyParams {
-        epsilon = measurementParams.duration.privacyEpsilon
-        delta = measurementParams.duration.privacyDelta
+        epsilon = measurementTypeParams.duration.privacyEpsilon
+        delta = measurementTypeParams.duration.privacyDelta
       }
-      maximumWatchDurationPerUser = measurementParams.duration.maximumWatchDurationPerUser
+      maximumWatchDurationPerUser = measurementTypeParams.duration.maximumWatchDurationPerUser
     }
   }
 
@@ -451,9 +447,13 @@ class CreateCommand : Runnable {
       val unsignedMeasurementSpec = measurementSpec {
         measurementPublicKey = measurementEncryptionPublicKey
         nonceHashes += this@measurement.dataProviders.map { it.value.nonceHash }
-        if (measurementParams.reachAndFrequency.selected) {
+        vidSamplingInterval = vidSamplingInterval {
+          start = vidSamplingStart
+          width = vidSamplingWidth
+        }
+        if (measurementTypeParams.reachAndFrequency.selected) {
           reachAndFrequency = getReachAndFrequency()
-        } else if (measurementParams.impression.selected) {
+        } else if (measurementTypeParams.impression.selected) {
           impression = getImpression()
         } else duration = getDuration()
       }
