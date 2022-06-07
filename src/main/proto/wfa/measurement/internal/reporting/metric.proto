@@ -83,10 +83,10 @@ message Metric {
     repeated WeightedMeasurement weighted_measurements = 2;
   }
 
-  message SetOperationCalculation {
+  message NamedSetOperation {
     string display_name = 1;
     SetOperation set_operation = 2;
     repeated MeasurementCalculation measurement_calculation = 3;
   }
-  repeated SetOperationCalculation set_operation_calculations = 2;
+  repeated NamedSetOperation named_set_operations = 2;
 }
