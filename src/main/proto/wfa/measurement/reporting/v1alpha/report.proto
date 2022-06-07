@@ -40,7 +40,7 @@ message Report {
   string report_idempotency_key = 2;
 
   // Representation of a Measurement Consumer entity.
-  string measurement_consumer = 2 [
+  string measurement_consumer = 3 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
       type: "halo.wfanet.org/MeasurementConsumer"
@@ -70,20 +70,20 @@ message Report {
 
   // The universe that defines all sets of event groups in `metrics`. Events
   // from event groups that aren't listed here won't be included.
-  EventGroupUniverse event_group_universe = 3
+  EventGroupUniverse event_group_universe = 4
       [(google.api.field_behavior) = REQUIRED];
 
   // Types of time intervals for metric aggregation.
   // REQUIRED
   oneof time {
     // A list of time intervals with different start times and end times.
-    TimeIntervals time_intervals = 4;
+    TimeIntervals time_intervals = 5;
     // A series of time intervals with the same length.
-    PeriodicTimeInterval periodic_time_interval = 5;
+    PeriodicTimeInterval periodic_time_interval = 6;
   }
 
   // The metrics that are included in `Report`.
-  repeated Metric metrics = 6 [(google.api.field_behavior) = REQUIRED];
+  repeated Metric metrics = 7 [(google.api.field_behavior) = REQUIRED];
 
   // Possible states of a `Report`.
   enum State {
@@ -98,8 +98,8 @@ message Report {
   }
 
   // Report state.
-  State state = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+  State state = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // Results in CSV format. Each result can be seen as one table.
-  repeated string results = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+  repeated string results = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
