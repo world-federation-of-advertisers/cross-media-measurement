@@ -50,14 +50,6 @@ class PrivacyBudgetManagerTest {
       .isEqualTo(PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED)
   }
 
-  private fun PrivacyBudgetManager.assertCheckExceedsPrivacyBudget(
-    privacyReference: Reference,
-    measurementSpec: MeasurementSpec
-  ) {
-    assertThat(chargingWillExceedPrivacyBudget(privacyReference, REQUISITION_SPEC, measurementSpec))
-      .isTrue()
-  }
-
   @Test
   fun `charge throws PRIVACY_BUDGET_EXCEEDED when given a large single charge`() {
     val backingStore = InMemoryBackingStore()
@@ -96,14 +88,22 @@ class PrivacyBudgetManagerTest {
   }
 
   @Test
-  fun `checks exceeded privacy budget for duration measurement`() {
+  fun `checks empty privacy budget manager and returns budget wont be exceeded`() {
+    val backingStore = InMemoryBackingStore()
+    val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
+    // Check returns false because charges would not have exceeded the budget.
+    assertThat(pbm.chargingWillExceedPrivacyBudget(createQuery("referenceId1"))).isFalse()
+  }
+
+  @Test
+  fun `checks exceeded privacy budget for measurement`() {
     val backingStore = InMemoryBackingStore()
     val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
 
     // The charge succeeds and fills the Privacy Budget.
-    pbm.charge(createReference(1), REQUISITION_SPEC, DURATION_MEASUREMENT_SPEC)
+    pbm.chargePrivacyBudget(createQuery("referenceId1"))
 
-    // Check fail because charges would have exceeded the budget.
-    pbm.assertCheckExceedsPrivacyBudget(createReference(2), DURATION_MEASUREMENT_SPEC)
+    // Check returns true because charges would have exceeded the budget.
+    assertThat(pbm.chargingWillExceedPrivacyBudget(createQuery("referenceId2"))).isTrue()
   }
 }

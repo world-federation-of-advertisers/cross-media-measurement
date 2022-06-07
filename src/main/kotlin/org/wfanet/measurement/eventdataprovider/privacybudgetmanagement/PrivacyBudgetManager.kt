@@ -39,24 +39,16 @@ class PrivacyBudgetManager(
   val ledger = PrivacyBudgetLedger(backingStore, maximumPrivacyBudget, maximumTotalDelta)
 
   /**
-   * Charges all of the privacy buckets identified by the given [query] if possible.
+   * Checks if charging all of the privacy buckets identified by the given measurementSpec and
+   * requisitionSpec would not exceed privacy budget.
    *
    * @param query represents the [Query] that specifies charges and buckets to be charged.
    * @throws PrivacyBudgetManagerException if an error occurs in handling this request. Possible
    * exceptions could include running out of privacy budget or a failure to commit the transaction
    * to the database.
    */
-
-  private fun chargingWillExceedPrivacyBudget(query: Query) =
+  fun chargingWillExceedPrivacyBudget(query: Query) =
     ledger.chargingWillExceedPrivacyBudget(
-      query.reference,
-      filter.getPrivacyBucketGroups(query.reference.measurementConsumerId, query.landscapeMask),
-      setOf(query.charge)
-    )
-
-  // TODO(@uakyol) : make this function public for then purpose of replays.
-  private fun charge(query: Query) =
-    ledger.charge(
       query.reference,
       filter.getPrivacyBucketGroups(query.reference.measurementConsumerId, query.landscapeMask),
       setOf(query.charge)
@@ -75,30 +67,10 @@ class PrivacyBudgetManager(
    * @throws PrivacyBudgetManagerException if an error occurs in handling this request. Possible
    * exceptions could include a failure to commit the transaction to the database.
    */
-  fun chargingWillExceedPrivacyBudget(
-    reference: Reference,
-    requisitionSpec: RequisitionSpec,
-    measurementSpec: MeasurementSpec
-  ): Boolean =
-    chargingWillExceedPrivacyBudget(getPrivacyQuery(reference, requisitionSpec, measurementSpec))
-
-  /**
-   * Charges all of the privacy buckets identified by the given measurementSpec and requisitionSpec,
-   * if possible.
-   *
-   * @param Reference representing the reference key and if the charge is a refund.
-   * @param measurementConsumerId that the charges are for.
-   * @param requisitionSpec The requisitionSpec protobuf that is associated with the query. The date
-   * range and demo groups are obtained from this.
-   * @param measurementSpec The measurementSpec protobuf that is associated with the query. The VID
-   * sampling interval is obtained from from this.
-   * @throws PrivacyBudgetManagerException if an error occurs in handling this request. Possible
-   * exceptions could include running out of privacy budget or a failure to commit the transaction
-   * to the database.
-   */
-  fun charge(
-    reference: Reference,
-    requisitionSpec: RequisitionSpec,
-    measurementSpec: MeasurementSpec
-  ) = charge(getPrivacyQuery(reference, requisitionSpec, measurementSpec))
+  fun chargePrivacyBudget(query: Query) =
+    ledger.charge(
+      query.reference,
+      filter.getPrivacyBucketGroups(query.reference.measurementConsumerId, query.landscapeMask),
+      setOf(query.charge)
+    )
 }
