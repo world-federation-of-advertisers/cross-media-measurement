@@ -31,7 +31,7 @@ message Metric {
   message FrequencyHistogramParams {
     // Maximum frequency cut-off value in the frequency histogram. Counts with
     // frequency higher than `max_frequency` will be aggregated together.
-    int32 max_frequency = 1;
+    int32 maximum_frequency_per_user = 1;
   }
   // Parameters that are used to generate `Impression Count` metric.
   message ImpressionCountParams {
