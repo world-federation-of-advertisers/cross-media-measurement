@@ -97,9 +97,11 @@ class ApiKeyAuthenticationServerInterceptor(
 }
 
 fun <T : AbstractStub<T>> T.withAuthenticationKey(authenticationKey: String? = null): T {
-  val metadata = Metadata()
-  authenticationKey?.let { metadata.put(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY, it) }
-  return MetadataUtils.attachHeaders(this, metadata)
+  val extraHeaders = Metadata()
+  authenticationKey?.let {
+    extraHeaders.put(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY, it)
+  }
+  return withInterceptors(MetadataUtils.newAttachHeadersInterceptor(extraHeaders))
 }
 
 fun ServerServiceDefinition.withApiKeyAuthenticationServerInterceptor(

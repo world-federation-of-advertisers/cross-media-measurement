@@ -109,9 +109,9 @@ class AccountAuthenticationServerInterceptor(
 }
 
 fun <T : AbstractStub<T>> T.withIdToken(idToken: String? = null): T {
-  val metadata = Metadata()
-  idToken?.let { metadata.put(AccountConstants.ID_TOKEN_METADATA_KEY, it) }
-  return MetadataUtils.attachHeaders(this, metadata)
+  val extraHeaders = Metadata()
+  idToken?.let { extraHeaders.put(AccountConstants.ID_TOKEN_METADATA_KEY, it) }
+  return withInterceptors(MetadataUtils.newAttachHeadersInterceptor(extraHeaders))
 }
 
 fun BindableService.withAccountAuthenticationServerInterceptor(
