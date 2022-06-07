@@ -26,7 +26,6 @@ import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.CreateDuchyMeasurementLogEntryRequest
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
-import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.measurementLogEntry
@@ -38,9 +37,9 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNo
 /**
  * Creates a DuchyMeasurementLogEntry and MeasurementLogEntry in the database.
  *
- * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [ErrorCode.MEASUREMENT_NOT_FOUND]
- * * [ErrorCode.DUCHY_NOT_FOUND]
+ * Throws a subclass of [KingdomInternalException] on [execute].
+ * @throws [MeasurementNotFoundByComputationException] Measurement not found
+ * @throws [DuchyNotFoundException] Duchy not found
  */
 class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurementLogEntryRequest) :
   SpannerWriter<DuchyMeasurementLogEntry, DuchyMeasurementLogEntry>() {

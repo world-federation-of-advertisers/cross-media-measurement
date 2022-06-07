@@ -16,7 +16,6 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
-import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.RefuseRequisitionRequest
@@ -31,10 +30,11 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RequisitionR
 /**
  * Refuses a [Requisition].
  *
- * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [ErrorCode.MEASUREMENT_STATE_ILLEGAL]
- * * [ErrorCode.REQUISITION_STATE_ILLEGAL]
- * * [ErrorCode.REQUISITION_NOT_FOUND]
+ * Throws a subclass of [KingdomInternalException] on [execute].
+ * @throws [MeasurementStateIllegalException] Measurement state is not
+ * PENDING_REQUISITION_FULFILLMENT
+ * @throws [RequisitionStateIllegalException] Requisition state is not UNFULFILLED
+ * @throws [RequisitionNotFoundByDataProviderException] Requisition not found.
  */
 class RefuseRequisition(private val request: RefuseRequisitionRequest) :
   SpannerWriter<Requisition, Requisition>() {

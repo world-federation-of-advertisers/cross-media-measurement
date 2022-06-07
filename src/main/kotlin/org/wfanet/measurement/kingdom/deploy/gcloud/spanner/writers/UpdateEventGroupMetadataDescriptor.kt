@@ -20,8 +20,15 @@ import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptor
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupMetadataDescriptorNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupMetadataDescriptorReader
 
+/**
+ * Update [EventGroupMetadataDescriptor] in the database.
+ *
+ * Throws a subclass of [KingdomInternalException] on [execute].
+ * @throws [EventGroupMetadataDescriptorNotFoundException] EventGroupMetadataDescriptor not found
+ */
 class UpdateEventGroupMetadataDescriptor(
   private val eventGroupMetadataDescriptor: EventGroupMetadataDescriptor
 ) : SpannerWriter<EventGroupMetadataDescriptor, EventGroupMetadataDescriptor>() {
