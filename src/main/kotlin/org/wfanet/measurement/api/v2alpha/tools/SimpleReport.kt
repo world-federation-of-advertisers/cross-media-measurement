@@ -55,6 +55,7 @@ import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.timeInterval
+import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -423,9 +424,9 @@ class CreateCommand : Runnable {
 
     val measurementConsumer =
       runBlocking(Dispatchers.IO) {
-        measurementConsumerStub.getMeasurementConsumer(
-          getMeasurementConsumerRequest { name = measurementConsumer }
-        )
+        measurementConsumerStub
+          .withAuthenticationKey(parent.apiAuthenticationKey)
+          .getMeasurementConsumer(getMeasurementConsumerRequest { name = measurementConsumer })
       }
     val measurementConsumerCertificate = readCertificate(measurementConsumer.certificateDer)
     val measurementConsumerPrivateKey =
@@ -465,9 +466,9 @@ class CreateCommand : Runnable {
 
     val response =
       runBlocking(Dispatchers.IO) {
-        measurementStub.createMeasurement(
-          createMeasurementRequest { this.measurement = measurement }
-        )
+        measurementStub
+          .withAuthenticationKey(parent.apiAuthenticationKey)
+          .createMeasurement(createMeasurementRequest { this.measurement = measurement })
       }
     print(response)
   }
@@ -488,9 +489,9 @@ class ListCommand : Runnable {
     val measurementStub = MeasurementsCoroutineStub(parent.channel)
     val response =
       runBlocking(Dispatchers.IO) {
-        measurementStub.listMeasurements(
-          listMeasurementsRequest { parent = measurementConsumerName }
-        )
+        measurementStub
+          .withAuthenticationKey(parent.apiAuthenticationKey)
+          .listMeasurements(listMeasurementsRequest { parent = measurementConsumerName })
       }
 
     response.measurementList.map {
@@ -536,7 +537,9 @@ class GetCommand : Runnable {
     certificateStub: CertificatesCoroutineStub
   ): Measurement.Result {
     val certificate = runBlocking {
-      certificateStub.getCertificate(getCertificateRequest { name = resultPair.certificate })
+      certificateStub
+        .withAuthenticationKey(parent.apiAuthenticationKey)
+        .getCertificate(getCertificateRequest { name = resultPair.certificate })
     }
 
     val signedResult = decryptResult(resultPair.encryptedResult, privateKeyHandle)
@@ -573,7 +576,9 @@ class GetCommand : Runnable {
     val certificateStub = CertificatesCoroutineStub(parent.channel)
     val measurement =
       runBlocking(Dispatchers.IO) {
-        measurementStub.getMeasurement(getMeasurementRequest { name = measurementName })
+        measurementStub
+          .withAuthenticationKey(parent.apiAuthenticationKey)
+          .getMeasurement(getMeasurementRequest { name = measurementName })
       }
 
     printMeasurementState(measurement)
@@ -601,6 +606,18 @@ class GetCommand : Runnable {
 class SimpleReport : Runnable {
   @CommandLine.Mixin private lateinit var tlsFlags: TlsFlags
   @CommandLine.Mixin private lateinit var apiFlags: ApiFlags
+
+  @CommandLine.Option(
+    names = ["--api-key"],
+    description =
+      [
+        "Expected hostname (DNS-ID) in the Kingdom public API server's TLS certificate.",
+        "This overrides derivation of the TLS DNS-ID from --kingdom-public-api-target.",
+      ],
+    required = true,
+  )
+  lateinit var apiAuthenticationKey: String
+    private set
 
   val channel: ManagedChannel by lazy {
     val clientCerts =
