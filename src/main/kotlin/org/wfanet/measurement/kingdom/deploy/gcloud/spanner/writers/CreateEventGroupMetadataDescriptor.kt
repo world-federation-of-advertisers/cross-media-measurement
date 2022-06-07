@@ -22,9 +22,16 @@ import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptor
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupMetadataDescriptorReader
 
+/**
+ * Creates a EventGroupMetadataDescriptor in the database.
+ *
+ * Throws a subclass of [KingdomInternalException] on [execute].
+ * @throws [DataProviderNotFoundException] DataProvider not found
+ */
 class CreateEventGroupMetadataDescriptor(
   private val eventGroupMetadataDescriptor: EventGroupMetadataDescriptor
 ) : SpannerWriter<EventGroupMetadataDescriptor, EventGroupMetadataDescriptor>() {

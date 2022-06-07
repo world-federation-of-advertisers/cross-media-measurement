@@ -26,7 +26,6 @@ import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
-import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.SetParticipantRequisitionParamsRequest
@@ -50,13 +49,13 @@ private val NEXT_COMPUTATION_PARTICIPANT_STATE = ComputationParticipant.State.RE
 /**
  * Sets participant details for a computationParticipant in the database.
  *
- * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND]
- * * [ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL]
- * * [ErrorCode.CERTIFICATE_NOT_FOUND]
- * * [ErrorCode.CERTIFICATE_IS_INVALID]
- * * [ErrorCode.DUCHY_NOT_FOUND]
- * * [ErrorCode.MEASUREMENT_STATE_ILLEGAL]
+ * Throws a subclass of [KingdomInternalException] on [execute].
+ * @throws [ComputationParticipantNotFoundByComputationException] ComputationParticipant not found
+ * @throws [ComputationParticipantStateIllegalException] ComputationParticipant state is not CREATED
+ * @throws [DuchyCertificateNotFoundException] Duchy's Certificate not found
+ * @throws [CertificateIsInvalidException] Certificate is invalid
+ * @throws [DuchyNotFoundException] Duchy not found
+ * @throws [MeasurementStateIllegalException] Measurement state is not PENDING_REQUISITION_PARAMS
  */
 class SetParticipantRequisitionParams(private val request: SetParticipantRequisitionParamsRequest) :
   SpannerWriter<ComputationParticipant, ComputationParticipant>() {
