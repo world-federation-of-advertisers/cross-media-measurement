@@ -37,7 +37,7 @@ message Report {
 
   // Used as the prefix of the idempotency keys of internal measurements. This
   // value must be unique among `Report`s for the parent `MeasurementConsumer`.
-  string report_idempotency_key = 2;
+  string report_idempotency_key = 2 [(google.api.field_behavior) = REQUIRED];
 
   // Representation of a Measurement Consumer entity.
   string measurement_consumer = 3 [
