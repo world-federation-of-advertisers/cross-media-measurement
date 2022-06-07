@@ -29,8 +29,9 @@ message Metric {
     int32 maximum_frequency_per_user = 1;
   }
   message WatchDurationParams {
+    int32 maximum_frequency_per_user = 1;
     // In seconds.
-    int32 maximum_watch_duration_per_user = 1;
+    int32 maximum_watch_duration_per_user = 2;
   }
 
   message Details {
