@@ -81,11 +81,13 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.tink.testing.loadPrivateKey
+import org.wfanet.measurement.common.crypto.tink.testing.loadPublicKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.testing.captureFirst
+import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
@@ -120,7 +122,7 @@ private val MEASUREMENT_PUBLIC_KEY =
 private const val DATA_PROVIDER_NAME = "dataProviders/1"
 private const val DATA_PROVIDER_CERTIFICATE_NAME = "dataProviders/1/certificates/1"
 private val DATA_PROVIDER_PUBLIC_KEY =
-  SECRETS_DIR.resolve("edp1_enc_public.tink").toFile().readByteString()
+  loadPublicKey(SECRETS_DIR.resolve("edp1_enc_public.tink").toFile()).toEncryptionPublicKey()
 private val DATA_PROVIDER_PRIVATE_KEY_HANDLE =
   loadPrivateKey(SECRETS_DIR.resolve("edp1_enc_private.tink").toFile())
 
@@ -134,7 +136,7 @@ private val MEASUREMENT_CONSUMER = measurementConsumer {
 private val DATA_PROVIDER = dataProvider {
   name = DATA_PROVIDER_NAME
   certificate = DATA_PROVIDER_CERTIFICATE_NAME
-  publicKey = signedData { data = DATA_PROVIDER_PUBLIC_KEY }
+  publicKey = signedData { data = DATA_PROVIDER_PUBLIC_KEY.toByteString() }
 }
 
 private const val TIME_STRING_1 = "2022-05-22T01:00:00.000Z"

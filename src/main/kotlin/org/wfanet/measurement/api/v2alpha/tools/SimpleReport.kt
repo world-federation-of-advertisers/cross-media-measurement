@@ -45,7 +45,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
-import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
@@ -399,7 +398,9 @@ class CreateCommand : Runnable {
       key = dataProviderInput.name
       val dataProvider =
         runBlocking(Dispatchers.IO) {
-          dataProviderStub.getDataProvider(getDataProviderRequest { name = dataProviderInput.name })
+          dataProviderStub
+            .withAuthenticationKey(parent.apiAuthenticationKey)
+            .getDataProvider(getDataProviderRequest { name = dataProviderInput.name })
         }
       value = dataProviderEntryValue {
         dataProviderCertificate = dataProvider.certificate
@@ -407,10 +408,7 @@ class CreateCommand : Runnable {
         encryptedRequisitionSpec =
           encryptRequisitionSpec(
             signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
-            encryptionPublicKey {
-              format = EncryptionPublicKey.Format.TINK_KEYSET
-              data = dataProvider.publicKey.data
-            }
+            EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
           )
         nonceHash = hashSha256(requisitionSpec.nonce)
       }
