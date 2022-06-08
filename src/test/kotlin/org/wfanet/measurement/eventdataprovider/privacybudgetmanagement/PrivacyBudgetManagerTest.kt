@@ -115,7 +115,7 @@ class PrivacyBudgetManagerTest {
     // The charge succeeds and fills the Privacy Budget.
     pbm.chargePrivacyBudget(createQuery("referenceId1"))
 
-    // Check returns true because charges would have exceeded the budget.
+    // Check returns true because this reference was not processed before.
     assertThat(
         pbm.referenceWillBeProcessed(Reference(MEASUREMENT_CONSUMER_ID, "referenceId2", false))
       )
@@ -129,7 +129,7 @@ class PrivacyBudgetManagerTest {
     // The charge succeeds and fills the Privacy Budget.
     pbm.chargePrivacyBudget(createQuery("referenceId1"))
 
-    // Check returns true because charges would have exceeded the budget.
+    // Check returns false because this reference was processed before.
     assertThat(
         pbm.referenceWillBeProcessed(Reference(MEASUREMENT_CONSUMER_ID, "referenceId1", false))
       )

@@ -39,7 +39,7 @@ class PrivacyBudgetManager(
   val ledger = PrivacyBudgetLedger(backingStore, maximumPrivacyBudget, maximumTotalDelta)
 
   /** Checks if calling charge with this [reference] will result in an update in the ledger. */
-  fun referenceWillBeProcessed(reference: Reference) = (!ledger.hasLedgerEntry(reference))
+  fun referenceWillBeProcessed(reference: Reference) = !ledger.hasLedgerEntry(reference)
 
   /**
    * Checks if charging all of the privacy buckets identified by the given measurementSpec and
