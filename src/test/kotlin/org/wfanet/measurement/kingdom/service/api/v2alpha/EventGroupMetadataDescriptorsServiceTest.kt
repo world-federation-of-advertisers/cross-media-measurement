@@ -348,10 +348,10 @@ class EventGroupMetadataDescriptorsServiceTest {
   }
 
   @Test
-  fun `batchGetEventGroupMetadataDescriptors returns descriptors`() {
+  fun `batchGetEventGroupMetadataDescriptors returns descriptors in input order`() {
     val request = batchGetEventGroupMetadataDescriptorsRequest {
       parent = DATA_PROVIDER_NAME
-      names += listOf(EVENT_GROUP_METADATA_DESCRIPTOR_NAME, EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2)
+      names += listOf(EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2, EVENT_GROUP_METADATA_DESCRIPTOR_NAME)
     }
 
     val result =
@@ -362,12 +362,30 @@ class EventGroupMetadataDescriptorsServiceTest {
     val expected = batchGetEventGroupMetadataDescriptorsResponse {
       eventGroupMetadataDescriptors +=
         listOf(
-          EVENT_GROUP_METADATA_DESCRIPTOR,
-          EVENT_GROUP_METADATA_DESCRIPTOR.copy { name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2 }
+          EVENT_GROUP_METADATA_DESCRIPTOR.copy { name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2 },
+          EVENT_GROUP_METADATA_DESCRIPTOR
         )
     }
 
     assertThat(result).isEqualTo(expected)
+  }
+
+  @Test
+  fun `batchGetEventGroupMetadataDescriptors throws NOT_FOUND if descriptor not found`() {
+    val eventGroupMetadataDescriptorName3 =
+      "$DATA_PROVIDER_NAME/eventGroupMetadataDescriptors/AAAAAAAACHs"
+    val request = batchGetEventGroupMetadataDescriptorsRequest {
+      parent = DATA_PROVIDER_NAME
+      names += listOf(EVENT_GROUP_METADATA_DESCRIPTOR_NAME, eventGroupMetadataDescriptorName3)
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.batchGetEventGroupMetadataDescriptors(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
 
   @Test

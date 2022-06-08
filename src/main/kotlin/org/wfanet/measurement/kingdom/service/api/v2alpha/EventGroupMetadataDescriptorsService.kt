@@ -182,14 +182,13 @@ class EventGroupMetadataDescriptorsService(
     }
 
     val descriptorIds =
-      try {
-        request.namesList.map { name ->
-          apiIdToExternalId(
-            EventGroupMetadataDescriptorKey.fromName(name)!!.eventGroupMetadataDescriptorId
-          )
+      request.namesList.map { name ->
+        val descriptorKey = EventGroupMetadataDescriptorKey.fromName(name)
+        if (descriptorKey != null) {
+          apiIdToExternalId(descriptorKey.eventGroupMetadataDescriptorId)
+        } else {
+          failGrpc(Status.NOT_FOUND) { "Resource name is either unspecified or invalid" }
         }
-      } catch (e: NullPointerException) {
-        failGrpc(Status.NOT_FOUND) { "Resource name is either unspecified or invalid" }
       }
 
     val streamRequest = streamEventGroupMetadataDescriptorsRequest {
@@ -199,10 +198,18 @@ class EventGroupMetadataDescriptorsService(
       }
     }
 
+    val orderByDescriptorId = descriptorIds.withIndex().associate { it.value to it.index }
     val results: List<InternalEventGroupMetadataDescriptor> =
       internalEventGroupMetadataDescriptorsStub
         .streamEventGroupMetadataDescriptors(streamRequest)
         .toList()
+        .sortedBy { descriptor ->
+          if (orderByDescriptorId.containsKey(descriptor.externalEventGroupMetadataDescriptorId)) {
+            orderByDescriptorId[descriptor.externalEventGroupMetadataDescriptorId]
+          } else {
+            failGrpc(Status.NOT_FOUND) { "Descriptor was not found" }
+          }
+        }
 
     if (results.isEmpty()) {
       return BatchGetEventGroupMetadataDescriptorsResponse.getDefaultInstance()
