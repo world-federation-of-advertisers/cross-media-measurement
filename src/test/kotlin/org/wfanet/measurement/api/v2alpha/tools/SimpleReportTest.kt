@@ -323,6 +323,8 @@ class SimpleReportTest {
         "--impression-privacy-epsilon=0.015",
         "--impression-privacy-delta=0.0",
         "--max-frequency=1000",
+        "--vid-sampling-start=0.1",
+        "--vid-sampling-width=0.2",
         "--measurement-consumer=measurementConsumers/777",
         "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
         "--measurement-ref-id=9999",
@@ -504,12 +506,12 @@ class SimpleReportTest {
               epsilon = 0.02
               delta = 0.0
             }
-            vidSamplingInterval =
-              MeasurementSpecKt.vidSamplingInterval {
-                start = 0.1f
-                width = 0.2f
-              }
           }
+          vidSamplingInterval =
+            MeasurementSpecKt.vidSamplingInterval {
+              start = 0.1f
+              width = 0.2f
+            }
         }
       )
   }
@@ -529,6 +531,8 @@ class SimpleReportTest {
         "--impression-privacy-epsilon=0.015",
         "--impression-privacy-delta=0.0",
         "--max-frequency=1000",
+        "--vid-sampling-start=0.1",
+        "--vid-sampling-width=0.2",
         "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
         "--data-provider=dataProviders/1",
         "--event-group=dataProviders/1/eventGroups/1",
@@ -556,6 +560,11 @@ class SimpleReportTest {
             }
             maximumFrequencyPerUser = 1000
           }
+          vidSamplingInterval =
+            MeasurementSpecKt.vidSamplingInterval {
+              start = 0.1f
+              width = 0.2f
+            }
         }
       )
   }
@@ -575,6 +584,8 @@ class SimpleReportTest {
         "--duration-privacy-epsilon=0.015",
         "--duration-privacy-delta=0.0",
         "--max-duration=1000",
+        "--vid-sampling-start=0.1",
+        "--vid-sampling-width=0.2",
         "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
         "--data-provider=dataProviders/1",
         "--event-group=dataProviders/1/eventGroups/1",
@@ -602,6 +613,11 @@ class SimpleReportTest {
             }
             maximumWatchDurationPerUser = 1000
           }
+          vidSamplingInterval =
+            MeasurementSpecKt.vidSamplingInterval {
+              start = 0.1f
+              width = 0.2f
+            }
         }
       )
   }

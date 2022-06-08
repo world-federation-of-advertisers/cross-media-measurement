@@ -322,11 +322,10 @@ class EdpSimulatorTest {
       }
 
       val measurementSpec = measurementSpec {
-        reachAndFrequency = reachAndFrequency {
-          vidSamplingInterval = vidSamplingInterval {
-            start = vidSamplingIntervalStart
-            width = vidSamplingIntervalWidth
-          }
+        reachAndFrequency = reachAndFrequency {}
+        vidSamplingInterval = vidSamplingInterval {
+          start = vidSamplingIntervalStart
+          width = vidSamplingIntervalWidth
         }
       }
       val result: AnySketch =

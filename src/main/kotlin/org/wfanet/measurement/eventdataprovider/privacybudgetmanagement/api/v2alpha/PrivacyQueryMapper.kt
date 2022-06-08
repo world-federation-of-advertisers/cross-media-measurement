@@ -90,8 +90,8 @@ object PrivacyQueryMapper {
             it.value.collectionInterval.endTime.toLocalDate("UTC")
           )
         },
-        measurementSpec.reachAndFrequency.vidSamplingInterval.start,
-        measurementSpec.reachAndFrequency.vidSamplingInterval.width
+        measurementSpec.vidSamplingInterval.start,
+        measurementSpec.vidSamplingInterval.width
       ),
       charge
     )

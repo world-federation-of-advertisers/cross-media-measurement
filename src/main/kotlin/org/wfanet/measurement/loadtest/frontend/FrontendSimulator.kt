@@ -391,10 +391,10 @@ class FrontendSimulator(
       reachAndFrequency = reachAndFrequency {
         reachPrivacyParams = outputDpParams
         frequencyPrivacyParams = outputDpParams
-        vidSamplingInterval = vidSamplingInterval {
-          start = 0.0f
-          width = 1.0f
-        }
+      }
+      vidSamplingInterval = vidSamplingInterval {
+        start = 0.0f
+        width = 1.0f
       }
       this.nonceHashes += nonceHashes
     }
