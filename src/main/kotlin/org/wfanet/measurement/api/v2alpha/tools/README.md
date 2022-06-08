@@ -59,7 +59,17 @@ See the [Examples](##Examples) section below.
 
 ### List
 
+To list `Measurement`s of a `MeasurementConsumer`, the user specifies the
+name of the `MeasurementConsumer` with corresponding credential arguments.
+
+See the [Examples](##Examples) section below.
+
 ### Get
+
+To get a certain `Measurement`, the user specifies the name of the `Measurement` 
+and provides the private encryption key to decrypt the results.
+
+See the [Examples](##Examples) section below.
 
 ## Examples
 
@@ -83,9 +93,17 @@ to the executable.
   SimpleReport \
   --tls-cert-file=secretfiles/mc_tls.pem --tls-key-file=secretfiles/mc_tls.key \
   --cert-collection-file=secretfiles/kingdom_root.pem \
-  --api-target=localhost:8443 --api-cert-host=localhost \
+  --kingdom-public-api-target=public.kingdom.dev.halo-cmm.org:8443 \
+  --api-key=nR5QPN7ptx \
   create \
   --measurement-consumer=measurementConsumers/777 \
+  --reach-and-frequency \
+  --reach-privacy-epsilon=0.0033 \
+  --reach-privacy-delta=0.0 \
+  --frequency-privacy-epsilon=0.115 \
+  --frequency-privacy-delta=0.0 \
+  --vid-sampling-start=0.16 \
+  --vid-sampling-width=0.016667 \
   --private-key-der-file=secretfiles/mc_cs_private.der \
   --measurement-ref-id=9999 \
   --data-provider=dataProviders/1 \
@@ -102,3 +120,32 @@ to the executable.
   --event-start-time=2022-04-22T01:19:42.336Z \
   --event-end-time=2022-05-22T01:56:12.257Z
   ```
+
+* List
+
+  ```shell
+  SimpleReport \
+  --tls-cert-file=secretfiles/mc_tls.pem --tls-key-file=secretfiles/mc_tls.key \
+  --cert-collection-file=secretfiles/kingdom_root.pem \
+  --kingdom-public-api-target=public.kingdom.dev.halo-cmm.org:8443 \
+  --api-key=nR5QPN7ptx \
+  list \
+  --measurement-consumer=measurementConsumers/777
+  ```
+
+* Get
+
+  Given that the MeasurementConsumer has the encryption private key
+  `mc_enc_private.tink`.
+
+  ```shell
+  SimpleReport \
+  --tls-cert-file=secretfiles/mc_tls.pem --tls-key-file=secretfiles/mc_tls.key \
+  --cert-collection-file=secretfiles/kingdom_root.pem \
+  --kingdom-public-api-target=public.kingdom.dev.halo-cmm.org:8443 \
+  --api-key=nR5QPN7ptx \
+  get \
+  --measurement=measurementConsumers/777/measurements/100 \
+  --encryption-private-key-file=secretfiles/mc_enc_private.tink
+  ```
+

@@ -100,6 +100,7 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.Event
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper
 import org.wfanet.measurement.loadtest.config.EventFilters.VID_SAMPLER_HASH_FUNCTION
 import org.wfanet.measurement.loadtest.storage.SketchStore
 
@@ -268,9 +269,11 @@ class EdpSimulator(
   ) =
     try {
       privacyBudgetManager.chargePrivacyBudget(
-        Reference(measurementConsumerName, requisitionName, false),
-        requisitionSpec,
-        measurementSpec
+        PrivacyQueryMapper.getPrivacyQuery(
+          Reference(measurementConsumerName, requisitionName, false),
+          requisitionSpec,
+          measurementSpec
+        )
       )
     } catch (e: PrivacyBudgetManagerException) {
       logger.log(

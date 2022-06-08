@@ -25,8 +25,6 @@ import io.grpc.ServerServiceDefinition
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
-import io.grpc.stub.AbstractStub
-import io.grpc.stub.MetadataUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -94,12 +92,6 @@ class ApiKeyAuthenticationServerInterceptor(
         authenticationKeyHash = hashSha256(apiIdToExternalId(authenticationKey))
       }
     )
-}
-
-fun <T : AbstractStub<T>> T.withAuthenticationKey(authenticationKey: String? = null): T {
-  val metadata = Metadata()
-  authenticationKey?.let { metadata.put(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY, it) }
-  return MetadataUtils.attachHeaders(this, metadata)
 }
 
 fun ServerServiceDefinition.withApiKeyAuthenticationServerInterceptor(

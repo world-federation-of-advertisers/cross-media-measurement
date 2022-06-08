@@ -60,7 +60,7 @@ to the executable.
     CreateResource \
       --tls-cert-file=src/main/k8s/testing/secretfiles/kingdom_tls.pem \
       --tls-key-file=src/main/k8s/testing/secretfiles/kingdom_tls.key \
-      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_tls.pem \
+      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
       --internal-api-target=localhost:8443 --internal-api-cert-host=localhost \
       data-provider \
       --certificate-der-file=src/main/k8s/testing/secretfiles/edp1_cs_cert.der \
@@ -74,7 +74,20 @@ to the executable.
     CreateResource \
       --tls-cert-file=src/main/k8s/testing/secretfiles/kingdom_tls.pem \
       --tls-key-file=src/main/k8s/testing/secretfiles/kingdom_tls.key \
-      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_tls.pem \
+      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
       --internal-api-target=localhost:8443 --internal-api-cert-host=localhost \
       model-provider
+    ```
+
+*   Creating the initial `Certificate` for the `worker1` `Duchy` in the `dev`
+    environment
+
+    ```shell
+    CreateResource \
+      --tls-cert-file=src/main/k8s/testing/secretfiles/kingdom_tls.pem \
+      --tls-key-file=src/main/k8s/testing/secretfiles/kingdom_tls.key \
+      --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
+      --internal-api-target=localhost:8443 --internal-api-cert-host=localhost \
+      duchy-certificate --duchy-id=worker1 \
+      --cert-file=src/main/k8s/testing/secretfiles/worker1_cs_cert.der
     ```
