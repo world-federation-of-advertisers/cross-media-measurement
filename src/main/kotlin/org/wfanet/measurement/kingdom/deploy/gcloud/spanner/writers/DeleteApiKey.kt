@@ -19,7 +19,6 @@ import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Mutation
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.internal.kingdom.ApiKey
-import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ApiKeyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
@@ -29,9 +28,9 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
 /**
  * Deletes an [ApiKey] from the database.
  *
- * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [ErrorCode.API_KEY_NOT_FOUND]
- * * [ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND]
+ * Throws a subclass of [KingdomInternalException] on [execute].
+ * @throws [ApiKeyNotFoundException] Api key not found
+ * @throws [MeasurementConsumerNotFoundException] MeasurementConsumer not found
  */
 class DeleteApiKey(
   private val externalMeasurementConsumerId: ExternalId,
