@@ -590,7 +590,7 @@ class LiquidLegionsV2Mill(
               decayRate = llv2Parameters.liquidLegionsSketch.decayRate
               size = llv2Parameters.liquidLegionsSketch.size
             }
-            vidSamplingIntervalWidth = measurementSpec.reachAndFrequency.vidSamplingInterval.width
+            vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width
           }
         val noiseConfig = llv2Parameters.noise
         if (noiseConfig.hasReachNoiseConfig()) {
