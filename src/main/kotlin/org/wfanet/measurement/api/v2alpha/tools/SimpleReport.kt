@@ -45,7 +45,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
-import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
@@ -55,6 +54,7 @@ import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.timeInterval
+import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -394,7 +394,9 @@ class CreateCommand : Runnable {
       key = dataProviderInput.name
       val dataProvider =
         runBlocking(Dispatchers.IO) {
-          dataProviderStub.getDataProvider(getDataProviderRequest { name = dataProviderInput.name })
+          dataProviderStub
+            .withAuthenticationKey(parent.apiAuthenticationKey)
+            .getDataProvider(getDataProviderRequest { name = dataProviderInput.name })
         }
       value = dataProviderEntryValue {
         dataProviderCertificate = dataProvider.certificate
@@ -402,10 +404,7 @@ class CreateCommand : Runnable {
         encryptedRequisitionSpec =
           encryptRequisitionSpec(
             signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
-            encryptionPublicKey {
-              format = EncryptionPublicKey.Format.TINK_KEYSET
-              data = dataProvider.publicKey.data
-            }
+            EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
           )
         nonceHash = hashSha256(requisitionSpec.nonce)
       }
@@ -419,9 +418,9 @@ class CreateCommand : Runnable {
 
     val measurementConsumer =
       runBlocking(Dispatchers.IO) {
-        measurementConsumerStub.getMeasurementConsumer(
-          getMeasurementConsumerRequest { name = measurementConsumer }
-        )
+        measurementConsumerStub
+          .withAuthenticationKey(parent.apiAuthenticationKey)
+          .getMeasurementConsumer(getMeasurementConsumerRequest { name = measurementConsumer })
       }
     val measurementConsumerCertificate = readCertificate(measurementConsumer.certificateDer)
     val measurementConsumerPrivateKey =
@@ -465,9 +464,9 @@ class CreateCommand : Runnable {
 
     val response =
       runBlocking(Dispatchers.IO) {
-        measurementStub.createMeasurement(
-          createMeasurementRequest { this.measurement = measurement }
-        )
+        measurementStub
+          .withAuthenticationKey(parent.apiAuthenticationKey)
+          .createMeasurement(createMeasurementRequest { this.measurement = measurement })
       }
     print(response)
   }
@@ -488,9 +487,9 @@ class ListCommand : Runnable {
     val measurementStub = MeasurementsCoroutineStub(parent.channel)
     val response =
       runBlocking(Dispatchers.IO) {
-        measurementStub.listMeasurements(
-          listMeasurementsRequest { parent = measurementConsumerName }
-        )
+        measurementStub
+          .withAuthenticationKey(parent.apiAuthenticationKey)
+          .listMeasurements(listMeasurementsRequest { parent = measurementConsumerName })
       }
 
     response.measurementList.map {
@@ -536,7 +535,9 @@ class GetCommand : Runnable {
     certificateStub: CertificatesCoroutineStub
   ): Measurement.Result {
     val certificate = runBlocking {
-      certificateStub.getCertificate(getCertificateRequest { name = resultPair.certificate })
+      certificateStub
+        .withAuthenticationKey(parent.apiAuthenticationKey)
+        .getCertificate(getCertificateRequest { name = resultPair.certificate })
     }
 
     val signedResult = decryptResult(resultPair.encryptedResult, privateKeyHandle)
@@ -573,7 +574,9 @@ class GetCommand : Runnable {
     val certificateStub = CertificatesCoroutineStub(parent.channel)
     val measurement =
       runBlocking(Dispatchers.IO) {
-        measurementStub.getMeasurement(getMeasurementRequest { name = measurementName })
+        measurementStub
+          .withAuthenticationKey(parent.apiAuthenticationKey)
+          .getMeasurement(getMeasurementRequest { name = measurementName })
       }
 
     printMeasurementState(measurement)
@@ -601,6 +604,14 @@ class GetCommand : Runnable {
 class SimpleReport : Runnable {
   @CommandLine.Mixin private lateinit var tlsFlags: TlsFlags
   @CommandLine.Mixin private lateinit var apiFlags: ApiFlags
+
+  @CommandLine.Option(
+    names = ["--api-key"],
+    description = ["API authentication key for the MeasurementConsumer"],
+    required = true,
+  )
+  lateinit var apiAuthenticationKey: String
+    private set
 
   val channel: ManagedChannel by lazy {
     val clientCerts =
