@@ -26,6 +26,14 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCorouti
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplateKt.gender
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplateKt.ageRange
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.testPrivacyBudgetTemplate
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.testVideoTemplate
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.InMemoryBackingStore
@@ -34,8 +42,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
 import org.wfanet.measurement.loadtest.dataprovider.EdpData
 import org.wfanet.measurement.loadtest.dataprovider.EdpSimulator
-import org.wfanet.measurement.loadtest.dataprovider.RandomEventQuery
-import org.wfanet.measurement.loadtest.dataprovider.SketchGenerationParams
+import org.wfanet.measurement.loadtest.dataprovider.FilterEventQuery
 import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.StorageClient
 
@@ -47,7 +54,6 @@ class InProcessEdpSimulator(
   duchyPublicApiChannel: Channel,
   private val eventTemplateNames: List<String>
 ) {
-
   private val backgroundScope = CoroutineScope(Dispatchers.Default)
 
   private val eventGroupsClient by lazy { EventGroupsCoroutineStub(kingdomPublicApiChannel) }
@@ -65,6 +71,28 @@ class InProcessEdpSimulator(
     edpJob =
       backgroundScope.launch {
         val edpData = createEdpData(displayName, edpName)
+        // TestEvent defined to match default filter for simulators set in Configs.kt
+        val defaultTestEvent = testEvent {
+          this.privacyBudget = testPrivacyBudgetTemplate {
+            gender = gender { value = TestPrivacyBudgetTemplate.Gender.Value.GENDER_FEMALE }
+          }
+          this.videoAd = testVideoTemplate {
+            age = ageRange { value = TestVideoTemplate.AgeRange.Value.AGE_18_TO_24 }
+          }
+        }
+
+        val firstExposureEvents = (1..1000).associateWith { defaultTestEvent }
+        val secondExposureEvents = (1..100).associateWith { defaultTestEvent }
+        val thirdExposureEvents = (1..1).associateWith { defaultTestEvent }
+
+        val events: Map<Int, List<TestEvent>> =
+          (firstExposureEvents.keys.asSequence()).associateWith {
+            listOfNotNull(
+              firstExposureEvents[it],
+              secondExposureEvents[it],
+              thirdExposureEvents[it]
+            )
+          }
 
         EdpSimulator(
             edpData = edpData,
@@ -74,8 +102,7 @@ class InProcessEdpSimulator(
             requisitionsStub = requisitionsClient.withPrincipalName(edpData.name),
             requisitionFulfillmentStub = requisitionFulfillmentClient,
             sketchStore = SketchStore(storageClient),
-            eventQuery =
-              RandomEventQuery(SketchGenerationParams(reach = 1000, universeSize = 10_000)),
+            eventQuery = FilterEventQuery(events),
             throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
             eventTemplateNames = eventTemplateNames,
             PrivacyBudgetManager(
