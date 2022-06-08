@@ -40,7 +40,7 @@ private val DEFAULT_QUERY_PARAMETER =
   )
 
 /** Fulfill the query by querying the specified BigQuery table. */
-class BiqQueryEventQuery(
+class BigQueryEventQuery(
   private val edpDisplayName: String,
   private val bigQuery: BigQuery,
   private val tableName: String,
