@@ -14,28 +14,28 @@
 
 package org.wfanet.measurement.reporting.deploy.postgres.readers
 
-import io.r2dbc.spi.Connection
 import io.r2dbc.spi.Row
 import io.r2dbc.spi.Statement
 import java.util.logging.Logger
-import reactor.core.publisher.Flux
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.reactive.asFlow
 import reactor.core.publisher.Mono
 
 /** Abstraction for reading from Postgres. */
-abstract class PostgresReader<T> {
+abstract class PostgresReader<T : Any> {
   protected abstract val baseSql: String
 
   protected val builder by lazy { StringBuilder(baseSql) }
 
   /** Transforms a R2DBC row into an instance of T. */
-  protected abstract fun translate(connection: Connection, row: Row): T
+  protected abstract fun translate(row: Row): T
 
   /** Executes the query. */
-  fun execute(connection: Connection, statement: Statement): Flux<T> {
+  fun execute(statement: Statement): Flow<T> {
     logger.fine { "Executing Query: $builder" }
     val resultMono = Mono.from(statement.execute())
 
-    return resultMono.flatMapMany { result -> result.map { row, _ -> translate(connection, row) } }
+    return resultMono.flatMapMany { result -> result.map { row, _ -> translate(row) } }.asFlow()
   }
 
   companion object {

@@ -3,7 +3,6 @@ package org.wfanet.measurement.reporting.deploy.postgres.readers
 import io.r2dbc.spi.Connection
 import io.r2dbc.spi.Row
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.reactive.asFlow
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.internal.reporting.ReportingSet
 import org.wfanet.measurement.internal.reporting.ReportingSetKt
@@ -21,7 +20,7 @@ class ReportingSetEventGroupReader : PostgresReader<ReportingSetEventGroupReader
       ReportingSetEventGroups
     """
 
-  override fun translate(connection: Connection, row: Row): Result = Result(buildEventGroupKey(row))
+  override fun translate(row: Row): Result = Result(buildEventGroupKey(row))
 
   fun listEventGroupKeys(
     connection: Connection,
@@ -41,7 +40,7 @@ class ReportingSetEventGroupReader : PostgresReader<ReportingSetEventGroupReader
         .bind("$1", measurementConsumerReferenceId)
         .bind("$2", reportingSetId.value)
 
-    return execute(connection, statement).asFlow()
+    return execute(statement)
   }
 
   private fun buildEventGroupKey(row: Row): ReportingSet.EventGroupKey {

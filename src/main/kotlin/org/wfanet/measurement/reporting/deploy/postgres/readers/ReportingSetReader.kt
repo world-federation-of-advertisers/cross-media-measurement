@@ -5,7 +5,6 @@ import io.r2dbc.spi.Row
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.reactive.asFlow
 import kotlinx.coroutines.reactive.awaitFirstOrNull
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.internal.reporting.ReportingSet
@@ -32,7 +31,7 @@ class ReportingSetReader : PostgresReader<ReportingSetReader.Result>() {
       ReportingSets
     """
 
-  override fun translate(connection: Connection, row: Row): Result =
+  override fun translate(row: Row): Result =
     Result(
       row.get("MeasurementConsumerReferenceId", String::class.java) as String,
       InternalId(row.get("ReportingSetId", java.lang.Long::class.java) as Long),
@@ -68,7 +67,7 @@ class ReportingSetReader : PostgresReader<ReportingSetReader.Result>() {
           statement.bind("$3", 50)
         }
 
-        execute(connection, statement).asFlow().collect { reportingSetResult ->
+        execute(statement).collect { reportingSetResult ->
           reportingSetResult.reportingSet =
             reportingSetResult.reportingSet.copy {
               ReportingSetEventGroupReader()
