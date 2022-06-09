@@ -19,7 +19,6 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.Account
-import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
@@ -30,9 +29,9 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
 /**
  * Add an [Account] as a new owner of a [MeasurementConsumer] in the database.
  *
- * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND]
- * * [ErrorCode.ACCOUNT_NOT_FOUND]
+ * Throws a subclass of [KingdomInternalException] on [execute].
+ * @throws [MeasurementConsumerNotFoundException] MeasurementConsumer not found
+ * @throws [AccountNotFoundException] Account not found
  */
 class AddMeasurementConsumerOwner(
   private val externalAccountId: ExternalId,

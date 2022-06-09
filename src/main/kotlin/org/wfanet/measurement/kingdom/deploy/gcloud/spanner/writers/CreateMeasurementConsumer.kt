@@ -21,7 +21,6 @@ import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.Account
-import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountActivationStateIllegalException
@@ -34,10 +33,10 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
 /**
  * Creates a measurement consumer in the database.
  *
- * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [ErrorCode.PERMISSION_DENIED]
- * * [ErrorCode.ACCOUNT_NOT_FOUND]
- * * [ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL]
+ * Throws a subclass of [KingdomInternalException] on [execute].
+ * @throws [PermissionDeniedException] MeasurementConsumer CreationToken not found
+ * @throws [AccountNotFoundException] Account not found
+ * @throws [AccountActivationStateIllegalException] Account is not in state of ACTIVATED
  */
 class CreateMeasurementConsumer(
   private val measurementConsumer: MeasurementConsumer,

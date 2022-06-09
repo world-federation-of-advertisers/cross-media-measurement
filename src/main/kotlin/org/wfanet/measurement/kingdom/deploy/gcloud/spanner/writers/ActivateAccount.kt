@@ -21,7 +21,6 @@ import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.AccountKt.openIdConnectIdentity
-import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountActivationStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountNotFoundException
@@ -37,11 +36,12 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.OpenIdConnec
  * Sets an account's activation state to ACTIVATED and creates an open id identity for it in the
  * database.
  *
- * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [ErrorCode.DUPLICATE_ACCOUNT_IDENTITY]
- * * [ErrorCode.ACCOUNT_NOT_FOUND]
- * * [ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL]
- * * [ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND]
+ * Throws a subclass of [KingdomInternalException] on [execute].
+ * @throws [DuplicateAccountIdentityException] Duplicated Account identity with the same issuer and
+ * subject
+ * @throws [AccountNotFoundException] Account not found
+ * @throws [AccountActivationStateIllegalException] Account activation state is already ACTIVATED
+ * @throws [MeasurementConsumerNotFoundException] Owned Measurement Consumer not found
  */
 class ActivateAccount(
   private val externalAccountId: ExternalId,

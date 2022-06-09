@@ -17,13 +17,14 @@ import java.sql.Connection
 import java.sql.PreparedStatement
 import java.sql.ResultSet
 import java.sql.Statement
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Charge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetBalanceEntry
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerBackingStore
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerEntry
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetLedgerTransactionContext
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyCharge
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
 
 /**
  * A [PrivacyBudgetLedgerBackingStore] implemented in Postgres compatible SQL.
@@ -32,6 +33,8 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyC
  * by the backing store and should not be used outside this backing store.
  */
 class PostgresBackingStore(createConnection: () -> Connection) : PrivacyBudgetLedgerBackingStore {
+  // TODO(@duliomatos1) : redesign this to reduce connection lifetime, e.g. using a Connection for
+  // a single transaction/operation and then closing it.
   private val connection = createConnection()
   init {
     connection.autoCommit = false
@@ -55,14 +58,7 @@ class PostgresBackingStore(createConnection: () -> Connection) : PrivacyBudgetLe
     connection.createStatement().use { statement: Statement ->
       // TODO(@duliomatos) Make the blocking IO run within a dispatcher using coroutines
       statement.executeUpdate("begin transaction")
-      val getTransactionSql = "select nextval('LedgerEntriesTransactionIdSeq')"
-      statement.executeQuery(getTransactionSql).use { rs: ResultSet ->
-        rs.next()
-        val transactionId = rs.getLong(1)
-        previousTransactionContext =
-          PostgresBackingStoreTransactionContext(transactionId, connection)
-        return previousTransactionContext!!
-      }
+      return PostgresBackingStoreTransactionContext(connection)
     }
   }
 
@@ -72,7 +68,6 @@ class PostgresBackingStore(createConnection: () -> Connection) : PrivacyBudgetLe
 }
 
 class PostgresBackingStoreTransactionContext(
-  override val transactionId: Long,
   private val connection: Connection,
 ) : PrivacyBudgetLedgerTransactionContext {
   private var transactionHasEnded = false
@@ -89,20 +84,51 @@ class PostgresBackingStoreTransactionContext(
     }
   }
 
-  override fun findIntersectingLedgerEntries(
+  private fun getLastReference(measurementConsumerId: String, referenceId: String): Boolean? {
+    val selectSql =
+      """
+        SELECT
+          IsRefund,
+          CreateTime
+        FROM LedgerEntries
+        WHERE
+          MeasurementConsumerId = ? AND ReferenceId = ?
+        Order by CreateTime DESC
+        Limit 1
+      """.trimIndent()
+    connection.prepareStatement(selectSql).use { statement: PreparedStatement ->
+      statement.setString(1, measurementConsumerId)
+      statement.setString(2, referenceId)
+      // TODO(@duliomatos) Make the blocking IO run within a dispatcher using coroutines
+      statement.executeQuery().use { rs: ResultSet ->
+        if (rs.next()) {
+          return rs.getBoolean("IsRefund")
+        }
+      }
+    }
+    return null
+  }
+
+  override fun hasLedgerEntry(reference: Reference): Boolean {
+    val lastReference = getLastReference(reference.measurementConsumerId, reference.referenceId)
+    if (lastReference == null) {
+      return false
+    }
+    return reference.isRefund == lastReference
+  }
+
+  override fun findIntersectingBalanceEntries(
     privacyBucketGroup: PrivacyBucketGroup
-  ): List<PrivacyBudgetLedgerEntry> {
+  ): List<PrivacyBudgetBalanceEntry> {
     throwIfTransactionHasEnded(listOf(privacyBucketGroup))
     assert(privacyBucketGroup.startingDate == privacyBucketGroup.endingDate)
     val selectBucketSql =
       """
         SELECT
-          LedgerEntryId,
-          TransactionId,
           Delta,
           Epsilon,
           RepetitionCount
-        FROM LedgerEntries
+        FROM PrivacyBucketCharges
         WHERE
           MeasurementConsumerId = ?
           AND Date = ?
@@ -118,38 +144,31 @@ class PostgresBackingStoreTransactionContext(
       statement.setFloat(5, privacyBucketGroup.vidSampleStart)
       // TODO(@duliomatos) Make the blocking IO run within a dispatcher using coroutines
       statement.executeQuery().use { rs: ResultSet ->
-        val entries = ArrayList<PrivacyBudgetLedgerEntry>()
+        val entries = ArrayList<PrivacyBudgetBalanceEntry>()
         while (rs.next()) {
-          val rowId = rs.getLong("LedgerEntryId")
-          val transactionId = rs.getLong("TransactionId")
-          val delta = rs.getFloat("Delta")
-          val epsilon = rs.getFloat("Epsilon")
-          val repetitionCount = rs.getInt("RepetitionCount")
-          val entry =
-            PrivacyBudgetLedgerEntry(
-              rowId,
-              transactionId,
+          entries.add(
+            PrivacyBudgetBalanceEntry(
               privacyBucketGroup,
-              PrivacyCharge(epsilon, delta),
-              repetitionCount,
+              Charge(rs.getFloat("Epsilon"), rs.getFloat("Delta")),
+              rs.getInt("RepetitionCount"),
             )
-          entries.add(entry)
+          )
         }
         return entries
       }
     }
   }
 
-  override fun addLedgerEntry(
+  private fun addBalanceEntry(
     privacyBucketGroup: PrivacyBucketGroup,
-    privacyCharge: PrivacyCharge
+    privacyCharge: Charge,
+    refundCharge: Boolean = false
   ) {
     throwIfTransactionHasEnded(listOf(privacyBucketGroup))
     val insertEntrySql =
       """
-        INSERT into LedgerEntries (
+        INSERT into PrivacyBucketCharges (
           MeasurementConsumerId,
-          TransactionId,
           Date,
           AgeGroup,
           Gender,
@@ -160,71 +179,70 @@ class PostgresBackingStoreTransactionContext(
         ) VALUES (
           ?,
           ?,
-          ?,
           CAST(? AS AgeGroup),
           CAST(? AS Gender),
           ?,
           ?,
           ?,
-          ?)
+          1)
+      ON CONFLICT (MeasurementConsumerId,
+          Date,
+          AgeGroup,
+          Gender,
+          VidStart,
+          Delta,
+          Epsilon)
+      DO
+         UPDATE SET RepetitionCount = ? + PrivacyBucketCharges.RepetitionCount;
       """.trimIndent()
     connection.prepareStatement(insertEntrySql).use { statement: PreparedStatement ->
       statement.setString(1, privacyBucketGroup.measurementConsumerId)
-      statement.setLong(2, transactionId)
-      statement.setObject(3, privacyBucketGroup.startingDate)
-      statement.setString(4, privacyBucketGroup.ageGroup.string)
-      statement.setString(5, privacyBucketGroup.gender.string)
-      statement.setFloat(6, privacyBucketGroup.vidSampleStart)
-      statement.setFloat(7, privacyCharge.delta)
-      statement.setFloat(8, privacyCharge.epsilon)
-      statement.setInt(9, 1) // RepetitionCount
+      statement.setObject(2, privacyBucketGroup.startingDate)
+      statement.setString(3, privacyBucketGroup.ageGroup.string)
+      statement.setString(4, privacyBucketGroup.gender.string)
+      statement.setFloat(5, privacyBucketGroup.vidSampleStart)
+      statement.setFloat(6, privacyCharge.delta)
+      statement.setFloat(7, privacyCharge.epsilon)
+      statement.setInt(8, if (refundCharge) -1 else 1) // update RepetitionCount
       // TODO(@duliomatos) Make the blocking IO run within a dispatcher using coroutines
       statement.executeUpdate()
     }
   }
 
-  override fun updateLedgerEntry(privacyBudgetLedgerEntry: PrivacyBudgetLedgerEntry) {
-    // TODO(@uakyol) Refactor this out as part of making the ledger immutable
-    throwIfTransactionHasEnded(listOf(privacyBudgetLedgerEntry.privacyBucketGroup))
-    val updateEntrySql =
+  private fun addLedgerEntry(privacyReference: Reference) {
+    val insertEntrySql =
       """
-        UPDATE LedgerEntries
-        SET
-          MeasurementConsumerId = ?,
-          TransactionId = ?,
-          Date = ?,
-          AgeGroup = CAST(? AS AgeGroup),
-          Gender = CAST(? AS Gender),
-          VidStart = ?,
-          Delta = ?,
-          Epsilon = ?,
-          RepetitionCount = ?
-        WHERE LedgerEntryId = ?
+        INSERT into LedgerEntries (
+          MeasurementConsumerId,
+          ReferenceId,
+          IsRefund,
+          CreateTime
+        ) VALUES (
+          ?,
+          ?,
+          ?,
+          NOW())
       """.trimIndent()
-    val privacyBucketGroup = privacyBudgetLedgerEntry.privacyBucketGroup
-    val privacyCharge = privacyBudgetLedgerEntry.privacyCharge
-    connection.prepareStatement(updateEntrySql).use { statement: PreparedStatement ->
-      statement.setString(1, privacyBucketGroup.measurementConsumerId)
-      statement.setLong(2, transactionId)
-      statement.setObject(3, privacyBucketGroup.startingDate)
-      statement.setString(4, privacyBucketGroup.ageGroup.string)
-      statement.setString(5, privacyBucketGroup.gender.string)
-      statement.setFloat(6, privacyBucketGroup.vidSampleStart)
-      statement.setFloat(7, privacyCharge.delta)
-      statement.setFloat(8, privacyCharge.epsilon)
-      statement.setInt(9, privacyBudgetLedgerEntry.repetitionCount)
-      statement.setLong(10, privacyBudgetLedgerEntry.rowId)
+    connection.prepareStatement(insertEntrySql).use { statement: PreparedStatement ->
+      statement.setString(1, privacyReference.measurementConsumerId)
+      statement.setString(2, privacyReference.referenceId)
+      statement.setObject(3, privacyReference.isRefund)
       // TODO(@duliomatos) Make the blocking IO run within a dispatcher using coroutines
       statement.executeUpdate()
     }
   }
 
-  override fun mergePreviousTransaction(previousTransactionId: Long) {
-    TODO("TODO(@uakyol) Implement this function as part of making the ledger immutable")
-  }
-
-  override fun undoPreviousTransaction(previousTransactionId: Long) {
-    TODO("TODO(@uakyol) Implement this function as part of making the ledger immutable")
+  override fun addLedgerEntries(
+    privacyBucketGroups: Set<PrivacyBucketGroup>,
+    charges: Set<Charge>,
+    reference: Reference
+  ) {
+    for (privacyBucketGroup in privacyBucketGroups) {
+      for (charge in charges) {
+        addBalanceEntry(privacyBucketGroup, charge, reference.isRefund)
+      }
+    }
+    addLedgerEntry(reference)
   }
 
   override fun commit() {

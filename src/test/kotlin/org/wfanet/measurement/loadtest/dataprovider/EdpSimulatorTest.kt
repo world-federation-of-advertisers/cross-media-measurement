@@ -83,12 +83,14 @@ import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup as PrivacyLandscapeAge
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Charge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Gender as PrivacyLandscapeGender
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.InMemoryBackingStore
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetBalanceEntry
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestInMemoryBackingStore
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
 import org.wfanet.measurement.loadtest.config.EventFilters.VID_SAMPLER_HASH_FUNCTION
 import org.wfanet.measurement.loadtest.storage.SketchStore
@@ -144,11 +146,7 @@ private val SKETCH_CONFIG = sketchConfig {
 class FilterTestEventQuery(val events: Map<Int, TestEvent>) : EventQuery() {
 
   override fun getUserVirtualIds(eventFilter: EventFilter): Sequence<Long> {
-    val program =
-      EventFilters.compileProgram(
-        eventFilter.expression,
-        testEvent {},
-      )
+    val program = EventFilters.compileProgram(eventFilter.expression, testEvent {})
     return sequence {
       for (vid in events.keys.toList()) {
         if (EventFilters.matches(events.get(vid) as Message, program)) {
@@ -270,7 +268,7 @@ class EdpSimulatorTest {
       val matchingEvents = privacyTemplateMatchingEvents + bannerTemplateMatchingEvents
       val allEvents = matchingEvents + nonMatchingEvents
 
-      val backingStore = InMemoryBackingStore()
+      val backingStore = TestInMemoryBackingStore()
       val privacyBudgetManager =
         PrivacyBudgetManager(
           PrivacyBucketFilter(TestPrivacyBucketMapper()),
@@ -324,11 +322,10 @@ class EdpSimulatorTest {
       }
 
       val measurementSpec = measurementSpec {
-        reachAndFrequency = reachAndFrequency {
-          vidSamplingInterval = vidSamplingInterval {
-            start = vidSamplingIntervalStart
-            width = vidSamplingIntervalWidth
-          }
+        reachAndFrequency = reachAndFrequency {}
+        vidSamplingInterval = vidSamplingInterval {
+          start = vidSamplingIntervalStart
+          width = vidSamplingIntervalWidth
         }
       }
       val result: AnySketch =
@@ -346,11 +343,16 @@ class EdpSimulatorTest {
         getExpectedResult(matchingVids, vidSamplingIntervalStart, vidSamplingIntervalWidth)
       )
 
+      val balanceLedger: Map<PrivacyBucketGroup, MutableMap<Charge, PrivacyBudgetBalanceEntry>> =
+        backingStore.getBalancesMap()
+
       // All the Buckets are only charged once, so all entries should have a repetition count of 1.
-      backingStore.ledger.forEach { assertThat(it.repetitionCount).isEqualTo(1) }
+      balanceLedger.values.flatMap { it.values }.forEach {
+        assertThat(it.repetitionCount).isEqualTo(1)
+      }
 
       // The list of all the charged privacy bucket groups should be correct based on the filter.
-      assertThat(backingStore.ledger.map { it.privacyBucketGroup })
+      assertThat(balanceLedger.keys)
         .containsExactly(
           PrivacyBucketGroup(
             MC_NAME,

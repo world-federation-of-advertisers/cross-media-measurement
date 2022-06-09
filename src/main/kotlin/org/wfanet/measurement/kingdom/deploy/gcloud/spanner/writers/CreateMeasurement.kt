@@ -46,11 +46,12 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWrite
 /**
  * Creates a measurement in the database.
  *
- * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND]
- * * [ErrorCode.DATA_PROVIDER_NOT_FOUND]
- * * [ErrorCode.CERTIFICATE_NOT_FOUND]
- * * [ErrorCode.CERTIFICATE_IS_INVALID]
+ * Throws a subclass of [KingdomInternalException] on [execute].
+ * @throws [MeasurementConsumerNotFoundException] MeasurementConsumer not found
+ * @throws [DataProviderNotFoundException] DataProvider not found
+ * @throws [MeasurementConsumerCertificateNotFoundException] MeasurementConsumer's Certificate not
+ * found
+ * @throws [CertificateIsInvalidException] Certificate is invalid
  */
 class CreateMeasurement(private val measurement: Measurement) :
   SpannerWriter<Measurement, Measurement>() {

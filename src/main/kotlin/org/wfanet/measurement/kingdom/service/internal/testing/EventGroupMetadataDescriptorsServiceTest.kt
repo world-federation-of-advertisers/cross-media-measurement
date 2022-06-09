@@ -287,63 +287,6 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
   }
 
   @Test
-  fun `streamEventGroupMetadataDescriptors can get one page at a time`(): Unit = runBlocking {
-    val externalDataProviderId =
-      population.createDataProvider(dataProvidersService).externalDataProviderId
-
-    val eventGroupMetadataDescriptor1 =
-      eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
-        eventGroupMetadataDescriptor {
-          this.externalDataProviderId = externalDataProviderId
-          details = DETAILS
-        }
-      )
-
-    val eventGroupMetadataDescriptor2 =
-      eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
-        eventGroupMetadataDescriptor {
-          this.externalDataProviderId = externalDataProviderId
-          details = DETAILS
-        }
-      )
-
-    val eventGroupMetadataDescriptors: List<EventGroupMetadataDescriptor> =
-      eventGroupMetadataDescriptorService
-        .streamEventGroupMetadataDescriptors(
-          streamEventGroupMetadataDescriptorsRequest {
-            filter = filter { this.externalDataProviderId = externalDataProviderId }
-            limit = 1
-          }
-        )
-        .toList()
-
-    assertThat(eventGroupMetadataDescriptors)
-      .containsAnyOf(eventGroupMetadataDescriptor1, eventGroupMetadataDescriptor2)
-    assertThat(eventGroupMetadataDescriptors).hasSize(1)
-
-    val eventGroupMetadataDescriptors2: List<EventGroupMetadataDescriptor> =
-      eventGroupMetadataDescriptorService
-        .streamEventGroupMetadataDescriptors(
-          streamEventGroupMetadataDescriptorsRequest {
-            filter = filter {
-              this.externalDataProviderId = externalDataProviderId
-              externalEventGroupMetadataDescriptorIdAfter =
-                eventGroupMetadataDescriptors[0].externalEventGroupMetadataDescriptorId
-              externalDataProviderIdAfter = eventGroupMetadataDescriptors[0].externalDataProviderId
-            }
-            limit = 1
-          }
-        )
-        .toList()
-
-    assertThat(eventGroupMetadataDescriptors2).hasSize(1)
-    assertThat(eventGroupMetadataDescriptors2)
-      .containsAnyOf(eventGroupMetadataDescriptor1, eventGroupMetadataDescriptor2)
-    assertThat(eventGroupMetadataDescriptors2[0].externalEventGroupMetadataDescriptorId)
-      .isGreaterThan(eventGroupMetadataDescriptors[0].externalEventGroupMetadataDescriptorId)
-  }
-
-  @Test
   fun `streamEventGroupMetadataDescriptors respects externalEventGroupMetadataDescriptorIds`():
     Unit = runBlocking {
     val externalDataProviderId =

@@ -21,8 +21,7 @@ import org.wfanet.measurement.internal.kingdom.StreamEventGroupMetadataDescripto
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupMetadataDescriptorReader
 
 class StreamEventGroupMetadataDescriptors(
-  requestFilter: StreamEventGroupMetadataDescriptorsRequest.Filter,
-  limit: Int = 0
+  requestFilter: StreamEventGroupMetadataDescriptorsRequest.Filter
 ) : SimpleSpannerQuery<EventGroupMetadataDescriptorReader.Result>() {
   override val reader =
     EventGroupMetadataDescriptorReader().fillStatementBuilder {
@@ -30,10 +29,6 @@ class StreamEventGroupMetadataDescriptors(
       appendClause(
         "ORDER BY ExternalDataProviderId ASC, ExternalEventGroupMetadataDescriptorId ASC"
       )
-      if (limit > 0) {
-        appendClause("LIMIT @$LIMIT")
-        bind(LIMIT to limit.toLong())
-      }
     }
 
   private fun Statement.Builder.appendWhereClause(
@@ -53,22 +48,6 @@ class StreamEventGroupMetadataDescriptors(
       bind(EXTERNAL_DATA_PROVIDER_ID to filter.externalDataProviderId)
     }
 
-    if (filter.externalEventGroupMetadataDescriptorIdAfter != 0L &&
-        filter.externalDataProviderIdAfter != 0L
-    ) {
-      conjuncts.add(
-        """
-          ((ExternalDataProviderId > @$EXTERNAL_DATA_PROVIDER_ID_AFTER)
-          OR (ExternalDataProviderId = @$EXTERNAL_DATA_PROVIDER_ID_AFTER
-          AND ExternalEventGroupMetadataDescriptorId >
-          @$EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_ID_AFTER))
-        """.trimIndent()
-      )
-      bind(EXTERNAL_DATA_PROVIDER_ID_AFTER).to(filter.externalDataProviderIdAfter)
-      bind(EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_ID_AFTER)
-        .to(filter.externalEventGroupMetadataDescriptorIdAfter)
-    }
-
     if (conjuncts.isEmpty()) {
       return
     }
@@ -78,13 +57,9 @@ class StreamEventGroupMetadataDescriptors(
   }
 
   companion object {
-    const val LIMIT = "limit"
     const val EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_IDS =
       "externalEventGroupMetadataDescriptorIds"
     const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
     const val EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_ID = "externalEventGroupMetadataDescriptorId"
-    const val EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_ID_AFTER =
-      "externalEventGroupMetadataDescriptorIdAfter"
-    const val EXTERNAL_DATA_PROVIDER_ID_AFTER = "externalDataProviderIdAfter"
   }
 }

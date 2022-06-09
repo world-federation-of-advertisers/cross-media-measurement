@@ -13,19 +13,31 @@
  */
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
+import java.time.Instant
+
 /**
- * Representation of a single row in the privacy budget ledger backing store. Note that a given
- * PrivacyBucketGroup may have multiple rows associated to it. The total charge to the
- * PrivacyBucketGroup is obtained by aggregating all of the charges specified in all of the rows for
- * that bucket group. This aggregation may be non-linear, e.g., determining total privacy budget
- * usage is not as simple as just adding up the charges for the individual rows.
+ * Representation of a balance for [privacyBucketGroup] in the privacy budget ledger backing store.
+ * Note that a given [privacyBucketGroup] may have multiple rows associated to it due to different
+ * [privacyCharge]s. The total charge to the PrivacyBucketGroup is obtained by aggregating all of
+ * the charges specified in all of the rows for that bucket group. This aggregation may be
+ * non-linear, e.g., determining total privacy budget usage is not as simple as just adding up the
+ * charges for the individual rows.
+ */
+data class PrivacyBudgetBalanceEntry(
+  val privacyBucketGroup: PrivacyBucketGroup,
+  val charge: Charge,
+  val repetitionCount: Int
+)
+
+/**
+ * Representation of a single query that resulted in multiple charges in the privacy budget ledger
+ * backing store. These entries only exists for replays, and is a list of timestamped transactions.
  */
 data class PrivacyBudgetLedgerEntry(
-  val rowId: Long,
-  val transactionId: Long,
-  val privacyBucketGroup: PrivacyBucketGroup,
-  val privacyCharge: PrivacyCharge,
-  val repetitionCount: Int
+  val measurementConsumerId: String,
+  val referenceId: String,
+  val isRefund: Boolean,
+  val createTime: Instant
 )
 
 /** Manages the persistence of privacy budget data. */
@@ -54,39 +66,38 @@ interface PrivacyBudgetLedgerBackingStore : AutoCloseable {
  * PrivacyBudgetLedgerBackingStore should take this into account.
  */
 interface PrivacyBudgetLedgerTransactionContext : AutoCloseable {
-  val transactionId: Long // A unique ID assigned to this transaction.
 
   /**
    * Returns a list of all rows within the privacy budget ledger where the PrivacyBucket of the row
    * intersects with the given privacyBucket.
    */
-  fun findIntersectingLedgerEntries(
+  fun findIntersectingBalanceEntries(
     privacyBucketGroup: PrivacyBucketGroup
-  ): List<PrivacyBudgetLedgerEntry>
-
-  /** Adds a new row to the PrivacyBudgetLedger specifying a charge to a privacy budget. */
-  fun addLedgerEntry(privacyBucketGroup: PrivacyBucketGroup, privacyCharge: PrivacyCharge)
-
-  /** Updates a row in the PrivacyBudgetLedger. */
-  fun updateLedgerEntry(privacyBudgetLedgerEntry: PrivacyBudgetLedgerEntry)
+  ): List<PrivacyBudgetBalanceEntry>
 
   /**
-   * Causes the privacy charges from a previous request to be permanently merged into the database.
-   *
-   * One possible implementation is to represent the permanently merged privacy budget charges using
-   * a special transaction ID (for example, 0). When merging a row, if there is an existing row with
-   * the special transaction ID that has the same privacy charge, then the repetition count can be
-   * increased and the merged row can be deleted. Otherwise, the transaction ID for the merged row
-   * can be set to the special transaction ID.
+   * Adds new entries to the PrivacyBudgetLedger specifying a charge to a privacy budget, adds the
+   * [reference] that created these charges
    */
-  fun mergePreviousTransaction(previousTransactionId: Long)
+  fun addLedgerEntries(
+    privacyBucketGroups: Set<PrivacyBucketGroup>,
+    charges: Set<Charge>,
+    reference: Reference
+  )
 
   /**
-   * Causes the privacy charges from a previous transaction to be reversed.
+   * Returns whether this backing store has a ledger entry for [reference].
    *
-   * This can be implemented by deleting the rows with the previous transaction id.
+   * See if there's an existing ledger entry by assuming that the timestamp is either
+   * 1. that of the most recent entry if the most recent entry with (MC ID, Reference ID) also has
+   * the same value for isRefund, or
+   * 2. now. This can return an inaccurate result if having multiple in-flight entries with the same
+   * (MC ID, reference ID). This is because we only check that isRefund is the opposite of the most
+   * recent recorded ledger entry for that tuple.
    */
-  fun undoPreviousTransaction(previousTransactionId: Long)
+  fun hasLedgerEntry(reference: Reference): Boolean
+
+  // TODO(@uakyol) : expose reference entries for replayability purposes.
 
   /**
    * Commits the current transaction.

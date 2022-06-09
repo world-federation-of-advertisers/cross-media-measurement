@@ -18,16 +18,20 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import io.grpc.Channel
 import java.io.File
+import java.security.cert.X509Certificate
 import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
+import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.RecurringExchangeKey
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
@@ -36,6 +40,7 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.Certificate
+import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.DataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineStub
@@ -51,7 +56,9 @@ import org.wfanet.measurement.internal.kingdom.recurringExchange
 import org.wfanet.measurement.internal.kingdom.recurringExchangeDetails
 import org.wfanet.measurement.kingdom.deploy.common.InternalApiFlags
 import org.wfanet.measurement.kingdom.service.api.v2alpha.fillCertificateFromDer
+import org.wfanet.measurement.kingdom.service.api.v2alpha.fillFromX509
 import org.wfanet.measurement.kingdom.service.api.v2alpha.toInternal
+import picocli.CommandLine.ArgGroup
 import picocli.CommandLine.Command
 import picocli.CommandLine.HelpCommand
 import picocli.CommandLine.Mixin
@@ -171,6 +178,70 @@ private class CreateModelProviderCommand : Runnable {
   }
 }
 
+@Command(name = "duchy-certificate", description = ["Creates a Certificate for a Duchy"])
+private class CreateDuchyCertificateCommand : Runnable {
+  @ParentCommand private lateinit var parent: CreateResource
+
+  @ArgGroup(exclusive = true, multiplicity = "1") private lateinit var duchy: Duchy
+
+  @Option(
+    names = ["--certificate-file", "--cert-file"],
+    description = ["Filesystem path to X.509 certificate in PEM or DER format"],
+    required = true,
+  )
+  private lateinit var certificateFile: File
+
+  private val duchyId: String
+    get() {
+      if (duchy.duchyId != null) {
+        return duchy.duchyId!!
+      }
+
+      val duchyKey = DuchyKey.fromName(duchy.duchyName!!) ?: error("Invalid resource name")
+      return duchyKey.duchyId
+    }
+
+  override fun run() {
+    val x509Certificate: X509Certificate = certificateFile.inputStream().use { readCertificate(it) }
+    val certificatesStub = CertificatesCoroutineStub(parent.channel)
+
+    val certificate =
+      runBlocking(Dispatchers.IO) {
+        certificatesStub.createCertificate(
+          certificate {
+            externalDuchyId = duchyId
+            fillFromX509(x509Certificate)
+          }
+        )
+      }
+
+    val certificateKey =
+      DuchyCertificateKey(
+        certificate.externalDuchyId,
+        externalIdToApiId(certificate.externalCertificateId)
+      )
+    println("Certificate name: ${certificateKey.toName()}")
+  }
+
+  class Duchy {
+    @Option(
+      names = ["--duchy"],
+      description = ["API resource name of the Duchy"],
+      required = true,
+    )
+    var duchyName: String? = null
+      private set
+
+    @Option(
+      names = ["--duchy-id"],
+      description = ["ID of the Duchy in the public API"],
+      required = true,
+    )
+    var duchyId: String? = null
+      private set
+  }
+}
+
 @Command(name = "recurring-exchange", description = ["Creates a RecurringExchange"])
 private class CreateRecurringExchangeCommand : Runnable {
   @ParentCommand private lateinit var parent: CreateResource
@@ -244,6 +315,7 @@ private class CreateRecurringExchangeCommand : Runnable {
       CreateDataProviderCommand::class,
       CreateModelProviderCommand::class,
       CreateRecurringExchangeCommand::class,
+      CreateDuchyCertificateCommand::class,
     ]
 )
 private class CreateResource : Runnable {
