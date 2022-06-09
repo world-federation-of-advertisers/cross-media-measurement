@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.reporting.service.api.v1alpha
+package org.wfanet.measurement.common.api
 
 interface ResourceKey {
   /** Converts this [ResourceKey] into a resource name */

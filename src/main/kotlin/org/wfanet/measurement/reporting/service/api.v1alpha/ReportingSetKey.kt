@@ -15,6 +15,7 @@
 package org.wfanet.measurement.reporting.service.api.v1alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
+import org.wfanet.measurement.common.api.ResourceKey
 
 private val parser =
   ResourceNameParser("measurementConsumers/{measurement_consumer}/reportingSets/{reporting_set}")
