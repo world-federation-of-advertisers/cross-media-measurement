@@ -32,7 +32,6 @@ import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
-import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.reporting.ReportingSetKt.eventGroupKey
 import org.wfanet.measurement.internal.reporting.StreamReportingSetsRequest
@@ -87,7 +86,9 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
     ).toReportingSet()
   }
 
-  override suspend fun listReportingSets(request: ListReportingSetsRequest): ListReportingSetsResponse {
+  override suspend fun listReportingSets(
+    request: ListReportingSetsRequest
+  ): ListReportingSetsResponse {
     val principal = principalFromCurrentContext
 
     // Based on AIP-132#Errors

@@ -17,7 +17,6 @@ package org.wfanet.measurement.reporting.service.api.v1alpha
 import java.util.Locale
 import org.wfanet.measurement.common.ResourceNameParser
 
-
 internal enum class IdVariable {
   MEASUREMENT_CONSUMER,
   REPORTING_SET,
