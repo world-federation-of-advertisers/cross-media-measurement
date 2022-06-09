@@ -15,6 +15,6 @@
 package org.wfanet.measurement.reporting.service.api.v1alpha
 
 interface ResourceKey {
-  /** Converts this [ResourceKey] into a resource name*/
+  /** Converts this [ResourceKey] into a resource name */
   fun toName(): String
 }

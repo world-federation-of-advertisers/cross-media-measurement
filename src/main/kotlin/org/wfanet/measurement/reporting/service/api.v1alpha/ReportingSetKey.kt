@@ -21,7 +21,8 @@ private val parser =
 
 /** [ResourceKey] of a ReportingSet. */
 data class ReportingSetKey(
-  val measurementConsumerId: String, val reportingSetId: String,
+  val measurementConsumerId: String,
+  val reportingSetId: String,
 ) : ResourceKey {
   override fun toName(): String {
     return parser.assembleName(
