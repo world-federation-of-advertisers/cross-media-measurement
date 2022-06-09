@@ -47,7 +47,8 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
       executeStatement(builder).numRowsUpdated
       CoroutineScope(Dispatchers.IO)
         .launch {
-          reportingSet.eventGroupKeysList
+          reportingSet
+            .eventGroupKeysList
             .map {
               async {
                 executeStatement(createReportingSetEventGroupStatement(it, internalReportingSetId))
