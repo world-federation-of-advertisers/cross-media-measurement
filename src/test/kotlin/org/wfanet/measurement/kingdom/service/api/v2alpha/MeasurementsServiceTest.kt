@@ -598,7 +598,7 @@ class MeasurementsServiceTest {
                                 delta = 0.0
                               }
                             }
-                             vidSamplingInterval = vidSamplingInterval { width = 1.0F }
+                            vidSamplingInterval = vidSamplingInterval { width = 1.0F }
                           }
                           .toByteString()
                       signature = UPDATE_TIME.toByteString()
