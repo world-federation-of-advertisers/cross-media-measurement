@@ -20,7 +20,8 @@ data class Charge(val epsilon: Float, val delta: Float)
 
 /**
  * Represents an element that caused charges to the manager and wheter or not if those charges were
- * positive or refunds. [referenceKey] is usally requisitionId
+ * positive or refunds. [referenceKey] is usally requisitionId. [referenceId] and [isRefund] can be
+ * null for when calling chargingWillExceedPrivacyBudget.
  */
 data class Reference(
   val measurementConsumerId: String,
