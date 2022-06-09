@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.reporting.service.api.v1alpha
 
+import kotlin.math.min
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.common.grpc.grpcRequire
@@ -22,20 +23,27 @@ import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSe
 import org.wfanet.measurement.internal.reporting.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.reportingSet as internalReportingSet
 import io.grpc.Status
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2.alpha.ListReportingSetsPageToken
+import org.wfanet.measurement.api.v2.alpha.ListReportingSetsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2.alpha.copy
 import org.wfanet.measurement.api.v2.alpha.listReportingSetsPageToken
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.common.base64UrlDecode
+import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.reporting.ReportingSetKt.eventGroupKey
+import org.wfanet.measurement.internal.reporting.StreamReportingSetsRequest
+import org.wfanet.measurement.internal.reporting.StreamReportingSetsRequestKt.filter
+import org.wfanet.measurement.internal.reporting.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.v1alpha.CreateReportingSetRequest
 import org.wfanet.measurement.reporting.v1alpha.ListReportingSetsRequest
 import org.wfanet.measurement.reporting.v1alpha.ListReportingSetsResponse
 import org.wfanet.measurement.reporting.v1alpha.ReportingSet
 import org.wfanet.measurement.reporting.v1alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
+import org.wfanet.measurement.reporting.v1alpha.listReportingSetsResponse
 import org.wfanet.measurement.reporting.v1alpha.reportingSet
 
 private const val MIN_PAGE_SIZE = 1
@@ -83,15 +91,61 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
     val principal = principalFromCurrentContext
 
     // Based on AIP-132#Errors
-    if (request.parent != principal.resourceKey.toName()) {
-      failGrpc(Status.PERMISSION_DENIED) {
-        "Cannot list ReportingSets belonging to other MeasurementConsumers."
+    when (val resourceKey = principal.resourceKey) {
+      is MeasurementConsumerKey -> {
+        if (request.parent != resourceKey.toName()) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot list ReportingSets belonging to other MeasurementConsumers."
+          }
+        }
+      }
+      else -> {
+        failGrpc(Status.PERMISSION_DENIED) {
+          "Caller does not have permission to list ReportingSets."
+        }
       }
     }
 
     val listReportingSetsPageToken = request.toListReportingSetsPageToken()
 
-    return super.listReportingSets(request)
+    val results: List<InternalReportingSet> = internalReportingSetsStub
+      .streamReportingSets(listReportingSetsPageToken.toStreamReportingSetsRequest())
+      .toList()
+
+    if (results.isEmpty()) {
+      return ListReportingSetsResponse.getDefaultInstance()
+    }
+
+    return listReportingSetsResponse {
+      reportingSets += results
+        .subList(0, min(results.size, listReportingSetsPageToken.pageSize))
+        .map(InternalReportingSet::toReportingSet)
+
+      if (results.size > listReportingSetsPageToken.pageSize) {
+        val pageToken = listReportingSetsPageToken.copy {
+          lastReportingSet = previousPageEnd {
+            measurementConsumerReferenceId =
+              results[results.lastIndex - 1].measurementConsumerReferenceId
+            externalReportingSetId = results[results.lastIndex - 1].externalReportingSetId
+          }
+        }
+        nextPageToken = pageToken.toByteArray().base64UrlEncode()
+      }
+    }
+  }
+}
+
+/** Converts an internal [ListReportingSetsPageToken] to an internal [StreamReportingSetsRequest]. */
+private fun ListReportingSetsPageToken.toStreamReportingSetsRequest(): StreamReportingSetsRequest {
+  return streamReportingSetsRequest {
+    // get 1 more than the actual page size for deciding whether or not to set page token
+    limit = pageSize + 1
+    filter = filter {
+      measurementConsumerReferenceId =
+        this@toStreamReportingSetsRequest.measurementConsumerReferenceId
+      externalReportingSetIdAfter =
+        this@toStreamReportingSetsRequest.lastReportingSet.externalReportingSetId
+    }
   }
 }
 
@@ -104,11 +158,11 @@ private fun ListReportingSetsRequest.toListReportingSetsPageToken(): ListReporti
     ?: failGrpc(Status.NOT_FOUND) {
       "Parent is either unspecified or invalid."
     }
-  val externalMeasurementConsumerId = apiIdToExternalId(parentKey.measurementConsumerId)
+  val measurementConsumerReferenceId = parentKey.measurementConsumerId
 
   return if (pageToken.isNotBlank()) {
     ListReportingSetsPageToken.parseFrom(pageToken.base64UrlDecode()).copy {
-      grpcRequire(this.externalMeasurementConsumerId == externalMeasurementConsumerId) {
+      grpcRequire(this.measurementConsumerReferenceId == measurementConsumerReferenceId) {
         "Arguments must be kept the same when using a page token"
       }
 
@@ -128,7 +182,7 @@ private fun ListReportingSetsRequest.toListReportingSetsPageToken(): ListReporti
           this@toListReportingSetsPageToken.pageSize > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
           else -> this@toListReportingSetsPageToken.pageSize
         }
-      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+      this.measurementConsumerReferenceId = measurementConsumerReferenceId
     }
   }
 }
@@ -142,12 +196,12 @@ private fun ReportingSet.toInternal(
     eventGroupKeys.addAll(
       this@toInternal.eventGroupsList.map {
         eventGroupKey {
-          measurementConsumerReferenceId = measurementConsumerKey.measurementConsumerId
           val eventGroupKey = grpcRequireNotNull(EventGroupKey.fromName(it)) {
             "EventGroup is either unspecified or invalid."
           }
           dataProviderReferenceId = eventGroupKey.dataProviderId
           eventGroupReferenceId = eventGroupKey.eventGroupId
+          measurementConsumerReferenceId = measurementConsumerKey.measurementConsumerId
         }
       }
     )
