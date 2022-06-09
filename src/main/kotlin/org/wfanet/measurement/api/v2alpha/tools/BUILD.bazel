@@ -27,6 +27,7 @@ kt_jvm_library(
     name = "simple_report",
     srcs = ["SimpleReport.kt"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:flags",
         "//src/main/proto/wfa/measurement/api/v2alpha:certificate_kt_jvm_proto",

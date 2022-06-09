@@ -28,12 +28,11 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.
 private const val MEASUREMENT_CONSUMER_ID = "ACME"
 
 private val MEASUREMENT_SPEC = measurementSpec {
-  reachAndFrequency = reachAndFrequency {
-    vidSamplingInterval = vidSamplingInterval {
-      start = 0.0f
-      width = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-    }
+  vidSamplingInterval = vidSamplingInterval {
+    start = 0.0f
+    width = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
   }
+  reachAndFrequency = reachAndFrequency {}
 }
 
 @RunWith(JUnit4::class)

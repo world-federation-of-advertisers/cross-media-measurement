@@ -20,6 +20,11 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
 import com.google.protobuf.duration as protoDuration
 import com.google.protobuf.timestamp
+import io.grpc.Metadata
+import io.grpc.ServerCall
+import io.grpc.ServerCallHandler
+import io.grpc.ServerInterceptor
+import io.grpc.ServerInterceptors
 import io.grpc.ServerServiceDefinition
 import io.netty.handler.ssl.ClientAuth
 import java.nio.file.Path
@@ -34,6 +39,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.verify
+import org.wfanet.measurement.api.ApiKeyConstants
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
@@ -75,11 +81,13 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.tink.testing.loadPrivateKey
+import org.wfanet.measurement.common.crypto.tink.testing.loadPublicKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.testing.captureFirst
+import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
@@ -101,6 +109,8 @@ private val SECRETS_DIR: Path =
     )
   )!!
 
+private const val API_KEY = "nR5QPN7ptx"
+
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/1"
 private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME = "measurementConsumers/1/certificates/1"
 private val MEASUREMENT_CONSUMER_CERTIFICATE_DER =
@@ -112,7 +122,7 @@ private val MEASUREMENT_PUBLIC_KEY =
 private const val DATA_PROVIDER_NAME = "dataProviders/1"
 private const val DATA_PROVIDER_CERTIFICATE_NAME = "dataProviders/1/certificates/1"
 private val DATA_PROVIDER_PUBLIC_KEY =
-  SECRETS_DIR.resolve("edp1_enc_public.tink").toFile().readByteString()
+  loadPublicKey(SECRETS_DIR.resolve("edp1_enc_public.tink").toFile()).toEncryptionPublicKey()
 private val DATA_PROVIDER_PRIVATE_KEY_HANDLE =
   loadPrivateKey(SECRETS_DIR.resolve("edp1_enc_private.tink").toFile())
 
@@ -126,7 +136,7 @@ private val MEASUREMENT_CONSUMER = measurementConsumer {
 private val DATA_PROVIDER = dataProvider {
   name = DATA_PROVIDER_NAME
   certificate = DATA_PROVIDER_CERTIFICATE_NAME
-  publicKey = signedData { data = DATA_PROVIDER_PUBLIC_KEY }
+  publicKey = signedData { data = DATA_PROVIDER_PUBLIC_KEY.toByteString() }
 }
 
 private const val TIME_STRING_1 = "2022-05-22T01:00:00.000Z"
@@ -223,6 +233,21 @@ private fun getEncryptedResult(
   return encryptResult(signedResult, publicKey)
 }
 
+private class HeaderCapturingInterceptor : ServerInterceptor {
+  override fun <ReqT, RespT> interceptCall(
+    call: ServerCall<ReqT, RespT>,
+    headers: Metadata,
+    next: ServerCallHandler<ReqT, RespT>,
+  ): ServerCall.Listener<ReqT> {
+    _capturedHeaders.add(headers)
+    return next.startCall(call, headers)
+  }
+
+  private val _capturedHeaders = mutableListOf<Metadata>()
+  val capturedHeaders: List<Metadata>
+    get() = _capturedHeaders
+}
+
 @RunWith(JUnit4::class)
 class SimpleReportTest {
   private val measurementConsumersServiceMock: MeasurementConsumersCoroutineImplBase =
@@ -238,14 +263,16 @@ class SimpleReportTest {
   private val certificatesServiceMock: CertificatesGrpcKt.CertificatesCoroutineImplBase =
     mockService() { onBlocking { getCertificate(any()) }.thenReturn(AGGREGATOR_CERTIFICATE) }
 
+  private val headerInterceptor = HeaderCapturingInterceptor()
+
   private lateinit var server: CommonServer
   @Before
   fun initServer() {
     val services: List<ServerServiceDefinition> =
       listOf(
+        ServerInterceptors.intercept(measurementsServiceMock, headerInterceptor),
         measurementConsumersServiceMock.bindService(),
         dataProvidersServiceMock.bindService(),
-        measurementsServiceMock.bindService(),
         certificatesServiceMock.bindService(),
       )
 
@@ -290,11 +317,14 @@ class SimpleReportTest {
         "--tls-key-file=$SECRETS_DIR/mc_tls.key",
         "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
         "--kingdom-public-api-target=$HOST:$PORT",
+        "--api-key=$API_KEY",
         "create",
         "--impression",
         "--impression-privacy-epsilon=0.015",
         "--impression-privacy-delta=0.0",
         "--max-frequency=1000",
+        "--vid-sampling-start=0.1",
+        "--vid-sampling-width=0.2",
         "--measurement-consumer=measurementConsumers/777",
         "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
         "--measurement-ref-id=9999",
@@ -313,6 +343,15 @@ class SimpleReportTest {
         "--event-end-time=$TIME_STRING_6",
       )
     CommandLine(SimpleReport()).execute(*args)
+
+    // verify api key
+    assertThat(
+        headerInterceptor
+          .capturedHeaders
+          .single()
+          .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
+      )
+      .isEqualTo(API_KEY)
 
     val request =
       captureFirst<CreateMeasurementRequest> {
@@ -428,6 +467,7 @@ class SimpleReportTest {
         "--tls-key-file=$SECRETS_DIR/mc_tls.key",
         "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
         "--kingdom-public-api-target=$HOST:$PORT",
+        "--api-key=$API_KEY",
         "create",
         "--measurement-consumer=measurementConsumers/777",
         "--reach-and-frequency",
@@ -466,12 +506,12 @@ class SimpleReportTest {
               epsilon = 0.02
               delta = 0.0
             }
-            vidSamplingInterval =
-              MeasurementSpecKt.vidSamplingInterval {
-                start = 0.1f
-                width = 0.2f
-              }
           }
+          vidSamplingInterval =
+            MeasurementSpecKt.vidSamplingInterval {
+              start = 0.1f
+              width = 0.2f
+            }
         }
       )
   }
@@ -484,12 +524,15 @@ class SimpleReportTest {
         "--tls-key-file=$SECRETS_DIR/mc_tls.key",
         "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
         "--kingdom-public-api-target=$HOST:$PORT",
+        "--api-key=$API_KEY",
         "create",
         "--measurement-consumer=measurementConsumers/777",
         "--impression",
         "--impression-privacy-epsilon=0.015",
         "--impression-privacy-delta=0.0",
         "--max-frequency=1000",
+        "--vid-sampling-start=0.1",
+        "--vid-sampling-width=0.2",
         "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
         "--data-provider=dataProviders/1",
         "--event-group=dataProviders/1/eventGroups/1",
@@ -517,6 +560,11 @@ class SimpleReportTest {
             }
             maximumFrequencyPerUser = 1000
           }
+          vidSamplingInterval =
+            MeasurementSpecKt.vidSamplingInterval {
+              start = 0.1f
+              width = 0.2f
+            }
         }
       )
   }
@@ -529,12 +577,15 @@ class SimpleReportTest {
         "--tls-key-file=$SECRETS_DIR/mc_tls.key",
         "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
         "--kingdom-public-api-target=$HOST:$PORT",
+        "--api-key=$API_KEY",
         "create",
         "--measurement-consumer=measurementConsumers/777",
         "--duration",
         "--duration-privacy-epsilon=0.015",
         "--duration-privacy-delta=0.0",
         "--max-duration=1000",
+        "--vid-sampling-start=0.1",
+        "--vid-sampling-width=0.2",
         "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
         "--data-provider=dataProviders/1",
         "--event-group=dataProviders/1/eventGroups/1",
@@ -562,6 +613,11 @@ class SimpleReportTest {
             }
             maximumWatchDurationPerUser = 1000
           }
+          vidSamplingInterval =
+            MeasurementSpecKt.vidSamplingInterval {
+              start = 0.1f
+              width = 0.2f
+            }
         }
       )
   }
@@ -574,10 +630,20 @@ class SimpleReportTest {
         "--tls-key-file=$SECRETS_DIR/mc_tls.key",
         "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
         "--kingdom-public-api-target=$HOST:$PORT",
+        "--api-key=$API_KEY",
         "list",
         "--measurement-consumer=$MEASUREMENT_CONSUMER_NAME"
       )
     CommandLine(SimpleReport()).execute(*args)
+
+    // verify api key
+    assertThat(
+        headerInterceptor
+          .capturedHeaders
+          .single()
+          .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
+      )
+      .isEqualTo(API_KEY)
 
     val request =
       captureFirst<ListMeasurementsRequest> {
@@ -596,11 +662,21 @@ class SimpleReportTest {
         "--tls-key-file=$SECRETS_DIR/mc_tls.key",
         "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
         "--kingdom-public-api-target=$HOST:$PORT",
+        "--api-key=$API_KEY",
         "get",
         "--measurement=$MEASUREMENT_NAME",
         "--encryption-private-key-file=$SECRETS_DIR/mc_enc_private.tink",
       )
     CommandLine(SimpleReport()).execute(*args)
+
+    // verify api key
+    assertThat(
+        headerInterceptor
+          .capturedHeaders
+          .single()
+          .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
+      )
+      .isEqualTo(API_KEY)
 
     val request =
       captureFirst<GetMeasurementRequest> {

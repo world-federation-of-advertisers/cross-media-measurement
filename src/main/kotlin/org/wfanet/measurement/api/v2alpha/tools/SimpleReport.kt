@@ -45,7 +45,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
-import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
@@ -55,6 +54,7 @@ import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.timeInterval
+import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -122,14 +122,30 @@ class CreateCommand : Runnable {
   )
   private lateinit var measurementReferenceId: String
 
+  @set:CommandLine.Option(
+    names = ["--vid-sampling-start"],
+    description = ["Start point of vid sampling interval"],
+    required = true,
+  )
+  var vidSamplingStart by Delegates.notNull<Float>()
+    private set
+
+  @set:CommandLine.Option(
+    names = ["--vid-sampling-width"],
+    description = ["Width of vid sampling interval"],
+    required = true,
+  )
+  var vidSamplingWidth by Delegates.notNull<Float>()
+    private set
+
   @CommandLine.ArgGroup(
     exclusive = true,
     multiplicity = "1",
     heading = "Specify one of the measurement types with its params\n"
   )
-  lateinit var measurementParams: MeasurementParams
+  lateinit var measurementTypeParams: MeasurementTypeParams
 
-  class MeasurementParams {
+  class MeasurementTypeParams {
     class ReachAndFrequencyParams {
       @CommandLine.Option(
         names = ["--reach-and-frequency"],
@@ -169,22 +185,6 @@ class CreateCommand : Runnable {
         required = true,
       )
       var frequencyPrivacyDelta by Delegates.notNull<Double>()
-        private set
-
-      @set:CommandLine.Option(
-        names = ["--vid-sampling-start"],
-        description = ["Start point of vid sampling interval"],
-        required = true,
-      )
-      var vidSamplingStart by Delegates.notNull<Float>()
-        private set
-
-      @set:CommandLine.Option(
-        names = ["--vid-sampling-width"],
-        description = ["Width of vid sampling interval"],
-        required = true,
-      )
-      var vidSamplingWidth by Delegates.notNull<Float>()
         private set
     }
 
@@ -270,16 +270,12 @@ class CreateCommand : Runnable {
   private fun getReachAndFrequency(): ReachAndFrequency {
     return reachAndFrequency {
       reachPrivacyParams = differentialPrivacyParams {
-        epsilon = measurementParams.reachAndFrequency.reachPrivacyEpsilon
-        delta = measurementParams.reachAndFrequency.reachPrivacyDelta
+        epsilon = measurementTypeParams.reachAndFrequency.reachPrivacyEpsilon
+        delta = measurementTypeParams.reachAndFrequency.reachPrivacyDelta
       }
       frequencyPrivacyParams = differentialPrivacyParams {
-        epsilon = measurementParams.reachAndFrequency.frequencyPrivacyEpsilon
-        delta = measurementParams.reachAndFrequency.frequencyPrivacyDelta
-      }
-      vidSamplingInterval = vidSamplingInterval {
-        start = measurementParams.reachAndFrequency.vidSamplingStart
-        width = measurementParams.reachAndFrequency.vidSamplingWidth
+        epsilon = measurementTypeParams.reachAndFrequency.frequencyPrivacyEpsilon
+        delta = measurementTypeParams.reachAndFrequency.frequencyPrivacyDelta
       }
     }
   }
@@ -287,20 +283,20 @@ class CreateCommand : Runnable {
   private fun getImpression(): Impression {
     return impression {
       privacyParams = differentialPrivacyParams {
-        epsilon = measurementParams.impression.privacyEpsilon
-        delta = measurementParams.impression.privacyDelta
+        epsilon = measurementTypeParams.impression.privacyEpsilon
+        delta = measurementTypeParams.impression.privacyDelta
       }
-      maximumFrequencyPerUser = measurementParams.impression.maximumFrequencyPerUser
+      maximumFrequencyPerUser = measurementTypeParams.impression.maximumFrequencyPerUser
     }
   }
 
   private fun getDuration(): Duration {
     return duration {
       privacyParams = differentialPrivacyParams {
-        epsilon = measurementParams.duration.privacyEpsilon
-        delta = measurementParams.duration.privacyDelta
+        epsilon = measurementTypeParams.duration.privacyEpsilon
+        delta = measurementTypeParams.duration.privacyDelta
       }
-      maximumWatchDurationPerUser = measurementParams.duration.maximumWatchDurationPerUser
+      maximumWatchDurationPerUser = measurementTypeParams.duration.maximumWatchDurationPerUser
     }
   }
 
@@ -398,7 +394,9 @@ class CreateCommand : Runnable {
       key = dataProviderInput.name
       val dataProvider =
         runBlocking(Dispatchers.IO) {
-          dataProviderStub.getDataProvider(getDataProviderRequest { name = dataProviderInput.name })
+          dataProviderStub
+            .withAuthenticationKey(parent.apiAuthenticationKey)
+            .getDataProvider(getDataProviderRequest { name = dataProviderInput.name })
         }
       value = dataProviderEntryValue {
         dataProviderCertificate = dataProvider.certificate
@@ -406,10 +404,7 @@ class CreateCommand : Runnable {
         encryptedRequisitionSpec =
           encryptRequisitionSpec(
             signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
-            encryptionPublicKey {
-              format = EncryptionPublicKey.Format.TINK_KEYSET
-              data = dataProvider.publicKey.data
-            }
+            EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
           )
         nonceHash = hashSha256(requisitionSpec.nonce)
       }
@@ -423,9 +418,9 @@ class CreateCommand : Runnable {
 
     val measurementConsumer =
       runBlocking(Dispatchers.IO) {
-        measurementConsumerStub.getMeasurementConsumer(
-          getMeasurementConsumerRequest { name = measurementConsumer }
-        )
+        measurementConsumerStub
+          .withAuthenticationKey(parent.apiAuthenticationKey)
+          .getMeasurementConsumer(getMeasurementConsumerRequest { name = measurementConsumer })
       }
     val measurementConsumerCertificate = readCertificate(measurementConsumer.certificateDer)
     val measurementConsumerPrivateKey =
@@ -451,9 +446,13 @@ class CreateCommand : Runnable {
       val unsignedMeasurementSpec = measurementSpec {
         measurementPublicKey = measurementEncryptionPublicKey
         nonceHashes += this@measurement.dataProviders.map { it.value.nonceHash }
-        if (measurementParams.reachAndFrequency.selected) {
+        vidSamplingInterval = vidSamplingInterval {
+          start = vidSamplingStart
+          width = vidSamplingWidth
+        }
+        if (measurementTypeParams.reachAndFrequency.selected) {
           reachAndFrequency = getReachAndFrequency()
-        } else if (measurementParams.impression.selected) {
+        } else if (measurementTypeParams.impression.selected) {
           impression = getImpression()
         } else duration = getDuration()
       }
@@ -465,9 +464,9 @@ class CreateCommand : Runnable {
 
     val response =
       runBlocking(Dispatchers.IO) {
-        measurementStub.createMeasurement(
-          createMeasurementRequest { this.measurement = measurement }
-        )
+        measurementStub
+          .withAuthenticationKey(parent.apiAuthenticationKey)
+          .createMeasurement(createMeasurementRequest { this.measurement = measurement })
       }
     print(response)
   }
@@ -488,9 +487,9 @@ class ListCommand : Runnable {
     val measurementStub = MeasurementsCoroutineStub(parent.channel)
     val response =
       runBlocking(Dispatchers.IO) {
-        measurementStub.listMeasurements(
-          listMeasurementsRequest { parent = measurementConsumerName }
-        )
+        measurementStub
+          .withAuthenticationKey(parent.apiAuthenticationKey)
+          .listMeasurements(listMeasurementsRequest { parent = measurementConsumerName })
       }
 
     response.measurementList.map {
@@ -536,7 +535,9 @@ class GetCommand : Runnable {
     certificateStub: CertificatesCoroutineStub
   ): Measurement.Result {
     val certificate = runBlocking {
-      certificateStub.getCertificate(getCertificateRequest { name = resultPair.certificate })
+      certificateStub
+        .withAuthenticationKey(parent.apiAuthenticationKey)
+        .getCertificate(getCertificateRequest { name = resultPair.certificate })
     }
 
     val signedResult = decryptResult(resultPair.encryptedResult, privateKeyHandle)
@@ -573,7 +574,9 @@ class GetCommand : Runnable {
     val certificateStub = CertificatesCoroutineStub(parent.channel)
     val measurement =
       runBlocking(Dispatchers.IO) {
-        measurementStub.getMeasurement(getMeasurementRequest { name = measurementName })
+        measurementStub
+          .withAuthenticationKey(parent.apiAuthenticationKey)
+          .getMeasurement(getMeasurementRequest { name = measurementName })
       }
 
     printMeasurementState(measurement)
@@ -601,6 +604,14 @@ class GetCommand : Runnable {
 class SimpleReport : Runnable {
   @CommandLine.Mixin private lateinit var tlsFlags: TlsFlags
   @CommandLine.Mixin private lateinit var apiFlags: ApiFlags
+
+  @CommandLine.Option(
+    names = ["--api-key"],
+    description = ["API authentication key for the MeasurementConsumer"],
+    required = true,
+  )
+  lateinit var apiAuthenticationKey: String
+    private set
 
   val channel: ManagedChannel by lazy {
     val clientCerts =
