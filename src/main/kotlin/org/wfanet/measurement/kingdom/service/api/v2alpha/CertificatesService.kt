@@ -14,6 +14,9 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import org.wfanet.measurement.internal.kingdom.Certificate as InternalCertificate
+import org.wfanet.measurement.internal.kingdom.Certificate.RevocationState as InternalRevocationState
+import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import io.grpc.Status
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.Certificate.RevocationState
@@ -43,10 +46,7 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
-import org.wfanet.measurement.internal.kingdom.Certificate as InternalCertificate
-import org.wfanet.measurement.internal.kingdom.Certificate.RevocationState as InternalRevocationState
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub
-import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.getCertificateRequest
 import org.wfanet.measurement.internal.kingdom.releaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
@@ -430,8 +430,7 @@ private fun InternalRevocationState.toRevocationState(): RevocationState =
   when (this) {
     InternalRevocationState.REVOKED -> RevocationState.REVOKED
     InternalRevocationState.HOLD -> RevocationState.HOLD
-    InternalRevocationState.UNRECOGNIZED,
-    InternalRevocationState.REVOCATION_STATE_UNSPECIFIED ->
+    InternalRevocationState.UNRECOGNIZED, InternalRevocationState.REVOCATION_STATE_UNSPECIFIED ->
       RevocationState.REVOCATION_STATE_UNSPECIFIED
   }
 
@@ -440,8 +439,7 @@ private fun RevocationState.toInternal(): InternalRevocationState =
   when (this) {
     RevocationState.REVOKED -> InternalRevocationState.REVOKED
     RevocationState.HOLD -> InternalRevocationState.HOLD
-    RevocationState.UNRECOGNIZED,
-    RevocationState.REVOCATION_STATE_UNSPECIFIED ->
+    RevocationState.UNRECOGNIZED, RevocationState.REVOCATION_STATE_UNSPECIFIED ->
       InternalRevocationState.REVOCATION_STATE_UNSPECIFIED
   }
 
