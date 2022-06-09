@@ -1,0 +1,23 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "PostgresReportingSetsServiceTest",
+    srcs = ["PostgresReportingSetsServiceTest.kt"],
+    test_class = "org.wfanet.measurement.reporting.deploy.postgres.PostgresReportingSetsServiceTest",
+    runtime_deps = [
+        "@wfa_common_jvm//imports/java/org/postgresql:r2dbc",
+        "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
+    ],
+    deps = [
+        "//imports/java/com/opentable/db/postgres:otj_pg_embedded",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres:services",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/testing",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal/testing",
+        "@wfa_common_jvm//imports/java/io/projectreactor:core",
+        "@wfa_common_jvm//imports/java/org/reactivestreams",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/reactive",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/liquibase",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres",
+    ],
+)
