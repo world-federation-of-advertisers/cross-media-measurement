@@ -16,10 +16,9 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting;
 
-import "google/protobuf/duration.proto";
-import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/reporting/measurement.proto";
 import "wfa/measurement/internal/reporting/metric.proto";
+import "wfa/measurement/internal/reporting/time_interval.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting";
 option java_multiple_files = true;
@@ -29,21 +28,6 @@ message Report {
   // `MeasurementConsumer` ID from the CMMS public API.
   string measurement_consumer_reference_id = 1;
   fixed64 external_report_id = 2;
-
-  message TimeInterval {
-    google.protobuf.Timestamp start_time = 1;
-    google.protobuf.Timestamp end_time = 2;
-  }
-
-  message TimeIntervals {
-    repeated TimeInterval time_intervals = 1;
-  }
-
-  message PeriodicTimeInterval {
-    google.protobuf.Timestamp start_time = 1;
-    google.protobuf.Duration increment = 2;
-    int32 interval_count = 3;
-  }
 
   oneof time {
     TimeIntervals time_intervals = 3;

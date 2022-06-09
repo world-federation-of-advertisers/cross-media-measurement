@@ -21,7 +21,6 @@
 --   ├── Reports
 --   │   ├── TimeIntervals
 --   │   ├── PeriodicTimeIntervals
---   │   ├── RowNames
 --   │   ├── Metrics
 --   │       └── NamedSetOperations
 --   │           ├── SetOperations
@@ -37,6 +36,8 @@ CREATE TABLE Reports (
   ReportId bigint NOT NULL,
 
   ExternalReportId bigint NOT NULL,
+
+  IsPeriodic boolean NOT NULL,
 
   -- org.wfanet.measurement.internal.reporting.Report.State
   -- protobuf enum encoded as an integer.
@@ -58,6 +59,7 @@ CREATE INDEX ReportsByExternalReportId
 CREATE TABLE TimeIntervals (
   MeasurementConsumerReferenceId text NOT NULL,
   ReportId bigint NOT NULL,
+  TimeIntervalId bigint NOT NULL,
 
   StartSeconds bigint,
   StartNanos integer,
@@ -65,6 +67,7 @@ CREATE TABLE TimeIntervals (
   EndSeconds bigint,
   EndNanos integer,
 
+  PRIMARY KEY(MeasurementConsumerReferenceId, ReportId, TimeIntervalId),
   FOREIGN KEY(MeasurementConsumerReferenceId, ReportId)
     REFERENCES Reports(MeasurementConsumerReferenceId, ReportId)
 );
@@ -84,19 +87,6 @@ CREATE TABLE PeriodicTimeIntervals (
 
   FOREIGN KEY(MeasurementConsumerReferenceId, ReportId)
     REFERENCES Reports(MeasurementConsumerReferenceId, ReportId)
-);
-
--- changeset tristanvuong2021:create-row-names-table dbms:postgresql
-CREATE TABLE RowNames (
-  MeasurementConsumerReferenceId text NOT NULL,
-  ReportId bigint NOT NULL,
-  RowId bigint NOT NULL,
-
-  RowName text NOT NULL,
-
-  PRIMARY KEY(MeasurementConsumerReferenceId, ReportId, RowId),
-  FOREIGN KEY(MeasurementConsumerReferenceId, ReportId)
-      REFERENCES Reports(MeasurementConsumerReferenceId, ReportId)
 );
 
 -- changeset tristanvuong2021:create-metrics-table dbms:postgresql
@@ -232,13 +222,13 @@ CREATE TABLE WeightedMeasurement (
   NamedSetOperationId bigint NOT NULL,
   WeightedMeasurementId bigint NOT NULL,
 
-  RowId bigint NOT NULL,
+  TimeIntervalId bigint NOT NULL,
   MeasurementReferenceId text NOT NULL,
   Coefficient integer NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerReferenceId, ReportId, MetricId, NamedSetOperationId, WeightedMeasurementId),
-  FOREIGN KEY(MeasurementConsumerReferenceId, ReportId, RowId)
-    REFERENCES RowNames(MeasurementConsumerReferenceId, ReportId, RowId),
+  FOREIGN KEY(MeasurementConsumerReferenceId, ReportId, TimeIntervalId)
+    REFERENCES TimeIntervals(MeasurementConsumerReferenceId, ReportId, TimeIntervalId),
   FOREIGN KEY(MeasurementConsumerReferenceId, ReportId, MetricId, NamedSetOperationId)
     REFERENCES NamedSetOperations(MeasurementConsumerReferenceId, ReportId, MetricId, NamedSetOperationId),
   FOREIGN KEY(MeasurementConsumerReferenceId, MeasurementReferenceId)
