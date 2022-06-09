@@ -39,16 +39,12 @@ class PrivacyBudgetLedgerTest {
     val charge = Charge(1.0f, 0.01f)
 
     // The charges succeed and fills the Privacy Budget.
-    ledger.chargePrivacyBucketGroups(createReference(0), setOf<PrivacyBucketGroup>(), setOf(charge))
-    ledger.chargePrivacyBucketGroups(createReference(1), setOf(bucket), setOf(charge))
+    ledger.charge(createReference(0), setOf<PrivacyBucketGroup>(), setOf(charge))
+    ledger.charge(createReference(1), setOf(bucket), setOf(charge))
 
     // Charge should exceed the budget.
     assertFailsWith<PrivacyBudgetManagerException> {
-      ledger.chargePrivacyBucketGroups(
-        createReference(2),
-        setOf(bucket),
-        setOf(Charge(0.0001f, 0.0001f))
-      )
+      ledger.charge(createReference(2), setOf(bucket), setOf(Charge(0.0001f, 0.0001f)))
     }
   }
 
@@ -69,17 +65,13 @@ class PrivacyBudgetLedgerTest {
     val charge = Charge(1.0f, 0.01f)
 
     // The charges succeed and doesn't charge anything.
-    ledger.chargePrivacyBucketGroups(createReference(0), setOf(bucket), setOf())
+    ledger.charge(createReference(0), setOf(bucket), setOf())
     // The charges succeed and fills the Privacy Budget.
-    ledger.chargePrivacyBucketGroups(createReference(1), setOf(bucket), setOf(charge))
+    ledger.charge(createReference(1), setOf(bucket), setOf(charge))
 
     // Charge should exceed the budget.
     assertFailsWith<PrivacyBudgetManagerException> {
-      ledger.chargePrivacyBucketGroups(
-        createReference(2),
-        setOf(bucket),
-        setOf(Charge(0.0001f, 0.0001f))
-      )
+      ledger.charge(createReference(2), setOf(bucket), setOf(Charge(0.0001f, 0.0001f)))
     }
   }
 
@@ -101,10 +93,10 @@ class PrivacyBudgetLedgerTest {
     val charge = Charge(1.0f, 0.001f)
     // The charges succeed and fills the Privacy Budget.
     for (i in 1..29) {
-      ledger.chargePrivacyBucketGroups(createReference(i), setOf(bucket), setOf(charge))
+      ledger.charge(createReference(i), setOf(bucket), setOf(charge))
     }
     assertFailsWith<PrivacyBudgetManagerException> {
-      ledger.chargePrivacyBucketGroups(createReference(30), setOf(bucket), setOf(charge))
+      ledger.charge(createReference(30), setOf(bucket), setOf(charge))
     }
   }
 
@@ -126,7 +118,7 @@ class PrivacyBudgetLedgerTest {
     val charge = Charge(1.0f, 0.001f)
     // Only the first charge would fill the budget, rest are not processed by the ledger
     for (i in 1..100) {
-      ledger.chargePrivacyBucketGroups(createReference(0), setOf(bucket), setOf(charge))
+      ledger.charge(createReference(0), setOf(bucket), setOf(charge))
     }
   }
 
@@ -148,20 +140,20 @@ class PrivacyBudgetLedgerTest {
     val charge = Charge(1.0f, 0.001f)
     // The charges succeed and fills the Privacy Budget.
     for (i in 1..29) {
-      ledger.chargePrivacyBucketGroups(createReference(i), setOf(bucket), setOf(charge))
+      ledger.charge(createReference(i), setOf(bucket), setOf(charge))
     }
     assertFailsWith<PrivacyBudgetManagerException> {
-      ledger.chargePrivacyBucketGroups(createReference(30), setOf(bucket), setOf(charge))
+      ledger.charge(createReference(30), setOf(bucket), setOf(charge))
     }
 
     // The refund opens up Privacy Budget.
-    ledger.chargePrivacyBucketGroups(createReference(31, true), setOf(bucket), setOf(charge))
+    ledger.charge(createReference(31, true), setOf(bucket), setOf(charge))
     // Thus, this charge succeeds and fills the budget.
-    ledger.chargePrivacyBucketGroups(createReference(32), setOf(bucket), setOf(charge))
+    ledger.charge(createReference(32), setOf(bucket), setOf(charge))
 
     // Then this charge fails.
     assertFailsWith<PrivacyBudgetManagerException> {
-      ledger.chargePrivacyBucketGroups(createReference(33), setOf(bucket), setOf(charge))
+      ledger.charge(createReference(33), setOf(bucket), setOf(charge))
     }
   }
 
@@ -181,18 +173,14 @@ class PrivacyBudgetLedgerTest {
       )
 
     // The charges succeed and fills the Privacy Budget.
-    ledger.chargePrivacyBucketGroups(createReference(0), setOf(bucket), setOf(Charge(0.4f, 0.001f)))
-    ledger.chargePrivacyBucketGroups(createReference(1), setOf(bucket), setOf(Charge(0.3f, 0.001f)))
-    ledger.chargePrivacyBucketGroups(createReference(2), setOf(bucket), setOf(Charge(0.2f, 0.001f)))
-    ledger.chargePrivacyBucketGroups(createReference(3), setOf(bucket), setOf(Charge(0.1f, 0.001f)))
+    ledger.charge(createReference(0), setOf(bucket), setOf(Charge(0.4f, 0.001f)))
+    ledger.charge(createReference(1), setOf(bucket), setOf(Charge(0.3f, 0.001f)))
+    ledger.charge(createReference(2), setOf(bucket), setOf(Charge(0.2f, 0.001f)))
+    ledger.charge(createReference(3), setOf(bucket), setOf(Charge(0.1f, 0.001f)))
 
     // Charge should exceed the budget.
     assertFailsWith<PrivacyBudgetManagerException> {
-      ledger.chargePrivacyBucketGroups(
-        createReference(4),
-        setOf(bucket),
-        setOf(Charge(0.1f, 0.001f))
-      )
+      ledger.charge(createReference(4), setOf(bucket), setOf(Charge(0.1f, 0.001f)))
     }
   }
 
@@ -222,43 +210,19 @@ class PrivacyBudgetLedgerTest {
       )
 
     // The charges succeed and fills the Privacy Budget.
-    ledger.chargePrivacyBucketGroups(
-      createReference(0),
-      setOf(bucket1),
-      setOf(Charge(0.5f, 0.001f))
-    )
-    ledger.chargePrivacyBucketGroups(
-      createReference(1),
-      setOf(bucket2),
-      setOf(Charge(0.5f, 0.001f))
-    )
-    ledger.chargePrivacyBucketGroups(
-      createReference(2),
-      setOf(bucket1),
-      setOf(Charge(0.5f, 0.001f))
-    )
-    ledger.chargePrivacyBucketGroups(
-      createReference(3),
-      setOf(bucket2),
-      setOf(Charge(0.5f, 0.001f))
-    )
+    ledger.charge(createReference(0), setOf(bucket1), setOf(Charge(0.5f, 0.001f)))
+    ledger.charge(createReference(1), setOf(bucket2), setOf(Charge(0.5f, 0.001f)))
+    ledger.charge(createReference(2), setOf(bucket1), setOf(Charge(0.5f, 0.001f)))
+    ledger.charge(createReference(3), setOf(bucket2), setOf(Charge(0.5f, 0.001f)))
 
     // Charge should exceed the budget.
     assertFailsWith<PrivacyBudgetManagerException> {
-      ledger.chargePrivacyBucketGroups(
-        createReference(4),
-        setOf(bucket1),
-        setOf(Charge(0.5f, 0.001f))
-      )
+      ledger.charge(createReference(4), setOf(bucket1), setOf(Charge(0.5f, 0.001f)))
     }
 
     // Charge should exceed the budget.
     assertFailsWith<PrivacyBudgetManagerException> {
-      ledger.chargePrivacyBucketGroups(
-        createReference(5),
-        setOf(bucket2),
-        setOf(Charge(0.5f, 0.001f))
-      )
+      ledger.charge(createReference(5), setOf(bucket2), setOf(Charge(0.5f, 0.001f)))
     }
   }
 
@@ -280,15 +244,11 @@ class PrivacyBudgetLedgerTest {
     val chargeList = setOf(Charge(0.5f, 0.001f), Charge(0.3f, 0.001f), Charge(0.2f, 0.001f))
 
     // The charges succeed and fills the Privacy Budget.
-    ledger.chargePrivacyBucketGroups(createReference(0), setOf(bucket), chargeList)
+    ledger.charge(createReference(0), setOf(bucket), chargeList)
 
     // Charge should exceed the budget.
     assertFailsWith<PrivacyBudgetManagerException> {
-      ledger.chargePrivacyBucketGroups(
-        createReference(1),
-        setOf(bucket),
-        setOf(Charge(0.1f, 0.001f))
-      )
+      ledger.charge(createReference(1), setOf(bucket), setOf(Charge(0.1f, 0.001f)))
     }
   }
 }
