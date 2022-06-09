@@ -21,11 +21,13 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.reportingSet as internalReportingSet
+import io.grpc.Status
 import org.wfanet.measurement.api.v2.alpha.ListReportingSetsPageToken
 import org.wfanet.measurement.api.v2.alpha.copy
 import org.wfanet.measurement.api.v2.alpha.listReportingSetsPageToken
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.common.base64UrlDecode
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.reporting.ReportingSetKt.eventGroupKey
@@ -49,8 +51,19 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
 
     val principal = principalFromCurrentContext
 
-    grpcRequire(request.parent == principal.resourceKey.toName()) {
-      "Cannot create a ReportingSet for another MeasurementConsumer."
+    when (val resourceKey = principal.resourceKey) {
+      is MeasurementConsumerKey -> {
+        if (request.parent != resourceKey.toName()) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot create a ReportingSet for another MeasurementConsumer."
+          }
+        }
+      }
+      else -> {
+        failGrpc(Status.PERMISSION_DENIED) {
+          "Caller does not have permission to create a ReportingSet."
+        }
+      }
     }
 
     grpcRequire(request.hasReportingSet()) {
@@ -69,8 +82,11 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
   override suspend fun listReportingSets(request: ListReportingSetsRequest): ListReportingSetsResponse {
     val principal = principalFromCurrentContext
 
-    grpcRequire(request.parent == principal.resourceKey.toName()) {
-      "Cannot create a ReportingSet for another MeasurementConsumer."
+    // Based on AIP-132#Errors
+    if (request.parent != principal.resourceKey.toName()) {
+      failGrpc(Status.PERMISSION_DENIED) {
+        "Cannot list ReportingSets belonging to other MeasurementConsumers."
+      }
     }
 
     val listReportingSetsPageToken = request.toListReportingSetsPageToken()
@@ -79,12 +95,15 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
   }
 }
 
+/** Converts a public [ListReportingSetsRequest] to an internal [ListReportingSetsPageToken]. */
 private fun ListReportingSetsRequest.toListReportingSetsPageToken(): ListReportingSetsPageToken {
   grpcRequire(pageSize >= 0) { "Page size cannot be less than 0" }
 
-  val parentKey = grpcRequireNotNull(MeasurementConsumerKey.fromName(parent)) {
-    "Parent is either unspecified or invalid."
-  }
+  // Based on AIP-132#Errors
+  val parentKey = MeasurementConsumerKey.fromName(parent)
+    ?: failGrpc(Status.NOT_FOUND) {
+      "Parent is either unspecified or invalid."
+    }
   val externalMeasurementConsumerId = apiIdToExternalId(parentKey.measurementConsumerId)
 
   return if (pageToken.isNotBlank()) {
