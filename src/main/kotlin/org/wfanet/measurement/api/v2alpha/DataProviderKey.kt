@@ -15,6 +15,7 @@
 package org.wfanet.measurement.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
+import org.wfanet.measurement.common.api.ResourceKey
 
 /** [DataProviderKey] of a Data Provider. */
 data class DataProviderKey(val dataProviderId: String) : ResourceKey {

@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.api.v2alpha
 
+import org.wfanet.measurement.common.api.ResourceKey
+
 interface CertificateParentKey : ResourceKey {
   val certificateId: String
 }
