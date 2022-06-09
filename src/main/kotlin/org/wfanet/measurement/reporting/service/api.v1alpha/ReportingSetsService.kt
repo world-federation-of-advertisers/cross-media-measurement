@@ -21,10 +21,17 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.reportingSet as internalReportingSet
+import org.wfanet.measurement.api.v2.alpha.ListReportingSetsPageToken
+import org.wfanet.measurement.api.v2.alpha.copy
+import org.wfanet.measurement.api.v2.alpha.listReportingSetsPageToken
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
+import org.wfanet.measurement.common.base64UrlDecode
+import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.reporting.ReportingSetKt.eventGroupKey
 import org.wfanet.measurement.reporting.v1alpha.CreateReportingSetRequest
+import org.wfanet.measurement.reporting.v1alpha.ListReportingSetsRequest
+import org.wfanet.measurement.reporting.v1alpha.ListReportingSetsResponse
 import org.wfanet.measurement.reporting.v1alpha.ReportingSet
 import org.wfanet.measurement.reporting.v1alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.reporting.v1alpha.reportingSet
@@ -57,6 +64,53 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
     return internalReportingSetsStub.createReportingSet(
       request.reportingSet.toInternal(parentKey)
     ).toReportingSet()
+  }
+
+  override suspend fun listReportingSets(request: ListReportingSetsRequest): ListReportingSetsResponse {
+    val principal = principalFromCurrentContext
+
+    grpcRequire(request.parent == principal.resourceKey.toName()) {
+      "Cannot create a ReportingSet for another MeasurementConsumer."
+    }
+
+    val listReportingSetsPageToken = request.toListReportingSetsPageToken()
+
+    return super.listReportingSets(request)
+  }
+}
+
+private fun ListReportingSetsRequest.toListReportingSetsPageToken(): ListReportingSetsPageToken {
+  grpcRequire(pageSize >= 0) { "Page size cannot be less than 0" }
+
+  val parentKey = grpcRequireNotNull(MeasurementConsumerKey.fromName(parent)) {
+    "Parent is either unspecified or invalid."
+  }
+  val externalMeasurementConsumerId = apiIdToExternalId(parentKey.measurementConsumerId)
+
+  return if (pageToken.isNotBlank()) {
+    ListReportingSetsPageToken.parseFrom(pageToken.base64UrlDecode()).copy {
+      grpcRequire(this.externalMeasurementConsumerId == externalMeasurementConsumerId) {
+        "Arguments must be kept the same when using a page token"
+      }
+
+      if (
+        this@toListReportingSetsPageToken.pageSize != 0 &&
+        this@toListReportingSetsPageToken.pageSize >= MIN_PAGE_SIZE &&
+        this@toListReportingSetsPageToken.pageSize <= MAX_PAGE_SIZE
+      ) {
+        pageSize = this@toListReportingSetsPageToken.pageSize
+      }
+    }
+  } else {
+    listReportingSetsPageToken {
+      pageSize =
+        when {
+          this@toListReportingSetsPageToken.pageSize < MIN_PAGE_SIZE -> DEFAULT_PAGE_SIZE
+          this@toListReportingSetsPageToken.pageSize > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
+          else -> this@toListReportingSetsPageToken.pageSize
+        }
+      this.externalMeasurementConsumerId = externalMeasurementConsumerId
+    }
   }
 }
 
