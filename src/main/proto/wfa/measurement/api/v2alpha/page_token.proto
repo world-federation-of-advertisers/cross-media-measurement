@@ -63,7 +63,7 @@ message ListReportingSetsPageToken {
   int32 page_size = 1;
   int64 external_measurement_consumer_id = 2;
   message PreviousPageEnd {
-      fixed64 external_reporting_set_id = 1;
-    }
+    fixed64 external_reporting_set_id = 1;
+  }
   PreviousPageEnd last_event_group = 3;
 }
