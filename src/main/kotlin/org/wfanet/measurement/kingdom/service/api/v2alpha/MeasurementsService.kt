@@ -211,7 +211,7 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
 }
 
 private fun DifferentialPrivacyParams.hasEpsilonAndDeltaSet(): Boolean {
-  return this.epsilon > 0 && this.delta > 0
+  return this.epsilon > 0 && this.delta >= 0
 }
 
 /** Validates a [MeasurementSpec] for a request. */
