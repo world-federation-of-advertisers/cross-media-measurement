@@ -20,7 +20,6 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.db.r2dbc.StatementBuilder.Companion.statementBuilder
-import org.wfanet.measurement.common.db.r2dbc.get
 import org.wfanet.measurement.common.db.r2dbc.getValue
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.internal.reporting.ReportingSet
@@ -49,8 +48,8 @@ class ReportingSetReader : PostgresReader<ReportingSetReader.Result>() {
 
   override fun translate(row: Row): Result =
     Result(
-      row.get<String>("MeasurementConsumerReferenceId")!!,
-      row.get<InternalId>("ReportingSetId")!!,
+      row.getValue("MeasurementConsumerReferenceId"),
+      row.getValue("ReportingSetId"),
       buildReportingSet(row)
     )
 
@@ -100,10 +99,10 @@ class ReportingSetReader : PostgresReader<ReportingSetReader.Result>() {
 
   private fun buildReportingSet(row: Row): ReportingSet {
     return reportingSet {
-      measurementConsumerReferenceId = row.get<String>("MeasurementConsumerReferenceId")!!
+      measurementConsumerReferenceId = row.getValue("MeasurementConsumerReferenceId")
       externalReportingSetId = row.getValue("ExternalReportingSetId")
-      filter = row.get<String>("Filter")!!
-      displayName = row.get<String>("DisplayName")!!
+      filter = row.getValue("Filter")
+      displayName = row.getValue("DisplayName")
     }
   }
 }

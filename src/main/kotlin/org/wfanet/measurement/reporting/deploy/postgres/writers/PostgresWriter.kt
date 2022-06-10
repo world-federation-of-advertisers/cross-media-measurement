@@ -48,8 +48,8 @@ abstract class PostgresWriter<T> {
       val scope = TransactionScope(transactionContext, idGenerator)
       result = scope.runTransaction()
       transactionContext.commit()
-    } catch (e: Exception) {
-      throw e
+    } finally {
+      transactionContext.close()
     }
     return result
   }
