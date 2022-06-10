@@ -64,8 +64,7 @@ class ReportingSetEventGroupReader : PostgresReader<ReportingSetEventGroupReader
 
   private fun buildEventGroupKey(row: Row): ReportingSet.EventGroupKey {
     return ReportingSetKt.eventGroupKey {
-      measurementConsumerReferenceId =
-        row.get<String>("MeasurementConsumerReferenceId")!!
+      measurementConsumerReferenceId = row.get<String>("MeasurementConsumerReferenceId")!!
       dataProviderReferenceId = row.get<String>("DataProviderReferenceId")!!
       eventGroupReferenceId = row.get<String>("EventGroupReferenceId")!!
     }

@@ -26,7 +26,9 @@ class PostgresReportingSetsServiceTest : ReportingSetsServiceTest<PostgresReport
   override fun newService(
     idGenerator: IdGenerator,
   ): PostgresReportingSetsService {
-    return PostgresReportingSetsService(idGenerator, EmbeddedPostgresDatabaseProvider(
-      REPORTING_CHANGELOG_PATH).createNewDatabase())
+    return PostgresReportingSetsService(
+      idGenerator,
+      EmbeddedPostgresDatabaseProvider(REPORTING_CHANGELOG_PATH).createNewDatabase()
+    )
   }
 }

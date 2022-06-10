@@ -100,8 +100,7 @@ class ReportingSetReader : PostgresReader<ReportingSetReader.Result>() {
 
   private fun buildReportingSet(row: Row): ReportingSet {
     return reportingSet {
-      measurementConsumerReferenceId =
-        row.get<String>("MeasurementConsumerReferenceId")!!
+      measurementConsumerReferenceId = row.get<String>("MeasurementConsumerReferenceId")!!
       externalReportingSetId = row.getValue("ExternalReportingSetId")
       filter = row.get<String>("Filter")!!
       displayName = row.get<String>("DisplayName")!!
