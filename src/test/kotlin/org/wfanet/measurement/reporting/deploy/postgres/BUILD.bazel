@@ -5,7 +5,6 @@ kt_jvm_test(
     srcs = ["PostgresReportingSetsServiceTest.kt"],
     test_class = "org.wfanet.measurement.reporting.deploy.postgres.PostgresReportingSetsServiceTest",
     runtime_deps = [
-        "@wfa_common_jvm//imports/java/org/postgresql:r2dbc",
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
     ],
     deps = [
