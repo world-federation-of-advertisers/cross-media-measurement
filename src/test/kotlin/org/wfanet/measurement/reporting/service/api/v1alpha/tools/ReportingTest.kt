@@ -73,7 +73,7 @@ private val LIST_REPORTING_SETS_RESPONSE = listReportingSetsResponse {
 }
 
 @RunWith(JUnit4::class)
-class ReportTest {
+class ReportingTest {
   private val reportingSetsServiceMock: ReportingSetsCoroutineImplBase =
     mockService() {
       onBlocking { createReportingSet(any()) }.thenReturn(REPORTING_SET)
