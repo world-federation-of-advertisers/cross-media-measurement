@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.api.v2alpha.tools
+package org.wfanet.measurement.reporting.service.api.v1alpha.tools
 
 import io.grpc.ServerServiceDefinition
 import io.netty.handler.ssl.ClientAuth
@@ -88,6 +88,7 @@ class ReportTest {
         reportingSetsServiceMock.bindService(),
       )
 
+    // TODO(@renjiez): Use reporting server's credential
     val serverCerts =
       SigningCerts.fromPemFiles(
         certificateFile = SECRETS_DIR.resolve("kingdom_tls.pem").toFile(),
