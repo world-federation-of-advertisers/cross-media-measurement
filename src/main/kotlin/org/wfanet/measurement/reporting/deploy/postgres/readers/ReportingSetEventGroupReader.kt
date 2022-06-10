@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.StatementBuilder.Companion.statementBuilder
+import org.wfanet.measurement.common.db.r2dbc.get
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.internal.reporting.ReportingSet
 import org.wfanet.measurement.internal.reporting.ReportingSetKt
@@ -64,9 +65,9 @@ class ReportingSetEventGroupReader : PostgresReader<ReportingSetEventGroupReader
   private fun buildEventGroupKey(row: Row): ReportingSet.EventGroupKey {
     return ReportingSetKt.eventGroupKey {
       measurementConsumerReferenceId =
-        row.get("MeasurementConsumerReferenceId", String::class.java) as String
-      dataProviderReferenceId = row.get("DataProviderReferenceId", String::class.java) as String
-      eventGroupReferenceId = row.get("EventGroupReferenceId", String::class.java) as String
+        row.get<String>("MeasurementConsumerReferenceId")!!
+      dataProviderReferenceId = row.get<String>("DataProviderReferenceId")!!
+      eventGroupReferenceId = row.get<String>("EventGroupReferenceId")!!
     }
   }
 }

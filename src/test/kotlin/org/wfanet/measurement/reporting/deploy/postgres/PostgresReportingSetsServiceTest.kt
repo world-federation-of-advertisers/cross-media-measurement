@@ -14,55 +14,19 @@
 
 package org.wfanet.measurement.reporting.deploy.postgres
 
-import com.opentable.db.postgres.embedded.LiquibasePreparer
-import com.opentable.db.postgres.junit.EmbeddedPostgresRules
-import com.opentable.db.postgres.junit.PreparedDbRule
-import io.r2dbc.spi.Connection
-import io.r2dbc.spi.ConnectionFactories
-import io.r2dbc.spi.ConnectionFactoryOptions
-import kotlinx.coroutines.reactive.awaitFirst
-import org.junit.Rule
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
+import org.wfanet.measurement.common.db.r2dbc.postgres.testing.EmbeddedPostgresDatabaseProvider
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.reporting.deploy.postgres.testing.Schemata.REPORTING_CHANGELOG_PATH
 import org.wfanet.measurement.reporting.service.internal.testing.ReportingSetsServiceTest
-import reactor.core.publisher.Mono
 
 @RunWith(JUnit4::class)
 class PostgresReportingSetsServiceTest : ReportingSetsServiceTest<PostgresReportingSetsService>() {
-  @get:Rule
-  val db: PreparedDbRule =
-    EmbeddedPostgresRules.preparedDatabase(
-      LiquibasePreparer.forClasspathLocation(REPORTING_CHANGELOG_PATH.toString())
-    )
-
-  private suspend fun getConnection(): Connection {
-    val connectionInfo = db.connectionInfo
-
-    val regex = Regex(":${connectionInfo.port}/.*")
-
-    val connectionFactoryOptions =
-      ConnectionFactoryOptions.builder()
-        .option(ConnectionFactoryOptions.DRIVER, "postgresql")
-        .option(ConnectionFactoryOptions.HOST, connectionInfo.host)
-        .option(ConnectionFactoryOptions.PORT, connectionInfo.port)
-        .option(ConnectionFactoryOptions.USER, connectionInfo.user)
-        .option(ConnectionFactoryOptions.PASSWORD, connectionInfo.password)
-        .option(
-          ConnectionFactoryOptions.DATABASE,
-          regex.find(connectionInfo.url)!!.value.split("/")[1].split("?")[0]
-        )
-        .build()
-
-    val connectionFactory = ConnectionFactories.get(connectionFactoryOptions)
-    return Mono.from(connectionFactory.create()).awaitFirst()
-  }
-
   override fun newService(
     idGenerator: IdGenerator,
   ): PostgresReportingSetsService {
-    return PostgresReportingSetsService(idGenerator, PostgresDatabaseClient(::getConnection))
+    return PostgresReportingSetsService(idGenerator, EmbeddedPostgresDatabaseProvider(
+      REPORTING_CHANGELOG_PATH).createNewDatabase())
   }
 }

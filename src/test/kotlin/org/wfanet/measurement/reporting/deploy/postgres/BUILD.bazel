@@ -13,11 +13,6 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres:services",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/testing",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal/testing",
-        "@wfa_common_jvm//imports/java/io/projectreactor:core",
-        "@wfa_common_jvm//imports/java/org/reactivestreams",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/reactive",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/liquibase",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:embedded_postgres",
     ],
 )
