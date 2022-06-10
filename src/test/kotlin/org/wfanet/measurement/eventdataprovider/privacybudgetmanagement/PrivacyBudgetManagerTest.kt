@@ -15,183 +15,124 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
 import com.google.common.truth.Truth.assertThat
 import java.time.LocalDate
-import java.time.ZoneOffset
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
-import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
-import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
-import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
-import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
-import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
-import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
-import org.wfanet.measurement.api.v2alpha.measurementSpec
-import org.wfanet.measurement.api.v2alpha.requisitionSpec
-import org.wfanet.measurement.api.v2alpha.timeInterval
-import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
 
 private const val MEASUREMENT_CONSUMER_ID = "ACME"
 
-private val REQUISITION_SPEC = requisitionSpec {
-  eventGroups += eventGroupEntry {
-    key = "eventGroups/someEventGroup"
-    value =
-      RequisitionSpecKt.EventGroupEntryKt.value {
-        collectionInterval = timeInterval {
-          startTime =
-            LocalDate.now().minusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
-          endTime = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
-        }
-        filter = eventFilter {
-          expression =
-            "privacy_budget.gender.value==0 && privacy_budget.age.value==0 && " +
-              "banner_ad.gender.value == 1"
-        }
-      }
-  }
-}
-
-private val REACH_AND_FREQ_MEASUREMENT_SPEC = measurementSpec {
-  reachAndFrequency = reachAndFrequency {
-    reachPrivacyParams = differentialPrivacyParams {
-      epsilon = 0.3
-      delta = 0.01
-    }
-
-    frequencyPrivacyParams = differentialPrivacyParams {
-      epsilon = 0.3
-      delta = 0.01
-    }
-
-    vidSamplingInterval = vidSamplingInterval {
-      start = 0.01f
-      width = 0.02f
-    }
-  }
-}
-
-private val IMPRESSION_MEASUREMENT_SPEC = measurementSpec {
-  impression = impression {
-    privacyParams = differentialPrivacyParams {
-      epsilon = 0.3
-      delta = 0.02
-    }
-  }
-}
-
-private val DURATION_MEASUREMENT_SPEC = measurementSpec {
-  impression = impression {
-    privacyParams = differentialPrivacyParams {
-      epsilon = 0.3
-      delta = 0.02
-    }
-  }
-}
+private const val FILTER_EXPRESSION =
+  "privacy_budget.gender.value==0 && privacy_budget.age.value==0 && " +
+    "banner_ad.gender.value == 1"
 
 @RunWith(JUnit4::class)
 class PrivacyBudgetManagerTest {
   private val privacyBucketFilter = PrivacyBucketFilter(TestPrivacyBucketMapper())
 
-  private fun createReference(id: Int, isRefund: Boolean = false) =
-    Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId$id", isRefund)
+  private fun createQuery(referenceId: String, expression: String = FILTER_EXPRESSION) =
+    Query(
+      Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
+      LandscapeMask(
+        listOf(EventGroupSpec(expression, LocalDate.now().minusDays(1), LocalDate.now())),
+        0.01f,
+        0.02f
+      ),
+      Charge(0.6f, 0.02f)
+    )
 
   private fun PrivacyBudgetManager.assertChargeExceedsPrivacyBudget(
-    privacyReference: Reference,
-    measurementSpec: MeasurementSpec
+    query: Query,
   ) {
-    val exception =
-      assertFailsWith<PrivacyBudgetManagerException> {
-        chargePrivacyBudget(privacyReference, REQUISITION_SPEC, measurementSpec)
-      }
+    val exception = assertFailsWith<PrivacyBudgetManagerException> { chargePrivacyBudget(query) }
     assertThat(exception.errorType)
       .isEqualTo(PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED)
   }
 
   @Test
-  fun `chargePrivacyBudget throws PRIVACY_BUDGET_EXCEEDED when given a large single charge`() {
+  fun `charge throws PRIVACY_BUDGET_EXCEEDED when given a large single charge`() {
     val backingStore = InMemoryBackingStore()
     val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 1.0f, 0.01f)
     val exception =
       assertFailsWith<PrivacyBudgetManagerException> {
-        pbm.chargePrivacyBudget(
-          createReference(1),
-          REQUISITION_SPEC,
-          REACH_AND_FREQ_MEASUREMENT_SPEC
-        )
+        pbm.chargePrivacyBudget(createQuery("referenceId1"))
       }
     assertThat(exception.errorType)
       .isEqualTo(PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED)
   }
 
   @Test
-  fun `chargePrivacyBudget throws INVALID_PRIVACY_BUCKET_FILTER when given wrong event filter`() {
+  fun `charge throws INVALID_PRIVACY_BUCKET_FILTER when given wrong event filter`() {
     val backingStore = InMemoryBackingStore()
     val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
 
-    val requisitionSpec = requisitionSpec {
-      eventGroups += eventGroupEntry {
-        key = "eventGroups/someEventGroup"
-        value =
-          RequisitionSpecKt.EventGroupEntryKt.value {
-            collectionInterval = timeInterval {
-              startTime =
-                LocalDate.now().minusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
-              endTime = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
-            }
-            filter = eventFilter { expression = "privacy_budget.age.value" }
-          }
-      }
-    }
-
     val exception =
       assertFailsWith<PrivacyBudgetManagerException> {
-        pbm.chargePrivacyBudget(
-          createReference(1),
-          requisitionSpec,
-          REACH_AND_FREQ_MEASUREMENT_SPEC
-        )
+        pbm.chargePrivacyBudget(createQuery("referenceId", "privacy_budget.age.value"))
       }
     assertThat(exception.errorType)
       .isEqualTo(PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER)
   }
 
   @Test
-  fun `charges privacy budget for reach and frequency measurement`() {
+  fun `charges privacy budget for measurement`() {
     val backingStore = InMemoryBackingStore()
     val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
 
     // The charge succeeds and fills the Privacy Budget.
-    pbm.chargePrivacyBudget(createReference(1), REQUISITION_SPEC, REACH_AND_FREQ_MEASUREMENT_SPEC)
+    pbm.chargePrivacyBudget(createQuery("referenceId1"))
 
     // Second charge should exceed the budget.
-    pbm.assertChargeExceedsPrivacyBudget(createReference(2), REACH_AND_FREQ_MEASUREMENT_SPEC)
+    pbm.assertChargeExceedsPrivacyBudget(createQuery("referenceId2"))
   }
 
   @Test
-  fun `charges privacy budget for impression measurement`() {
+  fun `checks empty privacy budget manager and returns budget wont be exceeded`() {
     val backingStore = InMemoryBackingStore()
     val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
-
-    // The charge succeeds and fills the Privacy Budget.
-    pbm.chargePrivacyBudget(createReference(1), REQUISITION_SPEC, IMPRESSION_MEASUREMENT_SPEC)
-
-    // Second charge should exceed the budget.
-    pbm.assertChargeExceedsPrivacyBudget(createReference(2), IMPRESSION_MEASUREMENT_SPEC)
+    // Check returns false because charges would not have exceeded the budget.
+    assertThat(pbm.chargingWillExceedPrivacyBudget(createQuery("referenceId1"))).isFalse()
   }
 
   @Test
-  fun `charges privacy budget for duration measurement`() {
+  fun `checks exceeded privacy budget for measurement`() {
     val backingStore = InMemoryBackingStore()
     val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
 
     // The charge succeeds and fills the Privacy Budget.
-    pbm.chargePrivacyBudget(createReference(1), REQUISITION_SPEC, DURATION_MEASUREMENT_SPEC)
+    pbm.chargePrivacyBudget(createQuery("referenceId1"))
 
-    // Second charge should exceed the budget.
-    pbm.assertChargeExceedsPrivacyBudget(createReference(2), DURATION_MEASUREMENT_SPEC)
+    // Check returns true because charges would have exceeded the budget.
+    assertThat(pbm.chargingWillExceedPrivacyBudget(createQuery("referenceId2"))).isTrue()
+  }
+
+  @Test
+  fun `returns true for different reference that will be processed`() {
+    val backingStore = InMemoryBackingStore()
+    val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
+
+    // The charge succeeds and fills the Privacy Budget.
+    pbm.chargePrivacyBudget(createQuery("referenceId1"))
+
+    // Check returns true because this reference was not processed before.
+    assertThat(
+        pbm.referenceWillBeProcessed(Reference(MEASUREMENT_CONSUMER_ID, "referenceId2", false))
+      )
+      .isTrue()
+  }
+  @Test
+  fun `returns false for same reference that will not be processed`() {
+    val backingStore = InMemoryBackingStore()
+    val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
+
+    // The charge succeeds and fills the Privacy Budget.
+    pbm.chargePrivacyBudget(createQuery("referenceId1"))
+
+    // Check returns false because this reference was processed before.
+    assertThat(
+        pbm.referenceWillBeProcessed(Reference(MEASUREMENT_CONSUMER_ID, "referenceId1", false))
+      )
+      .isFalse()
   }
 }

@@ -61,7 +61,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.watchDuration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
@@ -100,6 +99,7 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.Event
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper
 import org.wfanet.measurement.loadtest.config.EventFilters.VID_SAMPLER_HASH_FUNCTION
 import org.wfanet.measurement.loadtest.storage.SketchStore
 
@@ -268,9 +268,11 @@ class EdpSimulator(
   ) =
     try {
       privacyBudgetManager.chargePrivacyBudget(
-        Reference(measurementConsumerName, requisitionName, false),
-        requisitionSpec,
-        measurementSpec
+        PrivacyQueryMapper.getPrivacyQuery(
+          Reference(measurementConsumerName, requisitionName, false),
+          requisitionSpec,
+          measurementSpec
+        )
       )
     } catch (e: PrivacyBudgetManagerException) {
       logger.log(
@@ -292,8 +294,8 @@ class EdpSimulator(
     requisitionSpec: RequisitionSpec
   ): Sketch {
     chargePrivacyBudget(requisitionName, measurementSpec, requisitionSpec)
-    val vidSamplingIntervalStart = measurementSpec.reachAndFrequency.vidSamplingInterval.start
-    val vidSamplingIntervalWidth = measurementSpec.reachAndFrequency.vidSamplingInterval.width
+    val vidSamplingIntervalStart = measurementSpec.vidSamplingInterval.start
+    val vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width
 
     val anySketch: AnySketch = SketchProtos.toAnySketch(sketchConfig)
     logger.info("Generating Sketch...")
