@@ -34,7 +34,7 @@ class ReportingSetReader : PostgresReader<ReportingSetReader.Result>() {
     var reportingSet: ReportingSet
   )
 
-  override val baseSql: String =
+  private val baseSql: String =
     """
     SELECT
       MeasurementConsumerReferenceId,
@@ -60,40 +60,42 @@ class ReportingSetReader : PostgresReader<ReportingSetReader.Result>() {
   ): Flow<Result> {
     return flow {
       val readContext = client.readTransaction()
-      val builder =
-        statementBuilder(
-          baseSql +
-            """
-      WHERE MeasurementConsumerReferenceId = CAST($1 AS text)
-        AND ExternalReportingSetId > $2
-      ORDER BY ExternalReportingSetId ASC
-      LIMIT $3
-      """
-        ) {
-          bind("$1", filter.measurementConsumerReferenceId)
-          bind("$2", filter.externalReportingSetIdAfter)
-          if (limit > 0) {
-            bind("$3", limit)
-          } else {
-            bind("$3", 50)
+      try {
+        val builder =
+          statementBuilder(
+            baseSql +
+              """
+        WHERE MeasurementConsumerReferenceId = CAST($1 AS text)
+          AND ExternalReportingSetId > $2
+        ORDER BY ExternalReportingSetId ASC
+        LIMIT $3
+        """
+          ) {
+            bind("$1", filter.measurementConsumerReferenceId)
+            bind("$2", filter.externalReportingSetIdAfter)
+            if (limit > 0) {
+              bind("$3", limit)
+            } else {
+              bind("$3", 50)
+            }
           }
+
+        execute(readContext, builder).collect { reportingSetResult ->
+          reportingSetResult.reportingSet =
+            reportingSetResult.reportingSet.copy {
+              ReportingSetEventGroupReader()
+                .listEventGroupKeys(
+                  readContext,
+                  reportingSetResult.measurementConsumerReferenceId,
+                  reportingSetResult.reportingSetId
+                )
+                .collect { eventGroupResult -> eventGroupKeys += eventGroupResult.eventGroupKey }
+            }
+          emit(reportingSetResult)
         }
-
-      execute(readContext, builder).collect { reportingSetResult ->
-        reportingSetResult.reportingSet =
-          reportingSetResult.reportingSet.copy {
-            ReportingSetEventGroupReader()
-              .listEventGroupKeys(
-                readContext,
-                reportingSetResult.measurementConsumerReferenceId,
-                reportingSetResult.reportingSetId
-              )
-              .collect { eventGroupResult -> eventGroupKeys += eventGroupResult.eventGroupKey }
-          }
-        emit(reportingSetResult)
+      } finally {
+        readContext.close()
       }
-
-      readContext.close()
     }
   }
 

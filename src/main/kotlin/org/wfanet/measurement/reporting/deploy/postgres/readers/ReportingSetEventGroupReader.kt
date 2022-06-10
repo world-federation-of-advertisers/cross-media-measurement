@@ -28,7 +28,7 @@ import org.wfanet.measurement.internal.reporting.ReportingSetKt
 class ReportingSetEventGroupReader : PostgresReader<ReportingSetEventGroupReader.Result>() {
   data class Result(val eventGroupKey: ReportingSet.EventGroupKey)
 
-  override val baseSql: String =
+  private val baseSql: String =
     """
     SELECT
       MeasurementConsumerReferenceId,

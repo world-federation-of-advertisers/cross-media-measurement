@@ -22,8 +22,6 @@ import org.wfanet.measurement.common.db.r2dbc.StatementBuilder
 
 /** Abstraction for reading from Postgres. */
 abstract class PostgresReader<T : Any> {
-  protected abstract val baseSql: String
-
   /** Transforms a R2DBC row into an instance of T. */
   protected abstract fun translate(row: Row): T
 
