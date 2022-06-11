@@ -1,11 +1,7 @@
 load("@wfa_common_jvm//build:defs.bzl", "test_target")
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 
-package(default_visibility = [
-    test_target("__pkg__"),
-    "//src/main/kotlin/org/wfanet/measurement/integration/common:__pkg__",
-    "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha/testing:__pkg__",
-])
+package(default_visibility = ["//visibility:public"])
 
 kt_jvm_library(
     name = "resource_key",
@@ -20,9 +16,9 @@ kt_jvm_library(
     name = "reporting_sets_service",
     srcs = ["ReportingSetsService.kt"],
     deps = [
-        ":resource_key",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:principal_server_interceptor",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api.v1alpha:resource_key",
         "//src/main/proto/wfa/measurement/api/v2alpha:page_token_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting:reporting_sets_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/reporting/v1alpha:reporting_sets_service_kt_jvm_grpc_proto",

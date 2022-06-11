@@ -21,7 +21,6 @@ import org.wfanet.measurement.api.v2.alpha.ListReportingSetsPageToken
 import org.wfanet.measurement.api.v2.alpha.ListReportingSetsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2.alpha.copy
 import org.wfanet.measurement.api.v2.alpha.listReportingSetsPageToken
-import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.common.base64UrlDecode
@@ -203,8 +202,8 @@ private fun ReportingSet.toInternal(
             grpcRequireNotNull(EventGroupKey.fromName(it)) {
               "EventGroup is either unspecified or invalid."
             }
-          dataProviderReferenceId = eventGroupKey.dataProviderId
-          eventGroupReferenceId = eventGroupKey.eventGroupId
+          dataProviderReferenceId = eventGroupKey.dataProviderReferenceId
+          eventGroupReferenceId = eventGroupKey.eventGroupReferenceId
           measurementConsumerReferenceId = measurementConsumerKey.measurementConsumerId
         }
       }
@@ -223,7 +222,16 @@ private fun InternalReportingSet.toReportingSet(): ReportingSet {
           reportingSetId = externalIdToApiId(this@toReportingSet.externalReportingSetId)
         )
         .toName()
-    eventGroups.addAll(eventGroupKeysList.map { it.eventGroupReferenceId })
+    eventGroups.addAll(
+      eventGroupKeysList.map {
+        EventGroupKey(
+            measurementConsumerReferenceId = it.measurementConsumerReferenceId,
+            dataProviderReferenceId = it.dataProviderReferenceId,
+            eventGroupReferenceId = it.eventGroupReferenceId
+          )
+          .toName()
+      }
+    )
     filter = this@toReportingSet.filter
     displayName = this@toReportingSet.displayName
   }
