@@ -27,7 +27,7 @@ import org.wfanet.measurement.internal.reporting.StreamReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.copy
 import org.wfanet.measurement.internal.reporting.reportingSet
 
-class ReportingSetReader : PostgresReader<ReportingSetReader.Result>() {
+class ReportingSetReader {
   data class Result(
     val measurementConsumerReferenceId: String,
     val reportingSetId: InternalId,
@@ -46,7 +46,7 @@ class ReportingSetReader : PostgresReader<ReportingSetReader.Result>() {
       ReportingSets
     """
 
-  override fun translate(row: Row): Result =
+  fun translate(row: Row): Result =
     Result(
       row.getValue("MeasurementConsumerReferenceId"),
       row.getValue("ReportingSetId"),
@@ -58,29 +58,29 @@ class ReportingSetReader : PostgresReader<ReportingSetReader.Result>() {
     filter: StreamReportingSetsRequest.Filter,
     limit: Int = 0
   ): Flow<Result> {
-    return flow {
-      val readContext = client.readTransaction()
-      try {
-        val builder =
-          statementBuilder(
-            baseSql +
-              """
-        WHERE MeasurementConsumerReferenceId = CAST($1 AS text)
+    val builder =
+      statementBuilder(
+        baseSql +
+          """
+        WHERE MeasurementConsumerReferenceId = $1
           AND ExternalReportingSetId > $2
         ORDER BY ExternalReportingSetId ASC
         LIMIT $3
         """
-          ) {
-            bind("$1", filter.measurementConsumerReferenceId)
-            bind("$2", filter.externalReportingSetIdAfter)
-            if (limit > 0) {
-              bind("$3", limit)
-            } else {
-              bind("$3", 50)
-            }
-          }
+      ) {
+        bind("$1", filter.measurementConsumerReferenceId)
+        bind("$2", filter.externalReportingSetIdAfter)
+        if (limit > 0) {
+          bind("$3", limit)
+        } else {
+          bind("$3", 50)
+        }
+      }
 
-        execute(readContext, builder).collect { reportingSetResult ->
+    return flow {
+      val readContext = client.readTransaction()
+      try {
+        readContext.executeQuery(builder).consume(::translate).collect { reportingSetResult ->
           reportingSetResult.reportingSet =
             reportingSetResult.reportingSet.copy {
               ReportingSetEventGroupReader()
