@@ -132,7 +132,7 @@ class ReportingTest {
         "--display-name=test-reporting-set",
       )
 
-    CommandLine(Report()).execute(*args)
+    CommandLine(Reporting()).execute(*args)
 
     verifyProtoArgument(
         reportingSetsServiceMock,
@@ -162,7 +162,7 @@ class ReportingTest {
         "list-reporting-sets",
         "--measurement-consumer=$MEASUREMENT_CONSUMER_NAME",
       )
-    CommandLine(Report()).execute(*args)
+    CommandLine(Reporting()).execute(*args)
 
     verifyProtoArgument(reportingSetsServiceMock, ReportingSetsCoroutineImplBase::listReportingSets)
       .comparingExpectedFieldsOnly()

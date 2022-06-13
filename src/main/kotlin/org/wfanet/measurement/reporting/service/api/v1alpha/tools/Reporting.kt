@@ -53,7 +53,7 @@ private class ReportingApiFlags {
 
 @CommandLine.Command(name = "create-reporting-set", description = ["Creates a reporting set"])
 class CreateReportingSetCommand : Runnable {
-  @CommandLine.ParentCommand private lateinit var parent: Report
+  @CommandLine.ParentCommand private lateinit var parent: Reporting
 
   @CommandLine.Option(
     names = ["--measurement-consumer"],
@@ -110,7 +110,7 @@ class CreateReportingSetCommand : Runnable {
 
 @CommandLine.Command(name = "list-reporting-sets", description = ["List reporting sets"])
 class ListReportingSetsCommand : Runnable {
-  @CommandLine.ParentCommand private lateinit var parent: Report
+  @CommandLine.ParentCommand private lateinit var parent: Reporting
 
   @CommandLine.Option(
     names = ["--measurement-consumer"],
@@ -150,8 +150,8 @@ class GetReportCommand : Runnable {
 }
 
 @CommandLine.Command(
-  name = "SimpleReport",
-  description = ["Simple report from Kingdom"],
+  name = "Reporting",
+  description = ["Reporting CLI tool"],
   sortOptions = false,
   subcommands =
     [
@@ -163,7 +163,7 @@ class GetReportCommand : Runnable {
       GetReportCommand::class,
     ]
 )
-class Report : Runnable {
+class Reporting : Runnable {
   @CommandLine.Mixin private lateinit var tlsFlags: TlsFlags
   @CommandLine.Mixin private lateinit var apiFlags: ReportingApiFlags
 
@@ -185,4 +185,4 @@ class Report : Runnable {
  *
  * Use the `help` command to see usage details.
  */
-fun main(args: Array<String>) = commandLineMain(Report(), args)
+fun main(args: Array<String>) = commandLineMain(Reporting(), args)
