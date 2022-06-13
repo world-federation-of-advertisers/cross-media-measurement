@@ -118,7 +118,6 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         .toList()
     }
 
-    assertThat(reportingSets).hasSize(1)
     assertThat(reportingSets).containsExactly(createdReportingSet1)
   }
 
@@ -162,7 +161,6 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         .toList()
     }
 
-    assertThat(reportingSets).hasSize(1)
     assertThat(reportingSets).containsExactly(createdReportingSet1)
   }
 
@@ -211,7 +209,6 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
         .toList()
     }
 
-    assertThat(reportingSets).hasSize(1)
     assertThat(reportingSets).containsExactly(createdReportingSet2)
   }
 }

@@ -16,7 +16,6 @@ package org.wfanet.measurement.reporting.deploy.postgres.writers
 
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import org.wfanet.measurement.common.db.r2dbc.StatementBuilder
 import org.wfanet.measurement.common.db.r2dbc.StatementBuilder.Companion.statementBuilder
 import org.wfanet.measurement.internal.reporting.ReportingSet
 import org.wfanet.measurement.internal.reporting.copy
@@ -45,7 +44,7 @@ class CreateReportingSet(private val request: ReportingSet) : PostgresWriter<Rep
       coroutineScope {
         request.eventGroupKeysList.map {
           async {
-            executeStatement(insertReportingSetEventGroupStatement(it, internalReportingSetId))
+            insertReportingSetEventGroupStatement(it, internalReportingSetId)
           }
         }
       }
@@ -54,11 +53,11 @@ class CreateReportingSet(private val request: ReportingSet) : PostgresWriter<Rep
     return request.copy { this.externalReportingSetId = externalReportingSetId }
   }
 
-  private fun insertReportingSetEventGroupStatement(
+  private suspend fun TransactionScope.insertReportingSetEventGroupStatement(
     eventGroupKey: ReportingSet.EventGroupKey,
     reportingSetId: Long
-  ): StatementBuilder {
-    return statementBuilder(
+  ) {
+    val builder = statementBuilder(
       """
       INSERT INTO ReportingSetEventGroups (MeasurementConsumerReferenceId, DataProviderReferenceId, EventGroupReferenceId, ReportingSetId)
         VALUES ($1, $2, $3, $4)
@@ -69,5 +68,7 @@ class CreateReportingSet(private val request: ReportingSet) : PostgresWriter<Rep
       bind("$3", eventGroupKey.eventGroupReferenceId)
       bind("$4", reportingSetId)
     }
+
+    transactionContext.executeStatement(builder)
   }
 }
