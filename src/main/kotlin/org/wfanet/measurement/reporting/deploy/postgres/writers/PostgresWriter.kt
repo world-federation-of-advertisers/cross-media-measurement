@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.reporting.deploy.postgres.writers
 
-import io.r2dbc.spi.Connection
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.logging.Logger
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
@@ -31,8 +30,8 @@ abstract class PostgresWriter<T> {
   /**
    * Override this to perform the body of the Postgres transaction.
    *
-   * This runs in the scope of a [TransactionScope], so it has convenient access to the [Connection]
-   * and [IdGenerator].
+   * This runs in the scope of a [TransactionScope], so it has convenient access to the
+   * [ReadWriteContext] and [IdGenerator].
    */
   protected abstract suspend fun TransactionScope.runTransaction(): T
 

@@ -16,6 +16,8 @@ package org.wfanet.measurement.reporting.deploy.postgres.readers
 
 import io.r2dbc.spi.Row
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.StatementBuilder.Companion.statementBuilder
 import org.wfanet.measurement.common.db.r2dbc.getValue
@@ -23,7 +25,7 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.internal.reporting.ReportingSet
 import org.wfanet.measurement.internal.reporting.ReportingSetKt
 
-class ReportingSetEventGroupReader() {
+class ReportingSetEventGroupReader {
   data class Result(val eventGroupKey: ReportingSet.EventGroupKey)
 
   private val baseSql: String =
@@ -38,7 +40,7 @@ class ReportingSetEventGroupReader() {
 
   fun translate(row: Row): Result = Result(buildEventGroupKey(row))
 
-  suspend fun listEventGroupKeys(
+  fun listEventGroupKeys(
     readContext: ReadContext,
     measurementConsumerReferenceId: String,
     reportingSetId: InternalId
@@ -55,7 +57,7 @@ class ReportingSetEventGroupReader() {
         bind("$2", reportingSetId.value)
       }
 
-    return readContext.executeQuery(builder).consume(::translate)
+    return flow { emitAll(readContext.executeQuery(builder).consume(::translate)) }
   }
 
   private fun buildEventGroupKey(row: Row): ReportingSet.EventGroupKey {

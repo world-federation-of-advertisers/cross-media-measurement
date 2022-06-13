@@ -15,8 +15,7 @@
 package org.wfanet.measurement.reporting.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
-import io.r2dbc.spi.R2dbcDataIntegrityViolationException
-import kotlin.test.assertFailsWith
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -75,15 +74,11 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
     runBlocking {
       val createdReportingSet = service.createReportingSet(reportingSet)
       assertThat(createdReportingSet.externalReportingSetId).isNotEqualTo(0L)
-
-      assertFailsWith<R2dbcDataIntegrityViolationException> {
-        service.createReportingSet(reportingSet)
-      }
     }
   }
 
   @Test
-  fun `streamReportingSets limit truncates results`() = runBlocking {
+  fun `streamReportingSets limit truncates results`() {
     val reportingSet1 = reportingSet {
       measurementConsumerReferenceId = "1234"
       eventGroupKeys +=
@@ -95,7 +90,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
       filter = "filter"
       displayName = "displayName"
     }
-    val createdReportingSet1 = service.createReportingSet(reportingSet1)
+    val createdReportingSet1 = runBlocking { service.createReportingSet(reportingSet1) }
 
     val reportingSet2 = reportingSet {
       measurementConsumerReferenceId = "1234"
@@ -110,9 +105,9 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
     }
     idGenerator.internalId = InternalId(FIXED_INTERNAL_ID + 1)
     idGenerator.externalId = ExternalId(FIXED_EXTERNAL_ID + 1)
-    service.createReportingSet(reportingSet2)
+    runBlocking { service.createReportingSet(reportingSet2) }
 
-    val reportingSets =
+    val reportingSets = runBlocking {
       service
         .streamReportingSets(
           streamReportingSetsRequest {
@@ -121,13 +116,14 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
           }
         )
         .toList()
+    }
 
-    assertThat(reportingSets.size).isEqualTo(1)
-    assertThat(reportingSets[0]).isEqualTo(createdReportingSet1)
+    assertThat(reportingSets).hasSize(1)
+    assertThat(reportingSets).containsExactly(createdReportingSet1)
   }
 
   @Test
-  fun `streamReportingSets measurementConsumerReferenceId filter limits results`() = runBlocking {
+  fun `streamReportingSets measurementConsumerReferenceId filter limits results`() {
     val reportingSet1 = reportingSet {
       measurementConsumerReferenceId = "1234"
       eventGroupKeys +=
@@ -139,7 +135,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
       filter = "filter"
       displayName = "displayName"
     }
-    val createdReportingSet1 = service.createReportingSet(reportingSet1)
+    val createdReportingSet1 = runBlocking { service.createReportingSet(reportingSet1) }
 
     val reportingSet2 = reportingSet {
       measurementConsumerReferenceId = "4321"
@@ -154,9 +150,9 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
     }
     idGenerator.internalId = InternalId(FIXED_INTERNAL_ID + 1)
     idGenerator.externalId = ExternalId(FIXED_EXTERNAL_ID + 1)
-    service.createReportingSet(reportingSet2)
+    runBlocking { service.createReportingSet(reportingSet2) }
 
-    val reportingSets =
+    val reportingSets = runBlocking {
       service
         .streamReportingSets(
           streamReportingSetsRequest {
@@ -164,13 +160,14 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
           }
         )
         .toList()
+    }
 
-    assertThat(reportingSets.size).isEqualTo(1)
-    assertThat(reportingSets[0]).isEqualTo(createdReportingSet1)
+    assertThat(reportingSets).hasSize(1)
+    assertThat(reportingSets).containsExactly(createdReportingSet1)
   }
 
   @Test
-  fun `streamReportingSets can get the next page of results`() = runBlocking {
+  fun `streamReportingSets can get the next page of results`() {
     val reportingSet1 = reportingSet {
       measurementConsumerReferenceId = "1234"
       eventGroupKeys +=
@@ -182,7 +179,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
       filter = "filter"
       displayName = "displayName"
     }
-    service.createReportingSet(reportingSet1)
+    runBlocking { service.createReportingSet(reportingSet1) }
 
     val reportingSet2 = reportingSet {
       measurementConsumerReferenceId = "1234"
@@ -197,9 +194,9 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
     }
     idGenerator.internalId = InternalId(FIXED_INTERNAL_ID + 1)
     idGenerator.externalId = ExternalId(FIXED_EXTERNAL_ID + 1)
-    val createdReportingSet2 = service.createReportingSet(reportingSet2)
+    val createdReportingSet2 = runBlocking { service.createReportingSet(reportingSet2) }
 
-    val reportingSets =
+    val reportingSets = runBlocking {
       service
         .streamReportingSets(
           streamReportingSetsRequest {
@@ -212,8 +209,9 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
           }
         )
         .toList()
+    }
 
-    assertThat(reportingSets.size).isEqualTo(1)
-    assertThat(reportingSets[0]).isEqualTo(createdReportingSet2)
+    assertThat(reportingSets).hasSize(1)
+    assertThat(reportingSets).containsExactly(createdReportingSet2)
   }
 }

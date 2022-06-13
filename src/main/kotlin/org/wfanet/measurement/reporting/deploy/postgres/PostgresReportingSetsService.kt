@@ -19,7 +19,7 @@ import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.internal.reporting.ReportingSet
-import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt
+import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.StreamReportingSetsRequest
 import org.wfanet.measurement.reporting.deploy.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.deploy.postgres.writers.CreateReportingSet
@@ -27,7 +27,7 @@ import org.wfanet.measurement.reporting.deploy.postgres.writers.CreateReportingS
 class PostgresReportingSetsService(
   private val idGenerator: IdGenerator,
   private val client: DatabaseClient,
-) : ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase() {
+) : ReportingSetsCoroutineImplBase() {
   override suspend fun createReportingSet(request: ReportingSet): ReportingSet {
     return CreateReportingSet(request).execute(client, idGenerator)
   }

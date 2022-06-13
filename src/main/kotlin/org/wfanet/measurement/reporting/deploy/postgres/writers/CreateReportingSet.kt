@@ -14,17 +14,14 @@
 
 package org.wfanet.measurement.reporting.deploy.postgres.writers
 
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.coroutineScope
 import org.wfanet.measurement.common.db.r2dbc.StatementBuilder
 import org.wfanet.measurement.common.db.r2dbc.StatementBuilder.Companion.statementBuilder
 import org.wfanet.measurement.internal.reporting.ReportingSet
 import org.wfanet.measurement.internal.reporting.copy
 
-class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWriter<ReportingSet>() {
+class CreateReportingSet(private val request: ReportingSet) : PostgresWriter<ReportingSet>() {
   override suspend fun TransactionScope.runTransaction(): ReportingSet {
     val internalReportingSetId = idGenerator.generateInternalId().value
     val externalReportingSetId = idGenerator.generateExternalId().value
@@ -36,34 +33,28 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
         VALUES ($1, $2, $3, $4, $5)
       """
       ) {
-        bind("$1", reportingSet.measurementConsumerReferenceId)
+        bind("$1", request.measurementConsumerReferenceId)
         bind("$2", internalReportingSetId)
         bind("$3", externalReportingSetId)
-        bind("$4", reportingSet.filter)
-        bind("$5", reportingSet.displayName)
+        bind("$4", request.filter)
+        bind("$5", request.displayName)
       }
 
     transactionContext.run {
-      executeStatement(builder).numRowsUpdated
-      CoroutineScope(Dispatchers.IO)
-        .launch {
-          reportingSet
-            .eventGroupKeysList
-            .map {
-              async {
-                executeStatement(createReportingSetEventGroupStatement(it, internalReportingSetId))
-                  .numRowsUpdated
-              }
-            }
-            .awaitAll()
+      executeStatement(builder)
+      coroutineScope {
+        request.eventGroupKeysList.map {
+          async {
+            executeStatement(insertReportingSetEventGroupStatement(it, internalReportingSetId))
+          }
         }
-        .join()
+      }
     }
 
-    return reportingSet.copy { this.externalReportingSetId = externalReportingSetId }
+    return request.copy { this.externalReportingSetId = externalReportingSetId }
   }
 
-  private fun createReportingSetEventGroupStatement(
+  private fun insertReportingSetEventGroupStatement(
     eventGroupKey: ReportingSet.EventGroupKey,
     reportingSetId: Long
   ): StatementBuilder {
