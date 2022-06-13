@@ -30,7 +30,8 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.reporting.ReportingSet as InternalReportingSet
-import org.wfanet.measurement.internal.reporting.ReportingSetKt.eventGroupKey
+import org.wfanet.measurement.internal.reporting.ReportingSet.EventGroupKey as InternalEventGroupKey
+import org.wfanet.measurement.internal.reporting.ReportingSetKt.eventGroupKey as internalEventGroupKey
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.StreamReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.StreamReportingSetsRequestKt.filter
@@ -197,21 +198,28 @@ private fun ReportingSet.toInternal(
 
   return internalReportingSet {
     measurementConsumerReferenceId = measurementConsumerKey.measurementConsumerId
-    eventGroupKeys.addAll(
-      source.eventGroupsList.map {
-        eventGroupKey {
-          val eventGroupKey =
-            grpcRequireNotNull(EventGroupKey.fromName(it)) {
-              "EventGroup is either unspecified or invalid."
-            }
-          dataProviderReferenceId = eventGroupKey.dataProviderReferenceId
-          eventGroupReferenceId = eventGroupKey.eventGroupReferenceId
-          measurementConsumerReferenceId = measurementConsumerKey.measurementConsumerId
-        }
-      }
-    )
+
+    for (eventGroup: String in source.eventGroupsList) {
+      eventGroupKeys +=
+        grpcRequireNotNull(EventGroupKey.fromName(eventGroup)) {
+            "EventGroup is either unspecified or invalid."
+          }
+          .toInternal(measurementConsumerKey.measurementConsumerId)
+    }
     filter = source.filter
     displayName = source.displayName
+  }
+}
+
+/** Converts a public [EventGroupKey] to an internal [InternalEventGroupKey] */
+private fun EventGroupKey.toInternal(
+  measurementConsumerReferenceId: String,
+): InternalEventGroupKey {
+  val source = this
+  return internalEventGroupKey {
+    dataProviderReferenceId = source.dataProviderReferenceId
+    eventGroupReferenceId = source.eventGroupReferenceId
+    this.measurementConsumerReferenceId = measurementConsumerReferenceId
   }
 }
 
