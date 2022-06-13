@@ -19,7 +19,8 @@ import org.wfanet.measurement.common.api.ResourceKey
 
 private val parser =
   ResourceNameParser(
-    "measurementConsumers/{measurement_consumer}/dataProviders/{data_provider}/eventGroups/{event_group}"
+    "measurementConsumers/{measurement_consumer}" +
+      "/dataProviders/{data_provider}/eventGroups/{event_group}"
   )
 
 /** [ResourceKey] of an EventGroup. */
