@@ -1,0 +1,11 @@
+package(
+    default_testonly = True,
+    default_visibility = [
+        "//src/test/kotlin/org/wfanet/measurement/reporting:__subpackages__",
+    ],
+)
+
+filegroup(
+    name = "textproto_files",
+    srcs = glob(["*.textproto"]),
+)

@@ -14,7 +14,9 @@
 
 package org.wfanet.measurement.reporting.service.api.v1alpha.tools
 
+import com.google.protobuf.TextFormat
 import io.grpc.ManagedChannel
+import java.io.File
 import java.time.Duration
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -24,6 +26,9 @@ import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.reporting.v1alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
+import org.wfanet.measurement.reporting.v1alpha.ReportsGrpcKt.ReportsCoroutineStub
+import org.wfanet.measurement.reporting.v1alpha.Report
+import org.wfanet.measurement.reporting.v1alpha.createReportRequest
 import org.wfanet.measurement.reporting.v1alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v1alpha.listReportingSetsRequest
 import org.wfanet.measurement.reporting.v1alpha.reportingSet
@@ -53,7 +58,7 @@ private class ReportingApiFlags {
 
 @CommandLine.Command(name = "create-reporting-set", description = ["Creates a reporting set"])
 class CreateReportingSetCommand : Runnable {
-  @CommandLine.ParentCommand private lateinit var parent: Report
+  @CommandLine.ParentCommand private lateinit var parent: Reporting
 
   @CommandLine.Option(
     names = ["--measurement-consumer"],
@@ -110,7 +115,7 @@ class CreateReportingSetCommand : Runnable {
 
 @CommandLine.Command(name = "list-reporting-sets", description = ["List reporting sets"])
 class ListReportingSetsCommand : Runnable {
-  @CommandLine.ParentCommand private lateinit var parent: Report
+  @CommandLine.ParentCommand private lateinit var parent: Reporting
 
   @CommandLine.Option(
     names = ["--measurement-consumer"],
@@ -136,7 +141,40 @@ class ListReportingSetsCommand : Runnable {
 
 @CommandLine.Command(name = "create-report", description = ["Create a set operation report"])
 class CreateReportCommand : Runnable {
-  override fun run() {}
+  @CommandLine.ParentCommand private lateinit var parent: Reporting
+
+  @CommandLine.Option(
+    names = ["--measurement-consumer"],
+    description = ["API resource name of the Measurement Consumer"],
+    required = true,
+  )
+  private lateinit var measurementConsumerName: String
+
+  @CommandLine.Option(
+    names = ["--report-proto-file"],
+    description = ["Textproto file of the report"],
+    required = true,
+  )
+  private lateinit var reportProtoFile: File
+
+  private val reportProtoText: String by lazy {
+    reportProtoFile.readText()
+  }
+
+
+  override fun run() {
+    val reportsStub = ReportsCoroutineStub(parent.channel)
+
+    val request = createReportRequest {
+      parent = measurementConsumerName
+      TextFormat.getParser().merge(reportProtoText, Report.newBuilder())
+    }
+    val report = runBlocking(Dispatchers.IO) {
+      reportsStub.createReport(request)
+    }
+
+    print(report)
+  }
 }
 
 @CommandLine.Command(name = "list-reports", description = ["List set operation reports"])
@@ -163,7 +201,7 @@ class GetReportCommand : Runnable {
       GetReportCommand::class,
     ]
 )
-class Report : Runnable {
+class Reporting : Runnable {
   @CommandLine.Mixin private lateinit var tlsFlags: TlsFlags
   @CommandLine.Mixin private lateinit var apiFlags: ReportingApiFlags
 
@@ -185,4 +223,4 @@ class Report : Runnable {
  *
  * Use the `help` command to see usage details.
  */
-fun main(args: Array<String>) = commandLineMain(Report(), args)
+fun main(args: Array<String>) = commandLineMain(Reporting(), args)

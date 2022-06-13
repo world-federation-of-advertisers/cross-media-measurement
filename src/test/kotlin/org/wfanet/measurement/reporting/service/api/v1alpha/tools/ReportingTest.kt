@@ -31,24 +31,23 @@ import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.reporting.v1alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
+import org.wfanet.measurement.reporting.v1alpha.ReportsGrpcKt.ReportsCoroutineImplBase
 import org.wfanet.measurement.reporting.v1alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v1alpha.listReportingSetsRequest
 import org.wfanet.measurement.reporting.v1alpha.listReportingSetsResponse
+import org.wfanet.measurement.reporting.v1alpha.report
 import org.wfanet.measurement.reporting.v1alpha.reportingSet
 import picocli.CommandLine
 
 private const val HOST = "localhost"
 private const val PORT = 15789
 private val SECRETS_DIR: Path =
+  getRuntimePath(Paths.get("wfa_measurement_system/src/main/k8s/testing/secretfiles"))!!
+
+private val TEXTPROTO_DIR: Path =
   getRuntimePath(
-    Paths.get(
-      "wfa_measurement_system",
-      "src",
-      "main",
-      "k8s",
-      "testing",
-      "secretfiles",
-    )
+    Paths.get("wfa_measurement_system/src/test/kotlin/org/wfanet/measurement/reporting" +
+                "/service/api/v1alpha/tools/textprotos")
   )!!
 
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/1"
@@ -72,12 +71,19 @@ private val LIST_REPORTING_SETS_RESPONSE = listReportingSetsResponse {
   }
 }
 
+private val REPORT = report {}
+
 @RunWith(JUnit4::class)
 class ReportingTest {
   private val reportingSetsServiceMock: ReportingSetsCoroutineImplBase =
     mockService() {
       onBlocking { createReportingSet(any()) }.thenReturn(REPORTING_SET)
       onBlocking { listReportingSets(any()) }.thenReturn(LIST_REPORTING_SETS_RESPONSE)
+    }
+
+  private val reportsServiceMock: ReportsCoroutineImplBase =
+    mockService() {
+      onBlocking { createReport(any()) }.thenReturn(REPORT)
     }
 
   private lateinit var server: CommonServer
@@ -132,7 +138,7 @@ class ReportingTest {
         "--display-name=test-reporting-set",
       )
 
-    CommandLine(Report()).execute(*args)
+    CommandLine(Reporting()).execute(*args)
 
     verifyProtoArgument(
         reportingSetsServiceMock,
@@ -162,10 +168,26 @@ class ReportingTest {
         "list-reporting-sets",
         "--measurement-consumer=$MEASUREMENT_CONSUMER_NAME",
       )
-    CommandLine(Report()).execute(*args)
+    CommandLine(Reporting()).execute(*args)
 
     verifyProtoArgument(reportingSetsServiceMock, ReportingSetsCoroutineImplBase::listReportingSets)
       .comparingExpectedFieldsOnly()
       .isEqualTo(listReportingSetsRequest { parent = MEASUREMENT_CONSUMER_NAME })
+  }
+
+  @Test
+  fun `Create erport call api with valid CreateReportRequest `() {
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
+        "--reporting-server-api-target=$HOST:$PORT",
+        "create-report",
+        "--measurement-consumer=$MEASUREMENT_CONSUMER_NAME",
+        "--report-proto-file=$TEXTPROTO_DIR/report.textproto",
+      )
+    CommandLine(Reporting()).execute(*args)
+
   }
 }
