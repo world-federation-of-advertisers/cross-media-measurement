@@ -15,6 +15,7 @@
 package org.wfanet.measurement.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
+import org.wfanet.measurement.common.api.ResourceKey
 
 /** [ResourceKey] of a Duchy. */
 data class DuchyKey(val duchyId: String) : ResourceKey {

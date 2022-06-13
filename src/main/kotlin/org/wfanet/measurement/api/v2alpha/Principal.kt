@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.api.v2alpha
 
+import org.wfanet.measurement.common.api.ResourceKey
+
 /**
  * Identifies the sender of an inbound gRPC request.
  *
