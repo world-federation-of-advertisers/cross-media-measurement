@@ -141,14 +141,13 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
  * Converts an internal [ListReportingSetsPageToken] to an internal [StreamReportingSetsRequest].
  */
 private fun ListReportingSetsPageToken.toStreamReportingSetsRequest(): StreamReportingSetsRequest {
+  val source = this
   return streamReportingSetsRequest {
     // get 1 more than the actual page size for deciding whether or not to set page token
     limit = pageSize + 1
     filter = filter {
-      measurementConsumerReferenceId =
-        this@toStreamReportingSetsRequest.measurementConsumerReferenceId
-      externalReportingSetIdAfter =
-        this@toStreamReportingSetsRequest.lastReportingSet.externalReportingSetId
+      measurementConsumerReferenceId = source.measurementConsumerReferenceId
+      externalReportingSetIdAfter = source.lastReportingSet.externalReportingSetId
     }
   }
 }
@@ -157,6 +156,7 @@ private fun ListReportingSetsPageToken.toStreamReportingSetsRequest(): StreamRep
 private fun ListReportingSetsRequest.toListReportingSetsPageToken(): ListReportingSetsPageToken {
   grpcRequire(pageSize >= 0) { "Page size cannot be less than 0" }
 
+  val source = this
   // Based on AIP-132#Errors
   val parentKey =
     MeasurementConsumerKey.fromName(parent)
@@ -169,20 +169,20 @@ private fun ListReportingSetsRequest.toListReportingSetsPageToken(): ListReporti
         "Arguments must be kept the same when using a page token"
       }
 
-      if (this@toListReportingSetsPageToken.pageSize != 0 &&
-          this@toListReportingSetsPageToken.pageSize >= MIN_PAGE_SIZE &&
-          this@toListReportingSetsPageToken.pageSize <= MAX_PAGE_SIZE
+      if (source.pageSize != 0 &&
+          source.pageSize >= MIN_PAGE_SIZE &&
+          source.pageSize <= MAX_PAGE_SIZE
       ) {
-        pageSize = this@toListReportingSetsPageToken.pageSize
+        pageSize = source.pageSize
       }
     }
   } else {
     listReportingSetsPageToken {
       pageSize =
         when {
-          this@toListReportingSetsPageToken.pageSize < MIN_PAGE_SIZE -> DEFAULT_PAGE_SIZE
-          this@toListReportingSetsPageToken.pageSize > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
-          else -> this@toListReportingSetsPageToken.pageSize
+          source.pageSize < MIN_PAGE_SIZE -> DEFAULT_PAGE_SIZE
+          source.pageSize > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
+          else -> source.pageSize
         }
       this.measurementConsumerReferenceId = measurementConsumerReferenceId
     }
@@ -193,10 +193,12 @@ private fun ListReportingSetsRequest.toListReportingSetsPageToken(): ListReporti
 private fun ReportingSet.toInternal(
   measurementConsumerKey: MeasurementConsumerKey,
 ): InternalReportingSet {
+  val source = this
+
   return internalReportingSet {
     measurementConsumerReferenceId = measurementConsumerKey.measurementConsumerId
     eventGroupKeys.addAll(
-      this@toInternal.eventGroupsList.map {
+      source.eventGroupsList.map {
         eventGroupKey {
           val eventGroupKey =
             grpcRequireNotNull(EventGroupKey.fromName(it)) {
@@ -208,18 +210,19 @@ private fun ReportingSet.toInternal(
         }
       }
     )
-    filter = this@toInternal.filter
-    displayName = this@toInternal.displayName
+    filter = source.filter
+    displayName = source.displayName
   }
 }
 
 /** Converts an internal [InternalReportingSet] to a public [ReportingSet]. */
 private fun InternalReportingSet.toReportingSet(): ReportingSet {
+  val source = this
   return reportingSet {
     name =
       ReportingSetKey(
-          measurementConsumerId = this@toReportingSet.measurementConsumerReferenceId,
-          reportingSetId = externalIdToApiId(this@toReportingSet.externalReportingSetId)
+          measurementConsumerId = source.measurementConsumerReferenceId,
+          reportingSetId = externalIdToApiId(source.externalReportingSetId)
         )
         .toName()
     eventGroups.addAll(
@@ -232,7 +235,7 @@ private fun InternalReportingSet.toReportingSet(): ReportingSet {
           .toName()
       }
     )
-    filter = this@toReportingSet.filter
-    displayName = this@toReportingSet.displayName
+    filter = source.filter
+    displayName = source.displayName
   }
 }
