@@ -162,7 +162,11 @@ class ReportingSetsServiceTest {
         internalReportingSetsMock,
         ReportingSetsCoroutineImplBase::createReportingSet
       )
-      .isEqualTo(INTERNAL_REPORTING_SET)
+      .isEqualTo(
+        INTERNAL_REPORTING_SET.copy {
+          clearExternalReportingSetId()
+        }
+      )
 
     assertThat(result).isEqualTo(expected)
   }
