@@ -31,7 +31,7 @@ private val PRINCIPAL_NAME_METADATA_KEY: Metadata.Key<String> =
  * SomeServiceCoroutineStub(channel).withPrincipalName("dataProviders/Ac8hsieOp")
  */
 fun <T : AbstractStub<T>> T.withPrincipalName(name: String): T {
-  val metadata = Metadata()
-  metadata.put(PRINCIPAL_NAME_METADATA_KEY, name)
-  return MetadataUtils.attachHeaders(this, metadata)
+  val extraHeaders = Metadata()
+  extraHeaders.put(PRINCIPAL_NAME_METADATA_KEY, name)
+  return withInterceptors(MetadataUtils.newAttachHeadersInterceptor(extraHeaders))
 }
