@@ -24,7 +24,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPublicKeyKey
 import org.wfanet.measurement.api.v2alpha.PublicKey
 import org.wfanet.measurement.api.v2alpha.PublicKeysGrpcKt.PublicKeysCoroutineImplBase
-import org.wfanet.measurement.api.v2alpha.ResourceKey
+import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.api.v2alpha.UpdatePublicKeyRequest
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.common.grpc.failGrpc

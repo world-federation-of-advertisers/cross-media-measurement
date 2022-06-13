@@ -30,7 +30,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.ModelProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.ReleaseCertificateHoldRequest
-import org.wfanet.measurement.api.v2alpha.ResourceKey
+import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.api.v2alpha.RevokeCertificateRequest
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.makeDataProviderCertificateName

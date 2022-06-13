@@ -15,6 +15,7 @@
 package org.wfanet.measurement.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
+import org.wfanet.measurement.common.api.ResourceKey
 
 /** [AccountKey] of an Account. */
 data class AccountKey(val accountId: String) : ResourceKey {
