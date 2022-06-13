@@ -16,6 +16,9 @@ package org.wfanet.measurement.reporting.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -74,6 +77,22 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
     runBlocking {
       val createdReportingSet = service.createReportingSet(reportingSet)
       assertThat(createdReportingSet.externalReportingSetId).isNotEqualTo(0L)
+    }
+  }
+
+  @Test
+  fun `createReportingSet fails when generated IDs are the same`() {
+    val reportingSet = reportingSet {
+      measurementConsumerReferenceId = "1234"
+      filter = "filter"
+      displayName = "displayName"
+    }
+
+    runBlocking {
+      service.createReportingSet(reportingSet)
+      val exception =
+        assertFailsWith<StatusRuntimeException> { service.createReportingSet(reportingSet) }
+      assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
     }
   }
 

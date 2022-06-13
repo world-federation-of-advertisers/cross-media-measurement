@@ -59,3 +59,10 @@ fun StatusRuntimeException.getErrorInfo(): ErrorInfo? {
   val key = ProtoUtils.keyForProto(ErrorInfo.getDefaultInstance())
   return trailers?.get(key)
 }
+
+class ReportingSetAlreadyExistsException(
+  provideDescription: () -> String = { "Reporting Set already exists" }
+) : ReportingInternalException(ErrorCode.REPORTING_SET_ALREADY_EXISTS, provideDescription) {
+  override val context
+    get() = emptyMap<String, String>()
+}

@@ -21,4 +21,7 @@ option java_multiple_files = true;
 
 enum ErrorCode {
   UNKNOWN_ERROR = 0;
+
+  /** Reporting Set with the same IDs already exists. */
+  REPORTING_SET_ALREADY_EXISTS = 1;
 }

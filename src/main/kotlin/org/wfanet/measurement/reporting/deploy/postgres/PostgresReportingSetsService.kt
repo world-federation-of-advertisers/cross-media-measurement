@@ -23,6 +23,7 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.internal.reporting.ReportingSet
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.StreamReportingSetsRequest
+import org.wfanet.measurement.reporting.deploy.postgres.common.ReportingSetAlreadyExistsException
 import org.wfanet.measurement.reporting.deploy.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.deploy.postgres.writers.CreateReportingSet
 
@@ -33,18 +34,15 @@ class PostgresReportingSetsService(
   override suspend fun createReportingSet(request: ReportingSet): ReportingSet {
     return try {
       CreateReportingSet(request).execute(client, idGenerator)
-    } catch (e: Exception) {
-      failGrpc(Status.INTERNAL) { "Unexpected internal error." }
+    } catch (e: ReportingSetAlreadyExistsException) {
+      failGrpc(Status.ALREADY_EXISTS) { "IDs generated for Reporting Set already exist" }
     }
   }
 
   override fun streamReportingSets(request: StreamReportingSetsRequest): Flow<ReportingSet> {
-    return try {
-      ReportingSetReader().listReportingSets(client, request.filter, request.limit).map { result ->
-        result.reportingSet
-      }
-    } catch (e: Exception) {
-      failGrpc(Status.INTERNAL) { "Unexpected internal error." }
+    return ReportingSetReader().listReportingSets(client, request.filter, request.limit).map {
+      result ->
+      result.reportingSet
     }
   }
 }
