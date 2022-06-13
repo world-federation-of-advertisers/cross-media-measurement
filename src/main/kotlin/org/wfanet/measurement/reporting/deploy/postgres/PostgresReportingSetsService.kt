@@ -14,9 +14,11 @@
 
 package org.wfanet.measurement.reporting.deploy.postgres
 
+import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.internal.reporting.ReportingSet
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
@@ -29,13 +31,20 @@ class PostgresReportingSetsService(
   private val client: DatabaseClient,
 ) : ReportingSetsCoroutineImplBase() {
   override suspend fun createReportingSet(request: ReportingSet): ReportingSet {
-    return CreateReportingSet(request).execute(client, idGenerator)
+    return try {
+      CreateReportingSet(request).execute(client, idGenerator)
+    } catch (e: Exception) {
+      failGrpc(Status.INTERNAL) { "Unexpected internal error." }
+    }
   }
 
   override fun streamReportingSets(request: StreamReportingSetsRequest): Flow<ReportingSet> {
-    return ReportingSetReader().listReportingSets(client, request.filter, request.limit).map {
-      result ->
-      result.reportingSet
+    return try {
+      ReportingSetReader().listReportingSets(client, request.filter, request.limit).map { result ->
+        result.reportingSet
+      }
+    } catch (e: Exception) {
+      failGrpc(Status.INTERNAL) { "Unexpected internal error." }
     }
   }
 }
