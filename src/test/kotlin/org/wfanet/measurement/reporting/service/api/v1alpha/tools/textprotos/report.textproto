@@ -1,22 +1,25 @@
 measurement_consumer: "measurementConsumers/1"
-event_group_entries {
-  key: "measurementConsumers/1/dataProviders/1/eventGroups/1"
-  value: ""
+
+event_group_universe {
+  event_group_entries {
+    key: "measurementConsumers/1/dataProviders/1/eventGroups/1"
+    value: ""
+  }
+  event_group_entries {
+    key: "measurementConsumers/1/dataProviders/2/eventGroups/3"
+    value: "partner=abc"
+  }
 }
-event_group_entries {
-  key: "measurementConsumers/1/dataProviders/2/eventGroups/3"
-  value: "partner=abc"
-}
+
 time_intervals {
   time_intervals {
     start_time: "2017-01-15T01:30:15.01Z"
-    increment: "10000s"
+    end_time: "2019-01-19T09:48:35.57Z"
     interval_count: 5
   }
   time_intervals {
-    start_time: "2022-06-13T11:57:54.21Z"
-    increment: "20000s"
-    interval_count: 3
+    start_time: "2018-10-27T23:19:12.99Z"
+    end_time: "2022-06-13T11:57:54.21Z"
   }
 }
 metrics {

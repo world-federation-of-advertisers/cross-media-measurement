@@ -18,6 +18,8 @@ import io.grpc.ServerServiceDefinition
 import io.netty.handler.ssl.ClientAuth
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit.SECONDS
 import org.junit.After
 import org.junit.Before
@@ -30,6 +32,9 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
+import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.reporting.v1alpha.ReportKt.EventGroupUniverseKt.eventGroupEntry
+import org.wfanet.measurement.reporting.v1alpha.ReportKt.eventGroupUniverse
 import org.wfanet.measurement.reporting.v1alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.reporting.v1alpha.ReportsGrpcKt.ReportsCoroutineImplBase
 import org.wfanet.measurement.reporting.v1alpha.createReportingSetRequest
@@ -37,6 +42,8 @@ import org.wfanet.measurement.reporting.v1alpha.listReportingSetsRequest
 import org.wfanet.measurement.reporting.v1alpha.listReportingSetsResponse
 import org.wfanet.measurement.reporting.v1alpha.report
 import org.wfanet.measurement.reporting.v1alpha.reportingSet
+import org.wfanet.measurement.reporting.v1alpha.timeInterval
+import org.wfanet.measurement.reporting.v1alpha.timeIntervals
 import picocli.CommandLine
 
 private const val HOST = "localhost"
@@ -71,7 +78,26 @@ private val LIST_REPORTING_SETS_RESPONSE = listReportingSetsResponse {
   }
 }
 
-private val REPORT = report {}
+private val REPORT = report {
+  measurementConsumer = MEASUREMENT_CONSUMER_NAME
+  eventGroupUniverse = eventGroupUniverse {
+    eventGroupEntries +=  eventGroupEntry {
+      key = "measurementConsumers/1/dataProviders/1/eventGroups/1"
+      value = ""
+    }
+    eventGroupEntries +=  eventGroupEntry {
+      key = "measurementConsumers/1/dataProviders/2/eventGroups/3"
+      value = "partner=abc"
+    }
+  }
+  timeIntervals = timeIntervals {
+    timeIntervals += timeInterval {
+      startTime =
+        LocalDate.now().minusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+      endTime = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+    }
+  }
+}
 
 @RunWith(JUnit4::class)
 class ReportingTest {
@@ -92,6 +118,7 @@ class ReportingTest {
     val services: List<ServerServiceDefinition> =
       listOf(
         reportingSetsServiceMock.bindService(),
+        reportsServiceMock.bindService(),
       )
 
     // TODO(@renjiez): Use reporting server's credential
@@ -177,6 +204,8 @@ class ReportingTest {
 
   @Test
   fun `Create erport call api with valid CreateReportRequest `() {
+    print(REPORT)
+
     val args =
       arrayOf(
         "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
@@ -185,7 +214,7 @@ class ReportingTest {
         "--reporting-server-api-target=$HOST:$PORT",
         "create-report",
         "--measurement-consumer=$MEASUREMENT_CONSUMER_NAME",
-        "--report-proto-file=$TEXTPROTO_DIR/report.textproto",
+        "--report-proto-file=$TEXTPROTO_DIR/test.textproto",
       )
     CommandLine(Reporting()).execute(*args)
 
