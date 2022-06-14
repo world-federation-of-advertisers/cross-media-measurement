@@ -35,6 +35,7 @@ import org.wfanet.measurement.internal.reporting.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.copy
 import org.wfanet.measurement.internal.reporting.reportingSet as internalReportingSet
 import org.wfanet.measurement.internal.reporting.streamReportingSetsRequest
+import org.wfanet.measurement.reporting.v1alpha.ListReportingSetsRequest
 import org.wfanet.measurement.reporting.v1alpha.ReportingSet
 import org.wfanet.measurement.reporting.v1alpha.copy
 import org.wfanet.measurement.reporting.v1alpha.createReportingSetRequest
@@ -713,5 +714,16 @@ class ReportingSetsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description).isEqualTo("Page size cannot be less than 0")
+  }
+
+  @Test
+  fun `listReportingSets throws INVALID_ARGUMENT when parent is unspecified`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.listReportingSets(ListReportingSetsRequest.getDefaultInstance()) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 }

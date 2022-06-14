@@ -89,6 +89,7 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
     request: ListReportingSetsRequest
   ): ListReportingSetsResponse {
     val principal = principalFromCurrentContext
+    val listReportingSetsPageToken = request.toListReportingSetsPageToken()
 
     // Based on AIP-132#Errors
     when (val resourceKey = principal.resourceKey) {
@@ -105,8 +106,6 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
         }
       }
     }
-
-    val listReportingSetsPageToken = request.toListReportingSetsPageToken()
 
     val results: List<InternalReportingSet> =
       internalReportingSetsStub
@@ -158,10 +157,10 @@ private fun ListReportingSetsRequest.toListReportingSetsPageToken(): ListReporti
   grpcRequire(pageSize >= 0) { "Page size cannot be less than 0" }
 
   val source = this
-  // Based on AIP-132#Errors
-  val parentKey =
-    MeasurementConsumerKey.fromName(parent)
-      ?: failGrpc(Status.NOT_FOUND) { "Parent is either unspecified or invalid." }
+  val parentKey: MeasurementConsumerKey =
+    grpcRequireNotNull(MeasurementConsumerKey.fromName(parent)) {
+      "Parent is either unspecified or invalid."
+    }
   val measurementConsumerReferenceId = parentKey.measurementConsumerId
 
   return if (pageToken.isNotBlank()) {
