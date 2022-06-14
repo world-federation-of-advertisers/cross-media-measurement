@@ -670,4 +670,16 @@ class ReportingSetsServiceTest {
       assertFailsWith<StatusRuntimeException> { runBlocking { service.listReportingSets(request) } }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
+
+  @Test
+  fun `listReportingSets throws PERMISSION_DENIED when MeasurementConsumer caller doesn't match`() {
+    val request = listReportingSetsRequest { parent = MEASUREMENT_CONSUMER_NAME }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME_2) {
+          runBlocking { service.listReportingSets(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
 }
