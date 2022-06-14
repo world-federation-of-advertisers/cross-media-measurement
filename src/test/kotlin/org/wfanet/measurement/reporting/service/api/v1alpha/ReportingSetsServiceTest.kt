@@ -299,5 +299,7 @@ class ReportingSetsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("EventGroup is either unspecified or invalid.")
   }
 }
