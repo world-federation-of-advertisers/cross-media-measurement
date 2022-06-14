@@ -24,6 +24,7 @@ import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.reporting.v1alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
+import org.wfanet.measurement.reporting.v1alpha.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.reporting.v1alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v1alpha.listReportingSetsRequest
 import org.wfanet.measurement.reporting.v1alpha.reportingSet
@@ -51,20 +52,19 @@ private class ReportingApiFlags {
     private set
 }
 
-@CommandLine.Command(name = "create-reporting-set", description = ["Creates a reporting set"])
+@CommandLine.Command(name = "create", description = ["Creates a reporting set"])
 class CreateReportingSetCommand : Runnable {
-  @CommandLine.ParentCommand private lateinit var parent: Reporting
+  @CommandLine.ParentCommand private lateinit var parent: ReportingSetsCommand
 
   @CommandLine.Option(
-    names = ["--measurement-consumer"],
+    names = ["--parent"],
     description = ["API resource name of the Measurement Consumer"],
     required = true,
   )
   private lateinit var measurementConsumerName: String
 
   @CommandLine.Option(
-    names = ["--event-groups"],
-    arity = "1..*",
+    names = ["--event-group"],
     description = ["List of EventGroup's API resource names"],
     required = true,
   )
@@ -87,80 +87,106 @@ class CreateReportingSetCommand : Runnable {
   private lateinit var displayNameInput: String
 
   override fun run() {
-    val reportingSetStub = ReportingSetsCoroutineStub(parent.channel)
-
-    val reportingSet =
-      runBlocking(Dispatchers.IO) {
-        reportingSetStub.createReportingSet(
-          createReportingSetRequest {
-            parent = measurementConsumerName
-            reportingSet = reportingSet {
-              eventGroups += this@CreateReportingSetCommand.eventGroups
-              if (filterExpression.isNotEmpty()) {
-                filter = filterExpression
-              }
-              if (displayNameInput.isNotEmpty()) displayName = displayNameInput
-            }
-          }
-        )
+    val request = createReportingSetRequest {
+      parent = measurementConsumerName
+      reportingSet = reportingSet {
+        eventGroups += this@CreateReportingSetCommand.eventGroups
+        filter = filterExpression
+        displayName = displayNameInput
       }
-    print(reportingSet)
+    }
+    val reportingSet =
+      runBlocking(Dispatchers.IO) { parent.reportingSetStub.createReportingSet(request) }
+    println(reportingSet)
   }
 }
 
-@CommandLine.Command(name = "list-reporting-sets", description = ["List reporting sets"])
+@CommandLine.Command(name = "list", description = ["List reporting sets"])
 class ListReportingSetsCommand : Runnable {
-  @CommandLine.ParentCommand private lateinit var parent: Reporting
+  @CommandLine.ParentCommand private lateinit var parent: ReportingSetsCommand
 
   @CommandLine.Option(
-    names = ["--measurement-consumer"],
+    names = ["--parent"],
     description = ["API resource name of the Measurement Consumer"],
     required = true,
   )
   private lateinit var measurementConsumerName: String
 
   override fun run() {
-    val reportingSetStub = ReportingSetsCoroutineStub(parent.channel)
+    val request = listReportingSetsRequest { parent = measurementConsumerName }
 
     val response =
-      runBlocking(Dispatchers.IO) {
-        reportingSetStub.listReportingSets(
-          listReportingSetsRequest { parent = measurementConsumerName }
-        )
-      }
+      runBlocking(Dispatchers.IO) { parent.reportingSetStub.listReportingSets(request) }
 
     val reportingSets = response.reportingSetsList
-    print(reportingSets)
+    println(reportingSets)
   }
 }
 
-@CommandLine.Command(name = "create-report", description = ["Create a set operation report"])
-class CreateReportCommand : Runnable {
-  override fun run() {}
-}
-
-@CommandLine.Command(name = "list-reports", description = ["List set operation reports"])
-class ListReportsCommand : Runnable {
-  override fun run() {}
-}
-
-@CommandLine.Command(name = "get-report", description = ["Get a set operation report"])
-class GetReportCommand : Runnable {
-  override fun run() {}
-}
-
 @CommandLine.Command(
-  name = "Reporting",
-  description = ["Reporting CLI tool"],
+  name = "reporting-sets",
   sortOptions = false,
   subcommands =
     [
       CommandLine.HelpCommand::class,
       CreateReportingSetCommand::class,
       ListReportingSetsCommand::class,
+    ]
+)
+class ReportingSetsCommand : Runnable {
+  @CommandLine.ParentCommand lateinit var parent: Reporting
+  val reportingSetStub: ReportingSetsCoroutineStub by lazy {
+    ReportingSetsCoroutineStub(parent.channel)
+  }
+  override fun run() {}
+}
+
+@CommandLine.Command(name = "create", description = ["Create a set operation report"])
+class CreateReportCommand : Runnable {
+  override fun run() {}
+}
+
+@CommandLine.Command(name = "list", description = ["List set operation reports"])
+class ListReportsCommand : Runnable {
+  override fun run() {}
+}
+
+@CommandLine.Command(name = "get", description = ["Get a set operation report"])
+class GetReportCommand : Runnable {
+  override fun run() {}
+}
+
+@CommandLine.Command(
+  name = "reports",
+  sortOptions = false,
+  subcommands =
+    [
+      CommandLine.HelpCommand::class,
       CreateReportCommand::class,
       ListReportsCommand::class,
       GetReportCommand::class,
+    ]
+)
+class ReportsCommand : Runnable {
+  @CommandLine.ParentCommand lateinit var parent: Reporting
+
+  val reportingSetStub: ReportingSetsCoroutineStub by lazy {
+    ReportingSetsCoroutineStub(parent.channel)
+  }
+  val reportsStub: ReportsCoroutineStub by lazy { ReportsCoroutineStub(parent.channel) }
+
+  override fun run() {}
+}
+
+@CommandLine.Command(
+  name = "reporting",
+  description = ["Reporting CLI tool"],
+  sortOptions = false,
+  subcommands =
+    [
+      CommandLine.HelpCommand::class,
+      ReportingSetsCommand::class,
+      ReportsCommand::class,
     ]
 )
 class Reporting : Runnable {

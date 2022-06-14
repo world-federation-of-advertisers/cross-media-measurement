@@ -14,8 +14,9 @@
 
 package org.wfanet.measurement.reporting.service.api.v1alpha.tools
 
+import io.grpc.Server
 import io.grpc.ServerServiceDefinition
-import io.netty.handler.ssl.ClientAuth
+import io.grpc.netty.NettyServerBuilder
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.concurrent.TimeUnit.SECONDS
@@ -27,8 +28,8 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.getRuntimePath
-import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.grpc.toServerTlsContext
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.reporting.v1alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.reporting.v1alpha.createReportingSetRequest
@@ -38,7 +39,6 @@ import org.wfanet.measurement.reporting.v1alpha.reportingSet
 import picocli.CommandLine
 
 private const val HOST = "localhost"
-private const val PORT = 15789
 private val SECRETS_DIR: Path =
   getRuntimePath(
     Paths.get(
@@ -80,38 +80,34 @@ class ReportingTest {
       onBlocking { listReportingSets(any()) }.thenReturn(LIST_REPORTING_SETS_RESPONSE)
     }
 
-  private lateinit var server: CommonServer
+  // TODO(@renjiez): Use reporting server's credential
+  private val serverCerts =
+    SigningCerts.fromPemFiles(
+      certificateFile = SECRETS_DIR.resolve("kingdom_tls.pem").toFile(),
+      privateKeyFile = SECRETS_DIR.resolve("kingdom_tls.key").toFile(),
+      trustedCertCollectionFile = SECRETS_DIR.resolve("mc_root.pem").toFile(),
+    )
+
+  private val services: List<ServerServiceDefinition> =
+    listOf(
+      reportingSetsServiceMock.bindService(),
+    )
+
+  private val server: Server =
+    NettyServerBuilder.forPort(0)
+      .sslContext(serverCerts.toServerTlsContext())
+      .addServices(services)
+      .build()
+
   @Before
   fun initServer() {
-    val services: List<ServerServiceDefinition> =
-      listOf(
-        reportingSetsServiceMock.bindService(),
-      )
-
-    // TODO(@renjiez): Use reporting server's credential
-    val serverCerts =
-      SigningCerts.fromPemFiles(
-        certificateFile = SECRETS_DIR.resolve("kingdom_tls.pem").toFile(),
-        privateKeyFile = SECRETS_DIR.resolve("kingdom_tls.key").toFile(),
-        trustedCertCollectionFile = SECRETS_DIR.resolve("mc_root.pem").toFile(),
-      )
-
-    server =
-      CommonServer.fromParameters(
-        PORT,
-        true,
-        serverCerts,
-        ClientAuth.REQUIRE,
-        "kingdom-test",
-        services
-      )
     server.start()
   }
 
   @After
   fun shutdownServer() {
-    server.server.shutdown()
-    server.server.awaitTermination(1, SECONDS)
+    server.shutdown()
+    server.awaitTermination(1, SECONDS)
   }
 
   @Test
@@ -121,13 +117,13 @@ class ReportingTest {
         "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
         "--tls-key-file=$SECRETS_DIR/mc_tls.key",
         "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
-        "--reporting-server-api-target=$HOST:$PORT",
-        "create-reporting-set",
-        "--measurement-consumer=$MEASUREMENT_CONSUMER_NAME",
-        "--event-groups",
-        "dataProviders/1/eventGroups/1",
-        "dataProviders/1/eventGroups/2",
-        "dataProviders/2/eventGroups/1",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "reporting-sets",
+        "create",
+        "--parent=$MEASUREMENT_CONSUMER_NAME",
+        "--event-group=dataProviders/1/eventGroups/1",
+        "--event-group=dataProviders/1/eventGroups/2",
+        "--event-group=dataProviders/2/eventGroups/1",
         "--filter=some.filter",
         "--display-name=test-reporting-set",
       )
@@ -158,9 +154,10 @@ class ReportingTest {
         "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
         "--tls-key-file=$SECRETS_DIR/mc_tls.key",
         "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
-        "--reporting-server-api-target=$HOST:$PORT",
-        "list-reporting-sets",
-        "--measurement-consumer=$MEASUREMENT_CONSUMER_NAME",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "reporting-sets",
+        "list",
+        "--parent=$MEASUREMENT_CONSUMER_NAME",
       )
     CommandLine(Reporting()).execute(*args)
 
