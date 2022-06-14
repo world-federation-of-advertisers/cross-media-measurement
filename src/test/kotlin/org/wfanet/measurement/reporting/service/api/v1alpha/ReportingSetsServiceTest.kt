@@ -279,4 +279,25 @@ class ReportingSetsServiceTest {
     assertThat(exception.status.description)
       .isEqualTo("EventGroups in ReportingSet cannot be empty.")
   }
+
+  @Test
+  fun `createReportingSet throws INVALID_ARGUMENT when there is any invalid EventGroup`() {
+    val invalidEventGroupName = "invalid"
+    val request = createReportingSetRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      reportingSet = reportingSet {
+        name = REPORTING_SET_NAME
+        eventGroups.addAll(listOf(EVENT_GROUP_NAME, invalidEventGroupName))
+        filter = FILTER
+        displayName = DISPLAY_NAME
+      }
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.createReportingSet(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
 }
