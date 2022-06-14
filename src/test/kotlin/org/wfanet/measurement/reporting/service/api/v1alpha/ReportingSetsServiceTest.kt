@@ -216,4 +216,16 @@ class ReportingSetsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
+
+  @Test
+  fun `createReportingSet throws INVALID_ARGUMENT when parent is missing`() {
+    val request = createReportingSetRequest { reportingSet = REPORTING_SET }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.createReportingSet(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
 }
