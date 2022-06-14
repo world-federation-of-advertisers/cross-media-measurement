@@ -662,4 +662,12 @@ class ReportingSetsServiceTest {
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
+
+  @Test
+  fun `listReportingSets throws UNAUTHENTICATED when no principal is found`() {
+    val request = listReportingSetsRequest { parent = MEASUREMENT_CONSUMER_NAME }
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.listReportingSets(request) } }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
 }
