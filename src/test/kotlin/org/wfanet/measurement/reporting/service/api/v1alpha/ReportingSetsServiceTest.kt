@@ -698,4 +698,20 @@ class ReportingSetsServiceTest {
     assertThat(exception.status.description)
       .isEqualTo("Caller does not have permission to list ReportingSets.")
   }
+
+  @Test
+  fun `listReportingSets throws INVALID_ARGUMENT when page size is less than 0`() {
+    val request = listReportingSetsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      pageSize = -1
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.listReportingSets(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("Page size cannot be less than 0")
+  }
 }
