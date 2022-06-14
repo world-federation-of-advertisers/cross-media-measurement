@@ -10,12 +10,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
-import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.reporting.ReportingSet as InternalReportingSet
@@ -28,56 +27,69 @@ import org.wfanet.measurement.reporting.v1alpha.ReportingSet
 import org.wfanet.measurement.reporting.v1alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v1alpha.reportingSet
 
-// Reporting set names and IDs
-private const val REPORTING_SET_NAME = "reportingSet"
-private const val REPORTING_SET_NAME_2 = "reportingSet2"
-private const val REPORTING_SET_NAME_3 = "reportingSet3"
+// Measurement consumer IDs and names
+private const val MEASUREMENT_CONSUMER_EXTERNAL_ID = 111L
+private val MEASUREMENT_CONSUMER_REFERENCE_ID = externalIdToApiId(MEASUREMENT_CONSUMER_EXTERNAL_ID)
+private val MEASUREMENT_CONSUMER_NAME =
+  MeasurementConsumerKey(MEASUREMENT_CONSUMER_REFERENCE_ID).toName()
 
-private val EXTERNAL_REPORTING_SET_ID =
-  apiIdToExternalId(ReportingSetKey.fromName(REPORTING_SET_NAME)!!.reportingSetId)
-private val EXTERNAL_REPORTING_SET_ID_2 =
-  apiIdToExternalId(ReportingSetKey.fromName(REPORTING_SET_NAME_2)!!.reportingSetId)
-private val EXTERNAL_REPORTING_SET_ID_3 =
-  apiIdToExternalId(ReportingSetKey.fromName(REPORTING_SET_NAME_3)!!.reportingSetId)
-
-// Measurement consumer names and IDs
-private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumer"
-private const val MEASUREMENT_CONSUMER_NAME_2 = "measurementConsumer2"
-private const val MEASUREMENT_CONSUMER_NAME_3 = "measurementConsumer3"
-
-private val MEASUREMENT_CONSUMER_REFERENCE_ID =
-  MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId
-private val MEASUREMENT_CONSUMER_REFERENCE_ID_2 =
-  MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME_2)!!.measurementConsumerId
-private val MEASUREMENT_CONSUMER_REFERENCE_ID_3 =
-  MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME_3)!!.measurementConsumerId
-
-// Data provider names and IDs
-private val DATA_PROVIDER_EXTERNAL_ID = 123L
-private val DATA_PROVIDER_EXTERNAL_ID_2 = 124L
-private val DATA_PROVIDER_EXTERNAL_ID_3 = 125L
-
+// Data provider IDs and names
+private const val DATA_PROVIDER_EXTERNAL_ID = 221L
+private const val DATA_PROVIDER_EXTERNAL_ID_2 = 222L
+private const val DATA_PROVIDER_EXTERNAL_ID_3 = 223L
 private val DATA_PROVIDER_REFERENCE_ID = externalIdToApiId(DATA_PROVIDER_EXTERNAL_ID)
 private val DATA_PROVIDER_REFERENCE_ID_2 = externalIdToApiId(DATA_PROVIDER_EXTERNAL_ID_2)
 private val DATA_PROVIDER_REFERENCE_ID_3 = externalIdToApiId(DATA_PROVIDER_EXTERNAL_ID_3)
 
-private val DATA_PROVIDER_NAME = makeDataProvider(DATA_PROVIDER_EXTERNAL_ID)
-private val DATA_PROVIDER_NAME_2 = makeDataProvider(DATA_PROVIDER_EXTERNAL_ID_2)
-private val DATA_PROVIDER_NAME_3 = makeDataProvider(DATA_PROVIDER_EXTERNAL_ID_3)
+private val DATA_PROVIDER_NAME = DataProviderKey(DATA_PROVIDER_REFERENCE_ID).toName()
+private val DATA_PROVIDER_NAME_2 = DataProviderKey(DATA_PROVIDER_REFERENCE_ID_2).toName()
+private val DATA_PROVIDER_NAME_3 = DataProviderKey(DATA_PROVIDER_REFERENCE_ID_3).toName()
 
-// Event group names and IDs
-private val EVENT_GROUP_RESOURCE_NAME = "$DATA_PROVIDER_NAME/eventGroupResourceName"
-private val EVENT_GROUP_RESOURCE_NAME_2 = "$DATA_PROVIDER_NAME_2/eventGroupResourceName2"
-private val EVENT_GROUP_RESOURCE_NAME_3 = "$DATA_PROVIDER_NAME_3/eventGroupResourceName3"
-private val EVENT_GROUP_RESOURCE_NAMES =
-  listOf(EVENT_GROUP_RESOURCE_NAME, EVENT_GROUP_RESOURCE_NAME_2, EVENT_GROUP_RESOURCE_NAME_3)
+// Reporting set IDs and names
+private val REPORTING_SET_EXTERNAL_ID = 331L
+private val REPORTING_SET_EXTERNAL_ID_2 = 332L
+private val REPORTING_SET_EXTERNAL_ID_3 = 333L
 
-private val EVENT_GROUP_REFERENCE_ID =
-  EventGroupKey.fromName(EVENT_GROUP_RESOURCE_NAME)!!.eventGroupReferenceId
-private val EVENT_GROUP_REFERENCE_ID_2 =
-  EventGroupKey.fromName(EVENT_GROUP_RESOURCE_NAME_2)!!.eventGroupReferenceId
-private val EVENT_GROUP_REFERENCE_ID_3 =
-  EventGroupKey.fromName(EVENT_GROUP_RESOURCE_NAME_3)!!.eventGroupReferenceId
+private val REPORTING_SET_NAME =
+  ReportingSetKey(MEASUREMENT_CONSUMER_REFERENCE_ID, externalIdToApiId(REPORTING_SET_EXTERNAL_ID))
+    .toName()
+private val REPORTING_SET_NAME_2 =
+  ReportingSetKey(MEASUREMENT_CONSUMER_REFERENCE_ID, externalIdToApiId(REPORTING_SET_EXTERNAL_ID_2))
+    .toName()
+private val REPORTING_SET_NAME_3 =
+  ReportingSetKey(MEASUREMENT_CONSUMER_REFERENCE_ID, externalIdToApiId(REPORTING_SET_EXTERNAL_ID_3))
+    .toName()
+
+// Event group IDs and names
+private val EVENT_GROUP_EXTERNAL_ID = 441L
+private val EVENT_GROUP_EXTERNAL_ID_2 = 442L
+private val EVENT_GROUP_EXTERNAL_ID_3 = 443L
+private val EVENT_GROUP_REFERENCE_ID = externalIdToApiId(EVENT_GROUP_EXTERNAL_ID)
+private val EVENT_GROUP_REFERENCE_ID_2 = externalIdToApiId(EVENT_GROUP_EXTERNAL_ID_2)
+private val EVENT_GROUP_REFERENCE_ID_3 = externalIdToApiId(EVENT_GROUP_EXTERNAL_ID_3)
+
+private val EVENT_GROUP_NAME =
+  EventGroupKey(
+      MEASUREMENT_CONSUMER_REFERENCE_ID,
+      DATA_PROVIDER_REFERENCE_ID,
+      EVENT_GROUP_REFERENCE_ID
+    )
+    .toName()
+private val EVENT_GROUP_NAME_2 =
+  EventGroupKey(
+      MEASUREMENT_CONSUMER_REFERENCE_ID,
+      DATA_PROVIDER_REFERENCE_ID_2,
+      EVENT_GROUP_REFERENCE_ID_2
+    )
+    .toName()
+private val EVENT_GROUP_NAME_3 =
+  EventGroupKey(
+      MEASUREMENT_CONSUMER_REFERENCE_ID,
+      DATA_PROVIDER_REFERENCE_ID_3,
+      EVENT_GROUP_REFERENCE_ID_3
+    )
+    .toName()
+private val EVENT_GROUP_NAMES = listOf(EVENT_GROUP_NAME, EVENT_GROUP_NAME_2, EVENT_GROUP_NAME_3)
 
 // Event group keys
 private val EVENT_GROUP_KEY = eventGroupKey {
@@ -86,12 +98,12 @@ private val EVENT_GROUP_KEY = eventGroupKey {
   eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
 }
 private val EVENT_GROUP_KEY_2 = eventGroupKey {
-  measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID_2
+  measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
   dataProviderReferenceId = DATA_PROVIDER_REFERENCE_ID_2
   eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID_2
 }
 private val EVENT_GROUP_KEY_3 = eventGroupKey {
-  measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID_3
+  measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
   dataProviderReferenceId = DATA_PROVIDER_REFERENCE_ID_3
   eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID_3
 }
@@ -101,11 +113,11 @@ private val EVENT_GROUP_KEYS = listOf(EVENT_GROUP_KEY, EVENT_GROUP_KEY_2, EVENT_
 private const val FILTER = "AGE>20"
 
 // Reporting sets
-private const val DISPLAY_NAME = REPORTING_SET_NAME + FILTER
+private val DISPLAY_NAME = REPORTING_SET_NAME + FILTER
 
 private val REPORTING_SET: ReportingSet = reportingSet {
   name = REPORTING_SET_NAME
-  eventGroups.addAll(EVENT_GROUP_RESOURCE_NAMES)
+  eventGroups.addAll(EVENT_GROUP_NAMES)
   filter = FILTER
   displayName = DISPLAY_NAME
 }
@@ -113,7 +125,7 @@ private val REPORTING_SET: ReportingSet = reportingSet {
 // Internal reporting sets
 private val INTERNAL_REPORTING_SET: InternalReportingSet = internalReportingSet {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
-  externalReportingSetId = EXTERNAL_REPORTING_SET_ID
+  externalReportingSetId = REPORTING_SET_EXTERNAL_ID
   eventGroupKeys.addAll(EVENT_GROUP_KEYS)
   filter = FILTER
   displayName = DISPLAY_NAME
@@ -129,8 +141,8 @@ class ReportingSetsServiceTest {
         .thenReturn(
           flowOf(
             INTERNAL_REPORTING_SET,
-            INTERNAL_REPORTING_SET.copy { externalReportingSetId = EXTERNAL_REPORTING_SET_ID_2 },
-            INTERNAL_REPORTING_SET.copy { externalReportingSetId = EXTERNAL_REPORTING_SET_ID_3 }
+            INTERNAL_REPORTING_SET.copy { externalReportingSetId = REPORTING_SET_EXTERNAL_ID_2 },
+            INTERNAL_REPORTING_SET.copy { externalReportingSetId = REPORTING_SET_EXTERNAL_ID_3 }
           )
         )
     }
@@ -162,11 +174,7 @@ class ReportingSetsServiceTest {
         internalReportingSetsMock,
         ReportingSetsCoroutineImplBase::createReportingSet
       )
-      .isEqualTo(
-        INTERNAL_REPORTING_SET.copy {
-          clearExternalReportingSetId()
-        }
-      )
+      .isEqualTo(INTERNAL_REPORTING_SET.copy { clearExternalReportingSetId() })
 
     assertThat(result).isEqualTo(expected)
   }
