@@ -71,6 +71,7 @@ private val LIST_REPORTING_SETS_RESPONSE = listReportingSetsResponse {
     displayName = "test-reporting-set2"
   }
 }
+private const val MAX_PAGE_SIZE = 1000
 
 @RunWith(JUnit4::class)
 class ReportingTest {
@@ -111,7 +112,7 @@ class ReportingTest {
   }
 
   @Test
-  fun `Create reporting_set call api with valid CreateReportingSetRequest`() {
+  fun `reporting_sets create calls api with valid request`() {
     val args =
       arrayOf(
         "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
@@ -121,9 +122,9 @@ class ReportingTest {
         "reporting-sets",
         "create",
         "--parent=$MEASUREMENT_CONSUMER_NAME",
-        "--event-group=dataProviders/1/eventGroups/1",
-        "--event-group=dataProviders/1/eventGroups/2",
-        "--event-group=dataProviders/2/eventGroups/1",
+        "--event-group=$EVENT_GROUP_NAME_1",
+        "--event-group=$EVENT_GROUP_NAME_2",
+        "--event-group=$EVENT_GROUP_NAME_3",
         "--filter=some.filter",
         "--display-name=test-reporting-set",
       )
@@ -134,7 +135,6 @@ class ReportingTest {
         reportingSetsServiceMock,
         ReportingSetsCoroutineImplBase::createReportingSet
       )
-      .comparingExpectedFieldsOnly()
       .isEqualTo(
         createReportingSetRequest {
           parent = MEASUREMENT_CONSUMER_NAME
@@ -148,7 +148,7 @@ class ReportingTest {
   }
 
   @Test
-  fun `List reporting_sets call api with valid ListReportingSetRequest`() {
+  fun `reporting_sets list calls api with valid request`() {
     val args =
       arrayOf(
         "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
@@ -162,7 +162,11 @@ class ReportingTest {
     CommandLine(Reporting()).execute(*args)
 
     verifyProtoArgument(reportingSetsServiceMock, ReportingSetsCoroutineImplBase::listReportingSets)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(listReportingSetsRequest { parent = MEASUREMENT_CONSUMER_NAME })
+      .isEqualTo(
+        listReportingSetsRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          pageSize = MAX_PAGE_SIZE
+        }
+      )
   }
 }
