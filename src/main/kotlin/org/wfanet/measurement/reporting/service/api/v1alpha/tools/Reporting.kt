@@ -18,6 +18,8 @@ import com.google.protobuf.TextFormat
 import io.grpc.ManagedChannel
 import java.io.File
 import java.time.Duration
+import java.time.Instant
+import kotlin.properties.Delegates
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
@@ -25,12 +27,16 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
+import org.wfanet.measurement.reporting.v1alpha.Metric
 import org.wfanet.measurement.reporting.v1alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import org.wfanet.measurement.reporting.v1alpha.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.reporting.v1alpha.Report
+import org.wfanet.measurement.reporting.v1alpha.ReportKt.EventGroupUniverseKt.eventGroupEntry
+import org.wfanet.measurement.reporting.v1alpha.ReportKt.eventGroupUniverse
 import org.wfanet.measurement.reporting.v1alpha.createReportRequest
 import org.wfanet.measurement.reporting.v1alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v1alpha.listReportingSetsRequest
+import org.wfanet.measurement.reporting.v1alpha.report
 import org.wfanet.measurement.reporting.v1alpha.reportingSet
 import picocli.CommandLine
 
@@ -150,24 +156,131 @@ class CreateReportCommand : Runnable {
   )
   private lateinit var measurementConsumerName: String
 
-  @CommandLine.Option(
-    names = ["--report-proto-file"],
-    description = ["Textproto file of the report"],
-    required = true,
-  )
-  private lateinit var reportProtoFile: File
+  class EventGroupInput {
+    @CommandLine.Option(
+      names = ["--event-group-key"],
+      description = ["Event Group Entry's key"],
+      required = true,
+    )
+    lateinit var key: String
+      private set
 
-  private val reportProtoText: String by lazy {
-    reportProtoFile.readText()
+    @CommandLine.Option(
+      names = ["--event-group-value"],
+      description = ["Event Group Entry's value"],
+      defaultValue = "",
+      required = false,
+    )
+    lateinit var value: String
+      private set
   }
 
+  @CommandLine.ArgGroup(
+    exclusive = false,
+    multiplicity = "1..*",
+    heading = "Event Group Entries\n"
+  )
+  private lateinit var eventGroups: List<EventGroupInput>
+
+  class TimeInput {
+    class TimeIntervalInput {
+      @CommandLine.Option(
+        names = ["--interval-start-time"],
+        description = ["Start of time interval in ISO 8601 format of UTC"],
+        required = true,
+      )
+      lateinit var intervalStartTime: Instant
+        private set
+
+      @CommandLine.Option(
+        names = ["--interval-end-time"],
+        description = ["End of time interval in ISO 8601 format of UTC"],
+        required = true,
+      )
+      lateinit var intervalEndTime: Instant
+        private set
+    }
+
+    class PeriodicTimeIntervalInput {
+      @CommandLine.Option(
+        names = ["--periodic-interval-start-time"],
+        description = ["Start of the first time interval in ISO 8601 format of UTC"],
+        required = true,
+      )
+      lateinit var periodicIntervalStartTime: Instant
+        private set
+
+      @CommandLine.Option(
+        names = ["--periodic-interval-increment"],
+        description = ["Increment for each time interval in ISO-8601 format of PnDTnHnMn"],
+        required = true
+      )
+      lateinit var periodicIntervalIncrement: Duration
+
+      @set:CommandLine.Option(
+        names = ["--periodic-interval-count"],
+        description = ["Number of periodic intervals"],
+        required = true
+      )
+      var periodicIntervalCount by Delegates.notNull<Int>()
+        private set
+    }
+
+    @CommandLine.ArgGroup(
+      exclusive = false,
+      multiplicity = "1..*",
+      heading = "Time intervals\n"
+    )
+    var timeIntervals: List<TimeIntervalInput> = emptyList()
+
+    @CommandLine.ArgGroup(
+      exclusive = false,
+      multiplicity = "1..*",
+      heading = "Periodic time intervals\n"
+    )
+    var periodicTimeIntervalInput: List<PeriodicTimeIntervalInput> = emptyList()
+  }
+
+  @CommandLine.ArgGroup(
+    exclusive = true,
+    multiplicity = "1",
+    heading = "Time interval or periodic time interval\n"
+  )
+  private lateinit var timeInput: TimeInput
+
+  @CommandLine.Option(
+    names = ["--metrics-proto-file"],
+    description = ["Textproto file of the Metrics"],
+    required = true,
+  )
+  private lateinit var metricsProtoFile: File
+
+  private val metricsProtoText: String by lazy {
+    metricsProtoFile.readText()
+  }
 
   override fun run() {
     val reportsStub = ReportsCoroutineStub(parent.channel)
 
     val request = createReportRequest {
       parent = measurementConsumerName
-      TextFormat.getParser().merge(reportProtoText, Report.newBuilder())
+      report = report {
+        measurementConsumer = measurementConsumerName
+        eventGroupUniverse = eventGroupUniverse {
+          eventGroups.map{
+            eventGroupEntries += eventGroupEntry {
+              key = it.key
+              value = it.value
+            }
+          }
+        }
+
+        // Either timeIntervals or periodicTimeIntervalInput is non-empty.
+        timeInput.timeIntervals.map {  }
+        timeInput.periodicTimeIntervalInput.map {  }
+        TextFormat.getParser().merge(metricsProtoText, Report.newBuilder())
+      }
+
     }
     val report = runBlocking(Dispatchers.IO) {
       reportsStub.createReport(request)
