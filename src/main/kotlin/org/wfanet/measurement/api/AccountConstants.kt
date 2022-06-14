@@ -17,6 +17,8 @@ package org.wfanet.measurement.api
 import io.grpc.Context
 import io.grpc.Metadata
 import io.grpc.Status
+import io.grpc.stub.AbstractStub
+import io.grpc.stub.MetadataUtils
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.internal.kingdom.Account
 
@@ -36,3 +38,9 @@ val accountFromCurrentContext: Account
   get() =
     AccountConstants.CONTEXT_ACCOUNT_KEY.get()
       ?: failGrpc(Status.UNAUTHENTICATED) { "Account not found" }
+
+fun <T : AbstractStub<T>> T.withIdToken(idToken: String? = null): T {
+  val metadata = Metadata()
+  idToken?.let { metadata.put(AccountConstants.ID_TOKEN_METADATA_KEY, it) }
+  return withInterceptors(MetadataUtils.newAttachHeadersInterceptor(metadata))
+}
