@@ -26,8 +26,6 @@ import io.grpc.ServerServiceDefinition
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
-import io.grpc.stub.AbstractStub
-import io.grpc.stub.MetadataUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -106,12 +104,6 @@ class AccountAuthenticationServerInterceptor(
       authenticateAccountRequest { identity = openIdConnectIdentity }
     )
   }
-}
-
-fun <T : AbstractStub<T>> T.withIdToken(idToken: String? = null): T {
-  val extraHeaders = Metadata()
-  idToken?.let { extraHeaders.put(AccountConstants.ID_TOKEN_METADATA_KEY, it) }
-  return withInterceptors(MetadataUtils.newAttachHeadersInterceptor(extraHeaders))
 }
 
 fun BindableService.withAccountAuthenticationServerInterceptor(
