@@ -681,5 +681,21 @@ class ReportingSetsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.description)
+      .isEqualTo("Cannot list ReportingSets belonging to other MeasurementConsumers.")
+  }
+
+  @Test
+  fun `listReportingSets throws PERMISSION_DENIED when the caller is not MeasurementConsumer`() {
+    val request = listReportingSetsRequest { parent = MEASUREMENT_CONSUMER_NAME }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.listReportingSets(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.description)
+      .isEqualTo("Caller does not have permission to list ReportingSets.")
   }
 }
