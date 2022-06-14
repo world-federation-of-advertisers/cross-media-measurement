@@ -726,4 +726,29 @@ class ReportingSetsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
+
+  @Test
+  fun `listReportingSets throws INVALID_ARGUMENT when mc id doesn't match one in page token`() {
+    val request = listReportingSetsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      pageToken =
+        listReportingSetsPageToken {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID_2
+            lastReportingSet = previousPageEnd {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID_2
+              externalReportingSetId = REPORTING_SET_EXTERNAL_ID
+            }
+          }
+          .toByteString()
+          .base64UrlEncode()
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.listReportingSets(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
 }
