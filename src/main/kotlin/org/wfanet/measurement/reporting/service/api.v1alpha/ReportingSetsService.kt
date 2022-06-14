@@ -132,7 +132,7 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
               externalReportingSetId = results[results.lastIndex - 1].externalReportingSetId
             }
           }
-        nextPageToken = pageToken.toByteArray().base64UrlEncode()
+        nextPageToken = pageToken.toByteString().base64UrlEncode()
       }
     }
   }
