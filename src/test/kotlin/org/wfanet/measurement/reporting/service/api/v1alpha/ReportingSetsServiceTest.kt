@@ -43,6 +43,7 @@ import org.wfanet.measurement.reporting.v1alpha.listReportingSetsResponse
 import org.wfanet.measurement.reporting.v1alpha.reportingSet
 
 private const val DEFAULT_PAGE_SIZE = 50
+private const val MAX_PAGE_SIZE = 100
 private const val PAGE_SIZE = 2
 
 // Measurement consumer IDs and names
@@ -476,6 +477,53 @@ class ReportingSetsServiceTest {
             StreamReportingSetsRequestKt.filter {
               measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
               externalReportingSetIdAfter = REPORTING_SET_EXTERNAL_ID
+            }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listReportingSets with page size replaced with a valid value and no previous page token`() {
+    val invalidPageSize = MAX_PAGE_SIZE * 2
+    val request = listReportingSetsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      pageSize = invalidPageSize
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.listReportingSets(request) }
+      }
+
+    val expected = listReportingSetsResponse {
+      reportingSets += REPORTING_SET
+      reportingSets +=
+        REPORTING_SET.copy {
+          name = REPORTING_SET_NAME_2
+          displayName = DISPLAY_NAME_2
+        }
+      reportingSets +=
+        REPORTING_SET.copy {
+          name = REPORTING_SET_NAME_3
+          displayName = DISPLAY_NAME_3
+        }
+    }
+
+    val streamReportingSetsRequest =
+      captureFirst<StreamReportingSetsRequest> {
+        verify(internalReportingSetsMock).streamReportingSets(capture())
+      }
+
+    assertThat(streamReportingSetsRequest)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        streamReportingSetsRequest {
+          limit = MAX_PAGE_SIZE + 1
+          filter =
+            StreamReportingSetsRequestKt.filter {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
             }
         }
       )
