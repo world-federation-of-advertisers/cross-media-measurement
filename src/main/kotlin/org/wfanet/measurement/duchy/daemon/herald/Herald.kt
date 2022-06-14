@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
+import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.withRetriesOnEach
@@ -38,8 +39,8 @@ import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.Computation.State
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
-import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsRequest
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
+import org.wfanet.measurement.system.v1alpha.streamActiveComputationsRequest
 
 /**
  * The Herald looks to the kingdom for status of computations.
@@ -106,7 +107,10 @@ class Herald(
     logger.info("Reading stream of active computations since $continuationToken.")
     systemComputationsClient
       .streamActiveComputations(
-        StreamActiveComputationsRequest.newBuilder().setContinuationToken(continuationToken).build()
+        streamActiveComputationsRequest {
+          duchyName = DuchyKey("me").toName()
+          this.continuationToken = continuationToken
+        }
       )
       .withRetriesOnEach(maxAttempts = 3, retryPredicate = ::mayBeTransientGrpcError) { response ->
         processSystemComputationChange(response)
