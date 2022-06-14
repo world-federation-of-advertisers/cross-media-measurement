@@ -23,9 +23,9 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.internal.reporting.ReportingSet
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.StreamReportingSetsRequest
-import org.wfanet.measurement.reporting.deploy.postgres.common.ReportingSetAlreadyExistsException
 import org.wfanet.measurement.reporting.deploy.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.deploy.postgres.writers.CreateReportingSet
+import org.wfanet.measurement.reporting.service.internal.ReportingSetAlreadyExistsException
 
 class PostgresReportingSetsService(
   private val idGenerator: IdGenerator,

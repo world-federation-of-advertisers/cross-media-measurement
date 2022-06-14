@@ -20,8 +20,8 @@ import kotlinx.coroutines.coroutineScope
 import org.wfanet.measurement.common.db.r2dbc.StatementBuilder.Companion.statementBuilder
 import org.wfanet.measurement.internal.reporting.ReportingSet
 import org.wfanet.measurement.internal.reporting.copy
-import org.wfanet.measurement.reporting.deploy.postgres.common.ReportingInternalException
-import org.wfanet.measurement.reporting.deploy.postgres.common.ReportingSetAlreadyExistsException
+import org.wfanet.measurement.reporting.service.internal.ReportingInternalException
+import org.wfanet.measurement.reporting.service.internal.ReportingSetAlreadyExistsException
 
 /**
  * Inserts a Reporting Set into the database.
@@ -56,7 +56,7 @@ class CreateReportingSet(private val request: ReportingSet) : PostgresWriter<Rep
       }
       coroutineScope {
         request.eventGroupKeysList.map {
-          async { insertReportingSetEventGroupStatement(it, internalReportingSetId) }
+          async { insertReportingSetEventGroup(it, internalReportingSetId) }
         }
       }
     }
@@ -64,7 +64,7 @@ class CreateReportingSet(private val request: ReportingSet) : PostgresWriter<Rep
     return request.copy { this.externalReportingSetId = externalReportingSetId }
   }
 
-  private suspend fun TransactionScope.insertReportingSetEventGroupStatement(
+  private suspend fun TransactionScope.insertReportingSetEventGroup(
     eventGroupKey: ReportingSet.EventGroupKey,
     reportingSetId: Long
   ) {
