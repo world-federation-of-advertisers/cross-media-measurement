@@ -13,6 +13,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.verify
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
@@ -20,17 +21,25 @@ import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.reporting.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.ReportingSetKt.eventGroupKey
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
+import org.wfanet.measurement.internal.reporting.StreamReportingSetsRequest
+import org.wfanet.measurement.internal.reporting.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.copy
 import org.wfanet.measurement.internal.reporting.reportingSet as internalReportingSet
+import org.wfanet.measurement.internal.reporting.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.v1alpha.ReportingSet
 import org.wfanet.measurement.reporting.v1alpha.copy
 import org.wfanet.measurement.reporting.v1alpha.createReportingSetRequest
+import org.wfanet.measurement.reporting.v1alpha.listReportingSetsRequest
+import org.wfanet.measurement.reporting.v1alpha.listReportingSetsResponse
 import org.wfanet.measurement.reporting.v1alpha.reportingSet
+
+private const val DEFAULT_PAGE_SIZE = 50
 
 // Measurement consumer IDs and names
 private const val MEASUREMENT_CONSUMER_EXTERNAL_ID = 111L
@@ -151,8 +160,14 @@ class ReportingSetsServiceTest {
         .thenReturn(
           flowOf(
             INTERNAL_REPORTING_SET,
-            INTERNAL_REPORTING_SET.copy { externalReportingSetId = REPORTING_SET_EXTERNAL_ID_2 },
-            INTERNAL_REPORTING_SET.copy { externalReportingSetId = REPORTING_SET_EXTERNAL_ID_3 }
+            INTERNAL_REPORTING_SET.copy {
+              externalReportingSetId = REPORTING_SET_EXTERNAL_ID_2
+              displayName = REPORTING_SET_NAME_2 + FILTER
+            },
+            INTERNAL_REPORTING_SET.copy {
+              externalReportingSetId = REPORTING_SET_EXTERNAL_ID_3
+              displayName = REPORTING_SET_NAME_3 + FILTER
+            }
           )
         )
     }
@@ -301,5 +316,48 @@ class ReportingSetsServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description)
       .isEqualTo("EventGroup is either unspecified or invalid.")
+  }
+
+  @Test
+  fun `listReportingSets returns without a next page token when there is no previous page token`() {
+    val request = listReportingSetsRequest { parent = MEASUREMENT_CONSUMER_NAME }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.listReportingSets(request) }
+      }
+
+    val expected = listReportingSetsResponse {
+      reportingSets += REPORTING_SET
+      reportingSets +=
+        REPORTING_SET.copy {
+          name = REPORTING_SET_NAME_2
+          displayName = REPORTING_SET_NAME_2 + FILTER
+        }
+      reportingSets +=
+        REPORTING_SET.copy {
+          name = REPORTING_SET_NAME_3
+          displayName = REPORTING_SET_NAME_3 + FILTER
+        }
+    }
+
+    val streamReportingSetsRequest =
+      captureFirst<StreamReportingSetsRequest> {
+        verify(internalReportingSetsMock).streamReportingSets(capture())
+      }
+
+    assertThat(streamReportingSetsRequest)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        streamReportingSetsRequest {
+          limit = DEFAULT_PAGE_SIZE + 1
+          filter =
+            StreamReportingSetsRequestKt.filter {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
 }
