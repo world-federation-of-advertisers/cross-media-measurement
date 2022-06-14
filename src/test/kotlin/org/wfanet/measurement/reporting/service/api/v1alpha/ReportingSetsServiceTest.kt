@@ -2,6 +2,7 @@ package org.wfanet.measurement.reporting.service.api.v1alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
@@ -25,16 +26,20 @@ import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSe
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.copy
 import org.wfanet.measurement.internal.reporting.reportingSet as internalReportingSet
-import io.grpc.Status
 import org.wfanet.measurement.reporting.v1alpha.ReportingSet
 import org.wfanet.measurement.reporting.v1alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v1alpha.reportingSet
 
 // Measurement consumer IDs and names
 private const val MEASUREMENT_CONSUMER_EXTERNAL_ID = 111L
+private const val MEASUREMENT_CONSUMER_EXTERNAL_ID_2 = 112L
 private val MEASUREMENT_CONSUMER_REFERENCE_ID = externalIdToApiId(MEASUREMENT_CONSUMER_EXTERNAL_ID)
+private val MEASUREMENT_CONSUMER_REFERENCE_ID_2 =
+  externalIdToApiId(MEASUREMENT_CONSUMER_EXTERNAL_ID_2)
 private val MEASUREMENT_CONSUMER_NAME =
   MeasurementConsumerKey(MEASUREMENT_CONSUMER_REFERENCE_ID).toName()
+private val MEASUREMENT_CONSUMER_NAME_2 =
+  MeasurementConsumerKey(MEASUREMENT_CONSUMER_REFERENCE_ID_2).toName()
 
 // Data provider IDs and names
 private const val DATA_PROVIDER_EXTERNAL_ID = 221L
@@ -194,5 +199,21 @@ class ReportingSetsServiceTest {
         runBlocking { service.createReportingSet(request) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `createReportingSet throws PERMISSION_DENIED when MeasurementConsumer caller doesn't match`() {
+    val request = createReportingSetRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      reportingSet = REPORTING_SET
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME_2) {
+          runBlocking { service.createReportingSet(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 }
