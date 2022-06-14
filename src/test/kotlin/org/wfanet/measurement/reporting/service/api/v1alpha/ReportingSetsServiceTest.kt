@@ -596,4 +596,70 @@ class ReportingSetsServiceTest {
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
+
+  @Test
+  fun `listReportingSets with page size replacing the one in previous page token`() {
+    val newPageSize = PAGE_SIZE
+    val previousPageSize = 1
+    val request = listReportingSetsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      pageSize = newPageSize
+      pageToken =
+        listReportingSetsPageToken {
+            pageSize = previousPageSize
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            lastReportingSet = previousPageEnd {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+              externalReportingSetId = REPORTING_SET_EXTERNAL_ID
+            }
+          }
+          .toByteString()
+          .base64UrlEncode()
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.listReportingSets(request) }
+      }
+
+    val expected = listReportingSetsResponse {
+      reportingSets += REPORTING_SET
+      reportingSets +=
+        REPORTING_SET.copy {
+          name = REPORTING_SET_NAME_2
+          displayName = DISPLAY_NAME_2
+        }
+      nextPageToken =
+        listReportingSetsPageToken {
+            pageSize = newPageSize
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            lastReportingSet = previousPageEnd {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+              externalReportingSetId = REPORTING_SET_EXTERNAL_ID_2
+            }
+          }
+          .toByteString()
+          .base64UrlEncode()
+    }
+
+    val streamReportingSetsRequest =
+      captureFirst<StreamReportingSetsRequest> {
+        verify(internalReportingSetsMock).streamReportingSets(capture())
+      }
+
+    assertThat(streamReportingSetsRequest)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        streamReportingSetsRequest {
+          limit = newPageSize + 1
+          filter =
+            StreamReportingSetsRequestKt.filter {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+              externalReportingSetIdAfter = REPORTING_SET_EXTERNAL_ID
+            }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
 }
