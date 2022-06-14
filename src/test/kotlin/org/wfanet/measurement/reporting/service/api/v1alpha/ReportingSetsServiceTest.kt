@@ -43,6 +43,7 @@ import org.wfanet.measurement.reporting.v1alpha.listReportingSetsResponse
 import org.wfanet.measurement.reporting.v1alpha.reportingSet
 
 private const val DEFAULT_PAGE_SIZE = 50
+private const val PAGE_SIZE = 2
 
 // Measurement consumer IDs and names
 private const val MEASUREMENT_CONSUMER_EXTERNAL_ID = 111L
@@ -136,6 +137,8 @@ private const val FILTER = "AGE>20"
 
 // Reporting sets
 private val DISPLAY_NAME = REPORTING_SET_NAME + FILTER
+private val DISPLAY_NAME_2 = REPORTING_SET_NAME_2 + FILTER
+private val DISPLAY_NAME_3 = REPORTING_SET_NAME_3 + FILTER
 
 private val REPORTING_SET: ReportingSet = reportingSet {
   name = REPORTING_SET_NAME
@@ -165,11 +168,11 @@ class ReportingSetsServiceTest {
             INTERNAL_REPORTING_SET,
             INTERNAL_REPORTING_SET.copy {
               externalReportingSetId = REPORTING_SET_EXTERNAL_ID_2
-              displayName = REPORTING_SET_NAME_2 + FILTER
+              displayName = DISPLAY_NAME_2
             },
             INTERNAL_REPORTING_SET.copy {
               externalReportingSetId = REPORTING_SET_EXTERNAL_ID_3
-              displayName = REPORTING_SET_NAME_3 + FILTER
+              displayName = DISPLAY_NAME_3
             }
           )
         )
@@ -335,12 +338,12 @@ class ReportingSetsServiceTest {
       reportingSets +=
         REPORTING_SET.copy {
           name = REPORTING_SET_NAME_2
-          displayName = REPORTING_SET_NAME_2 + FILTER
+          displayName = DISPLAY_NAME_2
         }
       reportingSets +=
         REPORTING_SET.copy {
           name = REPORTING_SET_NAME_3
-          displayName = REPORTING_SET_NAME_3 + FILTER
+          displayName = DISPLAY_NAME_3
         }
     }
 
@@ -365,11 +368,21 @@ class ReportingSetsServiceTest {
   }
 
   @Test
-  fun `listReportingSets returns with a next page token when there is no previous page token`() {
-    val pageSize = 2
+  fun `listReportingSets returns without a next page token when there is a previous page token`() {
     val request = listReportingSetsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
-      this.pageSize = pageSize
+      pageSize = PAGE_SIZE
+      pageToken =
+        listReportingSetsPageToken {
+            pageSize = PAGE_SIZE
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            lastReportingSet = previousPageEnd {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+              externalReportingSetId = REPORTING_SET_EXTERNAL_ID
+            }
+          }
+          .toByteString()
+          .base64UrlEncode()
     }
 
     val result =
@@ -382,11 +395,11 @@ class ReportingSetsServiceTest {
       reportingSets +=
         REPORTING_SET.copy {
           name = REPORTING_SET_NAME_2
-          displayName = REPORTING_SET_NAME_2 + FILTER
+          displayName = DISPLAY_NAME_2
         }
       nextPageToken =
         listReportingSetsPageToken {
-            this.pageSize = pageSize
+            pageSize = PAGE_SIZE
             measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
             lastReportingSet = previousPageEnd {
               measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
@@ -406,7 +419,60 @@ class ReportingSetsServiceTest {
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
         streamReportingSetsRequest {
-          limit = pageSize + 1
+          limit = PAGE_SIZE + 1
+          filter =
+            StreamReportingSetsRequestKt.filter {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+              externalReportingSetIdAfter = REPORTING_SET_EXTERNAL_ID
+            }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listReportingSets returns with a next page token when there is no previous page token`() {
+    val request = listReportingSetsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      pageSize = PAGE_SIZE
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.listReportingSets(request) }
+      }
+
+    val expected = listReportingSetsResponse {
+      reportingSets += REPORTING_SET
+      reportingSets +=
+        REPORTING_SET.copy {
+          name = REPORTING_SET_NAME_2
+          displayName = DISPLAY_NAME_2
+        }
+      nextPageToken =
+        listReportingSetsPageToken {
+            pageSize = PAGE_SIZE
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            lastReportingSet = previousPageEnd {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+              externalReportingSetId = REPORTING_SET_EXTERNAL_ID_2
+            }
+          }
+          .toByteString()
+          .base64UrlEncode()
+    }
+
+    val streamReportingSetsRequest =
+      captureFirst<StreamReportingSetsRequest> {
+        verify(internalReportingSetsMock).streamReportingSets(capture())
+      }
+
+    assertThat(streamReportingSetsRequest)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        streamReportingSetsRequest {
+          limit = PAGE_SIZE + 1
           filter =
             StreamReportingSetsRequestKt.filter {
               measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
