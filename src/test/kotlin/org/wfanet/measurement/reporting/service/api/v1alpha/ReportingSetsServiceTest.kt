@@ -2,6 +2,8 @@ package org.wfanet.measurement.reporting.service.api.v1alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import io.grpc.StatusRuntimeException
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -23,6 +25,7 @@ import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSe
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.copy
 import org.wfanet.measurement.internal.reporting.reportingSet as internalReportingSet
+import io.grpc.Status
 import org.wfanet.measurement.reporting.v1alpha.ReportingSet
 import org.wfanet.measurement.reporting.v1alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v1alpha.reportingSet
@@ -177,5 +180,19 @@ class ReportingSetsServiceTest {
       .isEqualTo(INTERNAL_REPORTING_SET.copy { clearExternalReportingSetId() })
 
     assertThat(result).isEqualTo(expected)
+  }
+
+  @Test
+  fun `createReportingSet throws UNAUTHENTICATED when no principal is found`() {
+    val request = createReportingSetRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      reportingSet = REPORTING_SET
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking { service.createReportingSet(request) }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 }
