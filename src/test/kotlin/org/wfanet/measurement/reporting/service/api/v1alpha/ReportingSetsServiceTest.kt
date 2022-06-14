@@ -15,6 +15,7 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -217,6 +218,24 @@ class ReportingSetsServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
     assertThat(exception.status.description)
       .isEqualTo("Cannot create a ReportingSet for another MeasurementConsumer.")
+  }
+
+  @Test
+  fun `createReportingSet throws PERMISSION_DENIED when caller is not MeasurementConsumer`() {
+    val request = createReportingSetRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      reportingSet = REPORTING_SET
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.createReportingSet(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.description)
+      .isEqualTo("Caller does not have permission to create a ReportingSet.")
   }
 
   @Test
