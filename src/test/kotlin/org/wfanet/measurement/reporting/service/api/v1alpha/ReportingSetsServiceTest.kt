@@ -215,6 +215,8 @@ class ReportingSetsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.description)
+      .isEqualTo("Cannot create a ReportingSet for another MeasurementConsumer.")
   }
 
   @Test
