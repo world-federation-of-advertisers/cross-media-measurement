@@ -28,6 +28,7 @@ import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSe
 import org.wfanet.measurement.internal.reporting.copy
 import org.wfanet.measurement.internal.reporting.reportingSet as internalReportingSet
 import org.wfanet.measurement.reporting.v1alpha.ReportingSet
+import org.wfanet.measurement.reporting.v1alpha.copy
 import org.wfanet.measurement.reporting.v1alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v1alpha.reportingSet
 
@@ -260,5 +261,22 @@ class ReportingSetsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createReportingSet throws INVALID_ARGUMENT when EventGroups in ReportingSet is empty`() {
+    val request = createReportingSetRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      reportingSet = REPORTING_SET.copy { eventGroups.clear() }
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.createReportingSet(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("EventGroups in ReportingSet cannot be empty.")
   }
 }
