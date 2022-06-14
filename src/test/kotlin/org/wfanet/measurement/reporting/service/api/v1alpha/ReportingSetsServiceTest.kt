@@ -14,10 +14,13 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.verify
+import org.wfanet.measurement.api.v2.alpha.ListReportingSetsPageTokenKt.previousPageEnd
+import org.wfanet.measurement.api.v2.alpha.listReportingSetsPageToken
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
+import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
@@ -351,6 +354,59 @@ class ReportingSetsServiceTest {
       .isEqualTo(
         streamReportingSetsRequest {
           limit = DEFAULT_PAGE_SIZE + 1
+          filter =
+            StreamReportingSetsRequestKt.filter {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listReportingSets returns with a next page token when there is no previous page token`() {
+    val pageSize = 2
+    val request = listReportingSetsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      this.pageSize = pageSize
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.listReportingSets(request) }
+      }
+
+    val expected = listReportingSetsResponse {
+      reportingSets += REPORTING_SET
+      reportingSets +=
+        REPORTING_SET.copy {
+          name = REPORTING_SET_NAME_2
+          displayName = REPORTING_SET_NAME_2 + FILTER
+        }
+      nextPageToken =
+        listReportingSetsPageToken {
+            this.pageSize = pageSize
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            lastReportingSet = previousPageEnd {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+              externalReportingSetId = REPORTING_SET_EXTERNAL_ID_2
+            }
+          }
+          .toByteString()
+          .base64UrlEncode()
+    }
+
+    val streamReportingSetsRequest =
+      captureFirst<StreamReportingSetsRequest> {
+        verify(internalReportingSetsMock).streamReportingSets(capture())
+      }
+
+    assertThat(streamReportingSetsRequest)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        streamReportingSetsRequest {
+          limit = pageSize + 1
           filter =
             StreamReportingSetsRequestKt.filter {
               measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
