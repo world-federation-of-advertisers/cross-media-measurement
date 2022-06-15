@@ -90,7 +90,8 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
           when (val resourceKey = principal.resourceKey) {
             is DataProviderKey -> {}
             is MeasurementConsumerKey -> {
-              if (apiIdToExternalId(resourceKey.measurementConsumerId) !=
+              if (
+                apiIdToExternalId(resourceKey.measurementConsumerId) !=
                   externalMeasurementConsumerId
               ) {
                 failGrpc(Status.PERMISSION_DENIED) {
@@ -165,7 +166,8 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
 
           when (val resourceKey = principal.resourceKey) {
             is MeasurementConsumerKey -> {
-              if (apiIdToExternalId(resourceKey.measurementConsumerId) !=
+              if (
+                apiIdToExternalId(resourceKey.measurementConsumerId) !=
                   externalMeasurementConsumerId
               ) {
                 failGrpc(Status.PERMISSION_DENIED) {
@@ -259,7 +261,8 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
 
           when (val resourceKey = principal.resourceKey) {
             is MeasurementConsumerKey -> {
-              if (apiIdToExternalId(resourceKey.measurementConsumerId) !=
+              if (
+                apiIdToExternalId(resourceKey.measurementConsumerId) !=
                   externalMeasurementConsumerId
               ) {
                 failGrpc(Status.PERMISSION_DENIED) {
@@ -351,7 +354,8 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
 
           when (val resourceKey = principal.resourceKey) {
             is MeasurementConsumerKey -> {
-              if (apiIdToExternalId(resourceKey.measurementConsumerId) !=
+              if (
+                apiIdToExternalId(resourceKey.measurementConsumerId) !=
                   externalMeasurementConsumerId
               ) {
                 failGrpc(Status.PERMISSION_DENIED) {
@@ -430,7 +434,8 @@ private fun InternalRevocationState.toRevocationState(): RevocationState =
   when (this) {
     InternalRevocationState.REVOKED -> RevocationState.REVOKED
     InternalRevocationState.HOLD -> RevocationState.HOLD
-    InternalRevocationState.UNRECOGNIZED, InternalRevocationState.REVOCATION_STATE_UNSPECIFIED ->
+    InternalRevocationState.UNRECOGNIZED,
+    InternalRevocationState.REVOCATION_STATE_UNSPECIFIED ->
       RevocationState.REVOCATION_STATE_UNSPECIFIED
   }
 
@@ -439,7 +444,8 @@ private fun RevocationState.toInternal(): InternalRevocationState =
   when (this) {
     RevocationState.REVOKED -> InternalRevocationState.REVOKED
     RevocationState.HOLD -> InternalRevocationState.HOLD
-    RevocationState.UNRECOGNIZED, RevocationState.REVOCATION_STATE_UNSPECIFIED ->
+    RevocationState.UNRECOGNIZED,
+    RevocationState.REVOCATION_STATE_UNSPECIFIED ->
       InternalRevocationState.REVOCATION_STATE_UNSPECIFIED
   }
 

@@ -454,7 +454,8 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         population.createMeasurementConsumer(measurementConsumersService, accountsService)
       val dataProvider = population.createDataProvider(dataProvidersService)
       val externalComputationId =
-        population.createComputedMeasurement(
+        population
+          .createComputedMeasurement(
             measurementsService,
             measurementConsumer,
             PROVIDED_MEASUREMENT_ID,

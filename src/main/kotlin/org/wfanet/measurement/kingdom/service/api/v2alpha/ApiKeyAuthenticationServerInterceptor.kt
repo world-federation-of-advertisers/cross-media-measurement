@@ -71,7 +71,8 @@ class ApiKeyAuthenticationServerInterceptor(
           )
       } catch (e: Exception) {
         when (e) {
-          is StatusRuntimeException, is StatusException ->
+          is StatusRuntimeException,
+          is StatusException ->
             call.close(Status.UNAUTHENTICATED.withDescription("API key is invalid"), headers)
           else ->
             call.close(Status.UNKNOWN.withDescription("Unknown error when authenticating"), headers)

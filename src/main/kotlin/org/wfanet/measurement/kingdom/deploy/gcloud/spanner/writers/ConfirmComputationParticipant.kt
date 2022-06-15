@@ -107,7 +107,8 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
     val otherDuchyIds: List<InternalId> =
       DuchyIds.entries.map { InternalId(it.internalDuchyId) }.filter { it.value != duchyId }
 
-    if (computationParticipantsInState(
+    if (
+      computationParticipantsInState(
         transactionContext,
         otherDuchyIds,
         InternalId(measurementConsumerId),

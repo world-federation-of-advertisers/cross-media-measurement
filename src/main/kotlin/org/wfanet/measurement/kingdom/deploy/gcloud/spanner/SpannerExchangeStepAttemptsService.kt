@@ -75,7 +75,8 @@ class SpannerExchangeStepAttemptsService(
                 |  )
                 """.trimMargin()
               )
-            Provider.Type.TYPE_UNSPECIFIED, Provider.Type.UNRECOGNIZED ->
+            Provider.Type.TYPE_UNSPECIFIED,
+            Provider.Type.UNRECOGNIZED ->
               failGrpc(Status.INVALID_ARGUMENT) {
                 "external_data_provider_id or external_model_provider_id must be provided."
               }
