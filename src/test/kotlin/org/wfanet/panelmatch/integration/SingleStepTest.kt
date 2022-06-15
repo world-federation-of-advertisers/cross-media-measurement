@@ -77,7 +77,8 @@ class SingleStepTest(
   }
 
   private val dataProviderOutputs by lazy {
-    if (filteredStep.stepCase === StepCase.COPY_TO_SHARED_STORAGE_STEP ||
+    if (
+      filteredStep.stepCase === StepCase.COPY_TO_SHARED_STORAGE_STEP ||
         party !== ExchangeWorkflow.Party.DATA_PROVIDER
     )
       emptyMap()
@@ -85,7 +86,8 @@ class SingleStepTest(
   }
 
   private val modelProviderOutputs by lazy {
-    if (filteredStep.stepCase === StepCase.COPY_TO_SHARED_STORAGE_STEP ||
+    if (
+      filteredStep.stepCase === StepCase.COPY_TO_SHARED_STORAGE_STEP ||
         party !== ExchangeWorkflow.Party.MODEL_PROVIDER
     )
       emptyMap()
@@ -172,8 +174,7 @@ class SingleStepTest(
         if (folderName === "shared") {
           val signatureValue = "$value.signature"
           val signatureData =
-            FIXTURES_FILES_PATH
-              .resolve(folderName)
+            FIXTURES_FILES_PATH.resolve(folderName)
               .resolve(signatureValue)
               .toFile()
               .readByteString()
@@ -191,8 +192,7 @@ class SingleStepTest(
             if (folderName === "shared") {
               val signatureManifestValue = "$key.signature"
               val signatureManifestData =
-                FIXTURES_FILES_PATH
-                  .resolve(folderName)
+                FIXTURES_FILES_PATH.resolve(folderName)
                   .resolve(signatureManifestValue)
                   .toFile()
                   .readByteString()

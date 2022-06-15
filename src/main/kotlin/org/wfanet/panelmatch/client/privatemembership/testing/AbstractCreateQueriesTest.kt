@@ -238,32 +238,34 @@ abstract class AbstractCreateQueriesTest : BeamTestBase() {
     decryptedQueries: PCollection<KV<QueryId, ShardedQuery>>,
     queryIdAndIds: PCollection<QueryIdAndId>
   ): PCollection<KV<QueryId, PanelistQuery>> {
-    return queryIdAndIds.keyBy { it.queryId }.join(decryptedQueries) {
-      key: QueryId,
-      queryIdAndIdsIterable: Iterable<QueryIdAndId>,
-      shardedQueries: Iterable<ShardedQuery> ->
-      val queryIdAndIdsList = queryIdAndIdsIterable.toList()
-      if (queryIdAndIdsList.isEmpty()) {
-        return@join
-      }
-      val queriesList = shardedQueries.toList()
+    return queryIdAndIds
+      .keyBy { it.queryId }
+      .join(decryptedQueries) {
+        key: QueryId,
+        queryIdAndIdsIterable: Iterable<QueryIdAndId>,
+        shardedQueries: Iterable<ShardedQuery> ->
+        val queryIdAndIdsList = queryIdAndIdsIterable.toList()
+        if (queryIdAndIdsList.isEmpty()) {
+          return@join
+        }
+        val queriesList = shardedQueries.toList()
 
-      val query =
-        requireNotNull(queriesList.singleOrNull()) { "${queriesList.size} queries for $key" }
+        val query =
+          requireNotNull(queriesList.singleOrNull()) { "${queriesList.size} queries for $key" }
 
-      val queryIdAndId =
-        requireNotNull(queryIdAndIdsList.singleOrNull()) {
-          "${queryIdAndIdsList.size} of queryIdAndIds for $key"
+        val queryIdAndId =
+          requireNotNull(queryIdAndIdsList.singleOrNull()) {
+            "${queryIdAndIdsList.size} of queryIdAndIds for $key"
+          }
+
+        if (queryIdAndId.joinKeyIdentifier.isPaddingQuery) {
+          return@join
         }
 
-      if (queryIdAndId.joinKeyIdentifier.isPaddingQuery) {
-        return@join
+        val panelistQuery =
+          PanelistQuery(query.shardId, query.bucketId, queryIdAndId.joinKeyIdentifier)
+        yield(kvOf(key, panelistQuery))
       }
-
-      val panelistQuery =
-        PanelistQuery(query.shardId, query.bucketId, queryIdAndId.joinKeyIdentifier)
-      yield(kvOf(key, panelistQuery))
-    }
   }
 }
 

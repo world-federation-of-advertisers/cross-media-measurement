@@ -142,8 +142,8 @@ fun main(args: Array<String>) {
 
   val database: PCollection<DatabaseEntry> =
     pipeline.apply("Create Database Shards", Create.of(0 until SHARD_COUNT)).flatMap(
-        "Populate Database"
-      ) { i ->
+      "Populate Database"
+    ) { i ->
       (0 until BUCKETS_PER_SHARD_COUNT / 2).map { j ->
         val uniqueQueryId = i + j * SHARD_COUNT
         databaseEntryOf(

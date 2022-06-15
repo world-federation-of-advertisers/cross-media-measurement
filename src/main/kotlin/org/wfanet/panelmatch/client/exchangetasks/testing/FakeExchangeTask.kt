@@ -26,9 +26,11 @@ class FakeExchangeTask(val taskName: String) : ExchangeTask {
   override suspend fun execute(
     input: Map<String, StorageClient.Blob>
   ): Map<String, Flow<ByteString>> {
-    return input.mapKeys { "Out:${it.key}" }.mapValues {
-      val valString: String = it.value.toStringUtf8()
-      "Out:$taskName-$valString".toByteStringUtf8().asBufferedFlow(1024)
-    }
+    return input
+      .mapKeys { "Out:${it.key}" }
+      .mapValues {
+        val valString: String = it.value.toStringUtf8()
+        "Out:$taskName-$valString".toByteStringUtf8().asBufferedFlow(1024)
+      }
   }
 }

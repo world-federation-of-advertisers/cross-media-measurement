@@ -151,9 +151,11 @@ private class EvaluateQueriesForShardFn(
     if (buckets.isEmpty() || queries.isEmpty()) return
 
     val combinedBuckets =
-      buckets.groupBy { it.bucketId }.map { (bucketId, buckets) ->
-        bucketOf(bucketId, buckets.flatMap { it.contents.itemsList })
-      }
+      buckets
+        .groupBy { it.bucketId }
+        .map { (bucketId, buckets) ->
+          bucketOf(bucketId, buckets.flatMap { it.contents.itemsList })
+        }
     val shard = databaseShardOf(context.element().key, combinedBuckets)
 
     val publicKey = context.sideInput(serializedPublicKey)

@@ -148,7 +148,8 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
   }
 
   private suspend fun getSteps(): List<ExchangeStep> {
-    return exchangeStepsClient.listExchangeSteps(
+    return exchangeStepsClient
+      .listExchangeSteps(
         listExchangeStepsRequest {
           parent = exchangeKey.toName()
           pageSize = 50
@@ -164,9 +165,9 @@ abstract class AbstractInProcessPanelMatchIntegrationTest {
     val message = StringBuilder("ExchangeStep states:")
     for ((state, stepsForState) in steps.groupBy { it.state }) {
       val stepsString =
-        stepsForState.sortedBy { it.stepIndex }.joinToString(", ") {
-          "${stepsList[it.stepIndex].stepId}#${it.stepIndex}"
-        }
+        stepsForState
+          .sortedBy { it.stepIndex }
+          .joinToString(", ") { "${stepsList[it.stepIndex].stepId}#${it.stepIndex}" }
       message.appendLine("  $state: $stepsString")
     }
     logger.info(message.toString())

@@ -158,8 +158,8 @@ inline fun <KeyT, reified LeftT, reified RightT, OutT> PCollection<KV<KeyT, Left
  * Kotlin convenience helper for a join between two [PCollection]s where each joined list should
  * only contain a single element.
  */
-inline fun <reified KeyT, reified LeftT, reified RightT> PCollection<
-  KV<KeyT, LeftT>>.strictOneToOneJoin(
+inline fun <reified KeyT, reified LeftT, reified RightT> PCollection<KV<KeyT, LeftT>>
+  .strictOneToOneJoin(
   right: PCollection<KV<KeyT, RightT>>,
   name: String = "Strict Join",
 ): PCollection<KV<LeftT, RightT>> {

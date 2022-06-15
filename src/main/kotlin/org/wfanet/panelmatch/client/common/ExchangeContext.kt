@@ -34,8 +34,8 @@ data class ExchangeContext(
     when (step.party) {
       ExchangeWorkflow.Party.MODEL_PROVIDER -> workflow.exchangeIdentifiers.dataProvider
       ExchangeWorkflow.Party.DATA_PROVIDER -> workflow.exchangeIdentifiers.modelProvider
-      ExchangeWorkflow.Party.PARTY_UNSPECIFIED, ExchangeWorkflow.Party.UNRECOGNIZED ->
-        error("Invalid step: $step")
+      ExchangeWorkflow.Party.PARTY_UNSPECIFIED,
+      ExchangeWorkflow.Party.UNRECOGNIZED -> error("Invalid step: $step")
     }
   }
 

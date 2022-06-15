@@ -53,8 +53,7 @@ class CopyToSharedStorageTask(
     destination.writeBlob(destinationBlobKey, manifestBytes)
 
     coroutineScope {
-      shardedFileName
-        .fileNames
+      shardedFileName.fileNames
         .asFlow()
         .mapConcurrently(this, maxParallelTransfers) { shardName ->
           readBlob(shardName).copyExternally(shardName)

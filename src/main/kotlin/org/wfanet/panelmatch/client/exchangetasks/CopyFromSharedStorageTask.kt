@@ -55,8 +55,7 @@ class CopyFromSharedStorageTask(
     destination.writeBlob(destinationBlobKey, manifestBytes)
 
     coroutineScope {
-      shardedFileName
-        .fileNames
+      shardedFileName.fileNames
         .asFlow()
         .mapConcurrently(this, maxParallelTransfers) { shardName ->
           val shardBlob = source.getBlob(shardName)

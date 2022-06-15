@@ -98,9 +98,11 @@ abstract class AbstractEvaluateQueriesEndToEndTest : BeamTestBase() {
       rawQueries.map { bucketing.apply(it.first) to it.second }
 
     val queryBundles: List<EncryptedQueryBundle> =
-      bucketsAndShardsToQuery.groupBy { it.first.first }.map { (shard, entries) ->
-        helper.makeQueryBundle(shard, entries.map { it.second to it.first.second })
-      }
+      bucketsAndShardsToQuery
+        .groupBy { it.first.first }
+        .map { (shard, entries) ->
+          helper.makeQueryBundle(shard, entries.map { it.second to it.first.second })
+        }
 
     val queryBundlesPCollection = pipeline.apply("Create QueryBundles", Create.of(queryBundles))
 

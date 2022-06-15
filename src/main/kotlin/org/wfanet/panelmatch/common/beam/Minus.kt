@@ -31,11 +31,13 @@ class Minus<T : Any> : PTransform<PCollectionList<T>, PCollection<T>>() {
     }
     val firstItems = items[0]
     val otherItems = items[1]
-    return firstItems.map("MapLeft") { kvOf(it, 1) }.join(
-        otherItems.map("MapRight") { kvOf(it, 2) },
-        "Join"
-      ) { key: T, lefts: Iterable<Int>, rights: Iterable<Int> ->
-      if (lefts.iterator().hasNext() && !rights.iterator().hasNext()) yield(key)
-    }
+    return firstItems
+      .map("MapLeft") { kvOf(it, 1) }
+      .join(otherItems.map("MapRight") { kvOf(it, 2) }, "Join") {
+        key: T,
+        lefts: Iterable<Int>,
+        rights: Iterable<Int> ->
+        if (lefts.iterator().hasNext() && !rights.iterator().hasNext()) yield(key)
+      }
   }
 }
