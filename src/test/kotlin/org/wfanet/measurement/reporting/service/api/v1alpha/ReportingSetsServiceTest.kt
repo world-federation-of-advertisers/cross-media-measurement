@@ -224,7 +224,7 @@ class ReportingSetsServiceTest {
   }
 
   @Test
-  fun `createReportingSet throws PERMISSION_DENIED when MeasurementConsumer caller doesn't match`() {
+  fun `createReportingSet throws PERMISSION_DENIED when MC caller doesn't match`() {
     val request = createReportingSetRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       reportingSet = REPORTING_SET
