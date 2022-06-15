@@ -14,9 +14,12 @@
 
 package org.wfanet.measurement.reporting.service.api.v1alpha.tools
 
-import com.google.protobuf.TextFormat
 import io.grpc.ManagedChannel
-import java.io.File
+import com.google.protobuf.TextFormat
+import com.google.protobuf.Timestamp
+import com.google.protobuf.timestamp
+import com.google.protobuf.Duration as ProtoDuration
+import com.google.protobuf.duration as protoDuration
 import java.time.Duration
 import java.time.Instant
 import kotlin.properties.Delegates
@@ -30,15 +33,21 @@ import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.reporting.v1alpha.Metric
 import org.wfanet.measurement.reporting.v1alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import org.wfanet.measurement.reporting.v1alpha.ReportsGrpcKt.ReportsCoroutineStub
-import org.wfanet.measurement.reporting.v1alpha.Report
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.EventGroupUniverseKt.eventGroupEntry
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.eventGroupUniverse
 import org.wfanet.measurement.reporting.v1alpha.createReportRequest
 import org.wfanet.measurement.reporting.v1alpha.createReportingSetRequest
+import org.wfanet.measurement.reporting.v1alpha.getReportRequest
 import org.wfanet.measurement.reporting.v1alpha.listReportingSetsRequest
+import org.wfanet.measurement.reporting.v1alpha.listReportsRequest
+import org.wfanet.measurement.reporting.v1alpha.periodicTimeInterval
 import org.wfanet.measurement.reporting.v1alpha.report
 import org.wfanet.measurement.reporting.v1alpha.reportingSet
+import org.wfanet.measurement.reporting.v1alpha.timeInterval
+import org.wfanet.measurement.reporting.v1alpha.timeIntervals
 import picocli.CommandLine
+
+private const val PAGE_SIZE = 1000
 
 private class ReportingApiFlags {
   @CommandLine.Option(
@@ -150,7 +159,7 @@ class CreateReportCommand : Runnable {
   @CommandLine.ParentCommand private lateinit var parent: Reporting
 
   @CommandLine.Option(
-    names = ["--measurement-consumer"],
+    names = ["--parent"],
     description = ["API resource name of the Measurement Consumer"],
     required = true,
   )
@@ -232,13 +241,15 @@ class CreateReportCommand : Runnable {
       heading = "Time intervals\n"
     )
     var timeIntervals: List<TimeIntervalInput> = emptyList()
+      private set
 
     @CommandLine.ArgGroup(
       exclusive = false,
-      multiplicity = "1..*",
-      heading = "Periodic time intervals\n"
+      multiplicity = "1",
+      heading = "Periodic time interval specification\n"
     )
-    var periodicTimeIntervalInput: List<PeriodicTimeIntervalInput> = emptyList()
+    var periodicTimeIntervalInput: PeriodicTimeIntervalInput? = null
+      private set
   }
 
   @CommandLine.ArgGroup(
@@ -249,14 +260,24 @@ class CreateReportCommand : Runnable {
   private lateinit var timeInput: TimeInput
 
   @CommandLine.Option(
-    names = ["--metrics-proto-file"],
-    description = ["Textproto file of the Metrics"],
+    names = ["--metric"],
+    description = ["String of serialized Metric"],
     required = true,
   )
-  private lateinit var metricsProtoFile: File
+  private lateinit var serializedMetrics: List<String>
 
-  private val metricsProtoText: String by lazy {
-    metricsProtoFile.readText()
+  private fun convertToTimestamp(instant: Instant): Timestamp {
+    return timestamp {
+      seconds = instant.epochSecond
+      nanos = instant.nano
+    }
+  }
+
+  private fun convertToProtoDuration(duration: Duration): ProtoDuration {
+    return protoDuration {
+      seconds = duration.seconds
+      nanos = duration.nano
+    }
   }
 
   override fun run() {
@@ -274,11 +295,28 @@ class CreateReportCommand : Runnable {
             }
           }
         }
+        // Either timeIntervals or periodicTimeIntervalInput is set.
+        timeInput.timeIntervals.map {
+          timeIntervals = timeIntervals {
+            timeIntervals += timeInterval {
+              startTime = convertToTimestamp(it.intervalStartTime)
+              endTime = convertToTimestamp(it.intervalEndTime)
+            }
+          }
+        }
+        timeInput.periodicTimeIntervalInput?.let {
+          periodicTimeInterval = periodicTimeInterval {
+            startTime = convertToTimestamp(it.periodicIntervalStartTime)
+            increment = convertToProtoDuration(it.periodicIntervalIncrement)
+            intervalCount = it.periodicIntervalCount
+          }
+        }
 
-        // Either timeIntervals or periodicTimeIntervalInput is non-empty.
-        timeInput.timeIntervals.map {  }
-        timeInput.periodicTimeIntervalInput.map {  }
-        TextFormat.getParser().merge(metricsProtoText, Report.newBuilder())
+        serializedMetrics.map {
+          val metricsBuilder = Metric.newBuilder()
+          TextFormat.getParser().merge(it, metricsBuilder)
+          metrics += metricsBuilder.build()
+        }
       }
 
     }
@@ -286,18 +324,62 @@ class CreateReportCommand : Runnable {
       reportsStub.createReport(request)
     }
 
-    print(report)
+    println(report)
   }
 }
 
 @CommandLine.Command(name = "list-reports", description = ["List set operation reports"])
 class ListReportsCommand : Runnable {
-  override fun run() {}
+  @CommandLine.ParentCommand private lateinit var parent: Reporting
+
+  @CommandLine.Option(
+    names = ["--parent"],
+    description = ["API resource name of the Measurement Consumer"],
+    required = true,
+  )
+  private lateinit var measurementConsumerName: String
+
+  override fun run() {
+    val reportsStub = ReportsCoroutineStub(parent.channel)
+
+    val request = listReportsRequest {
+      parent = measurementConsumerName
+      pageSize = PAGE_SIZE
+    }
+
+    val response = runBlocking(Dispatchers.IO) {
+      reportsStub.listReports(request)
+    }
+
+    response.reportsList.map {
+      println(it.name + " " + it.state.toString())
+    }
+  }
 }
 
 @CommandLine.Command(name = "get-report", description = ["Get a set operation report"])
 class GetReportCommand : Runnable {
-  override fun run() {}
+  @CommandLine.ParentCommand private lateinit var parent: Reporting
+
+  @CommandLine.Option(
+    names = ["--name"],
+    description = ["API resource name of the Report"],
+    required = true,
+  )
+  private lateinit var reportName: String
+
+  override fun run() {
+    val reportsStub = ReportsCoroutineStub(parent.channel)
+
+    val request = getReportRequest {
+      name = reportName
+    }
+
+    val report = runBlocking(Dispatchers.IO) {
+      reportsStub.getReport(request)
+    }
+    println(report)
+  }
 }
 
 @CommandLine.Command(
