@@ -44,7 +44,7 @@ import org.wfanet.measurement.reporting.v1alpha.listReportingSetsResponse
 import org.wfanet.measurement.reporting.v1alpha.reportingSet
 
 private const val DEFAULT_PAGE_SIZE = 50
-private const val MAX_PAGE_SIZE = 100
+private const val MAX_PAGE_SIZE = 1000
 private const val PAGE_SIZE = 2
 
 // Measurement consumer IDs and names
