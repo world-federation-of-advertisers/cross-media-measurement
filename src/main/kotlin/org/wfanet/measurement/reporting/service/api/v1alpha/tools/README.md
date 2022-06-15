@@ -38,6 +38,9 @@ dataProviders/2/eventGroups/1 \
 
 ### List
 
+To retrieve the next page of reports, add the argument "--page-token", which is
+provided from the previews ListReportingSets response.
+
 Example
 ```shell
 reporting \

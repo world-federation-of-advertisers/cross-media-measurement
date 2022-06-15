@@ -30,8 +30,6 @@ import org.wfanet.measurement.reporting.v1alpha.listReportingSetsRequest
 import org.wfanet.measurement.reporting.v1alpha.reportingSet
 import picocli.CommandLine
 
-private const val MAX_PAGE_SIZE = 1000
-
 private class ReportingApiFlags {
   @CommandLine.Option(
     names = ["--reporting-server-api-target"],
@@ -114,17 +112,32 @@ class ListReportingSetsCommand : Runnable {
   )
   private lateinit var measurementConsumerName: String
 
+  @CommandLine.Option(
+    names = ["--page-size"],
+    description = ["The maximum number of reportingSets to return. The maximum value is 1000"],
+    required = false,
+  )
+  private var pageSizeInput: Int = 1000
+
+  @CommandLine.Option(
+    names = ["--page-token"],
+    description = ["Page token from a previous `ListReports` call to retrieve the next page"],
+    defaultValue = "",
+    required = false,
+  )
+  private lateinit var pageTokenInput: String
+
   override fun run() {
     val request = listReportingSetsRequest {
       parent = measurementConsumerName
-      pageSize = MAX_PAGE_SIZE
+      pageSize = pageSizeInput
+      pageToken = pageTokenInput
     }
 
     val response =
       runBlocking(Dispatchers.IO) { parent.reportingSetStub.listReportingSets(request) }
 
-    val reportingSets = response.reportingSetsList
-    println(reportingSets)
+    println(response)
   }
 }
 

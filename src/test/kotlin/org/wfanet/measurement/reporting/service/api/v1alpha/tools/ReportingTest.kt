@@ -56,7 +56,7 @@ private const val EVENT_GROUP_NAME_1 = "dataProviders/1/eventGroups/1"
 private const val EVENT_GROUP_NAME_2 = "dataProviders/1/eventGroups/2"
 private const val EVENT_GROUP_NAME_3 = "dataProviders/2/eventGroups/1"
 
-private val REPORTING_SET = reportingSet {}
+private val REPORTING_SET = reportingSet { name = "$MEASUREMENT_CONSUMER_NAME/reportingSets/1" }
 private val LIST_REPORTING_SETS_RESPONSE = listReportingSetsResponse {
   reportingSets += reportingSet {
     name = "$MEASUREMENT_CONSUMER_NAME/reportingSets/1"
@@ -70,8 +70,8 @@ private val LIST_REPORTING_SETS_RESPONSE = listReportingSetsResponse {
     filter = "some.filter2"
     displayName = "test-reporting-set2"
   }
+  nextPageToken = "TokenToGetTheNextPage"
 }
-private const val MAX_PAGE_SIZE = 1000
 
 @RunWith(JUnit4::class)
 class ReportingTest {
@@ -158,6 +158,7 @@ class ReportingTest {
         "reporting-sets",
         "list",
         "--parent=$MEASUREMENT_CONSUMER_NAME",
+        "--page-size=50",
       )
     CommandLine(Reporting()).execute(*args)
 
@@ -165,7 +166,7 @@ class ReportingTest {
       .isEqualTo(
         listReportingSetsRequest {
           parent = MEASUREMENT_CONSUMER_NAME
-          pageSize = MAX_PAGE_SIZE
+          pageSize = 50
         }
       )
   }
