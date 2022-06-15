@@ -13,7 +13,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
-import org.mockito.kotlin.verify
 import org.wfanet.measurement.api.v2.alpha.ListReportingSetsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2.alpha.listReportingSetsPageToken
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -24,13 +23,11 @@ import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
-import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.reporting.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.ReportingSetKt.eventGroupKey
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
-import org.wfanet.measurement.internal.reporting.StreamReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.copy
 import org.wfanet.measurement.internal.reporting.reportingSet as internalReportingSet
@@ -349,13 +346,10 @@ class ReportingSetsServiceTest {
         }
     }
 
-    val streamReportingSetsRequest =
-      captureFirst<StreamReportingSetsRequest> {
-        verify(internalReportingSetsMock).streamReportingSets(capture())
-      }
-
-    assertThat(streamReportingSetsRequest)
-      .ignoringRepeatedFieldOrder()
+    verifyProtoArgument(
+        internalReportingSetsMock,
+        ReportingSetsCoroutineImplBase::streamReportingSets
+      )
       .isEqualTo(
         streamReportingSetsRequest {
           limit = DEFAULT_PAGE_SIZE + 1
@@ -401,13 +395,10 @@ class ReportingSetsServiceTest {
           .base64UrlEncode()
     }
 
-    val streamReportingSetsRequest =
-      captureFirst<StreamReportingSetsRequest> {
-        verify(internalReportingSetsMock).streamReportingSets(capture())
-      }
-
-    assertThat(streamReportingSetsRequest)
-      .ignoringRepeatedFieldOrder()
+    verifyProtoArgument(
+        internalReportingSetsMock,
+        ReportingSetsCoroutineImplBase::streamReportingSets
+      )
       .isEqualTo(
         streamReportingSetsRequest {
           limit = PAGE_SIZE + 1
@@ -464,13 +455,10 @@ class ReportingSetsServiceTest {
           .base64UrlEncode()
     }
 
-    val streamReportingSetsRequest =
-      captureFirst<StreamReportingSetsRequest> {
-        verify(internalReportingSetsMock).streamReportingSets(capture())
-      }
-
-    assertThat(streamReportingSetsRequest)
-      .ignoringRepeatedFieldOrder()
+    verifyProtoArgument(
+        internalReportingSetsMock,
+        ReportingSetsCoroutineImplBase::streamReportingSets
+      )
       .isEqualTo(
         streamReportingSetsRequest {
           limit = PAGE_SIZE + 1
@@ -512,13 +500,10 @@ class ReportingSetsServiceTest {
         }
     }
 
-    val streamReportingSetsRequest =
-      captureFirst<StreamReportingSetsRequest> {
-        verify(internalReportingSetsMock).streamReportingSets(capture())
-      }
-
-    assertThat(streamReportingSetsRequest)
-      .ignoringRepeatedFieldOrder()
+    verifyProtoArgument(
+        internalReportingSetsMock,
+        ReportingSetsCoroutineImplBase::streamReportingSets
+      )
       .isEqualTo(
         streamReportingSetsRequest {
           limit = MAX_PAGE_SIZE + 1
@@ -577,13 +562,10 @@ class ReportingSetsServiceTest {
           .base64UrlEncode()
     }
 
-    val streamReportingSetsRequest =
-      captureFirst<StreamReportingSetsRequest> {
-        verify(internalReportingSetsMock).streamReportingSets(capture())
-      }
-
-    assertThat(streamReportingSetsRequest)
-      .ignoringRepeatedFieldOrder()
+    verifyProtoArgument(
+        internalReportingSetsMock,
+        ReportingSetsCoroutineImplBase::streamReportingSets
+      )
       .isEqualTo(
         streamReportingSetsRequest {
           limit = previousPageSize + 1
@@ -643,13 +625,10 @@ class ReportingSetsServiceTest {
           .base64UrlEncode()
     }
 
-    val streamReportingSetsRequest =
-      captureFirst<StreamReportingSetsRequest> {
-        verify(internalReportingSetsMock).streamReportingSets(capture())
-      }
-
-    assertThat(streamReportingSetsRequest)
-      .ignoringRepeatedFieldOrder()
+    verifyProtoArgument(
+        internalReportingSetsMock,
+        ReportingSetsCoroutineImplBase::streamReportingSets
+      )
       .isEqualTo(
         streamReportingSetsRequest {
           limit = newPageSize + 1
