@@ -47,6 +47,8 @@ CREATE TABLE Reports (
   -- protobuf message.
   ReportDetails bytea NOT NULL,
 
+  CreateTime timestamp NOT NULL,
+
   PRIMARY KEY(MeasurementConsumerReferenceId, ReportId),
   UNIQUE (MeasurementConsumerReferenceId, ExternalReportId)
 );
@@ -120,9 +122,6 @@ CREATE TABLE Measurements (
   -- Serialized org.wfanet.measurement.internal.reporting.Measurement.Result
   -- protobuf message.
   Result bytea,
-
-  -- Timestamp in UTC.
-  UpdateTime timestamp NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerReferenceId, MeasurementReferenceId)
 );
@@ -215,7 +214,7 @@ CREATE TABLE NamedSetOperations (
 );
 
 -- changeset tristanvuong2021:create-weighted-measurements-table dbms:postgresql
-CREATE TABLE WeightedMeasurement (
+CREATE TABLE WeightedMeasurements (
   MeasurementConsumerReferenceId text NOT NULL,
   ReportId bigint NOT NULL,
   MetricId bigint NOT NULL,

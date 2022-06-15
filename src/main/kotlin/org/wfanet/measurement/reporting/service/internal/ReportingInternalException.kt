@@ -66,3 +66,16 @@ class ReportingSetAlreadyExistsException(
   override val context
     get() = emptyMap<String, String>()
 }
+
+class MeasurementAlreadyExistsException(
+  provideDescription: () -> String = { "Measurement already exists" }
+) : ReportingInternalException(ErrorCode.MEASUREMENT_ALREADY_EXISTS, provideDescription) {
+  override val context
+    get() = emptyMap<String, String>()
+}
+
+class MeasurementNotFoundException(provideDescription: () -> String = { "Measurement not found" }) :
+  ReportingInternalException(ErrorCode.MEASUREMENT_NOT_FOUND, provideDescription) {
+  override val context
+    get() = emptyMap<String, String>()
+}
