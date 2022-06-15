@@ -32,7 +32,8 @@ import picocli.CommandLine.Option
       "Serializes a textproto format wfa.measurement.api.v2alpha.ExchangeWorkflow.",
       "",
       "Note that this does not handle RLWE parameter types other than " +
-        "private_membership.batch.Parameters."],
+        "private_membership.batch.Parameters."
+    ],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )

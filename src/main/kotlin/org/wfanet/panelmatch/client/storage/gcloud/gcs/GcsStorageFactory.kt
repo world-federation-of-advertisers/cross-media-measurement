@@ -42,8 +42,8 @@ class GcsStorageFactory(
           // Maximum bucket size is 63 characters. 512 bits in hex is 32 characters, so we drop one.
           storageDetailsFingerprint + exchangeFingerprint.take(31)
         }
-        BucketType.UNKNOWN_TYPE, BucketType.UNRECOGNIZED ->
-          error("Invalid bucket_type: $bucketType")
+        BucketType.UNKNOWN_TYPE,
+        BucketType.UNRECOGNIZED -> error("Invalid bucket_type: $bucketType")
       }
     return GcsStorageClient(
         StorageOptions.newBuilder().setProjectId(gcs.projectName).build().service,

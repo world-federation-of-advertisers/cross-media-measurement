@@ -93,8 +93,7 @@ inline fun <reified T> assertThat(view: PCollectionView<T>): PAssert.IterableAss
     }
 
   val extractedResult =
-    view
-      .pipeline
+    view.pipeline
       .apply("Create Dummy PCollection", Create.of(1))
       .apply("Replace with Side Input", ParDo.of(parDo).withSideInputs(view))
 

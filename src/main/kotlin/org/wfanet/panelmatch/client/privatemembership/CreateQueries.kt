@@ -118,8 +118,7 @@ private class CreateQueries(
     val numShards = parameters.numShards
 
     val missingQueries =
-      queries
-        .pipeline
+      queries.pipeline
         .createSequence(name = "Missing Queries Sequence", n = numShards, parallelism = 1000)
         .minus(queries.map("Queries Map") { it.key.id }, name = "Missing Queries Minus")
         .map<Int, KV<ShardId, Iterable<@JvmWildcard BucketQuery>>>("Missing Files Map") {
@@ -275,8 +274,8 @@ private class EqualizeQueriesPerShardFn(
   private val paddingNonceBucket: BucketId,
 ) :
   DoFn<
-    KV<ShardId, Iterable<@JvmWildcard BucketQuery>>,
-    KV<ShardId, Iterable<@JvmWildcard BucketQuery>>>() {
+    KV<ShardId, Iterable<@JvmWildcard BucketQuery>>, KV<ShardId, Iterable<@JvmWildcard BucketQuery>>
+  >() {
   /**
    * Number of discarded Queries. If unacceptably high, the totalQueriesPerShard parameter should be
    * increased.
