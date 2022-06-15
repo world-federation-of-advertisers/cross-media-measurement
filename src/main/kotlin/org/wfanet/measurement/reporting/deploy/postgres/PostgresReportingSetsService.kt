@@ -18,7 +18,6 @@ import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.internal.reporting.ReportingSet
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
@@ -35,7 +34,9 @@ class PostgresReportingSetsService(
     return try {
       CreateReportingSet(request).execute(client, idGenerator)
     } catch (e: ReportingSetAlreadyExistsException) {
-      failGrpc(Status.ALREADY_EXISTS) { "IDs generated for Reporting Set already exist" }
+      e.throwStatusRuntimeException(Status.ALREADY_EXISTS) {
+        "IDs generated for Reporting Set already exist"
+      }
     }
   }
 
