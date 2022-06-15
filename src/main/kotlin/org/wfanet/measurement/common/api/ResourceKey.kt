@@ -17,4 +17,14 @@ package org.wfanet.measurement.common.api
 interface ResourceKey {
   /** Converts this [ResourceKey] into a resource name. */
   fun toName(): String
+
+  /** Factory for [T]. */
+  interface Factory<out T : ResourceKey> {
+    /**
+     * Parses [resourceName] into a [T].
+     *
+     * @return the [ResourceKey], or `null` if parsing failed
+     */
+    fun fromName(resourceName: String): T?
+  }
 }

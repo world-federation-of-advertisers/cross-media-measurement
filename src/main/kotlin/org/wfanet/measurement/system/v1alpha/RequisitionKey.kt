@@ -27,10 +27,10 @@ data class RequisitionKey(val computationId: String, val requisitionId: String) 
     )
   }
 
-  companion object {
+  companion object FACTORY : ResourceKey.Factory<RequisitionKey> {
     val defaultValue = RequisitionKey("", "")
 
-    fun fromName(resourceName: String): RequisitionKey? {
+    override fun fromName(resourceName: String): RequisitionKey? {
       return parser.parseIdVars(resourceName)?.let {
         RequisitionKey(it.getValue(IdVariable.COMPUTATION), it.getValue(IdVariable.REQUISITION))
       }

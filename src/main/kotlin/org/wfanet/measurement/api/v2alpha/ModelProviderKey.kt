@@ -23,13 +23,13 @@ data class ModelProviderKey(val modelProviderId: String) : ResourceKey {
     return parser.assembleName(mapOf(IdVariable.MODEL_PROVIDER to modelProviderId))
   }
 
-  companion object {
+  companion object FACTORY : ResourceKey.Factory<ModelProviderKey> {
     const val COLLECTION_NAME = "modelProviders"
     val defaultValue = ModelProviderKey("")
 
     private val parser = ResourceNameParser("$COLLECTION_NAME/{model_provider}")
 
-    fun fromName(resourceName: String): ModelProviderKey? {
+    override fun fromName(resourceName: String): ModelProviderKey? {
       return parser.parseIdVars(resourceName)?.let {
         ModelProviderKey(it.getValue(IdVariable.MODEL_PROVIDER))
       }
