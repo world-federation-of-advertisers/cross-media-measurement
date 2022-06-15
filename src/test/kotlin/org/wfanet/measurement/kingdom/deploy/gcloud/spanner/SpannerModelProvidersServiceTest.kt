@@ -32,7 +32,6 @@ class SpannerModelProvidersServiceTest : ModelProvidersServiceTest() {
   override fun newService(idGenerator: IdGenerator): SpannerModelProvidersService {
     return SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient)
       .buildDataServices()
-      .modelProvidersService as
-      SpannerModelProvidersService
+      .modelProvidersService as SpannerModelProvidersService
   }
 }

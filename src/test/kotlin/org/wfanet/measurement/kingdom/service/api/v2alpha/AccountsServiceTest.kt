@@ -42,6 +42,7 @@ import org.wfanet.measurement.api.v2alpha.activateAccountRequest
 import org.wfanet.measurement.api.v2alpha.authenticateRequest
 import org.wfanet.measurement.api.v2alpha.createAccountRequest
 import org.wfanet.measurement.api.v2alpha.replaceAccountIdentityRequest
+import org.wfanet.measurement.api.withIdToken
 import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -421,7 +422,8 @@ class AccountsServiceTest {
 
   private suspend fun generateIdToken(): String {
     val uriString =
-      client.authenticate(authenticateRequest { issuer = SELF_ISSUED_ISSUER })
+      client
+        .authenticate(authenticateRequest { issuer = SELF_ISSUED_ISSUER })
         .authenticationRequestUri
     return SelfIssuedIdTokens.generateIdToken(uriString, clock)
   }

@@ -66,9 +66,9 @@ fun ComputationToken.toRecordRequisitionBlobPathResponse(): RecordRequisitionBlo
 
 /** Extract the list of output blob paths from a [ComputationToken]. */
 fun ComputationToken.outputPathList(): List<String> =
-  this.blobsList.filter { it.dependencyType == OUTPUT || it.dependencyType == PASS_THROUGH }.map {
-    it.path
-  }
+  this.blobsList
+    .filter { it.dependencyType == OUTPUT || it.dependencyType == PASS_THROUGH }
+    .map { it.path }
 
 /** Creates a [ComputationStageBlobMetadata] for an input blob. */
 fun newInputBlobMetadata(id: Long, key: String): ComputationStageBlobMetadata =

@@ -97,8 +97,8 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
         }
 
     val computationParticipant = computationParticipantResult.computationParticipant
-    if (computationParticipantResult.measurementState !=
-        Measurement.State.PENDING_REQUISITION_PARAMS
+    if (
+      computationParticipantResult.measurementState != Measurement.State.PENDING_REQUISITION_PARAMS
     ) {
       throw MeasurementStateIllegalException(
         ExternalId(computationParticipant.externalMeasurementConsumerId),
@@ -137,7 +137,8 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
 
     val otherDuchyIds: List<InternalId> =
       DuchyIds.entries.map { InternalId(it.internalDuchyId) }.filter { it.value != duchyId }
-    if (computationParticipantsInState(
+    if (
+      computationParticipantsInState(
         transactionContext,
         otherDuchyIds,
         InternalId(measurementConsumerId),
@@ -185,7 +186,8 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
     externalCertificateId: ExternalId
   ): InternalId {
     val column = "CertificateId"
-    return transactionContext.readRowUsingIndex(
+    return transactionContext
+      .readRowUsingIndex(
         "DuchyCertificates",
         "DuchyCertificatesByExternalId",
         Key.of(duchyId.value, externalCertificateId.value),
