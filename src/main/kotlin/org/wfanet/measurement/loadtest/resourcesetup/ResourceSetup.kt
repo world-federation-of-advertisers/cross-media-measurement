@@ -16,6 +16,8 @@ package org.wfanet.measurement.loadtest.resourcesetup
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
+import io.grpc.StatusException
+import java.lang.Thread
 import java.time.Clock
 import java.util.logging.Logger
 import org.wfanet.measurement.api.Version
@@ -40,6 +42,7 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens.generateIdToken
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
+import org.wfanet.measurement.internal.kingdom.Account as InternalAccount
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.DataProviderKt as InternalDataProviderKt
@@ -52,6 +55,16 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.fillCertificateFromDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.parseCertificateDer
 
 private val API_VERSION = Version.V2_ALPHA
+
+// Maximum number of times that we will retry the first request to the Kingdom.
+// We allow retries because the resource setup step is usually executed immediately
+// after the step that launches the Kingdom, but the Kingdom typically takes some
+// time to launch.  Therefore, the first few attempts to communicate with the
+// Kingdom may fail because it is still initializing.
+const private val maxRetryCount = 30
+
+// Amount of time in milliseconds between retries.
+const private val sleepIntervalMillis = 10000L
 
 /** A Job preparing resources required for the correctness test. */
 class ResourceSetup(
@@ -122,7 +135,24 @@ class ResourceSetup(
     measurementConsumerContent: EntityContent,
   ): MeasurementConsumerAndKey {
     // The initial account is created via the Kingdom Internal API by the Kingdom operator.
-    val internalAccount = internalAccountsClient.createAccount(internalAccount {})
+    // This is our first attempt to contact the Kingdom.  If it fails, we will retry it.
+    // This is to allow the Kingdom more time to start up.
+    var internalAccount: InternalAccount
+    var retryCount = 0
+    while (true) {
+      try {
+        internalAccount = internalAccountsClient.createAccount(internalAccount {})
+        break
+      } catch (e: StatusException) {
+        retryCount += 1
+        logger.info("Caught an exception on attempt #$retryCount to communicate with Kingdom: ${e}")
+        if (retryCount >= maxRetryCount) {
+          throw e
+        }
+        logger.info("Sleeping for ${sleepIntervalMillis/1000} seconds before retrying...")
+        Thread.sleep(sleepIntervalMillis)
+      }
+    }
     val accountName = AccountKey(externalIdToApiId(internalAccount.externalAccountId)).toName()
     val accountActivationToken = externalIdToApiId(internalAccount.activationToken)
     val mcCreationToken =
