@@ -61,10 +61,10 @@ private val API_VERSION = Version.V2_ALPHA
 // after the step that launches the Kingdom, but the Kingdom typically takes some
 // time to launch.  Therefore, the first few attempts to communicate with the
 // Kingdom may fail because it is still initializing.
-const private val maxRetryCount = 30
+private const val maxRetryCount = 30
 
 // Amount of time in milliseconds between retries.
-const private val sleepIntervalMillis = 10000L
+private const val sleepIntervalMillis = 10000L
 
 /** A Job preparing resources required for the correctness test. */
 class ResourceSetup(
@@ -145,11 +145,11 @@ class ResourceSetup(
         break
       } catch (e: StatusException) {
         retryCount += 1
-        logger.info("Caught an exception on attempt #$retryCount to communicate with Kingdom: ${e}")
+        logger.info("Caught an exception on attempt #$retryCount to communicate with Kingdom: $e")
         if (retryCount >= maxRetryCount) {
           throw e
         }
-        logger.info("Sleeping for ${sleepIntervalMillis/1000} seconds before retrying...")
+        logger.info("Sleeping for ${sleepIntervalMillis / 1000} seconds before retrying...")
         Thread.sleep(sleepIntervalMillis)
       }
     }
