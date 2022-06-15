@@ -198,7 +198,8 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
 
     when (val resourceKey = principal.resourceKey) {
       is DataProviderKey -> {
-        if (apiIdToExternalId(resourceKey.dataProviderId) !=
+        if (
+          apiIdToExternalId(resourceKey.dataProviderId) !=
             listEventGroupsPageToken.externalDataProviderId
         ) {
           failGrpc(Status.PERMISSION_DENIED) {
@@ -352,8 +353,8 @@ private fun ListEventGroupsRequest.toListEventGroupPageToken(): ListEventGroupsP
   val externalMeasurementConsumerIdsList =
     source.filter.measurementConsumersList.map { measurementConsumerName ->
       grpcRequireNotNull(MeasurementConsumerKey.fromName(measurementConsumerName)) {
-        "Measurement consumer name in filter invalid"
-      }
+          "Measurement consumer name in filter invalid"
+        }
         .let { key -> apiIdToExternalId(key.measurementConsumerId) }
     }
 
@@ -368,9 +369,8 @@ private fun ListEventGroupsRequest.toListEventGroupPageToken(): ListEventGroupsP
           externalMeasurementConsumerIds.containsAll(externalMeasurementConsumerIdsList)
       ) { "Arguments must be kept the same when using a page token" }
 
-      if (source.pageSize != 0 &&
-          source.pageSize >= MIN_PAGE_SIZE &&
-          source.pageSize <= MAX_PAGE_SIZE
+      if (
+        source.pageSize != 0 && source.pageSize >= MIN_PAGE_SIZE && source.pageSize <= MAX_PAGE_SIZE
       ) {
         pageSize = source.pageSize
       }

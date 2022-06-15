@@ -176,7 +176,8 @@ class EdpSimulator(
       val measurementSpec = MeasurementSpec.parseFrom(requisition.measurementSpec.data)
       val measurementConsumerCertificateX509 =
         readCertificate(measurementConsumerCertificate.x509Der)
-      if (!verifyMeasurementSpec(
+      if (
+        !verifyMeasurementSpec(
           measurementSpecSignature = requisition.measurementSpec.signature,
           measurementSpec = measurementSpec,
           measurementConsumerCertificate = measurementConsumerCertificateX509,
@@ -194,7 +195,8 @@ class EdpSimulator(
       val signedRequisitionSpec: SignedData =
         decryptRequisitionSpec(requisition.encryptedRequisitionSpec, edpData.encryptionKey)
       val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
-      if (!verifyRequisitionSpec(
+      if (
+        !verifyRequisitionSpec(
           requisitionSpecSignature = signedRequisitionSpec.signature,
           requisitionSpec = requisitionSpec,
           measurementConsumerCertificate = measurementConsumerCertificateX509,
@@ -209,7 +211,8 @@ class EdpSimulator(
         )
       }
 
-      if (requisition.protocolConfig.protocolCase != ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2
+      if (
+        requisition.protocolConfig.protocolCase != ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2
       ) {
         when (measurementSpec.measurementTypeCase) {
           MeasurementSpec.MeasurementTypeCase.IMPRESSION ->

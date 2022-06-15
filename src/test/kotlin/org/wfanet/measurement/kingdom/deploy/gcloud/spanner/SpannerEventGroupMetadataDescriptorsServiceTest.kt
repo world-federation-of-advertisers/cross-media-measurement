@@ -38,8 +38,8 @@ class SpannerEventGroupMetadataDescriptorsServiceTest :
       SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient).buildDataServices()
 
     return EventGroupMetadataDescriptorsAndHelperServices(
-      spannerServices.eventGroupMetadataDescriptorsService as
-        SpannerEventGroupMetadataDescriptorsService,
+      spannerServices.eventGroupMetadataDescriptorsService
+        as SpannerEventGroupMetadataDescriptorsService,
       spannerServices.dataProvidersService,
     )
   }
