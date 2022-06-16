@@ -31,10 +31,10 @@ data class ApiKeyKey(val measurementConsumerId: String, val apiKeyId: String) : 
     )
   }
 
-  companion object {
+  companion object FACTORY : ResourceKey.Factory<ApiKeyKey> {
     val defaultValue = ApiKeyKey("", "")
 
-    fun fromName(resourceName: String): ApiKeyKey? {
+    override fun fromName(resourceName: String): ApiKeyKey? {
       return parser.parseIdVars(resourceName)?.let {
         ApiKeyKey(it.getValue(IdVariable.MEASUREMENT_CONSUMER), it.getValue(IdVariable.API_KEY))
       }

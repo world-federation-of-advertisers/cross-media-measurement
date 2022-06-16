@@ -36,10 +36,10 @@ data class EventGroupMetadataDescriptorKey(
     )
   }
 
-  companion object {
+  companion object FACTORY : ResourceKey.Factory<EventGroupMetadataDescriptorKey> {
     val defaultValue = EventGroupMetadataDescriptorKey("", "")
 
-    fun fromName(resourceName: String): EventGroupMetadataDescriptorKey? {
+    override fun fromName(resourceName: String): EventGroupMetadataDescriptorKey? {
       return parser.parseIdVars(resourceName)?.let {
         EventGroupMetadataDescriptorKey(
           it.getValue(IdVariable.DATA_PROVIDER),
