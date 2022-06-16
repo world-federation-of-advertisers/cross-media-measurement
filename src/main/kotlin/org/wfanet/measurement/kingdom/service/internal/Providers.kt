@@ -40,8 +40,9 @@ private fun Provider.getExternalIdOfType(desiredType: Provider.Type): ExternalId
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
   return when (type) {
     desiredType -> ExternalId(externalId)
-    Provider.Type.MODEL_PROVIDER, Provider.Type.DATA_PROVIDER -> null
-    Provider.Type.UNRECOGNIZED, Provider.Type.TYPE_UNSPECIFIED ->
-      failGrpc { "Invalid Provider: $this" }
+    Provider.Type.MODEL_PROVIDER,
+    Provider.Type.DATA_PROVIDER -> null
+    Provider.Type.UNRECOGNIZED,
+    Provider.Type.TYPE_UNSPECIFIED -> failGrpc { "Invalid Provider: $this" }
   }
 }
