@@ -15,6 +15,7 @@
 package org.wfanet.measurement.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
+import org.wfanet.measurement.common.api.ResourceKey
 
 private val parser = ResourceNameParser("protocolConfigs/{protocol_config}")
 
@@ -24,10 +25,10 @@ data class ProtocolConfigKey(val protocolConfigId: String) : ResourceKey {
     return parser.assembleName(mapOf(IdVariable.PROTOCOL_CONFIG to protocolConfigId))
   }
 
-  companion object {
+  companion object FACTORY : ResourceKey.Factory<ProtocolConfigKey> {
     val defaultValue = ProtocolConfigKey("")
 
-    fun fromName(resourceName: String): ProtocolConfigKey? {
+    override fun fromName(resourceName: String): ProtocolConfigKey? {
       return parser.parseIdVars(resourceName)?.let {
         ProtocolConfigKey(it.getValue(IdVariable.PROTOCOL_CONFIG))
       }
