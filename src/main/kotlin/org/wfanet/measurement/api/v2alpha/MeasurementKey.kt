@@ -32,10 +32,10 @@ data class MeasurementKey(val measurementConsumerId: String, val measurementId: 
     )
   }
 
-  companion object {
+  companion object FACTORY : ResourceKey.Factory<MeasurementKey> {
     val defaultValue = MeasurementKey("", "")
 
-    fun fromName(resourceName: String): MeasurementKey? {
+    override fun fromName(resourceName: String): MeasurementKey? {
       return parser.parseIdVars(resourceName)?.let {
         MeasurementKey(
           it.getValue(IdVariable.MEASUREMENT_CONSUMER),

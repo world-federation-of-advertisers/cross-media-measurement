@@ -39,10 +39,10 @@ class EventGroupKey(
     )
   }
 
-  companion object {
+  companion object FACTORY : ResourceKey.Factory<EventGroupKey> {
     val defaultValue = EventGroupKey("", "", "")
 
-    fun fromName(resourceName: String): EventGroupKey? {
+    override fun fromName(resourceName: String): EventGroupKey? {
       return parser.parseIdVars(resourceName)?.let {
         EventGroupKey(
           it.getValue(IdVariable.MEASUREMENT_CONSUMER),

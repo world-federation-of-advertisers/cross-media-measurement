@@ -23,13 +23,13 @@ data class AccountKey(val accountId: String) : ResourceKey {
     return parser.assembleName(mapOf(IdVariable.ACCOUNT to accountId))
   }
 
-  companion object {
+  companion object FACTORY : ResourceKey.Factory<AccountKey> {
     const val COLLECTION_NAME = "accounts"
     val defaultValue = AccountKey("")
 
     private val parser = ResourceNameParser("$COLLECTION_NAME/{account}")
 
-    fun fromName(resourceName: String): AccountKey? {
+    override fun fromName(resourceName: String): AccountKey? {
       return parser.parseIdVars(resourceName)?.let { AccountKey(it.getValue(IdVariable.ACCOUNT)) }
     }
   }

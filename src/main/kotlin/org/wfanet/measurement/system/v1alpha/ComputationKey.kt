@@ -25,10 +25,10 @@ data class ComputationKey(val computationId: String) : ResourceKey {
     return parser.assembleName(mapOf(IdVariable.COMPUTATION to computationId))
   }
 
-  companion object {
+  companion object FACTORY : ResourceKey.Factory<ComputationKey> {
     val defaultValue = ComputationKey("")
 
-    fun fromName(resourceName: String): ComputationKey? {
+    override fun fromName(resourceName: String): ComputationKey? {
       return parser.parseIdVars(resourceName)?.let {
         ComputationKey(it.getValue(IdVariable.COMPUTATION))
       }

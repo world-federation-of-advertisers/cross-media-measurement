@@ -23,13 +23,13 @@ data class MeasurementConsumerKey(val measurementConsumerId: String) : ResourceK
     return parser.assembleName(mapOf(IdVariable.MEASUREMENT_CONSUMER to measurementConsumerId))
   }
 
-  companion object {
+  companion object FACTORY : ResourceKey.Factory<MeasurementConsumerKey> {
     const val COLLECTION_NAME = "measurementConsumers"
     val defaultValue = MeasurementConsumerKey("")
 
     private val parser = ResourceNameParser("$COLLECTION_NAME/{measurement_consumer}")
 
-    fun fromName(resourceName: String): MeasurementConsumerKey? {
+    override fun fromName(resourceName: String): MeasurementConsumerKey? {
       return parser.parseIdVars(resourceName)?.let {
         MeasurementConsumerKey(it.getValue(IdVariable.MEASUREMENT_CONSUMER))
       }

@@ -6,7 +6,7 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "resource_key_interface",
+    name = "resource_key",
     srcs = ["ResourceKey.kt"],
     deps = [
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",

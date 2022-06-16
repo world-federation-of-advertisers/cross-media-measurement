@@ -25,10 +25,10 @@ data class ProtocolConfigKey(val protocolConfigId: String) : ResourceKey {
     return parser.assembleName(mapOf(IdVariable.PROTOCOL_CONFIG to protocolConfigId))
   }
 
-  companion object {
+  companion object FACTORY : ResourceKey.Factory<ProtocolConfigKey> {
     val defaultValue = ProtocolConfigKey("")
 
-    fun fromName(resourceName: String): ProtocolConfigKey? {
+    override fun fromName(resourceName: String): ProtocolConfigKey? {
       return parser.parseIdVars(resourceName)?.let {
         ProtocolConfigKey(it.getValue(IdVariable.PROTOCOL_CONFIG))
       }
