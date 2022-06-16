@@ -223,8 +223,7 @@ class ComputationLogEntriesServiceTest {
         .apply {
           parent = SYSTEM_COMPUTATION_PARTICIPATE_NAME
           computationLogEntry =
-            COMPUTATION_LOG_ENTRY
-              .toBuilder()
+            COMPUTATION_LOG_ENTRY.toBuilder()
               .apply {
                 clearName()
                 errorDetailsBuilder.apply { type = ComputationLogEntry.ErrorDetails.Type.PERMANENT }
