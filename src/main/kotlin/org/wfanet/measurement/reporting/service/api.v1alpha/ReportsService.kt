@@ -18,16 +18,21 @@ import io.grpc.Status
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2.alpha.ListReportsPageToken
+import org.wfanet.measurement.api.v2.alpha.ListReportsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2.alpha.copy
 import org.wfanet.measurement.api.v2.alpha.listReportsPageToken
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.common.base64UrlDecode
+import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.reporting.Metric as InternalMetric
+import org.wfanet.measurement.internal.reporting.Metric.FrequencyHistogramParams as InternalFrequencyHistogramParams
+import org.wfanet.measurement.internal.reporting.Metric.ImpressionCountParams as InternalImpressionCountParams
+import org.wfanet.measurement.internal.reporting.Metric.WatchDurationParams as InternalWatchDurationParams
 import org.wfanet.measurement.internal.reporting.PeriodicTimeInterval as InternalPeriodicTimeInterval
 import org.wfanet.measurement.internal.reporting.Report as InternalReport
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub
@@ -38,12 +43,20 @@ import org.wfanet.measurement.internal.reporting.streamReportsRequest
 import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.v1alpha.ListReportsResponse
 import org.wfanet.measurement.reporting.v1alpha.Metric
+import org.wfanet.measurement.reporting.v1alpha.Metric.FrequencyHistogramParams
+import org.wfanet.measurement.reporting.v1alpha.Metric.ImpressionCountParams
+import org.wfanet.measurement.reporting.v1alpha.Metric.WatchDurationParams
+import org.wfanet.measurement.reporting.v1alpha.MetricKt.frequencyHistogramParams
+import org.wfanet.measurement.reporting.v1alpha.MetricKt.impressionCountParams
+import org.wfanet.measurement.reporting.v1alpha.MetricKt.reachParams
+import org.wfanet.measurement.reporting.v1alpha.MetricKt.watchDurationParams
 import org.wfanet.measurement.reporting.v1alpha.PeriodicTimeInterval
 import org.wfanet.measurement.reporting.v1alpha.Report
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.EventGroupUniverseKt.eventGroupEntry
 import org.wfanet.measurement.reporting.v1alpha.ReportsGrpcKt.ReportsCoroutineImplBase
 import org.wfanet.measurement.reporting.v1alpha.TimeIntervals
 import org.wfanet.measurement.reporting.v1alpha.listReportsResponse
+import org.wfanet.measurement.reporting.v1alpha.metric
 import org.wfanet.measurement.reporting.v1alpha.periodicTimeInterval
 import org.wfanet.measurement.reporting.v1alpha.report
 import org.wfanet.measurement.reporting.v1alpha.timeInterval
@@ -87,12 +100,30 @@ class ReportsService(private val internalReportsStub: ReportsCoroutineStub) :
       reports +=
         results
           .subList(0, min(results.size, listReportsPageToken.pageSize))
+          .map(InternalReport::updateReport)
           .map(InternalReport::toReport)
+
+      if (results.size > listReportsPageToken.pageSize) {
+        val pageToken =
+          listReportsPageToken.copy {
+            lastReport = previousPageEnd {
+              measurementConsumerReferenceId =
+                results[results.lastIndex - 1].measurementConsumerReferenceId
+              externalReportId = results[results.lastIndex - 1].externalReportId
+            }
+          }
+        nextPageToken = pageToken.toByteString().base64UrlEncode()
+      }
     }
   }
 }
 
-/** Converts an internal [InternalReport] to a public [Report] */
+/** Update an internal report with its state and its measurements' states. */
+private fun InternalReport.updateReport(): InternalReport {
+  return this
+}
+
+/** Converts an internal [InternalReport] to a public [Report]. */
 private fun InternalReport.toReport(): Report {
   val source = this
   return report {
@@ -102,7 +133,10 @@ private fun InternalReport.toReport(): Report {
           reportId = externalIdToApiId(source.externalReportId)
         )
         .toName()
+
+    // TODO(Assign the idempotency key from internal report when the fix is ready.)
     reportIdempotencyKey = externalIdToApiId(source.externalReportId)
+
     measurementConsumer = source.measurementConsumerReferenceId
 
     for (eventGroupFilter in source.details.eventGroupFiltersMap) {
@@ -128,20 +162,52 @@ private fun InternalReport.toReport(): Report {
   }
 }
 
+/** Converts an internal [InternalMetric] to a public [Metric]. */
 private fun InternalMetric.toMetric(): Metric {
   val source = this
 
-  when (source.details.metricTypeCase) {
-    InternalMetric.Details.MetricTypeCase.REACH -> source.details.reach.toReach()
-    InternalMetric.Details.MetricTypeCase.FREQUENCY_HISTOGRAM ->
-      source.details.frequencyHistogram.toFrequencyHistogram()
-    InternalMetric.Details.MetricTypeCase.IMPRESSION_COUNT ->
-      source.details.impressionCount.toImpressionCount()
-    InternalMetric.Details.MetricTypeCase.WATCH_DURATION ->
-      source.details.watchDuration.toWatchDuration()
+  return metric {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    when (source.details.metricTypeCase) {
+      InternalMetric.Details.MetricTypeCase.REACH -> this.reach = reachParams {}
+      InternalMetric.Details.MetricTypeCase.FREQUENCY_HISTOGRAM ->
+        this.frequencyHistogram = source.details.frequencyHistogram.toFrequencyHistogram()
+      InternalMetric.Details.MetricTypeCase.IMPRESSION_COUNT ->
+        source.details.impressionCount.toImpressionCount()
+      InternalMetric.Details.MetricTypeCase.WATCH_DURATION ->
+        source.details.watchDuration.toWatchDuration()
+      InternalMetric.Details.MetricTypeCase.METRICTYPE_NOT_SET ->
+        error("The metric type in the internal report should be set.")
+    }
+
+    cumulative = source.details.cumulative
   }
 }
 
+/** Converts an internal [InternalWatchDurationParams] to a public [WatchDurationParams]. */
+private fun InternalWatchDurationParams.toWatchDuration(): WatchDurationParams {
+  val source = this
+  return watchDurationParams {
+    maximumFrequencyPerUser = source.maximumFrequencyPerUser
+    maximumWatchDurationPerUser = source.maximumWatchDurationPerUser
+  }
+}
+
+/** Converts an internal [InternalImpressionCountParams] to a public [ImpressionCountParams]. */
+private fun InternalImpressionCountParams.toImpressionCount(): ImpressionCountParams {
+  val source = this
+  return impressionCountParams { maximumFrequencyPerUser = source.maximumFrequencyPerUser }
+}
+
+/**
+ * Converts an internal [InternalFrequencyHistogramParams] to a public [FrequencyHistogramParams].
+ */
+private fun InternalFrequencyHistogramParams.toFrequencyHistogram(): FrequencyHistogramParams {
+  val source = this
+  return frequencyHistogramParams { maximumFrequencyPerUser = source.maximumFrequencyPerUser }
+}
+
+/** Converts an internal [InternalPeriodicTimeInterval] to a public [PeriodicTimeInterval]. */
 private fun InternalPeriodicTimeInterval.toPeriodicTimeInterval(): PeriodicTimeInterval {
   val source = this
   return periodicTimeInterval {
@@ -151,6 +217,7 @@ private fun InternalPeriodicTimeInterval.toPeriodicTimeInterval(): PeriodicTimeI
   }
 }
 
+/** Converts an internal [InternalTimeIntervals] to a public [TimeIntervals]. */
 private fun InternalTimeIntervals.toTimeIntervals(): TimeIntervals {
   val source = this
   return timeIntervals {
