@@ -15,6 +15,7 @@
 package org.wfanet.measurement.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
+import org.wfanet.measurement.common.api.ResourceKey
 
 private val parser = ResourceNameParser("recurringExchanges/{recurring_exchange}")
 
@@ -24,10 +25,10 @@ data class RecurringExchangeKey(val recurringExchangeId: String) : ResourceKey {
     return parser.assembleName(mapOf(IdVariable.RECURRING_EXCHANGE to recurringExchangeId))
   }
 
-  companion object {
+  companion object FACTORY : ResourceKey.Factory<RecurringExchangeKey> {
     val defaultValue = RecurringExchangeKey("")
 
-    fun fromName(resourceName: String): RecurringExchangeKey? {
+    override fun fromName(resourceName: String): RecurringExchangeKey? {
       return parser.parseIdVars(resourceName)?.let {
         RecurringExchangeKey(it.getValue(IdVariable.RECURRING_EXCHANGE))
       }
