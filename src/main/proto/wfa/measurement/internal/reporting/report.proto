@@ -93,4 +93,7 @@ message Report {
     Result result = 2;
   }
   Details details = 8;
+
+  // Seconds since the report was created. Output-only.
+  int32 seconds_since_creation = 9;
 }
