@@ -32,6 +32,9 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.reporting.Metric as InternalMetric
 import org.wfanet.measurement.internal.reporting.Metric.FrequencyHistogramParams as InternalFrequencyHistogramParams
 import org.wfanet.measurement.internal.reporting.Metric.ImpressionCountParams as InternalImpressionCountParams
+import org.wfanet.measurement.internal.reporting.Metric.NamedSetOperation as IntenralNamedSetOperation
+import org.wfanet.measurement.internal.reporting.Metric.SetOperation as InternalSetOperation
+import org.wfanet.measurement.internal.reporting.Metric.SetOperation.Operand as InternalOperand
 import org.wfanet.measurement.internal.reporting.Metric.WatchDurationParams as InternalWatchDurationParams
 import org.wfanet.measurement.internal.reporting.PeriodicTimeInterval as InternalPeriodicTimeInterval
 import org.wfanet.measurement.internal.reporting.Report as InternalReport
@@ -45,10 +48,15 @@ import org.wfanet.measurement.reporting.v1alpha.ListReportsResponse
 import org.wfanet.measurement.reporting.v1alpha.Metric
 import org.wfanet.measurement.reporting.v1alpha.Metric.FrequencyHistogramParams
 import org.wfanet.measurement.reporting.v1alpha.Metric.ImpressionCountParams
+import org.wfanet.measurement.reporting.v1alpha.Metric.NamedSetOperation
+import org.wfanet.measurement.reporting.v1alpha.Metric.SetOperation
 import org.wfanet.measurement.reporting.v1alpha.Metric.WatchDurationParams
+import org.wfanet.measurement.reporting.v1alpha.MetricKt.SetOperationKt.operand
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.frequencyHistogramParams
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.impressionCountParams
+import org.wfanet.measurement.reporting.v1alpha.MetricKt.namedSetOperation
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.reachParams
+import org.wfanet.measurement.reporting.v1alpha.MetricKt.setOperation
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.watchDurationParams
 import org.wfanet.measurement.reporting.v1alpha.PeriodicTimeInterval
 import org.wfanet.measurement.reporting.v1alpha.Report
@@ -181,6 +189,73 @@ private fun InternalMetric.toMetric(): Metric {
     }
 
     cumulative = source.details.cumulative
+
+    for (internalSetOperation in source.namedSetOperationsList) {
+      this.setOperations += internalSetOperation.toNamedSetOperation()
+    }
+  }
+}
+
+/** Converts an internal [IntenralNamedSetOperation] to a public [NamedSetOperation]. */
+private fun IntenralNamedSetOperation.toNamedSetOperation(): NamedSetOperation {
+  val source = this
+
+  return namedSetOperation {
+    displayName = source.displayName
+    setOperation = source.setOperation.toSetOperation()
+  }
+}
+
+/** Converts an internal [InternalSetOperation] to a public [SetOperation]. */
+private fun InternalSetOperation.toSetOperation(): SetOperation {
+  val source = this
+
+  return setOperation {
+    this.type = source.type.toType()
+    this.lhs = source.lhs.toOperand(true)
+    this.rhs = source.lhs.toOperand(false)
+  }
+}
+
+/** Converts an internal [InternalOperand] to a public [SetOperation.Operand]. */
+private fun InternalOperand.toOperand(isLhs: Boolean): SetOperation.Operand {
+  val source = this
+
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+  return when (source.operandCase) {
+    InternalOperand.OperandCase.OPERATION ->
+      operand { operation = source.operation.toSetOperation() }
+    InternalOperand.OperandCase.REPORTINGSETID ->
+      operand {
+        reportingSet =
+          ReportKey(
+              source.reportingSetId.measurementConsumerReferenceId,
+              externalIdToApiId(source.reportingSetId.externalReportingSetId)
+            )
+            .toName()
+      }
+    InternalOperand.OperandCase.OPERAND_NOT_SET ->
+      if (isLhs) {
+        error("Operand on the left hand side should be set.")
+      } else {
+        SetOperation.Operand
+          .getDefaultInstance() // TODO(Will this generate an Operand with OPERAND_NOT_SET?)
+      }
+  }
+}
+
+/** Converts an internal [InternalSetOperation.Type] to a public [SetOperation.Type]. */
+private fun InternalSetOperation.Type.toType(): SetOperation.Type {
+  val source = this
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+  return when (source) {
+    InternalSetOperation.Type.UNION -> SetOperation.Type.UNION
+    InternalSetOperation.Type.INTERSECTION -> SetOperation.Type.INTERSECTION
+    InternalSetOperation.Type.DIFFERENCE -> SetOperation.Type.DIFFERENCE
+    org.wfanet.measurement.internal.reporting.Metric.SetOperation.Type.TYPE_UNSPECIFIED ->
+      error("Set operator type should be set.")
+    org.wfanet.measurement.internal.reporting.Metric.SetOperation.Type.UNRECOGNIZED ->
+      error("Unrecognized Set operator type.")
   }
 }
 
