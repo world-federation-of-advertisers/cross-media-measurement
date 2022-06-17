@@ -19,6 +19,10 @@ import io.grpc.ServerServiceDefinition
 import io.grpc.netty.NettyServerBuilder
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.time.Duration
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit.SECONDS
 import org.junit.After
 import org.junit.Before
@@ -31,30 +35,48 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.grpc.toServerTlsContext
 import org.wfanet.measurement.common.testing.verifyProtoArgument
+import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.reporting.v1alpha.Metric
+import org.wfanet.measurement.reporting.v1alpha.MetricKt.SetOperationKt.operand
+import org.wfanet.measurement.reporting.v1alpha.MetricKt.namedSetOperation
+import org.wfanet.measurement.reporting.v1alpha.MetricKt.reachParams
+import org.wfanet.measurement.reporting.v1alpha.MetricKt.setOperation
+import org.wfanet.measurement.reporting.v1alpha.Report
+import org.wfanet.measurement.reporting.v1alpha.ReportKt.EventGroupUniverseKt.eventGroupEntry
+import org.wfanet.measurement.reporting.v1alpha.ReportKt.eventGroupUniverse
 import org.wfanet.measurement.reporting.v1alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
+import org.wfanet.measurement.reporting.v1alpha.ReportsGrpcKt.ReportsCoroutineImplBase
+import org.wfanet.measurement.reporting.v1alpha.createReportRequest
 import org.wfanet.measurement.reporting.v1alpha.createReportingSetRequest
+import org.wfanet.measurement.reporting.v1alpha.getReportRequest
 import org.wfanet.measurement.reporting.v1alpha.listReportingSetsRequest
 import org.wfanet.measurement.reporting.v1alpha.listReportingSetsResponse
+import org.wfanet.measurement.reporting.v1alpha.listReportsRequest
+import org.wfanet.measurement.reporting.v1alpha.listReportsResponse
+import org.wfanet.measurement.reporting.v1alpha.metric
+import org.wfanet.measurement.reporting.v1alpha.periodicTimeInterval
+import org.wfanet.measurement.reporting.v1alpha.report
 import org.wfanet.measurement.reporting.v1alpha.reportingSet
+import org.wfanet.measurement.reporting.v1alpha.timeInterval
+import org.wfanet.measurement.reporting.v1alpha.timeIntervals
 import picocli.CommandLine
 
 private const val HOST = "localhost"
 private val SECRETS_DIR: Path =
+  getRuntimePath(Paths.get("wfa_measurement_system/src/main/k8s/testing/secretfiles"))!!
+
+private val TEXTPROTO_DIR: Path =
   getRuntimePath(
     Paths.get(
-      "wfa_measurement_system",
-      "src",
-      "main",
-      "k8s",
-      "testing",
-      "secretfiles",
+      "wfa_measurement_system/src/test/kotlin/org/wfanet/measurement/reporting" +
+        "/service/api/v1alpha/tools"
     )
   )!!
 
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/1"
-private const val EVENT_GROUP_NAME_1 = "dataProviders/1/eventGroups/1"
-private const val EVENT_GROUP_NAME_2 = "dataProviders/1/eventGroups/2"
-private const val EVENT_GROUP_NAME_3 = "dataProviders/2/eventGroups/1"
+private const val EVENT_GROUP_NAME_1 = "$MEASUREMENT_CONSUMER_NAME/dataProviders/1/eventGroups/1"
+private const val EVENT_GROUP_NAME_2 = "$MEASUREMENT_CONSUMER_NAME/dataProviders/1/eventGroups/2"
+private const val EVENT_GROUP_NAME_3 = "$MEASUREMENT_CONSUMER_NAME/dataProviders/2/eventGroups/1"
 
 private val REPORTING_SET = reportingSet { name = "$MEASUREMENT_CONSUMER_NAME/reportingSets/1" }
 private val LIST_REPORTING_SETS_RESPONSE = listReportingSetsResponse {
@@ -73,12 +95,66 @@ private val LIST_REPORTING_SETS_RESPONSE = listReportingSetsResponse {
   nextPageToken = "TokenToGetTheNextPage"
 }
 
+private fun Duration.toProtoDuration(): com.google.protobuf.Duration =
+  com.google.protobuf.Duration.newBuilder().setSeconds(seconds).setNanos(nano).build()
+
+private const val REPORT_NAME = "$MEASUREMENT_CONSUMER_NAME/reports/1"
+private val REPORT = report {
+  name = REPORT_NAME
+  measurementConsumer = MEASUREMENT_CONSUMER_NAME
+  eventGroupUniverse = eventGroupUniverse {
+    eventGroupEntries += eventGroupEntry {
+      key = "measurementConsumers/1/dataProviders/1/eventGroups/1"
+      value = ""
+    }
+    eventGroupEntries += eventGroupEntry {
+      key = "measurementConsumers/1/dataProviders/2/eventGroups/3"
+      value = "partner=abc"
+    }
+  }
+  timeIntervals = timeIntervals {
+    timeIntervals += timeInterval {
+      startTime =
+        LocalDate.now().minusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+      endTime = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+    }
+  }
+}
+
+private val LIST_REPORTS_RESPONSE = listReportsResponse {
+  reports +=
+    listOf(
+      report {
+        name = "$MEASUREMENT_CONSUMER_NAME/reports/1"
+        measurementConsumer = MEASUREMENT_CONSUMER_NAME
+        state = Report.State.RUNNING
+      },
+      report {
+        name = "$MEASUREMENT_CONSUMER_NAME/reports/2"
+        measurementConsumer = MEASUREMENT_CONSUMER_NAME
+        state = Report.State.SUCCEEDED
+        results += "CVS string"
+      },
+      report {
+        name = "$MEASUREMENT_CONSUMER_NAME/reports/3"
+        measurementConsumer = MEASUREMENT_CONSUMER_NAME
+        state = Report.State.FAILED
+      }
+    )
+}
+
 @RunWith(JUnit4::class)
 class ReportingTest {
   private val reportingSetsServiceMock: ReportingSetsCoroutineImplBase =
     mockService() {
       onBlocking { createReportingSet(any()) }.thenReturn(REPORTING_SET)
       onBlocking { listReportingSets(any()) }.thenReturn(LIST_REPORTING_SETS_RESPONSE)
+    }
+  private val reportsServiceMock: ReportsCoroutineImplBase =
+    mockService() {
+      onBlocking { createReport(any()) }.thenReturn(REPORT)
+      onBlocking { listReports(any()) }.thenReturn(LIST_REPORTS_RESPONSE)
+      onBlocking { getReport(any()) }.thenReturn(REPORT)
     }
 
   // TODO(@renjiez): Use reporting server's credential
@@ -92,6 +168,7 @@ class ReportingTest {
   private val services: List<ServerServiceDefinition> =
     listOf(
       reportingSetsServiceMock.bindService(),
+      reportsServiceMock.bindService(),
     )
 
   private val server: Server =
@@ -169,5 +246,235 @@ class ReportingTest {
           pageSize = 50
         }
       )
+  }
+
+  @Test
+  fun `Reports create calls api with valid request`() {
+    val metric =
+      """
+    reach { }
+    set_operations {
+      display_name: "operation1"
+      set_operation {
+        type: 1
+        lhs {
+          reporting_set: "measurementConsumers/1/reportingSets/1"
+        }
+        rhs {
+          reporting_set: "measurementConsumers/1/reportingSets/2"
+        }
+      }
+    }
+    """.trimIndent()
+
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "reports",
+        "create",
+        "--parent=$MEASUREMENT_CONSUMER_NAME",
+        "--event-group-key=$EVENT_GROUP_NAME_1",
+        "--event-group-value=",
+        "--event-group-key=$EVENT_GROUP_NAME_2",
+        "--event-group-value=partner=abc",
+        "--periodic-interval-start-time=2017-01-15T01:30:15.01Z",
+        "--periodic-interval-increment=P1DT3H5M12.99S",
+        "--periodic-interval-count=3",
+        "--metric=$metric",
+      )
+    CommandLine(Reporting()).execute(*args)
+
+    verifyProtoArgument(reportsServiceMock, ReportsCoroutineImplBase::createReport)
+      .isEqualTo(
+        createReportRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          report = report {
+            measurementConsumer = MEASUREMENT_CONSUMER_NAME
+            eventGroupUniverse = eventGroupUniverse {
+              eventGroupEntries += eventGroupEntry { key = EVENT_GROUP_NAME_1 }
+              eventGroupEntries += eventGroupEntry {
+                key = EVENT_GROUP_NAME_2
+                value = "partner=abc"
+              }
+            }
+            periodicTimeInterval = periodicTimeInterval {
+              startTime = Instant.parse("2017-01-15T01:30:15.01Z").toProtoTime()
+              increment = Duration.parse("P1DT3H5M12.99S").toProtoDuration()
+              intervalCount = 3
+            }
+            metrics += metric {
+              reach = reachParams {}
+              setOperations += namedSetOperation {
+                displayName = "operation1"
+                setOperation = setOperation {
+                  type = Metric.SetOperation.Type.UNION
+                  lhs = operand { reportingSet = "measurementConsumers/1/reportingSets/1" }
+                  rhs = operand { reportingSet = "measurementConsumers/1/reportingSets/2" }
+                }
+              }
+            }
+          }
+        }
+      )
+  }
+
+  @Test
+  fun `Reports create calls api with correct time intervals params`() {
+    val metric =
+      """
+    reach { }
+    set_operations {
+      display_name: "operation1"
+      set_operation {
+        type: 1
+        lhs {
+          reporting_set: "measurementConsumers/1/reportingSets/1"
+        }
+        rhs {
+          reporting_set: "measurementConsumers/1/reportingSets/2"
+        }
+      }
+    }
+    """.trimIndent()
+
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "reports",
+        "create",
+        "--parent=$MEASUREMENT_CONSUMER_NAME",
+        "--event-group-key=$EVENT_GROUP_NAME_1",
+        "--event-group-value=",
+        "--interval-start-time=2017-01-15T01:30:15.01Z",
+        "--interval-end-time=2018-10-27T23:19:12.99Z",
+        "--interval-start-time=2019-01-19T09:48:35.57Z",
+        "--interval-end-time=2022-06-13T11:57:54.21Z",
+        "--metric=$metric",
+      )
+    CommandLine(Reporting()).execute(*args)
+
+    verifyProtoArgument(reportsServiceMock, ReportsCoroutineImplBase::createReport)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        createReportRequest {
+          report = report {
+            timeIntervals = timeIntervals {
+              timeIntervals += timeInterval {
+                startTime = Instant.parse("2017-01-15T01:30:15.01Z").toProtoTime()
+                endTime = Instant.parse("2018-10-27T23:19:12.99Z").toProtoTime()
+              }
+              timeIntervals += timeInterval {
+                startTime = Instant.parse("2019-01-19T09:48:35.57Z").toProtoTime()
+                endTime = Instant.parse("2022-06-13T11:57:54.21Z").toProtoTime()
+              }
+            }
+          }
+        }
+      )
+  }
+
+  @Test
+  fun `Reports create calls api with complex metric`() {
+    val serializedMetrics = TEXTPROTO_DIR.resolve("metric.textproto").toFile().readText()
+
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "reports",
+        "create",
+        "--parent=$MEASUREMENT_CONSUMER_NAME",
+        "--event-group-key=$EVENT_GROUP_NAME_1",
+        "--event-group-value=",
+        "--periodic-interval-start-time=2017-01-15T01:30:15.01Z",
+        "--periodic-interval-increment=P1DT3H5M12.99S",
+        "--periodic-interval-count=3",
+        "--metric=$serializedMetrics",
+      )
+    CommandLine(Reporting()).execute(*args)
+
+    verifyProtoArgument(reportsServiceMock, ReportsCoroutineImplBase::createReport)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        createReportRequest {
+          report = report {
+            metrics += metric {
+              reach = reachParams {}
+              cumulative = true
+              setOperations += namedSetOperation {
+                displayName = "operation1"
+                setOperation = setOperation {
+                  type = Metric.SetOperation.Type.UNION
+                  lhs = operand { reportingSet = "measurementConsumers/1/reportingSets/1" }
+                  rhs = operand { reportingSet = "measurementConsumers/1/reportingSets/2" }
+                }
+              }
+              setOperations += namedSetOperation {
+                displayName = "operation2"
+                setOperation = setOperation {
+                  type = Metric.SetOperation.Type.DIFFERENCE
+                  lhs = operand { reportingSet = "measurementConsumers/1/reportingSets/3" }
+                  rhs = operand {
+                    operation = setOperation {
+                      type = Metric.SetOperation.Type.INTERSECTION
+                      lhs = operand { reportingSet = "measurementConsumers/1/reportingSets/4" }
+                      rhs = operand { reportingSet = "measurementConsumers/1/reportingSets/5" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      )
+  }
+
+  @Test
+  fun `Reports list calls api with valid request`() {
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "reports",
+        "list",
+        "--parent=$MEASUREMENT_CONSUMER_NAME",
+      )
+    CommandLine(Reporting()).execute(*args)
+
+    verifyProtoArgument(reportsServiceMock, ReportsCoroutineImplBase::listReports)
+      .isEqualTo(
+        listReportsRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          pageSize = 1000
+        }
+      )
+  }
+
+  @Test
+  fun `Reports get calls api with valid request`() {
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "reports",
+        "get",
+        "--name=$REPORT_NAME",
+      )
+    CommandLine(Reporting()).execute(*args)
+
+    verifyProtoArgument(reportsServiceMock, ReportsCoroutineImplBase::getReport)
+      .isEqualTo(getReportRequest { name = REPORT_NAME })
   }
 }

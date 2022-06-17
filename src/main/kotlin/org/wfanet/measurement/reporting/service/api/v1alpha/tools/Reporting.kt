@@ -14,8 +14,12 @@
 
 package org.wfanet.measurement.reporting.service.api.v1alpha.tools
 
+import com.google.protobuf.Duration as ProtoDuration
+import com.google.protobuf.TextFormat
 import io.grpc.ManagedChannel
 import java.time.Duration
+import java.time.Instant
+import kotlin.properties.Delegates
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
@@ -23,11 +27,22 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
+import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.reporting.v1alpha.Metric
+import org.wfanet.measurement.reporting.v1alpha.ReportKt.EventGroupUniverseKt.eventGroupEntry
+import org.wfanet.measurement.reporting.v1alpha.ReportKt.eventGroupUniverse
 import org.wfanet.measurement.reporting.v1alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import org.wfanet.measurement.reporting.v1alpha.ReportsGrpcKt.ReportsCoroutineStub
+import org.wfanet.measurement.reporting.v1alpha.createReportRequest
 import org.wfanet.measurement.reporting.v1alpha.createReportingSetRequest
+import org.wfanet.measurement.reporting.v1alpha.getReportRequest
 import org.wfanet.measurement.reporting.v1alpha.listReportingSetsRequest
+import org.wfanet.measurement.reporting.v1alpha.listReportsRequest
+import org.wfanet.measurement.reporting.v1alpha.periodicTimeInterval
+import org.wfanet.measurement.reporting.v1alpha.report
 import org.wfanet.measurement.reporting.v1alpha.reportingSet
+import org.wfanet.measurement.reporting.v1alpha.timeInterval
+import org.wfanet.measurement.reporting.v1alpha.timeIntervals
 import picocli.CommandLine
 
 private class ReportingApiFlags {
@@ -49,6 +64,25 @@ private class ReportingApiFlags {
     required = false,
   )
   var apiCertHost: String? = null
+    private set
+}
+
+private class PageParams {
+  @CommandLine.Option(
+    names = ["--page-size"],
+    description = ["The maximum number of reportingSets to return. The maximum value is 1000"],
+    required = false,
+  )
+  var pageSize: Int = 1000
+    private set
+
+  @CommandLine.Option(
+    names = ["--page-token"],
+    description = ["Page token from a previous `ListReports` call to retrieve the next page"],
+    defaultValue = "",
+    required = false,
+  )
+  lateinit var pageToken: String
     private set
 }
 
@@ -112,26 +146,13 @@ class ListReportingSetsCommand : Runnable {
   )
   private lateinit var measurementConsumerName: String
 
-  @CommandLine.Option(
-    names = ["--page-size"],
-    description = ["The maximum number of reportingSets to return. The maximum value is 1000"],
-    required = false,
-  )
-  private var pageSizeInput: Int = 1000
-
-  @CommandLine.Option(
-    names = ["--page-token"],
-    description = ["Page token from a previous `ListReports` call to retrieve the next page"],
-    defaultValue = "",
-    required = false,
-  )
-  private lateinit var pageTokenInput: String
+  @CommandLine.Mixin private lateinit var pageParams: PageParams
 
   override fun run() {
     val request = listReportingSetsRequest {
       parent = measurementConsumerName
-      pageSize = pageSizeInput
-      pageToken = pageTokenInput
+      pageSize = pageParams.pageSize
+      pageToken = pageParams.pageToken
     }
 
     val response =
@@ -161,17 +182,201 @@ class ReportingSetsCommand : Runnable {
 
 @CommandLine.Command(name = "create", description = ["Create a set operation report"])
 class CreateReportCommand : Runnable {
-  override fun run() {}
+  @CommandLine.ParentCommand private lateinit var parent: ReportsCommand
+
+  @CommandLine.Option(
+    names = ["--parent"],
+    description = ["API resource name of the Measurement Consumer"],
+    required = true,
+  )
+  private lateinit var measurementConsumerName: String
+
+  class EventGroupInput {
+    @CommandLine.Option(
+      names = ["--event-group-key"],
+      description = ["Event Group Entry's key"],
+      required = true,
+    )
+    lateinit var key: String
+      private set
+
+    @CommandLine.Option(
+      names = ["--event-group-value"],
+      description = ["Event Group Entry's value"],
+      defaultValue = "",
+      required = false,
+    )
+    lateinit var value: String
+      private set
+  }
+
+  @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*", heading = "Event Group Entries\n")
+  private lateinit var eventGroups: List<EventGroupInput>
+
+  class TimeInput {
+    class TimeIntervalInput {
+      @CommandLine.Option(
+        names = ["--interval-start-time"],
+        description = ["Start of time interval in ISO 8601 format of UTC"],
+        required = true,
+      )
+      lateinit var intervalStartTime: Instant
+        private set
+
+      @CommandLine.Option(
+        names = ["--interval-end-time"],
+        description = ["End of time interval in ISO 8601 format of UTC"],
+        required = true,
+      )
+      lateinit var intervalEndTime: Instant
+        private set
+    }
+
+    class PeriodicTimeIntervalInput {
+      @CommandLine.Option(
+        names = ["--periodic-interval-start-time"],
+        description = ["Start of the first time interval in ISO 8601 format of UTC"],
+        required = true,
+      )
+      lateinit var periodicIntervalStartTime: Instant
+        private set
+
+      @CommandLine.Option(
+        names = ["--periodic-interval-increment"],
+        description = ["Increment for each time interval in ISO-8601 format of PnDTnHnMn"],
+        required = true
+      )
+      lateinit var periodicIntervalIncrement: Duration
+
+      @set:CommandLine.Option(
+        names = ["--periodic-interval-count"],
+        description = ["Number of periodic intervals"],
+        required = true
+      )
+      var periodicIntervalCount by Delegates.notNull<Int>()
+        private set
+    }
+
+    @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*", heading = "Time intervals\n")
+    var timeIntervals: List<TimeIntervalInput>? = null
+      private set
+
+    @CommandLine.ArgGroup(
+      exclusive = false,
+      multiplicity = "1",
+      heading = "Periodic time interval specification\n"
+    )
+    var periodicTimeIntervalInput: PeriodicTimeIntervalInput? = null
+      private set
+  }
+
+  @CommandLine.ArgGroup(
+    exclusive = true,
+    multiplicity = "1",
+    heading = "Time interval or periodic time interval\n"
+  )
+  private lateinit var timeInput: TimeInput
+
+  @CommandLine.Option(
+    names = ["--metric"],
+    description = ["String of serialized Metric"],
+    required = true,
+  )
+  private lateinit var serializedMetrics: List<String>
+
+  private fun Duration.toProtoDuration(): ProtoDuration =
+    ProtoDuration.newBuilder().setSeconds(seconds).setNanos(nano).build()
+
+  override fun run() {
+    val request = createReportRequest {
+      parent = measurementConsumerName
+      report = report {
+        measurementConsumer = measurementConsumerName
+        eventGroupUniverse = eventGroupUniverse {
+          eventGroups.map {
+            eventGroupEntries += eventGroupEntry {
+              key = it.key
+              value = it.value
+            }
+          }
+        }
+
+        // Either timeIntervals or periodicTimeIntervalInput are set.
+        timeInput.timeIntervals?.apply {
+          timeIntervals = timeIntervals {
+            map {
+              timeIntervals += timeInterval {
+                startTime = it.intervalStartTime.toProtoTime()
+                endTime = it.intervalEndTime.toProtoTime()
+              }
+            }
+          }
+        }
+
+        timeInput.periodicTimeIntervalInput?.let {
+          periodicTimeInterval = periodicTimeInterval {
+            startTime = it.periodicIntervalStartTime.toProtoTime()
+            increment = it.periodicIntervalIncrement.toProtoDuration()
+            intervalCount = it.periodicIntervalCount
+          }
+        }
+
+        serializedMetrics.map {
+          val metricsBuilder = Metric.newBuilder()
+          TextFormat.getParser().merge(it, metricsBuilder)
+          metrics += metricsBuilder.build()
+        }
+      }
+    }
+    val report = runBlocking(Dispatchers.IO) { parent.reportsStub.createReport(request) }
+
+    println(report)
+  }
 }
 
 @CommandLine.Command(name = "list", description = ["List set operation reports"])
 class ListReportsCommand : Runnable {
-  override fun run() {}
+  @CommandLine.ParentCommand private lateinit var parent: ReportsCommand
+
+  @CommandLine.Option(
+    names = ["--parent"],
+    description = ["API resource name of the Measurement Consumer"],
+    required = true,
+  )
+  private lateinit var measurementConsumerName: String
+
+  @CommandLine.Mixin private lateinit var pageParams: PageParams
+
+  override fun run() {
+    val request = listReportsRequest {
+      parent = measurementConsumerName
+      pageSize = pageParams.pageSize
+      pageToken = pageParams.pageToken
+    }
+
+    val response = runBlocking(Dispatchers.IO) { parent.reportsStub.listReports(request) }
+
+    response.reportsList.map { println(it.name + " " + it.state.toString()) }
+  }
 }
 
 @CommandLine.Command(name = "get", description = ["Get a set operation report"])
 class GetReportCommand : Runnable {
-  override fun run() {}
+  @CommandLine.ParentCommand private lateinit var parent: ReportsCommand
+
+  @CommandLine.Option(
+    names = ["--name"],
+    description = ["API resource name of the Report"],
+    required = true,
+  )
+  private lateinit var reportName: String
+
+  override fun run() {
+    val request = getReportRequest { name = reportName }
+
+    val report = runBlocking(Dispatchers.IO) { parent.reportsStub.getReport(request) }
+    println(report)
+  }
 }
 
 @CommandLine.Command(
@@ -188,9 +393,6 @@ class GetReportCommand : Runnable {
 class ReportsCommand : Runnable {
   @CommandLine.ParentCommand lateinit var parent: Reporting
 
-  val reportingSetStub: ReportingSetsCoroutineStub by lazy {
-    ReportingSetsCoroutineStub(parent.channel)
-  }
   val reportsStub: ReportsCoroutineStub by lazy { ReportsCoroutineStub(parent.channel) }
 
   override fun run() {}
