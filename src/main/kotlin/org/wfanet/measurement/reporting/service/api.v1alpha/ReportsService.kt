@@ -32,7 +32,7 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.reporting.Metric as InternalMetric
 import org.wfanet.measurement.internal.reporting.Metric.FrequencyHistogramParams as InternalFrequencyHistogramParams
 import org.wfanet.measurement.internal.reporting.Metric.ImpressionCountParams as InternalImpressionCountParams
-import org.wfanet.measurement.internal.reporting.Metric.NamedSetOperation as IntenralNamedSetOperation
+import org.wfanet.measurement.internal.reporting.Metric.NamedSetOperation as InternalNamedSetOperation
 import org.wfanet.measurement.internal.reporting.Metric.SetOperation as InternalSetOperation
 import org.wfanet.measurement.internal.reporting.Metric.SetOperation.Operand as InternalOperand
 import org.wfanet.measurement.internal.reporting.Metric.WatchDurationParams as InternalWatchDurationParams
@@ -161,12 +161,29 @@ private fun InternalReport.toReport(): Report {
       InternalReport.TimeCase.PERIODIC_TIME_INTERVAL ->
         this.periodicTimeInterval = source.periodicTimeInterval.toPeriodicTimeInterval()
       InternalReport.TimeCase.TIME_NOT_SET ->
-        error("The time in the internal report should be set.")
+        error("The time in the internal report should've be set.")
     }
 
     for (metric in source.metricsList) {
       this.metrics += metric.toMetric()
     }
+
+    this.state = source.state.toState()
+  }
+}
+
+private fun InternalReport.State.toState(): Report.State {
+  val source = this
+
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+  return when (source) {
+    InternalReport.State.RUNNING -> Report.State.RUNNING
+    InternalReport.State.SUCCEEDED -> Report.State.SUCCEEDED
+    InternalReport.State.FAILED -> Report.State.FAILED
+    org.wfanet.measurement.internal.reporting.Report.State.STATE_UNSPECIFIED ->
+      error("Report state should've be set.")
+    org.wfanet.measurement.internal.reporting.Report.State.UNRECOGNIZED ->
+      error("Unrecognized report state.")
   }
 }
 
@@ -185,7 +202,7 @@ private fun InternalMetric.toMetric(): Metric {
       InternalMetric.Details.MetricTypeCase.WATCH_DURATION ->
         source.details.watchDuration.toWatchDuration()
       InternalMetric.Details.MetricTypeCase.METRICTYPE_NOT_SET ->
-        error("The metric type in the internal report should be set.")
+        error("The metric type in the internal report should've be set.")
     }
 
     cumulative = source.details.cumulative
@@ -196,8 +213,8 @@ private fun InternalMetric.toMetric(): Metric {
   }
 }
 
-/** Converts an internal [IntenralNamedSetOperation] to a public [NamedSetOperation]. */
-private fun IntenralNamedSetOperation.toNamedSetOperation(): NamedSetOperation {
+/** Converts an internal [InternalNamedSetOperation] to a public [NamedSetOperation]. */
+private fun InternalNamedSetOperation.toNamedSetOperation(): NamedSetOperation {
   val source = this
 
   return namedSetOperation {
@@ -236,7 +253,7 @@ private fun InternalOperand.toOperand(isLhs: Boolean): SetOperation.Operand {
       }
     InternalOperand.OperandCase.OPERAND_NOT_SET ->
       if (isLhs) {
-        error("Operand on the left hand side should be set.")
+        error("Operand on the left hand side should've be set.")
       } else {
         SetOperation.Operand
           .getDefaultInstance() // TODO(Will this generate an Operand with OPERAND_NOT_SET?)
@@ -253,7 +270,7 @@ private fun InternalSetOperation.Type.toType(): SetOperation.Type {
     InternalSetOperation.Type.INTERSECTION -> SetOperation.Type.INTERSECTION
     InternalSetOperation.Type.DIFFERENCE -> SetOperation.Type.DIFFERENCE
     org.wfanet.measurement.internal.reporting.Metric.SetOperation.Type.TYPE_UNSPECIFIED ->
-      error("Set operator type should be set.")
+      error("Set operator type should've be set.")
     org.wfanet.measurement.internal.reporting.Metric.SetOperation.Type.UNRECOGNIZED ->
       error("Unrecognized Set operator type.")
   }
