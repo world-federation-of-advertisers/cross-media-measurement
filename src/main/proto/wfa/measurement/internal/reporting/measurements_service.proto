@@ -22,7 +22,7 @@ option java_package = "org.wfanet.measurement.internal.reporting";
 option java_multiple_files = true;
 
 // Internal service for persistence of Measurement entities.
-service Reports {
+service Measurements {
   rpc CreateMeasurement(Measurement) returns (Measurement);
 
   rpc SetMeasurementResult(SetMeasurementResultRequest) returns (Measurement);
