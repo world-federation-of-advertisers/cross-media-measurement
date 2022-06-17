@@ -16,19 +16,25 @@ package org.wfanet.measurement.reporting.service.api.v1alpha
 
 import io.grpc.Status
 import kotlin.math.min
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2.alpha.ListReportsPageToken
 import org.wfanet.measurement.api.v2.alpha.ListReportsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2.alpha.copy
 import org.wfanet.measurement.api.v2.alpha.listReportsPageToken
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
+import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.internal.reporting.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.Metric as InternalMetric
 import org.wfanet.measurement.internal.reporting.Metric.FrequencyHistogramParams as InternalFrequencyHistogramParams
 import org.wfanet.measurement.internal.reporting.Metric.ImpressionCountParams as InternalImpressionCountParams
@@ -39,9 +45,11 @@ import org.wfanet.measurement.internal.reporting.Metric.WatchDurationParams as I
 import org.wfanet.measurement.internal.reporting.PeriodicTimeInterval as InternalPeriodicTimeInterval
 import org.wfanet.measurement.internal.reporting.Report as InternalReport
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub
+import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.StreamReportsRequest
 import org.wfanet.measurement.internal.reporting.StreamReportsRequestKt.filter
 import org.wfanet.measurement.internal.reporting.TimeIntervals as InternalTimeIntervals
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.internal.reporting.streamReportsRequest
 import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.v1alpha.ListReportsResponse
@@ -74,8 +82,11 @@ private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 
-class ReportsService(private val internalReportsStub: ReportsCoroutineStub) :
-  ReportsCoroutineImplBase() {
+class ReportsService(
+  private val internalReportsStub: ReportsCoroutineStub,
+  private val measurementsStub: MeasurementsCoroutineStub,
+  private val apiAuthenticationKey: String
+) : ReportsCoroutineImplBase() {
 
   override suspend fun listReports(request: ListReportsRequest): ListReportsResponse {
     val principal = principalFromCurrentContext
@@ -108,7 +119,7 @@ class ReportsService(private val internalReportsStub: ReportsCoroutineStub) :
       reports +=
         results
           .subList(0, min(results.size, listReportsPageToken.pageSize))
-          .map(InternalReport::updateReport)
+          .map { it.updateReport(internalReportsStub, measurementsStub, apiAuthenticationKey) }
           .map(InternalReport::toReport)
 
       if (results.size > listReportsPageToken.pageSize) {
@@ -127,7 +138,47 @@ class ReportsService(private val internalReportsStub: ReportsCoroutineStub) :
 }
 
 /** Update an internal report with its state and its measurements' states. */
-private fun InternalReport.updateReport(): InternalReport {
+private fun InternalReport.updateReport(
+  internalReportsStub: ReportsCoroutineStub,
+  measurementsStub: MeasurementsCoroutineStub,
+  apiAuthenticationKey: String,
+): InternalReport {
+  val source = this
+
+  if (source.state == InternalReport.State.SUCCEEDED) {
+    return source
+  } else if (
+    source.state == InternalReport.State.STATE_UNSPECIFIED ||
+      source.state == InternalReport.State.UNRECOGNIZED
+  ) {
+    error("The report cannot be updated if its state is either unspecified or unrecognized.")
+  }
+
+  // Update measurement state
+  val allMeasurementSucceeded = true
+  for ((measurementReferenceID, internalMeasurement) in source.measurementsMap) {
+    if (internalMeasurement.state == InternalMeasurement.State.SUCCEEDED) continue
+
+    val measurement =
+      runBlocking(Dispatchers.IO) {
+        measurementsStub
+          .withAuthenticationKey(apiAuthenticationKey)
+          .getMeasurement(getMeasurementRequest { name = measurementReferenceID })
+      }
+
+    // @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    // when (measurement.state) {
+    //   Measurement.State.SUCCEEDED -> {
+    //
+    //   }
+    //   Measurement.State.AWAITING_REQUISITION_FULFILLMENT,
+    //   Measurement.State.COMPUTING -> {}
+    //   Measurement.State.FAILED,
+    //   Measurement.State.CANCELLED -> {}
+    //   Measurement.State.STATE_UNSPECIFIED ->  //TODO()
+    //   Measurement.State.UNRECOGNIZED -> //TODO()
+    // }
+  }
   return this
 }
 
@@ -180,10 +231,8 @@ private fun InternalReport.State.toState(): Report.State {
     InternalReport.State.RUNNING -> Report.State.RUNNING
     InternalReport.State.SUCCEEDED -> Report.State.SUCCEEDED
     InternalReport.State.FAILED -> Report.State.FAILED
-    org.wfanet.measurement.internal.reporting.Report.State.STATE_UNSPECIFIED ->
-      error("Report state should've be set.")
-    org.wfanet.measurement.internal.reporting.Report.State.UNRECOGNIZED ->
-      error("Unrecognized report state.")
+    InternalReport.State.STATE_UNSPECIFIED -> error("Report state should've be set.")
+    InternalReport.State.UNRECOGNIZED -> error("Unrecognized report state.")
   }
 }
 
@@ -255,8 +304,7 @@ private fun InternalOperand.toOperand(isLhs: Boolean): SetOperation.Operand {
       if (isLhs) {
         error("Operand on the left hand side should've be set.")
       } else {
-        SetOperation.Operand
-          .getDefaultInstance() // TODO(Will this generate an Operand with OPERAND_NOT_SET?)
+        operand {}
       }
   }
 }
