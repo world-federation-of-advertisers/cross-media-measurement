@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting;
 
+import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/reporting/measurement.proto";
 import "wfa/measurement/internal/reporting/metric.proto";
 import "wfa/measurement/internal/reporting/time_interval.proto";
@@ -94,6 +95,6 @@ message Report {
   }
   Details details = 8;
 
-  // Seconds since the report was created. Output-only.
-  int32 seconds_since_creation = 9;
+  // When the report was created. Output-only.
+  google.protobuf.Timestamp create_time = 9;
 }

@@ -78,12 +78,11 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       measurementReferenceId = "4321"
     }
 
-    runBlocking {
+    val exception = runBlocking {
       service.createMeasurement(measurement)
-      val exception =
-        assertFailsWith<StatusRuntimeException> { service.createMeasurement(measurement) }
-      assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+      assertFailsWith<StatusRuntimeException> { service.createMeasurement(measurement) }
     }
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
   }
 
   @Test
@@ -130,11 +129,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       result = MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 100L } }
     }
 
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> { service.setMeasurementResult(request) }
-      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    val exception = runBlocking {
+      assertFailsWith<StatusRuntimeException> { service.setMeasurementResult(request) }
     }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
 
   @Test
@@ -190,10 +188,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         }
     }
 
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> { service.setMeasurementFailure(request) }
-      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    val exception = runBlocking {
+      assertFailsWith<StatusRuntimeException> { service.setMeasurementFailure(request) }
     }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
 }

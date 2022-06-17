@@ -25,7 +25,7 @@ import org.wfanet.measurement.reporting.service.internal.ReportingInternalExcept
  * Inserts a Measurement into the database.
  *
  * Throws a subclass of [ReportingInternalException] on [execute].
- * @throws [MeasurementAlreadyExistsException] Measurement already exists
+ * [MeasurementAlreadyExistsException] Measurement already exists
  */
 class CreateMeasurement(private val request: Measurement) : PostgresWriter<Measurement>() {
   override suspend fun TransactionScope.runTransaction(): Measurement {
