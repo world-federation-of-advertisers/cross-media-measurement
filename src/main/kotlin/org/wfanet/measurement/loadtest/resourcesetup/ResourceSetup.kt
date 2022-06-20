@@ -156,7 +156,8 @@ class ResourceSetup(
           throw e
         }
         logger.info(
-          "Try #$retryCount to communicate with Kindgdom failed.  Retrying in ${sleepIntervalMillis / 1000} seconds ..."
+          "Try #$retryCount to communicate with Kindgdom failed.  " +
+            "Retrying in ${sleepIntervalMillis / 1000} seconds ..."
         )
         Thread.sleep(sleepIntervalMillis)
       }
