@@ -26,21 +26,21 @@ _worker2_cert_name:    string @tag("worker2_cert_name")
 	resourceRequestCpu:    "100m"
 	resourceLimitCpu:      "400m"
 	resourceRequestMemory: "256Mi"
-	resourceLimitMemory:   "512Mi"
+	resourceLimitMemory:   "1024Mi"
 }
 #MillResourceConfig: {
 	replicas:              1
 	resourceRequestCpu:    "200m"
 	resourceLimitCpu:      "800m"
 	resourceRequestMemory: "512Mi"
-	resourceLimitMemory:   "4096Mi"
+	resourceLimitMemory:   "8192Mi"
 }
 #HeraldResourceConfig: {
 	replicas:              1 // We should have 1 and only 1 herald.
 	resourceRequestCpu:    "100m"
 	resourceLimitCpu:      "400m"
 	resourceRequestMemory: "256Mi"
-	resourceLimitMemory:   "512Mi"
+	resourceLimitMemory:   "1024Mi"
 }
 
 #DuchyConfig: {

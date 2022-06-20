@@ -91,6 +91,6 @@ deployments: {
 		_resourceRequestCpu:    "100m"
 		_resourceLimitCpu:      "200m"
 		_resourceRequestMemory: "128Mi"
-		_resourceLimitMemory:   "256Mi"
+		_resourceLimitMemory:   "512Mi"
 	}
 }

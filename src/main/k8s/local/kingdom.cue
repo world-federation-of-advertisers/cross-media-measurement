@@ -21,7 +21,7 @@ _secret_name: string @tag("secret_name")
 	resourceRequestCpu:    "100m"
 	resourceLimitCpu:      "400m"
 	resourceRequestMemory: "256Mi"
-	resourceLimitMemory:   "512Mi"
+	resourceLimitMemory:   "1024Mi"
 }
 
 objectSets: [ for objectSet in kingdom {objectSet}]
