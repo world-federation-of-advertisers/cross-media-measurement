@@ -16,6 +16,7 @@ package org.wfanet.measurement.loadtest.resourcesetup
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
+import io.grpc.Status
 import io.grpc.StatusException
 import java.lang.Thread
 import java.time.Clock
@@ -108,6 +109,8 @@ class ResourceSetup(
       val certificate = createDuchyCertificate(it)
       logger.info("Successfully created certificate ${certificate.name}")
     }
+
+    logger.info("Resource setup was successful.")
   }
 
   /** Create an internal dataProvider, and return its corresponding public API resource name. */
@@ -144,12 +147,17 @@ class ResourceSetup(
         internalAccount = internalAccountsClient.createAccount(internalAccount {})
         break
       } catch (e: StatusException) {
-        retryCount += 1
-        logger.info("Caught an exception on attempt #$retryCount to communicate with Kingdom: $e")
-        if (retryCount >= maxRetryCount) {
+        if (e.getStatus().getCode() != Status.Code.UNAVAILABLE) {
           throw e
         }
-        logger.info("Sleeping for ${sleepIntervalMillis / 1000} seconds before retrying...")
+        retryCount += 1
+        if (retryCount >= maxRetryCount) {
+          logger.info("Too many retries")
+          throw e
+        }
+        logger.info(
+          "Try #$retryCount to communicate with Kindgdom failed.  Retrying in ${sleepIntervalMillis / 1000} seconds ..."
+        )
         Thread.sleep(sleepIntervalMillis)
       }
     }

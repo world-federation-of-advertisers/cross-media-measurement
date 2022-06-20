@@ -14,7 +14,7 @@
 
 package k8s
 
-#ResourceSetup: ResourceSetup={
+#ResourceSetup: {
 	_edp_display_names: [...string]
 	_duchy_ids: [...string]
 	_resource_setup_secret_name: string
@@ -64,7 +64,7 @@ package k8s
 		_secretName:      _resource_setup_secret_name
 		_image:           _job_image
 		_imagePullPolicy: _job_image_pull_policy
-		_dependencies:    ResourceSetup._dependencies
+		_dependencies:    _dependencies
 		_args:
 			_edp_cert_key_files_flags +
 			_mc_cert_key_files_flags +
