@@ -109,13 +109,22 @@ class Herald(
         StreamActiveComputationsRequest.newBuilder().setContinuationToken(continuationToken).build()
       )
       .withRetriesOnEach(maxAttempts = 3, retryPredicate = ::mayBeTransientGrpcError) { response ->
-        processSystemComputationChange(response)
         lastProcessedContinuationToken = response.continuationToken
+        processSystemComputationChange(response)
       }
       // Cancel the flow on the first error, but don't actually throw the error. This will keep
       // the continuation token at the last successfully processed item. A later execution of
       // syncStatuses() may be successful if the state at the kingdom and/or this duchy was updated.
-      .catch { e -> logger.log(Level.SEVERE, "Exception:", e) }
+      .catch { e ->
+        logger.log(Level.SEVERE, "Exception:", e)
+        // TODO: Fail the computation and communicate the exception back to the Kingdom.
+        // At this point, it would be appropriate to set the state of the computation
+        // to FAILED and to communicate that back to the Kingdom.  With the current
+        // implementation, there appears to be no way for the Kingdom to ever learn
+        // of a failed computation within the duchies.  Consequently, the computation
+        // will be permanently labeled as being in progress and a measurement consumer
+        // will never be able to learn why their computation request failed.
+      }
       .collect()
 
     return lastProcessedContinuationToken
