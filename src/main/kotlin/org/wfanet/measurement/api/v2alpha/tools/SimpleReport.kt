@@ -472,6 +472,25 @@ class CreateCommand : Runnable {
   }
 }
 
+private class PageParams {
+  @CommandLine.Option(
+    names = ["--page-size"],
+    description = ["The maximum number of items to return. The maximum value is 1000"],
+    required = false,
+  )
+  var pageSize: Int = 1000
+    private set
+
+  @CommandLine.Option(
+    names = ["--page-token"],
+    description = ["Page token from a previous `list` call to retrieve the next page"],
+    defaultValue = "",
+    required = false,
+  )
+  lateinit var pageToken: String
+    private set
+}
+
 @CommandLine.Command(name = "list", description = ["Lists Measurements"])
 class ListCommand : Runnable {
   @CommandLine.ParentCommand private lateinit var parent: SimpleReport
@@ -483,13 +502,20 @@ class ListCommand : Runnable {
   )
   private lateinit var measurementConsumerName: String
 
+  @CommandLine.Mixin private lateinit var pageParams: PageParams
+
   override fun run() {
     val measurementStub = MeasurementsCoroutineStub(parent.channel)
+
+    val request = listMeasurementsRequest {
+      parent = measurementConsumerName
+      pageSize = pageParams.pageSize
+      pageToken = pageParams.pageToken
+    }
+
     val response =
       runBlocking(Dispatchers.IO) {
-        measurementStub
-          .withAuthenticationKey(parent.apiAuthenticationKey)
-          .listMeasurements(listMeasurementsRequest { parent = measurementConsumerName })
+        measurementStub.withAuthenticationKey(parent.apiAuthenticationKey).listMeasurements(request)
       }
 
     response.measurementList.map {
