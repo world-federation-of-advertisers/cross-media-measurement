@@ -16,6 +16,7 @@ package org.wfanet.measurement.reporting.service.api.v1alpha.tools
 
 import com.google.protobuf.Duration as ProtoDuration
 import com.google.protobuf.TextFormat
+import com.google.protobuf.duration as protoDuration
 import io.grpc.ManagedChannel
 import java.time.Duration
 import java.time.Instant
@@ -284,8 +285,10 @@ class CreateReportCommand : Runnable {
   )
   private lateinit var serializedMetrics: List<String>
 
-  private fun Duration.toProtoDuration(): ProtoDuration =
-    ProtoDuration.newBuilder().setSeconds(seconds).setNanos(nano).build()
+  private fun Duration.toProtoDuration(): ProtoDuration = protoDuration {
+    seconds = seconds
+    nanos = nanos
+  }
 
   override fun run() {
     val request = createReportRequest {
