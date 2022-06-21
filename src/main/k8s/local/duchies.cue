@@ -40,7 +40,7 @@ _worker2_cert_name:    string @tag("worker2_cert_name")
 	resourceRequestCpu:    "100m"
 	resourceLimitCpu:      "400m"
 	resourceRequestMemory: "256Mi"
-	resourceLimitMemory:   "1024Mi"
+	resourceLimitMemory:   "2048Mi"
 }
 
 #DuchyConfig: {
