@@ -1,3 +1,5 @@
+# proto-file: wfa/measurement/reporting/v1alpha/metric.proto
+# proto-message: Metric
 reach { }
 cumulative: true
 set_operations {

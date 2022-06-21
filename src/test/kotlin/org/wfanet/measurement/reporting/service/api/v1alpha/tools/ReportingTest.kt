@@ -65,13 +65,25 @@ import picocli.CommandLine
 
 private const val HOST = "localhost"
 private val SECRETS_DIR: Path =
-  getRuntimePath(Paths.get("wfa_measurement_system/src/main/k8s/testing/secretfiles"))!!
+  getRuntimePath(
+    Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+  )!!
 
 private val TEXTPROTO_DIR: Path =
   getRuntimePath(
     Paths.get(
-      "wfa_measurement_system/src/test/kotlin/org/wfanet/measurement/reporting" +
-        "/service/api/v1alpha/tools"
+      "wfa_measurement_system",
+      "src",
+      "test",
+      "kotlin",
+      "org",
+      "wfanet",
+      "measurement",
+      "reporting",
+      "service",
+      "api",
+      "v1alpha",
+      "tools"
     )
   )!!
 
@@ -327,7 +339,7 @@ class ReportingTest {
 
   @Test
   fun `Reports create calls api with correct time intervals params`() {
-    val metric =
+    val textFormatMetric =
       """
     reach { }
     set_operations {
@@ -359,7 +371,7 @@ class ReportingTest {
         "--interval-end-time=2018-10-27T23:19:12.99Z",
         "--interval-start-time=2019-01-19T09:48:35.57Z",
         "--interval-end-time=2022-06-13T11:57:54.21Z",
-        "--metric=$metric",
+        "--metric=$textFormatMetric",
       )
     CommandLine(Reporting()).execute(*args)
 
@@ -385,7 +397,7 @@ class ReportingTest {
 
   @Test
   fun `Reports create calls api with complex metric`() {
-    val serializedMetrics = TEXTPROTO_DIR.resolve("metric.textproto").toFile().readText()
+    val textFormatMetric = TEXTPROTO_DIR.resolve("metric2.textproto").toFile().readText()
 
     val args =
       arrayOf(
@@ -401,7 +413,7 @@ class ReportingTest {
         "--periodic-interval-start-time=2017-01-15T01:30:15.01Z",
         "--periodic-interval-increment=P1DT3H5M12.99S",
         "--periodic-interval-count=3",
-        "--metric=$serializedMetrics",
+        "--metric=$textFormatMetric",
       )
     CommandLine(Reporting()).execute(*args)
 

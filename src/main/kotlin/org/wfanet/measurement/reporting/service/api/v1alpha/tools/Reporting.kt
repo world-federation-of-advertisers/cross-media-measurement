@@ -15,7 +15,6 @@
 package org.wfanet.measurement.reporting.service.api.v1alpha.tools
 
 import com.google.protobuf.Duration as ProtoDuration
-import com.google.protobuf.TextFormat
 import com.google.protobuf.duration as protoDuration
 import io.grpc.ManagedChannel
 import java.time.Duration
@@ -28,6 +27,7 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
+import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.reporting.v1alpha.Metric
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.EventGroupUniverseKt.eventGroupEntry
@@ -71,7 +71,7 @@ private class ReportingApiFlags {
 private class PageParams {
   @CommandLine.Option(
     names = ["--page-size"],
-    description = ["The maximum number of reportingSets to return. The maximum value is 1000"],
+    description = ["The maximum number of items to return. The maximum value is 1000"],
     required = false,
   )
   var pageSize: Int = 1000
@@ -79,7 +79,7 @@ private class PageParams {
 
   @CommandLine.Option(
     names = ["--page-token"],
-    description = ["Page token from a previous `ListReports` call to retrieve the next page"],
+    description = ["Page token from a previous list call to retrieve the next page"],
     defaultValue = "",
     required = false,
   )
@@ -280,11 +280,12 @@ class CreateReportCommand : Runnable {
 
   @CommandLine.Option(
     names = ["--metric"],
-    description = ["String of serialized Metric"],
+    description = ["Metric protobuf messages in text format"],
     required = true,
   )
-  private lateinit var serializedMetrics: List<String>
+  private lateinit var textFormatMetrics: List<String>
 
+  // TODO(@renjiez): Use utility function from common-jvm
   private fun Duration.toProtoDuration(): ProtoDuration = protoDuration {
     seconds = seconds
     nanos = nanos
@@ -305,29 +306,28 @@ class CreateReportCommand : Runnable {
         }
 
         // Either timeIntervals or periodicTimeIntervalInput are set.
-        timeInput.timeIntervals?.apply {
+        if (timeInput.timeIntervals != null) {
           timeIntervals = timeIntervals {
-            map {
+            timeInput.timeIntervals!!.forEach {
               timeIntervals += timeInterval {
                 startTime = it.intervalStartTime.toProtoTime()
                 endTime = it.intervalEndTime.toProtoTime()
               }
             }
           }
-        }
-
-        timeInput.periodicTimeIntervalInput?.let {
+        } else {
           periodicTimeInterval = periodicTimeInterval {
-            startTime = it.periodicIntervalStartTime.toProtoTime()
-            increment = it.periodicIntervalIncrement.toProtoDuration()
-            intervalCount = it.periodicIntervalCount
+            startTime =
+              timeInput.periodicTimeIntervalInput!!.periodicIntervalStartTime.toProtoTime()
+            increment =
+              timeInput.periodicTimeIntervalInput!!.periodicIntervalIncrement.toProtoDuration()
+            intervalCount = timeInput.periodicTimeIntervalInput!!.periodicIntervalCount
           }
         }
 
-        serializedMetrics.map {
-          val metricsBuilder = Metric.newBuilder()
-          TextFormat.getParser().merge(it, metricsBuilder)
-          metrics += metricsBuilder.build()
+        for (textFormatMetric in textFormatMetrics) {
+          metrics +=
+            textFormatMetric.reader().use { parseTextProto(it, Metric.getDefaultInstance()) }
         }
       }
     }

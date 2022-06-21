@@ -62,10 +62,10 @@ User specifies the type of time args by using either repeated interval params(
 `--periodic-interval-count`)
 
 The input of metric is in format of `.textproto`. See 
-[metric.textproto](../../../../../../../../../../test/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha/tools/metric.textproto) 
+[metric.textproto](../../../../../../../../../../test/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha/tools/metric1.textproto) 
 for a complicated example. Use single quotes to wrap the content in terminal 
 to input multiple lines as arg. Or write the content into a file 
-(eg. metric.textproto) and use `--metrics="$(cat metric.textproto)"`.
+(eg. metric1.textproto) and use `--metrics="$(cat metric1.textproto)"`.
 
 Example:
 ```shell
