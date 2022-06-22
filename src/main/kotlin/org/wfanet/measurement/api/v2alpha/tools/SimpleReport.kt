@@ -468,7 +468,7 @@ class CreateCommand : Runnable {
           .withAuthenticationKey(parent.apiAuthenticationKey)
           .createMeasurement(createMeasurementRequest { this.measurement = measurement })
       }
-    print(response)
+    print("Measurement Name: ${response.name}")
   }
 }
 
