@@ -152,8 +152,11 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
         runId = "12345"
       )
     // Create the MC.
-    val (measurementConsumer, apiKey) = resourceSetup.createMeasurementConsumer(MC_ENTITY_CONTENT,
-		  resourceSetup.createAccountWithRetries())
+    val (measurementConsumer, apiKey) =
+      resourceSetup.createMeasurementConsumer(
+        MC_ENTITY_CONTENT,
+        resourceSetup.createAccountWithRetries()
+      )
     mcResourceName = measurementConsumer.name
     apiAuthenticationKey = apiKey
     // Create all EDPs
@@ -165,9 +168,8 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
     // Create all duchy certificates.
     duchyCertMap =
       ALL_DUCHY_NAMES.associateWith {
-        resourceSetup.createDuchyCertificate(
-            DuchyCert(it, loadTestCertDerFile("${it}_cs_cert.der"))
-          )
+        resourceSetup
+          .createDuchyCertificate(DuchyCert(it, loadTestCertDerFile("${it}_cs_cert.der")))
           .name
       }
 
