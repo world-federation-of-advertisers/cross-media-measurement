@@ -20,14 +20,13 @@ import kotlinx.coroutines.coroutineScope
 import org.wfanet.measurement.common.db.r2dbc.StatementBuilder.Companion.statementBuilder
 import org.wfanet.measurement.internal.reporting.ReportingSet
 import org.wfanet.measurement.internal.reporting.copy
-import org.wfanet.measurement.reporting.service.internal.ReportingInternalException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetAlreadyExistsException
 
 /**
  * Inserts a Reporting Set into the database.
  *
- * Throws a subclass of [ReportingInternalException] on [execute].
- * @throws [ReportingSetAlreadyExistsException] ReportingSet already exists
+ * Throws the following on [execute]:
+ * * [ReportingSetAlreadyExistsException] ReportingSet already exists
  */
 class CreateReportingSet(private val request: ReportingSet) : PostgresWriter<ReportingSet>() {
   override suspend fun TransactionScope.runTransaction(): ReportingSet {

@@ -19,13 +19,12 @@ import org.wfanet.measurement.common.db.r2dbc.StatementBuilder.Companion.stateme
 import org.wfanet.measurement.internal.reporting.Measurement
 import org.wfanet.measurement.internal.reporting.copy
 import org.wfanet.measurement.reporting.service.internal.MeasurementAlreadyExistsException
-import org.wfanet.measurement.reporting.service.internal.ReportingInternalException
 
 /**
  * Inserts a Measurement into the database.
  *
- * Throws a subclass of [ReportingInternalException] on [execute].
- * [MeasurementAlreadyExistsException] Measurement already exists
+ * Throws the following on [execute]:
+ * * [MeasurementAlreadyExistsException] Measurement already exists
  */
 class CreateMeasurement(private val request: Measurement) : PostgresWriter<Measurement>() {
   override suspend fun TransactionScope.runTransaction(): Measurement {

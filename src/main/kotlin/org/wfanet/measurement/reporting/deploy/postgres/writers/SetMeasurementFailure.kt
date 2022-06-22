@@ -19,13 +19,12 @@ import org.wfanet.measurement.internal.reporting.Measurement
 import org.wfanet.measurement.internal.reporting.SetMeasurementFailureRequest
 import org.wfanet.measurement.internal.reporting.measurement
 import org.wfanet.measurement.reporting.service.internal.MeasurementNotFoundException
-import org.wfanet.measurement.reporting.service.internal.ReportingInternalException
 
 /**
  * Updates the Failure column for a Measurement
  *
- * Throws a subclass of [ReportingInternalException] on [execute]. [MeasurementNotFoundException]
- * Measurement not found.
+ * Throws the following on [execute]:
+ * * [MeasurementNotFoundException] Measurement not found.
  */
 class SetMeasurementFailure(private val request: SetMeasurementFailureRequest) :
   PostgresWriter<Measurement>() {
