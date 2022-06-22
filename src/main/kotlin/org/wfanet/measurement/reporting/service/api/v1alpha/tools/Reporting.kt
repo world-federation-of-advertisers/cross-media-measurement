@@ -297,7 +297,7 @@ class CreateReportCommand : Runnable {
       report = report {
         measurementConsumer = measurementConsumerName
         eventGroupUniverse = eventGroupUniverse {
-          eventGroups.map {
+          eventGroups.forEach {
             eventGroupEntries += eventGroupEntry {
               key = it.key
               value = it.value
@@ -307,8 +307,9 @@ class CreateReportCommand : Runnable {
 
         // Either timeIntervals or periodicTimeIntervalInput are set.
         if (timeInput.timeIntervals != null) {
+          val intervals = checkNotNull(timeInput.timeIntervals)
           timeIntervals = timeIntervals {
-            timeInput.timeIntervals!!.forEach {
+            intervals.forEach {
               timeIntervals += timeInterval {
                 startTime = it.intervalStartTime.toProtoTime()
                 endTime = it.intervalEndTime.toProtoTime()
@@ -316,12 +317,11 @@ class CreateReportCommand : Runnable {
             }
           }
         } else {
+          val periodicIntervals = checkNotNull(timeInput.periodicTimeIntervalInput)
           periodicTimeInterval = periodicTimeInterval {
-            startTime =
-              timeInput.periodicTimeIntervalInput!!.periodicIntervalStartTime.toProtoTime()
-            increment =
-              timeInput.periodicTimeIntervalInput!!.periodicIntervalIncrement.toProtoDuration()
-            intervalCount = timeInput.periodicTimeIntervalInput!!.periodicIntervalCount
+            startTime = periodicIntervals.periodicIntervalStartTime.toProtoTime()
+            increment = periodicIntervals.periodicIntervalIncrement.toProtoDuration()
+            intervalCount = periodicIntervals.periodicIntervalCount
           }
         }
 
@@ -359,7 +359,7 @@ class ListReportsCommand : Runnable {
 
     val response = runBlocking(Dispatchers.IO) { parent.reportsStub.listReports(request) }
 
-    response.reportsList.map { println(it.name + " " + it.state.toString()) }
+    response.reportsList.forEach { println(it.name + " " + it.state.toString()) }
   }
 }
 
