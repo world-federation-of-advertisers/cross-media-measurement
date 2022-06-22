@@ -326,8 +326,7 @@ class ComputationsServiceTest {
   fun `stream active computations successfully`() = runBlocking {
     var calls = 0L
     fun nextMeasurement() =
-      INTERNAL_MEASUREMENT
-        .toBuilder()
+      INTERNAL_MEASUREMENT.toBuilder()
         .apply {
           externalComputationId = 100 + calls
           updateTimeBuilder.seconds = 1000 + calls

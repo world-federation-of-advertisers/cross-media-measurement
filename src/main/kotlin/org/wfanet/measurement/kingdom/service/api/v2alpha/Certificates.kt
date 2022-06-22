@@ -48,8 +48,7 @@ fun CertificateKt.Dsl.fillCertificateFromDer(certificateDer: ByteString) {
     try {
       readCertificate(certificateDer)
     } catch (e: CertificateException) {
-      throw Status.INVALID_ARGUMENT
-        .withCause(e)
+      throw Status.INVALID_ARGUMENT.withCause(e)
         .withDescription("Cannot parse $CERTIFICATE_DER_FIELD_NAME")
         .asRuntimeException()
     }

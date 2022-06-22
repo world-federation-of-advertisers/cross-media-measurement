@@ -97,7 +97,8 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
         MeasurementConsumerCertificateKey.fromName(measurement.measurementConsumerCertificate)
       ) { "Measurement Consumer Certificate resource name is either unspecified or invalid" }
 
-    if (authenticatedMeasurementConsumerKey.measurementConsumerId !=
+    if (
+      authenticatedMeasurementConsumerKey.measurementConsumerId !=
         measurementConsumerCertificateKey.measurementConsumerId
     ) {
       failGrpc(Status.PERMISSION_DENIED) {
@@ -152,7 +153,8 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
 
     val listMeasurementsPageToken = request.toListMeasurementsPageToken()
 
-    if (apiIdToExternalId(authenticatedMeasurementConsumerKey.measurementConsumerId) !=
+    if (
+      apiIdToExternalId(authenticatedMeasurementConsumerKey.measurementConsumerId) !=
         listMeasurementsPageToken.externalMeasurementConsumerId
     ) {
       failGrpc(Status.PERMISSION_DENIED) {

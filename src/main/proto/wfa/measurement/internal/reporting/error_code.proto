@@ -1,4 +1,4 @@
-// Copyright 2021 The Cross-Media Measurement Authors
+// Copyright 2022 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,9 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.system.v1alpha
+syntax = "proto3";
 
-interface ResourceKey {
-  /** Converts this [ResourceKey] into a resource name. */
-  fun toName(): String
+package wfa.measurement.internal.reporting;
+
+option java_package = "org.wfanet.measurement.internal.reporting";
+option java_multiple_files = true;
+
+enum ErrorCode {
+  UNKNOWN_ERROR = 0;
+
+  /** Reporting Set with the same IDs already exists. */
+  REPORTING_SET_ALREADY_EXISTS = 1;
 }

@@ -268,8 +268,7 @@ class MeasurementsServiceTest {
         MEASUREMENT.copy {
           measurementSpec = signedData {
             data =
-              MEASUREMENT_SPEC
-                .copy {
+              MEASUREMENT_SPEC.copy {
                   clearReachAndFrequency()
                   impression = impression {
                     privacyParams = differentialPrivacyParams {
@@ -326,8 +325,7 @@ class MeasurementsServiceTest {
         MEASUREMENT.copy {
           measurementSpec = signedData {
             data =
-              MEASUREMENT_SPEC
-                .copy {
+              MEASUREMENT_SPEC.copy {
                   clearReachAndFrequency()
                   duration = duration {
                     privacyParams = differentialPrivacyParams {
@@ -475,8 +473,7 @@ class MeasurementsServiceTest {
                   MEASUREMENT.copy {
                     measurementSpec = signedData {
                       data =
-                        MEASUREMENT_SPEC
-                          .copy {
+                        MEASUREMENT_SPEC.copy {
                             clearReachAndFrequency()
                             reachAndFrequency = reachAndFrequency {
                               frequencyPrivacyParams = differentialPrivacyParams {
@@ -510,8 +507,7 @@ class MeasurementsServiceTest {
                   MEASUREMENT.copy {
                     measurementSpec = signedData {
                       data =
-                        MEASUREMENT_SPEC
-                          .copy {
+                        MEASUREMENT_SPEC.copy {
                             clearReachAndFrequency()
                             reachAndFrequency = reachAndFrequency {
                               reachPrivacyParams = differentialPrivacyParams {
@@ -545,8 +541,7 @@ class MeasurementsServiceTest {
                   MEASUREMENT.copy {
                     measurementSpec = signedData {
                       data =
-                        MEASUREMENT_SPEC
-                          .copy {
+                        MEASUREMENT_SPEC.copy {
                             clearReachAndFrequency()
                             clearVidSamplingInterval()
                             reachAndFrequency = reachAndFrequency {
@@ -584,8 +579,7 @@ class MeasurementsServiceTest {
                   MEASUREMENT.copy {
                     measurementSpec = signedData {
                       data =
-                        MEASUREMENT_SPEC
-                          .copy {
+                        MEASUREMENT_SPEC.copy {
                             clearReachAndFrequency()
                             clearVidSamplingInterval()
                             reachAndFrequency = reachAndFrequency {
@@ -624,8 +618,7 @@ class MeasurementsServiceTest {
                   MEASUREMENT.copy {
                     measurementSpec = signedData {
                       data =
-                        MEASUREMENT_SPEC
-                          .copy {
+                        MEASUREMENT_SPEC.copy {
                             clearReachAndFrequency()
                             impression = impression { maximumFrequencyPerUser = 1 }
                           }
@@ -653,8 +646,7 @@ class MeasurementsServiceTest {
                   MEASUREMENT.copy {
                     measurementSpec = signedData {
                       data =
-                        MEASUREMENT_SPEC
-                          .copy {
+                        MEASUREMENT_SPEC.copy {
                             clearReachAndFrequency()
                             impression = impression {
                               privacyParams = differentialPrivacyParams {
@@ -687,8 +679,7 @@ class MeasurementsServiceTest {
                   MEASUREMENT.copy {
                     measurementSpec = signedData {
                       data =
-                        MEASUREMENT_SPEC
-                          .copy {
+                        MEASUREMENT_SPEC.copy {
                             clearReachAndFrequency()
                             duration = duration { maximumWatchDurationPerUser = 1 }
                           }
@@ -716,8 +707,7 @@ class MeasurementsServiceTest {
                   MEASUREMENT.copy {
                     measurementSpec = signedData {
                       data =
-                        MEASUREMENT_SPEC
-                          .copy {
+                        MEASUREMENT_SPEC.copy {
                             clearReachAndFrequency()
                             duration = duration {
                               privacyParams = differentialPrivacyParams {
