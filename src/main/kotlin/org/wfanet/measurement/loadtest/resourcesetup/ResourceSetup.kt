@@ -60,15 +60,16 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.parseCertificateDer
 
 private val API_VERSION = Version.V2_ALPHA
 
-// Maximum number of times that we will retry the first request to the Kingdom.
-// We allow retries because the resource setup step is usually executed immediately
-// after the step that launches the Kingdom, but the Kingdom typically takes some
-// time to launch.  Therefore, the first few attempts to communicate with the
-// Kingdom may fail because it is still initializing.
-private const val maxRetryCount = 30L
+/**
+ * Maximum number of times that we will retry the first request to the Kingdom. We allow retries
+ * because the resource setup step is usually executed immediately after the step that launches the
+ * Kingdom, but the Kingdom typically takes some time to launch. Therefore, the first few attempts
+ * to communicate with the Kingdom may fail because it is still initializing.
+ */
+private const val MAX_RETRY_COUNT = 30L
 
-// Amount of time in milliseconds between retries.
-private const val sleepIntervalMillis = 10000L
+/** Amount of time in milliseconds between retries. */
+private const val SLEEP_INTERVAL_MILLIS = 10000L
 
 /** A Job preparing resources required for the correctness test. */
 class ResourceSetup(
@@ -145,29 +146,29 @@ class ResourceSetup(
     // This is our first attempt to contact the Kingdom.  If it fails, we will retry it.
     // This is to allow the Kingdom more time to start up.
 
+    fun isRetriable(e: Throwable) =
+      (e is StatusException) && (e.getStatus().getCode() == Status.Code.UNAVAILABLE)
+
     // TODO(@SanjayVas):  Remove this polling behavior after the readiness probe for the Kingdom
     // is fixed.
     var retryCount = 0L
     val internalAccount =
       flow { emit(internalAccountsClient.createAccount(internalAccount {})) }
-        .retry(maxRetryCount) { e ->
+        .retry(MAX_RETRY_COUNT) { e ->
           isRetriable(e).also {
             if (it) {
               retryCount += 1
               logger.info(
                 "Try #$retryCount to communicate with Kindgdom failed.  " +
-                  "Retrying in ${sleepIntervalMillis / 1000} seconds ..."
+                  "Retrying in ${SLEEP_INTERVAL_MILLIS / 1000} seconds ..."
               )
-              delay(sleepIntervalMillis)
+              delay(SLEEP_INTERVAL_MILLIS)
             }
           }
         }
         .single()
     return internalAccount
   }
-
-  fun isRetriable(e: Throwable) =
-    (e is StatusException) && (e.getStatus().getCode() == Status.Code.UNAVAILABLE)
 
   suspend fun createMeasurementConsumer(
     measurementConsumerContent: EntityContent,
