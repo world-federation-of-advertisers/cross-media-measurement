@@ -97,4 +97,6 @@ message Report {
 
   // When the report was created. Output-only.
   google.protobuf.Timestamp create_time = 9;
+
+  string report_idempotency_key = 10;
 }
