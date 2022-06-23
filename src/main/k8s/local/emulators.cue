@@ -87,10 +87,9 @@ deployments: {
 			"--tls-key-file=/var/run/secrets/files/kingdom_tls.key",
 			"--cert-collection-file=/var/run/secrets/files/all_root_certs.pem",
 		]
-		_replicas:              1 // We should have 1 and only 1 fake storage server.
-		_resourceRequestCpu:    "100m"
-		_resourceLimitCpu:      "200m"
-		_resourceRequestMemory: "128Mi"
-		_resourceLimitMemory:   "256Mi"
+		_resourceConfig: {
+			replicas: 1 // We should have 1 and only 1 fake storage server.
+			jvmOptions: ["-Xms=256m", "-Xmx=256m"]
+		}
 	}
 }

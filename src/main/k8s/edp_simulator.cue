@@ -24,8 +24,6 @@ package k8s
 	_edp_display_name:  _edp.display_name
 	_edp_resource_name: _edp.resource_name
 
-	_resource_configs: #ResourceConfig
-
 	_edp_simulator_image:         string
 	_simulator_image_pull_policy: string
 	_blob_storage_flags: [...string]
@@ -33,16 +31,11 @@ package k8s
 	_additional_args: [...string]
 
 	edp_simulator_deployment: #Deployment & {
-		_name:                  _edp_display_name + "-simulator"
-		_secretName:            _edp_secret_name
-		_system:                "simulator"
-		_image:                 _edp_simulator_image
-		_imagePullPolicy:       _simulator_image_pull_policy
-		_replicas:              _resource_configs.replicas
-		_resourceRequestMemory: _resource_configs.resourceRequestMemory
-		_resourceLimitMemory:   _resource_configs.resourceLimitMemory
-		_resourceRequestCpu:    _resource_configs.resourceRequestCpu
-		_resourceLimitCpu:      _resource_configs.resourceLimitCpu
+		_name:            _edp_display_name + "-simulator"
+		_secretName:      _edp_secret_name
+		_system:          "simulator"
+		_image:           _edp_simulator_image
+		_imagePullPolicy: _simulator_image_pull_policy
 
 		_args: [
 			"--tls-cert-file=/var/run/secrets/files/\(_edp_display_name)_tls.pem",

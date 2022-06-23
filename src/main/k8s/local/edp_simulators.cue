@@ -26,11 +26,17 @@ _secret_name: string @tag("secret_name")
 #KingdomPublicApiTarget: (#Target & {name: "v2alpha-public-api-server"}).target
 #Worker1PublicApiTarget: (#Target & {name: "worker1-requisition-fulfillment-server"}).target
 #ResourceConfig: {
-	replicas:              1
-	resourceRequestCpu:    "100m"
-	resourceLimitCpu:      "400m"
-	resourceRequestMemory: "256Mi"
-	resourceLimitMemory:   "512Mi"
+	replicas: 1
+	resources: {
+		requests: {
+			cpu: "100m"
+		}
+		limits: {
+			cpu:    "400m"
+			memory: "512Mi"
+		}
+	}
+	jvmOptions: ["-Xms=400m -Xmx=400m"]
 }
 
 objectSets: [ for simulator in edpSimulators {simulator}]
