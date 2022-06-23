@@ -44,7 +44,6 @@ import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
 import org.wfanet.measurement.internal.reporting.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.Measurement.Result as InternalMeasurementResult
-import org.wfanet.measurement.internal.reporting.MeasurementKt.ResultKt.frequency as internalFrequency
 import org.wfanet.measurement.internal.reporting.MeasurementKt.ResultKt.impression as internalImpression
 import org.wfanet.measurement.internal.reporting.MeasurementKt.ResultKt.reach as internalReach
 import org.wfanet.measurement.internal.reporting.MeasurementKt.ResultKt.watchDuration as internalWatchDuration
@@ -234,7 +233,31 @@ private fun InternalReport.updateReport(
 private fun aggregateResults(
   internalResultsList: List<InternalMeasurementResult>
 ): InternalMeasurementResult {
-  return internalMeasurementResult {}
+  return internalResultsList.reduce { sum, element ->
+    internalMeasurementResult {
+      if (element.hasReach()) {
+        this.reach = internalReach { value = sum.reach.value + element.reach.value }
+      }
+      if (element.hasFrequency()) {
+        val tempFrequency = sum.frequency.relativeFrequencyDistributionMap.toMutableMap()
+        for ((key, value) in element.frequency.relativeFrequencyDistributionMap) {
+          tempFrequency[key] = tempFrequency.getOrDefault(key, 0.0) + value
+        }
+        this.frequency.relativeFrequencyDistributionMap.putAll(tempFrequency)
+      }
+      if (element.hasImpression()) {
+        this.impression = internalImpression {
+          value = sum.impression.value + element.impression.value
+        }
+      }
+      if (element.hasWatchDuration()) {
+        this.watchDuration = internalWatchDuration {
+          // TODO(Find a correct way)
+          value = sum.watchDuration.value + element.watchDuration.value
+        }
+      }
+    }
+  }
 }
 
 /** Converts an CMM [Measurement.Result] to an internal [InternalMeasurementResult]. */
@@ -246,9 +269,9 @@ private fun Measurement.Result.toResult(): InternalMeasurementResult {
       this.reach = internalReach { value = source.reach.value }
     }
     if (source.hasFrequency()) {
-      this.frequency = internalFrequency {
-        relativeFrequencyDistributionMap = source.frequency.relativeFrequencyDistributionMap
-      }
+      this.frequency.relativeFrequencyDistributionMap.putAll(
+        source.frequency.relativeFrequencyDistributionMap
+      )
     }
     if (source.hasImpression()) {
       this.impression = internalImpression { value = source.impression.value }
