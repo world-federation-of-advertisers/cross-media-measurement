@@ -47,10 +47,13 @@ CREATE TABLE Reports (
   -- protobuf message.
   ReportDetails bytea NOT NULL,
 
+  ReportIdempotencyKey text NOT NULL,
+
   CreateTime timestamp NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerReferenceId, ReportId),
-  UNIQUE (MeasurementConsumerReferenceId, ExternalReportId)
+  UNIQUE (MeasurementConsumerReferenceId, ExternalReportId),
+  UNIQUE (MeasurementConsumerReferenceId, ReportIdempotencyKey)
 );
 
 -- changeset tristanvuong2021:create-reports-by-external-report-id-index dbms:postgresql
