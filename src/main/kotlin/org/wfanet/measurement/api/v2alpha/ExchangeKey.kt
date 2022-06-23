@@ -15,6 +15,7 @@
 package org.wfanet.measurement.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
+import org.wfanet.measurement.common.api.ResourceKey
 
 private val parsers =
   listOf(
@@ -49,10 +50,10 @@ data class ExchangeKey(
       )
   }
 
-  companion object {
+  companion object FACTORY : ResourceKey.Factory<ExchangeKey> {
     val defaultValue = ExchangeKey(null, null, "", "")
 
-    fun fromName(resourceName: String): ExchangeKey? {
+    override fun fromName(resourceName: String): ExchangeKey? {
       for (parser in parsers) {
         val idVars = parser.parseIdVars(resourceName) ?: continue
         return ExchangeKey(
