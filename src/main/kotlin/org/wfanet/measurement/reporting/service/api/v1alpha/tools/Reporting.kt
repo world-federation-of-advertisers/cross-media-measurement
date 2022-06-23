@@ -14,8 +14,6 @@
 
 package org.wfanet.measurement.reporting.service.api.v1alpha.tools
 
-import com.google.protobuf.Duration as ProtoDuration
-import com.google.protobuf.duration as protoDuration
 import io.grpc.ManagedChannel
 import java.time.Duration
 import java.time.Instant
@@ -28,6 +26,7 @@ import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.reporting.v1alpha.Metric
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.EventGroupUniverseKt.eventGroupEntry
@@ -284,12 +283,6 @@ class CreateReportCommand : Runnable {
     required = true,
   )
   private lateinit var textFormatMetrics: List<String>
-
-  // TODO(@renjiez): Use utility function from common-jvm
-  private fun Duration.toProtoDuration(): ProtoDuration = protoDuration {
-    seconds = seconds
-    nanos = nanos
-  }
 
   override fun run() {
     val request = createReportRequest {

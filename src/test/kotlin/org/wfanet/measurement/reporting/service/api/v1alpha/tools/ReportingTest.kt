@@ -14,8 +14,6 @@
 
 package org.wfanet.measurement.reporting.service.api.v1alpha.tools
 
-import com.google.protobuf.Duration as ProtoDuration
-import com.google.protobuf.duration as protoDuration
 import io.grpc.Server
 import io.grpc.ServerServiceDefinition
 import io.grpc.netty.NettyServerBuilder
@@ -37,6 +35,7 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.grpc.toServerTlsContext
 import org.wfanet.measurement.common.testing.verifyProtoArgument
+import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.reporting.v1alpha.Metric
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.SetOperationKt.operand
@@ -107,11 +106,6 @@ private val LIST_REPORTING_SETS_RESPONSE = listReportingSetsResponse {
     displayName = "test-reporting-set2"
   }
   nextPageToken = "TokenToGetTheNextPage"
-}
-
-private fun Duration.toProtoDuration(): ProtoDuration = protoDuration {
-  seconds = seconds
-  nanos = nanos
 }
 
 private const val REPORT_NAME = "$MEASUREMENT_CONSUMER_NAME/reports/1"
