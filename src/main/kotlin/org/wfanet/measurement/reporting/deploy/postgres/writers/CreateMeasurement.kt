@@ -15,7 +15,7 @@
 package org.wfanet.measurement.reporting.deploy.postgres.writers
 
 import io.r2dbc.spi.R2dbcDataIntegrityViolationException
-import org.wfanet.measurement.common.db.r2dbc.StatementBuilder.Companion.statementBuilder
+import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.internal.reporting.Measurement
 import org.wfanet.measurement.internal.reporting.copy
 import org.wfanet.measurement.reporting.service.internal.MeasurementAlreadyExistsException
@@ -28,8 +28,8 @@ import org.wfanet.measurement.reporting.service.internal.MeasurementAlreadyExist
  */
 class CreateMeasurement(private val request: Measurement) : PostgresWriter<Measurement>() {
   override suspend fun TransactionScope.runTransaction(): Measurement {
-    val builder =
-      statementBuilder(
+    val statement =
+      boundStatement(
         """
       INSERT INTO Measurements (MeasurementConsumerReferenceId, MeasurementReferenceId, State)
         VALUES ($1, $2, $3)
@@ -42,7 +42,7 @@ class CreateMeasurement(private val request: Measurement) : PostgresWriter<Measu
 
     transactionContext.run {
       try {
-        executeStatement(builder)
+        executeStatement(statement)
       } catch (e: R2dbcDataIntegrityViolationException) {
         throw MeasurementAlreadyExistsException()
       }

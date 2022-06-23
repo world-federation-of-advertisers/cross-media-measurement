@@ -14,7 +14,7 @@
 
 package org.wfanet.measurement.reporting.deploy.postgres.writers
 
-import org.wfanet.measurement.common.db.r2dbc.StatementBuilder.Companion.statementBuilder
+import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.internal.reporting.Report
 import org.wfanet.measurement.internal.reporting.SetReportResultRequest
 import org.wfanet.measurement.internal.reporting.copy
@@ -37,8 +37,8 @@ class SetReportResult(private val request: SetReportResultRequest) : PostgresWri
           request.externalReportId
         )
     val updatedDetails = reportResult.report.details.copy { result = request.result }
-    val builder =
-      statementBuilder(
+    val statement =
+      boundStatement(
         """
       UPDATE Reports
       SET ReportDetails = $1, State = $2
@@ -52,7 +52,7 @@ class SetReportResult(private val request: SetReportResultRequest) : PostgresWri
         bind("$4", request.externalReportId)
       }
 
-    transactionContext.run { executeStatement(builder) }
+    transactionContext.run { executeStatement(statement) }
 
     return reportResult.report.copy {
       state = Report.State.SUCCEEDED

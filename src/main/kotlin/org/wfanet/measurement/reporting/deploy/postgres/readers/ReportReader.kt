@@ -16,20 +16,17 @@ package org.wfanet.measurement.reporting.deploy.postgres.readers
 
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
-import com.google.protobuf.ByteString
 import com.google.protobuf.duration
 import com.google.protobuf.timestamp
 import com.google.protobuf.util.JsonFormat
-import io.r2dbc.spi.Row
 import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
-import org.wfanet.measurement.common.db.r2dbc.StatementBuilder.Companion.statementBuilder
-import org.wfanet.measurement.common.db.r2dbc.get
-import org.wfanet.measurement.common.db.r2dbc.getValue
+import org.wfanet.measurement.common.db.r2dbc.ResultRow
+import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.internal.reporting.Metric
 import org.wfanet.measurement.internal.reporting.Metric.SetOperation
@@ -169,24 +166,16 @@ class ReportReader {
     FROM Reports
     """
 
-  fun translate(row: Row): Result =
-    Result(
-      row.getValue("MeasurementConsumerReferenceId"),
-      row.getValue("ReportId"),
-      buildReport(row)
-    )
+  fun translate(row: ResultRow): Result =
+    Result(row["MeasurementConsumerReferenceId"], row["ReportId"], buildReport(row))
 
   suspend fun getReportByExternalId(
     client: DatabaseClient,
     measurementConsumerReferenceId: String,
     externalReportId: Long
   ): Result {
-    val readContext = client.readTransaction()
-    try {
-      return getReportByExternalId(readContext, measurementConsumerReferenceId, externalReportId)
-    } finally {
-      readContext.close()
-    }
+    val readContext = client.singleUse()
+    return getReportByExternalId(readContext, measurementConsumerReferenceId, externalReportId)
   }
 
   suspend fun getReportByExternalId(
@@ -194,8 +183,8 @@ class ReportReader {
     measurementConsumerReferenceId: String,
     externalReportId: Long
   ): Result {
-    val builder =
-      statementBuilder(
+    val statement =
+      boundStatement(
         (baseSql +
           """
         WHERE MeasurementConsumerReferenceId = $1
@@ -206,7 +195,7 @@ class ReportReader {
         bind("$2", externalReportId)
       }
 
-    return readContext.executeQuery(builder).consume(::translate).singleOrNull()
+    return readContext.executeQuery(statement).consume(::translate).singleOrNull()
       ?: throw ReportNotFoundException()
   }
 
@@ -215,8 +204,8 @@ class ReportReader {
     filter: StreamReportsRequest.Filter,
     limit: Int = 0
   ): Flow<Result> {
-    val builder =
-      statementBuilder(
+    val statement =
+      boundStatement(
         baseSql +
           """
         WHERE MeasurementConsumerReferenceId = $1
@@ -237,32 +226,32 @@ class ReportReader {
     return flow {
       val readContext = client.readTransaction()
       try {
-        readContext.executeQuery(builder).consume(::translate).collect { emit(it) }
+        readContext.executeQuery(statement).consume(::translate).collect { emit(it) }
       } finally {
         readContext.close()
       }
     }
   }
 
-  private fun buildReport(row: Row): Report {
+  private fun buildReport(row: ResultRow): Report {
     return report {
-      measurementConsumerReferenceId = row.getValue("MeasurementConsumerReferenceId")
-      externalReportId = row.getValue("ExternalReportId")
-      state = Report.State.forNumber(row.getValue("State"))
-      details = Report.Details.parseFrom(row.getValue<ByteString>("ReportDetails"))
-      reportIdempotencyKey = row.getValue("ReportIdempotencyKey")
-      val createTime = row.getValue<Instant>("CreateTime")
+      measurementConsumerReferenceId = row["MeasurementConsumerReferenceId"]
+      externalReportId = row["ExternalReportId"]
+      state = Report.State.forNumber(row["State"])
+      details = row.getProtoMessage("ReportDetails", Report.Details.parser())
+      reportIdempotencyKey = row["ReportIdempotencyKey"]
+      val createTime: Instant = row["CreateTime"]
       this.createTime = timestamp {
         seconds = createTime.epochSecond
         nanos = createTime.nano
       }
-      val periodicTimeInterval = row.get<String>("PeriodicTimeInterval")
+      val periodicTimeInterval: String? = row["PeriodicTimeInterval"]
       if (periodicTimeInterval != null) {
         this.periodicTimeInterval = buildPeriodicTimeInterval(periodicTimeInterval)
       } else {
-        timeIntervals = buildTimeIntervals(row.getValue("TimeIntervals"))
+        timeIntervals = buildTimeIntervals(row["TimeIntervals"])
       }
-      metrics += buildMetrics(measurementConsumerReferenceId, row.getValue("Metrics"))
+      metrics += buildMetrics(measurementConsumerReferenceId, row["Metrics"])
     }
   }
 

@@ -14,7 +14,7 @@
 
 package org.wfanet.measurement.reporting.deploy.postgres.writers
 
-import org.wfanet.measurement.common.db.r2dbc.StatementBuilder.Companion.statementBuilder
+import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.internal.reporting.Measurement
 import org.wfanet.measurement.internal.reporting.SetMeasurementResultRequest
 import org.wfanet.measurement.internal.reporting.measurement
@@ -29,8 +29,8 @@ import org.wfanet.measurement.reporting.service.internal.MeasurementNotFoundExce
 class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
   PostgresWriter<Measurement>() {
   override suspend fun TransactionScope.runTransaction(): Measurement {
-    val builder =
-      statementBuilder(
+    val statement =
+      boundStatement(
         """
       UPDATE Measurements
       SET State = $1, Result = $2
@@ -44,7 +44,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
       }
 
     transactionContext.run {
-      val numRowsUpdated = executeStatement(builder).numRowsUpdated
+      val numRowsUpdated = executeStatement(statement).numRowsUpdated
       if (numRowsUpdated == 0) {
         throw MeasurementNotFoundException()
       }

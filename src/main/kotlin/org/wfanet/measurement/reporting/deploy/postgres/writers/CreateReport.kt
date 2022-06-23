@@ -18,7 +18,7 @@ import com.google.protobuf.util.Timestamps
 import java.time.Clock
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import org.wfanet.measurement.common.db.r2dbc.StatementBuilder.Companion.statementBuilder
+import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.internal.reporting.CreateReportRequest
@@ -74,8 +74,8 @@ class CreateReport(private val clock: Clock, private val request: CreateReportRe
       timeIntervals = report.timeIntervals.timeIntervalsList
     }
 
-    val builder =
-      statementBuilder(
+    val statement =
+      boundStatement(
         """
       INSERT INTO Reports (MeasurementConsumerReferenceId, ReportId, ExternalReportId, State, ReportDetails, ReportIdempotencyKey, CreateTime)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -92,7 +92,7 @@ class CreateReport(private val clock: Clock, private val request: CreateReportRe
 
     transactionContext.run {
       insertMeasurements(request.measurementsList)
-      executeStatement(builder)
+      executeStatement(statement)
       if (isPeriodic) {
         insertPeriodicTimeInterval(
           report.measurementConsumerReferenceId,
@@ -126,18 +126,20 @@ class CreateReport(private val clock: Clock, private val request: CreateReportRe
   }
 
   private suspend fun TransactionScope.insertMeasurements(measurements: List<MeasurementKey>) {
-    val builder =
-      statementBuilder(
-        """
+    transactionContext.run {
+      measurements.forEach {
+        val statement =
+          boundStatement(
+            """
       INSERT INTO Measurements (MeasurementConsumerReferenceId, MeasurementReferenceId, State)
         VALUES ($1, $2, $3)
       """
-      ) { bind("$3", Measurement.State.PENDING_VALUE) }
-    transactionContext.run {
-      measurements.forEach {
-        builder.bind("$1", it.measurementConsumerReferenceId)
-        builder.bind("$2", it.measurementReferenceId)
-        executeStatement(builder)
+          ) {
+            bind("$1", it.measurementConsumerReferenceId)
+            bind("$2", it.measurementReferenceId)
+            bind("$3", Measurement.State.PENDING_VALUE)
+          }
+        executeStatement(statement)
       }
     }
   }
@@ -147,8 +149,8 @@ class CreateReport(private val clock: Clock, private val request: CreateReportRe
     reportId: Long,
     periodicTimeInterval: PeriodicTimeInterval
   ) {
-    val builder =
-      statementBuilder(
+    val statement =
+      boundStatement(
         """
       INSERT INTO PeriodicTimeIntervals (MeasurementConsumerReferenceId, ReportId, StartSeconds, StartNanos, IncrementSeconds, IncrementNanos, IntervalCount)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -163,7 +165,7 @@ class CreateReport(private val clock: Clock, private val request: CreateReportRe
         bind("$7", periodicTimeInterval.intervalCount)
       }
 
-    transactionContext.executeStatement(builder)
+    transactionContext.executeStatement(statement)
   }
 
   private suspend fun TransactionScope.insertTimeInterval(
@@ -173,8 +175,8 @@ class CreateReport(private val clock: Clock, private val request: CreateReportRe
   ): Long {
     val timeIntervalId = idGenerator.generateInternalId().value
 
-    val builder =
-      statementBuilder(
+    val statement =
+      boundStatement(
         """
       INSERT INTO TimeIntervals (MeasurementConsumerReferenceId, ReportId, TimeIntervalId, StartSeconds, StartNanos, EndSeconds, EndNanos)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -189,7 +191,7 @@ class CreateReport(private val clock: Clock, private val request: CreateReportRe
         bind("$7", timeInterval.endTime.nanos)
       }
 
-    transactionContext.executeStatement(builder)
+    transactionContext.executeStatement(statement)
     return timeIntervalId
   }
 
@@ -201,8 +203,8 @@ class CreateReport(private val clock: Clock, private val request: CreateReportRe
   ) {
     val metricId = idGenerator.generateInternalId().value
 
-    val builder =
-      statementBuilder(
+    val statement =
+      boundStatement(
         """
           INSERT INTO Metrics (MeasurementConsumerReferenceId, ReportId, MetricId, MetricDetailsJson)
           VALUES ($1, $2, $3, $4)
@@ -214,7 +216,7 @@ class CreateReport(private val clock: Clock, private val request: CreateReportRe
         bind("$4", metric.details.toJson())
       }
 
-    transactionContext.executeStatement(builder)
+    transactionContext.executeStatement(statement)
 
     metric.namedSetOperationsList.forEach {
       insertNamedSetOperation(
@@ -243,8 +245,8 @@ class CreateReport(private val clock: Clock, private val request: CreateReportRe
         namedSetOperation.setOperation
       )
 
-    val builder =
-      statementBuilder(
+    val statement =
+      boundStatement(
         """
         INSERT INTO NamedSetOperations(MeasurementConsumerReferenceId, ReportId, MetricId, NamedSetOperationId, DisplayName, SetOperationId)
         VALUES ($1, $2, $3, $4, $5, $6)
@@ -258,7 +260,7 @@ class CreateReport(private val clock: Clock, private val request: CreateReportRe
         bind("$6", setOperationId)
       }
 
-    transactionContext.executeStatement(builder)
+    transactionContext.executeStatement(statement)
 
     namedSetOperation.measurementCalculationsList.forEach {
       insertMeasurementCalculations(
@@ -282,8 +284,8 @@ class CreateReport(private val clock: Clock, private val request: CreateReportRe
     measurementCalculation: Metric.MeasurementCalculation
   ) {
     val measurementCalculationId = idGenerator.generateInternalId().value
-    val builder =
-      statementBuilder(
+    val statement =
+      boundStatement(
         """
         INSERT INTO MeasurementCalculations(MeasurementConsumerReferenceId, ReportId, MetricId, NamedSetOperationId, MeasurementCalculationId, TimeIntervalId)
         VALUES ($1, $2, $3, $4, $5, $6)
@@ -297,7 +299,7 @@ class CreateReport(private val clock: Clock, private val request: CreateReportRe
         bind("$6", timeIntervalId)
       }
 
-    transactionContext.executeStatement(builder)
+    transactionContext.executeStatement(statement)
     insertWeightedMeasurements(
       measurementConsumerReferenceId,
       reportId,
@@ -316,27 +318,26 @@ class CreateReport(private val clock: Clock, private val request: CreateReportRe
     measurementCalculationId: Long,
     weightedMeasurements: List<WeightedMeasurement>
   ) {
-    val builder =
-      statementBuilder(
-        """
-        INSERT INTO WeightedMeasurements(MeasurementConsumerReferenceId, ReportId, MetricId, NamedSetOperationId, MeasurementCalculationId, WeightedMeasurementId, MeasurementReferenceId, Coefficient)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-        """
-      ) {
-        bind("$1", measurementConsumerReferenceId)
-        bind("$2", reportId)
-        bind("$3", metricId)
-        bind("$4", namedSetOperationId)
-        bind("$5", measurementCalculationId)
-      }
-
     transactionContext.run {
       weightedMeasurements.forEach {
         val weightedMeasurementId = idGenerator.generateInternalId().value
-        builder.bind("$6", weightedMeasurementId)
-        builder.bind("$7", it.measurementReferenceId)
-        builder.bind("$8", it.coefficient)
-        executeStatement(builder)
+        val statement =
+          boundStatement(
+            """
+        INSERT INTO WeightedMeasurements(MeasurementConsumerReferenceId, ReportId, MetricId, NamedSetOperationId, MeasurementCalculationId, WeightedMeasurementId, MeasurementReferenceId, Coefficient)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        """
+          ) {
+            bind("$1", measurementConsumerReferenceId)
+            bind("$2", reportId)
+            bind("$3", metricId)
+            bind("$4", namedSetOperationId)
+            bind("$5", measurementCalculationId)
+            bind("$6", weightedMeasurementId)
+            bind("$7", it.measurementReferenceId)
+            bind("$8", it.coefficient)
+          }
+        executeStatement(statement)
       }
     }
   }
@@ -413,8 +414,8 @@ class CreateReport(private val clock: Clock, private val request: CreateReportRe
       }
     }
 
-    val builder =
-      statementBuilder(
+    val statement =
+      boundStatement(
         """
         INSERT INTO SetOperations(MeasurementConsumerReferenceId, ReportId, MetricId, SetOperationId, Type, LeftHandSetOperationId, LeftHandReportingSetId, RightHandSetOperationId, RightHandReportingSetId)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -425,29 +426,13 @@ class CreateReport(private val clock: Clock, private val request: CreateReportRe
         bind("$3", metricId)
         bind("$4", setOperationId)
         bind("$5", setOperation.typeValue)
-        if (lhsSetOperationId == null) {
-          bindNull<Long>("$6")
-        } else {
-          bind("$6", lhsSetOperationId)
-        }
-        if (lhsReportingSetId == null) {
-          bindNull<Long>("$7")
-        } else {
-          bind("$7", lhsReportingSetId)
-        }
-        if (rhsSetOperationId == null) {
-          bindNull<Long>("$8")
-        } else {
-          bind("$8", rhsSetOperationId)
-        }
-        if (rhsReportingSetId == null) {
-          bindNull<Long>("$9")
-        } else {
-          bind("$9", rhsReportingSetId)
-        }
+        bind("$6", lhsSetOperationId)
+        bind("$7", lhsReportingSetId)
+        bind("$8", rhsSetOperationId)
+        bind("$9", rhsReportingSetId)
       }
 
-    transactionContext.executeStatement(builder)
+    transactionContext.executeStatement(statement)
 
     return setOperationId
   }

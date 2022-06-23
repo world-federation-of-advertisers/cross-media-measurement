@@ -14,15 +14,13 @@
 
 package org.wfanet.measurement.reporting.deploy.postgres.readers
 
-import io.r2dbc.spi.Row
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.db.r2dbc.ReadWriteContext
-import org.wfanet.measurement.common.db.r2dbc.StatementBuilder.Companion.statementBuilder
-import org.wfanet.measurement.common.db.r2dbc.getValue
+import org.wfanet.measurement.common.db.r2dbc.ResultRow
+import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.internal.reporting.ReportingSet
@@ -49,20 +47,16 @@ class ReportingSetReader {
       ReportingSets
     """
 
-  fun translate(row: Row): Result =
-    Result(
-      row.getValue("MeasurementConsumerReferenceId"),
-      row.getValue("ReportingSetId"),
-      buildReportingSet(row)
-    )
+  fun translate(row: ResultRow): Result =
+    Result(row["MeasurementConsumerReferenceId"], row["ReportingSetId"], buildReportingSet(row))
 
   suspend fun readReportingSetByExternalId(
     readWriteContext: ReadWriteContext,
     measurementConsumerReferenceId: String,
     externalReportingSetId: ExternalId
   ): Result? {
-    val builder =
-      statementBuilder(
+    val statement =
+      boundStatement(
         baseSql +
           """
         WHERE MeasurementConsumerReferenceId = $1
@@ -73,7 +67,7 @@ class ReportingSetReader {
         bind("$2", externalReportingSetId)
       }
 
-    return readWriteContext.executeQuery(builder).consume(::translate).singleOrNull()
+    return readWriteContext.executeQuery(statement).consume(::translate).singleOrNull()
   }
 
   fun listReportingSets(
@@ -81,8 +75,8 @@ class ReportingSetReader {
     filter: StreamReportingSetsRequest.Filter,
     limit: Int = 0
   ): Flow<Result> {
-    val builder =
-      statementBuilder(
+    val statement =
+      boundStatement(
         baseSql +
           """
         WHERE MeasurementConsumerReferenceId = $1
@@ -103,7 +97,7 @@ class ReportingSetReader {
     return flow {
       val readContext = client.readTransaction()
       try {
-        readContext.executeQuery(builder).consume(::translate).collect { reportingSetResult ->
+        readContext.executeQuery(statement).consume(::translate).collect { reportingSetResult ->
           reportingSetResult.reportingSet =
             reportingSetResult.reportingSet.copy {
               ReportingSetEventGroupReader()
@@ -122,12 +116,12 @@ class ReportingSetReader {
     }
   }
 
-  private fun buildReportingSet(row: Row): ReportingSet {
+  private fun buildReportingSet(row: ResultRow): ReportingSet {
     return reportingSet {
-      measurementConsumerReferenceId = row.getValue("MeasurementConsumerReferenceId")
-      externalReportingSetId = row.getValue("ExternalReportingSetId")
-      filter = row.getValue("Filter")
-      displayName = row.getValue("DisplayName")
+      measurementConsumerReferenceId = row["MeasurementConsumerReferenceId"]
+      externalReportingSetId = row["ExternalReportingSetId"]
+      filter = row["Filter"]
+      displayName = row["DisplayName"]
     }
   }
 }
