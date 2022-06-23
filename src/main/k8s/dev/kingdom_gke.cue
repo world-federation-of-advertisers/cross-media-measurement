@@ -17,11 +17,17 @@ package k8s
 _secret_name: string @tag("secret_name")
 
 #DefaultResourceConfig: {
-	replicas:              1
-	resourceRequestCpu:    "100m"
-	resourceLimitCpu:      "400m"
-	resourceRequestMemory: "256Mi"
-	resourceLimitMemory:   "512Mi"
+	replicas: 1
+	resources: {
+		requests: {
+			cpu: "100m"
+		}
+		limits: {
+			cpu:    "400m"
+			memory: "512Mi"
+		}
+	}
+	jvmHeapSize: "400m"
 }
 
 // Name of K8s service account for the internal API server.

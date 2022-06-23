@@ -21,26 +21,31 @@ _worker2_cert_name:    string @tag("worker2_cert_name")
 
 #KingdomSystemApiTarget: (#Target & {name: "system-api-server"}).target
 #SpannerEmulatorHost:    (#Target & {name: "spanner-emulator"}).target
-#DefaultResourceConfig: {
-	replicas:              1
-	resourceRequestCpu:    "100m"
-	resourceLimitCpu:      "400m"
-	resourceRequestMemory: "256Mi"
-	resourceLimitMemory:   "512Mi"
-}
 #MillResourceConfig: {
-	replicas:              1
-	resourceRequestCpu:    "200m"
-	resourceLimitCpu:      "800m"
-	resourceRequestMemory: "512Mi"
-	resourceLimitMemory:   "4096Mi"
+	replicas: 1
+	resources: {
+		requests: {
+			cpu: "200m"
+		}
+		limits: {
+			cpu:    "800m"
+			memory: "4Gi"
+		}
+	}
+	jvmHeapSize: "3584m"
 }
 #HeraldResourceConfig: {
-	replicas:              1 // We should have 1 and only 1 herald.
-	resourceRequestCpu:    "100m"
-	resourceLimitCpu:      "400m"
-	resourceRequestMemory: "256Mi"
-	resourceLimitMemory:   "512Mi"
+	replicas: 1 // We should have 1 and only 1 herald.
+	resources: {
+		requests: {
+			cpu: "100m"
+		}
+		limits: {
+			cpu:    "400m"
+			memory: "512Mi"
+		}
+	}
+	jvmHeapSize: "400m"
 }
 
 #DuchyConfig: {

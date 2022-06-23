@@ -31,11 +31,19 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 #GrpcServicePort: 8443
 
 #ResourceConfig: {
-	replicas:              int
-	resourceRequestCpu:    string
-	resourceLimitCpu:      string
-	resourceRequestMemory: string
-	resourceLimitMemory:   string
+	replicas?:    int32
+	resources?:   #ResourceRequirements
+	jvmHeapSize?: string
+}
+
+#ResourceQuantity: {
+	cpu?:    string
+	memory?: string
+}
+
+#ResourceRequirements: {
+	limits?:   #ResourceQuantity
+	requests?: #ResourceQuantity
 }
 
 #Target: {
@@ -137,6 +145,11 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 #Container: {
 	_secretMounts: [...#SecretMount]
 	_configMapMounts: [...#ConfigMapMount]
+	_envVars: [Name=string]: {
+		name:   Name
+		value?: string
+		...
+	}
 
 	name:   string
 	image?: string
@@ -149,13 +162,14 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		mountPath: mount.mountPath
 		readOnly:  true
 	}]
+	resources?:      #ResourceRequirements
 	readinessProbe?: #Probe
+	env: [ for _, envVar in _envVars {envVar}]
 	...
 }
 
 #Deployment: Deployment={
 	_name:       string
-	_replicas:   int
 	_secretName: string
 	_image:      string
 	_args: [...string]
@@ -163,12 +177,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_restartPolicy:   string | *"Always"
 	_imagePullPolicy: string | *"Never"
 	_system:          string
-	_jvm_flags:       string | *""
+	_resourceConfig:  #ResourceConfig
 	_dependencies: [...string]
-	_resourceRequestCpu:    string
-	_resourceLimitCpu:      string
-	_resourceRequestMemory: string
-	_resourceLimitMemory:   string
 	_configMapMounts: [...#ConfigMapMount]
 	_podSpec: #PodSpec & {
 		_secretMounts: [{
@@ -177,6 +187,12 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		}]
 		_configMapMounts: Deployment._configMapMounts
 		_dependencies:    Deployment._dependencies
+
+		if _resourceConfig.jvmHeapSize != _|_ {
+			_container: _envVars: "JAVA_TOOL_OPTIONS": {
+				value: "-Xms\(_resourceConfig.jvmHeapSize) -Xmx\(_resourceConfig.jvmHeapSize)"
+			}
+		}
 	}
 
 	apiVersion: "apps/v1"
@@ -192,29 +208,18 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		annotations: system: _system
 	}
 	spec: {
-		replicas: _replicas
 		selector: matchLabels: app: _name + "-app"
+		replicas?: _resourceConfig.replicas
 		template: {
 			metadata: labels: app: _name + "-app"
 			spec: _podSpec & {
 				containers: [{
-					name:  _name + "-container"
-					image: _image
-					resources: requests: {
-						memory: _resourceRequestMemory
-						cpu:    _resourceRequestCpu
-					}
-					resources: limits: {
-						memory: _resourceLimitMemory
-						cpu:    _resourceLimitCpu
-					}
+					name:            _name + "-container"
+					image:           _image
 					imagePullPolicy: _imagePullPolicy
 					args:            _args
 					ports:           _ports
-					env: [{
-						name:  "JAVA_TOOL_OPTIONS"
-						value: _jvm_flags
-					}]
+					resources:       _resourceConfig.resources
 				}]
 				restartPolicy: _restartPolicy
 			}
@@ -246,10 +251,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_imagePullPolicy: string | *"Always"
 	_args: [...string]
 	_dependencies: [...string]
-	_resourceRequestCpu:    string | *"100m"
-	_resourceLimitCpu:      string | *"200m"
-	_resourceRequestMemory: string | *"256Mi"
-	_resourceLimitMemory:   string | *"512Mi"
+	_resources?:   #ResourceRequirements
+	_jvmHeapSize?: string
 	_jobSpec: {
 		backoffLimit?: uint
 	}
@@ -261,6 +264,11 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			}]
 		}
 		_dependencies: Job._dependencies
+		if _jvmHeapSize != _|_ {
+			_container: _envVars: "JAVA_TOOL_OPTIONS": {
+				value: "-Xms\(_jvmHeapSize) -Xmx\(_jvmHeapSize)"
+			}
+		}
 
 		restartPolicy: string | *"OnFailure"
 	}
@@ -283,14 +291,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 					image:           _image
 					imagePullPolicy: _imagePullPolicy
 					args:            _args
-					resources: requests: {
-						memory: _resourceRequestMemory
-						cpu:    _resourceRequestCpu
-					}
-					resources: limits: {
-						memory: _resourceLimitMemory
-						cpu:    _resourceLimitCpu
-					}
+					resources?:      _resources
 				}]
 			}
 		}
