@@ -154,6 +154,17 @@ class ReportsService(
       return ListReportsResponse.getDefaultInstance()
     }
 
+    val nextPageToken: ListReportsPageToken? =
+      if (results.size > listReportsPageToken.pageSize) {
+        listReportsPageToken.copy {
+          lastReport = previousPageEnd {
+            measurementConsumerReferenceId =
+              results[results.lastIndex - 1].measurementConsumerReferenceId
+            externalReportId = results[results.lastIndex - 1].externalReportId
+          }
+        }
+      } else null
+
     return listReportsResponse {
       reports +=
         results
@@ -161,16 +172,8 @@ class ReportsService(
           .map { it.updateReport() }
           .map(InternalReport::toReport)
 
-      if (results.size > listReportsPageToken.pageSize) {
-        val pageToken =
-          listReportsPageToken.copy {
-            lastReport = previousPageEnd {
-              measurementConsumerReferenceId =
-                results[results.lastIndex - 1].measurementConsumerReferenceId
-              externalReportId = results[results.lastIndex - 1].externalReportId
-            }
-          }
-        nextPageToken = pageToken.toByteString().base64UrlEncode()
+      if (nextPageToken != null) {
+        this.nextPageToken = nextPageToken.toByteString().base64UrlEncode()
       }
     }
   }
@@ -179,8 +182,10 @@ class ReportsService(
   private fun InternalReport.updateReport(): InternalReport {
     val source = this
 
-    // Report with SUCCEEDED state is already updated.
-    if (source.state == InternalReport.State.SUCCEEDED) {
+    // Report with SUCCEEDED or FAILED state is already updated.
+    if (
+      source.state == InternalReport.State.SUCCEEDED || source.state == InternalReport.State.FAILED
+    ) {
       return source
     } else if (
       source.state == InternalReport.State.STATE_UNSPECIFIED ||
@@ -192,10 +197,10 @@ class ReportsService(
     // Update measurements
     var allMeasurementSucceeded = true
     var anyMeasurementFailed = false
-    for ((measurementReferenceID, internalMeasurement) in source.measurementsMap) {
+    for ((measurementReferenceId, internalMeasurement) in source.measurementsMap) {
       val measurementState =
         updateMeasurement(
-          measurementReferenceID,
+          measurementReferenceId,
           source.measurementConsumerReferenceId,
           internalMeasurement,
         )
@@ -204,7 +209,11 @@ class ReportsService(
       when (measurementState) {
         InternalMeasurement.State.PENDING -> allMeasurementSucceeded = false
         InternalMeasurement.State.SUCCEEDED -> {} // No action needed
-        InternalMeasurement.State.FAILED -> anyMeasurementFailed = true
+        InternalMeasurement.State.FAILED -> {
+          anyMeasurementFailed = true
+          // Any failed measurement makes the report failed as well.
+          break
+        }
         InternalMeasurement.State.STATE_UNSPECIFIED ->
           error("The measurement state should've been set.")
         InternalMeasurement.State.UNRECOGNIZED -> error("Unrecognized measurement state.")
@@ -854,15 +863,16 @@ private fun ListReportsRequest.toListReportsPageToken(): ListReportsPageToken {
     }
   val measurementConsumerReferenceId = parentKey.measurementConsumerId
 
+  val isValidPageSize =
+    source.pageSize != 0 && source.pageSize >= MIN_PAGE_SIZE && source.pageSize <= MAX_PAGE_SIZE
+
   return if (pageToken.isNotBlank()) {
     ListReportsPageToken.parseFrom(pageToken.base64UrlDecode()).copy {
       grpcRequire(this.measurementConsumerReferenceId == measurementConsumerReferenceId) {
         "Arguments must be kept the same when using a page token"
       }
 
-      if (
-        source.pageSize != 0 && source.pageSize >= MIN_PAGE_SIZE && source.pageSize <= MAX_PAGE_SIZE
-      ) {
+      if (isValidPageSize) {
         pageSize = source.pageSize
       }
     }

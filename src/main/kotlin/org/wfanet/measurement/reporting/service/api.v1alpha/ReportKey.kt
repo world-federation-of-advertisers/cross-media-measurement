@@ -34,10 +34,10 @@ data class ReportKey(
     )
   }
 
-  companion object {
+  companion object FACTORY : ResourceKey.Factory<ReportKey> {
     val defaultValue = ReportKey("", "")
 
-    fun fromName(resourceName: String): ReportKey? {
+    override fun fromName(resourceName: String): ReportKey? {
       return parser.parseIdVars(resourceName)?.let {
         ReportKey(it.getValue(IdVariable.MEASUREMENT_CONSUMER), it.getValue(IdVariable.REPORT))
       }
