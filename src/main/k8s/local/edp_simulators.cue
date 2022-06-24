@@ -25,19 +25,6 @@ _secret_name: string @tag("secret_name")
 
 #KingdomPublicApiTarget: (#Target & {name: "v2alpha-public-api-server"}).target
 #Worker1PublicApiTarget: (#Target & {name: "worker1-requisition-fulfillment-server"}).target
-#ResourceConfig: {
-	replicas: 1
-	resources: {
-		requests: {
-			cpu: "100m"
-		}
-		limits: {
-			cpu:    "400m"
-			memory: "512Mi"
-		}
-	}
-	jvmOptions: ["-Xms=400m -Xmx=400m"]
-}
 
 objectSets: [ for simulator in edpSimulators {simulator}]
 
@@ -86,6 +73,7 @@ edpSimulators: {
 			]
 			_edp_simulator_image:         "bazel/src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:forwarded_storage_edp_simulator_runner_image"
 			_simulator_image_pull_policy: "Never"
+			_resourceConfig:              #DefaultResourceConfig
 		}
 	}
 }

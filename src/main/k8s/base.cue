@@ -31,9 +31,9 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 #GrpcServicePort: 8443
 
 #ResourceConfig: {
-	replicas?:  int32
-	resources?: #ResourceRequirements
-	jvmOptions: [...string]
+	replicas?:    int32
+	resources?:   #ResourceRequirements
+	jvmHeapSize?: string
 }
 
 #ResourceQuantity: {
@@ -188,9 +188,9 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		_configMapMounts: Deployment._configMapMounts
 		_dependencies:    Deployment._dependencies
 
-		if len(_resourceConfig.jvmOptions) > 0 {
+		if _resourceConfig.jvmHeapSize != _|_ {
 			_container: _envVars: "JAVA_TOOL_OPTIONS": {
-				value: strings.Join(_resourceConfig.jvmOptions, " ")
+				value: "-Xms\(_resourceConfig.jvmHeapSize) -Xmx\(_resourceConfig.jvmHeapSize)"
 			}
 		}
 	}
@@ -251,7 +251,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_imagePullPolicy: string | *"Always"
 	_args: [...string]
 	_dependencies: [...string]
-	_resources?: #ResourceRequirements
+	_resources?:   #ResourceRequirements
+	_jvmHeapSize?: string
 	_jobSpec: {
 		backoffLimit?: uint
 	}
@@ -263,6 +264,11 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			}]
 		}
 		_dependencies: Job._dependencies
+		if _jvmHeapSize != _|_ {
+			_container: _envVars: "JAVA_TOOL_OPTIONS": {
+				value: "-Xms\(_jvmHeapSize) -Xmx\(_jvmHeapSize)"
+			}
+		}
 
 		restartPolicy: string | *"OnFailure"
 	}
@@ -285,7 +291,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 					image:           _image
 					imagePullPolicy: _imagePullPolicy
 					args:            _args
-					resources:       _resources
+					resources?:      _resources
 				}]
 			}
 		}

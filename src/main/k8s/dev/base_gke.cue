@@ -34,3 +34,17 @@ package k8s
 		"iam.gke.io/gke-metadata-server-enabled": "true"
 	}
 }
+
+#DefaultResourceConfig: #ResourceConfig & {
+	replicas: 1
+	resources: {
+		requests: {
+			cpu: "100m"
+		}
+		limits: {
+			cpu:    "400m"
+			memory: "512Mi"
+		}
+	}
+	jvmHeapSize: "400m"
+}

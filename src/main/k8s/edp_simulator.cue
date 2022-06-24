@@ -14,12 +14,13 @@
 
 package k8s
 
-#EdpSimulator: {
+#EdpSimulator: EdpSimulator={
 	_edp: {display_name: string, resource_name: string}
 	_mc_resource_name:          string
 	_edp_secret_name:           string
 	_duchy_public_api_target:   string
 	_kingdom_public_api_target: string
+	_resourceConfig:            #ResourceConfig
 
 	_edp_display_name:  _edp.display_name
 	_edp_resource_name: _edp.resource_name
@@ -36,6 +37,7 @@ package k8s
 		_system:          "simulator"
 		_image:           _edp_simulator_image
 		_imagePullPolicy: _simulator_image_pull_policy
+		_resourceConfig:  EdpSimulator._resourceConfig
 
 		_args: [
 			"--tls-cert-file=/var/run/secrets/files/\(_edp_display_name)_tls.pem",
