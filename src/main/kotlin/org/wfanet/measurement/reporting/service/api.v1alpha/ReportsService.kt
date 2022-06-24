@@ -65,8 +65,13 @@ import org.wfanet.measurement.internal.reporting.Metric.WatchDurationParams as I
 import org.wfanet.measurement.internal.reporting.PeriodicTimeInterval as InternalPeriodicTimeInterval
 import org.wfanet.measurement.internal.reporting.Report as InternalReport
 import org.wfanet.measurement.internal.reporting.Report.Details.Result as InternalReportResult
+import org.wfanet.measurement.internal.reporting.Report.Details.Result.HistogramTable
+import org.wfanet.measurement.internal.reporting.Report.Details.Result.HistogramTable.Column as HistogramTableColumn
 import org.wfanet.measurement.internal.reporting.Report.Details.Result.ScalarTable.Column as ScalarTableColumn
+import org.wfanet.measurement.internal.reporting.ReportKt.DetailsKt.ResultKt.HistogramTableKt.column as histogramTableColumn
+import org.wfanet.measurement.internal.reporting.ReportKt.DetailsKt.ResultKt.HistogramTableKt.row as histogramTableRow
 import org.wfanet.measurement.internal.reporting.ReportKt.DetailsKt.ResultKt.ScalarTableKt.column as scalarTableColumn
+import org.wfanet.measurement.internal.reporting.ReportKt.DetailsKt.ResultKt.histogramTable
 import org.wfanet.measurement.internal.reporting.ReportKt.DetailsKt.result as internalReportResult
 import org.wfanet.measurement.internal.reporting.ReportKt.details as internalReportDetails
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub
@@ -287,26 +292,23 @@ class ReportsService(
     // measurementConsumerReferenceId: String
     ): InternalReportResult {
     return internalReportResult {
-      val source = this
-
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-      when (report.timeCase) {
-        InternalReport.TimeCase.TIME_INTERVALS -> {
-          source.scalarTable.rowHeadersList.addAll(
+      val rowHeaders =
+        when (report.timeCase) {
+          InternalReport.TimeCase.TIME_INTERVALS -> {
             report.timeIntervals.timeIntervalsList.map(InternalTimeInterval::toRowHeader)
-          )
-        }
-        InternalReport.TimeCase.PERIODIC_TIME_INTERVAL -> {
-          source.scalarTable.rowHeadersList.addAll(
+          }
+          InternalReport.TimeCase.PERIODIC_TIME_INTERVAL -> {
             report.periodicTimeInterval
               .toInternalTimeIntervals()
               .map(InternalTimeInterval::toRowHeader)
-          )
+          }
+          InternalReport.TimeCase.TIME_NOT_SET -> {
+            error("Time in the internal report should've been set.")
+          }
         }
-        InternalReport.TimeCase.TIME_NOT_SET -> {
-          error("Time in the internal report should've been set.")
-        }
-      }
+
+      this.scalarTable.rowHeadersList.addAll(rowHeaders)
 
       for (metric in report.metricsList) {
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
@@ -315,19 +317,69 @@ class ReportsService(
           InternalMetricDetails.MetricTypeCase.IMPRESSION_COUNT,
           InternalMetricDetails.MetricTypeCase.WATCH_DURATION -> {
             for (namedSetOperation in metric.namedSetOperationsList) {
-              source.scalarTable.columnList.add(
+              this.scalarTable.columnList.add(
                 namedSetOperation.toScalarColumn(report.measurementConsumerReferenceId, metricType)
               )
             }
           }
           InternalMetricDetails.MetricTypeCase.FREQUENCY_HISTOGRAM -> {
-            for (namedSetOperation in metric.namedSetOperationsList) {
-              source.histogramTables
-            }
+            this.histogramTables.add(
+              metric.toHistogramTable(
+                rowHeaders,
+                report.measurementConsumerReferenceId,
+              )
+            )
           }
           InternalMetricDetails.MetricTypeCase.METRICTYPE_NOT_SET ->
             error("The metric type in the internal report should've be set.")
         }
+      }
+    }
+  }
+
+  /** Convert an [InternalMetric] to a [HistogramTable] of an [InternalReport] */
+  private fun InternalMetric.toHistogramTable(
+    rowHeaders: List<String>,
+    measurementConsumerReferenceId: String,
+  ): HistogramTable {
+    val source = this
+    val maximumFrequency = source.details.frequencyHistogram.maximumFrequencyPerUser
+    return histogramTable {
+      for (rowHeader in rowHeaders) {
+        for (frequency in 1..maximumFrequency) {
+          rows.add(
+            histogramTableRow {
+              this.rowHeader = rowHeader
+              this.frequency = frequency
+            }
+          )
+        }
+      }
+      for (namedSetOperation in source.namedSetOperationsList) {
+        column.add(
+          namedSetOperation.toHistogramColumn(
+            measurementConsumerReferenceId,
+            source.details.metricTypeCase,
+          )
+        )
+      }
+    }
+  }
+
+  // TODO(Use one Column message instead of two in the internal report proto)
+  /** Convert an [InternalNamedSetOperation] to a [HistogramTableColumn] of an [InternalReport] */
+  private fun InternalNamedSetOperation.toHistogramColumn(
+    measurementConsumerReferenceId: String,
+    metricType: InternalMetricDetails.MetricTypeCase,
+  ): HistogramTableColumn {
+    val source = this
+    return histogramTableColumn {
+      columnHeader = source.displayName
+
+      for (measurementCalculation in source.measurementCalculationList) {
+        setOperations.addAll(
+          measurementCalculation.toSetOperationResults(measurementConsumerReferenceId, metricType)
+        )
       }
     }
   }
@@ -341,7 +393,7 @@ class ReportsService(
     return scalarTableColumn {
       columnHeader = source.displayName
 
-      for (measurementCalculation in measurementCalculationList) {
+      for (measurementCalculation in source.measurementCalculationList) {
         setOperations.addAll(
           measurementCalculation.toSetOperationResults(measurementConsumerReferenceId, metricType)
         )
@@ -356,7 +408,7 @@ class ReportsService(
     val source = this
 
     val measurementCoefficientPairsList: List<Pair<InternalMeasurement, Int>> =
-      this.weightedMeasurementsList.map {
+      source.weightedMeasurementsList.map {
         val measurement = runBlocking {
           internalMeasurementsStub.getMeasurement(
             getInternalMeasurementRequest {
