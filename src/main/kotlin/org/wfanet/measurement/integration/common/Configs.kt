@@ -63,7 +63,8 @@ val LLV2_AGGREGATOR_NAME =
   AGGREGATOR_PROTOCOLS_SETUP_CONFIG.liquidLegionsV2.externalAggregatorDuchyId!!
 
 val ALL_DUCHY_NAMES = DUCHY_ID_CONFIG.duchiesList.map { it.externalDuchyId }
-val ALL_EDP_DISPLAY_NAMES = listOf("edp1", "edp2", "edp3")
+val ALL_EDP_DISPLAY_NAMES = listOf("edp1")
+// val ALL_EDP_DISPLAY_NAMES = listOf("edp1", "edp2", "edp3")
 
 /**
  * Values of this map are anded to create the event filter to be sent to the EDPs.

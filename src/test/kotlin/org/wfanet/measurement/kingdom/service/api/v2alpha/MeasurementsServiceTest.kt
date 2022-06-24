@@ -462,7 +462,7 @@ class MeasurementsServiceTest {
   }
 
   @Test
-  fun `createMeasurement throws INVALID_ARGUMENT when reach privacy params are missing`() {
+  fun `createMeasurement throws INVALID_ARGUMENT when RF reach privacy params are missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
@@ -496,7 +496,7 @@ class MeasurementsServiceTest {
   }
 
   @Test
-  fun `createMeasurement throws INVALID_ARGUMENT when frequency privacy params are missing`() {
+  fun `createMeasurement throws INVALID_ARGUMENT when RF frequency privacy params are missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
