@@ -39,10 +39,7 @@ data class ReportKey(
 
     fun fromName(resourceName: String): ReportKey? {
       return parser.parseIdVars(resourceName)?.let {
-        ReportKey(
-          it.getValue(IdVariable.MEASUREMENT_CONSUMER),
-          it.getValue(IdVariable.REPORT)
-        )
+        ReportKey(it.getValue(IdVariable.MEASUREMENT_CONSUMER), it.getValue(IdVariable.REPORT))
       }
     }
   }
