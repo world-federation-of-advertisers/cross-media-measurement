@@ -86,7 +86,7 @@ message Report {
         }
         repeated Column column = 2;
       }
-      HistogramTable histogram_table = 2;
+      repeated HistogramTable histogram_tables = 2;
     }
 
     // Set only when `state` is `SUCCEEDED`. Output-only.
