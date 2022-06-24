@@ -84,7 +84,6 @@ class WriteShardedData<T : Message>(
       PCollectionList.of(groupedData)
         .and(missingFiles)
         .flatten("Flatten groupedData+missingFiles")
-        .breakFusion("Break Fusion Before WriteFilesFn")
         .setCoder(groupedData.coder)
         .apply("Write $fileSpec", ParDo.of(WriteFilesFn(fileSpec, storageFactory)))
 

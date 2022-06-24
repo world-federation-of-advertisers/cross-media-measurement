@@ -35,7 +35,6 @@ import org.wfanet.panelmatch.client.common.queryIdOf
 import org.wfanet.panelmatch.client.common.shardIdOf
 import org.wfanet.panelmatch.client.common.unencryptedQueryOf
 import org.wfanet.panelmatch.client.exchangetasks.JoinKeyIdentifier
-import org.wfanet.panelmatch.common.beam.breakFusion
 import org.wfanet.panelmatch.common.beam.createSequence
 import org.wfanet.panelmatch.common.beam.filter
 import org.wfanet.panelmatch.common.beam.flatten
@@ -130,7 +129,6 @@ private class CreateQueries(
     return PCollectionList.of(queries)
       .and(missingQueries)
       .flatten("Flatten queries+missingQueries")
-      .breakFusion("Break fusion before EqualizeQueriesPerShardFn")
       .parDo(
         EqualizeQueriesPerShardFn(totalQueriesPerShard, paddingNonceBucket),
         name = "Equalize Queries per Shard"
@@ -197,14 +195,11 @@ private class CreateQueries(
     unencryptedQueries: PCollection<KV<ShardId, List<FullUnencryptedQuery>>>,
     privateMembershipKeys: PCollectionView<AsymmetricKeyPair>
   ): PCollection<EncryptedQueryBundle> {
-    return unencryptedQueries
-      .breakFusion("Break Fusion Before Encrypt Queries")
-      .apply(
-        "Encrypt Queries per Shard",
-        ParDo.of(EncryptQueriesFn(this.privateMembershipCryptor, privateMembershipKeys))
-          .withSideInputs(privateMembershipKeys)
-      )
-      .breakFusion("Break Fusion After Encrypt Queries")
+    return unencryptedQueries.apply(
+      "Encrypt Queries per Shard",
+      ParDo.of(EncryptQueriesFn(this.privateMembershipCryptor, privateMembershipKeys))
+        .withSideInputs(privateMembershipKeys)
+    )
   }
 
   companion object {
