@@ -132,13 +132,32 @@ class FrontendSimulator(
     )
 
     // Get the CMMS computed result and compare it with the expected result.
-    var mpcResult = getComputedResult(createdReachAndFrequencyMeasurement.name)
-    while (mpcResult == null) {
+    var reachAndFrequencyResult =
+      getReachAndFrequencyResult(createdReachAndFrequencyMeasurement.name)
+    while (reachAndFrequencyResult == null) {
       logger.info("Computation not done yet, wait for another 30 seconds.")
       delay(Duration.ofSeconds(30).toMillis())
-      mpcResult = getComputedResult(createdReachAndFrequencyMeasurement.name)
+      reachAndFrequencyResult = getReachAndFrequencyResult(createdReachAndFrequencyMeasurement.name)
     }
-    logger.info("Got computed result from Kingdom: $mpcResult")
+    logger.info("Got reach and frequency result from Kingdom: $reachAndFrequencyResult")
+
+    // Direct reach and frequency measurement
+    if (createdReachAndFrequencyMeasurement.dataProvidersCount == 1) {
+      logger.info("This is direct reach and frequency measurement.")
+      // EdpSimulator sets it to this value.
+      val expectedResult =
+        apiIdToExternalId(
+          DataProviderKey.fromName(createdReachAndFrequencyMeasurement.dataProvidersList[0].key)!!
+            .dataProviderId
+        )
+
+      assertThat(reachAndFrequencyResult.reach.value).isEqualTo(expectedResult)
+      logger.info(
+        "Direct reach and frequency result is equal to the expected result. Correctness Test passes."
+      )
+
+      return
+    }
 
     val liquidLegionV2Protocol = createdReachAndFrequencyMeasurement.protocolConfig.liquidLegionsV2
     val expectedResult =
@@ -147,10 +166,12 @@ class FrontendSimulator(
 
     assertDpResultsEqual(
       expectedResult,
-      mpcResult,
+      reachAndFrequencyResult,
       liquidLegionV2Protocol.maximumFrequency.toLong()
     )
-    logger.info("Computed result is equal to the expected result. Correctness Test passes.")
+    logger.info(
+      "Reach and frequency result is equal to the expected result. Correctness Test passes."
+    )
   }
 
   /** A sequence of operations done in the simulator involving an impression measurement. */
@@ -286,7 +307,7 @@ class FrontendSimulator(
   }
 
   /** Gets the result of a [Measurement] if it is succeeded. */
-  private suspend fun getComputedResult(measurementName: String): Result? {
+  private suspend fun getReachAndFrequencyResult(measurementName: String): Result? {
     val measurement =
       measurementsClient
         .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
