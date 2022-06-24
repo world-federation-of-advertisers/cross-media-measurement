@@ -93,4 +93,6 @@ message Report {
     Result result = 2;
   }
   Details details = 8;
+
+  string report_idempotency_key = 10;
 }
