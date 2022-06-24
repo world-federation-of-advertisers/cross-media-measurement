@@ -24,7 +24,6 @@ import org.wfanet.panelmatch.client.privatemembership.DatabaseEntry
 import org.wfanet.panelmatch.client.privatemembership.databaseEntry
 import org.wfanet.panelmatch.client.privatemembership.encryptedEntry
 import org.wfanet.panelmatch.client.privatemembership.lookupKey
-import org.wfanet.panelmatch.common.beam.breakFusion
 import org.wfanet.panelmatch.common.beam.groupByKey
 import org.wfanet.panelmatch.common.beam.kvOf
 import org.wfanet.panelmatch.common.beam.map
@@ -98,6 +97,5 @@ class PreprocessEventsTransform(
           this.encryptedEntry = encryptedEntry { data = it.value }
         }
       }
-      .breakFusion("Break Fusion After Preprocess Events")
   }
 }
