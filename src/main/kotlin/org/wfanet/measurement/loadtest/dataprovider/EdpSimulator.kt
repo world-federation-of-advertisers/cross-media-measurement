@@ -58,17 +58,17 @@ import org.wfanet.measurement.api.v2alpha.LiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.frequency
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.impression
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.watchDuration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
-import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
@@ -78,9 +78,7 @@ import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
-import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
-import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -215,6 +213,8 @@ class EdpSimulator(
         requisition.protocolConfig.protocolCase != ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2
       ) {
         when (measurementSpec.measurementTypeCase) {
+          MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
+            fulfillDirectReachAndFrequencyMeasurement(requisition, requisitionSpec, measurementSpec)
           MeasurementSpec.MeasurementTypeCase.IMPRESSION ->
             fulfillImpressionMeasurement(requisition, requisitionSpec, measurementSpec)
           MeasurementSpec.MeasurementTypeCase.DURATION ->
@@ -422,6 +422,22 @@ class EdpSimulator(
     }
 
     return requisitionsStub.listRequisitions(request).requisitionsList
+  }
+
+  private suspend fun fulfillDirectReachAndFrequencyMeasurement(
+    requisition: Requisition,
+    requisitionSpec: RequisitionSpec,
+    measurementSpec: MeasurementSpec
+  ) {
+    // TODO(@alberthsuu): How to fulfill direct reach and frequency measurement?
+    val testValue = apiIdToExternalId(DataProviderKey.fromName(edpData.name)!!.dataProviderId)
+    val requisitionData =
+      MeasurementKt.result {
+        reach = reach { value = testValue }
+        frequency = frequency { relativeFrequencyDistribution.putAll(mapOf(testValue to 1.0)) }
+      }
+
+    fulfillDirectMeasurement(requisition, requisitionSpec, measurementSpec, requisitionData)
   }
 
   private suspend fun fulfillImpressionMeasurement(
