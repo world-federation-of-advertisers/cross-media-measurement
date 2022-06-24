@@ -505,27 +505,27 @@ private fun calculateWatchDurationResults(
 private fun calculateFrequencyHistogramResults(
   measurementCoefficientPairsList: List<Pair<InternalMeasurement, Int>>
 ): List<Int> {
-  val aggregatedFrequency =
+  val aggregatedFrequencyHistogramMap =
     measurementCoefficientPairsList
       .map { (measurement, coefficient) ->
-        if (!measurement.result.hasFrequency()) {
-          error("Frequency measurement is missing.")
+        if (!measurement.result.hasFrequency() || !measurement.result.hasReach()) {
+          error("Reach-Frequency measurement is missing.")
         }
+
+        val reach = measurement.result.reach.value
         measurement.result.frequency.relativeFrequencyDistributionMap.mapValues {
-          it.value * coefficient
+          it.value * coefficient * reach
         }
       }
       .reduce { sum, element ->
-        val tempFrequency = sum.toMutableMap()
+        val tempFrequencyHistogramMap = sum.toMutableMap()
         for ((key, value) in element) {
-          tempFrequency[key] = tempFrequency.getOrDefault(key, 0.0) + value
+          tempFrequencyHistogramMap[key] = tempFrequencyHistogramMap.getOrDefault(key, 0.0) + value
         }
-        tempFrequency
+        tempFrequencyHistogramMap
       }
 
-  // Normalize the frequency distribution
-  val norm = aggregatedFrequency.values.sum()
-  return aggregatedFrequency.values.map { (it / norm).toInt() }
+  return aggregatedFrequencyHistogramMap.values.map(Double::toInt)
 }
 
 /** Convert an [InternalPeriodicTimeInterval] to a list of [InternalTimeInterval]s. */
