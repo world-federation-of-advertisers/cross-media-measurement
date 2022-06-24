@@ -20,9 +20,7 @@ import com.google.protobuf.util.Timestamps.add as timestampsAdd
 import io.grpc.Status
 import java.time.Instant
 import kotlin.math.min
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2.alpha.ListReportsPageToken
 import org.wfanet.measurement.api.v2.alpha.ListReportsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2.alpha.copy
@@ -179,7 +177,7 @@ class ReportsService(
   }
 
   /** Update an [InternalReport] and its [InternalMeasurement]s. */
-  private fun InternalReport.updateReport(): InternalReport {
+  private suspend fun InternalReport.updateReport(): InternalReport {
     val source = this
 
     // Report with SUCCEEDED or FAILED state is already updated.
@@ -239,7 +237,7 @@ class ReportsService(
   /**
    * Given the measurement reference ID, update [InternalMeasurement] with the CMM [Measurement].
    */
-  private fun updateMeasurement(
+  private suspend fun updateMeasurement(
     measurementReferenceId: String,
     measurementConsumerReferenceId: String,
     internalMeasurement: InternalMeasurement,
@@ -249,26 +247,22 @@ class ReportsService(
       return InternalMeasurement.State.SUCCEEDED
 
     val measurement =
-      runBlocking(Dispatchers.IO) {
-        measurementsStub
-          .withAuthenticationKey(apiAuthenticationKey)
-          .getMeasurement(getMeasurementRequest { name = measurementReferenceId })
-      }
+      measurementsStub
+        .withAuthenticationKey(apiAuthenticationKey)
+        .getMeasurement(getMeasurementRequest { name = measurementReferenceId })
 
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     when (measurement.state) {
       Measurement.State.SUCCEEDED -> {
-        runBlocking(Dispatchers.IO) {
-          // Convert a Measurement to an InternalMeasurement and store it into the database with
-          // SUCCEEDED state
-          internalMeasurementsStub.setMeasurementResult(
-            getSetMeasurementResult(
-              measurementConsumerReferenceId,
-              measurementReferenceId,
-              measurement
-            )
+        // Convert a Measurement to an InternalMeasurement and store it into the database with
+        // SUCCEEDED state
+        internalMeasurementsStub.setMeasurementResult(
+          getSetMeasurementResult(
+            measurementConsumerReferenceId,
+            measurementReferenceId,
+            measurement
           )
-        }
+        )
         return InternalMeasurement.State.SUCCEEDED
       }
       Measurement.State.AWAITING_REQUISITION_FULFILLMENT,
@@ -277,15 +271,13 @@ class ReportsService(
       }
       Measurement.State.FAILED,
       Measurement.State.CANCELLED -> {
-        runBlocking(Dispatchers.IO) {
-          internalMeasurementsStub.setMeasurementFailure(
-            setMeasurementFailureRequest {
-              this.measurementConsumerReferenceId = measurementConsumerReferenceId
-              this.measurementReferenceId = measurementReferenceId
-              failure = measurement.failure.toFailure()
-            }
-          )
-        }
+        internalMeasurementsStub.setMeasurementFailure(
+          setMeasurementFailureRequest {
+            this.measurementConsumerReferenceId = measurementConsumerReferenceId
+            this.measurementReferenceId = measurementReferenceId
+            failure = measurement.failure.toFailure()
+          }
+        )
         return InternalMeasurement.State.FAILED
       }
       Measurement.State.STATE_UNSPECIFIED -> error("The measurement state should've been set.")
@@ -293,7 +285,7 @@ class ReportsService(
     }
   }
 
-  private fun getSetMeasurementResult(
+  private suspend fun getSetMeasurementResult(
     measurementConsumerReferenceId: String,
     measurementReferenceId: String,
     measurement: Measurement,
@@ -309,14 +301,12 @@ class ReportsService(
   }
 
   /** Decrypt a [Measurement.ResultPair] to [Measurement.Result] */
-  private fun Measurement.ResultPair.toMeasurementResult(): Measurement.Result {
+  private suspend fun Measurement.ResultPair.toMeasurementResult(): Measurement.Result {
     val source = this
     val certificate =
-      runBlocking(Dispatchers.IO) {
-        certificateStub
-          .withAuthenticationKey(apiAuthenticationKey)
-          .getCertificate(getCertificateRequest { name = source.certificate })
-      }
+      certificateStub
+        .withAuthenticationKey(apiAuthenticationKey)
+        .getCertificate(getCertificateRequest { name = source.certificate })
 
     val signedResult = decryptResult(source.encryptedResult, privateKey)
 
@@ -329,7 +319,7 @@ class ReportsService(
   }
 
   /** Construct an [InternalReportResult] when all measurements are ready */
-  private fun constructResult(report: InternalReport): InternalReportResult {
+  private suspend fun constructResult(report: InternalReport): InternalReportResult {
     return internalReportResult {
       val rowHeaders = getRowHeaders(report)
 
@@ -367,7 +357,7 @@ class ReportsService(
   }
 
   /** Convert an [InternalMetric] to a [HistogramTable] of an [InternalReport] */
-  private fun InternalMetric.toHistogramTable(
+  private suspend fun InternalMetric.toHistogramTable(
     rowHeaders: List<String>,
     measurementConsumerReferenceId: String,
   ): HistogramTable {
@@ -394,7 +384,7 @@ class ReportsService(
 
   // TODO(@riemanli) Use one Column message instead of two in the internal report proto
   /** Convert an [InternalNamedSetOperation] to a [HistogramTableColumn] of an [InternalReport] */
-  private fun InternalNamedSetOperation.toHistogramTableColumn(
+  private suspend fun InternalNamedSetOperation.toHistogramTableColumn(
     measurementConsumerReferenceId: String,
     metricType: InternalMetricDetails.MetricTypeCase,
   ): HistogramTableColumn {
@@ -411,7 +401,7 @@ class ReportsService(
   }
 
   /** Convert an [InternalNamedSetOperation] to a [ScalarTableColumn] of an [InternalReport] */
-  private fun InternalNamedSetOperation.toScalarTableColumn(
+  private suspend fun InternalNamedSetOperation.toScalarTableColumn(
     measurementConsumerReferenceId: String,
     metricType: InternalMetricDetails.MetricTypeCase,
   ): ScalarTableColumn {
@@ -428,7 +418,7 @@ class ReportsService(
   }
 
   /** Calculate the equation in [InternalMeasurementCalculation] to get the result. */
-  private fun InternalMeasurementCalculation.toSetOperationResults(
+  private suspend fun InternalMeasurementCalculation.toSetOperationResults(
     measurementConsumerReferenceId: String,
     metricType: InternalMetricDetails.MetricTypeCase,
   ): List<Int> {
@@ -437,14 +427,12 @@ class ReportsService(
     val measurementCoefficientPairsList =
       source.weightedMeasurementsList.map {
         val measurement =
-          runBlocking(Dispatchers.IO) {
-            internalMeasurementsStub.getMeasurement(
-              getInternalMeasurementRequest {
-                this.measurementConsumerReferenceId = measurementConsumerReferenceId
-                this.measurementReferenceId = it.measurementReferenceId
-              }
-            )
-          }
+          internalMeasurementsStub.getMeasurement(
+            getInternalMeasurementRequest {
+              this.measurementConsumerReferenceId = measurementConsumerReferenceId
+              this.measurementReferenceId = it.measurementReferenceId
+            }
+          )
 
         Pair(measurement, it.coefficient)
       }
