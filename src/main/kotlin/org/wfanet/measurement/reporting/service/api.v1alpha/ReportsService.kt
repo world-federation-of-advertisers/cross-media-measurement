@@ -278,7 +278,7 @@ class ReportsService(
           setMeasurementFailureRequest {
             this.measurementConsumerReferenceId = measurementConsumerReferenceId
             this.measurementReferenceId = measurementReferenceId
-            failure = measurement.failure.toFailure()
+            failure = measurement.failure.toInternal()
           }
         )
         return InternalMeasurement.State.FAILED
@@ -577,7 +577,7 @@ private fun InternalTimeInterval.toRowHeader(): String {
 }
 
 /** Convert a CMM [Measurement.Failure] to an [InternalMeasurement.Failure]. */
-private fun Measurement.Failure.toFailure(): InternalMeasurement.Failure {
+private fun Measurement.Failure.toInternal(): InternalMeasurement.Failure {
   val source = this
 
   return internalFailure {
