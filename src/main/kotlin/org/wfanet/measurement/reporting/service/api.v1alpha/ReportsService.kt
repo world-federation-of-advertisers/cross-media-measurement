@@ -507,12 +507,14 @@ private fun calculateFrequencyHistogramResults(
           it.value * coefficient * reach
         }
       }
-      .reduce { sum, element ->
-        val tempFrequencyHistogramMap = sum.toMutableMap()
-        for ((key, value) in element) {
-          tempFrequencyHistogramMap[key] = tempFrequencyHistogramMap.getOrDefault(key, 0.0) + value
+      .fold(mutableMapOf<Long, Double>().withDefault { 0.0 }) {
+        aggregatedFrequencyHistogramMap: MutableMap<Long, Double>,
+        weightedFrequencyHistogramMap ->
+        for ((frequency, count) in weightedFrequencyHistogramMap) {
+          aggregatedFrequencyHistogramMap[frequency] =
+            aggregatedFrequencyHistogramMap.getValue(frequency) + count
         }
-        tempFrequencyHistogramMap
+        aggregatedFrequencyHistogramMap
       }
 
   return aggregatedFrequencyHistogramMap.values.toList()
