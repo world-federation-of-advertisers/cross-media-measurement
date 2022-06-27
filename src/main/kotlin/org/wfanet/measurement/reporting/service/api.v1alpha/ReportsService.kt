@@ -298,7 +298,9 @@ class ReportsService(
       this.measurementReferenceId = measurementReferenceId
       result =
         aggregateResults(
-          measurement.resultsList.map { it.toMeasurementResult() }.map(Measurement.Result::toInternal)
+          measurement.resultsList
+            .map { it.toMeasurementResult() }
+            .map(Measurement.Result::toInternal)
         )
     }
   }
@@ -746,13 +748,13 @@ private fun InternalSetOperation.toSetOperation(): SetOperation {
 
   return setOperation {
     this.type = source.type.toType()
-    this.lhs = source.lhs.toOperand(true)
-    this.rhs = source.lhs.toOperand(false)
+    this.lhs = source.lhs.toOperand()
+    this.rhs = source.lhs.toOperand()
   }
 }
 
 /** Converts an internal [InternalOperand] to a public [SetOperation.Operand]. */
-private fun InternalOperand.toOperand(isLhs: Boolean): SetOperation.Operand {
+private fun InternalOperand.toOperand(): SetOperation.Operand {
   val source = this
 
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
@@ -768,12 +770,7 @@ private fun InternalOperand.toOperand(isLhs: Boolean): SetOperation.Operand {
             )
             .toName()
       }
-    InternalOperand.OperandCase.OPERAND_NOT_SET ->
-      if (isLhs) {
-        error("Operand on the left hand side should've be set.")
-      } else {
-        operand {}
-      }
+    InternalOperand.OperandCase.OPERAND_NOT_SET -> operand {}
   }
 }
 
