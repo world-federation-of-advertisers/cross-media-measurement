@@ -61,108 +61,137 @@ class ReportReader {
       ReportDetails,
       ReportIdempotencyKey,
       CreateTime,
-      (SELECT json_build_object('TimeIntervals', json_agg(
-        json_build_object('TimeIntervalId', TimeIntervalId,
-                          'StartSeconds', StartSeconds,
-                          'StartNanos', StartNanos,
-                          'EndSeconds', EndSeconds,
-                          'EndNanos', EndNanos)
-      ))
-      FROM TimeIntervals
-      WHERE TimeIntervals.MeasurementConsumerReferenceId = Reports.MeasurementConsumerReferenceId
+      (
+        SELECT array_agg(
+          json_build_object(
+            'TimeIntervalId', TimeIntervalId,
+            'StartSeconds', StartSeconds,
+            'StartNanos', StartNanos,
+            'EndSeconds', EndSeconds,
+            'EndNanos', EndNanos
+          )
+        )
+        FROM TimeIntervals
+        WHERE TimeIntervals.MeasurementConsumerReferenceId = Reports.MeasurementConsumerReferenceId
         AND TimeIntervals.ReportId = Reports.ReportId
-      ) TimeIntervals,
-      (SELECT
-        json_build_object('IntervalCount', IntervalCount,
-                          'StartSeconds', StartSeconds,
-                          'StartNanos', StartNanos,
-                          'IncrementSeconds', IncrementSeconds,
-                          'IncrementNanos', IncrementNanos)
-      FROM PeriodicTimeIntervals
-      WHERE PeriodicTimeIntervals.MeasurementConsumerReferenceId = Reports.MeasurementConsumerReferenceId
+      ) AS TimeIntervals,
+      (
+        SELECT json_build_object(
+          'IntervalCount', IntervalCount,
+          'StartSeconds', StartSeconds,
+          'StartNanos', StartNanos,
+          'IncrementSeconds', IncrementSeconds,
+          'IncrementNanos', IncrementNanos
+        )
+        FROM PeriodicTimeIntervals
+        WHERE PeriodicTimeIntervals.MeasurementConsumerReferenceId = Reports.MeasurementConsumerReferenceId
         AND PeriodicTimeIntervals.ReportId = Reports.ReportId
-      ) PeriodicTimeInterval,
-      (SELECT json_build_object('Metrics', json_agg(
-        json_build_object('MetricId', MetricId,
-                          'MetricDetails', MetricDetailsJson,
-                          'NamedSetOperations', NamedSetOperations,
-                          'SetOperations', SetOperations)
-      ))
-      FROM (
-        SELECT
-          MetricId,
-          MetricDetailsJson,
-          (SELECT json_agg(
-            json_build_object('DisplayName', DisplayName,
-                              'SetOperationId', SetOperationId,
-                              'MeasurementCalculations', MeasurementCalculations)
+      ) AS PeriodicTimeInterval,
+      (
+        SELECT array_agg(
+          json_build_object(
+            'MetricId', MetricId,
+            'MetricDetails', MetricDetailsJson,
+            'NamedSetOperations', NamedSetOperations,
+            'SetOperations', SetOperations
           )
-          FROM (
-            SELECT
-              DisplayName,
-              SetOperationId,
-              (SELECT json_agg(
-                json_build_object('TimeInterval', TimeInterval,
-                                  'WeightedMeasurements', WeightedMeasurements)
+        )
+        FROM (
+          SELECT
+            MetricId,
+            MetricDetailsJson,
+            (
+              SELECT json_agg(
+                json_build_object(
+                  'DisplayName', DisplayName,
+                  'SetOperationId', SetOperationId,
+                  'MeasurementCalculations', MeasurementCalculations
+                )
               )
-              FROM
-              (
+              FROM (
                 SELECT
+                  DisplayName,
+                  SetOperationId,
                   (
-                    SELECT json_build_object('StartSeconds', StartSeconds,
-                                              'StartNanos', StartNanos,
-                                              'EndSeconds', EndSeconds,
-                                              'EndNanos', EndNanos)
-                    FROM TimeIntervals
-                    WHERE MeasurementCalculations.MeasurementConsumerReferenceId = TimeIntervals.MeasurementConsumerReferenceId
-                      AND MeasurementCalculations.ReportId = TimeIntervals.ReportId
-                      AND MeasurementCalculations.TimeIntervalId = TimeIntervals.TimeIntervalId
-                  ) TimeInterval,
+                    SELECT json_agg(
+                      json_build_object(
+                        'TimeInterval', TimeInterval,
+                        'WeightedMeasurements', WeightedMeasurements
+                      )
+                    )
+                    FROM (
+                      SELECT
+                        (
+                          SELECT json_build_object(
+                            'StartSeconds', StartSeconds,
+                            'StartNanos', StartNanos,
+                            'EndSeconds', EndSeconds,
+                            'EndNanos', EndNanos
+                          )
+                          FROM TimeIntervals
+                          WHERE MeasurementCalculations.MeasurementConsumerReferenceId = TimeIntervals.MeasurementConsumerReferenceId
+                            AND MeasurementCalculations.ReportId = TimeIntervals.ReportId
+                            AND MeasurementCalculations.TimeIntervalId = TimeIntervals.TimeIntervalId
+                        ) AS TimeInterval,
+                        (
+                          SELECT json_agg(
+                            json_build_object(
+                              'MeasurementReferenceId', MeasurementReferenceId,
+                              'Coefficient', Coefficient
+                            )
+                          )
+                          FROM WeightedMeasurements
+                          Where WeightedMeasurements.MeasurementConsumerReferenceId = MeasurementCalculations.MeasurementConsumerReferenceId
+                            AND WeightedMeasurements.ReportId = MeasurementCalculations.ReportId
+                            AND WeightedMeasurements.MetricId = MeasurementCalculations.MetricId
+                            AND WeightedMeasurements.NamedSetOperationId = MeasurementCalculations.NamedSetOperationId
+                            AND WeightedMeasurements.MeasurementCalculationId = MeasurementCalculations.MeasurementCalculationId
+                        ) AS WeightedMeasurements
+                      FROM MeasurementCalculations
+                      Where MeasurementCalculations.MeasurementConsumerReferenceId = NamedSetOperations.MeasurementConsumerReferenceId
+                        AND MeasurementCalculations.ReportId = NamedSetOperations.ReportId
+                        AND MeasurementCalculations.MetricId = NamedSetOperations.MetricId
+                        AND MeasurementCalculations.NamedSetOperationId = NamedSetOperations.NamedSetOperationId
+                    ) MeasurementCalculations
+                  ) AS MeasurementCalculations
+              FROM NamedSetOperations
+              WHERE NamedSetOperations.MeasurementConsumerReferenceId = Metrics.MeasurementConsumerReferenceId
+                AND NamedSetOperations.ReportId = Metrics.ReportId
+                AND NamedSetOperations.MetricId = Metrics.MetricId
+            ) AS NamedSetOperations) AS NamedSetOperations,
+            (
+              SELECT json_agg(
+                json_build_object(
+                  'Type', Type,
+                  'SetOperationId', SetOperationId,
+                  'LeftHandSetOperationId', LeftHandSetOperationId,
+                  'RightHandSetOperationId', RightHandSetOperationId,
+                  'LeftHandReportingSetId',
                   (
-                    SELECT json_agg(json_build_object('MeasurementReferenceId', MeasurementReferenceId,
-                                                       'Coefficient', Coefficient))
-                    FROM WeightedMeasurements
-                    Where WeightedMeasurements.MeasurementConsumerReferenceId = MeasurementCalculations.MeasurementConsumerReferenceId
-                      AND WeightedMeasurements.ReportId = MeasurementCalculations.ReportId
-                      AND WeightedMeasurements.MetricId = MeasurementCalculations.MetricId
-                      AND WeightedMeasurements.NamedSetOperationId = MeasurementCalculations.NamedSetOperationId
-                      AND WeightedMeasurements.MeasurementCalculationId = MeasurementCalculations.MeasurementCalculationId
-                  ) WeightedMeasurements
-                FROM MeasurementCalculations
-                Where MeasurementCalculations.MeasurementConsumerReferenceId = NamedSetOperations.MeasurementConsumerReferenceId
-                  AND MeasurementCalculations.ReportId = NamedSetOperations.ReportId
-                  AND MeasurementCalculations.MetricId = NamedSetOperations.MetricId
-                  AND MeasurementCalculations.NamedSetOperationId = NamedSetOperations.NamedSetOperationId
-              ) MeasurementCalculations) MeasurementCalculations
-            FROM NamedSetOperations
-            WHERE NamedSetOperations.MeasurementConsumerReferenceId = Metrics.MeasurementConsumerReferenceId
-              AND NamedSetOperations.ReportId = Metrics.ReportId
-              AND NamedSetOperations.MetricId = Metrics.MetricId
-          ) NamedSetOperations) NamedSetOperations,
-          (SELECT json_agg(
-            json_build_object('Type', Type,
-                              'SetOperationId', SetOperationId,
-                              'LeftHandSetOperationId', LeftHandSetOperationId,
-                              'RightHandSetOperationId', RightHandSetOperationId,
-                              'LeftHandReportingSetId',
-                                (SELECT ExternalReportingSetId
-                                FROM ReportingSets
-                                WHERE SetOperations.MeasurementConsumerReferenceId = ReportingSets.MeasurementConsumerReferenceId
-                                  AND ReportingSetId = LeftHandReportingSetId),
-                              'RightHandReportingSetId',
-                                (SELECT ExternalReportingSetId
-                                  FROM ReportingSets
-                                  WHERE SetOperations.MeasurementConsumerReferenceId = ReportingSets.MeasurementConsumerReferenceId
-                                    AND ReportingSetId = RightHandReportingSetId))
-          )
-          FROM SetOperations
-          Where SetOperations.MeasurementConsumerReferenceId = Metrics.MeasurementConsumerReferenceId
-            AND SetOperations.ReportId = Metrics.ReportId
-            AND SetOperations.MetricId = Metrics.MetricId) SetOperations
-        FROM Metrics
-        WHERE Metrics.MeasurementConsumerReferenceId = Reports.MeasurementConsumerReferenceId
+                    SELECT ExternalReportingSetId
+                    FROM ReportingSets
+                    WHERE SetOperations.MeasurementConsumerReferenceId = ReportingSets.MeasurementConsumerReferenceId
+                    AND ReportingSetId = LeftHandReportingSetId
+                  ),
+                  'RightHandReportingSetId',
+                  (
+                    SELECT ExternalReportingSetId
+                    FROM ReportingSets
+                    WHERE SetOperations.MeasurementConsumerReferenceId = ReportingSets.MeasurementConsumerReferenceId
+                    AND ReportingSetId = RightHandReportingSetId
+                  )
+                )
+              )
+              FROM SetOperations
+              Where SetOperations.MeasurementConsumerReferenceId = Metrics.MeasurementConsumerReferenceId
+                AND SetOperations.ReportId = Metrics.ReportId
+                AND SetOperations.MetricId = Metrics.MetricId
+            ) AS SetOperations
+          FROM Metrics
+          WHERE Metrics.MeasurementConsumerReferenceId = Reports.MeasurementConsumerReferenceId
           AND Metrics.ReportId = Reports.ReportId
-      ) Metrics) Metrics
+        ) AS Metrics
+      ) AS Metrics
     FROM Reports
     """
 
@@ -270,12 +299,10 @@ class ReportReader {
     }
   }
 
-  private fun buildTimeIntervals(jsonString: String): TimeIntervals {
-    val jsonObject = JsonParser.parseString(jsonString).asJsonObject
-    val timeIntervalArr = jsonObject.getAsJsonArray("TimeIntervals")
+  private fun buildTimeIntervals(timeIntervalsArr: Array<String>): TimeIntervals {
     return timeIntervals {
-      timeIntervalArr.forEach {
-        val timeIntervalObject = it.asJsonObject
+      timeIntervalsArr.forEach {
+        val timeIntervalObject = JsonParser.parseString(it).asJsonObject
         timeIntervals += timeInterval {
           startTime = timestamp {
             seconds = timeIntervalObject.getAsJsonPrimitive("StartSeconds").asLong
@@ -292,13 +319,11 @@ class ReportReader {
 
   private fun buildMetrics(
     measurementConsumerReferenceId: String,
-    jsonString: String
+    metricsArr: Array<String>
   ): List<Metric> {
-    val jsonObject = JsonParser.parseString(jsonString).asJsonObject
-    val metricsArr = jsonObject.getAsJsonArray("Metrics")
-    val metricsList = ArrayList<Metric>(metricsArr.size())
+    val metricsList = ArrayList<Metric>(metricsArr.size)
     metricsArr.forEach {
-      val metricObject = it.asJsonObject
+      val metricObject = JsonParser.parseString(it).asJsonObject
       metricsList.add(
         metric {
           val detailsBuilder = Metric.Details.newBuilder()

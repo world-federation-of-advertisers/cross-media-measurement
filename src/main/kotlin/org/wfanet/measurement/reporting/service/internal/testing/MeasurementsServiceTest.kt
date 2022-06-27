@@ -16,40 +16,64 @@ package org.wfanet.measurement.reporting.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.duration
+import com.google.protobuf.timestamp
+import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import java.time.Clock
+import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.common.identity.InternalId
-import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
+import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.internal.reporting.CreateReportRequestKt
 import org.wfanet.measurement.internal.reporting.Measurement
 import org.wfanet.measurement.internal.reporting.MeasurementKt
 import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
+import org.wfanet.measurement.internal.reporting.Metric
+import org.wfanet.measurement.internal.reporting.MetricKt
+import org.wfanet.measurement.internal.reporting.Report
+import org.wfanet.measurement.internal.reporting.ReportKt
+import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.copy
+import org.wfanet.measurement.internal.reporting.createReportRequest
 import org.wfanet.measurement.internal.reporting.getMeasurementRequest
+import org.wfanet.measurement.internal.reporting.getReportRequest
 import org.wfanet.measurement.internal.reporting.measurement
+import org.wfanet.measurement.internal.reporting.metric
+import org.wfanet.measurement.internal.reporting.periodicTimeInterval
+import org.wfanet.measurement.internal.reporting.report
 import org.wfanet.measurement.internal.reporting.setMeasurementFailureRequest
 import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest
+import org.wfanet.measurement.internal.reporting.timeInterval
 
 @RunWith(JUnit4::class)
 abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
-  protected val idGenerator = FixedIdGenerator(InternalId(1L), ExternalId(1L))
+  protected val idGenerator = RandomIdGenerator(Clock.systemUTC(), Random(1))
+
+  protected data class Services<T>(
+    val measurementsService: T,
+    val reportsService: ReportsCoroutineImplBase
+  )
 
   /** Instance of the service under test. */
   private lateinit var service: T
 
+  private lateinit var reportsService: ReportsCoroutineImplBase
+
   /** Constructs the service being tested. */
-  protected abstract fun newService(idGenerator: IdGenerator): T
+  protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
 
   @Before
   fun initService() {
-    service = newService(idGenerator)
+    val services = newServices(idGenerator)
+    service = services.measurementsService
+    reportsService = services.reportsService
   }
 
   @Test
@@ -99,7 +123,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val request = setMeasurementResultRequest {
       measurementConsumerReferenceId = createdMeasurement.measurementConsumerReferenceId
       measurementReferenceId = createdMeasurement.measurementReferenceId
-      this.result = result
+      measurementResult = result
     }
 
     val updatedMeasurement = runBlocking { service.setMeasurementResult(request) }
@@ -126,11 +150,122 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val request = setMeasurementResultRequest {
       measurementConsumerReferenceId = "1234"
       measurementReferenceId = "4321"
-      result = MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 100L } }
+      measurementResult =
+        MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 100L } }
     }
 
     val exception = runBlocking {
       assertFailsWith<StatusRuntimeException> { service.setMeasurementResult(request) }
+    }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `setMeasurementResult succeeds in setting the report result and succeeded report state`() {
+    val measurementConsumerReferenceId = "1234"
+    val measurementReferenceId = "1234"
+    val result = MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 100L } }
+    val createdReport = runBlocking {
+      reportsService.createReport(
+        createReportRequest {
+          measurements +=
+            CreateReportRequestKt.measurementKey {
+              this.measurementConsumerReferenceId = measurementConsumerReferenceId
+              this.measurementReferenceId = measurementReferenceId
+            }
+          report = report {
+            this.measurementConsumerReferenceId = measurementConsumerReferenceId
+            reportIdempotencyKey = "1235"
+            periodicTimeInterval = periodicTimeInterval {
+              startTime = timestamp {
+                seconds = 100
+                nanos = 10
+              }
+              increment = duration {
+                seconds = 10
+                nanos = 1
+              }
+              intervalCount = 2
+            }
+            val inProgressReport = this
+            metrics += metric {
+              namedSetOperations +=
+                MetricKt.namedSetOperation {
+                  displayName = "name4"
+                  setOperation = MetricKt.setOperation { type = Metric.SetOperation.Type.UNION }
+                  measurementCalculations +=
+                    MetricKt.measurementCalculation {
+                      timeInterval = timeInterval {
+                        startTime =
+                          Timestamps.add(
+                            inProgressReport.periodicTimeInterval.startTime,
+                            inProgressReport.periodicTimeInterval.increment
+                          )
+                        endTime =
+                          Timestamps.add(startTime, inProgressReport.periodicTimeInterval.increment)
+                      }
+                      weightedMeasurements +=
+                        MetricKt.MeasurementCalculationKt.weightedMeasurement {
+                          this.measurementReferenceId = measurementReferenceId
+                          coefficient = 1
+                        }
+                    }
+                }
+            }
+          }
+        }
+      )
+    }
+    runBlocking {
+      service.setMeasurementResult(
+        setMeasurementResultRequest {
+          this.measurementConsumerReferenceId = measurementConsumerReferenceId
+          this.measurementReferenceId = measurementReferenceId
+          measurementResult = result
+          externalReportId = createdReport.externalReportId
+          reportResult =
+            ReportKt.DetailsKt.result {
+              scalarTable = ReportKt.DetailsKt.ResultKt.scalarTable { rowHeaders += "test" }
+            }
+        }
+      )
+    }
+    val retrievedReport = runBlocking {
+      reportsService.getReport(
+        getReportRequest {
+          this.measurementConsumerReferenceId = measurementConsumerReferenceId
+          externalReportId = createdReport.externalReportId
+        }
+      )
+    }
+    assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
+    assertThat(retrievedReport.details.result).isNotEqualTo(ReportKt.DetailsKt.result {})
+  }
+
+  @Test
+  fun `setMeasurementResult throws NOT FOUND when report not found`() {
+    val createdMeasurement = runBlocking {
+      service.createMeasurement(
+        measurement {
+          measurementConsumerReferenceId = "1234"
+          measurementReferenceId = "4321"
+        }
+      )
+    }
+    val result = MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 100L } }
+
+    val exception = runBlocking {
+      assertFailsWith<StatusRuntimeException> {
+        service.setMeasurementResult(
+          setMeasurementResultRequest {
+            measurementConsumerReferenceId = createdMeasurement.measurementConsumerReferenceId
+            measurementReferenceId = createdMeasurement.measurementReferenceId
+            measurementResult = result
+            externalReportId = 1234L
+            reportResult = ReportKt.DetailsKt.result {}
+          }
+        )
+      }
     }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }

@@ -28,6 +28,7 @@ import org.wfanet.measurement.reporting.deploy.postgres.writers.SetMeasurementFa
 import org.wfanet.measurement.reporting.deploy.postgres.writers.SetMeasurementResult
 import org.wfanet.measurement.reporting.service.internal.MeasurementAlreadyExistsException
 import org.wfanet.measurement.reporting.service.internal.MeasurementNotFoundException
+import org.wfanet.measurement.reporting.service.internal.ReportNotFoundException
 
 class PostgresMeasurementsService(
   private val idGenerator: IdGenerator,
@@ -60,6 +61,8 @@ class PostgresMeasurementsService(
       SetMeasurementResult(request).execute(client, idGenerator)
     } catch (e: MeasurementNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "Measurement not found." }
+    } catch (e: ReportNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Report not found." }
     }
   }
 

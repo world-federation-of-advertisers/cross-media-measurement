@@ -24,11 +24,9 @@ import org.wfanet.measurement.internal.reporting.CreateReportRequest
 import org.wfanet.measurement.internal.reporting.GetReportRequest
 import org.wfanet.measurement.internal.reporting.Report
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineImplBase
-import org.wfanet.measurement.internal.reporting.SetReportResultRequest
 import org.wfanet.measurement.internal.reporting.StreamReportsRequest
 import org.wfanet.measurement.reporting.deploy.postgres.readers.ReportReader
 import org.wfanet.measurement.reporting.deploy.postgres.writers.CreateReport
-import org.wfanet.measurement.reporting.deploy.postgres.writers.SetReportResult
 import org.wfanet.measurement.reporting.service.internal.MeasurementCalculationTimeIntervalNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
@@ -59,14 +57,6 @@ class PostgresReportsService(
           request.externalReportId
         )
         .report
-    } catch (e: ReportNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Report not found" }
-    }
-  }
-
-  override suspend fun setReportResult(request: SetReportResultRequest): Report {
-    try {
-      return SetReportResult(request).execute(client, idGenerator)
     } catch (e: ReportNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "Report not found" }
     }

@@ -16,15 +16,21 @@ package org.wfanet.measurement.reporting.deploy.postgres.writers
 
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.internal.reporting.Measurement
+import org.wfanet.measurement.internal.reporting.Report
 import org.wfanet.measurement.internal.reporting.SetMeasurementResultRequest
+import org.wfanet.measurement.internal.reporting.copy
 import org.wfanet.measurement.internal.reporting.measurement
+import org.wfanet.measurement.reporting.deploy.postgres.readers.ReportReader
 import org.wfanet.measurement.reporting.service.internal.MeasurementNotFoundException
+import org.wfanet.measurement.reporting.service.internal.ReportNotFoundException
 
 /**
- * Updates the Result column for a Measurement
+ * Updates the result for a Measurement and for the corresponding Report too if the report result
+ * has been computed.
  *
  * Throws the following on [execute]:
  * * [MeasurementNotFoundException] Measurement not found.
+ * * [ReportNotFoundException] Report not found.
  */
 class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
   PostgresWriter<Measurement>() {
@@ -38,7 +44,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
       """
       ) {
         bind("$1", Measurement.State.SUCCEEDED_VALUE)
-        bind("$2", request.result)
+        bind("$2", request.measurementResult)
         bind("$3", request.measurementConsumerReferenceId)
         bind("$4", request.measurementReferenceId)
       }
@@ -48,13 +54,39 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
       if (numRowsUpdated == 0) {
         throw MeasurementNotFoundException()
       }
+
+      if (request.externalReportId != 0L) {
+        val reportResult =
+          ReportReader()
+            .getReportByExternalId(
+              transactionContext,
+              request.measurementConsumerReferenceId,
+              request.externalReportId
+            )
+        val updatedDetails = reportResult.report.details.copy { result = request.reportResult }
+        val reportStatement =
+          boundStatement(
+            """
+      UPDATE Reports
+      SET ReportDetails = $1, State = $2
+      WHERE MeasurementConsumerReferenceId = $3
+      AND ExternalReportId = $4
+      """
+          ) {
+            bind("$1", updatedDetails.toByteArray())
+            bind("$2", Report.State.SUCCEEDED.number)
+            bind("$3", request.measurementConsumerReferenceId)
+            bind("$4", request.externalReportId)
+          }
+        executeStatement(reportStatement)
+      }
     }
 
     return measurement {
       measurementConsumerReferenceId = request.measurementConsumerReferenceId
       measurementReferenceId = request.measurementReferenceId
       state = Measurement.State.SUCCEEDED
-      result = request.result
+      result = request.measurementResult
     }
   }
 }

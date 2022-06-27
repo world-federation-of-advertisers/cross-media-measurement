@@ -49,7 +49,6 @@ import org.wfanet.measurement.internal.reporting.metric
 import org.wfanet.measurement.internal.reporting.periodicTimeInterval
 import org.wfanet.measurement.internal.reporting.report
 import org.wfanet.measurement.internal.reporting.reportingSet
-import org.wfanet.measurement.internal.reporting.setReportResultRequest
 import org.wfanet.measurement.internal.reporting.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.timeInterval
 import org.wfanet.measurement.internal.reporting.timeIntervals
@@ -351,55 +350,6 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
           getReportRequest {
             measurementConsumerReferenceId = "1234"
             externalReportId = 1234L
-          }
-        )
-      }
-    }
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-  }
-
-  @Test
-  fun `setReportResult succeeds in setting the result`() {
-    val createdReport = runBlocking {
-      service.createReport(createCreateReportRequest("1234", "1234", "1234", "1235"))
-    }
-    val updatedReport = runBlocking {
-      service.setReportResult(
-        setReportResultRequest {
-          measurementConsumerReferenceId = createdReport.measurementConsumerReferenceId
-          externalReportId = createdReport.externalReportId
-          result =
-            ReportKt.DetailsKt.result {
-              scalarTable = ReportKt.DetailsKt.ResultKt.scalarTable { rowHeaders += "test" }
-            }
-        }
-      )
-    }
-    val retrievedReport = runBlocking {
-      service.getReport(
-        getReportRequest {
-          measurementConsumerReferenceId = createdReport.measurementConsumerReferenceId
-          externalReportId = createdReport.externalReportId
-        }
-      )
-    }
-    assertThat(updatedReport)
-      .ignoringRepeatedFieldOrder()
-      .reportingMismatchesOnly()
-      .isEqualTo(retrievedReport)
-    assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
-    assertThat(retrievedReport.details.result).isNotEqualTo(ReportKt.DetailsKt.result {})
-  }
-
-  @Test
-  fun `setReportResult throws NOT FOUND when report not found`() {
-    val exception = runBlocking {
-      assertFailsWith<StatusRuntimeException> {
-        service.setReportResult(
-          setReportResultRequest {
-            measurementConsumerReferenceId = "1234"
-            externalReportId = 1234L
-            result = ReportKt.DetailsKt.result {}
           }
         )
       }

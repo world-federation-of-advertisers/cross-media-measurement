@@ -99,7 +99,7 @@ CREATE TABLE Metrics (
   ReportId bigint NOT NULL,
   MetricId bigint NOT NULL,
 
-  -- Serialized org.wfanet.measurement.internal.reporting.Metric.Details
+  -- Json serialized org.wfanet.measurement.internal.reporting.Metric.Details
   -- protobuf message.
   MetricDetailsJson text NOT NULL,
 
