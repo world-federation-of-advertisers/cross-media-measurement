@@ -456,6 +456,7 @@ class ReportsService(
   }
 }
 
+/** Calculate the reach result by summing up weighted [InternalMeasurement]s. */
 private fun calculateReachResults(
   measurementCoefficientPairsList: List<Pair<InternalMeasurement, Int>>
 ): Int {
@@ -469,6 +470,7 @@ private fun calculateReachResults(
     .toInt()
 }
 
+/** Calculate the impression result by summing up weighted [InternalMeasurement]s. */
 private fun calculateImpressionResults(
   measurementCoefficientPairsList: List<Pair<InternalMeasurement, Int>>
 ): Int {
@@ -482,6 +484,7 @@ private fun calculateImpressionResults(
     .toInt()
 }
 
+/** Calculate the watch duration result by summing up weighted [InternalMeasurement]s. */
 private fun calculateWatchDurationResults(
   measurementCoefficientPairsList: List<Pair<InternalMeasurement, Int>>
 ): Int {
@@ -508,6 +511,7 @@ private operator fun Duration.times(coefficient: Int): Duration {
   }
 }
 
+/** Calculate the frequency histogram result by summing up weighted [InternalMeasurement]s. */
 private fun calculateFrequencyHistogramResults(
   measurementCoefficientPairsList: List<Pair<InternalMeasurement, Int>>
 ): List<Int> {
@@ -686,6 +690,7 @@ private fun InternalReport.toReport(): Report {
   }
 }
 
+/** Convert an [InternalReport.State] to a public [Report.State]. */
 private fun InternalReport.State.toState(): Report.State {
   val source = this
 
