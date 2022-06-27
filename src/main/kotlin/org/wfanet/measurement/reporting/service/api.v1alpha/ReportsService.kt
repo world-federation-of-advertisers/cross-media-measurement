@@ -298,7 +298,7 @@ class ReportsService(
       this.measurementReferenceId = measurementReferenceId
       result =
         aggregateResults(
-          measurement.resultsList.map { it.toMeasurementResult() }.map(Measurement.Result::toResult)
+          measurement.resultsList.map { it.toMeasurementResult() }.map(Measurement.Result::toInternal)
         )
     }
   }
@@ -629,7 +629,7 @@ private fun aggregateResults(
 }
 
 /** Converts a CMM [Measurement.Result] to an [InternalMeasurementResult]. */
-private fun Measurement.Result.toResult(): InternalMeasurementResult {
+private fun Measurement.Result.toInternal(): InternalMeasurementResult {
   val source = this
 
   return internalMeasurementResult {
