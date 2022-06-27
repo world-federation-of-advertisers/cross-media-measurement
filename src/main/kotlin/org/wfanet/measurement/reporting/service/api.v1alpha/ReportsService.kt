@@ -115,7 +115,7 @@ private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 
-// TODO(@riemanli) Have a function to get private keys
+/** TODO(@renjiez) Have a function to get public/private keys */
 class ReportsService(
   private val internalReportsStub: ReportsCoroutineStub,
   private val internalMeasurementsStub: InternalMeasurementsCoroutineStub,
@@ -382,7 +382,6 @@ class ReportsService(
     }
   }
 
-  // TODO(@riemanli) Use one Column message instead of two in the internal report proto
   /** Convert an [InternalNamedSetOperation] to a [HistogramTableColumn] of an [InternalReport] */
   private suspend fun InternalNamedSetOperation.toHistogramTableColumn(
     measurementConsumerReferenceId: String,
@@ -483,6 +482,7 @@ private fun calculateImpressionResults(
 private fun calculateWatchDurationResults(
   measurementCoefficientPairsList: List<Pair<InternalMeasurement, Int>>
 ): Int {
+  /** TODO(@riemanli) Only keep the seconds. Include nanos for better accuracy? */
   return measurementCoefficientPairsList
     .map { (measurement, coefficient) ->
       if (!measurement.result.hasWatchDuration()) {
@@ -498,7 +498,7 @@ private fun calculateWatchDurationResults(
       }
     }
     .reduce { sum, element -> durationsAdd(sum, element) }
-    .seconds // TODO(@riemanli) Only keep the seconds. Include nanos for better accuracy?
+    .seconds
     .toInt()
 }
 
