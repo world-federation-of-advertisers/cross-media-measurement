@@ -14,11 +14,13 @@
 
 package org.wfanet.measurement.reporting.service.api.v1alpha
 
+import com.google.protobuf.Duration
 import com.google.protobuf.duration
 import com.google.protobuf.util.Durations.add as durationsAdd
 import com.google.protobuf.util.Timestamps.add as timestampsAdd
 import io.grpc.Status
 import java.time.Instant
+import java.util.concurrent.TimeUnit
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2.alpha.ListReportsPageToken
@@ -114,6 +116,7 @@ import org.wfanet.measurement.reporting.v1alpha.timeIntervals
 private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
+private const val NANOS_PER_SECOND = 1_000_000_000
 
 /** TODO(@renjiez) Have a function to get public/private keys */
 class ReportsService(
@@ -488,18 +491,21 @@ private fun calculateWatchDurationResults(
       if (!measurement.result.hasWatchDuration()) {
         error("Watch duration measurement is missing.")
       }
-      duration {
-        seconds = measurement.result.watchDuration.value.seconds * coefficient
-        nanos = measurement.result.watchDuration.value.nanos * coefficient
-        while (nanos >= 1_000_000_000) {
-          seconds += 1
-          nanos -= 1_000_000_000
-        }
-      }
+      measurement.result.watchDuration.value * coefficient
     }
     .reduce { sum, element -> durationsAdd(sum, element) }
     .seconds
     .toInt()
+}
+
+private operator fun Duration.times(coefficient: Int): Duration {
+  val source = this
+  return duration {
+    val weightedTotalNanos: Long =
+      (TimeUnit.SECONDS.toNanos(source.seconds) + source.nanos) * coefficient
+    seconds = TimeUnit.NANOSECONDS.toSeconds(weightedTotalNanos)
+    nanos = (weightedTotalNanos % NANOS_PER_SECOND).toInt()
+  }
 }
 
 private fun calculateFrequencyHistogramResults(
