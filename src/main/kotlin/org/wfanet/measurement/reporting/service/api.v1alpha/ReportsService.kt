@@ -170,7 +170,7 @@ class ReportsService(
       reports +=
         results
           .subList(0, min(results.size, listReportsPageToken.pageSize))
-          .map { it.updateReport() }
+          .map { syncReport(it) }
           .map(InternalReport::toReport)
 
       if (nextPageToken != null) {
@@ -179,18 +179,16 @@ class ReportsService(
     }
   }
 
-  /** Update an [InternalReport] and its [InternalMeasurement]s. */
-  private suspend fun InternalReport.updateReport(): InternalReport {
-    val source = this
-
+  /** Sync an [InternalReport] and its [InternalMeasurement]s. */
+  private suspend fun syncReport(internalReport: InternalReport): InternalReport {
     // Report with SUCCEEDED or FAILED state is already updated.
     if (
-      source.state == InternalReport.State.SUCCEEDED || source.state == InternalReport.State.FAILED
+      internalReport.state == InternalReport.State.SUCCEEDED || internalReport.state == InternalReport.State.FAILED
     ) {
-      return source
+      return internalReport
     } else if (
-      source.state == InternalReport.State.STATE_UNSPECIFIED ||
-        source.state == InternalReport.State.UNRECOGNIZED
+      internalReport.state == InternalReport.State.STATE_UNSPECIFIED ||
+        internalReport.state == InternalReport.State.UNRECOGNIZED
     ) {
       error("The report cannot be updated if its state is either unspecified or unrecognized.")
     }
@@ -198,11 +196,11 @@ class ReportsService(
     // Update measurements
     var allMeasurementSucceeded = true
     var anyMeasurementFailed = false
-    for ((measurementReferenceId, internalMeasurement) in source.measurementsMap) {
+    for ((measurementReferenceId, internalMeasurement) in internalReport.measurementsMap) {
       val measurementState =
-        updateMeasurement(
+        syncMeasurement(
           measurementReferenceId,
-          source.measurementConsumerReferenceId,
+          internalReport.measurementConsumerReferenceId,
           internalMeasurement,
         )
 
@@ -223,24 +221,24 @@ class ReportsService(
 
     // Update report
     if (allMeasurementSucceeded) {
-      return source.copy {
+      return internalReport.copy {
         state = InternalReport.State.SUCCEEDED
         details = internalReportDetails {
-          eventGroupFilters.putAll(source.details.eventGroupFiltersMap)
-          result = constructResult(source)
+          eventGroupFilters.putAll(internalReport.details.eventGroupFiltersMap)
+          result = constructResult(internalReport)
         }
       }
     }
     if (anyMeasurementFailed) {
-      return source.copy { state = InternalReport.State.FAILED }
+      return internalReport.copy { state = InternalReport.State.FAILED }
     }
-    return source
+    return internalReport
   }
 
   /**
-   * Given the measurement reference ID, update [InternalMeasurement] with the CMM [Measurement].
+   * Given the measurement reference ID, sync [InternalMeasurement] with the CMM [Measurement].
    */
-  private suspend fun updateMeasurement(
+  private suspend fun syncMeasurement(
     measurementReferenceId: String,
     measurementConsumerReferenceId: String,
     internalMeasurement: InternalMeasurement,
