@@ -199,28 +199,24 @@ private val INTERNAL_REACH_MEASUREMENT = internalMeasurement {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
   measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
   state = InternalMeasurement.State.PENDING
-  updateTime = timestamp { seconds = 2000 }
 }
 private val INTERNAL_FREQUENCY_HISTOGRAM_MEASUREMENT = internalMeasurement {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
   measurementReferenceId = FREQUENCY_HISTOGRAM_MEASUREMENT_REFERENCE_ID
   state = InternalMeasurement.State.SUCCEEDED
   // result =
-  updateTime = timestamp { seconds = 3000 }
 }
 private val INTERNAL_IMPRESSION_MEASUREMENT = internalMeasurement {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
   measurementReferenceId = IMPRESSION_MEASUREMENT_REFERENCE_ID
   state = InternalMeasurement.State.SUCCEEDED
   // result =
-  updateTime = timestamp { seconds = 4000 }
 }
 private val INTERNAL_WATCH_DURATION_MEASUREMENT = internalMeasurement {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
   measurementReferenceId = WATCH_DURATION_MEASUREMENT_REFERENCE_ID
   state = InternalMeasurement.State.SUCCEEDED
   // result =
-  updateTime = timestamp { seconds = 5000 }
 }
 
 // Weighted measurements
@@ -336,6 +332,8 @@ private val EVENT_GROUP_FILTERS_MAP =
   )
 
 // Internal reports
+private const val REPORT_IDEMPOTENCY_KEY = "TEST_REPORT"
+
 private val INTERNAL_REPORT: InternalReport = internalReport {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
   externalReportId = REPORT_EXTERNAL_ID
@@ -358,6 +356,8 @@ private val INTERNAL_REPORT: InternalReport = internalReport {
     )
   )
   details = internalReportDetails { eventGroupFilters.putAll(EVENT_GROUP_FILTERS_MAP) }
+  createTime = timestamp { seconds = 2000 }
+  reportIdempotencyKey = REPORT_IDEMPOTENCY_KEY
 }
 
 @RunWith(JUnit4::class)
