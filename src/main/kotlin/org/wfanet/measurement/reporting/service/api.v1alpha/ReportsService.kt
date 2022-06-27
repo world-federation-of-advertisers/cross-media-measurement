@@ -16,8 +16,8 @@ package org.wfanet.measurement.reporting.service.api.v1alpha
 
 import com.google.protobuf.Duration
 import com.google.protobuf.duration
-import com.google.protobuf.util.Durations.add as durationsAdd
-import com.google.protobuf.util.Timestamps.add as timestampsAdd
+import com.google.protobuf.util.Durations
+import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import java.time.Instant
 import java.util.concurrent.TimeUnit
@@ -476,7 +476,7 @@ private fun calculateWatchDurationResults(
         }
         measurement.result.watchDuration.value * coefficient
       }
-      .reduce { sum, element -> durationsAdd(sum, element) }
+      .reduce { sum, element -> Durations.add(sum, element) }
 
   return watchDuration.seconds + (watchDuration.nanos.toDouble() / NANOS_PER_SECOND)
 }
@@ -527,7 +527,7 @@ private fun InternalPeriodicTimeInterval.toInternalTimeIntervals(): List<Interna
   return (0 until source.intervalCount).map {
     internalTimeInterval {
       this.startTime = startTime
-      this.endTime = timestampsAdd(startTime, source.increment)
+      this.endTime = Timestamps.add(startTime, source.increment)
       startTime = this.endTime
     }
   }
@@ -603,7 +603,7 @@ private fun aggregateResults(
       }
       if (element.hasWatchDuration()) {
         this.watchDuration = internalWatchDuration {
-          value = durationsAdd(sum.watchDuration.value, element.watchDuration.value)
+          value = Durations.add(sum.watchDuration.value, element.watchDuration.value)
         }
       }
     }
@@ -729,7 +729,7 @@ private fun InternalSetOperation.toSetOperation(): SetOperation {
   return setOperation {
     this.type = source.type.toType()
     this.lhs = source.lhs.toOperand()
-    this.rhs = source.lhs.toOperand()
+    this.rhs = source.rhs.toOperand()
   }
 }
 
