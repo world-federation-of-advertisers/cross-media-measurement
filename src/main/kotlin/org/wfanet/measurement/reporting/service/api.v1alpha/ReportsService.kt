@@ -227,7 +227,7 @@ class ReportsService(
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     when (measurement.state) {
       Measurement.State.SUCCEEDED -> {
-        // Convert a Measurement to an InternalMeasurement and store it into the database with
+        // Converts a Measurement to an InternalMeasurement and store it into the database with
         // SUCCEEDED state
         internalMeasurementsStub.setMeasurementResult(
           getSetMeasurementResult(
@@ -331,7 +331,7 @@ class ReportsService(
     }
   }
 
-  /** Convert an [InternalMetric] to a [HistogramTable] of an [InternalReport] */
+  /** Converts an [InternalMetric] to a [HistogramTable] of an [InternalReport] */
   private suspend fun InternalMetric.toHistogramTable(
     rowHeaders: List<String>,
     measurementConsumerReferenceId: String,
@@ -357,7 +357,7 @@ class ReportsService(
     }
   }
 
-  /** Convert an [InternalNamedSetOperation] to a [InternalResultColumn] of an [InternalReport] */
+  /** Converts an [InternalNamedSetOperation] to a [InternalResultColumn] of an [InternalReport] */
   private suspend fun InternalNamedSetOperation.toInternalResultColumn(
     measurementConsumerReferenceId: String,
     metricType: InternalMetricDetails.MetricTypeCase,
@@ -495,7 +495,7 @@ private fun calculateFrequencyHistogramResults(
   return aggregatedFrequencyHistogramMap.values.toList()
 }
 
-/** Convert an [InternalPeriodicTimeInterval] to a list of [InternalTimeInterval]s. */
+/** Converts an [InternalPeriodicTimeInterval] to a list of [InternalTimeInterval]s. */
 private fun InternalPeriodicTimeInterval.toInternalTimeIntervals(): List<InternalTimeInterval> {
   val source = this
   var startTime = checkNotNull(source.startTime)
@@ -524,7 +524,7 @@ private fun getRowHeaders(report: InternalReport): List<String> {
   }
 }
 
-/** Convert an [InternalTimeInterval] to a row header in String. */
+/** Converts an [InternalTimeInterval] to a row header in String. */
 private fun InternalTimeInterval.toRowHeader(): String {
   val source = this
   val startTimeInstant =
@@ -533,7 +533,7 @@ private fun InternalTimeInterval.toRowHeader(): String {
   return "$startTimeInstant-$endTimeInstant"
 }
 
-/** Convert a CMM [Measurement.Failure] to an [InternalMeasurement.Failure]. */
+/** Converts a CMM [Measurement.Failure] to an [InternalMeasurement.Failure]. */
 private fun Measurement.Failure.toInternal(): InternalMeasurement.Failure {
   val source = this
 
@@ -647,7 +647,7 @@ private fun InternalReport.toReport(): Report {
   }
 }
 
-/** Convert an [InternalReport.State] to a public [Report.State]. */
+/** Converts an [InternalReport.State] to a public [Report.State]. */
 private fun InternalReport.State.toState(): Report.State {
   val source = this
 
