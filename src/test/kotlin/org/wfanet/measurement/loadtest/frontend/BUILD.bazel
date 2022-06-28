@@ -3,6 +3,11 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 kt_jvm_test(
     name = "FrontendSimulatorImplTest",
     srcs = ["FrontendSimulatorImplTest.kt"],
+    data = [
+        "//src/main/k8s/testing/secretfiles:all_configs",
+        "//src/main/k8s/testing/secretfiles:all_der_files",
+        "//src/main/k8s/testing/secretfiles:all_tink_keysets",
+    ],
     test_class = "org.wfanet.measurement.loadtest.frontend.FrontendSimulatorImplTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/loadtest/frontend:frontend_simulator",
@@ -15,5 +20,6 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/duchy",
     ],
 )
