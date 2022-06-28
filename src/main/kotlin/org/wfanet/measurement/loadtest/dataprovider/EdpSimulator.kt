@@ -166,7 +166,6 @@ class EdpSimulator(
 
     for (requisition in requisitions) {
       logger.info("Processing requisition ${requisition.name}...")
-
       val measurementConsumerCertificate =
         certificatesStub.getCertificate(
           getCertificateRequest { name = requisition.measurementConsumerCertificate }
@@ -189,7 +188,6 @@ class EdpSimulator(
           "Invalid measurementSpec"
         )
       }
-
       val requisitionFingerprint = computeRequisitionFingerprint(requisition)
       val signedRequisitionSpec: SignedData =
         decryptRequisitionSpec(requisition.encryptedRequisitionSpec, edpData.encryptionKey)
