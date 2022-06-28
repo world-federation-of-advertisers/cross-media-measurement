@@ -100,6 +100,9 @@ import org.wfanet.measurement.common.crypto.tink.testing.loadPublicKey
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
+import org.wfanet.measurement.common.crypto.tink.testing.loadPrivateKey
+import org.wfanet.measurement.common.crypto.tink.testing.loadPublicKey
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -370,8 +373,14 @@ class EdpSimulatorTest {
           EVENT_TEMPLATES,
           privacyBudgetManager
         )
+<<<<<<< HEAD
       edpSimulator.createEventGroup()
       edpSimulator.executeRequisitionFulfillingWorkflow()
+=======
+      val edpJob = launch { edpSimulator.process() }
+      delay(1000)
+      edpJob.cancelAndJoin()
+>>>>>>> 4b79d1db (Change simulator tests to run process method)
       val storedSketch = sketchStore.get(REQUISITION_ONE)?.read()?.flatten()
       assertThat(storedSketch).isNotNull()
 
@@ -641,6 +650,7 @@ class EdpSimulatorTest {
 
     private val CONSENT_SIGNALING_ELGAMAL_PUBLIC_KEY = elGamalPublicKey {
       ellipticCurveId = 415
+<<<<<<< HEAD
       generator =
         ByteString.copyFrom(
           byteArrayOf(
@@ -661,6 +671,10 @@ class EdpSimulatorTest {
             77
           )
         )
+=======
+      generator = ByteString.copyFrom(byteArrayOf(3))
+      element = ByteString.copyFrom(byteArrayOf(3))
+>>>>>>> 4b79d1db (Change simulator tests to run process method)
     }
 
     private val REQUISITION_ONE = requisition {

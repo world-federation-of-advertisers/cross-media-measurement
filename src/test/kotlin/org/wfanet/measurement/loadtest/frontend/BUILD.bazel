@@ -2,7 +2,11 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 kt_jvm_test(
     name = "FrontendSimulatorImplTest",
+<<<<<<< HEAD
     srcs = ["FrontendSimulatorTest.kt"],
+=======
+    srcs = ["FrontendSimulatorImplTest.kt"],
+>>>>>>> 4b79d1db (Change simulator tests to run process method)
     data = [
         "//src/main/k8s/testing/secretfiles:all_configs",
         "//src/main/k8s/testing/secretfiles:all_der_files",

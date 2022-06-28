@@ -68,6 +68,10 @@ import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.crypto.tink.testing.loadPrivateKey
 import org.wfanet.measurement.common.crypto.tink.testing.loadPublicKey
 import org.wfanet.measurement.common.flatten
+<<<<<<< HEAD:src/test/kotlin/org/wfanet/measurement/loadtest/frontend/FrontendSimulatorTest.kt
+=======
+>>>>>>> 52fbaf3c (Change simulator tests to run process method)
+>>>>>>> 4b79d1db (Change simulator tests to run process method):src/test/kotlin/org/wfanet/measurement/loadtest/frontend/FrontendSimulatorImplTest.kt
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.readByteString
@@ -140,7 +144,11 @@ private val LIQUID_LEGIONS_V2_PROTOCOL_CONFIG = liquidLegionsV2 {
   maximumFrequency = MAX_FREQUENCY
 }
 private val RF_MEASUREMENT = measurement {
+<<<<<<< HEAD:src/test/kotlin/org/wfanet/measurement/loadtest/frontend/FrontendSimulatorTest.kt
   name = "rfMeasurement"
+=======
+  name = "rf measurement"
+>>>>>>> 4b79d1db (Change simulator tests to run process method):src/test/kotlin/org/wfanet/measurement/loadtest/frontend/FrontendSimulatorImplTest.kt
   state = Measurement.State.SUCCEEDED
   results += resultPair {
     val result = result {

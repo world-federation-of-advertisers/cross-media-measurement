@@ -20,7 +20,6 @@ import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate.AgeRange
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplateKt.ageRange
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
@@ -48,7 +47,11 @@ class EventFiltersTest {
 
   @Test
   fun `filters even when condition does not match`() {
+<<<<<<< HEAD
     val program = EventFilters.compileProgram(" video_ad.age.value != 1", TestEvent.getDefaultInstance())
+=======
+    val program = EventFilters.compileProgram(" video_ad.age.value != 1", testEvent {})
+>>>>>>> 4b79d1db (Change simulator tests to run process method)
     val event = exampleEventWithAge()
     assert(!EventFilters.matches(event, program))
   }
