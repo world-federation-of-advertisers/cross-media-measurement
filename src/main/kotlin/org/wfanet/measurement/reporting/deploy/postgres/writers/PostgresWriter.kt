@@ -19,6 +19,7 @@ import java.util.logging.Logger
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.db.r2dbc.ReadWriteContext
 import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.reporting.service.internal.ReportingInternalException
 
 /** Abstraction for writing to Postgres. */
 abstract class PostgresWriter<T> {
@@ -59,6 +60,7 @@ abstract class PostgresWriter<T> {
    * This can only be called once per instance.
    *
    * @return the output of [runTransaction]
+   * @throws [ReportingInternalException] on failure. See [PostgresWriter] subclass for specifics.
    */
   suspend fun execute(databaseClient: DatabaseClient, idGenerator: IdGenerator): T {
     logger.fine("Running ${this::class.simpleName} transaction")
