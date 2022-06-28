@@ -49,7 +49,7 @@ class EventFiltersTest {
   @Test
   fun `filters even when condition does not match`() {
     val program =
-      EventFilters.compileProgram(" video_ad.age.value != 1", TestEvent.getDefaultInstance())
+      EventFilters.compileProgram(" video_ad.age.value != 1", testEvent {})
     val event = exampleEventWithAge()
     assert(!EventFilters.matches(event, program))
   }
