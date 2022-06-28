@@ -71,18 +71,18 @@ import org.wfanet.measurement.internal.reporting.ReportKt.DetailsKt.ResultKt.His
 import org.wfanet.measurement.internal.reporting.ReportKt.DetailsKt.ResultKt.column as internalResultColumn
 import org.wfanet.measurement.internal.reporting.ReportKt.DetailsKt.ResultKt.histogramTable
 import org.wfanet.measurement.internal.reporting.ReportKt.DetailsKt.result as internalReportResult
-import org.wfanet.measurement.internal.reporting.ReportKt.details as internalReportDetails
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.SetMeasurementResultRequest
-import org.wfanet.measurement.internal.reporting.StreamReportsRequest
+import org.wfanet.measurement.internal.reporting.StreamReportsRequest as StreamInternalReportsRequest
 import org.wfanet.measurement.internal.reporting.StreamReportsRequestKt.filter
 import org.wfanet.measurement.internal.reporting.TimeInterval as InternalTimeInterval
 import org.wfanet.measurement.internal.reporting.TimeIntervals as InternalTimeIntervals
 import org.wfanet.measurement.internal.reporting.copy
 import org.wfanet.measurement.internal.reporting.getMeasurementRequest as getInternalMeasurementRequest
+import org.wfanet.measurement.internal.reporting.getReportRequest as getInternalReportRequest
 import org.wfanet.measurement.internal.reporting.setMeasurementFailureRequest
 import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest
-import org.wfanet.measurement.internal.reporting.streamReportsRequest
+import org.wfanet.measurement.internal.reporting.streamReportsRequest as streamInternalReportsRequest
 import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInterval
 import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.v1alpha.ListReportsResponse
@@ -168,7 +168,7 @@ class ReportsService(
       reports +=
         results
           .subList(0, min(results.size, listReportsPageToken.pageSize))
-          .map { syncReport(it) }
+          .map { syncMeasurements(it) }
           .map(InternalReport::toReport)
 
       if (nextPageToken != null) {
@@ -177,8 +177,8 @@ class ReportsService(
     }
   }
 
-  /** Sync an [InternalReport] and its [InternalMeasurement]s. */
-  private suspend fun syncReport(internalReport: InternalReport): InternalReport {
+  /** Sync all [InternalMeasurement]s used by the [InternalReport]. */
+  private suspend fun syncMeasurements(internalReport: InternalReport): InternalReport {
     // Report with SUCCEEDED or FAILED state is already updated.
     if (
       internalReport.state == InternalReport.State.SUCCEEDED ||
@@ -193,45 +193,20 @@ class ReportsService(
     }
 
     // Update measurements
-    var allMeasurementSucceeded = true
-    var anyMeasurementFailed = false
     for ((measurementReferenceId, internalMeasurement) in internalReport.measurementsMap) {
-      val measurementState =
-        syncMeasurement(
-          measurementReferenceId,
-          internalReport.measurementConsumerReferenceId,
-          internalMeasurement,
-        )
-
-      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-      when (measurementState) {
-        InternalMeasurement.State.PENDING -> allMeasurementSucceeded = false
-        InternalMeasurement.State.SUCCEEDED -> {} // No action needed
-        InternalMeasurement.State.FAILED -> {
-          anyMeasurementFailed = true
-          // Any failed measurement makes the report failed as well.
-          break
-        }
-        InternalMeasurement.State.STATE_UNSPECIFIED ->
-          error("The measurement state should've been set.")
-        InternalMeasurement.State.UNRECOGNIZED -> error("Unrecognized measurement state.")
-      }
+      syncMeasurement(
+        measurementReferenceId,
+        internalReport.measurementConsumerReferenceId,
+        internalMeasurement,
+      )
     }
 
-    // Update report
-    if (allMeasurementSucceeded) {
-      return internalReport.copy {
-        state = InternalReport.State.SUCCEEDED
-        details = internalReportDetails {
-          eventGroupFilters.putAll(internalReport.details.eventGroupFiltersMap)
-          result = constructResult(internalReport)
-        }
+    return internalReportsStub.getReport(
+      getInternalReportRequest {
+        measurementConsumerReferenceId = internalReport.measurementConsumerReferenceId
+        externalReportId = internalReport.externalReportId
       }
-    }
-    if (anyMeasurementFailed) {
-      return internalReport.copy { state = InternalReport.State.FAILED }
-    }
-    return internalReport
+    )
   }
 
   /** Given the measurement reference ID, sync [InternalMeasurement] with the CMM [Measurement]. */
@@ -815,10 +790,10 @@ private fun InternalTimeIntervals.toTimeIntervals(): TimeIntervals {
   }
 }
 
-/** Converts an internal [ListReportsPageToken] to an internal [StreamReportsRequest]. */
-private fun ListReportsPageToken.toStreamReportsRequest(): StreamReportsRequest {
+/** Converts an internal [ListReportsPageToken] to an internal [StreamInternalReportsRequest]. */
+private fun ListReportsPageToken.toStreamReportsRequest(): StreamInternalReportsRequest {
   val source = this
-  return streamReportsRequest {
+  return streamInternalReportsRequest {
     // get 1 more than the actual page size for deciding whether or not to set page token
     limit = pageSize + 1
     filter = filter {
