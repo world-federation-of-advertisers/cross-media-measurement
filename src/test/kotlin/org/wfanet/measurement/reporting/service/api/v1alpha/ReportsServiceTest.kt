@@ -14,18 +14,36 @@
 
 package org.wfanet.measurement.reporting.service.api.v1alpha
 
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.duration
 import com.google.protobuf.timestamp
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.runBlocking
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
+import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
+import org.wfanet.measurement.common.crypto.testing.FIXED_ENCRYPTION_PRIVATE_KEYSET
+import org.wfanet.measurement.common.crypto.tink.testing.loadPrivateKey
+import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.reporting.Measurement as InternalMeasurement
+import org.wfanet.measurement.internal.reporting.MeasurementKt.ResultKt.reach as internalMeasurementReach
+import org.wfanet.measurement.internal.reporting.MeasurementKt.result as internalMeasurementResult
+import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as InternalMeasurementsCoroutineImplBase
+import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.Metric as InternalMetric
 import org.wfanet.measurement.internal.reporting.MetricKt.MeasurementCalculationKt.weightedMeasurement
 import org.wfanet.measurement.internal.reporting.MetricKt.SetOperationKt.operand as internalSetOperationOperand
@@ -41,11 +59,30 @@ import org.wfanet.measurement.internal.reporting.MetricKt.watchDurationParams as
 import org.wfanet.measurement.internal.reporting.Report as InternalReport
 import org.wfanet.measurement.internal.reporting.ReportKt.details as internalReportDetails
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineImplBase
+import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub
+import org.wfanet.measurement.internal.reporting.StreamReportsRequestKt.filter
 import org.wfanet.measurement.internal.reporting.measurement as internalMeasurement
 import org.wfanet.measurement.internal.reporting.metric as internalMetric
 import org.wfanet.measurement.internal.reporting.periodicTimeInterval as internalPeriodicTimeInterval
 import org.wfanet.measurement.internal.reporting.report as internalReport
+import org.wfanet.measurement.internal.reporting.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInterval
+import org.wfanet.measurement.reporting.v1alpha.Metric
+import org.wfanet.measurement.reporting.v1alpha.MetricKt.SetOperationKt.operand as setOperationOperand
+import org.wfanet.measurement.reporting.v1alpha.MetricKt.frequencyHistogramParams
+import org.wfanet.measurement.reporting.v1alpha.MetricKt.impressionCountParams
+import org.wfanet.measurement.reporting.v1alpha.MetricKt.namedSetOperation
+import org.wfanet.measurement.reporting.v1alpha.MetricKt.reachParams
+import org.wfanet.measurement.reporting.v1alpha.MetricKt.setOperation
+import org.wfanet.measurement.reporting.v1alpha.MetricKt.watchDurationParams
+import org.wfanet.measurement.reporting.v1alpha.Report
+import org.wfanet.measurement.reporting.v1alpha.ReportKt.EventGroupUniverseKt.eventGroupEntry
+import org.wfanet.measurement.reporting.v1alpha.ReportKt.eventGroupUniverse
+import org.wfanet.measurement.reporting.v1alpha.listReportsRequest
+import org.wfanet.measurement.reporting.v1alpha.listReportsResponse
+import org.wfanet.measurement.reporting.v1alpha.metric
+import org.wfanet.measurement.reporting.v1alpha.periodicTimeInterval
+import org.wfanet.measurement.reporting.v1alpha.report
 
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
@@ -177,6 +214,12 @@ private val INTERNAL_PERIODIC_TIME_INTERVAL = internalPeriodicTimeInterval {
   intervalCount = INTERVAL_COUNT
 }
 
+private val PERIODIC_TIME_INTERVAL = periodicTimeInterval {
+  startTime = START_TIME
+  increment = TIME_INTERVAL_INCREMENT
+  intervalCount = INTERVAL_COUNT
+}
+
 // Set operations
 private val INTERNAL_SET_OPERATION = internalSetOperation {
   type = InternalMetric.SetOperation.Type.UNION
@@ -194,29 +237,32 @@ private val INTERNAL_SET_OPERATION = internalSetOperation {
   }
 }
 
+private val SET_OPERATION = setOperation {
+  type = Metric.SetOperation.Type.UNION
+  lhs = setOperationOperand { reportingSet = REPORTING_SET_NAME }
+}
+
 // Internal measurements
 private val INTERNAL_REACH_MEASUREMENT = internalMeasurement {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
   measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
-  state = InternalMeasurement.State.PENDING
+  state = InternalMeasurement.State.SUCCEEDED
+  this.result = internalMeasurementResult { reach = internalMeasurementReach { value = 100_000L } }
 }
 private val INTERNAL_FREQUENCY_HISTOGRAM_MEASUREMENT = internalMeasurement {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
   measurementReferenceId = FREQUENCY_HISTOGRAM_MEASUREMENT_REFERENCE_ID
-  state = InternalMeasurement.State.SUCCEEDED
-  // result =
+  state = InternalMeasurement.State.PENDING
 }
 private val INTERNAL_IMPRESSION_MEASUREMENT = internalMeasurement {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
   measurementReferenceId = IMPRESSION_MEASUREMENT_REFERENCE_ID
-  state = InternalMeasurement.State.SUCCEEDED
-  // result =
+  state = InternalMeasurement.State.FAILED
 }
 private val INTERNAL_WATCH_DURATION_MEASUREMENT = internalMeasurement {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
   measurementReferenceId = WATCH_DURATION_MEASUREMENT_REFERENCE_ID
-  state = InternalMeasurement.State.SUCCEEDED
-  // result =
+  state = InternalMeasurement.State.PENDING
 }
 
 // Weighted measurements
@@ -262,31 +308,60 @@ private val WATCH_DURATION_MEASUREMENT_CALCULATION = measurementCalculation {
 }
 
 // Named set operations
+private const val REACH_SET_OPERATION_DISPLAY_NAME = "Reach Set Operation"
+private const val FREQUENCY_HISTOGRAM_SET_OPERATION_DISPLAY_NAME =
+  "Frequency Histogram Set Operation"
+private const val IMPRESSION_SET_OPERATION_DISPLAY_NAME = "Impression Set Operation"
+private const val WATCH_DURATION_SET_OPERATION_DISPLAY_NAME = "Watch Duration Set Operation"
+
 private val INTERNAL_NAMED_REACH_SET_OPERATION = internalNamedSetOperation {
-  displayName = "Set Operation"
+  displayName = REACH_SET_OPERATION_DISPLAY_NAME
   setOperation = INTERNAL_SET_OPERATION
   measurementCalculation.add(REACH_MEASUREMENT_CALCULATION)
 }
 
+private val NAMED_REACH_SET_OPERATION = namedSetOperation {
+  displayName = REACH_SET_OPERATION_DISPLAY_NAME
+  setOperation = SET_OPERATION
+}
+
 private val INTERNAL_NAMED_FREQUENCY_HISTOGRAM_SET_OPERATION = internalNamedSetOperation {
-  displayName = "Set Operation"
+  displayName = FREQUENCY_HISTOGRAM_SET_OPERATION_DISPLAY_NAME
   setOperation = INTERNAL_SET_OPERATION
   measurementCalculation.add(FREQUENCY_HISTOGRAM_MEASUREMENT_CALCULATION)
 }
 
+private val NAMED_FREQUENCY_HISTOGRAM_SET_OPERATION = namedSetOperation {
+  displayName = FREQUENCY_HISTOGRAM_SET_OPERATION_DISPLAY_NAME
+  setOperation = SET_OPERATION
+}
+
 private val INTERNAL_NAMED_IMPRESSION_SET_OPERATION = internalNamedSetOperation {
-  displayName = "Set Operation"
+  displayName = IMPRESSION_SET_OPERATION_DISPLAY_NAME
   setOperation = INTERNAL_SET_OPERATION
   measurementCalculation.add(IMPRESSION_MEASUREMENT_CALCULATION)
 }
 
+private val NAMED_IMPRESSION_SET_OPERATION = namedSetOperation {
+  displayName = IMPRESSION_SET_OPERATION_DISPLAY_NAME
+  setOperation = SET_OPERATION
+}
+
 private val INTERNAL_NAMED_WATCH_DURATION_SET_OPERATION = internalNamedSetOperation {
-  displayName = "Set Operation"
+  displayName = WATCH_DURATION_SET_OPERATION_DISPLAY_NAME
   setOperation = INTERNAL_SET_OPERATION
   measurementCalculation.add(WATCH_DURATION_MEASUREMENT_CALCULATION)
 }
 
+private val NAMED_WATCH_DURATION_SET_OPERATION = namedSetOperation {
+  displayName = WATCH_DURATION_SET_OPERATION_DISPLAY_NAME
+  setOperation = SET_OPERATION
+}
+
 // Internal metrics
+private const val MAXIMUM_FREQUENCY_PER_USER = 10
+private const val MAXIMUM_WATCH_DURATION_PER_USER = 300
+
 private val INTERNAL_REACH_METRIC = internalMetric {
   details = internalMetricDetails {
     reach = internalReachParams {}
@@ -295,31 +370,64 @@ private val INTERNAL_REACH_METRIC = internalMetric {
   namedSetOperations.add(INTERNAL_NAMED_REACH_SET_OPERATION)
 }
 
+private val REACH_METRIC = metric {
+  reach = reachParams {}
+  cumulative = false
+  setOperations.add(NAMED_REACH_SET_OPERATION)
+}
+
 private val INTERNAL_FREQUENCY_HISTOGRAM_METRIC = internalMetric {
   details = internalMetricDetails {
-    frequencyHistogram = internalFrequencyHistogramParams { maximumFrequencyPerUser = 10 }
+    frequencyHistogram = internalFrequencyHistogramParams {
+      maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
+    }
     cumulative = false
   }
   namedSetOperations.add(INTERNAL_NAMED_FREQUENCY_HISTOGRAM_SET_OPERATION)
 }
 
+private val FREQUENCY_HISTOGRAM_METRIC = metric {
+  frequencyHistogram = frequencyHistogramParams {
+    maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
+  }
+  cumulative = false
+  setOperations.add(NAMED_FREQUENCY_HISTOGRAM_SET_OPERATION)
+}
+
 private val INTERNAL_IMPRESSION_METRIC = internalMetric {
   details = internalMetricDetails {
-    impressionCount = internalImpressionCountParams { maximumFrequencyPerUser = 10 }
+    impressionCount = internalImpressionCountParams {
+      maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
+    }
     cumulative = false
   }
   namedSetOperations.add(INTERNAL_NAMED_IMPRESSION_SET_OPERATION)
 }
 
+private val IMPRESSION_METRIC = metric {
+  impressionCount = impressionCountParams { maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER }
+  cumulative = false
+  setOperations.add(NAMED_IMPRESSION_SET_OPERATION)
+}
+
 private val INTERNAL_WATCH_DURATION_METRIC = internalMetric {
   details = internalMetricDetails {
     watchDuration = internalWatchDurationParams {
-      maximumFrequencyPerUser = 10
-      maximumWatchDurationPerUser = 300
+      maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
+      maximumWatchDurationPerUser = MAXIMUM_WATCH_DURATION_PER_USER
     }
     cumulative = false
   }
   namedSetOperations.add(INTERNAL_NAMED_WATCH_DURATION_SET_OPERATION)
+}
+
+private val WATCH_DURATION_METRIC = metric {
+  watchDuration = watchDurationParams {
+    maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
+    maximumWatchDurationPerUser = MAXIMUM_WATCH_DURATION_PER_USER
+  }
+  cumulative = false
+  setOperations.add(NAMED_WATCH_DURATION_SET_OPERATION)
 }
 
 // Event group filters
@@ -333,32 +441,104 @@ private val EVENT_GROUP_FILTERS_MAP =
 
 // Internal reports
 private const val REPORT_IDEMPOTENCY_KEY = "TEST_REPORT"
+private const val REPORT_IDEMPOTENCY_KEY_2 = "TEST_REPORT_2"
+private const val REPORT_IDEMPOTENCY_KEY_3 = "TEST_REPORT_3"
 
-private val INTERNAL_REPORT: InternalReport = internalReport {
+private val INTERNAL_REACH_REPORT: InternalReport = internalReport {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
   externalReportId = REPORT_EXTERNAL_ID
   periodicTimeInterval = INTERNAL_PERIODIC_TIME_INTERVAL
-  metrics.addAll(
-    listOf(
-      INTERNAL_REACH_METRIC,
-      INTERNAL_FREQUENCY_HISTOGRAM_METRIC,
-      INTERNAL_IMPRESSION_METRIC,
-      INTERNAL_WATCH_DURATION_METRIC
-    )
-  )
+  metrics.add(INTERNAL_REACH_METRIC)
+  state = InternalReport.State.RUNNING
+  measurements.put(REACH_MEASUREMENT_REFERENCE_ID, INTERNAL_REACH_MEASUREMENT)
+  details = internalReportDetails { eventGroupFilters.putAll(EVENT_GROUP_FILTERS_MAP) }
+  createTime = timestamp { seconds = 2000 }
+  reportIdempotencyKey = REPORT_IDEMPOTENCY_KEY
+}
+
+private val INTERNAL_IMPRESSION_WATCH_DURATION_REPORT: InternalReport = internalReport {
+  measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+  externalReportId = REPORT_EXTERNAL_ID_2
+  periodicTimeInterval = INTERNAL_PERIODIC_TIME_INTERVAL
+  metrics.addAll(listOf(INTERNAL_IMPRESSION_METRIC, INTERNAL_WATCH_DURATION_METRIC))
   state = InternalReport.State.RUNNING
   measurements.putAll(
     mapOf(
-      REACH_MEASUREMENT_REFERENCE_ID to INTERNAL_REACH_MEASUREMENT,
-      FREQUENCY_HISTOGRAM_MEASUREMENT_REFERENCE_ID to INTERNAL_FREQUENCY_HISTOGRAM_MEASUREMENT,
       IMPRESSION_MEASUREMENT_REFERENCE_ID to INTERNAL_IMPRESSION_MEASUREMENT,
       WATCH_DURATION_MEASUREMENT_REFERENCE_ID to INTERNAL_WATCH_DURATION_MEASUREMENT,
     )
   )
   details = internalReportDetails { eventGroupFilters.putAll(EVENT_GROUP_FILTERS_MAP) }
-  createTime = timestamp { seconds = 2000 }
-  reportIdempotencyKey = REPORT_IDEMPOTENCY_KEY
+  createTime = timestamp { seconds = 3000 }
+  reportIdempotencyKey = REPORT_IDEMPOTENCY_KEY_2
 }
+
+private val INTERNAL_FREQUENCY_HISTOGRAM_REPORT: InternalReport = internalReport {
+  measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+  externalReportId = REPORT_EXTERNAL_ID_3
+  periodicTimeInterval = INTERNAL_PERIODIC_TIME_INTERVAL
+  metrics.add(INTERNAL_FREQUENCY_HISTOGRAM_METRIC)
+  state = InternalReport.State.RUNNING
+  measurements.put(
+    FREQUENCY_HISTOGRAM_MEASUREMENT_REFERENCE_ID,
+    INTERNAL_FREQUENCY_HISTOGRAM_MEASUREMENT
+  )
+  details = internalReportDetails { eventGroupFilters.putAll(EVENT_GROUP_FILTERS_MAP) }
+  createTime = timestamp { seconds = 4000 }
+  reportIdempotencyKey = REPORT_IDEMPOTENCY_KEY_3
+}
+
+// Event Group Universe
+private val EVENT_GROUP_ENTRY = eventGroupEntry {
+  key = EVENT_GROUP_NAME
+  value = EVENT_GROUP_FILTER
+}
+private val EVENT_GROUP_ENTRY_2 = eventGroupEntry {
+  key = EVENT_GROUP_NAME_2
+  value = EVENT_GROUP_FILTER
+}
+private val EVENT_GROUP_ENTRY_3 = eventGroupEntry {
+  key = EVENT_GROUP_NAME_3
+  value = EVENT_GROUP_FILTER
+}
+
+private val EVENT_GROUP_UNIVERSE = eventGroupUniverse {
+  eventGroupEntries.addAll(listOf(EVENT_GROUP_ENTRY, EVENT_GROUP_ENTRY_2, EVENT_GROUP_ENTRY_3))
+}
+
+// Public reports
+private val REACH_REPORT = report {
+  name = REPORT_NAME
+  reportIdempotencyKey = REPORT_IDEMPOTENCY_KEY
+  measurementConsumer = MEASUREMENT_CONSUMER_NAME
+  eventGroupUniverse = EVENT_GROUP_UNIVERSE
+  periodicTimeInterval = PERIODIC_TIME_INTERVAL
+  metrics.add(REACH_METRIC)
+  state = Report.State.RUNNING
+}
+
+private val IMPRESSION_WATCH_DURATION_REPORT = report {
+  name = REPORT_NAME_2
+  reportIdempotencyKey = REPORT_IDEMPOTENCY_KEY_2
+  measurementConsumer = MEASUREMENT_CONSUMER_NAME
+  eventGroupUniverse = EVENT_GROUP_UNIVERSE
+  periodicTimeInterval = PERIODIC_TIME_INTERVAL
+  metrics.addAll(listOf(IMPRESSION_METRIC, WATCH_DURATION_METRIC))
+  state = Report.State.RUNNING
+}
+
+private val FREQUENCY_HISTOGRAM_REPORT = report {
+  name = REPORT_NAME_3
+  reportIdempotencyKey = REPORT_IDEMPOTENCY_KEY_3
+  measurementConsumer = MEASUREMENT_CONSUMER_NAME
+  eventGroupUniverse = EVENT_GROUP_UNIVERSE
+  periodicTimeInterval = PERIODIC_TIME_INTERVAL
+  metrics.add(FREQUENCY_HISTOGRAM_METRIC)
+  state = Report.State.RUNNING
+}
+
+// API authentication key
+private const val API_AUTHENTICATION_KEY = "API_AUTHENTICATION_KEY"
 
 @RunWith(JUnit4::class)
 class ReportsServiceTest {
@@ -368,8 +548,87 @@ class ReportsServiceTest {
       onBlocking { streamReports(any()) }
         .thenReturn(
           flowOf(
-            INTERNAL_REPORT,
+            INTERNAL_REACH_REPORT,
+            INTERNAL_IMPRESSION_WATCH_DURATION_REPORT,
+            INTERNAL_FREQUENCY_HISTOGRAM_REPORT,
           )
         )
     }
+
+  private val internalMeasurementsMock: InternalMeasurementsCoroutineImplBase =
+    mockService() {
+      // onBlocking {setMeasurementResult(any())}.thenReturn()
+      // onBlocking {setMeasurementFailure(any())}.thenReturn()
+      // onBlocking {getMeasurement(any())}.thenReturn()
+    }
+
+  private val measurementsMock: MeasurementsCoroutineImplBase =
+    mockService() {
+      // onBlocking {getMeasurement(any())}.thenReturn()
+    }
+
+  private val certificateMock: CertificatesCoroutineImplBase =
+    mockService() {
+      // onBlocking {getCertificate(any())}.thenReturn()
+    }
+
+  @get:Rule
+  val grpcTestServerRule = GrpcTestServerRule {
+    addService(internalReportsMock)
+    addService(internalMeasurementsMock)
+    addService(measurementsMock)
+    addService(certificateMock)
+  }
+
+  // @get:Rule val grpcTestInternalServerRule = GrpcTestServerRule {
+  //   addService(internalReportsMock)
+  //   addService(internalMeasurementsMock)
+  // }
+  // @get:Rule val grpcTestKingdomServerRule = GrpcTestServerRule {
+  //   addService(measurementsMock)
+  //   addService(certificateMock)
+  // }
+
+  private lateinit var service: ReportsService
+
+  @Before
+  fun initService() {
+    service =
+      ReportsService(
+        ReportsCoroutineStub(grpcTestServerRule.channel),
+        InternalMeasurementsCoroutineStub(grpcTestServerRule.channel),
+        MeasurementsCoroutineStub(grpcTestServerRule.channel),
+        CertificatesCoroutineStub(grpcTestServerRule.channel),
+        loadPrivateKey(FIXED_ENCRYPTION_PRIVATE_KEYSET),
+        API_AUTHENTICATION_KEY,
+      )
+  }
+
+  @Test
+  fun `listReports returns without a next page token when there is no previous page token`() {
+    val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAME }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.listReports(request) }
+      }
+
+    val expected = listReportsResponse {
+      reports.addAll(
+        listOf(REACH_REPORT, IMPRESSION_WATCH_DURATION_REPORT, FREQUENCY_HISTOGRAM_REPORT)
+      )
+    }
+
+    verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::streamReports)
+      .isEqualTo(
+        streamReportsRequest {
+          limit = DEFAULT_PAGE_SIZE + 1
+          this.filter = filter {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+          }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
 }

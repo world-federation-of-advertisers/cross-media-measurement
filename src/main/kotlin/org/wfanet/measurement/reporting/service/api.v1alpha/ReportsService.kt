@@ -62,7 +62,6 @@ import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineS
 import org.wfanet.measurement.internal.reporting.StreamReportsRequest as StreamInternalReportsRequest
 import org.wfanet.measurement.internal.reporting.StreamReportsRequestKt.filter
 import org.wfanet.measurement.internal.reporting.TimeIntervals as InternalTimeIntervals
-import org.wfanet.measurement.internal.reporting.copy
 import org.wfanet.measurement.internal.reporting.getReportRequest as getInternalReportRequest
 import org.wfanet.measurement.internal.reporting.setMeasurementFailureRequest
 import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest
@@ -97,7 +96,6 @@ import org.wfanet.measurement.reporting.v1alpha.timeIntervals
 private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
-private const val NANOS_PER_SECOND = 1_000_000_000
 
 /** TODO(@renjiez) Have a function to get public/private keys */
 class ReportsService(
