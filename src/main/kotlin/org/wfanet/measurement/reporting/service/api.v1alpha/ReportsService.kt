@@ -17,9 +17,7 @@ package org.wfanet.measurement.reporting.service.api.v1alpha
 import com.google.protobuf.Duration
 import com.google.protobuf.duration
 import com.google.protobuf.util.Durations
-import com.google.protobuf.util.Timestamps
 import io.grpc.Status
-import java.time.Instant
 import java.util.concurrent.TimeUnit
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
@@ -54,36 +52,23 @@ import org.wfanet.measurement.internal.reporting.MeasurementKt.failure as intern
 import org.wfanet.measurement.internal.reporting.MeasurementKt.result as internalMeasurementResult
 import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.Metric as InternalMetric
-import org.wfanet.measurement.internal.reporting.Metric.Details as InternalMetricDetails
 import org.wfanet.measurement.internal.reporting.Metric.FrequencyHistogramParams as InternalFrequencyHistogramParams
 import org.wfanet.measurement.internal.reporting.Metric.ImpressionCountParams as InternalImpressionCountParams
-import org.wfanet.measurement.internal.reporting.Metric.MeasurementCalculation as InternalMeasurementCalculation
 import org.wfanet.measurement.internal.reporting.Metric.NamedSetOperation as InternalNamedSetOperation
 import org.wfanet.measurement.internal.reporting.Metric.SetOperation as InternalSetOperation
 import org.wfanet.measurement.internal.reporting.Metric.SetOperation.Operand as InternalOperand
 import org.wfanet.measurement.internal.reporting.Metric.WatchDurationParams as InternalWatchDurationParams
 import org.wfanet.measurement.internal.reporting.PeriodicTimeInterval as InternalPeriodicTimeInterval
 import org.wfanet.measurement.internal.reporting.Report as InternalReport
-import org.wfanet.measurement.internal.reporting.Report.Details.Result as InternalReportResult
-import org.wfanet.measurement.internal.reporting.Report.Details.Result.Column as InternalResultColumn
-import org.wfanet.measurement.internal.reporting.Report.Details.Result.HistogramTable
-import org.wfanet.measurement.internal.reporting.ReportKt.DetailsKt.ResultKt.HistogramTableKt.row as histogramTableRow
-import org.wfanet.measurement.internal.reporting.ReportKt.DetailsKt.ResultKt.column as internalResultColumn
-import org.wfanet.measurement.internal.reporting.ReportKt.DetailsKt.ResultKt.histogramTable
-import org.wfanet.measurement.internal.reporting.ReportKt.DetailsKt.result as internalReportResult
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub
-import org.wfanet.measurement.internal.reporting.SetMeasurementResultRequest
 import org.wfanet.measurement.internal.reporting.StreamReportsRequest as StreamInternalReportsRequest
 import org.wfanet.measurement.internal.reporting.StreamReportsRequestKt.filter
-import org.wfanet.measurement.internal.reporting.TimeInterval as InternalTimeInterval
 import org.wfanet.measurement.internal.reporting.TimeIntervals as InternalTimeIntervals
 import org.wfanet.measurement.internal.reporting.copy
-import org.wfanet.measurement.internal.reporting.getMeasurementRequest as getInternalMeasurementRequest
 import org.wfanet.measurement.internal.reporting.getReportRequest as getInternalReportRequest
 import org.wfanet.measurement.internal.reporting.setMeasurementFailureRequest
 import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest
 import org.wfanet.measurement.internal.reporting.streamReportsRequest as streamInternalReportsRequest
-import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInterval
 import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.v1alpha.ListReportsResponse
 import org.wfanet.measurement.reporting.v1alpha.Metric
@@ -177,9 +162,9 @@ class ReportsService(
     }
   }
 
-  /** Sync all [InternalMeasurement]s used by the [InternalReport]. */
+  /** Syncs all [InternalMeasurement]s used by the [InternalReport]. */
   private suspend fun syncMeasurements(internalReport: InternalReport): InternalReport {
-    // Report with SUCCEEDED or FAILED state is already updated.
+    // Report with SUCCEEDED or FAILED state is already synced.
     if (
       internalReport.state == InternalReport.State.SUCCEEDED ||
         internalReport.state == InternalReport.State.FAILED
@@ -189,10 +174,12 @@ class ReportsService(
       internalReport.state == InternalReport.State.STATE_UNSPECIFIED ||
         internalReport.state == InternalReport.State.UNRECOGNIZED
     ) {
-      error("The report cannot be updated if its state is either unspecified or unrecognized.")
+      error(
+        "The measurements cannot be synced if the report state is either unspecified or unrecognized."
+      )
     }
 
-    // Update measurements
+    // Syncs measurements
     for ((measurementReferenceId, internalMeasurement) in internalReport.measurementsMap) {
       syncMeasurement(
         measurementReferenceId,
@@ -209,13 +196,13 @@ class ReportsService(
     )
   }
 
-  /** Given the measurement reference ID, sync [InternalMeasurement] with the CMM [Measurement]. */
+  /** Syncs [InternalMeasurement] with the CMM [Measurement] given the measurement reference ID. */
   private suspend fun syncMeasurement(
     measurementReferenceId: String,
     measurementConsumerReferenceId: String,
     internalMeasurement: InternalMeasurement,
   ): InternalMeasurement.State {
-    // Measurement with SUCCEEDED state is already updated
+    // Measurement with SUCCEEDED state is already synced
     if (internalMeasurement.state == InternalMeasurement.State.SUCCEEDED)
       return InternalMeasurement.State.SUCCEEDED
 
@@ -230,11 +217,16 @@ class ReportsService(
         // Converts a Measurement to an InternalMeasurement and store it into the database with
         // SUCCEEDED state
         internalMeasurementsStub.setMeasurementResult(
-          getSetMeasurementResult(
-            measurementConsumerReferenceId,
-            measurementReferenceId,
-            measurement
-          )
+          setMeasurementResultRequest {
+            this.measurementConsumerReferenceId = measurementConsumerReferenceId
+            this.measurementReferenceId = measurement.measurementReferenceId
+            result =
+              aggregateResults(
+                measurement.resultsList
+                  .map { it.toMeasurementResult() }
+                  .map(Measurement.Result::toInternal)
+              )
+          }
         )
         return InternalMeasurement.State.SUCCEEDED
       }
@@ -258,24 +250,7 @@ class ReportsService(
     }
   }
 
-  private suspend fun getSetMeasurementResult(
-    measurementConsumerReferenceId: String,
-    measurementReferenceId: String,
-    measurement: Measurement,
-  ): SetMeasurementResultRequest {
-    return setMeasurementResultRequest {
-      this.measurementConsumerReferenceId = measurementConsumerReferenceId
-      this.measurementReferenceId = measurementReferenceId
-      result =
-        aggregateResults(
-          measurement.resultsList
-            .map { it.toMeasurementResult() }
-            .map(Measurement.Result::toInternal)
-        )
-    }
-  }
-
-  /** Decrypt a [Measurement.ResultPair] to [Measurement.Result] */
+  /** Decrypts a [Measurement.ResultPair] to [Measurement.Result] */
   private suspend fun Measurement.ResultPair.toMeasurementResult(): Measurement.Result {
     val source = this
     val certificate =
@@ -292,168 +267,6 @@ class ReportsService(
     }
     return result
   }
-
-  /** Construct an [InternalReportResult] when all measurements are ready */
-  private suspend fun constructResult(report: InternalReport): InternalReportResult {
-    return internalReportResult {
-      val rowHeaders = getRowHeaders(report)
-
-      this.scalarTable.rowHeadersList.addAll(rowHeaders)
-
-      // Each metric contains results for several columns
-      for (metric in report.metricsList) {
-        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-        when (val metricType = metric.details.metricTypeCase) {
-          // REACH, IMPRESSION_COUNT, and WATCH_DURATION are aggregated in one table.
-          InternalMetricDetails.MetricTypeCase.REACH,
-          InternalMetricDetails.MetricTypeCase.IMPRESSION_COUNT,
-          InternalMetricDetails.MetricTypeCase.WATCH_DURATION -> {
-            // One namedSetOperation is one column in the report
-            for (namedSetOperation in metric.namedSetOperationsList) {
-              this.scalarTable.columnsList +=
-                namedSetOperation.toInternalResultColumn(
-                  report.measurementConsumerReferenceId,
-                  metricType
-                )
-            }
-          }
-          InternalMetricDetails.MetricTypeCase.FREQUENCY_HISTOGRAM -> {
-            this.histogramTables +=
-              metric.toHistogramTable(
-                rowHeaders,
-                report.measurementConsumerReferenceId,
-              )
-          }
-          InternalMetricDetails.MetricTypeCase.METRICTYPE_NOT_SET ->
-            error("The metric type in the internal report should've be set.")
-        }
-      }
-    }
-  }
-
-  /** Converts an [InternalMetric] to a [HistogramTable] of an [InternalReport] */
-  private suspend fun InternalMetric.toHistogramTable(
-    rowHeaders: List<String>,
-    measurementConsumerReferenceId: String,
-  ): HistogramTable {
-    val source = this
-    val maximumFrequency = source.details.frequencyHistogram.maximumFrequencyPerUser
-    return histogramTable {
-      for (rowHeader in rowHeaders) {
-        for (frequency in 1..maximumFrequency) {
-          rows += histogramTableRow {
-            this.rowHeader = rowHeader
-            this.frequency = frequency
-          }
-        }
-      }
-      for (namedSetOperation in source.namedSetOperationsList) {
-        columns +=
-          namedSetOperation.toInternalResultColumn(
-            measurementConsumerReferenceId,
-            source.details.metricTypeCase,
-          )
-      }
-    }
-  }
-
-  /** Converts an [InternalNamedSetOperation] to a [InternalResultColumn] of an [InternalReport] */
-  private suspend fun InternalNamedSetOperation.toInternalResultColumn(
-    measurementConsumerReferenceId: String,
-    metricType: InternalMetricDetails.MetricTypeCase,
-  ): InternalResultColumn {
-    val source = this
-    return internalResultColumn {
-      columnHeader = source.displayName
-
-      for (measurementCalculation in source.measurementCalculationList) {
-        setOperations.addAll(
-          measurementCalculation.toSetOperationResults(measurementConsumerReferenceId, metricType)
-        )
-      }
-    }
-  }
-
-  /** Calculate the equation in [InternalMeasurementCalculation] to get the result. */
-  private suspend fun InternalMeasurementCalculation.toSetOperationResults(
-    measurementConsumerReferenceId: String,
-    metricType: InternalMetricDetails.MetricTypeCase,
-  ): List<Double> {
-    val source = this
-
-    val measurementCoefficientPairsList =
-      source.weightedMeasurementsList.map {
-        val measurement =
-          internalMeasurementsStub.getMeasurement(
-            getInternalMeasurementRequest {
-              this.measurementConsumerReferenceId = measurementConsumerReferenceId
-              this.measurementReferenceId = it.measurementReferenceId
-            }
-          )
-
-        Pair(measurement, it.coefficient)
-      }
-
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-    return when (metricType) {
-      InternalMetricDetails.MetricTypeCase.REACH ->
-        listOf(calculateReachResults(measurementCoefficientPairsList))
-      InternalMetricDetails.MetricTypeCase.IMPRESSION_COUNT ->
-        listOf(calculateImpressionResults(measurementCoefficientPairsList))
-      InternalMetricDetails.MetricTypeCase.WATCH_DURATION ->
-        listOf(calculateWatchDurationResults(measurementCoefficientPairsList))
-      InternalMetricDetails.MetricTypeCase.FREQUENCY_HISTOGRAM ->
-        calculateFrequencyHistogramResults(measurementCoefficientPairsList)
-      InternalMetricDetails.MetricTypeCase.METRICTYPE_NOT_SET -> {
-        error("Metric Type should've been set.")
-      }
-    }
-  }
-}
-
-/** Calculate the reach result by summing up weighted [InternalMeasurement]s. */
-private fun calculateReachResults(
-  measurementCoefficientPairsList: List<Pair<InternalMeasurement, Int>>
-): Double {
-  return measurementCoefficientPairsList
-    .sumOf { (measurement, coefficient) ->
-      if (!measurement.result.hasReach()) {
-        error("Reach measurement is missing.")
-      }
-      measurement.result.reach.value * coefficient
-    }
-    .toDouble()
-}
-
-/** Calculate the impression result by summing up weighted [InternalMeasurement]s. */
-private fun calculateImpressionResults(
-  measurementCoefficientPairsList: List<Pair<InternalMeasurement, Int>>
-): Double {
-  return measurementCoefficientPairsList
-    .sumOf { (measurement, coefficient) ->
-      if (!measurement.result.hasImpression()) {
-        error("Impression measurement is missing.")
-      }
-      measurement.result.impression.value * coefficient
-    }
-    .toDouble()
-}
-
-/** Calculate the watch duration result by summing up weighted [InternalMeasurement]s. */
-private fun calculateWatchDurationResults(
-  measurementCoefficientPairsList: List<Pair<InternalMeasurement, Int>>
-): Double {
-  val watchDuration =
-    measurementCoefficientPairsList
-      .map { (measurement, coefficient) ->
-        if (!measurement.result.hasWatchDuration()) {
-          error("Watch duration measurement is missing.")
-        }
-        measurement.result.watchDuration.value * coefficient
-      }
-      .reduce { sum, element -> Durations.add(sum, element) }
-
-  return watchDuration.seconds + (watchDuration.nanos.toDouble() / NANOS_PER_SECOND)
 }
 
 private operator fun Duration.times(coefficient: Int): Duration {
@@ -464,73 +277,6 @@ private operator fun Duration.times(coefficient: Int): Duration {
     seconds = TimeUnit.NANOSECONDS.toSeconds(weightedTotalNanos)
     nanos = (weightedTotalNanos % NANOS_PER_SECOND).toInt()
   }
-}
-
-/** Calculate the frequency histogram result by summing up weighted [InternalMeasurement]s. */
-private fun calculateFrequencyHistogramResults(
-  measurementCoefficientPairsList: List<Pair<InternalMeasurement, Int>>
-): List<Double> {
-  val aggregatedFrequencyHistogramMap =
-    measurementCoefficientPairsList
-      .map { (measurement, coefficient) ->
-        if (!measurement.result.hasFrequency() || !measurement.result.hasReach()) {
-          error("Reach-Frequency measurement is missing.")
-        }
-
-        val reach = measurement.result.reach.value
-        measurement.result.frequency.relativeFrequencyDistributionMap.mapValues {
-          it.value * coefficient * reach
-        }
-      }
-      .fold(mutableMapOf<Long, Double>().withDefault { 0.0 }) {
-        aggregatedFrequencyHistogramMap: MutableMap<Long, Double>,
-        weightedFrequencyHistogramMap ->
-        for ((frequency, count) in weightedFrequencyHistogramMap) {
-          aggregatedFrequencyHistogramMap[frequency] =
-            aggregatedFrequencyHistogramMap.getValue(frequency) + count
-        }
-        aggregatedFrequencyHistogramMap
-      }
-
-  return aggregatedFrequencyHistogramMap.values.toList()
-}
-
-/** Converts an [InternalPeriodicTimeInterval] to a list of [InternalTimeInterval]s. */
-private fun InternalPeriodicTimeInterval.toInternalTimeIntervals(): List<InternalTimeInterval> {
-  val source = this
-  var startTime = checkNotNull(source.startTime)
-  return (0 until source.intervalCount).map {
-    internalTimeInterval {
-      this.startTime = startTime
-      this.endTime = Timestamps.add(startTime, source.increment)
-      startTime = this.endTime
-    }
-  }
-}
-
-/** Generate row headers of [InternalReportResult] from an [InternalReport]. */
-private fun getRowHeaders(report: InternalReport): List<String> {
-  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-  return when (report.timeCase) {
-    InternalReport.TimeCase.TIME_INTERVALS -> {
-      report.timeIntervals.timeIntervalsList.map(InternalTimeInterval::toRowHeader)
-    }
-    InternalReport.TimeCase.PERIODIC_TIME_INTERVAL -> {
-      report.periodicTimeInterval.toInternalTimeIntervals().map(InternalTimeInterval::toRowHeader)
-    }
-    InternalReport.TimeCase.TIME_NOT_SET -> {
-      error("Time in the internal report should've been set.")
-    }
-  }
-}
-
-/** Converts an [InternalTimeInterval] to a row header in String. */
-private fun InternalTimeInterval.toRowHeader(): String {
-  val source = this
-  val startTimeInstant =
-    Instant.ofEpochSecond(source.startTime.seconds, source.startTime.nanos.toLong())
-  val endTimeInstant = Instant.ofEpochSecond(source.endTime.seconds, source.endTime.nanos.toLong())
-  return "$startTimeInstant-$endTimeInstant"
 }
 
 /** Converts a CMM [Measurement.Failure] to an [InternalMeasurement.Failure]. */
