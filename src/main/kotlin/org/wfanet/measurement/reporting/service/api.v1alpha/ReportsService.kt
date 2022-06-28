@@ -15,10 +15,8 @@
 package org.wfanet.measurement.reporting.service.api.v1alpha
 
 import com.google.protobuf.Duration
-import com.google.protobuf.duration
 import com.google.protobuf.util.Durations
 import io.grpc.Status
-import java.util.concurrent.TimeUnit
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2.alpha.ListReportsPageToken
@@ -269,14 +267,9 @@ class ReportsService(
   }
 }
 
-private operator fun Duration.times(coefficient: Int): Duration {
+private operator fun Duration.plus(other: Duration): Duration {
   val source = this
-  return duration {
-    val weightedTotalNanos: Long =
-      (TimeUnit.SECONDS.toNanos(source.seconds) + source.nanos) * coefficient
-    seconds = TimeUnit.NANOSECONDS.toSeconds(weightedTotalNanos)
-    nanos = (weightedTotalNanos % NANOS_PER_SECOND).toInt()
-  }
+  return Durations.add(source, other)
 }
 
 /** Converts a CMM [Measurement.Failure] to an [InternalMeasurement.Failure]. */
@@ -324,7 +317,7 @@ private fun aggregateResults(
       }
       if (element.hasWatchDuration()) {
         this.watchDuration = internalWatchDuration {
-          value = Durations.add(sum.watchDuration.value, element.watchDuration.value)
+          value = sum.watchDuration.value + element.watchDuration.value
         }
       }
     }
