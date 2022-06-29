@@ -29,6 +29,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.wfanet.measurement.api.v2.alpha.ListReportsPageTokenKt.previousPageEnd
+import org.wfanet.measurement.api.v2.alpha.listReportsPageToken
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -46,6 +48,7 @@ import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.makeDataProviderCertificateName
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
+import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
@@ -838,6 +841,246 @@ class ReportsServiceTest {
           limit = DEFAULT_PAGE_SIZE + 1
           this.filter = filter {
             measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+          }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listRepors returns with a next page token when there is no previous page token`() {
+    val request = listReportsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      pageSize = PAGE_SIZE
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.listReports(request) }
+      }
+
+    val expected = listReportsResponse {
+      reports.add(REACH_REPORT.copy { state = Report.State.SUCCEEDED })
+      reports.add(IMPRESSION_WATCH_DURATION_REPORT.copy { state = Report.State.SUCCEEDED })
+
+      nextPageToken =
+        listReportsPageToken {
+            pageSize = PAGE_SIZE
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            lastReport = previousPageEnd {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+              externalReportId = REPORT_EXTERNAL_ID_2
+            }
+          }
+          .toByteString()
+          .base64UrlEncode()
+    }
+
+    verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::streamReports)
+      .isEqualTo(
+        streamReportsRequest {
+          limit = PAGE_SIZE + 1
+          this.filter = filter {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+          }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listReports returns with a next page token when there is a previous page token`() {
+    val request = listReportsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      pageSize = PAGE_SIZE
+      pageToken =
+        listReportsPageToken {
+            pageSize = PAGE_SIZE
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            lastReport = previousPageEnd {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+              externalReportId = REPORT_EXTERNAL_ID
+            }
+          }
+          .toByteString()
+          .base64UrlEncode()
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.listReports(request) }
+      }
+
+    val expected = listReportsResponse {
+      reports.add(REACH_REPORT.copy { state = Report.State.SUCCEEDED })
+      reports.add(IMPRESSION_WATCH_DURATION_REPORT.copy { state = Report.State.SUCCEEDED })
+
+      nextPageToken =
+        listReportsPageToken {
+            pageSize = PAGE_SIZE
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            lastReport = previousPageEnd {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+              externalReportId = REPORT_EXTERNAL_ID_2
+            }
+          }
+          .toByteString()
+          .base64UrlEncode()
+    }
+
+    verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::streamReports)
+      .isEqualTo(
+        streamReportsRequest {
+          limit = PAGE_SIZE + 1
+          this.filter = filter {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            externalReportIdAfter = REPORT_EXTERNAL_ID
+          }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listReports with page size replaced with a valid value and no previous page token`() {
+    val invalidPageSize = MAX_PAGE_SIZE * 2
+    val request = listReportsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      pageSize = invalidPageSize
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.listReports(request) }
+      }
+
+    val expected = listReportsResponse {
+      reports.add(REACH_REPORT.copy { state = Report.State.SUCCEEDED })
+      reports.add(IMPRESSION_WATCH_DURATION_REPORT.copy { state = Report.State.SUCCEEDED })
+      reports.add(FREQUENCY_HISTOGRAM_REPORT.copy { state = Report.State.SUCCEEDED })
+    }
+
+    verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::streamReports)
+      .isEqualTo(
+        streamReportsRequest {
+          limit = MAX_PAGE_SIZE + 1
+          this.filter = filter {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+          }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listReports with invalid page size replaced with the one in previous page token`() {
+    val invalidPageSize = MAX_PAGE_SIZE * 2
+    val previousPageSize = PAGE_SIZE
+    val request = listReportsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      pageSize = invalidPageSize
+      pageToken =
+        listReportsPageToken {
+            pageSize = previousPageSize
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            lastReport = previousPageEnd {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+              externalReportId = REPORT_EXTERNAL_ID
+            }
+          }
+          .toByteString()
+          .base64UrlEncode()
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.listReports(request) }
+      }
+
+    val expected = listReportsResponse {
+      reports.add(REACH_REPORT.copy { state = Report.State.SUCCEEDED })
+      reports.add(IMPRESSION_WATCH_DURATION_REPORT.copy { state = Report.State.SUCCEEDED })
+
+      nextPageToken =
+        listReportsPageToken {
+            pageSize = previousPageSize
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            lastReport = previousPageEnd {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+              externalReportId = REPORT_EXTERNAL_ID_2
+            }
+          }
+          .toByteString()
+          .base64UrlEncode()
+    }
+
+    verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::streamReports)
+      .isEqualTo(
+        streamReportsRequest {
+          limit = previousPageSize + 1
+          this.filter = filter {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            externalReportIdAfter = REPORT_EXTERNAL_ID
+          }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listReports with page size replacing the one in previous page token`() {
+    val newPageSize = PAGE_SIZE
+    val previousPageSize = 1
+    val request = listReportsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      pageSize = newPageSize
+      pageToken =
+        listReportsPageToken {
+            pageSize = previousPageSize
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            lastReport = previousPageEnd {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+              externalReportId = REPORT_EXTERNAL_ID
+            }
+          }
+          .toByteString()
+          .base64UrlEncode()
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.listReports(request) }
+      }
+
+    val expected = listReportsResponse {
+      reports.add(REACH_REPORT.copy { state = Report.State.SUCCEEDED })
+      reports.add(IMPRESSION_WATCH_DURATION_REPORT.copy { state = Report.State.SUCCEEDED })
+
+      nextPageToken =
+        listReportsPageToken {
+            pageSize = newPageSize
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            lastReport = previousPageEnd {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+              externalReportId = REPORT_EXTERNAL_ID_2
+            }
+          }
+          .toByteString()
+          .base64UrlEncode()
+    }
+
+    verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::streamReports)
+      .isEqualTo(
+        streamReportsRequest {
+          limit = newPageSize + 1
+          this.filter = filter {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            externalReportIdAfter = REPORT_EXTERNAL_ID
           }
         }
       )
