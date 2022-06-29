@@ -43,6 +43,7 @@ import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
 import org.wfanet.measurement.internal.reporting.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.Measurement.Result as InternalMeasurementResult
+import org.wfanet.measurement.internal.reporting.MeasurementKt.ResultKt.frequency as internalFrequency
 import org.wfanet.measurement.internal.reporting.MeasurementKt.ResultKt.impression as internalImpression
 import org.wfanet.measurement.internal.reporting.MeasurementKt.ResultKt.reach as internalReach
 import org.wfanet.measurement.internal.reporting.MeasurementKt.ResultKt.watchDuration as internalWatchDuration
@@ -84,6 +85,7 @@ import org.wfanet.measurement.reporting.v1alpha.MetricKt.watchDurationParams
 import org.wfanet.measurement.reporting.v1alpha.PeriodicTimeInterval
 import org.wfanet.measurement.reporting.v1alpha.Report
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.EventGroupUniverseKt.eventGroupEntry
+import org.wfanet.measurement.reporting.v1alpha.ReportKt.eventGroupUniverse
 import org.wfanet.measurement.reporting.v1alpha.ReportsGrpcKt.ReportsCoroutineImplBase
 import org.wfanet.measurement.reporting.v1alpha.TimeIntervals
 import org.wfanet.measurement.reporting.v1alpha.listReportsResponse
@@ -297,26 +299,30 @@ private fun Measurement.Failure.toInternal(): InternalMeasurement.Failure {
 private fun aggregateResults(
   internalResultsList: List<InternalMeasurementResult>
 ): InternalMeasurementResult {
-  return internalResultsList.reduce { sum, element ->
+  return internalResultsList.reduce { aggregatedResult, result ->
     internalMeasurementResult {
-      if (element.hasReach()) {
-        this.reach = internalReach { value = sum.reach.value + element.reach.value }
+      if (result.hasReach()) {
+        this.reach = internalReach { value = aggregatedResult.reach.value + result.reach.value }
       }
-      if (element.hasFrequency()) {
-        val tempFrequency = sum.frequency.relativeFrequencyDistributionMap.toMutableMap()
-        for ((key, value) in element.frequency.relativeFrequencyDistributionMap) {
-          tempFrequency[key] = tempFrequency.getOrDefault(key, 0.0) + value
+      if (result.hasFrequency()) {
+        val aggregatedFrequencyHistogramMap =
+          aggregatedResult.frequency.relativeFrequencyDistributionMap.toMutableMap()
+        for ((key, value) in result.frequency.relativeFrequencyDistributionMap) {
+          aggregatedFrequencyHistogramMap[key] =
+            aggregatedFrequencyHistogramMap.getOrDefault(key, 0.0) + value
         }
-        this.frequency.relativeFrequencyDistributionMap.putAll(tempFrequency)
+        this.frequency = internalFrequency {
+          relativeFrequencyDistribution.putAll(aggregatedFrequencyHistogramMap)
+        }
       }
-      if (element.hasImpression()) {
+      if (result.hasImpression()) {
         this.impression = internalImpression {
-          value = sum.impression.value + element.impression.value
+          value = aggregatedResult.impression.value + result.impression.value
         }
       }
-      if (element.hasWatchDuration()) {
+      if (result.hasWatchDuration()) {
         this.watchDuration = internalWatchDuration {
-          value = sum.watchDuration.value + element.watchDuration.value
+          value = aggregatedResult.watchDuration.value + result.watchDuration.value
         }
       }
     }
@@ -332,9 +338,9 @@ private fun Measurement.Result.toInternal(): InternalMeasurementResult {
       this.reach = internalReach { value = source.reach.value }
     }
     if (source.hasFrequency()) {
-      this.frequency.relativeFrequencyDistributionMap.putAll(
-        source.frequency.relativeFrequencyDistributionMap
-      )
+      this.frequency = internalFrequency {
+        relativeFrequencyDistribution.putAll(source.frequency.relativeFrequencyDistributionMap)
+      }
     }
     if (source.hasImpression()) {
       this.impression = internalImpression { value = source.impression.value }
@@ -348,24 +354,27 @@ private fun Measurement.Result.toInternal(): InternalMeasurementResult {
 /** Converts an internal [InternalReport] to a public [Report]. */
 private fun InternalReport.toReport(): Report {
   val source = this
-  return report {
-    name =
-      ReportKey(
-          measurementConsumerId = source.measurementConsumerReferenceId,
-          reportId = externalIdToApiId(source.externalReportId)
-        )
-        .toName()
-
-    reportIdempotencyKey = source.reportIdempotencyKey
-
-    measurementConsumer = source.measurementConsumerReferenceId
-
-    for (eventGroupFilter in source.details.eventGroupFiltersMap) {
-      eventGroupUniverse.eventGroupEntriesList += eventGroupEntry {
-        key = eventGroupFilter.key
-        value = eventGroupFilter.value
+  val measurementConsumerResourceName =
+    MeasurementConsumerKey(source.measurementConsumerReferenceId).toName()
+  val reportResourceName =
+    ReportKey(
+        measurementConsumerId = source.measurementConsumerReferenceId,
+        reportId = externalIdToApiId(source.externalReportId)
+      )
+      .toName()
+  val eventGroupEntries =
+    source.details.eventGroupFiltersMap.toList().map { (eventGroupResourceName, filterPredicate) ->
+      eventGroupEntry {
+        key = eventGroupResourceName
+        value = filterPredicate
       }
     }
+
+  return report {
+    name = reportResourceName
+    reportIdempotencyKey = source.reportIdempotencyKey
+    measurementConsumer = measurementConsumerResourceName
+    eventGroupUniverse = eventGroupUniverse { this.eventGroupEntries.addAll(eventGroupEntries) }
 
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     when (source.timeCase) {
@@ -406,13 +415,13 @@ private fun InternalMetric.toMetric(): Metric {
   return metric {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     when (source.details.metricTypeCase) {
-      InternalMetric.Details.MetricTypeCase.REACH -> this.reach = reachParams {}
+      InternalMetric.Details.MetricTypeCase.REACH -> reach = reachParams {}
       InternalMetric.Details.MetricTypeCase.FREQUENCY_HISTOGRAM ->
-        this.frequencyHistogram = source.details.frequencyHistogram.toFrequencyHistogram()
+        frequencyHistogram = source.details.frequencyHistogram.toFrequencyHistogram()
       InternalMetric.Details.MetricTypeCase.IMPRESSION_COUNT ->
-        source.details.impressionCount.toImpressionCount()
+        impressionCount = source.details.impressionCount.toImpressionCount()
       InternalMetric.Details.MetricTypeCase.WATCH_DURATION ->
-        source.details.watchDuration.toWatchDuration()
+        watchDuration = source.details.watchDuration.toWatchDuration()
       InternalMetric.Details.MetricTypeCase.METRICTYPE_NOT_SET ->
         error("The metric type in the internal report should've be set.")
     }
@@ -420,7 +429,7 @@ private fun InternalMetric.toMetric(): Metric {
     cumulative = source.details.cumulative
 
     for (internalSetOperation in source.namedSetOperationsList) {
-      this.setOperations += internalSetOperation.toNamedSetOperation()
+      setOperations += internalSetOperation.toNamedSetOperation()
     }
   }
 }
@@ -457,7 +466,7 @@ private fun InternalOperand.toOperand(): SetOperation.Operand {
     InternalOperand.OperandCase.REPORTINGSETID ->
       operand {
         reportingSet =
-          ReportKey(
+          ReportingSetKey(
               source.reportingSetId.measurementConsumerReferenceId,
               externalIdToApiId(source.reportingSetId.externalReportingSetId)
             )
