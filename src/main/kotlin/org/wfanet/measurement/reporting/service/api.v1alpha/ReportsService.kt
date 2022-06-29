@@ -200,10 +200,9 @@ class ReportsService(
     measurementReferenceId: String,
     measurementConsumerReferenceId: String,
     internalMeasurement: InternalMeasurement,
-  ): InternalMeasurement.State {
+  ) {
     // Measurement with SUCCEEDED state is already synced
-    if (internalMeasurement.state == InternalMeasurement.State.SUCCEEDED)
-      return InternalMeasurement.State.SUCCEEDED
+    if (internalMeasurement.state == InternalMeasurement.State.SUCCEEDED) return
 
     val measurement =
       measurementsStub
@@ -227,12 +226,9 @@ class ReportsService(
               )
           }
         )
-        return InternalMeasurement.State.SUCCEEDED
       }
       Measurement.State.AWAITING_REQUISITION_FULFILLMENT,
-      Measurement.State.COMPUTING -> {
-        return InternalMeasurement.State.PENDING
-      }
+      Measurement.State.COMPUTING -> {}
       Measurement.State.FAILED,
       Measurement.State.CANCELLED -> {
         internalMeasurementsStub.setMeasurementFailure(
@@ -242,11 +238,12 @@ class ReportsService(
             failure = measurement.failure.toInternal()
           }
         )
-        return InternalMeasurement.State.FAILED
       }
       Measurement.State.STATE_UNSPECIFIED -> error("The measurement state should've been set.")
       Measurement.State.UNRECOGNIZED -> error("Unrecognized measurement state.")
     }
+
+    return
   }
 
   /** Decrypts a [Measurement.ResultPair] to [Measurement.Result] */
