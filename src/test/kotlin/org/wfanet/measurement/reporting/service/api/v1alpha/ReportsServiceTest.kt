@@ -14,13 +14,17 @@
 
 package org.wfanet.measurement.reporting.service.api.v1alpha
 
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.duration
 import com.google.protobuf.timestamp
 import com.google.protobuf.util.Durations
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import java.nio.file.Path
 import java.nio.file.Paths
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -47,6 +51,7 @@ import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.makeDataProviderCertificateName
 import org.wfanet.measurement.api.v2alpha.measurement
+import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
@@ -94,6 +99,7 @@ import org.wfanet.measurement.internal.reporting.periodicTimeInterval as interna
 import org.wfanet.measurement.internal.reporting.report as internalReport
 import org.wfanet.measurement.internal.reporting.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInterval
+import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.v1alpha.Metric
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.SetOperationKt.operand as setOperationOperand
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.frequencyHistogramParams
@@ -1086,5 +1092,93 @@ class ReportsServiceTest {
       )
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listReports throws UNAUTHENTICATED when no principal is found`() {
+    val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAME }
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.listReports(request) } }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `listReports throws PERMISSION_DENIED when MeasurementConsumer caller doesn't match`() {
+    val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAME }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME_2) {
+          runBlocking { service.listReports(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.description)
+      .isEqualTo("Cannot list ReportingSets belonging to other MeasurementConsumers.")
+  }
+
+  @Test
+  fun `listReports throws PERMISSION_DENIED when the caller is not MeasurementConsumer`() {
+    val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAME }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.listReports(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.description)
+      .isEqualTo("Caller does not have permission to list ReportingSets.")
+  }
+
+  @Test
+  fun `listReports throws INVALID_ARGUMENT when page size is less than 0`() {
+    val request = listReportsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      pageSize = -1
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.listReports(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("Page size cannot be less than 0")
+  }
+
+  @Test
+  fun `listReports throws INVALID_ARGUMENT when parent is unspecified`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.listReports(ListReportsRequest.getDefaultInstance()) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `listReports throws INVALID_ARGUMENT when mc id doesn't match one in page token`() {
+    val request = listReportsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      pageToken =
+        listReportsPageToken {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID_2
+            lastReport = previousPageEnd {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID_2
+              externalReportId = REPORT_EXTERNAL_ID
+            }
+          }
+          .toByteString()
+          .base64UrlEncode()
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.listReports(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 }
