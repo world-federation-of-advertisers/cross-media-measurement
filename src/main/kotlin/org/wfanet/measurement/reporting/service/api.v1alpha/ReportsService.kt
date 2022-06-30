@@ -228,7 +228,7 @@ class ReportsService(
         )
       }
       Measurement.State.AWAITING_REQUISITION_FULFILLMENT,
-      Measurement.State.COMPUTING -> {}
+      Measurement.State.COMPUTING -> {} // No action needed
       Measurement.State.FAILED,
       Measurement.State.CANCELLED -> {
         internalMeasurementsStub.setMeasurementFailure(
