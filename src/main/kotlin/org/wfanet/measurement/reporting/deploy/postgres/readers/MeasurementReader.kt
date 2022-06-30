@@ -15,12 +15,10 @@
 package org.wfanet.measurement.reporting.deploy.postgres.readers
 
 import com.google.protobuf.ByteString
-import io.r2dbc.spi.Row
 import kotlinx.coroutines.flow.firstOrNull
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
-import org.wfanet.measurement.common.db.r2dbc.StatementBuilder.Companion.statementBuilder
-import org.wfanet.measurement.common.db.r2dbc.get
-import org.wfanet.measurement.common.db.r2dbc.getValue
+import org.wfanet.measurement.common.db.r2dbc.ResultRow
+import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.internal.reporting.Measurement
 import org.wfanet.measurement.internal.reporting.measurement
 import org.wfanet.measurement.reporting.service.internal.MeasurementNotFoundException
@@ -41,7 +39,7 @@ class MeasurementReader {
       Measurements
     """
 
-  fun translate(row: Row): Result = Result(buildMeasurement(row))
+  fun translate(row: ResultRow): Result = Result(buildMeasurement(row))
 
   /**
    * Reads a Measurement using reference IDs.
@@ -55,7 +53,7 @@ class MeasurementReader {
     measurementReferenceId: String
   ): Result {
     val builder =
-      statementBuilder(
+      boundStatement(
         baseSql +
           """
         WHERE MeasurementConsumerReferenceId = $1
@@ -70,16 +68,16 @@ class MeasurementReader {
       ?: throw MeasurementNotFoundException()
   }
 
-  private fun buildMeasurement(row: Row): Measurement {
+  private fun buildMeasurement(row: ResultRow): Measurement {
     return measurement {
-      measurementConsumerReferenceId = row.getValue("MeasurementConsumerReferenceId")
-      measurementReferenceId = row.getValue("MeasurementReferenceId")
-      state = Measurement.State.forNumber(row.getValue("State"))
-      val failure = row.get("Failure", ByteString::class)
+      measurementConsumerReferenceId = row["MeasurementConsumerReferenceId"]
+      measurementReferenceId = row["MeasurementReferenceId"]
+      state = Measurement.State.forNumber(row["State"])
+      val failure: ByteString? = row["Failure"]
       if (failure != null) {
         this.failure = Measurement.Failure.parseFrom(failure)
       }
-      val result = row.get("Result", ByteString::class)
+      val result: ByteString? = row["Result"]
       if (result != null) {
         this.result = Measurement.Result.parseFrom(result)
       }

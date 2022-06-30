@@ -17,7 +17,7 @@ package org.wfanet.measurement.reporting.deploy.postgres.writers
 import io.r2dbc.spi.R2dbcDataIntegrityViolationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import org.wfanet.measurement.common.db.r2dbc.StatementBuilder.Companion.statementBuilder
+import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.internal.reporting.ReportingSet
 import org.wfanet.measurement.internal.reporting.copy
 import org.wfanet.measurement.reporting.service.internal.ReportingSetAlreadyExistsException
@@ -34,7 +34,7 @@ class CreateReportingSet(private val request: ReportingSet) : PostgresWriter<Rep
     val externalReportingSetId = idGenerator.generateExternalId().value
 
     val builder =
-      statementBuilder(
+      boundStatement(
         """
       INSERT INTO ReportingSets (MeasurementConsumerReferenceId, ReportingSetId, ExternalReportingSetId, Filter, DisplayName)
         VALUES ($1, $2, $3, $4, $5)
@@ -68,7 +68,7 @@ class CreateReportingSet(private val request: ReportingSet) : PostgresWriter<Rep
     reportingSetId: Long
   ) {
     val builder =
-      statementBuilder(
+      boundStatement(
         """
       INSERT INTO ReportingSetEventGroups (MeasurementConsumerReferenceId, DataProviderReferenceId, EventGroupReferenceId, ReportingSetId)
         VALUES ($1, $2, $3, $4)
