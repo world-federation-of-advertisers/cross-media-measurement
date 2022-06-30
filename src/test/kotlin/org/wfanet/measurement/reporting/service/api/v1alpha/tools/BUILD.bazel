@@ -1,9 +1,15 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
+filegroup(
+    name = "textproto_files",
+    srcs = glob(["*.textproto"]),
+)
+
 kt_jvm_test(
     name = "ReportingTest",
     srcs = ["ReportingTest.kt"],
     data = [
+        "textproto_files",
         "//src/main/k8s/testing/secretfiles:root_certs",
         "//src/main/k8s/testing/secretfiles:secret_files",
     ],
