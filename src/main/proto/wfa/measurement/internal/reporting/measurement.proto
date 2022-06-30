@@ -17,7 +17,6 @@ syntax = "proto3";
 package wfa.measurement.internal.reporting;
 
 import "google/protobuf/duration.proto";
-import "google/protobuf/timestamp.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting";
 option java_multiple_files = true;
@@ -81,7 +80,4 @@ message Measurement {
   }
   // The result of the `Measurement` derived from the CMMS public API.
   Result result = 5;
-
-  // Timestamp when `state` and `result` were last updated. Output-only.
-  google.protobuf.Timestamp update_time = 6;
 }
