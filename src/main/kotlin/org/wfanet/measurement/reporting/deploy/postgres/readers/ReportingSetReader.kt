@@ -49,7 +49,7 @@ class ReportingSetReader {
 
   fun translate(row: ResultRow): Result =
     Result(row["MeasurementConsumerReferenceId"], row["ReportingSetId"], buildReportingSet(row))
-
+    
   suspend fun readReportingSetByExternalId(
     readWriteContext: ReadWriteContext,
     measurementConsumerReferenceId: String,
