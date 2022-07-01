@@ -44,7 +44,7 @@ class ReportingSetEventGroupReader {
     measurementConsumerReferenceId: String,
     reportingSetId: InternalId
   ): Flow<Result> {
-    val statement =
+    val builder =
       boundStatement(
         baseSql +
           """
@@ -56,7 +56,7 @@ class ReportingSetEventGroupReader {
         bind("$2", reportingSetId.value)
       }
 
-    return flow { emitAll(readContext.executeQuery(statement).consume(::translate)) }
+    return flow { emitAll(readContext.executeQuery(builder).consume(::translate)) }
   }
 
   private fun buildEventGroupKey(row: ResultRow): ReportingSet.EventGroupKey {

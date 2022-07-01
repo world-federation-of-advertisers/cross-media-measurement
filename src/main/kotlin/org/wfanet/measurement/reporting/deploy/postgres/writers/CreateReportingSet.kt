@@ -33,7 +33,7 @@ class CreateReportingSet(private val request: ReportingSet) : PostgresWriter<Rep
     val internalReportingSetId = idGenerator.generateInternalId().value
     val externalReportingSetId = idGenerator.generateExternalId().value
 
-    val statement =
+    val builder =
       boundStatement(
         """
       INSERT INTO ReportingSets (MeasurementConsumerReferenceId, ReportingSetId, ExternalReportingSetId, Filter, DisplayName)
@@ -49,7 +49,7 @@ class CreateReportingSet(private val request: ReportingSet) : PostgresWriter<Rep
 
     transactionContext.run {
       try {
-        executeStatement(statement)
+        executeStatement(builder)
       } catch (e: R2dbcDataIntegrityViolationException) {
         throw ReportingSetAlreadyExistsException()
       }
@@ -67,7 +67,7 @@ class CreateReportingSet(private val request: ReportingSet) : PostgresWriter<Rep
     eventGroupKey: ReportingSet.EventGroupKey,
     reportingSetId: Long
   ) {
-    val statement =
+    val builder =
       boundStatement(
         """
       INSERT INTO ReportingSetEventGroups (MeasurementConsumerReferenceId, DataProviderReferenceId, EventGroupReferenceId, ReportingSetId)
@@ -80,6 +80,6 @@ class CreateReportingSet(private val request: ReportingSet) : PostgresWriter<Rep
         bind("$4", reportingSetId)
       }
 
-    transactionContext.executeStatement(statement)
+    transactionContext.executeStatement(builder)
   }
 }

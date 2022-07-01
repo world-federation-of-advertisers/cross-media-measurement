@@ -49,7 +49,7 @@ class ReportingSetReader {
 
   fun translate(row: ResultRow): Result =
     Result(row["MeasurementConsumerReferenceId"], row["ReportingSetId"], buildReportingSet(row))
-    
+
   suspend fun readReportingSetByExternalId(
     readWriteContext: ReadWriteContext,
     measurementConsumerReferenceId: String,
@@ -75,7 +75,7 @@ class ReportingSetReader {
     filter: StreamReportingSetsRequest.Filter,
     limit: Int = 0
   ): Flow<Result> {
-    val statement =
+    val builder =
       boundStatement(
         baseSql +
           """
@@ -97,7 +97,7 @@ class ReportingSetReader {
     return flow {
       val readContext = client.readTransaction()
       try {
-        readContext.executeQuery(statement).consume(::translate).collect { reportingSetResult ->
+        readContext.executeQuery(builder).consume(::translate).collect { reportingSetResult ->
           reportingSetResult.reportingSet =
             reportingSetResult.reportingSet.copy {
               ReportingSetEventGroupReader()

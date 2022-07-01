@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.reporting.deploy.postgres.readers
 
+import com.google.protobuf.ByteString
 import com.google.protobuf.util.JsonFormat
 import kotlinx.coroutines.flow.firstOrNull
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
@@ -52,7 +53,7 @@ class MeasurementReader {
     measurementConsumerReferenceId: String,
     measurementReferenceId: String
   ): Result {
-    val statement =
+    val builder =
       boundStatement(
         baseSql +
           """
@@ -64,7 +65,7 @@ class MeasurementReader {
         bind("$2", measurementReferenceId)
       }
 
-    return readContext.executeQuery(statement).consume(::translate).firstOrNull()
+    return readContext.executeQuery(builder).consume(::translate).firstOrNull()
       ?: throw MeasurementNotFoundException()
   }
 
@@ -73,9 +74,9 @@ class MeasurementReader {
       measurementConsumerReferenceId = row["MeasurementConsumerReferenceId"]
       measurementReferenceId = row["MeasurementReferenceId"]
       state = Measurement.State.forNumber(row["State"])
-      val failure = row.getProtoMessage("Failure", Measurement.Failure.parser())
+      val failure: ByteString? = row["Failure"]
       if (failure != null) {
-        this.failure = failure
+        this.failure = Measurement.Failure.parseFrom(failure)
       }
       val result = row.get<String?>("ResultJson")
       if (result != null) {
