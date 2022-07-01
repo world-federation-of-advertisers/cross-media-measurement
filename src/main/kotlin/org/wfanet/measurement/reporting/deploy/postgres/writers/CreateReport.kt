@@ -237,7 +237,9 @@ class CreateReport(private val clock: Clock, private val request: CreateReportRe
     for (i in 1 until timeIntervals.size) {
       firstParam += numParameters
       sql.append(
-        ",($$firstParam, $${firstParam + 1}, $${firstParam + 2}, $${firstParam + 3}, $${firstParam + 4}, $${firstParam + 5}, $${firstParam + 6})"
+        """,($$firstParam, $${firstParam + 1}, $${firstParam + 2}, $${firstParam + 3},
+        $${firstParam + 4}, $${firstParam + 5}, $${firstParam + 6})
+        """
       )
     }
 
