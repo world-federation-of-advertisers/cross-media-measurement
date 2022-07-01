@@ -79,8 +79,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   @Test
   fun `createMeasurement succeeds`() {
     val measurement = measurement {
-      measurementConsumerReferenceId = "1234"
-      measurementReferenceId = "4321"
+      measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+      measurementReferenceId = MEASUREMENT_REFERENCE_ID
     }
 
     val createdMeasurement = runBlocking { service.createMeasurement(measurement) }
@@ -88,8 +88,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     assertThat(createdMeasurement).isEqualTo(measurement.copy { state = Measurement.State.PENDING })
 
     val getRequest = getMeasurementRequest {
-      measurementConsumerReferenceId = "1234"
-      measurementReferenceId = "4321"
+      measurementConsumerReferenceId = createdMeasurement.measurementConsumerReferenceId
+      measurementReferenceId = createdMeasurement.measurementReferenceId
     }
     val retrievedMeasurement = runBlocking { service.getMeasurement(getRequest) }
     assertThat(retrievedMeasurement).isEqualTo(createdMeasurement)
@@ -98,8 +98,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   @Test
   fun `createMeasurement fails when trying to create the same one twice`() {
     val measurement = measurement {
-      measurementConsumerReferenceId = "1234"
-      measurementReferenceId = "4321"
+      measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+      measurementReferenceId = MEASUREMENT_REFERENCE_ID
     }
 
     val exception = runBlocking {
@@ -114,8 +114,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val createdMeasurement = runBlocking {
       service.createMeasurement(
         measurement {
-          measurementConsumerReferenceId = "1234"
-          measurementReferenceId = "4321"
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+          measurementReferenceId = MEASUREMENT_REFERENCE_ID
         }
       )
     }
@@ -123,7 +123,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val request = setMeasurementResultRequest {
       measurementConsumerReferenceId = createdMeasurement.measurementConsumerReferenceId
       measurementReferenceId = createdMeasurement.measurementReferenceId
-      measurementResult = result
+      this.result = result
     }
 
     val updatedMeasurement = runBlocking { service.setMeasurementResult(request) }
@@ -138,8 +138,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       )
 
     val getRequest = getMeasurementRequest {
-      measurementConsumerReferenceId = "1234"
-      measurementReferenceId = "4321"
+      measurementConsumerReferenceId = createdMeasurement.measurementConsumerReferenceId
+      measurementReferenceId = createdMeasurement.measurementReferenceId
     }
     val retrievedMeasurement = runBlocking { service.getMeasurement(getRequest) }
     assertThat(retrievedMeasurement).isEqualTo(updatedMeasurement)
@@ -148,10 +148,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   @Test
   fun `setMeasurementResult fails when the meaurement doesn't exist`() {
     val request = setMeasurementResultRequest {
-      measurementConsumerReferenceId = "1234"
-      measurementReferenceId = "4321"
-      measurementResult =
-        MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 100L } }
+      measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+      measurementReferenceId = MEASUREMENT_REFERENCE_ID
+      result = MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 100L } }
     }
 
     val exception = runBlocking {
@@ -161,56 +160,31 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
-  fun `setMeasurementResult succeeds in setting the report result and succeeded report state`() {
-    val measurementConsumerReferenceId = "1234"
-    val measurementReferenceId = "1234"
-    val result = MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 100L } }
+  fun `setMeasurementResult succeeds in setting the result for report with RF metric`() {
     val createdReport = runBlocking {
       reportsService.createReport(
         createReportRequest {
           measurements +=
             CreateReportRequestKt.measurementKey {
-              this.measurementConsumerReferenceId = measurementConsumerReferenceId
-              this.measurementReferenceId = measurementReferenceId
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+              measurementReferenceId = MEASUREMENT_REFERENCE_ID
+            }
+          measurements +=
+            CreateReportRequestKt.measurementKey {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+              measurementReferenceId = MEASUREMENT_REFERENCE_ID_2
             }
           report = report {
-            this.measurementConsumerReferenceId = measurementConsumerReferenceId
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
             reportIdempotencyKey = "1235"
-            periodicTimeInterval = periodicTimeInterval {
-              startTime = timestamp {
-                seconds = 100
-                nanos = 10
-              }
-              increment = duration {
-                seconds = 10
-                nanos = 1
-              }
-              intervalCount = 2
-            }
-            val inProgressReport = this
+            periodicTimeInterval = PERIODIC_TIME_INTERVAL
             metrics += metric {
-              namedSetOperations +=
-                MetricKt.namedSetOperation {
-                  displayName = "name4"
-                  setOperation = MetricKt.setOperation { type = Metric.SetOperation.Type.UNION }
-                  measurementCalculations +=
-                    MetricKt.measurementCalculation {
-                      timeInterval = timeInterval {
-                        startTime =
-                          Timestamps.add(
-                            inProgressReport.periodicTimeInterval.startTime,
-                            inProgressReport.periodicTimeInterval.increment
-                          )
-                        endTime =
-                          Timestamps.add(startTime, inProgressReport.periodicTimeInterval.increment)
-                      }
-                      weightedMeasurements +=
-                        MetricKt.MeasurementCalculationKt.weightedMeasurement {
-                          this.measurementReferenceId = measurementReferenceId
-                          coefficient = 1
-                        }
-                    }
+              details =
+                MetricKt.details {
+                  frequencyHistogram =
+                    MetricKt.frequencyHistogramParams { maximumFrequencyPerUser = 2 }
                 }
+              namedSetOperations += NAMED_SET_OPERATION
             }
           }
         }
@@ -219,13 +193,31 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     runBlocking {
       service.setMeasurementResult(
         setMeasurementResultRequest {
-          this.measurementConsumerReferenceId = measurementConsumerReferenceId
-          this.measurementReferenceId = measurementReferenceId
-          measurementResult = result
-          externalReportId = createdReport.externalReportId
-          reportResult =
-            ReportKt.DetailsKt.result {
-              scalarTable = ReportKt.DetailsKt.ResultKt.scalarTable { rowHeaders += "test" }
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+          measurementReferenceId = MEASUREMENT_REFERENCE_ID
+          result =
+            MeasurementKt.result {
+              reach = MeasurementKt.ResultKt.reach { value = 100L }
+              frequency =
+                MeasurementKt.ResultKt.frequency {
+                  relativeFrequencyDistribution[1] = 0.8
+                  relativeFrequencyDistribution[2] = 0.2
+                }
+            }
+        }
+      )
+      service.setMeasurementResult(
+        setMeasurementResultRequest {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+          measurementReferenceId = MEASUREMENT_REFERENCE_ID_2
+          result =
+            MeasurementKt.result {
+              reach = MeasurementKt.ResultKt.reach { value = 200L }
+              frequency =
+                MeasurementKt.ResultKt.frequency {
+                  relativeFrequencyDistribution[1] = 0.3
+                  relativeFrequencyDistribution[2] = 0.7
+                }
             }
         }
       )
@@ -233,41 +225,289 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val retrievedReport = runBlocking {
       reportsService.getReport(
         getReportRequest {
-          this.measurementConsumerReferenceId = measurementConsumerReferenceId
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
           externalReportId = createdReport.externalReportId
         }
       )
     }
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
-    assertThat(retrievedReport.details.result).isNotEqualTo(ReportKt.DetailsKt.result {})
+    assertThat(retrievedReport.details.result)
+      .ignoringRepeatedFieldOrder()
+      .usingDoubleTolerance(2.0)
+      .isEqualTo(
+        ReportKt.DetailsKt.result {
+          histogramTables +=
+            ReportKt.DetailsKt.ResultKt.histogramTable {
+              rows +=
+                ReportKt.DetailsKt.ResultKt.HistogramTableKt.row {
+                  rowHeader = "1970-01-01T00:01:40.000000010Z-1970-01-01T00:01:50.000000011Z"
+                  frequency = 1
+                }
+              rows +=
+                ReportKt.DetailsKt.ResultKt.HistogramTableKt.row {
+                  rowHeader = "1970-01-01T00:01:40.000000010Z-1970-01-01T00:01:50.000000011Z"
+                  frequency = 2
+                }
+              rows +=
+                ReportKt.DetailsKt.ResultKt.HistogramTableKt.row {
+                  rowHeader = "1970-01-01T00:01:50.000000011Z-1970-01-01T00:02:00.000000012Z"
+                  frequency = 1
+                }
+              rows +=
+                ReportKt.DetailsKt.ResultKt.HistogramTableKt.row {
+                  rowHeader = "1970-01-01T00:01:50.000000011Z-1970-01-01T00:02:00.000000012Z"
+                  frequency = 2
+                }
+              columns +=
+                ReportKt.DetailsKt.ResultKt.column {
+                  columnHeader = NAMED_SET_OPERATION.displayName
+                  setOperations += 260.0
+                  setOperations += 439.0
+                }
+            }
+        }
+      )
   }
 
   @Test
-  fun `setMeasurementResult throws NOT FOUND when report not found`() {
-    val createdMeasurement = runBlocking {
-      service.createMeasurement(
-        measurement {
-          measurementConsumerReferenceId = "1234"
-          measurementReferenceId = "4321"
+  fun `setMeasurementResult succeeds in setting the result for report with duration metric`() {
+    val createdReport = runBlocking {
+      reportsService.createReport(
+        createReportRequest {
+          measurements +=
+            CreateReportRequestKt.measurementKey {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+              measurementReferenceId = MEASUREMENT_REFERENCE_ID
+            }
+          measurements +=
+            CreateReportRequestKt.measurementKey {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+              measurementReferenceId = MEASUREMENT_REFERENCE_ID_2
+            }
+          report = report {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            reportIdempotencyKey = "1235"
+            periodicTimeInterval = PERIODIC_TIME_INTERVAL
+            metrics += metric {
+              details =
+                MetricKt.details {
+                  watchDuration =
+                    MetricKt.watchDurationParams {
+                      maximumFrequencyPerUser = 2
+                      maximumWatchDurationPerUser = 100
+                    }
+                }
+              namedSetOperations += NAMED_SET_OPERATION
+            }
+          }
         }
       )
     }
-    val result = MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 100L } }
-
-    val exception = runBlocking {
-      assertFailsWith<StatusRuntimeException> {
-        service.setMeasurementResult(
-          setMeasurementResultRequest {
-            measurementConsumerReferenceId = createdMeasurement.measurementConsumerReferenceId
-            measurementReferenceId = createdMeasurement.measurementReferenceId
-            measurementResult = result
-            externalReportId = 1234L
-            reportResult = ReportKt.DetailsKt.result {}
-          }
-        )
-      }
+    runBlocking {
+      service.setMeasurementResult(
+        setMeasurementResultRequest {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+          measurementReferenceId = MEASUREMENT_REFERENCE_ID
+          result =
+            MeasurementKt.result {
+              watchDuration =
+                MeasurementKt.ResultKt.watchDuration {
+                  value = duration {
+                    seconds = 100
+                    nanos = 10
+                  }
+                }
+            }
+        }
+      )
+      service.setMeasurementResult(
+        setMeasurementResultRequest {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+          measurementReferenceId = MEASUREMENT_REFERENCE_ID_2
+          result =
+            MeasurementKt.result {
+              watchDuration =
+                MeasurementKt.ResultKt.watchDuration {
+                  value = duration {
+                    seconds = 200
+                    nanos = 10
+                  }
+                }
+            }
+        }
+      )
     }
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    val retrievedReport = runBlocking {
+      reportsService.getReport(
+        getReportRequest {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+          externalReportId = createdReport.externalReportId
+        }
+      )
+    }
+    assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
+    assertThat(retrievedReport.details.result)
+      .ignoringRepeatedFieldOrder()
+      .usingDoubleTolerance(2.0)
+      .isEqualTo(
+        ReportKt.DetailsKt.result {
+          scalarTable =
+            ReportKt.DetailsKt.ResultKt.scalarTable {
+              rowHeaders += "1970-01-01T00:01:40.000000010Z-1970-01-01T00:01:50.000000011Z"
+              rowHeaders += "1970-01-01T00:01:50.000000011Z-1970-01-01T00:02:00.000000012Z"
+              columns +=
+                ReportKt.DetailsKt.ResultKt.column {
+                  columnHeader = NAMED_SET_OPERATION.displayName
+                  setOperations += 700.0
+                }
+            }
+        }
+      )
+  }
+
+  @Test
+  fun `setMeasurementResult succeeds in setting the result for report with impression metric`() {
+    val createdReport = runBlocking {
+      reportsService.createReport(
+        createReportRequest {
+          measurements +=
+            CreateReportRequestKt.measurementKey {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+              measurementReferenceId = MEASUREMENT_REFERENCE_ID
+            }
+          measurements +=
+            CreateReportRequestKt.measurementKey {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+              measurementReferenceId = MEASUREMENT_REFERENCE_ID_2
+            }
+          report = report {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            reportIdempotencyKey = "1235"
+            periodicTimeInterval = PERIODIC_TIME_INTERVAL
+            metrics += metric {
+              details =
+                MetricKt.details {
+                  impressionCount = MetricKt.impressionCountParams { maximumFrequencyPerUser = 2 }
+                }
+              namedSetOperations += NAMED_SET_OPERATION
+            }
+          }
+        }
+      )
+    }
+    runBlocking {
+      service.setMeasurementResult(
+        setMeasurementResultRequest {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+          measurementReferenceId = MEASUREMENT_REFERENCE_ID
+          result =
+            MeasurementKt.result { impression = MeasurementKt.ResultKt.impression { value = 100 } }
+        }
+      )
+      service.setMeasurementResult(
+        setMeasurementResultRequest {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+          measurementReferenceId = MEASUREMENT_REFERENCE_ID_2
+          result =
+            MeasurementKt.result { impression = MeasurementKt.ResultKt.impression { value = 200 } }
+        }
+      )
+    }
+    val retrievedReport = runBlocking {
+      reportsService.getReport(
+        getReportRequest {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+          externalReportId = createdReport.externalReportId
+        }
+      )
+    }
+    assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
+    assertThat(retrievedReport.details.result)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        ReportKt.DetailsKt.result {
+          scalarTable =
+            ReportKt.DetailsKt.ResultKt.scalarTable {
+              rowHeaders += "1970-01-01T00:01:40.000000010Z-1970-01-01T00:01:50.000000011Z"
+              rowHeaders += "1970-01-01T00:01:50.000000011Z-1970-01-01T00:02:00.000000012Z"
+              columns +=
+                ReportKt.DetailsKt.ResultKt.column {
+                  columnHeader = NAMED_SET_OPERATION.displayName
+                  setOperations += 700.0
+                }
+            }
+        }
+      )
+  }
+
+  @Test
+  fun `setMeasurementResult succeeds in setting the result for report with reach metric`() {
+    val createdReport = runBlocking {
+      reportsService.createReport(
+        createReportRequest {
+          measurements +=
+            CreateReportRequestKt.measurementKey {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+              measurementReferenceId = MEASUREMENT_REFERENCE_ID
+            }
+          measurements +=
+            CreateReportRequestKt.measurementKey {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+              measurementReferenceId = MEASUREMENT_REFERENCE_ID_2
+            }
+          report = report {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            reportIdempotencyKey = "1235"
+            periodicTimeInterval = PERIODIC_TIME_INTERVAL
+            metrics += metric {
+              details = MetricKt.details { reach = MetricKt.reachParams {} }
+              namedSetOperations += NAMED_SET_OPERATION
+            }
+          }
+        }
+      )
+    }
+    runBlocking {
+      service.setMeasurementResult(
+        setMeasurementResultRequest {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+          measurementReferenceId = MEASUREMENT_REFERENCE_ID
+          result = MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 100 } }
+        }
+      )
+      service.setMeasurementResult(
+        setMeasurementResultRequest {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+          measurementReferenceId = MEASUREMENT_REFERENCE_ID_2
+          result = MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 200 } }
+        }
+      )
+    }
+    val retrievedReport = runBlocking {
+      reportsService.getReport(
+        getReportRequest {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+          externalReportId = createdReport.externalReportId
+        }
+      )
+    }
+    assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
+    assertThat(retrievedReport.details.result)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        ReportKt.DetailsKt.result {
+          scalarTable =
+            ReportKt.DetailsKt.ResultKt.scalarTable {
+              rowHeaders += "1970-01-01T00:01:40.000000010Z-1970-01-01T00:01:50.000000011Z"
+              rowHeaders += "1970-01-01T00:01:50.000000011Z-1970-01-01T00:02:00.000000012Z"
+              columns +=
+                ReportKt.DetailsKt.ResultKt.column {
+                  columnHeader = NAMED_SET_OPERATION.displayName
+                  setOperations += 700.0
+                }
+            }
+        }
+      )
   }
 
   @Test
@@ -275,8 +515,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val createdMeasurement = runBlocking {
       service.createMeasurement(
         measurement {
-          measurementConsumerReferenceId = "1234"
-          measurementReferenceId = "4321"
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+          measurementReferenceId = MEASUREMENT_REFERENCE_ID
         }
       )
     }
@@ -304,8 +544,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       )
 
     val getRequest = getMeasurementRequest {
-      measurementConsumerReferenceId = "1234"
-      measurementReferenceId = "4321"
+      measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+      measurementReferenceId = MEASUREMENT_REFERENCE_ID
     }
     val retrievedMeasurement = runBlocking { service.getMeasurement(getRequest) }
     assertThat(retrievedMeasurement).isEqualTo(updatedMeasurement)
@@ -314,8 +554,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   @Test
   fun `setMeasurementFailure fails when the measurement doesn't exist`() {
     val request = setMeasurementFailureRequest {
-      measurementConsumerReferenceId = "1234"
-      measurementReferenceId = "4321"
+      measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+      measurementReferenceId = MEASUREMENT_REFERENCE_ID
       failure =
         MeasurementKt.failure {
           reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
@@ -327,5 +567,94 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       assertFailsWith<StatusRuntimeException> { service.setMeasurementFailure(request) }
     }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `setMeasurementFailure succeeds in setting the failed report state`() {
+    val createdReport = runBlocking {
+      reportsService.createReport(
+        createReportRequest {
+          measurements +=
+            CreateReportRequestKt.measurementKey {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+              measurementReferenceId = MEASUREMENT_REFERENCE_ID
+            }
+          measurements +=
+            CreateReportRequestKt.measurementKey {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+              measurementReferenceId = MEASUREMENT_REFERENCE_ID_2
+            }
+          report = report {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            reportIdempotencyKey = "1235"
+            periodicTimeInterval = PERIODIC_TIME_INTERVAL
+            metrics += metric { namedSetOperations += NAMED_SET_OPERATION }
+          }
+        }
+      )
+    }
+    runBlocking {
+      service.setMeasurementFailure(
+        setMeasurementFailureRequest {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+          measurementReferenceId = MEASUREMENT_REFERENCE_ID
+          failure =
+            MeasurementKt.failure {
+              reason = Measurement.Failure.Reason.COMPUTATION_PARTICIPANT_FAILED
+            }
+        }
+      )
+    }
+    val retrievedReport = runBlocking {
+      reportsService.getReport(
+        getReportRequest {
+          measurementConsumerReferenceId = createdReport.measurementConsumerReferenceId
+          externalReportId = createdReport.externalReportId
+        }
+      )
+    }
+    assertThat(retrievedReport.state).isEqualTo(Report.State.FAILED)
+  }
+
+  companion object {
+    private const val MEASUREMENT_CONSUMER_REFERENCE_ID = "1234"
+    private const val MEASUREMENT_REFERENCE_ID = "1234"
+    private const val MEASUREMENT_REFERENCE_ID_2 = "1235"
+
+    private val PERIODIC_TIME_INTERVAL = periodicTimeInterval {
+      startTime = timestamp {
+        seconds = 100
+        nanos = 10
+      }
+      increment = duration {
+        seconds = 10
+        nanos = 1
+      }
+      intervalCount = 2
+    }
+
+    private val NAMED_SET_OPERATION =
+      MetricKt.namedSetOperation {
+        displayName = "name4"
+        setOperation = MetricKt.setOperation { type = Metric.SetOperation.Type.UNION }
+        measurementCalculations +=
+          MetricKt.measurementCalculation {
+            timeInterval = timeInterval {
+              startTime =
+                Timestamps.add(PERIODIC_TIME_INTERVAL.startTime, PERIODIC_TIME_INTERVAL.increment)
+              endTime = Timestamps.add(startTime, PERIODIC_TIME_INTERVAL.increment)
+            }
+            weightedMeasurements +=
+              MetricKt.MeasurementCalculationKt.weightedMeasurement {
+                measurementReferenceId = MEASUREMENT_REFERENCE_ID
+                coefficient = 1
+              }
+            weightedMeasurements +=
+              MetricKt.MeasurementCalculationKt.weightedMeasurement {
+                measurementReferenceId = MEASUREMENT_REFERENCE_ID_2
+                coefficient = 3
+              }
+          }
+      }
   }
 }

@@ -45,10 +45,7 @@ message SetMeasurementResultRequest {
   string measurement_consumer_reference_id = 1;
   // `Measurement` ID from the CMMS public API.
   string measurement_reference_id = 2;
-  Measurement.Result measurement_result = 3;
-
-  fixed64 external_report_id = 4;
-  Report.Details.Result report_result = 5;
+  Measurement.Result result = 3;
 }
 
 message SetMeasurementFailureRequest {

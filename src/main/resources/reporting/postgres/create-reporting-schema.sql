@@ -121,9 +121,9 @@ CREATE TABLE Measurements (
   -- protobuf message.
   Failure bytea,
 
-  -- Serialized org.wfanet.measurement.internal.reporting.Measurement.Result
+  -- Json serialized org.wfanet.measurement.internal.reporting.Measurement.Result
   -- protobuf message.
-  Result bytea,
+  ResultJson text,
 
   PRIMARY KEY(MeasurementConsumerReferenceId, MeasurementReferenceId)
 );

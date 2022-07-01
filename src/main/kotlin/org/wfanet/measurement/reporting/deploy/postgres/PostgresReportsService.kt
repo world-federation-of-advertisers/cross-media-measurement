@@ -52,7 +52,7 @@ class PostgresReportsService(
     try {
       return ReportReader()
         .getReportByExternalId(
-          client,
+          client.singleUse(),
           request.measurementConsumerReferenceId,
           request.externalReportId
         )

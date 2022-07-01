@@ -198,15 +198,37 @@ class ReportReader {
   fun translate(row: ResultRow): Result =
     Result(row["MeasurementConsumerReferenceId"], row["ReportId"], buildReport(row))
 
-  suspend fun getReportByExternalId(
-    client: DatabaseClient,
+  /**
+   * Gets the report by internal report id.
+   *
+   * @throws [ReportNotFoundException]
+   */
+  suspend fun getReportById(
+    readContext: ReadContext,
     measurementConsumerReferenceId: String,
-    externalReportId: Long
+    internalReportId: Long
   ): Result {
-    val readContext = client.singleUse()
-    return getReportByExternalId(readContext, measurementConsumerReferenceId, externalReportId)
+    val statement =
+      boundStatement(
+        (baseSql +
+          """
+        WHERE MeasurementConsumerReferenceId = $1
+          AND ReportId = $2
+          """)
+      ) {
+        bind("$1", measurementConsumerReferenceId)
+        bind("$2", internalReportId)
+      }
+
+    return readContext.executeQuery(statement).consume(::translate).singleOrNull()
+      ?: throw ReportNotFoundException()
   }
 
+  /**
+   * Gets the report by external report id.
+   *
+   * @throws [ReportNotFoundException]
+   */
   suspend fun getReportByExternalId(
     readContext: ReadContext,
     measurementConsumerReferenceId: String,

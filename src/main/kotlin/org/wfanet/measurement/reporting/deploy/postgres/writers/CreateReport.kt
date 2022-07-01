@@ -18,6 +18,7 @@ import com.google.protobuf.util.Timestamps
 import java.time.Clock
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.toJson
@@ -91,23 +92,32 @@ class CreateReport(private val clock: Clock, private val request: CreateReportRe
       }
 
     transactionContext.run {
-      insertMeasurements(request.measurementsList)
       executeStatement(statement)
-      if (isPeriodic) {
-        insertPeriodicTimeInterval(
-          report.measurementConsumerReferenceId,
-          internalReportId,
-          report.periodicTimeInterval
-        )
-      }
-      val timeIntervalMap = HashMap<TimeIntervalWrapper, Long>()
-      timeIntervals.forEach {
-        timeIntervalMap[TimeIntervalWrapper(it)] =
-          insertTimeInterval(report.measurementConsumerReferenceId, internalReportId, it)
-      }
+      val timeIntervalMap =
+        coroutineScope {
+            if (isPeriodic) {
+              launch {
+                insertPeriodicTimeInterval(
+                  report.measurementConsumerReferenceId,
+                  internalReportId,
+                  report.periodicTimeInterval
+                )
+              }
+            }
+            launch { insertMeasurements(request.measurementsList) }
+            async {
+              insertTimeIntervals(
+                report.measurementConsumerReferenceId,
+                internalReportId,
+                timeIntervals
+              )
+            }
+          }
+          .await()
+
       coroutineScope {
-        report.metricsList.map {
-          async {
+        report.metricsList.forEach {
+          launch {
             insertMetric(
               report.measurementConsumerReferenceId,
               internalReportId,
@@ -116,6 +126,7 @@ class CreateReport(private val clock: Clock, private val request: CreateReportRe
             )
           }
         }
+        launch { insertReportMeasurements(request.measurementsList, internalReportId) }
       }
     }
 
@@ -126,22 +137,63 @@ class CreateReport(private val clock: Clock, private val request: CreateReportRe
   }
 
   private suspend fun TransactionScope.insertMeasurements(measurements: List<MeasurementKey>) {
-    transactionContext.run {
-      measurements.forEach {
-        val statement =
-          boundStatement(
+    val sql =
+      StringBuilder(
+        """
+            INSERT INTO Measurements (MeasurementConsumerReferenceId, MeasurementReferenceId, State)
+              VALUES ($1, $2, $3)
             """
-      INSERT INTO Measurements (MeasurementConsumerReferenceId, MeasurementReferenceId, State)
+      )
+    val numParameters = 3
+    var firstParam = 1
+    for (i in 1 until measurements.size) {
+      firstParam += numParameters
+      sql.append(",($$firstParam, $${firstParam + 1}, $${firstParam + 2})")
+    }
+    sql.append("ON CONFLICT DO NOTHING")
+
+    firstParam = 1
+    val statement =
+      boundStatement(sql.toString()) {
+        measurements.forEach {
+          bind("$$firstParam", it.measurementConsumerReferenceId)
+          bind("$${firstParam + 1}", it.measurementReferenceId)
+          bind("$${firstParam + 2}", Measurement.State.PENDING_VALUE)
+          firstParam += numParameters
+        }
+      }
+    transactionContext.executeStatement(statement)
+  }
+
+  private suspend fun TransactionScope.insertReportMeasurements(
+    measurements: List<MeasurementKey>,
+    reportId: Long
+  ) {
+    val sql =
+      StringBuilder(
+        """
+      INSERT INTO ReportMeasurements (MeasurementConsumerReferenceId, MeasurementReferenceId, ReportId)
         VALUES ($1, $2, $3)
       """
-          ) {
-            bind("$1", it.measurementConsumerReferenceId)
-            bind("$2", it.measurementReferenceId)
-            bind("$3", Measurement.State.PENDING_VALUE)
-          }
-        executeStatement(statement)
-      }
+      )
+    val numParameters = 3
+    var firstParam = 1
+    for (i in 1 until measurements.size) {
+      firstParam += numParameters
+      sql.append(",($$firstParam, $${firstParam + 1}, $${firstParam + 2})")
     }
+
+    firstParam = 1
+    val statement =
+      boundStatement(sql.toString()) {
+        measurements.forEach {
+          bind("$$firstParam", it.measurementConsumerReferenceId)
+          bind("$${firstParam + 1}", it.measurementReferenceId)
+          bind("$${firstParam + 2}", reportId)
+          firstParam += numParameters
+        }
+      }
+    transactionContext.executeStatement(statement)
   }
 
   private suspend fun TransactionScope.insertPeriodicTimeInterval(
@@ -168,31 +220,46 @@ class CreateReport(private val clock: Clock, private val request: CreateReportRe
     transactionContext.executeStatement(statement)
   }
 
-  private suspend fun TransactionScope.insertTimeInterval(
+  private suspend fun TransactionScope.insertTimeIntervals(
     measurementConsumerReferenceId: String,
     reportId: Long,
-    timeInterval: TimeInterval
-  ): Long {
-    val timeIntervalId = idGenerator.generateInternalId().value
-
-    val statement =
-      boundStatement(
+    timeIntervals: List<TimeInterval>
+  ): HashMap<TimeIntervalWrapper, Long> {
+    val sql =
+      StringBuilder(
         """
       INSERT INTO TimeIntervals (MeasurementConsumerReferenceId, ReportId, TimeIntervalId, StartSeconds, StartNanos, EndSeconds, EndNanos)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
       """
-      ) {
-        bind("$1", measurementConsumerReferenceId)
-        bind("$2", reportId)
-        bind("$3", timeIntervalId)
-        bind("$4", timeInterval.startTime.seconds)
-        bind("$5", timeInterval.startTime.nanos)
-        bind("$6", timeInterval.endTime.seconds)
-        bind("$7", timeInterval.endTime.nanos)
-      }
+      )
+    val numParameters = 7
+    var firstParam = 1
+    for (i in 1 until timeIntervals.size) {
+      firstParam += numParameters
+      sql.append(
+        ",($$firstParam, $${firstParam + 1}, $${firstParam + 2}, $${firstParam + 3}, $${firstParam + 4}, $${firstParam + 5}, $${firstParam + 6})"
+      )
+    }
 
+    val timeIntervalMap = HashMap<TimeIntervalWrapper, Long>()
+    firstParam = 1
+    val statement =
+      boundStatement(sql.toString()) {
+        timeIntervals.forEach {
+          val timeIntervalId = idGenerator.generateInternalId().value
+          timeIntervalMap[TimeIntervalWrapper(it)] = timeIntervalId
+          bind("$$firstParam", measurementConsumerReferenceId)
+          bind("$${firstParam + 1}", reportId)
+          bind("$${firstParam + 2}", timeIntervalId)
+          bind("$${firstParam + 3}", it.startTime.seconds)
+          bind("$${firstParam + 4}", it.startTime.nanos)
+          bind("$${firstParam + 5}", it.endTime.seconds)
+          bind("$${firstParam + 6}", it.endTime.nanos)
+          firstParam += numParameters
+        }
+      }
     transactionContext.executeStatement(statement)
-    return timeIntervalId
+    return timeIntervalMap
   }
 
   private suspend fun TransactionScope.insertMetric(
