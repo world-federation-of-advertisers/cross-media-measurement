@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.reporting.deploy.postgres
 
+import java.time.Clock
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.EmbeddedPostgresDatabaseProvider
@@ -23,10 +24,11 @@ import org.wfanet.measurement.reporting.service.internal.testing.MeasurementsSer
 
 @RunWith(JUnit4::class)
 class PostgresMeasurementsServiceTest : MeasurementsServiceTest<PostgresMeasurementsService>() {
-  override fun newService(idGenerator: IdGenerator): PostgresMeasurementsService {
-    return PostgresMeasurementsService(
-      idGenerator,
-      EmbeddedPostgresDatabaseProvider(REPORTING_CHANGELOG_PATH).createNewDatabase()
+  override fun newServices(idGenerator: IdGenerator): Services<PostgresMeasurementsService> {
+    val client = EmbeddedPostgresDatabaseProvider(REPORTING_CHANGELOG_PATH).createNewDatabase()
+    return Services(
+      PostgresMeasurementsService(idGenerator, client),
+      PostgresReportsService(Clock.systemUTC(), idGenerator, client)
     )
   }
 }
