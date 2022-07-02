@@ -44,6 +44,7 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
+import org.wfanet.measurement.internal.reporting.CreateReportRequest as InternalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.Measurement.Result as InternalMeasurementResult
 import org.wfanet.measurement.internal.reporting.MeasurementKt.ResultKt.frequency as internalFrequency
@@ -66,10 +67,12 @@ import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineS
 import org.wfanet.measurement.internal.reporting.StreamReportsRequest as StreamInternalReportsRequest
 import org.wfanet.measurement.internal.reporting.StreamReportsRequestKt.filter
 import org.wfanet.measurement.internal.reporting.TimeIntervals as InternalTimeIntervals
+import org.wfanet.measurement.internal.reporting.createReportRequest as internalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.getReportRequest as getInternalReportRequest
 import org.wfanet.measurement.internal.reporting.setMeasurementFailureRequest
 import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest
 import org.wfanet.measurement.internal.reporting.streamReportsRequest as streamInternalReportsRequest
+import org.wfanet.measurement.reporting.v1alpha.CreateReportRequest
 import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.v1alpha.ListReportsResponse
 import org.wfanet.measurement.reporting.v1alpha.Metric
@@ -111,6 +114,29 @@ class ReportsService(
   private val privateKey: PrivateKeyHandle,
   private val apiAuthenticationKey: String,
 ) : ReportsCoroutineImplBase() {
+
+  override suspend fun createReport(request: CreateReportRequest): Report {
+    val principal = principalFromCurrentContext
+
+    when (val resourceKey = principal.resourceKey) {
+      is MeasurementConsumerKey -> {
+        if (request.parent != resourceKey.toName()) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot create a ReportingSet for another MeasurementConsumer."
+          }
+        }
+      }
+      else -> {
+        failGrpc(Status.PERMISSION_DENIED) {
+          "Caller does not have permission to create a ReportingSet."
+        }
+      }
+    }
+
+    grpcRequire(request.hasReport()) { "Report is not specified." }
+
+    return internalReportsStub.createReport(request.toInternal()).toReport()
+  }
 
   override suspend fun listReports(request: ListReportsRequest): ListReportsResponse {
     val principal = principalFromCurrentContext
@@ -270,6 +296,29 @@ class ReportsService(
     }
     return result
   }
+}
+
+private fun CreateReportRequest.toInternal(): InternalCreateReportRequest {
+  val source = this
+
+  // Report level check
+  val parentKey =
+    grpcRequireNotNull(MeasurementConsumerKey.fromName(source.parent)) {
+      "Parent is either unspecified or invalid."
+    }
+  // TODO(@riemanli) If a user tries to create a report with duplicate idempotency key, the
+  //  service must error with ALREADY_EXISTS.
+  grpcRequire(source.report.reportIdempotencyKey.isNotEmpty()) {
+    "ReportIdempotencyKey is not specified."
+  }
+
+  grpcRequire(source.report.measurementConsumer == source.parent) {
+    "Cannot create a ReportingSet for another MeasurementConsumer."
+  }
+  grpcRequire(source.report.hasEventGroupUniverse()) { "EventGroupUniverse is not specified." }
+  grpcRequire(source.report.metricsList.isNotEmpty()) { "Metrics in Report cannot be empty." }
+
+  return internalCreateReportRequest {}
 }
 
 private operator fun Duration.plus(other: Duration): Duration {
