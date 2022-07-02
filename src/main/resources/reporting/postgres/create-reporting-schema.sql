@@ -99,9 +99,9 @@ CREATE TABLE Metrics (
   ReportId bigint NOT NULL,
   MetricId bigint NOT NULL,
 
-  -- Serialized org.wfanet.measurement.internal.reporting.Metric.Details
+  -- Json serialized org.wfanet.measurement.internal.reporting.Metric.Details
   -- protobuf message.
-  MetricDetails bytea NOT NULL,
+  MetricDetailsJson text NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerReferenceId, ReportId, MetricId),
   FOREIGN KEY(MeasurementConsumerReferenceId, ReportId)
@@ -121,9 +121,9 @@ CREATE TABLE Measurements (
   -- protobuf message.
   Failure bytea,
 
-  -- Json serialized org.wfanet.measurement.internal.reporting.Measurement.Result
+  -- Serialized org.wfanet.measurement.internal.reporting.Measurement.Result
   -- protobuf message.
-  ResultJson text,
+  Result bytea,
 
   PRIMARY KEY(MeasurementConsumerReferenceId, MeasurementReferenceId)
 );
