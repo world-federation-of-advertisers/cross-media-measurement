@@ -47,6 +47,8 @@ private const val NANOS_PER_SECOND = 1_000_000_000
  */
 class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
   PostgresWriter<Measurement>() {
+  data class MeasurementResult(val result: Measurement.Result, val coefficient: Int)
+
   override suspend fun TransactionScope.runTransaction(): Measurement {
     val updateMeasurementStatement =
       boundStatement(
@@ -207,9 +209,9 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
     measurementResultsMap: Map<String, MeasurementResultsReader.MeasurementResult>
   ): List<Double> {
     val source = this
-    val measurementCoefficientPairsList =
+    val measurementResultsList =
       source.weightedMeasurementsList.map {
-        Pair(
+        MeasurementResult(
           measurementResultsMap[it.measurementReferenceId]?.result
             ?: throw MeasurementNotFoundException(),
           it.coefficient
@@ -217,14 +219,13 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
       }
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     return when (metricType) {
-      Metric.Details.MetricTypeCase.REACH ->
-        listOf(calculateReachResults(measurementCoefficientPairsList))
+      Metric.Details.MetricTypeCase.REACH -> listOf(calculateReachResults(measurementResultsList))
       Metric.Details.MetricTypeCase.IMPRESSION_COUNT ->
-        listOf(calculateImpressionResults(measurementCoefficientPairsList))
+        listOf(calculateImpressionResults(measurementResultsList))
       Metric.Details.MetricTypeCase.WATCH_DURATION ->
-        listOf(calculateWatchDurationResults(measurementCoefficientPairsList))
+        listOf(calculateWatchDurationResults(measurementResultsList))
       Metric.Details.MetricTypeCase.FREQUENCY_HISTOGRAM ->
-        calculateFrequencyHistogramResults(measurementCoefficientPairsList)
+        calculateFrequencyHistogramResults(measurementResultsList)
       Metric.Details.MetricTypeCase.METRICTYPE_NOT_SET -> {
         error("Metric Type should've been set.")
       }
@@ -232,46 +233,44 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
   }
 
   /** Calculate the reach result by summing up weighted [Measurement]s. */
-  private fun calculateReachResults(
-    measurementCoefficientPairsList: List<Pair<Measurement.Result, Int>>
-  ): Double {
-    return measurementCoefficientPairsList
-      .sumOf { (measurementResult, coefficient) ->
-        if (!measurementResult.hasReach()) {
+  private fun calculateReachResults(measurementResultsList: List<MeasurementResult>): Double {
+    return measurementResultsList
+      .sumOf { (result, coefficient) ->
+        if (!result.hasReach()) {
           error("Reach measurement is missing.")
         }
-        measurementResult.reach.value * coefficient
+        result.reach.value * coefficient
       }
       .toDouble()
   }
 
   /** Calculate the impression result by summing up weighted [Measurement]s. */
   private fun calculateImpressionResults(
-    measurementCoefficientPairsList: List<Pair<Measurement.Result, Int>>
+    measurementCoefficientPairsList: List<MeasurementResult>
   ): Double {
     return measurementCoefficientPairsList
-      .sumOf { (measurementResult, coefficient) ->
-        if (!measurementResult.hasImpression()) {
+      .sumOf { (result, coefficient) ->
+        if (!result.hasImpression()) {
           error("Impression measurement is missing.")
         }
-        measurementResult.impression.value * coefficient
+        result.impression.value * coefficient
       }
       .toDouble()
   }
 
   /** Calculate the watch duration result by summing up weighted [Measurement]s. */
   private fun calculateWatchDurationResults(
-    measurementCoefficientPairsList: List<Pair<Measurement.Result, Int>>
+    measurementCoefficientPairsList: List<MeasurementResult>
   ): Double {
     val watchDuration =
       measurementCoefficientPairsList
-        .map { (measurementResult, coefficient) ->
-          if (!measurementResult.hasWatchDuration()) {
+        .map { (result, coefficient) ->
+          if (!result.hasWatchDuration()) {
             error("Watch duration measurement is missing.")
           }
-          measurementResult.watchDuration.value * coefficient
+          result.watchDuration.value * coefficient
         }
-        .reduce { sum, element -> Durations.add(sum, element) }
+        .reduce { sum, element -> sum + element }
 
     return watchDuration.seconds + (watchDuration.nanos.toDouble() / NANOS_PER_SECOND)
   }
@@ -286,18 +285,23 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
     }
   }
 
+  private operator fun Duration.plus(other: Duration): Duration {
+    val source = this
+    return Durations.add(source, other)
+  }
+
   /** Calculate the frequency histogram result by summing up weighted [Measurement]s. */
   private fun calculateFrequencyHistogramResults(
-    measurementCoefficientPairsList: List<Pair<Measurement.Result, Int>>
+    measurementCoefficientPairsList: List<MeasurementResult>
   ): List<Double> {
     val aggregatedFrequencyHistogramMap =
       measurementCoefficientPairsList
-        .map { (measurementResult, coefficient) ->
-          if (!measurementResult.hasFrequency() || !measurementResult.hasReach()) {
+        .map { (result, coefficient) ->
+          if (!result.hasFrequency() || !result.hasReach()) {
             error("Reach-Frequency measurement is missing.")
           }
-          val reach = measurementResult.reach.value
-          measurementResult.frequency.relativeFrequencyDistributionMap.mapValues {
+          val reach = result.reach.value
+          result.frequency.relativeFrequencyDistributionMap.mapValues {
             it.value * coefficient * reach
           }
         }
