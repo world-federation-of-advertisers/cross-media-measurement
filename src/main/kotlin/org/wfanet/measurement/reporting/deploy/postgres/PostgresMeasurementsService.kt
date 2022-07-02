@@ -45,7 +45,7 @@ class PostgresMeasurementsService(
     return try {
       MeasurementReader()
         .readMeasurementByReferenceIds(
-          client.readTransaction(),
+          client.singleUse(),
           request.measurementConsumerReferenceId,
           request.measurementReferenceId
         )

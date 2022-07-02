@@ -15,6 +15,7 @@
 package org.wfanet.measurement.reporting.deploy.postgres.readers
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.util.JsonFormat
 import kotlinx.coroutines.flow.firstOrNull
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
@@ -34,7 +35,7 @@ class MeasurementReader {
       MeasurementReferenceId,
       State,
       Failure,
-      Result
+      ResultJson
     FROM
       Measurements
     """
@@ -77,9 +78,11 @@ class MeasurementReader {
       if (failure != null) {
         this.failure = Measurement.Failure.parseFrom(failure)
       }
-      val result: ByteString? = row["Result"]
+      val result = row.get<String?>("ResultJson")
       if (result != null) {
-        this.result = Measurement.Result.parseFrom(result)
+        val resultBuilder = Measurement.Result.newBuilder()
+        JsonFormat.parser().ignoringUnknownFields().merge(result, resultBuilder)
+        this.result = resultBuilder.build()
       }
     }
   }
