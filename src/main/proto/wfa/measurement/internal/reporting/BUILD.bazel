@@ -24,7 +24,6 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":measurement_proto",
-        ":report_proto",
     ],
 )
 

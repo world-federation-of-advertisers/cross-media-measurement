@@ -28,7 +28,7 @@ import org.wfanet.measurement.reporting.service.internal.MeasurementAlreadyExist
  */
 class CreateMeasurement(private val request: Measurement) : PostgresWriter<Measurement>() {
   override suspend fun TransactionScope.runTransaction(): Measurement {
-    val statement =
+    val builder =
       boundStatement(
         """
       INSERT INTO Measurements (MeasurementConsumerReferenceId, MeasurementReferenceId, State)
@@ -42,7 +42,7 @@ class CreateMeasurement(private val request: Measurement) : PostgresWriter<Measu
 
     transactionContext.run {
       try {
-        executeStatement(statement)
+        executeStatement(builder)
       } catch (e: R2dbcDataIntegrityViolationException) {
         throw MeasurementAlreadyExistsException()
       }
