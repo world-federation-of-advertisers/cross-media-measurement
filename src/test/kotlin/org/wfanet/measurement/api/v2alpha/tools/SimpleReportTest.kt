@@ -346,7 +346,8 @@ class SimpleReportTest {
 
     // verify api key
     assertThat(
-        headerInterceptor.capturedHeaders
+        headerInterceptor
+          .capturedHeaders
           .single()
           .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
       )
@@ -637,7 +638,8 @@ class SimpleReportTest {
 
     // verify api key
     assertThat(
-        headerInterceptor.capturedHeaders
+        headerInterceptor
+          .capturedHeaders
           .single()
           .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
       )
@@ -669,7 +671,8 @@ class SimpleReportTest {
 
     // verify api key
     assertThat(
-        headerInterceptor.capturedHeaders
+        headerInterceptor
+          .capturedHeaders
           .single()
           .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
       )

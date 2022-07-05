@@ -101,13 +101,15 @@ object LiquidLegionsV2Starter {
     aggregatorId: String
   ) {
     val updatedDetails =
-      token.computationDetails
+      token
+        .computationDetails
         .toBuilder()
         .apply {
           liquidLegionsV2Builder
             .clearParticipant()
             .addAllParticipant(
-              systemComputation.computationParticipantsList
+              systemComputation
+                .computationParticipantsList
                 .map { it.toDuchyComputationParticipant(systemComputation.publicApiVersion) }
                 .orderByRoles(token.globalComputationId, aggregatorId)
             )

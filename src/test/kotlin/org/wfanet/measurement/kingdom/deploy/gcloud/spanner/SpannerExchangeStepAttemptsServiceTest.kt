@@ -80,7 +80,8 @@ class SpannerExchangeStepAttemptsServiceTest : ExchangeStepAttemptsServiceTest()
   @Test
   fun spannerDateAndLocalDateMatch() = runBlocking {
     val spannerDate =
-      spannerDatabase.databaseClient
+      spannerDatabase
+        .databaseClient
         .singleUse()
         .executeQuery(Statement.of("SELECT CURRENT_DATE(\"+0\")"))
         .single()

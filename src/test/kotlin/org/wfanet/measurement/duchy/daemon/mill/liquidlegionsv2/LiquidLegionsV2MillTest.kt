@@ -379,12 +379,11 @@ private val NON_AGGREGATOR_COMPUTATION_DETAILS =
 class LiquidLegionsV2MillTest {
   private val mockLiquidLegionsComputationControl: ComputationControlCoroutineImplBase =
     mockService {
-      onBlocking { advanceComputation(any()) }
-        .thenAnswer {
-          val request: Flow<AdvanceComputationRequest> = it.getArgument(0)
-          computationControlRequests = runBlocking { request.toList() }
-          AdvanceComputationResponse.getDefaultInstance()
-        }
+      onBlocking { advanceComputation(any()) }.thenAnswer {
+        val request: Flow<AdvanceComputationRequest> = it.getArgument(0)
+        computationControlRequests = runBlocking { request.toList() }
+        AdvanceComputationResponse.getDefaultInstance()
+      }
     }
   private val mockSystemComputations: SystemComputationsCoroutineImplBase = mockService()
   private val mockComputationParticipants: SystemComputationParticipantsCoroutineImplBase =
@@ -394,28 +393,27 @@ class LiquidLegionsV2MillTest {
   private val mockComputationStats: ComputationStatsCoroutineImplBase = mockService()
   private val mockCryptoWorker: LiquidLegionsV2Encryption =
     mock(useConstructor = UseConstructor.parameterless()) {
-      on { combineElGamalPublicKeys(any()) }
-        .thenAnswer {
-          val cryptoRequest: CombineElGamalPublicKeysRequest = it.getArgument(0)
-          CombineElGamalPublicKeysResponse.newBuilder()
-            .apply {
-              elGamalKeysBuilder.apply {
-                generator =
-                  ByteString.copyFromUtf8(
-                    cryptoRequest.elGamalKeysList
-                      .sortedBy { key -> key.generator.toStringUtf8() }
-                      .joinToString(separator = "_") { key -> key.generator.toStringUtf8() }
-                  )
-                element =
-                  ByteString.copyFromUtf8(
-                    cryptoRequest.elGamalKeysList
-                      .sortedBy { key -> key.element.toStringUtf8() }
-                      .joinToString(separator = "_") { key -> key.element.toStringUtf8() }
-                  )
-              }
+      on { combineElGamalPublicKeys(any()) }.thenAnswer {
+        val cryptoRequest: CombineElGamalPublicKeysRequest = it.getArgument(0)
+        CombineElGamalPublicKeysResponse.newBuilder()
+          .apply {
+            elGamalKeysBuilder.apply {
+              generator =
+                ByteString.copyFromUtf8(
+                  cryptoRequest.elGamalKeysList
+                    .sortedBy { key -> key.generator.toStringUtf8() }
+                    .joinToString(separator = "_") { key -> key.generator.toStringUtf8() }
+                )
+              element =
+                ByteString.copyFromUtf8(
+                  cryptoRequest.elGamalKeysList
+                    .sortedBy { key -> key.element.toStringUtf8() }
+                    .joinToString(separator = "_") { key -> key.element.toStringUtf8() }
+                )
             }
-            .build()
-        }
+          }
+          .build()
+      }
     }
   private val fakeComputationDb = FakeComputationsDatabase()
 
@@ -562,7 +560,8 @@ class LiquidLegionsV2MillTest {
         .build()
 
     val initialComputationDetails =
-      NON_AGGREGATOR_COMPUTATION_DETAILS.toBuilder()
+      NON_AGGREGATOR_COMPUTATION_DETAILS
+        .toBuilder()
         .apply {
           liquidLegionsV2Builder.apply {
             parametersBuilder.ellipticCurveId = CURVE_ID.toInt()
@@ -672,7 +671,8 @@ class LiquidLegionsV2MillTest {
         .build()
 
     val initialComputationDetails =
-      NON_AGGREGATOR_COMPUTATION_DETAILS.toBuilder()
+      NON_AGGREGATOR_COMPUTATION_DETAILS
+        .toBuilder()
         .apply {
           liquidLegionsV2Builder.apply {
             parametersBuilder.ellipticCurveId = CURVE_ID.toInt()
@@ -770,7 +770,8 @@ class LiquidLegionsV2MillTest {
     val requisition2 =
       REQUISITION_2.copy { details = details.copy { externalFulfillingDuchyId = DUCHY_ONE_NAME } }
     val computationDetailsWithoutPublicKey =
-      AGGREGATOR_COMPUTATION_DETAILS.toBuilder()
+      AGGREGATOR_COMPUTATION_DETAILS
+        .toBuilder()
         .apply { liquidLegionsV2Builder.clearCombinedPublicKey().clearPartiallyCombinedPublicKey() }
         .build()
     fakeComputationDb.addComputation(
@@ -836,7 +837,8 @@ class LiquidLegionsV2MillTest {
   fun `confirmation phase, passed at non-aggregator`() = runBlocking {
     // Stage 0. preparing the storage and set up mock
     val computationDetailsWithoutPublicKey =
-      NON_AGGREGATOR_COMPUTATION_DETAILS.toBuilder()
+      NON_AGGREGATOR_COMPUTATION_DETAILS
+        .toBuilder()
         .apply { liquidLegionsV2Builder.clearCombinedPublicKey().clearPartiallyCombinedPublicKey() }
         .build()
     fakeComputationDb.addComputation(
@@ -863,7 +865,8 @@ class LiquidLegionsV2MillTest {
             computationStage = WAIT_TO_START.toProtocolStage()
             version = 3 // claimTask + updateComputationDetail + transitionStage
             computationDetails =
-              NON_AGGREGATOR_COMPUTATION_DETAILS.toBuilder()
+              NON_AGGREGATOR_COMPUTATION_DETAILS
+                .toBuilder()
                 .apply {
                   liquidLegionsV2Builder.apply {
                     combinedPublicKey = COMBINED_PUBLIC_KEY
@@ -891,7 +894,8 @@ class LiquidLegionsV2MillTest {
   fun `confirmation phase, passed at aggregator`() = runBlocking {
     // Stage 0. preparing the storage and set up mock
     val computationDetailsWithoutPublicKey =
-      AGGREGATOR_COMPUTATION_DETAILS.toBuilder()
+      AGGREGATOR_COMPUTATION_DETAILS
+        .toBuilder()
         .apply { liquidLegionsV2Builder.clearCombinedPublicKey().clearPartiallyCombinedPublicKey() }
         .build()
     fakeComputationDb.addComputation(
@@ -925,7 +929,8 @@ class LiquidLegionsV2MillTest {
               }
             }
             computationDetails =
-              AGGREGATOR_COMPUTATION_DETAILS.toBuilder()
+              AGGREGATOR_COMPUTATION_DETAILS
+                .toBuilder()
                 .apply {
                   liquidLegionsV2Builder.apply {
                     combinedPublicKey = COMBINED_PUBLIC_KEY
@@ -953,7 +958,8 @@ class LiquidLegionsV2MillTest {
   fun `confirmation phase, failed due to invalid nonce and ElGamal key signature`() = runBlocking {
     // Stage 0. preparing the storage and set up mock
     val computationDetailsWithoutInvalidDuchySignature =
-      AGGREGATOR_COMPUTATION_DETAILS.toBuilder()
+      AGGREGATOR_COMPUTATION_DETAILS
+        .toBuilder()
         .apply {
           liquidLegionsV2Builder.apply {
             participantBuilderList[0].apply {
@@ -1736,7 +1742,8 @@ class LiquidLegionsV2MillTest {
             computationStage = COMPLETE.toProtocolStage()
             version = 3 // claimTask + writeOutputBlob + transitionStage
             computationDetails =
-              NON_AGGREGATOR_COMPUTATION_DETAILS.toBuilder()
+              NON_AGGREGATOR_COMPUTATION_DETAILS
+                .toBuilder()
                 .apply { endingState = CompletedReason.SUCCEEDED }
                 .build()
             addAllRequisitions(REQUISITIONS)
@@ -1779,7 +1786,8 @@ class LiquidLegionsV2MillTest {
         )
         .build()
     val computationDetailsWithReach =
-      AGGREGATOR_COMPUTATION_DETAILS.toBuilder()
+      AGGREGATOR_COMPUTATION_DETAILS
+        .toBuilder()
         .apply { liquidLegionsV2Builder.apply { reachEstimateBuilder.reach = 123 } }
         .build()
     val inputBlobContext =

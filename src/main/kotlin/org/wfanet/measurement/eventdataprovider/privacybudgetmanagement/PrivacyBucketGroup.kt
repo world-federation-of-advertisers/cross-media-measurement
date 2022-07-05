@@ -48,8 +48,7 @@ data class PrivacyBucketGroup(
     if (this.measurementConsumerId != otherBucketGroup.measurementConsumerId) {
       return false
     }
-    if (
-      otherBucketGroup.endingDate.isBefore(this.startingDate) ||
+    if (otherBucketGroup.endingDate.isBefore(this.startingDate) ||
         this.endingDate.isBefore(otherBucketGroup.startingDate)
     ) {
       return false

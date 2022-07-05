@@ -169,8 +169,9 @@ private fun ListReportingSetsRequest.toListReportingSetsPageToken(): ListReporti
         "Arguments must be kept the same when using a page token"
       }
 
-      if (
-        source.pageSize != 0 && source.pageSize >= MIN_PAGE_SIZE && source.pageSize <= MAX_PAGE_SIZE
+      if (source.pageSize != 0 &&
+          source.pageSize >= MIN_PAGE_SIZE &&
+          source.pageSize <= MAX_PAGE_SIZE
       ) {
         pageSize = source.pageSize
       }

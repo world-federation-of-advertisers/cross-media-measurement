@@ -150,8 +150,7 @@ class PanelMatchResourceSetup(
     val certificateDer =
       parseCertificateDer(dataProviderContent.signingKey.certificate.encoded.toByteString())
 
-    return dataProvidersStub
-      .createDataProvider(
+    return dataProvidersStub.createDataProvider(
         internalDataProvider {
           certificate = certificateDer
           details =
@@ -167,8 +166,7 @@ class PanelMatchResourceSetup(
 
   private suspend fun createDataProvider(): Long {
     // TODO(@yunyeng): Get the certificate and details from client side and verify.
-    return dataProvidersStub
-      .createDataProvider(
+    return dataProvidersStub.createDataProvider(
         internalDataProvider {
           certificate = certificate {
             notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
@@ -201,8 +199,7 @@ class PanelMatchResourceSetup(
     publicApiVersion: String,
     exchangeWorkflow: ExchangeWorkflow
   ): Long {
-    return recurringExchangesStub
-      .createRecurringExchange(
+    return recurringExchangesStub.createRecurringExchange(
         createRecurringExchangeRequest {
           recurringExchange = internalRecurringExchange {
             externalDataProviderId = externalDataProvider

@@ -99,8 +99,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   @Test
   fun `createEventGroup fails for missing data provider`() = runBlocking {
     val externalMeasurementConsumerId =
-      population
-        .createMeasurementConsumer(measurementConsumersService, accountsService)
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
 
     val eventGroup = eventGroup {
@@ -224,8 +223,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   fun `createEventGroup returns already created eventGroup for the same ProvidedEventGroupId`() =
     runBlocking {
       val externalMeasurementConsumerId =
-        population
-          .createMeasurementConsumer(measurementConsumersService, accountsService)
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
           .externalMeasurementConsumerId
 
       val externalDataProviderId =
@@ -246,8 +244,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   fun `createEventGroup creates new eventGroup when called without providedEventGroupId`(): Unit =
     runBlocking {
       val externalMeasurementConsumerId =
-        population
-          .createMeasurementConsumer(measurementConsumersService, accountsService)
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
           .externalMeasurementConsumerId
 
       val externalDataProviderId =
@@ -262,8 +259,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       eventGroupsService.createEventGroup(eventGroup)
 
       val otherExternalMeasurementConsumerId =
-        population
-          .createMeasurementConsumer(measurementConsumersService, accountsService)
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
           .externalMeasurementConsumerId
 
       val otherEventGroup =
@@ -299,8 +295,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   @Test
   fun `updateEventGroup fails for missing data provider`() = runBlocking {
     val externalMeasurementConsumerId =
-      population
-        .createMeasurementConsumer(measurementConsumersService, accountsService)
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
 
     val externalDataProviderId =
@@ -400,8 +395,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   @Test
   fun `updateEventGroup fails for missing measurement consumer`() = runBlocking {
     val externalMeasurementConsumerId =
-      population
-        .createMeasurementConsumer(measurementConsumersService, accountsService)
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
 
     val externalDataProviderId =
@@ -432,8 +426,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   @Test
   fun `updateEventGroup succeeds`(): Unit = runBlocking {
     val externalMeasurementConsumerId =
-      population
-        .createMeasurementConsumer(measurementConsumersService, accountsService)
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
 
     val externalDataProviderId =
@@ -512,8 +505,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   @Test
   fun `getEventGroup succeeds`() = runBlocking {
     val externalMeasurementConsumerId =
-      population
-        .createMeasurementConsumer(measurementConsumersService, accountsService)
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
 
     val externalDataProviderId =
@@ -549,8 +541,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         eventGroup {
           this.externalDataProviderId = externalDataProviderId
           this.externalMeasurementConsumerId =
-            population
-              .createMeasurementConsumer(measurementConsumersService, accountsService)
+            population.createMeasurementConsumer(measurementConsumersService, accountsService)
               .externalMeasurementConsumerId
           providedEventGroupId = "eventGroup1"
         }
@@ -561,8 +552,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         eventGroup {
           this.externalDataProviderId = externalDataProviderId
           this.externalMeasurementConsumerId =
-            population
-              .createMeasurementConsumer(measurementConsumersService, accountsService)
+            population.createMeasurementConsumer(measurementConsumersService, accountsService)
               .externalMeasurementConsumerId
           providedEventGroupId = "eventGroup2"
         }
@@ -600,8 +590,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         eventGroup {
           this.externalDataProviderId = externalDataProviderId
           this.externalMeasurementConsumerId =
-            population
-              .createMeasurementConsumer(measurementConsumersService, accountsService)
+            population.createMeasurementConsumer(measurementConsumersService, accountsService)
               .externalMeasurementConsumerId
           providedEventGroupId = "eventGroup1"
         }
@@ -612,8 +601,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         eventGroup {
           this.externalDataProviderId = externalDataProviderId
           this.externalMeasurementConsumerId =
-            population
-              .createMeasurementConsumer(measurementConsumersService, accountsService)
+            population.createMeasurementConsumer(measurementConsumersService, accountsService)
               .externalMeasurementConsumerId
           providedEventGroupId = "eventGroup2"
         }
@@ -661,8 +649,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       eventGroup {
         this.externalDataProviderId = externalDataProviderId
         this.externalMeasurementConsumerId =
-          population
-            .createMeasurementConsumer(measurementConsumersService, accountsService)
+          population.createMeasurementConsumer(measurementConsumersService, accountsService)
             .externalMeasurementConsumerId
         providedEventGroupId = "eventGroup1"
       }
@@ -672,8 +659,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       eventGroup {
         this.externalDataProviderId = externalDataProviderId
         this.externalMeasurementConsumerId =
-          population
-            .createMeasurementConsumer(measurementConsumersService, accountsService)
+          population.createMeasurementConsumer(measurementConsumersService, accountsService)
             .externalMeasurementConsumerId
         providedEventGroupId = "eventGroup2"
       }
@@ -701,8 +687,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       eventGroup {
         this.externalDataProviderId = externalDataProviderId
         this.externalMeasurementConsumerId =
-          population
-            .createMeasurementConsumer(measurementConsumersService, accountsService)
+          population.createMeasurementConsumer(measurementConsumersService, accountsService)
             .externalMeasurementConsumerId
         providedEventGroupId = "eventGroup1"
       }
@@ -713,8 +698,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         eventGroup {
           this.externalDataProviderId = externalDataProviderId
           this.externalMeasurementConsumerId =
-            population
-              .createMeasurementConsumer(measurementConsumersService, accountsService)
+            population.createMeasurementConsumer(measurementConsumersService, accountsService)
               .externalMeasurementConsumerId
           providedEventGroupId = "eventGroup2"
         }

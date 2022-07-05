@@ -52,7 +52,8 @@ class CreateMeasurementConsumer(
       measurementConsumerCreationTokenResult.measurementConsumerCreationTokenId
     )
 
-    measurementConsumer.certificate
+    measurementConsumer
+      .certificate
       .toInsertMutation(internalCertificateId)
       .bufferTo(transactionContext)
 

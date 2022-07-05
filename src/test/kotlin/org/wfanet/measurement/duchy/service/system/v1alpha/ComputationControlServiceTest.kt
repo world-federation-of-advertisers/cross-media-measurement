@@ -66,12 +66,11 @@ class ComputationControlServiceTest {
   private val advanceAsyncComputationRequests = mutableListOf<AsyncAdvanceComputationRequest>()
   private fun stubAsyncService() {
     mockAsyncControlService.stub {
-      onBlocking { advanceComputation(any()) }
-        .thenAnswer {
-          val req: AsyncAdvanceComputationRequest = it.getArgument(0)
-          advanceAsyncComputationRequests.add(req)
-          AsyncAdvanceComputationResponse.getDefaultInstance()
-        }
+      onBlocking { advanceComputation(any()) }.thenAnswer {
+        val req: AsyncAdvanceComputationRequest = it.getArgument(0)
+        advanceAsyncComputationRequests.add(req)
+        AsyncAdvanceComputationResponse.getDefaultInstance()
+      }
 
       onBlocking { getOutputBlobMetadata(any()) }
         .thenReturn(

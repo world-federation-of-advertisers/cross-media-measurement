@@ -422,8 +422,7 @@ class AccountsServiceTest {
 
   private suspend fun generateIdToken(): String {
     val uriString =
-      client
-        .authenticate(authenticateRequest { issuer = SELF_ISSUED_ISSUER })
+      client.authenticate(authenticateRequest { issuer = SELF_ISSUED_ISSUER })
         .authenticationRequestUri
     return SelfIssuedIdTokens.generateIdToken(uriString, clock)
   }

@@ -68,8 +68,7 @@ class CreateMeasurement(private val measurement: Measurement) :
     }
 
     // protocol has to be set for the measurement to require computation
-    return if (
-      measurement.details.protocolConfig.protocolCase !=
+    return if (measurement.details.protocolConfig.protocolCase !=
         ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
     ) {
       createComputedMeasurement(measurement, measurementConsumerId)
@@ -308,8 +307,7 @@ private suspend fun TransactionScope.readMeasurementConsumerId(
   externalMeasurementConsumerId: ExternalId
 ): InternalId {
   val column = "MeasurementConsumerId"
-  return transactionContext
-    .readRowUsingIndex(
+  return transactionContext.readRowUsingIndex(
       "MeasurementConsumers",
       "MeasurementConsumersByExternalId",
       Key.of(externalMeasurementConsumerId.value),
@@ -325,8 +323,7 @@ private suspend fun TransactionScope.readDataProviderId(
   externalDataProviderId: ExternalId
 ): InternalId {
   val column = "DataProviderId"
-  return transactionContext
-    .readRowUsingIndex(
+  return transactionContext.readRowUsingIndex(
       "DataProviders",
       "DataProvidersByExternalId",
       Key.of(externalDataProviderId.value),

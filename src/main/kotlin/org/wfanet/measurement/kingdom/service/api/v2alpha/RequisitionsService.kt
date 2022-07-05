@@ -91,8 +91,7 @@ class RequisitionsService(
     var externalMeasurementConsumerId = 0L
     when (val resourceKey = principal.resourceKey) {
       is DataProviderKey -> {
-        if (
-          apiIdToExternalId(resourceKey.dataProviderId) !=
+        if (apiIdToExternalId(resourceKey.dataProviderId) !=
             listRequisitionsPageToken.externalDataProviderId
         ) {
           failGrpc(Status.PERMISSION_DENIED) {
@@ -102,8 +101,7 @@ class RequisitionsService(
       }
       is MeasurementConsumerKey -> {
         externalMeasurementConsumerId = apiIdToExternalId(resourceKey.measurementConsumerId)
-        if (
-          listRequisitionsPageToken.externalMeasurementConsumerId != 0L &&
+        if (listRequisitionsPageToken.externalMeasurementConsumerId != 0L &&
             listRequisitionsPageToken.externalMeasurementConsumerId != externalMeasurementConsumerId
         ) {
           failGrpc(Status.PERMISSION_DENIED) {
@@ -215,8 +213,7 @@ class RequisitionsService(
     grpcRequire(!request.encryptedData.isEmpty) { "encrypted_data must be provided" }
     // Ensure that the caller is the data_provider who owns this requisition.
     val caller = callIdentityProvider()
-    if (
-      caller.type != Provider.Type.DATA_PROVIDER ||
+    if (caller.type != Provider.Type.DATA_PROVIDER ||
         externalIdToApiId(caller.externalId) != key.dataProviderId
     ) {
       failGrpc(Status.PERMISSION_DENIED) {
@@ -269,8 +266,8 @@ private fun InternalRequisition.toRequisition(): Requisition {
       data = parentMeasurement.measurementSpec
       signature = parentMeasurement.measurementSpecSignature
     }
-    if (
-      parentMeasurement.protocolConfig.protocolCase != ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
+    if (parentMeasurement.protocolConfig.protocolCase !=
+        ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
     ) {
       protocolConfig =
         try {
@@ -332,19 +329,17 @@ private fun Refusal.Justification.toInternal(): InternalRefusal.Justification =
       InternalRefusal.Justification.INSUFFICIENT_PRIVACY_BUDGET
     Refusal.Justification.UNFULFILLABLE -> InternalRefusal.Justification.UNFULFILLABLE
     Refusal.Justification.DECLINED -> InternalRefusal.Justification.DECLINED
-    Refusal.Justification.JUSTIFICATION_UNSPECIFIED,
-    Refusal.Justification.UNRECOGNIZED -> InternalRefusal.Justification.JUSTIFICATION_UNSPECIFIED
+    Refusal.Justification.JUSTIFICATION_UNSPECIFIED, Refusal.Justification.UNRECOGNIZED ->
+      InternalRefusal.Justification.JUSTIFICATION_UNSPECIFIED
   }
 
 /** Converts an internal [InternalState] to a public [State]. */
 private fun InternalState.toRequisitionState(): State =
   when (this) {
-    InternalState.PENDING_PARAMS,
-    InternalState.UNFULFILLED -> State.UNFULFILLED
+    InternalState.PENDING_PARAMS, InternalState.UNFULFILLED -> State.UNFULFILLED
     InternalState.FULFILLED -> State.FULFILLED
     InternalState.REFUSED -> State.REFUSED
-    InternalState.STATE_UNSPECIFIED,
-    InternalState.UNRECOGNIZED -> State.STATE_UNSPECIFIED
+    InternalState.STATE_UNSPECIFIED, InternalState.UNRECOGNIZED -> State.STATE_UNSPECIFIED
   }
 
 /** Converts a public [State] to an internal [InternalState]. */
@@ -353,8 +348,7 @@ private fun State.toInternal(): InternalState =
     State.UNFULFILLED -> InternalState.UNFULFILLED
     State.FULFILLED -> InternalState.FULFILLED
     State.REFUSED -> InternalState.REFUSED
-    State.STATE_UNSPECIFIED,
-    State.UNRECOGNIZED -> InternalState.STATE_UNSPECIFIED
+    State.STATE_UNSPECIFIED, State.UNRECOGNIZED -> InternalState.STATE_UNSPECIFIED
   }
 
 /** Converts an internal [DuchyValue] to a public [DuchyEntry.Value]. */

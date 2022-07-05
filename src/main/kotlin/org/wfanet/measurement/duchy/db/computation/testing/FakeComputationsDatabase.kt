@@ -329,7 +329,8 @@ private constructor(
 
   override suspend fun claimTask(protocol: ComputationType, ownerId: String): String? {
     val claimed =
-      tokens.values
+      tokens
+        .values
         .asSequence()
         .filter { it.globalComputationId !in claimedComputationIds }
         .map {

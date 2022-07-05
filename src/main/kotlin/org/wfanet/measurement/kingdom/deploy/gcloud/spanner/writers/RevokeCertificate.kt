@@ -120,8 +120,7 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
       }
 
     val revocationState = certificateResult.certificate.revocationState
-    if (
-      request.revocationState == RevocationState.REVOCATION_STATE_UNSPECIFIED ||
+    if (request.revocationState == RevocationState.REVOCATION_STATE_UNSPECIFIED ||
         (revocationState == RevocationState.REVOKED &&
           request.revocationState == RevocationState.HOLD)
     ) {

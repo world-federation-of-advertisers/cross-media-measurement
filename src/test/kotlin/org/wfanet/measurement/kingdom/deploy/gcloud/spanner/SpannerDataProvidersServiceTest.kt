@@ -32,6 +32,7 @@ class SpannerDataProvidersServiceTest : DataProvidersServiceTest<SpannerDataProv
   override fun newService(idGenerator: IdGenerator): SpannerDataProvidersService {
     return SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient)
       .buildDataServices()
-      .dataProvidersService as SpannerDataProvidersService
+      .dataProvidersService as
+      SpannerDataProvidersService
   }
 }

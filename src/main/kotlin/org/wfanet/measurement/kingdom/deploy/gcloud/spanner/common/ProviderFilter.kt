@@ -25,8 +25,7 @@ fun providerFilter(provider: Provider, param: String = PROVIDER_PARAM): String {
   return when (provider.type) {
     Provider.Type.DATA_PROVIDER -> "DataProviders.ExternalDataProviderId = @$param"
     Provider.Type.MODEL_PROVIDER -> "ModelProviders.ExternalModelProviderId = @$param"
-    Provider.Type.TYPE_UNSPECIFIED,
-    Provider.Type.UNRECOGNIZED ->
+    Provider.Type.TYPE_UNSPECIFIED, Provider.Type.UNRECOGNIZED ->
       failGrpc(Status.INVALID_ARGUMENT) {
         "external_data_provider_id or external_model_provider_id must be provided."
       }
@@ -40,8 +39,7 @@ fun stepIsOwnedByProviderTypeFilter(type: Provider.Type): String {
       "ExchangeSteps.DataProviderId = RecurringExchanges.DataProviderId"
     Provider.Type.MODEL_PROVIDER ->
       "ExchangeSteps.ModelProviderId = RecurringExchanges.ModelProviderId"
-    Provider.Type.TYPE_UNSPECIFIED,
-    Provider.Type.UNRECOGNIZED ->
+    Provider.Type.TYPE_UNSPECIFIED, Provider.Type.UNRECOGNIZED ->
       failGrpc(Status.INVALID_ARGUMENT) {
         "external_data_provider_id or external_model_provider_id must be provided."
       }

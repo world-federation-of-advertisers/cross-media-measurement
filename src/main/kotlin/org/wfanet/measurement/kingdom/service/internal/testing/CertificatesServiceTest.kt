@@ -168,8 +168,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     assertGetFailsWithMissingCertificate { externalDataProviderId = dataProviderId }
 
     val measurementConsumerId =
-      population
-        .createMeasurementConsumer(measurementConsumersService, accountsService)
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
     assertGetFailsWithMissingCertificate { externalMeasurementConsumerId = measurementConsumerId }
 
@@ -229,8 +228,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     assertCreateCertificateSucceeds { externalDataProviderId = dataProviderId }
 
     val measurementConsumerId =
-      population
-        .createMeasurementConsumer(measurementConsumersService, accountsService)
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
     assertCreateCertificateSucceeds { externalMeasurementConsumerId = measurementConsumerId }
 
@@ -274,8 +272,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     assertGetCertificateSucceeds { externalDataProviderId = dataProviderId }
 
     val measurementConsumerId =
-      population
-        .createMeasurementConsumer(measurementConsumersService, accountsService)
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
     assertGetCertificateSucceeds { externalMeasurementConsumerId = measurementConsumerId }
 
@@ -287,8 +284,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
   @Test
   fun `createCertificate fails due to subjectKeyIdentifier collision`() = runBlocking {
     val externalMeasurementConsumerId =
-      population
-        .createMeasurementConsumer(measurementConsumersService, accountsService)
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
     val certificate =
       CERTIFICATE.copy { this.externalMeasurementConsumerId = externalMeasurementConsumerId }
@@ -447,8 +443,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
   @Test
   fun `revokeCertificate fails due to wrong MeasurementConsumerId`() = runBlocking {
     val externalMeasurementConsumerId =
-      population
-        .createMeasurementConsumer(measurementConsumersService, accountsService)
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
 
     val certificate =
@@ -872,8 +867,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
   @Test
   fun `releaseCertificateHold fails due to wrong MeasurementConsumerId`() = runBlocking {
     val externalMeasurementConsumerId =
-      population
-        .createMeasurementConsumer(measurementConsumersService, accountsService)
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
 
     val certificate =
@@ -904,8 +898,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
   fun `releaseCertificateHold fails due to revoked measurementConsumersCertificate`() =
     runBlocking {
       val externalMeasurementConsumerId =
-        population
-          .createMeasurementConsumer(measurementConsumersService, accountsService)
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
           .externalMeasurementConsumerId
 
       val certificate =
@@ -943,8 +936,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
   @Test
   fun `releaseCertificateHold succeeds for MeasurementConsumerCertificate`() = runBlocking {
     val externalMeasurementConsumerId =
-      population
-        .createMeasurementConsumer(measurementConsumersService, accountsService)
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
 
     val certificate =

@@ -72,8 +72,7 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
   @Test
   fun `createApiKey with no description returns an api key`() = runBlocking {
     val externalMeasurementConsumerId =
-      population
-        .createMeasurementConsumer(measurementConsumersService, accountsService)
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
     val apiKey = apiKey {
       this.externalMeasurementConsumerId = externalMeasurementConsumerId
@@ -89,8 +88,7 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
   @Test
   fun `createApiKey with description returns an api key()`() = runBlocking {
     val externalMeasurementConsumerId =
-      population
-        .createMeasurementConsumer(measurementConsumersService, accountsService)
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
     val apiKey = apiKey {
       this.externalMeasurementConsumerId = externalMeasurementConsumerId
@@ -123,8 +121,7 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
   @Test
   fun `deleteApiKey returns the api key`() = runBlocking {
     val externalMeasurementConsumerId =
-      population
-        .createMeasurementConsumer(measurementConsumersService, accountsService)
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
     val apiKey =
       apiKeysService.createApiKey(
@@ -150,8 +147,7 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
   @Test
   fun `deleteApiKey throws NOT_FOUND when measurement consumer doesn't exist`() = runBlocking {
     val externalMeasurementConsumerId =
-      population
-        .createMeasurementConsumer(measurementConsumersService, accountsService)
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
     val apiKey =
       apiKeysService.createApiKey(
@@ -182,8 +178,7 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
   @Test
   fun `deleteApiKey throws NOT FOUND when api key doesn't exist`() = runBlocking {
     val externalMeasurementConsumerId =
-      population
-        .createMeasurementConsumer(measurementConsumersService, accountsService)
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
     val apiKey = apiKey {
       this.externalMeasurementConsumerId = externalMeasurementConsumerId

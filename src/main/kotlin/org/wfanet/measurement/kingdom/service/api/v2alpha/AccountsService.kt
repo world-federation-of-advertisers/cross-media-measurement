@@ -212,8 +212,7 @@ class AccountsService(
     when (this) {
       InternalActivationState.ACTIVATED -> ActivationState.ACTIVATED
       InternalActivationState.UNACTIVATED -> ActivationState.UNACTIVATED
-      InternalActivationState.UNRECOGNIZED,
-      InternalActivationState.ACTIVATION_STATE_UNSPECIFIED ->
+      InternalActivationState.UNRECOGNIZED, InternalActivationState.ACTIVATION_STATE_UNSPECIFIED ->
         ActivationState.ACTIVATION_STATE_UNSPECIFIED
     }
 
@@ -281,8 +280,7 @@ class AccountsService(
           getOpenIdRequestParamsRequest { this.state = state.base64UrlDecode().toLong() }
         )
 
-      if (
-        nonce.base64UrlDecode().toLong() != openIdRequestParams.nonce ||
+      if (nonce.base64UrlDecode().toLong() != openIdRequestParams.nonce ||
           openIdRequestParams.isExpired
       ) {
         throw GeneralSecurityException()

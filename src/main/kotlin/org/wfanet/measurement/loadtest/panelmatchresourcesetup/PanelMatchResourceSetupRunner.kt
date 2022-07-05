@@ -69,7 +69,8 @@ private fun run(@CommandLine.Mixin flags: PanelMatchResourceSetupFlags) {
     )
 
   val exchangeWorkflow: ExchangeWorkflow by lazy {
-    flags.exchangeWorkflow
+    flags
+      .exchangeWorkflow
       .inputStream()
       .use { input -> parseTextProto(input.bufferedReader(), exchangeWorkflow {}) }
       .copy { firstExchangeDate = EXCHANGE_DATE.toProtoDate() }

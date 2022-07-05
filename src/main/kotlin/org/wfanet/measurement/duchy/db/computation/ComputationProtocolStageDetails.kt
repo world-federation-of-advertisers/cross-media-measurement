@@ -83,8 +83,7 @@ object ComputationProtocolStageDetails :
     return when (protocol) {
       ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         LiquidLegionsSketchAggregationV2Protocol.ComputationStages.Details.parseDetails(bytes)
-      ComputationType.UNSPECIFIED,
-      ComputationType.UNRECOGNIZED -> error("invalid protocol")
+      ComputationType.UNSPECIFIED, ComputationType.UNRECOGNIZED -> error("invalid protocol")
     }
   }
 

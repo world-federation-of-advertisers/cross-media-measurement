@@ -33,7 +33,8 @@ class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
     privacyLandscapeMask: LandscapeMask
   ): Set<PrivacyBucketGroup> {
 
-    return privacyLandscapeMask.eventGroupSpecs
+    return privacyLandscapeMask
+      .eventGroupSpecs
       .flatMap {
         getPrivacyBucketGroups(
           measurementConsumerId,
@@ -83,8 +84,7 @@ class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
                   vidsIntervalStartPoint,
                   PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
                 )
-              if (
-                EventFilters.matches(
+              if (EventFilters.matches(
                   privacyBucketMapper.toEventMessage(privacyBucketGroup),
                   program
                 )

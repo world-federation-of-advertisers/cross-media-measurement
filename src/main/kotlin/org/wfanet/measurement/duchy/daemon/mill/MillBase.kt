@@ -162,9 +162,7 @@ abstract class MillBase(
   private suspend fun handleExceptions(token: ComputationToken, e: Exception) {
     val globalId = token.globalComputationId
     when (e) {
-      is IllegalStateException,
-      is IllegalArgumentException,
-      is PermanentComputationError -> {
+      is IllegalStateException, is IllegalArgumentException, is PermanentComputationError -> {
         logger.log(Level.SEVERE, "$globalId@$millId: PERMANENT error:", e)
         failComputationAtKingdom(token, e.localizedMessage)
         // Mark the computation FAILED for all permanent errors
@@ -316,9 +314,9 @@ abstract class MillBase(
   /** Adds a logging hook to the flow to log the total number of bytes sent out in the rpc. */
   protected fun addLoggingHook(token: ComputationToken, bytes: Flow<ByteString>): Flow<ByteString> {
     var numOfBytes = 0L
-    return bytes
-      .onEach { numOfBytes += it.size() }
-      .onCompletion { logStageMetric(token, BYTES_OF_DATA_IN_RPC, numOfBytes) }
+    return bytes.onEach { numOfBytes += it.size() }.onCompletion {
+      logStageMetric(token, BYTES_OF_DATA_IN_RPC, numOfBytes)
+    }
   }
 
   /** Sends an AdvanceComputationRequest to the target duchy. */
@@ -395,8 +393,7 @@ abstract class MillBase(
 
   /** Gets the latest [ComputationToken] for computation with [globalId]. */
   private suspend fun getLatestComputationToken(globalId: String): ComputationToken {
-    return dataClients.computationsClient
-      .getComputationToken(
+    return dataClients.computationsClient.getComputationToken(
         GetComputationTokenRequest.newBuilder().apply { globalComputationId = globalId }.build()
       )
       .token

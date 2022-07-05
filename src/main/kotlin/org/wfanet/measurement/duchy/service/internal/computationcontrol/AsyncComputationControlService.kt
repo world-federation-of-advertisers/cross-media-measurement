@@ -44,9 +44,8 @@ class AsyncComputationControlService(private val computationsClient: Computation
         ?: failGrpc { "Unexpected stage type ${request.computationStage.stageCase}" }
     val tokenForRecordingPath =
       getComputationToken(request.globalComputationId)
-        ?: throw Status.NOT_FOUND.withDescription(
-            "Computation with global ID ${request.globalComputationId} not found"
-          )
+        ?: throw Status.NOT_FOUND
+          .withDescription("Computation with global ID ${request.globalComputationId} not found")
           .asRuntimeException()
     val computationStage = tokenForRecordingPath.computationStage
     if (computationStage != request.computationStage) {
@@ -81,9 +80,8 @@ class AsyncComputationControlService(private val computationsClient: Computation
   ): ComputationStageBlobMetadata {
     val currentToken =
       getComputationToken(request.globalComputationId)
-        ?: throw Status.NOT_FOUND.withDescription(
-            "Computation with global ID ${request.globalComputationId} not found"
-          )
+        ?: throw Status.NOT_FOUND
+          .withDescription("Computation with global ID ${request.globalComputationId} not found")
           .asRuntimeException()
     val stageType = currentToken.computationStage.stageCase
     val stages =
@@ -92,7 +90,8 @@ class AsyncComputationControlService(private val computationsClient: Computation
     try {
       return stages.outputBlob(currentToken, request.dataOrigin)
     } catch (e: IllegalStageException) {
-      throw Status.FAILED_PRECONDITION.withCause(e)
+      throw Status.FAILED_PRECONDITION
+        .withCause(e)
         .withDescription("Computation in unexpected stage ${e.computationStage}")
         .asRuntimeException()
     }
@@ -131,8 +130,7 @@ class AsyncComputationControlService(private val computationsClient: Computation
   ): ComputationToken {
 
     if (blob.path.isNotEmpty()) return token
-    return computationsClient
-      .recordOutputBlobPath(
+    return computationsClient.recordOutputBlobPath(
         RecordOutputBlobPathRequest.newBuilder()
           .apply {
             setToken(token)

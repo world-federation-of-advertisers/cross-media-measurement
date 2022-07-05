@@ -129,8 +129,9 @@ private class CreateMcCreationTokenCommand : Runnable {
     val internalAccountsClient = AccountsCoroutineStub(parent.channel)
     val mcCreationToken = runBlocking {
       externalIdToApiId(
-        internalAccountsClient
-          .createMeasurementConsumerCreationToken(createMeasurementConsumerCreationTokenRequest {})
+        internalAccountsClient.createMeasurementConsumerCreationToken(
+            createMeasurementConsumerCreationTokenRequest {}
+          )
           .measurementConsumerCreationToken
       )
     }

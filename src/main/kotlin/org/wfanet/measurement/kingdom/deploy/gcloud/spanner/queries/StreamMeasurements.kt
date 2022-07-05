@@ -109,7 +109,9 @@ class StreamMeasurements(
     }
 
     return filter { value: MeasurementReader.Result ->
-      value.measurement.computationParticipantsList
+      value
+        .measurement
+        .computationParticipantsList
         .map { it.externalDuchyId }
         .contains(requestFilter.externalDuchyId)
     }
