@@ -152,7 +152,7 @@ class EventGroupsServiceTest {
       .isEqualTo(
         reportingListEventGroupsResponse {
           eventGroups += reportingEventGroup {
-            name = "$DATA_PROVIDER_NAME/eventGroups/AAAAAAAAAHs"
+            name = EVENT_GROUP.name
             metadata = reportingMetadata {
               eventGroupMetadataDescriptor = METADATA_NAME
               metadata = Any.pack(TEST_MESSAGE)

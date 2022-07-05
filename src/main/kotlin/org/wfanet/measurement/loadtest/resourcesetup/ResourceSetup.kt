@@ -178,9 +178,8 @@ class ResourceSetup(
     val accountActivationToken = externalIdToApiId(internalAccount.activationToken)
     val mcCreationToken =
       externalIdToApiId(
-        internalAccountsClient.createMeasurementConsumerCreationToken(
-            createMeasurementConsumerCreationTokenRequest {}
-          )
+        internalAccountsClient
+          .createMeasurementConsumerCreationToken(createMeasurementConsumerCreationTokenRequest {})
           .measurementConsumerCreationToken
       )
 

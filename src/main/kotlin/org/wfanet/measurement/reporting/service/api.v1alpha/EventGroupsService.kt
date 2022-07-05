@@ -31,7 +31,8 @@ class EventGroupsService(
   override suspend fun listEventGroups(request: ListEventGroupsRequest): ListEventGroupsResponse {
     val principal = principalFromCurrentContext
     val eventGroups =
-      cmmsEventGroupsStub.listEventGroups(
+      cmmsEventGroupsStub
+        .listEventGroups(
           cmmsListEventGroupsRequest {
             parent = request.parent
             pageSize = request.pageSize
@@ -48,7 +49,8 @@ class EventGroupsService(
         this.eventGroups += eventGroups.map { it.toReportingServer() }
       }
     val eventGroupMetadataDescriptors =
-      eventGroupsMetadataDescriptorsStub.batchGetEventGroupMetadataDescriptors(
+      eventGroupsMetadataDescriptorsStub
+        .batchGetEventGroupMetadataDescriptors(
           batchGetEventGroupMetadataDescriptorsRequest {
             parent = request.parent
             names += eventGroups.map { it.name }

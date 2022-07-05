@@ -168,9 +168,8 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
     // Create all duchy certificates.
     duchyCertMap =
       ALL_DUCHY_NAMES.associateWith {
-        resourceSetup.createDuchyCertificate(
-            DuchyCert(it, loadTestCertDerFile("${it}_cs_cert.der"))
-          )
+        resourceSetup
+          .createDuchyCertificate(DuchyCert(it, loadTestCertDerFile("${it}_cs_cert.der")))
           .name
       }
 

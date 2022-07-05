@@ -54,7 +54,8 @@ class PublicKeysService(private val internalPublicKeysStub: PublicKeysCoroutineS
       is DataProviderKey -> {
         when (publicKeyKey) {
           is DataProviderPublicKeyKey -> {
-            if (apiIdToExternalId(resourceKey.dataProviderId) !=
+            if (
+              apiIdToExternalId(resourceKey.dataProviderId) !=
                 apiIdToExternalId(publicKeyKey.dataProviderId)
             ) {
               failGrpc(Status.PERMISSION_DENIED) {
@@ -70,7 +71,8 @@ class PublicKeysService(private val internalPublicKeysStub: PublicKeysCoroutineS
       is MeasurementConsumerKey -> {
         when (publicKeyKey) {
           is MeasurementConsumerPublicKeyKey -> {
-            if (apiIdToExternalId(resourceKey.measurementConsumerId) !=
+            if (
+              apiIdToExternalId(resourceKey.measurementConsumerId) !=
                 apiIdToExternalId(publicKeyKey.measurementConsumerId)
             ) {
               failGrpc(Status.PERMISSION_DENIED) {

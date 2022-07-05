@@ -54,14 +54,18 @@ class CertificateReader(private val parentType: ParentType) :
     val externalIdColumnName: String?
       get() =
         when (this) {
-          DATA_PROVIDER, MEASUREMENT_CONSUMER, MODEL_PROVIDER -> "External${prefix}Id"
+          DATA_PROVIDER,
+          MEASUREMENT_CONSUMER,
+          MODEL_PROVIDER -> "External${prefix}Id"
           DUCHY -> null
         }
 
     val tableName: String?
       get() =
         when (this) {
-          DATA_PROVIDER, MEASUREMENT_CONSUMER, MODEL_PROVIDER -> "${prefix}s"
+          DATA_PROVIDER,
+          MEASUREMENT_CONSUMER,
+          MODEL_PROVIDER -> "${prefix}s"
           DUCHY -> null
         }
   }
@@ -158,7 +162,8 @@ class CertificateReader(private val parentType: ParentType) :
     externalCertificateId: ExternalId
   ): InternalId? {
     val idColumn = "CertificateId"
-    return readContext.readRowUsingIndex(
+    return readContext
+      .readRowUsingIndex(
         "DataProviderCertificates",
         "DataProviderCertificatesByExternalId",
         Key.of(dataProviderId.value, externalCertificateId.value),
@@ -173,7 +178,8 @@ class CertificateReader(private val parentType: ParentType) :
     externalCertificateId: ExternalId
   ): InternalId? {
     val idColumn = "CertificateId"
-    return readContext.readRowUsingIndex(
+    return readContext
+      .readRowUsingIndex(
         "MeasurementConsumerCertificates",
         "MeasurementConsumerCertificatesByExternalId",
         Key.of(measurementConsumerId.value, externalCertificateId.value),
@@ -185,8 +191,9 @@ class CertificateReader(private val parentType: ParentType) :
   companion object {
     private fun buildBaseSql(parentType: ParentType): String {
       return when (parentType) {
-        ParentType.DATA_PROVIDER, ParentType.MEASUREMENT_CONSUMER, ParentType.MODEL_PROVIDER ->
-          buildExternalIdSql(parentType)
+        ParentType.DATA_PROVIDER,
+        ParentType.MEASUREMENT_CONSUMER,
+        ParentType.MODEL_PROVIDER -> buildExternalIdSql(parentType)
         ParentType.DUCHY -> buildInternalIdSql(parentType)
       }
     }

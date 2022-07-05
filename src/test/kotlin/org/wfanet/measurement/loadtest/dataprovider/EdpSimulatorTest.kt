@@ -198,7 +198,8 @@ class EdpSimulatorTest {
     val expectedResult: AnySketch = SketchProtos.toAnySketch(SKETCH_CONFIG)
 
     matchingVids.forEach {
-      if (vidSampler.vidIsInSamplingBucket(
+      if (
+        vidSampler.vidIsInSamplingBucket(
           it.toLong(),
           vidSamplingIntervalStart,
           vidSamplingIntervalWidth
@@ -347,9 +348,9 @@ class EdpSimulatorTest {
         backingStore.getBalancesMap()
 
       // All the Buckets are only charged once, so all entries should have a repetition count of 1.
-      balanceLedger.values.flatMap { it.values }.forEach {
-        assertThat(it.repetitionCount).isEqualTo(1)
-      }
+      balanceLedger.values
+        .flatMap { it.values }
+        .forEach { assertThat(it.repetitionCount).isEqualTo(1) }
 
       // The list of all the charged privacy bucket groups should be correct based on the filter.
       assertThat(balanceLedger.keys)

@@ -88,7 +88,8 @@ object LiquidLegionsSketchAggregationV2Protocol {
       ProtocolStageDetails<
         LiquidLegionsSketchAggregationV2.Stage,
         ComputationStageDetails,
-        LiquidLegionsSketchAggregationV2.ComputationDetails> {
+        LiquidLegionsSketchAggregationV2.ComputationDetails
+      > {
 
       override fun validateRoleForStage(
         stage: LiquidLegionsSketchAggregationV2.Stage,
@@ -130,7 +131,9 @@ object LiquidLegionsSketchAggregationV2Protocol {
         computationDetails: LiquidLegionsSketchAggregationV2.ComputationDetails
       ): Int {
         return when (stage) {
-          WAIT_REQUISITIONS_AND_KEY_SET, CONFIRMATION_PHASE, WAIT_TO_START -> 0
+          WAIT_REQUISITIONS_AND_KEY_SET,
+          CONFIRMATION_PHASE,
+          WAIT_TO_START -> 0
           WAIT_EXECUTION_PHASE_ONE_INPUTS,
           WAIT_EXECUTION_PHASE_TWO_INPUTS,
           WAIT_EXECUTION_PHASE_THREE_INPUTS,

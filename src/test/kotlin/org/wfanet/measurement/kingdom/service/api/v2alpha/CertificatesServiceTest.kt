@@ -93,25 +93,26 @@ private const val DUCHY_CERTIFICATE_NAME = "$DUCHY_NAME/certificates/AAAAAAAAAcg
 class CertificatesServiceTest {
   private val internalCertificatesMock: CertificatesCoroutineImplBase =
     mockService() {
-      onBlocking { getCertificate(any()) }.thenAnswer {
-        val request = it.getArgument<InternalGetCertificateRequest>(0)
-        INTERNAL_CERTIFICATE.copy {
-          externalCertificateId = request.externalCertificateId
+      onBlocking { getCertificate(any()) }
+        .thenAnswer {
+          val request = it.getArgument<InternalGetCertificateRequest>(0)
+          INTERNAL_CERTIFICATE.copy {
+            externalCertificateId = request.externalCertificateId
 
-          @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-          when (request.parentCase) {
-            InternalGetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID ->
-              externalDataProviderId = request.externalDataProviderId
-            InternalGetCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID ->
-              externalMeasurementConsumerId = request.externalMeasurementConsumerId
-            InternalGetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID ->
-              externalDuchyId = request.externalDuchyId
-            InternalGetCertificateRequest.ParentCase.EXTERNAL_MODEL_PROVIDER_ID ->
-              externalModelProviderId = request.externalModelProviderId
-            InternalGetCertificateRequest.ParentCase.PARENT_NOT_SET -> error("Invalid case")
+            @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+            when (request.parentCase) {
+              InternalGetCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID ->
+                externalDataProviderId = request.externalDataProviderId
+              InternalGetCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID ->
+                externalMeasurementConsumerId = request.externalMeasurementConsumerId
+              InternalGetCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID ->
+                externalDuchyId = request.externalDuchyId
+              InternalGetCertificateRequest.ParentCase.EXTERNAL_MODEL_PROVIDER_ID ->
+                externalModelProviderId = request.externalModelProviderId
+              InternalGetCertificateRequest.ParentCase.PARENT_NOT_SET -> error("Invalid case")
+            }
           }
         }
-      }
 
       onBlocking { createCertificate(any()) }.thenReturn(INTERNAL_CERTIFICATE)
       onBlocking { revokeCertificate(any()) }.thenReturn(INTERNAL_CERTIFICATE)
