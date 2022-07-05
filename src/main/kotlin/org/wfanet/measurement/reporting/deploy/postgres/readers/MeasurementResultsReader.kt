@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.reporting.deploy.postgres.readers
 
+import com.google.gson.JsonArray
 import com.google.gson.JsonParser
 import com.google.protobuf.util.JsonFormat
 import kotlinx.coroutines.flow.Flow
@@ -39,12 +40,12 @@ class MeasurementResultsReader {
       SELECT
         ReportIds.ReportId,
         json_build_object(
-          'Measurements',
+          'measurements',
           json_agg(
             json_build_object(
-              'MeasurementReferenceId', Measurements.MeasurementReferenceId,
-              'State', State,
-              'ResultJson', ResultJson
+              'measurementReferenceId', Measurements.MeasurementReferenceId,
+              'state', State,
+              'resultJson', ResultJson
             )
           )
         ) AS MeasurementsArr
@@ -68,7 +69,12 @@ class MeasurementResultsReader {
   fun translate(row: ResultRow): Result =
     Result(
       reportId = row["ReportId"],
-      measurementResultsMap = buildMeasurementResults(row.get<Array<String>>("Measurements")[0])
+      measurementResultsMap =
+        buildMeasurementResults(
+          JsonParser.parseString(row.get<Array<String>>("measurements")[0])
+            .asJsonObject
+            .getAsJsonArray("measurements")
+        )
     )
 
   suspend fun listMeasurementsForReportsByMeasurementReferenceId(
@@ -85,13 +91,11 @@ class MeasurementResultsReader {
     return readContext.executeQuery(statement).consume(::translate)
   }
 
-  private fun buildMeasurementResults(jsonString: String): Map<String, MeasurementResult> {
-    val measurementsArr =
-      JsonParser.parseString(jsonString).asJsonObject.getAsJsonArray("Measurements")
-    val measurementResultMap = HashMap<String, MeasurementResult>()
-    measurementsArr.forEach {
+  private fun buildMeasurementResults(measurementArr: JsonArray): Map<String, MeasurementResult> {
+    val measurementResultMap = mutableMapOf<String, MeasurementResult>()
+    measurementArr.forEach {
       val measurementObject = it.asJsonObject
-      val resultPrimitive = measurementObject.get("ResultJson")
+      val resultPrimitive = measurementObject.get("resultJson")
 
       val result =
         if (resultPrimitive.isJsonNull) {
@@ -103,9 +107,9 @@ class MeasurementResultsReader {
         }
 
       measurementResultMap[
-        measurementObject.getAsJsonPrimitive("MeasurementReferenceId").asString] =
+        measurementObject.getAsJsonPrimitive("measurementReferenceId").asString] =
         MeasurementResult(
-          state = Measurement.State.forNumber(measurementObject.getAsJsonPrimitive("State").asInt),
+          state = Measurement.State.forNumber(measurementObject.getAsJsonPrimitive("state").asInt),
           result = result
         )
     }
