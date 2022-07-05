@@ -143,7 +143,46 @@ class EventGroupsServiceTest {
   }
 
   @Test
-  fun `listEventGroups filters list`() {
+  fun `listEventGroups returns list with no filter`() {
+    val eventGroupsService =
+      EventGroupsService(
+        EventGroupsCoroutineStub(grpcTestServerRule.channel),
+        EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
+        ENCRYPTION_PRIVATE_KEY
+      )
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking {
+          eventGroupsService.listEventGroups(listEventGroupsRequest { parent = DATA_PROVIDER_NAME })
+        }
+      }
+
+    assertThat(result)
+      .isEqualTo(
+        reportingListEventGroupsResponse {
+          eventGroups +=
+            listOf(
+              reportingEventGroup {
+                name = EVENT_GROUP.name
+                metadata = reportingMetadata {
+                  eventGroupMetadataDescriptor = METADATA_NAME
+                  metadata = Any.pack(TEST_MESSAGE)
+                }
+              },
+              reportingEventGroup {
+                name = EVENT_GROUP_2.name
+                metadata = reportingMetadata {
+                  eventGroupMetadataDescriptor = METADATA_NAME
+                  metadata = Any.pack(TEST_MESSAGE_2)
+                }
+              }
+            )
+        }
+      )
+  }
+
+  @Test
+  fun `listEventGroups returns list with filter`() {
     val eventGroupsService =
       EventGroupsService(
         EventGroupsCoroutineStub(grpcTestServerRule.channel),
