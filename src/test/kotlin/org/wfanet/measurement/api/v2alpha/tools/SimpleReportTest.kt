@@ -632,7 +632,8 @@ class SimpleReportTest {
         "--kingdom-public-api-target=$HOST:$PORT",
         "--api-key=$API_KEY",
         "list",
-        "--measurement-consumer=$MEASUREMENT_CONSUMER_NAME"
+        "--measurement-consumer=$MEASUREMENT_CONSUMER_NAME",
+        "--page-size=50"
       )
     CommandLine(SimpleReport()).execute(*args)
 
@@ -651,7 +652,12 @@ class SimpleReportTest {
       }
     assertThat(request)
       .comparingExpectedFieldsOnly()
-      .isEqualTo(listMeasurementsRequest { parent = MEASUREMENT_CONSUMER_NAME })
+      .isEqualTo(
+        listMeasurementsRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          pageSize = 50
+        }
+      )
   }
 
   @Test

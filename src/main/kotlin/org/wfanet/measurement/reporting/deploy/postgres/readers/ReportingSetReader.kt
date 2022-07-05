@@ -14,13 +14,11 @@
 
 package org.wfanet.measurement.reporting.deploy.postgres.readers
 
-import io.r2dbc.spi.Row
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
-import org.wfanet.measurement.common.db.r2dbc.StatementBuilder.Companion.statementBuilder
-import org.wfanet.measurement.common.db.r2dbc.getValue
+import org.wfanet.measurement.common.db.r2dbc.ResultRow
+import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.internal.reporting.ReportingSet
 import org.wfanet.measurement.internal.reporting.StreamReportingSetsRequest
@@ -46,12 +44,8 @@ class ReportingSetReader {
       ReportingSets
     """
 
-  fun translate(row: Row): Result =
-    Result(
-      row.getValue("MeasurementConsumerReferenceId"),
-      row.getValue("ReportingSetId"),
-      buildReportingSet(row)
-    )
+  fun translate(row: ResultRow): Result =
+    Result(row["MeasurementConsumerReferenceId"], row["ReportingSetId"], buildReportingSet(row))
 
   fun listReportingSets(
     client: DatabaseClient,
@@ -59,7 +53,7 @@ class ReportingSetReader {
     limit: Int = 0
   ): Flow<Result> {
     val builder =
-      statementBuilder(
+      boundStatement(
         baseSql +
           """
         WHERE MeasurementConsumerReferenceId = $1
@@ -99,12 +93,12 @@ class ReportingSetReader {
     }
   }
 
-  private fun buildReportingSet(row: Row): ReportingSet {
+  private fun buildReportingSet(row: ResultRow): ReportingSet {
     return reportingSet {
-      measurementConsumerReferenceId = row.getValue("MeasurementConsumerReferenceId")
-      externalReportingSetId = row.getValue("ExternalReportingSetId")
-      filter = row.getValue("Filter")
-      displayName = row.getValue("DisplayName")
+      measurementConsumerReferenceId = row["MeasurementConsumerReferenceId"]
+      externalReportingSetId = row["ExternalReportingSetId"]
+      filter = row["Filter"]
+      displayName = row["DisplayName"]
     }
   }
 }
