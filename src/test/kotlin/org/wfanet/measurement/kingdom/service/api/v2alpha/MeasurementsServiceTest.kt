@@ -248,7 +248,15 @@ class MeasurementsServiceTest {
         INTERNAL_MEASUREMENT.copy {
           clearUpdateTime()
           clearExternalMeasurementId()
-          details = details.copy { clearFailure() }
+
+          details =
+            details.copy {
+              clearFailure()
+              if (request.measurement.dataProvidersCount == 1) {
+                clearProtocolConfig()
+                clearDuchyProtocolConfig()
+              }
+            }
           results.clear()
         }
       )
