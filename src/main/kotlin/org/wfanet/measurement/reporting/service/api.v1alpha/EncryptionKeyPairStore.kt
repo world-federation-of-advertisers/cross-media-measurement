@@ -50,6 +50,7 @@ class InMemoryEncryptionKeyPairStore : EncryptionKeyPairStore {
     )
     private lateinit var privateKeyFile: File
 
+    // TODO(@renjiez): Move loadPrivateKey out from testing package
     val privateKeyHandle: PrivateKeyHandle by lazy { loadPrivateKey(privateKeyFile) }
   }
 
