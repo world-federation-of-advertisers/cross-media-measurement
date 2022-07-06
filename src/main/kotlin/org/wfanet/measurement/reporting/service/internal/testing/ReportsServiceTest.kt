@@ -193,6 +193,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       .reportingMismatchesOnly()
       .ignoringFields(Report.CREATE_TIME_FIELD_NUMBER)
       .isEqualTo(retrievedReport)
+    assertThat(retrievedReport.createTime).isNotEqualTo(timestamp {})
   }
 
   @Test

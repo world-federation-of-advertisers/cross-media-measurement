@@ -75,7 +75,7 @@ class ReportingSetReader {
     filter: StreamReportingSetsRequest.Filter,
     limit: Int = 0
   ): Flow<Result> {
-    val builder =
+    val statement =
       boundStatement(
         baseSql +
           """
@@ -97,7 +97,7 @@ class ReportingSetReader {
     return flow {
       val readContext = client.readTransaction()
       try {
-        readContext.executeQuery(builder).consume(::translate).collect { reportingSetResult ->
+        readContext.executeQuery(statement).consume(::translate).collect { reportingSetResult ->
           reportingSetResult.reportingSet =
             reportingSetResult.reportingSet.copy {
               ReportingSetEventGroupReader()

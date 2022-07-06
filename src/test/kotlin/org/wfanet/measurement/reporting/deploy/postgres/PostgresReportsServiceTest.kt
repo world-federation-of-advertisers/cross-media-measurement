@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.reporting.deploy.postgres
 
-import java.time.Clock
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.EmbeddedPostgresDatabaseProvider
@@ -29,7 +28,7 @@ class PostgresReportsServiceTest : ReportsServiceTest<PostgresReportsService>() 
   ): Services<PostgresReportsService> {
     val client = EmbeddedPostgresDatabaseProvider(REPORTING_CHANGELOG_PATH).createNewDatabase()
     return Services(
-      PostgresReportsService(Clock.systemUTC(), idGenerator, client),
+      PostgresReportsService(idGenerator, client),
       PostgresMeasurementsService(idGenerator, client),
       PostgresReportingSetsService(idGenerator, client),
     )

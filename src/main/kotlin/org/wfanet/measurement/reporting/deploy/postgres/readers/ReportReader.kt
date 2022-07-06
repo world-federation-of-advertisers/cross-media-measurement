@@ -21,6 +21,7 @@ import com.google.protobuf.timestamp
 import com.google.protobuf.util.JsonFormat
 import java.time.Instant
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
@@ -28,6 +29,7 @@ import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.reporting.Metric
 import org.wfanet.measurement.internal.reporting.Metric.SetOperation
 import org.wfanet.measurement.internal.reporting.MetricKt
@@ -62,26 +64,27 @@ class ReportReader {
       ReportIdempotencyKey,
       CreateTime,
       (
-        SELECT array_agg(
-          json_build_object(
-            'TimeIntervalId', TimeIntervalId,
-            'StartSeconds', StartSeconds,
-            'StartNanos', StartNanos,
-            'EndSeconds', EndSeconds,
-            'EndNanos', EndNanos
-          )
+        SELECT ARRAY(
+          SELECT
+            json_build_object(
+              'timeIntervalId', TimeIntervalId,
+              'startSeconds', StartSeconds,
+              'startNanos', StartNanos,
+              'endSeconds', EndSeconds,
+              'endNanos', EndNanos
+            )
+          FROM TimeIntervals
+          WHERE TimeIntervals.MeasurementConsumerReferenceId = Reports.MeasurementConsumerReferenceId
+          AND TimeIntervals.ReportId = Reports.ReportId
         )
-        FROM TimeIntervals
-        WHERE TimeIntervals.MeasurementConsumerReferenceId = Reports.MeasurementConsumerReferenceId
-        AND TimeIntervals.ReportId = Reports.ReportId
       ) AS TimeIntervals,
       (
         SELECT json_build_object(
-          'IntervalCount', IntervalCount,
-          'StartSeconds', StartSeconds,
-          'StartNanos', StartNanos,
-          'IncrementSeconds', IncrementSeconds,
-          'IncrementNanos', IncrementNanos
+          'intervalCount', IntervalCount,
+          'startSeconds', StartSeconds,
+          'startNanos', StartNanos,
+          'incrementSeconds', IncrementSeconds,
+          'incrementNanos', IncrementNanos
         )
         FROM PeriodicTimeIntervals
         WHERE PeriodicTimeIntervals.MeasurementConsumerReferenceId = Reports.MeasurementConsumerReferenceId
@@ -90,10 +93,10 @@ class ReportReader {
       (
         SELECT array_agg(
           json_build_object(
-            'MetricId', MetricId,
-            'MetricDetails', MetricDetailsJson,
-            'NamedSetOperations', NamedSetOperations,
-            'SetOperations', SetOperations
+            'metricId', MetricId,
+            'metricDetails', MetricDetailsJson,
+            'namedSetOperations', NamedSetOperations,
+            'setOperations', SetOperations
           )
         )
         FROM (
@@ -103,9 +106,9 @@ class ReportReader {
             (
               SELECT json_agg(
                 json_build_object(
-                  'DisplayName', DisplayName,
-                  'SetOperationId', SetOperationId,
-                  'MeasurementCalculations', MeasurementCalculations
+                  'displayName', DisplayName,
+                  'setOperationId', SetOperationId,
+                  'measurementCalculations', MeasurementCalculations
                 )
               )
               FROM (
@@ -115,18 +118,18 @@ class ReportReader {
                   (
                     SELECT json_agg(
                       json_build_object(
-                        'TimeInterval', TimeInterval,
-                        'WeightedMeasurements', WeightedMeasurements
+                        'timeInterval', TimeInterval,
+                        'weightedMeasurements', WeightedMeasurements
                       )
                     )
                     FROM (
                       SELECT
                         (
                           SELECT json_build_object(
-                            'StartSeconds', StartSeconds,
-                            'StartNanos', StartNanos,
-                            'EndSeconds', EndSeconds,
-                            'EndNanos', EndNanos
+                            'startSeconds', StartSeconds,
+                            'startNanos', StartNanos,
+                            'endSeconds', EndSeconds,
+                            'endNanos', EndNanos
                           )
                           FROM TimeIntervals
                           WHERE MeasurementCalculations.MeasurementConsumerReferenceId = TimeIntervals.MeasurementConsumerReferenceId
@@ -136,8 +139,8 @@ class ReportReader {
                         (
                           SELECT json_agg(
                             json_build_object(
-                              'MeasurementReferenceId', MeasurementReferenceId,
-                              'Coefficient', Coefficient
+                              'measurementReferenceId', MeasurementReferenceId,
+                              'coefficient', Coefficient
                             )
                           )
                           FROM WeightedMeasurements
@@ -162,18 +165,18 @@ class ReportReader {
             (
               SELECT json_agg(
                 json_build_object(
-                  'Type', Type,
-                  'SetOperationId', SetOperationId,
-                  'LeftHandSetOperationId', LeftHandSetOperationId,
-                  'RightHandSetOperationId', RightHandSetOperationId,
-                  'LeftHandReportingSetId',
+                  'type', Type,
+                  'setOperationId', SetOperationId,
+                  'leftHandSetOperationId', LeftHandSetOperationId,
+                  'rightHandSetOperationId', RightHandSetOperationId,
+                  'leftHandReportingSetId',
                   (
                     SELECT ExternalReportingSetId
                     FROM ReportingSets
                     WHERE SetOperations.MeasurementConsumerReferenceId = ReportingSets.MeasurementConsumerReferenceId
                     AND ReportingSetId = LeftHandReportingSetId
                   ),
-                  'RightHandReportingSetId',
+                  'rightHandReportingSetId',
                   (
                     SELECT ExternalReportingSetId
                     FROM ReportingSets
@@ -197,32 +200,6 @@ class ReportReader {
 
   fun translate(row: ResultRow): Result =
     Result(row["MeasurementConsumerReferenceId"], row["ReportId"], buildReport(row))
-
-  /**
-   * Gets the report by internal report id.
-   *
-   * @throws [ReportNotFoundException]
-   */
-  suspend fun getReportById(
-    readContext: ReadContext,
-    measurementConsumerReferenceId: String,
-    internalReportId: Long
-  ): Result {
-    val statement =
-      boundStatement(
-        (baseSql +
-          """
-        WHERE MeasurementConsumerReferenceId = $1
-          AND ReportId = $2
-          """)
-      ) {
-        bind("$1", measurementConsumerReferenceId)
-        bind("$2", internalReportId)
-      }
-
-    return readContext.executeQuery(statement).consume(::translate).singleOrNull()
-      ?: throw ReportNotFoundException()
-  }
 
   /**
    * Gets the report by external report id.
@@ -277,7 +254,7 @@ class ReportReader {
     return flow {
       val readContext = client.readTransaction()
       try {
-        readContext.executeQuery(statement).consume(::translate).collect { emit(it) }
+        emitAll(readContext.executeQuery(statement).consume(::translate))
       } finally {
         readContext.close()
       }
@@ -291,14 +268,11 @@ class ReportReader {
       state = Report.State.forNumber(row["State"])
       details = row.getProtoMessage("ReportDetails", Report.Details.parser())
       reportIdempotencyKey = row["ReportIdempotencyKey"]
-      val createTime: Instant = row["CreateTime"]
-      this.createTime = timestamp {
-        seconds = createTime.epochSecond
-        nanos = createTime.nano
-      }
+      createTime = row.get<Instant>("CreateTime").toProtoTime()
       val periodicTimeInterval: String? = row["PeriodicTimeInterval"]
       if (periodicTimeInterval != null) {
-        this.periodicTimeInterval = buildPeriodicTimeInterval(periodicTimeInterval)
+        this.periodicTimeInterval =
+          buildPeriodicTimeInterval(JsonParser.parseString(periodicTimeInterval).asJsonObject)
       } else {
         timeIntervals = buildTimeIntervals(row["TimeIntervals"])
       }
@@ -306,18 +280,17 @@ class ReportReader {
     }
   }
 
-  private fun buildPeriodicTimeInterval(jsonString: String): PeriodicTimeInterval {
-    val jsonObject = JsonParser.parseString(jsonString).asJsonObject
+  private fun buildPeriodicTimeInterval(jsonObject: JsonObject): PeriodicTimeInterval {
     return periodicTimeInterval {
       startTime = timestamp {
-        seconds = jsonObject.getAsJsonPrimitive("StartSeconds").asLong
-        nanos = jsonObject.getAsJsonPrimitive("StartNanos").asInt
+        seconds = jsonObject.getAsJsonPrimitive("startSeconds").asLong
+        nanos = jsonObject.getAsJsonPrimitive("startNanos").asInt
       }
       increment = duration {
-        seconds = jsonObject.getAsJsonPrimitive("IncrementSeconds").asLong
-        nanos = jsonObject.getAsJsonPrimitive("IncrementNanos").asInt
+        seconds = jsonObject.getAsJsonPrimitive("incrementSeconds").asLong
+        nanos = jsonObject.getAsJsonPrimitive("incrementNanos").asInt
       }
-      intervalCount = jsonObject.getAsJsonPrimitive("IntervalCount").asInt
+      intervalCount = jsonObject.getAsJsonPrimitive("intervalCount").asInt
     }
   }
 
@@ -327,12 +300,12 @@ class ReportReader {
         val timeIntervalObject = JsonParser.parseString(it).asJsonObject
         timeIntervals += timeInterval {
           startTime = timestamp {
-            seconds = timeIntervalObject.getAsJsonPrimitive("StartSeconds").asLong
-            nanos = timeIntervalObject.getAsJsonPrimitive("StartNanos").asInt
+            seconds = timeIntervalObject.getAsJsonPrimitive("startSeconds").asLong
+            nanos = timeIntervalObject.getAsJsonPrimitive("startNanos").asInt
           }
           endTime = timestamp {
-            seconds = timeIntervalObject.getAsJsonPrimitive("EndSeconds").asLong
-            nanos = timeIntervalObject.getAsJsonPrimitive("EndNanos").asInt
+            seconds = timeIntervalObject.getAsJsonPrimitive("endSeconds").asLong
+            nanos = timeIntervalObject.getAsJsonPrimitive("endNanos").asInt
           }
         }
       }
@@ -342,7 +315,7 @@ class ReportReader {
   private fun buildMetrics(
     measurementConsumerReferenceId: String,
     metricsArr: Array<String>
-  ): List<Metric> {
+  ): Collection<Metric> {
     val metricsList = ArrayList<Metric>(metricsArr.size)
     metricsArr.forEach {
       val metricObject = JsonParser.parseString(it).asJsonObject
@@ -351,56 +324,56 @@ class ReportReader {
           val detailsBuilder = Metric.Details.newBuilder()
           JsonFormat.parser()
             .ignoringUnknownFields()
-            .merge(metricObject.getAsJsonPrimitive("MetricDetails").asString, detailsBuilder)
+            .merge(metricObject.getAsJsonPrimitive("metricDetails").asString, detailsBuilder)
           details = detailsBuilder.build()
 
-          val setOperationsArr = metricObject.getAsJsonArray("SetOperations")
-          val setOperationsMap = HashMap<Long, JsonObject>()
+          val setOperationsArr = metricObject.getAsJsonArray("setOperations")
+          val setOperationsMap = mutableMapOf<Long, JsonObject>()
           setOperationsArr.forEach { setOperationElement ->
             val setOperationObject = setOperationElement.asJsonObject
-            setOperationsMap[setOperationObject.getAsJsonPrimitive("SetOperationId").asLong] =
+            setOperationsMap[setOperationObject.getAsJsonPrimitive("setOperationId").asLong] =
               setOperationObject
           }
 
-          val namedSetOperationsArr = metricObject.getAsJsonArray("NamedSetOperations")
+          val namedSetOperationsArr = metricObject.getAsJsonArray("namedSetOperations")
           namedSetOperationsArr.forEach { namedSetOperationElement ->
             val namedSetOperationObject = namedSetOperationElement.asJsonObject
             namedSetOperations += namedSetOperation {
-              displayName = namedSetOperationObject.getAsJsonPrimitive("DisplayName").asString
+              displayName = namedSetOperationObject.getAsJsonPrimitive("displayName").asString
               val setOperationId =
-                namedSetOperationObject.getAsJsonPrimitive("SetOperationId").asLong
+                namedSetOperationObject.getAsJsonPrimitive("setOperationId").asLong
               setOperation =
                 buildSetOperation(measurementConsumerReferenceId, setOperationId, setOperationsMap)
               val measurementCalculationsArr =
-                namedSetOperationObject.getAsJsonArray("MeasurementCalculations")
+                namedSetOperationObject.getAsJsonArray("measurementCalculations")
               measurementCalculationsArr.forEach { measurementCalculationElement ->
                 val measurementCalculationObject = measurementCalculationElement.asJsonObject
                 measurementCalculations +=
                   MetricKt.measurementCalculation {
                     val timeIntervalObject =
-                      measurementCalculationObject.getAsJsonObject("TimeInterval")
+                      measurementCalculationObject.getAsJsonObject("timeInterval")
                     timeInterval = timeInterval {
                       startTime = timestamp {
-                        seconds = timeIntervalObject.getAsJsonPrimitive("StartSeconds").asLong
-                        nanos = timeIntervalObject.getAsJsonPrimitive("StartNanos").asInt
+                        seconds = timeIntervalObject.getAsJsonPrimitive("startSeconds").asLong
+                        nanos = timeIntervalObject.getAsJsonPrimitive("startNanos").asInt
                       }
                       endTime = timestamp {
-                        seconds = timeIntervalObject.getAsJsonPrimitive("EndSeconds").asLong
-                        nanos = timeIntervalObject.getAsJsonPrimitive("EndNanos").asInt
+                        seconds = timeIntervalObject.getAsJsonPrimitive("endSeconds").asLong
+                        nanos = timeIntervalObject.getAsJsonPrimitive("endNanos").asInt
                       }
                     }
                     val weightedMeasurementsArr =
-                      measurementCalculationObject.getAsJsonArray("WeightedMeasurements")
+                      measurementCalculationObject.getAsJsonArray("weightedMeasurements")
                     weightedMeasurementsArr.forEach { weightedMeasurementElement ->
                       val weightedMeasurementObject = weightedMeasurementElement.asJsonObject
                       weightedMeasurements +=
                         MetricKt.MeasurementCalculationKt.weightedMeasurement {
                           measurementReferenceId =
                             weightedMeasurementObject
-                              .getAsJsonPrimitive("MeasurementReferenceId")
+                              .getAsJsonPrimitive("measurementReferenceId")
                               .asString
                           coefficient =
-                            weightedMeasurementObject.getAsJsonPrimitive("Coefficient").asInt
+                            weightedMeasurementObject.getAsJsonPrimitive("coefficient").asInt
                         }
                     }
                   }
@@ -420,43 +393,43 @@ class ReportReader {
   ): SetOperation {
     val setOperationObject = setOperationMap[setOperationId]
     return setOperation {
-      type = SetOperation.Type.forNumber(setOperationObject!!.getAsJsonPrimitive("Type").asInt)
+      type = SetOperation.Type.forNumber(setOperationObject!!.getAsJsonPrimitive("type").asInt)
       lhs =
         MetricKt.SetOperationKt.operand {
-          if (setOperationObject.get("LeftHandSetOperationId").isJsonNull) {
-            if (!setOperationObject.get("LeftHandReportingSetId").isJsonNull) {
+          if (setOperationObject.get("leftHandSetOperationId").isJsonNull) {
+            if (!setOperationObject.get("leftHandReportingSetId").isJsonNull) {
               reportingSetId =
                 MetricKt.SetOperationKt.reportingSetKey {
                   this.measurementConsumerReferenceId = measurementConsumerReferenceId
                   externalReportingSetId =
-                    setOperationObject.getAsJsonPrimitive("LeftHandReportingSetId").asLong
+                    setOperationObject.getAsJsonPrimitive("leftHandReportingSetId").asLong
                 }
             }
           } else {
             operation =
               buildSetOperation(
                 measurementConsumerReferenceId,
-                setOperationObject.getAsJsonPrimitive("LeftHandSetOperationId").asLong,
+                setOperationObject.getAsJsonPrimitive("leftHandSetOperationId").asLong,
                 setOperationMap
               )
           }
         }
       rhs =
         MetricKt.SetOperationKt.operand {
-          if (setOperationObject.get("RightHandSetOperationId").isJsonNull) {
-            if (!setOperationObject.get("RightHandReportingSetId").isJsonNull) {
+          if (setOperationObject.get("rightHandSetOperationId").isJsonNull) {
+            if (!setOperationObject.get("rightHandReportingSetId").isJsonNull) {
               reportingSetId =
                 MetricKt.SetOperationKt.reportingSetKey {
                   this.measurementConsumerReferenceId = measurementConsumerReferenceId
                   externalReportingSetId =
-                    setOperationObject.getAsJsonPrimitive("RightHandReportingSetId").asLong
+                    setOperationObject.getAsJsonPrimitive("rightHandReportingSetId").asLong
                 }
             }
           } else {
             operation =
               buildSetOperation(
                 measurementConsumerReferenceId,
-                setOperationObject.getAsJsonPrimitive("RightHandSetOperationId").asLong,
+                setOperationObject.getAsJsonPrimitive("rightHandSetOperationId").asLong,
                 setOperationMap
               )
           }

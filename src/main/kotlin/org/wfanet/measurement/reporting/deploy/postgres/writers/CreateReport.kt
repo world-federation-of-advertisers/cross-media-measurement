@@ -15,7 +15,6 @@
 package org.wfanet.measurement.reporting.deploy.postgres.writers
 
 import com.google.protobuf.util.Timestamps
-import java.time.Clock
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -46,8 +45,7 @@ import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundExc
  * * [MeasurementCalculationTimeIntervalNotFoundException] MeasurementCalculation TimeInterval not
  * found.
  */
-class CreateReport(private val clock: Clock, private val request: CreateReportRequest) :
-  PostgresWriter<Report>() {
+class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Report>() {
   override suspend fun TransactionScope.runTransaction(): Report {
     val report = request.report
     val internalReportId = idGenerator.generateInternalId().value
@@ -79,16 +77,15 @@ class CreateReport(private val clock: Clock, private val request: CreateReportRe
       boundStatement(
         """
       INSERT INTO Reports (MeasurementConsumerReferenceId, ReportId, ExternalReportId, State, ReportDetails, ReportIdempotencyKey, CreateTime)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        VALUES ($1, $2, $3, $4, $5, $6, now() at time zone 'utc')
       """
       ) {
         bind("$1", report.measurementConsumerReferenceId)
         bind("$2", internalReportId)
         bind("$3", externalReportId)
         bind("$4", Report.State.RUNNING_VALUE)
-        bind("$5", report.details.toByteArray())
+        bind("$5", report.details)
         bind("$6", report.reportIdempotencyKey)
-        bind("$7", clock.instant())
       }
 
     transactionContext.run {
@@ -136,7 +133,9 @@ class CreateReport(private val clock: Clock, private val request: CreateReportRe
     }
   }
 
-  private suspend fun TransactionScope.insertMeasurements(measurements: List<MeasurementKey>) {
+  private suspend fun TransactionScope.insertMeasurements(
+    measurements: Collection<MeasurementKey>
+  ) {
     val sql =
       StringBuilder(
         """
@@ -166,7 +165,7 @@ class CreateReport(private val clock: Clock, private val request: CreateReportRe
   }
 
   private suspend fun TransactionScope.insertReportMeasurements(
-    measurements: List<MeasurementKey>,
+    measurements: Collection<MeasurementKey>,
     reportId: Long
   ) {
     val sql =
@@ -223,8 +222,8 @@ class CreateReport(private val clock: Clock, private val request: CreateReportRe
   private suspend fun TransactionScope.insertTimeIntervals(
     measurementConsumerReferenceId: String,
     reportId: Long,
-    timeIntervals: List<TimeInterval>
-  ): HashMap<TimeIntervalWrapper, Long> {
+    timeIntervals: Collection<TimeInterval>
+  ): Map<TimeInterval, Long> {
     val sql =
       StringBuilder(
         """
@@ -243,13 +242,13 @@ class CreateReport(private val clock: Clock, private val request: CreateReportRe
       )
     }
 
-    val timeIntervalMap = HashMap<TimeIntervalWrapper, Long>()
+    val timeIntervalMap = mutableMapOf<TimeInterval, Long>()
     firstParam = 1
     val statement =
       boundStatement(sql.toString()) {
         timeIntervals.forEach {
           val timeIntervalId = idGenerator.generateInternalId().value
-          timeIntervalMap[TimeIntervalWrapper(it)] = timeIntervalId
+          timeIntervalMap[it] = timeIntervalId
           bind("$$firstParam", measurementConsumerReferenceId)
           bind("$${firstParam + 1}", reportId)
           bind("$${firstParam + 2}", timeIntervalId)
@@ -267,7 +266,7 @@ class CreateReport(private val clock: Clock, private val request: CreateReportRe
   private suspend fun TransactionScope.insertMetric(
     measurementConsumerReferenceId: String,
     reportId: Long,
-    timeIntervalMap: Map<TimeIntervalWrapper, Long>,
+    timeIntervalMap: Map<TimeInterval, Long>,
     metric: Metric
   ) {
     val metricId = idGenerator.generateInternalId().value
@@ -302,7 +301,7 @@ class CreateReport(private val clock: Clock, private val request: CreateReportRe
     measurementConsumerReferenceId: String,
     reportId: Long,
     metricId: Long,
-    timeIntervalMap: Map<TimeIntervalWrapper, Long>,
+    timeIntervalMap: Map<TimeInterval, Long>,
     namedSetOperation: NamedSetOperation
   ) {
     val namedSetOperationId = idGenerator.generateInternalId().value
@@ -337,7 +336,7 @@ class CreateReport(private val clock: Clock, private val request: CreateReportRe
         reportId,
         metricId,
         namedSetOperationId,
-        timeIntervalMap[TimeIntervalWrapper(it.timeInterval)]
+        timeIntervalMap[it.timeInterval]
           ?: throw MeasurementCalculationTimeIntervalNotFoundException(),
         it
       )
@@ -385,7 +384,7 @@ class CreateReport(private val clock: Clock, private val request: CreateReportRe
     metricId: Long,
     namedSetOperationId: Long,
     measurementCalculationId: Long,
-    weightedMeasurements: List<WeightedMeasurement>
+    weightedMeasurements: Collection<WeightedMeasurement>
   ) {
     transactionContext.run {
       weightedMeasurements.forEach {
@@ -504,20 +503,5 @@ class CreateReport(private val clock: Clock, private val request: CreateReportRe
     transactionContext.executeStatement(statement)
 
     return setOperationId
-  }
-
-  private class TimeIntervalWrapper(val timeInterval: TimeInterval) {
-    override fun equals(other: Any?): Boolean {
-      val otherTimeInterval = (other as TimeIntervalWrapper).timeInterval
-      if (Timestamps.compare(timeInterval.startTime, otherTimeInterval.startTime) != 0) {
-        return false
-      }
-
-      return (Timestamps.compare(timeInterval.endTime, otherTimeInterval.endTime) == 0)
-    }
-
-    override fun hashCode(): Int {
-      return (timeInterval.startTime.seconds % Int.MAX_VALUE).toInt()
-    }
   }
 }

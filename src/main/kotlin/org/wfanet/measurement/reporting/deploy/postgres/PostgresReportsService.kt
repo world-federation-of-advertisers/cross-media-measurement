@@ -15,7 +15,6 @@
 package org.wfanet.measurement.reporting.deploy.postgres
 
 import io.grpc.Status
-import java.time.Clock
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
@@ -32,13 +31,12 @@ import org.wfanet.measurement.reporting.service.internal.ReportNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 
 class PostgresReportsService(
-  private val clock: Clock,
   private val idGenerator: IdGenerator,
   private val client: DatabaseClient,
 ) : ReportsCoroutineImplBase() {
   override suspend fun createReport(request: CreateReportRequest): Report {
     try {
-      return CreateReport(clock, request).execute(client, idGenerator)
+      return CreateReport(request).execute(client, idGenerator)
     } catch (e: ReportingSetNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "Reporting Set not found" }
     } catch (e: MeasurementCalculationTimeIntervalNotFoundException) {
