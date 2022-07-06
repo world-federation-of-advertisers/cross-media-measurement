@@ -18,7 +18,9 @@ import com.google.protobuf.Duration
 import com.google.protobuf.util.Durations
 import io.grpc.Status
 import kotlin.math.min
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import org.wfanet.measurement.api.v2.alpha.ListReportsPageToken
 import org.wfanet.measurement.api.v2.alpha.ListReportsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2.alpha.copy
@@ -123,9 +125,7 @@ class ReportsService(
         }
       }
       else -> {
-        failGrpc(Status.PERMISSION_DENIED) {
-          "Caller does not have permission to list Reports."
-        }
+        failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to list Reports." }
       }
     }
 
@@ -151,7 +151,7 @@ class ReportsService(
       reports +=
         results
           .subList(0, min(results.size, listReportsPageToken.pageSize))
-          .map { syncMeasurements(it) }
+          .map { syncReports(it) }
           .map(InternalReport::toReport)
 
       if (nextPageToken != null) {
@@ -160,8 +160,8 @@ class ReportsService(
     }
   }
 
-  /** Syncs all [InternalMeasurement]s used by the [InternalReport]. */
-  private suspend fun syncMeasurements(internalReport: InternalReport): InternalReport {
+  /** Syncs the [InternalReport] and all [InternalMeasurement]s used by it. */
+  private suspend fun syncReports(internalReport: InternalReport): InternalReport {
     // Report with SUCCEEDED or FAILED state is already synced.
     if (
       internalReport.state == InternalReport.State.SUCCEEDED ||
@@ -179,13 +179,7 @@ class ReportsService(
     }
 
     // Syncs measurements
-    for ((measurementReferenceId, internalMeasurement) in internalReport.measurementsMap) {
-      syncMeasurement(
-        measurementReferenceId,
-        internalReport.measurementConsumerReferenceId,
-        internalMeasurement,
-      )
-    }
+    syncMeasurements(internalReport.measurementsMap, internalReport.measurementConsumerReferenceId)
 
     return internalReportsStub.getReport(
       getInternalReportRequest {
@@ -193,6 +187,22 @@ class ReportsService(
         externalReportId = internalReport.externalReportId
       }
     )
+  }
+
+  /** Syncs [InternalMeasurement]s. */
+  private suspend fun syncMeasurements(
+    measurementsMap: Map<String, InternalMeasurement>,
+    measurementConsumerReferenceId: String,
+  ) = coroutineScope {
+    for ((measurementReferenceId, internalMeasurement) in measurementsMap) {
+      launch {
+        syncMeasurement(
+          measurementReferenceId,
+          measurementConsumerReferenceId,
+          internalMeasurement,
+        )
+      }
+    }
   }
 
   /** Syncs [InternalMeasurement] with the CMM [Measurement] given the measurement reference ID. */
