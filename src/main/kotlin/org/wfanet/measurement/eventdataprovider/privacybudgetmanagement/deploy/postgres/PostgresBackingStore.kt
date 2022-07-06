@@ -232,16 +232,72 @@ class PostgresBackingStoreTransactionContext(
     }
   }
 
+  private fun addBalanceEntries(
+    privacyBudgetBalanceEntries: List<PrivacyBudgetBalanceEntry>,
+    refundCharge: Boolean = false
+  ) {
+    throwIfTransactionHasEnded(privacyBudgetBalanceEntries.map { it.privacyBucketGroup })
+    val insertEntrySql =
+      """
+        INSERT into PrivacyBucketCharges (
+          MeasurementConsumerId,
+          Date,
+          AgeGroup,
+          Gender,
+          VidStart,
+          Delta,
+          Epsilon,
+          RepetitionCount
+        ) VALUES (
+          ?,
+          ?,
+          CAST(? AS AgeGroup),
+          CAST(? AS Gender),
+          ?,
+          ?,
+          ?,
+          1)
+      ON CONFLICT (MeasurementConsumerId,
+          Date,
+          AgeGroup,
+          Gender,
+          VidStart,
+          Delta,
+          Epsilon)
+      DO
+         UPDATE SET RepetitionCount = ? + PrivacyBucketCharges.RepetitionCount;
+      """.trimIndent()
+
+    val statement: PreparedStatement = connection.prepareStatement(insertEntrySql)
+
+    privacyBudgetBalanceEntries.forEachIndexed { index, privacyBudgetBalanceEntry ->
+      statement.setString(1, privacyBudgetBalanceEntry.privacyBucketGroup.measurementConsumerId)
+      statement.setObject(2, privacyBudgetBalanceEntry.privacyBucketGroup.startingDate)
+      statement.setString(3, privacyBudgetBalanceEntry.privacyBucketGroup.ageGroup.string)
+      statement.setString(4, privacyBudgetBalanceEntry.privacyBucketGroup.gender.string)
+      statement.setFloat(5, privacyBudgetBalanceEntry.privacyBucketGroup.vidSampleStart)
+      statement.setFloat(6, privacyBudgetBalanceEntry.charge.delta)
+      statement.setFloat(7, privacyBudgetBalanceEntry.charge.epsilon)
+      statement.setInt(8, if (refundCharge) -1 else 1) // update RepetitionCount
+      statement.addBatch()
+      // execute every 1000 rows or less
+      if (index % 1000 == 0 || index == privacyBudgetBalanceEntries.size - 1) {
+        statement.executeBatch()
+      }
+    }
+  }
+
   override fun addLedgerEntries(
     privacyBucketGroups: Set<PrivacyBucketGroup>,
     charges: Set<Charge>,
     reference: Reference
   ) {
-    for (privacyBucketGroup in privacyBucketGroups) {
-      for (charge in charges) {
-        addBalanceEntry(privacyBucketGroup, charge, reference.isRefund)
-      }
-    }
+    addBalanceEntries(
+      privacyBucketGroups.flatMap { privacyBucketGroup ->
+        charges.map { charge -> PrivacyBudgetBalanceEntry(privacyBucketGroup, charge, 1) }
+      },
+      reference.isRefund
+    )
     addLedgerEntry(reference)
   }
 
