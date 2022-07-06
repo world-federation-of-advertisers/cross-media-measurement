@@ -958,7 +958,7 @@ class ReportsServiceTest {
   }
 
   @Test
-  fun `listRepors returns with a next page token when there is no previous page token`() {
+  fun `listReports returns with a next page token when there is no previous page token`() {
     val request = listReportsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       pageSize = PAGE_SIZE
