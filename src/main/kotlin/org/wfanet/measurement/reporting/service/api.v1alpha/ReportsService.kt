@@ -173,8 +173,8 @@ class ReportsService(
         internalReport.state == InternalReport.State.UNRECOGNIZED
     ) {
       error(
-        "The measurements cannot be synced if the report state is either unspecified or " +
-          "unrecognized."
+        "The measurements cannot be synced because the report state was not set correctly as it " +
+          "should've been."
       )
     }
 
