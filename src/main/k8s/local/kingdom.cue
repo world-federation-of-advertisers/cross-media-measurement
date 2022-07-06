@@ -16,14 +16,6 @@ package k8s
 
 _secret_name: string @tag("secret_name")
 
-#DefaultResourceConfig: {
-	replicas:              1
-	resourceRequestCpu:    "100m"
-	resourceLimitCpu:      "400m"
-	resourceRequestMemory: "256Mi"
-	resourceLimitMemory:   "512Mi"
-}
-
 objectSets: [ for objectSet in kingdom {objectSet}]
 
 kingdom: #Kingdom & {
