@@ -153,7 +153,8 @@ class FrontendSimulator(
 
       assertThat(reachAndFrequencyResult.reach.value).isEqualTo(expectedResult)
       logger.info(
-        "Direct reach and frequency result is equal to the expected result. Correctness Test passes."
+        "Direct reach and frequency result is equal to the expected result. " +
+          "Correctness Test passes."
       )
 
       return
