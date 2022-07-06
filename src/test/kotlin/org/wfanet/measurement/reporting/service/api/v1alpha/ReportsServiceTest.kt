@@ -1221,7 +1221,7 @@ class ReportsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
     assertThat(exception.status.description)
-      .isEqualTo("Cannot list ReportingSets belonging to other MeasurementConsumers.")
+      .isEqualTo("Cannot list Reports belonging to other MeasurementConsumers.")
   }
 
   @Test
@@ -1235,7 +1235,7 @@ class ReportsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
     assertThat(exception.status.description)
-      .isEqualTo("Caller does not have permission to list ReportingSets.")
+      .isEqualTo("Caller does not have permission to list Reports.")
   }
 
   @Test
