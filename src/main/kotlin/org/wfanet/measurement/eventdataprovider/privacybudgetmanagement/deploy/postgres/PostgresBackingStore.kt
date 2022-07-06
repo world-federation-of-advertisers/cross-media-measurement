@@ -159,56 +159,6 @@ class PostgresBackingStoreTransactionContext(
     }
   }
 
-  private fun addBalanceEntry(
-    privacyBucketGroup: PrivacyBucketGroup,
-    privacyCharge: Charge,
-    refundCharge: Boolean = false
-  ) {
-    throwIfTransactionHasEnded(listOf(privacyBucketGroup))
-    val insertEntrySql =
-      """
-        INSERT into PrivacyBucketCharges (
-          MeasurementConsumerId,
-          Date,
-          AgeGroup,
-          Gender,
-          VidStart,
-          Delta,
-          Epsilon,
-          RepetitionCount
-        ) VALUES (
-          ?,
-          ?,
-          CAST(? AS AgeGroup),
-          CAST(? AS Gender),
-          ?,
-          ?,
-          ?,
-          1)
-      ON CONFLICT (MeasurementConsumerId,
-          Date,
-          AgeGroup,
-          Gender,
-          VidStart,
-          Delta,
-          Epsilon)
-      DO
-         UPDATE SET RepetitionCount = ? + PrivacyBucketCharges.RepetitionCount;
-      """.trimIndent()
-    connection.prepareStatement(insertEntrySql).use { statement: PreparedStatement ->
-      statement.setString(1, privacyBucketGroup.measurementConsumerId)
-      statement.setObject(2, privacyBucketGroup.startingDate)
-      statement.setString(3, privacyBucketGroup.ageGroup.string)
-      statement.setString(4, privacyBucketGroup.gender.string)
-      statement.setFloat(5, privacyBucketGroup.vidSampleStart)
-      statement.setFloat(6, privacyCharge.delta)
-      statement.setFloat(7, privacyCharge.epsilon)
-      statement.setInt(8, if (refundCharge) -1 else 1) // update RepetitionCount
-      // TODO(@duliomatos) Make the blocking IO run within a dispatcher using coroutines
-      statement.executeUpdate()
-    }
-  }
-
   private fun addLedgerEntry(privacyReference: Reference) {
     val insertEntrySql =
       """
