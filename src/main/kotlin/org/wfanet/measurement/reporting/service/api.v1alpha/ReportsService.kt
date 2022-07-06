@@ -118,13 +118,13 @@ class ReportsService(
       is MeasurementConsumerKey -> {
         if (request.parent != resourceKey.toName()) {
           failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot list ReportingSets belonging to other MeasurementConsumers."
+            "Cannot list Reports belonging to other MeasurementConsumers."
           }
         }
       }
       else -> {
         failGrpc(Status.PERMISSION_DENIED) {
-          "Caller does not have permission to list ReportingSets."
+          "Caller does not have permission to list Reports."
         }
       }
     }
