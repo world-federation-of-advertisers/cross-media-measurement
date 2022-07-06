@@ -30,4 +30,7 @@ enum ErrorCode {
 
   /** Measurement with the provided reference IDs does not exist. */
   MEASUREMENT_NOT_FOUND = 3;
+
+  /** Reporting Set with the provided IDs does not exist. */
+  REPORTING_SET_NOT_FOUND = 4;
 }

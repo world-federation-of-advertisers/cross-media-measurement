@@ -79,3 +79,10 @@ class MeasurementNotFoundException(provideDescription: () -> String = { "Measure
   override val context
     get() = emptyMap<String, String>()
 }
+
+class ReportingSetNotFoundException(
+  provideDescription: () -> String = { "Reporting Set not found" }
+) : ReportingInternalException(ErrorCode.REPORTING_SET_NOT_FOUND, provideDescription) {
+  override val context
+    get() = emptyMap<String, String>()
+}

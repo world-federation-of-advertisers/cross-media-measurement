@@ -15,8 +15,8 @@
 package org.wfanet.measurement.reporting.deploy.postgres.writers
 
 import io.r2dbc.spi.R2dbcDataIntegrityViolationException
-import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.internal.reporting.ReportingSet
 import org.wfanet.measurement.internal.reporting.copy
@@ -33,7 +33,7 @@ class CreateReportingSet(private val request: ReportingSet) : PostgresWriter<Rep
     val internalReportingSetId = idGenerator.generateInternalId().value
     val externalReportingSetId = idGenerator.generateExternalId().value
 
-    val builder =
+    val statement =
       boundStatement(
         """
       INSERT INTO ReportingSets (MeasurementConsumerReferenceId, ReportingSetId, ExternalReportingSetId, Filter, DisplayName)
@@ -49,13 +49,13 @@ class CreateReportingSet(private val request: ReportingSet) : PostgresWriter<Rep
 
     transactionContext.run {
       try {
-        executeStatement(builder)
+        executeStatement(statement)
       } catch (e: R2dbcDataIntegrityViolationException) {
         throw ReportingSetAlreadyExistsException()
       }
       coroutineScope {
-        request.eventGroupKeysList.map {
-          async { insertReportingSetEventGroup(it, internalReportingSetId) }
+        request.eventGroupKeysList.forEach {
+          launch { insertReportingSetEventGroup(it, internalReportingSetId) }
         }
       }
     }
@@ -67,7 +67,7 @@ class CreateReportingSet(private val request: ReportingSet) : PostgresWriter<Rep
     eventGroupKey: ReportingSet.EventGroupKey,
     reportingSetId: Long
   ) {
-    val builder =
+    val statement =
       boundStatement(
         """
       INSERT INTO ReportingSetEventGroups (MeasurementConsumerReferenceId, DataProviderReferenceId, EventGroupReferenceId, ReportingSetId)
@@ -80,6 +80,6 @@ class CreateReportingSet(private val request: ReportingSet) : PostgresWriter<Rep
         bind("$4", reportingSetId)
       }
 
-    transactionContext.executeStatement(builder)
+    transactionContext.executeStatement(statement)
   }
 }
