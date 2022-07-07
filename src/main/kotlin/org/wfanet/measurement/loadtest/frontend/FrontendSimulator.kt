@@ -141,25 +141,6 @@ class FrontendSimulator(
     }
     logger.info("Got reach and frequency result from Kingdom: $reachAndFrequencyResult")
 
-    // Direct reach and frequency measurement
-    if (createdReachAndFrequencyMeasurement.dataProvidersCount == 1) {
-      logger.info("This is direct reach and frequency measurement.")
-      // EdpSimulator sets it to this value.
-      val expectedResult =
-        apiIdToExternalId(
-          DataProviderKey.fromName(createdReachAndFrequencyMeasurement.dataProvidersList[0].key)!!
-            .dataProviderId
-        )
-
-      assertThat(reachAndFrequencyResult.reach.value).isEqualTo(expectedResult)
-      logger.info(
-        "Direct reach and frequency result is equal to the expected result. " +
-          "Correctness Test passes."
-      )
-
-      return
-    }
-
     val liquidLegionV2Protocol = createdReachAndFrequencyMeasurement.protocolConfig.liquidLegionsV2
     val expectedResult =
       getExpectedResult(createdReachAndFrequencyMeasurement.name, liquidLegionV2Protocol)
@@ -172,6 +153,39 @@ class FrontendSimulator(
     )
     logger.info(
       "Reach and frequency result is equal to the expected result. Correctness Test passes."
+    )
+  }
+
+  suspend fun executeDirectReachAndFrequency(runId: String) {
+    // Create a new measurement on behalf of the measurement consumer.
+    val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
+    val createdReachAndFrequencyMeasurement =
+      createMeasurement(measurementConsumer, runId, ::newReachAndFrequencyMeasurementSpec, 1)
+    logger.info(
+      "Created reach and frequency measurement ${createdReachAndFrequencyMeasurement.name}."
+    )
+
+    // Get the CMMS computed result and compare it with the expected result.
+    var reachAndFrequencyResult =
+      getReachAndFrequencyResult(createdReachAndFrequencyMeasurement.name)
+    while (reachAndFrequencyResult == null) {
+      logger.info("Computation not done yet, wait for another 30 seconds.")
+      delay(Duration.ofSeconds(30).toMillis())
+      reachAndFrequencyResult = getReachAndFrequencyResult(createdReachAndFrequencyMeasurement.name)
+    }
+    logger.info("Got reach and frequency result from Kingdom: $reachAndFrequencyResult")
+
+    // EdpSimulator sets it to this value.
+    val expectedResult =
+      apiIdToExternalId(
+        DataProviderKey.fromName(createdReachAndFrequencyMeasurement.dataProvidersList[0].key)!!
+          .dataProviderId
+      )
+
+    assertThat(reachAndFrequencyResult.reach.value).isEqualTo(expectedResult)
+    logger.info(
+      "Direct reach and frequency result is equal to the expected result. " +
+        "Correctness Test passes."
     )
   }
 
@@ -250,10 +264,11 @@ class FrontendSimulator(
       (
         serializedMeasurementPublicKey: ByteString,
         nonceHashes: MutableList<ByteString>
-      ) -> MeasurementSpec
+      ) -> MeasurementSpec,
+    numberOfEdp: Int = 3,
   ): Measurement {
-    val eventGroups = listEventGroups(measurementConsumer.name)
-
+    var eventGroups = listEventGroups(measurementConsumer.name)
+    eventGroups = eventGroups.subList(0, numberOfEdp)
     val nonceHashes = mutableListOf<ByteString>()
     val dataProviderEntries =
       eventGroups.map {
