@@ -25,8 +25,8 @@ import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
+import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
-import org.wfanet.measurement.reporting.service.api.v1alpha.crypto.decryptResult
 import org.wfanet.measurement.reporting.v1alpha.EventGroup as ReportingEventGroup
 import org.wfanet.measurement.reporting.v1alpha.EventGroupKt.eventTemplate as reportingEventTemplate
 import org.wfanet.measurement.reporting.v1alpha.EventGroupKt.metadata as reportingMetadata
