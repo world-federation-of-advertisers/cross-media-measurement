@@ -48,13 +48,13 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.crypto.tink.TinkPublicKeyHandle
+import org.wfanet.measurement.common.crypto.tink.testing.loadPrivateKey
+import org.wfanet.measurement.common.crypto.tink.testing.loadPublicKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.consent.client.common.signMessage
-import org.wfanet.measurement.reporting.service.api.v1alpha.crypto.loadPrivateKey
-import org.wfanet.measurement.reporting.service.api.v1alpha.crypto.loadPublicKey
 import org.wfanet.measurement.reporting.v1alpha.EventGroupKt.metadata as reportingMetadata
 import org.wfanet.measurement.reporting.v1alpha.eventGroup as reportingEventGroup
 import org.wfanet.measurement.reporting.v1alpha.listEventGroupsRequest
