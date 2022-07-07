@@ -641,10 +641,9 @@ class ListMeasurements : Runnable {
 class GetMeasurement : Runnable {
   @ParentCommand private lateinit var parentCommand: Measurements
 
-  @Option(
-    names = ["--measurement"],
+  @Parameters(
+    index = "0",
     description = ["API resource name of the Measurement"],
-    required = true,
   )
   private lateinit var measurementName: String
 

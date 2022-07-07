@@ -250,70 +250,6 @@ private val LIST_MEASUREMENT_RESPONSE = listMeasurementsResponse {
   }
 }
 
-private fun getEncryptedResult(
-  result: Measurement.Result,
-  publicKey: EncryptionPublicKey
-): ByteString {
-  val signedResult = signResult(result, AGGREGATOR_SIGNING_KEY)
-  return encryptResult(signedResult, publicKey)
-}
-
-private inline fun capturingSystemOut(block: () -> Unit): String {
-  val originalOut = System.out
-  val outputStream = ByteArrayOutputStream()
-
-  System.setOut(PrintStream(outputStream, true))
-  try {
-    block()
-  } finally {
-    System.setOut(originalOut)
-  }
-
-  return outputStream.toString()
-}
-
-private inline fun assertExitsWith(status: Int, block: () -> Unit) {
-  val exception: ExitException = assertFailsWith {
-    val originalSecurityManager: SecurityManager? = System.getSecurityManager()
-    System.setSecurityManager(
-      object : SecurityManager() {
-        override fun checkPermission(perm: Permission?) {
-          // Allow everything.
-        }
-
-        override fun checkExit(status: Int) {
-          super.checkExit(status)
-          throw ExitException(status)
-        }
-      }
-    )
-
-    try {
-      block()
-    } finally {
-      System.setSecurityManager(originalSecurityManager)
-    }
-  }
-  assertThat(exception.status).isEqualTo(status)
-}
-
-private class ExitException(val status: Int) : RuntimeException()
-
-private class HeaderCapturingInterceptor : ServerInterceptor {
-  override fun <ReqT, RespT> interceptCall(
-    call: ServerCall<ReqT, RespT>,
-    headers: Metadata,
-    next: ServerCallHandler<ReqT, RespT>,
-  ): ServerCall.Listener<ReqT> {
-    _capturedHeaders.add(headers)
-    return next.startCall(call, headers)
-  }
-
-  private val _capturedHeaders = mutableListOf<Metadata>()
-  val capturedHeaders: List<Metadata>
-    get() = _capturedHeaders
-}
-
 @RunWith(JUnit4::class)
 class MeasurementSystemTest {
   private val accountsServiceMock: AccountsCoroutineImplBase = mockService()
@@ -787,8 +723,8 @@ class MeasurementSystemTest {
           "measurements",
           "--api-key=$API_KEY",
           "get",
-          "--measurement=$MEASUREMENT_NAME",
           "--encryption-private-key-file=$SECRETS_DIR/mc_enc_private.tink",
+          MEASUREMENT_NAME,
         )
 
     callCli(args)
@@ -809,4 +745,68 @@ class MeasurementSystemTest {
       .comparingExpectedFieldsOnly()
       .isEqualTo(getMeasurementRequest { name = MEASUREMENT_NAME })
   }
+}
+
+private fun getEncryptedResult(
+  result: Measurement.Result,
+  publicKey: EncryptionPublicKey
+): ByteString {
+  val signedResult = signResult(result, AGGREGATOR_SIGNING_KEY)
+  return encryptResult(signedResult, publicKey)
+}
+
+private inline fun capturingSystemOut(block: () -> Unit): String {
+  val originalOut = System.out
+  val outputStream = ByteArrayOutputStream()
+
+  System.setOut(PrintStream(outputStream, true))
+  try {
+    block()
+  } finally {
+    System.setOut(originalOut)
+  }
+
+  return outputStream.toString()
+}
+
+private inline fun assertExitsWith(status: Int, block: () -> Unit) {
+  val exception: ExitException = assertFailsWith {
+    val originalSecurityManager: SecurityManager? = System.getSecurityManager()
+    System.setSecurityManager(
+      object : SecurityManager() {
+        override fun checkPermission(perm: Permission?) {
+          // Allow everything.
+        }
+
+        override fun checkExit(status: Int) {
+          super.checkExit(status)
+          throw ExitException(status)
+        }
+      }
+    )
+
+    try {
+      block()
+    } finally {
+      System.setSecurityManager(originalSecurityManager)
+    }
+  }
+  assertThat(exception.status).isEqualTo(status)
+}
+
+private class ExitException(val status: Int) : RuntimeException()
+
+private class HeaderCapturingInterceptor : ServerInterceptor {
+  override fun <ReqT, RespT> interceptCall(
+    call: ServerCall<ReqT, RespT>,
+    headers: Metadata,
+    next: ServerCallHandler<ReqT, RespT>,
+  ): ServerCall.Listener<ReqT> {
+    _capturedHeaders.add(headers)
+    return next.startCall(call, headers)
+  }
+
+  private val _capturedHeaders = mutableListOf<Metadata>()
+  val capturedHeaders: List<Metadata>
+    get() = _capturedHeaders
 }

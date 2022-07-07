@@ -91,7 +91,7 @@ to the executable.
 * Authenticate
   
   ```shell
-  MeasurementConsumer \
+  MeasurementSystem \
   --tls-cert-file=secretfiles/mc_tls.pem --tls-key-file=secretfiles/mc_tls.key \
   --cert-collection-file=secretfiles/kingdom_root.pem \
   --kingdom-public-api-target=public.kingdom.dev.halo-cmm.org:8443 \
@@ -103,7 +103,7 @@ to the executable.
 * Active
 
   ```shell
-  MeasurementConsumer \
+  MeasurementSystem \
   --tls-cert-file=secretfiles/mc_tls.pem --tls-key-file=secretfiles/mc_tls.key \
   --cert-collection-file=secretfiles/kingdom_root.pem \
   --kingdom-public-api-target=public.kingdom.dev.halo-cmm.org:8443 \
@@ -129,7 +129,7 @@ to the executable.
   options within a group does not matter.
 
   ```shell
-  MeasurementConsumer \
+  MeasurementSystem \
   --tls-cert-file=secretfiles/mc_tls.pem --tls-key-file=secretfiles/mc_tls.key \
   --cert-collection-file=secretfiles/kingdom_root.pem \
   --kingdom-public-api-target=public.kingdom.dev.halo-cmm.org:8443 \
@@ -164,7 +164,7 @@ to the executable.
 * List
 
   ```shell
-  MeasurementConsumer \
+  MeasurementSystem \
   --tls-cert-file=secretfiles/mc_tls.pem --tls-key-file=secretfiles/mc_tls.key \
   --cert-collection-file=secretfiles/kingdom_root.pem \
   --kingdom-public-api-target=public.kingdom.dev.halo-cmm.org:8443 \
@@ -180,14 +180,14 @@ to the executable.
   `mc_enc_private.tink`.
 
   ```shell
-  SimpleReport \
+  MeasurementSystem \
   --tls-cert-file=secretfiles/mc_tls.pem --tls-key-file=secretfiles/mc_tls.key \
   --cert-collection-file=secretfiles/kingdom_root.pem \
   --kingdom-public-api-target=public.kingdom.dev.halo-cmm.org:8443 \
   measurements \
   --api-key=nR5QPN7ptx \
   get \
-  --measurement=measurementConsumers/777/measurements/100 \
-  --encryption-private-key-file=secretfiles/mc_enc_private.tink
+  --encryption-private-key-file=secretfiles/mc_enc_private.tink \
+  measurementConsumers/777/measurements/100
   ```
 
