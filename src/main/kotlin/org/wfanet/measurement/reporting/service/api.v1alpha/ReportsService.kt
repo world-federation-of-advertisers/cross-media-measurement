@@ -17,7 +17,9 @@ package org.wfanet.measurement.reporting.service.api.v1alpha
 import com.google.protobuf.Duration
 import com.google.protobuf.duration
 import com.google.protobuf.util.Durations
+import com.google.protobuf.util.Timestamps
 import io.grpc.Status
+import java.time.Instant
 import kotlin.math.min
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.toList
@@ -41,6 +43,7 @@ import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
@@ -61,17 +64,33 @@ import org.wfanet.measurement.internal.reporting.Metric.NamedSetOperation as Int
 import org.wfanet.measurement.internal.reporting.Metric.SetOperation as InternalSetOperation
 import org.wfanet.measurement.internal.reporting.Metric.SetOperation.Operand as InternalOperand
 import org.wfanet.measurement.internal.reporting.Metric.WatchDurationParams as InternalWatchDurationParams
+import org.wfanet.measurement.internal.reporting.MetricKt.SetOperationKt.operand as internalOperand
+import org.wfanet.measurement.internal.reporting.MetricKt.SetOperationKt.reportingSetKey
+import org.wfanet.measurement.internal.reporting.MetricKt.details as internalMetricDetails
+import org.wfanet.measurement.internal.reporting.MetricKt.frequencyHistogramParams as internalFrequencyHistogramParams
+import org.wfanet.measurement.internal.reporting.MetricKt.impressionCountParams as internalImpressionCountParams
+import org.wfanet.measurement.internal.reporting.MetricKt.namedSetOperation as internalNamedSetOperation
+import org.wfanet.measurement.internal.reporting.MetricKt.reachParams as internalReachParams
+import org.wfanet.measurement.internal.reporting.MetricKt.setOperation as internalSetOperation
+import org.wfanet.measurement.internal.reporting.MetricKt.watchDurationParams as internalWatchDurationParams
 import org.wfanet.measurement.internal.reporting.PeriodicTimeInterval as InternalPeriodicTimeInterval
 import org.wfanet.measurement.internal.reporting.Report as InternalReport
-import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub
+import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
+import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.StreamReportsRequest as StreamInternalReportsRequest
 import org.wfanet.measurement.internal.reporting.StreamReportsRequestKt.filter
+import org.wfanet.measurement.internal.reporting.TimeInterval as InternalTimeInterval
 import org.wfanet.measurement.internal.reporting.TimeIntervals as InternalTimeIntervals
 import org.wfanet.measurement.internal.reporting.createReportRequest as internalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.getReportRequest as getInternalReportRequest
+import org.wfanet.measurement.internal.reporting.metric as internalMetric
+import org.wfanet.measurement.internal.reporting.periodicTimeInterval as internalPeriodicTimeInterval
+import org.wfanet.measurement.internal.reporting.report as internalReport
 import org.wfanet.measurement.internal.reporting.setMeasurementFailureRequest
 import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest
 import org.wfanet.measurement.internal.reporting.streamReportsRequest as streamInternalReportsRequest
+import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInterval
+import org.wfanet.measurement.internal.reporting.timeIntervals as internalTimeIntervals
 import org.wfanet.measurement.reporting.v1alpha.CreateReportRequest
 import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.v1alpha.ListReportsResponse
@@ -80,6 +99,7 @@ import org.wfanet.measurement.reporting.v1alpha.Metric.FrequencyHistogramParams
 import org.wfanet.measurement.reporting.v1alpha.Metric.ImpressionCountParams
 import org.wfanet.measurement.reporting.v1alpha.Metric.NamedSetOperation
 import org.wfanet.measurement.reporting.v1alpha.Metric.SetOperation
+import org.wfanet.measurement.reporting.v1alpha.Metric.SetOperation.Operand
 import org.wfanet.measurement.reporting.v1alpha.Metric.WatchDurationParams
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.SetOperationKt.operand
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.frequencyHistogramParams
@@ -107,7 +127,8 @@ private const val MAX_PAGE_SIZE = 1000
 
 /** TODO(@renjiez) Have a function to get public/private keys */
 class ReportsService(
-  private val internalReportsStub: ReportsCoroutineStub,
+  private val internalReportsStub: InternalReportsCoroutineStub,
+  private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
   private val internalMeasurementsStub: InternalMeasurementsCoroutineStub,
   private val measurementsStub: MeasurementsCoroutineStub,
   private val certificateStub: CertificatesCoroutineStub,
@@ -122,20 +143,20 @@ class ReportsService(
       is MeasurementConsumerKey -> {
         if (request.parent != resourceKey.toName()) {
           failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot create a ReportingSet for another MeasurementConsumer."
+            "Cannot create a Report for another MeasurementConsumer."
           }
         }
       }
       else -> {
-        failGrpc(Status.PERMISSION_DENIED) {
-          "Caller does not have permission to create a ReportingSet."
-        }
+        failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to create a Report." }
       }
     }
 
     grpcRequire(request.hasReport()) { "Report is not specified." }
 
-    return internalReportsStub.createReport(request.toInternal()).toReport()
+    return internalReportsStub
+      .createReport(request.toInternal(internalReportingSetsStub))
+      .toReport()
   }
 
   override suspend fun listReports(request: ListReportsRequest): ListReportsResponse {
@@ -298,11 +319,13 @@ class ReportsService(
   }
 }
 
-private fun CreateReportRequest.toInternal(): InternalCreateReportRequest {
+/** Converts a public [CreateReportRequest] to an [InternalCreateReportRequest]. */
+private suspend fun CreateReportRequest.toInternal(
+  internalReportingSetsStub: InternalReportingSetsCoroutineStub
+): InternalCreateReportRequest {
   val source = this
 
-  // Report level check
-  val parentKey =
+  val measurementConsumerKey =
     grpcRequireNotNull(MeasurementConsumerKey.fromName(source.parent)) {
       "Parent is either unspecified or invalid."
     }
@@ -313,12 +336,226 @@ private fun CreateReportRequest.toInternal(): InternalCreateReportRequest {
   }
 
   grpcRequire(source.report.measurementConsumer == source.parent) {
-    "Cannot create a ReportingSet for another MeasurementConsumer."
+    "Cannot create a Report for another MeasurementConsumer."
   }
   grpcRequire(source.report.hasEventGroupUniverse()) { "EventGroupUniverse is not specified." }
   grpcRequire(source.report.metricsList.isNotEmpty()) { "Metrics in Report cannot be empty." }
 
+  val reportRequestCompiler =
+    ReportRequestCompiler(
+      source.report.name,
+      measurementConsumerKey.measurementConsumerId,
+      source.report.eventGroupUniverse
+    )
+
+  val internalReport = internalReport {
+    measurementConsumerReferenceId = measurementConsumerKey.measurementConsumerId
+
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    val timeIntervalsList: List<InternalTimeInterval> =
+      when (source.report.timeCase) {
+        Report.TimeCase.TIME_INTERVALS -> {
+          this.timeIntervals = source.report.timeIntervals.toInternal()
+          this.timeIntervals.timeIntervalsList.map { it }
+        }
+        Report.TimeCase.PERIODIC_TIME_INTERVAL -> {
+          this.periodicTimeInterval = source.report.periodicTimeInterval.toInternal()
+          this.periodicTimeInterval.toInternalTimeIntervalsList()
+        }
+        Report.TimeCase.TIME_NOT_SET -> error("The time in Report is not specified.")
+      }
+
+    coroutineScope {
+      for (metric in source.report.metricsList) {
+        launch {
+          this@internalReport.metrics.add(
+            metric.toInternal(reportRequestCompiler, timeIntervalsList)
+          )
+        }
+      }
+    }
+    details // TODO
+    reportIdempotencyKey = source.report.reportIdempotencyKey
+  }
+
   return internalCreateReportRequest {}
+}
+
+/** Converts a public [Metric] to an [InternalMetric]. */
+private suspend fun Metric.toInternal(
+  reportRequestCompiler: ReportRequestCompiler,
+  timeIntervalsList: List<InternalTimeInterval>
+): InternalMetric {
+  val source = this
+
+  return internalMetric {
+    details = internalMetricDetails {
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+      when (source.metricTypeCase) {
+        Metric.MetricTypeCase.REACH -> reach = internalReachParams {}
+        Metric.MetricTypeCase.FREQUENCY_HISTOGRAM ->
+          frequencyHistogram = source.frequencyHistogram.toInternal()
+        Metric.MetricTypeCase.IMPRESSION_COUNT ->
+          impressionCount = source.impressionCount.toInternal()
+        Metric.MetricTypeCase.WATCH_DURATION -> watchDuration = source.watchDuration.toInternal()
+        Metric.MetricTypeCase.METRICTYPE_NOT_SET ->
+          error("The metric type in the internal report should've be set.")
+      }
+
+      cumulative = source.cumulative
+    }
+
+    coroutineScope {
+      for (setOperation in source.setOperationsList) {
+        launch {
+          namedSetOperations.add(setOperation.toInternal(reportRequestCompiler, timeIntervalsList))
+        }
+      }
+    }
+  }
+}
+
+private suspend fun NamedSetOperation.toInternal(
+  reportRequestCompiler: ReportRequestCompiler,
+  timeIntervalsList: List<InternalTimeInterval>
+): InternalNamedSetOperation {
+  val source = this
+
+  return internalNamedSetOperation {
+    displayName = source.displayName
+    setOperation = source.setOperation.toInternal()
+
+    val measurementCalculation = reportRequestCompiler.compileSetOperation(source)
+    this.measurementCalculation.addAll(measurementCalculation.toInternal())
+  }
+}
+
+private fun SetOperation.toInternal(): InternalSetOperation {
+  val source = this
+
+  return internalSetOperation {
+    this.type = source.type.toInternal()
+    this.lhs = source.lhs.toInternal()
+    this.rhs = source.rhs.toInternal()
+  }
+}
+
+private fun Operand.toInternal(): InternalOperand {
+  val source = this
+
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+  return when (source.operandCase) {
+    Operand.OperandCase.OPERATION -> internalOperand { operation = source.operation.toInternal() }
+    Operand.OperandCase.REPORTING_SET -> {
+      val reportingSetKey =
+        grpcRequireNotNull(ReportingSetKey.fromName(source.reportingSet)) {
+          "Invalid reporting set name ${source.reportingSet}."
+        }
+      internalOperand {
+        reportingSetId = reportingSetKey {
+          measurementConsumerReferenceId = reportingSetKey.measurementConsumerId
+          externalReportingSetId = apiIdToExternalId(reportingSetKey.reportingSetId)
+        }
+      }
+    }
+    Operand.OperandCase.OPERAND_NOT_SET -> internalOperand {}
+  }
+}
+
+private fun SetOperation.Type.toInternal(): InternalSetOperation.Type {
+  val source = this
+
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+  return when (source) {
+    SetOperation.Type.UNION -> InternalSetOperation.Type.UNION
+    SetOperation.Type.INTERSECTION -> InternalSetOperation.Type.INTERSECTION
+    SetOperation.Type.DIFFERENCE -> InternalSetOperation.Type.DIFFERENCE
+    SetOperation.Type.TYPE_UNSPECIFIED -> error("Set operator type is not specified.")
+    SetOperation.Type.UNRECOGNIZED -> error("Unrecognized Set operator type.")
+  }
+}
+
+private fun WatchDurationParams.toInternal(): InternalWatchDurationParams {
+  val source = this
+  return internalWatchDurationParams {
+    maximumFrequencyPerUser = source.maximumFrequencyPerUser
+    maximumWatchDurationPerUser = source.maximumWatchDurationPerUser
+  }
+}
+
+private fun ImpressionCountParams.toInternal(): InternalImpressionCountParams {
+  val source = this
+  return internalImpressionCountParams { maximumFrequencyPerUser = source.maximumFrequencyPerUser }
+}
+
+private fun FrequencyHistogramParams.toInternal(): InternalFrequencyHistogramParams {
+  val source = this
+  return internalFrequencyHistogramParams {
+    maximumFrequencyPerUser = source.maximumFrequencyPerUser
+  }
+}
+
+/** Converts a public [PeriodicTimeInterval] to an [InternalPeriodicTimeInterval]. */
+private fun PeriodicTimeInterval.toInternal(): InternalPeriodicTimeInterval {
+  val source = this
+  return internalPeriodicTimeInterval {
+    startTime = source.startTime
+    increment = source.increment
+    intervalCount = source.intervalCount
+  }
+}
+
+/** Converts a public [TimeIntervals] to an [InternalTimeIntervals]. */
+private fun TimeIntervals.toInternal(): InternalTimeIntervals {
+  val source = this
+  return internalTimeIntervals {
+    for (timeInternal in source.timeIntervalsList) {
+      this.timeIntervals += internalTimeInterval {
+        startTime = timeInternal.startTime
+        endTime = timeInternal.endTime
+      }
+    }
+  }
+}
+
+/** Convert an [InternalPeriodicTimeInterval] to a list of [InternalTimeInterval]s. */
+private fun InternalPeriodicTimeInterval.toInternalTimeIntervalsList(): List<InternalTimeInterval> {
+  val source = this
+  var startTime = checkNotNull(source.startTime)
+  return (0 until source.intervalCount).map {
+    internalTimeInterval {
+      this.startTime = startTime
+      this.endTime = Timestamps.add(startTime, source.increment)
+      startTime = this.endTime
+    }
+  }
+}
+
+/** Generate row headers of [InternalReport.Details.Result] from an [InternalReport]. */
+private fun getRowHeaders(report: InternalReport): List<String> {
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+  return when (report.timeCase) {
+    InternalReport.TimeCase.TIME_INTERVALS -> {
+      report.timeIntervals.timeIntervalsList.map(InternalTimeInterval::toRowHeader)
+    }
+    InternalReport.TimeCase.PERIODIC_TIME_INTERVAL -> {
+      report.periodicTimeInterval
+        .toInternalTimeIntervalsList()
+        .map(InternalTimeInterval::toRowHeader)
+    }
+    InternalReport.TimeCase.TIME_NOT_SET -> {
+      error("Time in the internal report should've been set.")
+    }
+  }
+}
+
+/** Convert an [InternalTimeInterval] to a row header in String. */
+private fun InternalTimeInterval.toRowHeader(): String {
+  val source = this
+  val startTimeInstant =
+    Instant.ofEpochSecond(source.startTime.seconds, source.startTime.nanos.toLong())
+  val endTimeInstant = Instant.ofEpochSecond(source.endTime.seconds, source.endTime.nanos.toLong())
+  return "$startTimeInstant-$endTimeInstant"
 }
 
 private operator fun Duration.plus(other: Duration): Duration {
@@ -530,8 +767,8 @@ private fun InternalSetOperation.toSetOperation(): SetOperation {
   }
 }
 
-/** Converts an internal [InternalOperand] to a public [SetOperation.Operand]. */
-private fun InternalOperand.toOperand(): SetOperation.Operand {
+/** Converts an internal [InternalOperand] to a public [Operand]. */
+private fun InternalOperand.toOperand(): Operand {
   val source = this
 
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
@@ -558,10 +795,8 @@ private fun InternalSetOperation.Type.toType(): SetOperation.Type {
     InternalSetOperation.Type.UNION -> SetOperation.Type.UNION
     InternalSetOperation.Type.INTERSECTION -> SetOperation.Type.INTERSECTION
     InternalSetOperation.Type.DIFFERENCE -> SetOperation.Type.DIFFERENCE
-    org.wfanet.measurement.internal.reporting.Metric.SetOperation.Type.TYPE_UNSPECIFIED ->
-      error("Set operator type should've be set.")
-    org.wfanet.measurement.internal.reporting.Metric.SetOperation.Type.UNRECOGNIZED ->
-      error("Unrecognized Set operator type.")
+    InternalSetOperation.Type.TYPE_UNSPECIFIED -> error("Set operator type should've be set.")
+    InternalSetOperation.Type.UNRECOGNIZED -> error("Unrecognized Set operator type.")
   }
 }
 
