@@ -38,6 +38,7 @@ import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
@@ -67,6 +68,7 @@ import org.wfanet.measurement.internal.reporting.getReportRequest as getInternal
 import org.wfanet.measurement.internal.reporting.setMeasurementFailureRequest
 import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest
 import org.wfanet.measurement.internal.reporting.streamReportsRequest as streamInternalReportsRequest
+import org.wfanet.measurement.reporting.v1alpha.GetReportRequest
 import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.v1alpha.ListReportsResponse
 import org.wfanet.measurement.reporting.v1alpha.Metric
@@ -158,6 +160,40 @@ class ReportsService(
         this.nextPageToken = nextPageToken.toByteString().base64UrlEncode()
       }
     }
+  }
+
+  override suspend fun getReport(request: GetReportRequest): Report {
+    val reportKey =
+      grpcRequireNotNull(ReportKey.fromName(request.name)) {
+        "Report name is either unspecified or invalid"
+      }
+
+    val principal = principalFromCurrentContext
+
+    when (val resourceKey = principal.resourceKey) {
+      is MeasurementConsumerKey -> {
+        if (reportKey.measurementConsumerId != resourceKey.toName()) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot get Report belonging to other MeasurementConsumers."
+          }
+        }
+      }
+      else -> {
+        failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to get Report." }
+      }
+    }
+
+    val internalReport =
+      internalReportsStub.getReport(
+        getInternalReportRequest {
+          measurementConsumerReferenceId = reportKey.measurementConsumerId
+          externalReportId = apiIdToExternalId(reportKey.reportId)
+        }
+      )
+
+    val syncedInternalReport = syncMeasurements(internalReport)
+
+    return syncedInternalReport.toReport()
   }
 
   /** Syncs all [InternalMeasurement]s used by the [InternalReport]. */
