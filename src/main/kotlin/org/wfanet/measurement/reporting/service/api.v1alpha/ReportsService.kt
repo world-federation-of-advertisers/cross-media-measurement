@@ -345,18 +345,18 @@ private fun aggregateResults(
   }
 
   return internalMeasurementResult {
-    if (internalResultsList[0].hasReach()) {
+    if (internalResultsList.first().hasReach()) {
       this.reach = internalReach { value = reachValue }
     }
-    if (internalResultsList[0].hasFrequency()) {
+    if (internalResultsList.first().hasFrequency()) {
       this.frequency = internalFrequency {
         relativeFrequencyDistribution.putAll(frequencyDistribution)
       }
     }
-    if (internalResultsList[0].hasImpression()) {
+    if (internalResultsList.first().hasImpression()) {
       this.impression = internalImpression { value = impressionValue }
     }
-    if (internalResultsList[0].hasWatchDuration()) {
+    if (internalResultsList.first().hasWatchDuration()) {
       this.watchDuration = internalWatchDuration { value = watchDurationValue }
     }
   }
