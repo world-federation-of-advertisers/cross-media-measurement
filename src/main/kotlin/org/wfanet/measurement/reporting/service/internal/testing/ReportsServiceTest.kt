@@ -44,6 +44,7 @@ import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineI
 import org.wfanet.measurement.internal.reporting.StreamReportsRequestKt
 import org.wfanet.measurement.internal.reporting.copy
 import org.wfanet.measurement.internal.reporting.createReportRequest
+import org.wfanet.measurement.internal.reporting.getReportByIdempotencyKeyRequest
 import org.wfanet.measurement.internal.reporting.getReportRequest
 import org.wfanet.measurement.internal.reporting.metric
 import org.wfanet.measurement.internal.reporting.periodicTimeInterval
@@ -351,6 +352,41 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
           getReportRequest {
             measurementConsumerReferenceId = "1234"
             externalReportId = 1234L
+          }
+        )
+      }
+    }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `getReportByIdempotencyKey returns report`() {
+    val createdReport = runBlocking {
+      service.createReport(createCreateReportRequest("1234", "1234", "1234", "1235"))
+    }
+
+    val getReportByIdempotencyKeyRequest = getReportByIdempotencyKeyRequest {
+      measurementConsumerReferenceId = createdReport.measurementConsumerReferenceId
+      reportIdempotencyKey = "1234"
+    }
+    val retrievedReport = runBlocking {
+      service.getReportByIdempotencyKey(getReportByIdempotencyKeyRequest)
+    }
+    assertThat(createdReport)
+      .ignoringRepeatedFieldOrder()
+      .reportingMismatchesOnly()
+      .ignoringFields(Report.CREATE_TIME_FIELD_NUMBER)
+      .isEqualTo(retrievedReport)
+  }
+
+  @Test
+  fun `getReportByIdempotencyKey throws NOT FOUND when report not found`() {
+    val exception = runBlocking {
+      assertFailsWith<StatusRuntimeException> {
+        service.getReportByIdempotencyKey(
+          getReportByIdempotencyKeyRequest {
+            measurementConsumerReferenceId = "1234"
+            reportIdempotencyKey = "test"
           }
         )
       }

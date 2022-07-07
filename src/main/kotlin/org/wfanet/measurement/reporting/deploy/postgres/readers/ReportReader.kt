@@ -227,6 +227,32 @@ class ReportReader {
       ?: throw ReportNotFoundException()
   }
 
+  /**
+   * Gets the report by report idempotency key.
+   *
+   * @throws [ReportNotFoundException]
+   */
+  suspend fun getReportByIdempotencyKey(
+    readContext: ReadContext,
+    measurementConsumerReferenceId: String,
+    reportIdempotencyKey: String
+  ): Result {
+    val statement =
+      boundStatement(
+        (baseSql +
+          """
+        WHERE MeasurementConsumerReferenceId = $1
+          AND ReportIdempotencyKey = $2
+          """)
+      ) {
+        bind("$1", measurementConsumerReferenceId)
+        bind("$2", reportIdempotencyKey)
+      }
+
+    return readContext.executeQuery(statement).consume(::translate).singleOrNull()
+      ?: throw ReportNotFoundException()
+  }
+
   fun listReports(
     client: DatabaseClient,
     filter: StreamReportsRequest.Filter,

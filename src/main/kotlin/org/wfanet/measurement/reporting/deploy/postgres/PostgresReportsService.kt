@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.internal.reporting.CreateReportRequest
+import org.wfanet.measurement.internal.reporting.GetReportByIdempotencyKeyRequest
 import org.wfanet.measurement.internal.reporting.GetReportRequest
 import org.wfanet.measurement.internal.reporting.Report
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineImplBase
@@ -53,6 +54,22 @@ class PostgresReportsService(
           client.singleUse(),
           request.measurementConsumerReferenceId,
           request.externalReportId
+        )
+        .report
+    } catch (e: ReportNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Report not found" }
+    }
+  }
+
+  override suspend fun getReportByIdempotencyKey(
+    request: GetReportByIdempotencyKeyRequest
+  ): Report {
+    try {
+      return ReportReader()
+        .getReportByIdempotencyKey(
+          client.singleUse(),
+          request.measurementConsumerReferenceId,
+          request.reportIdempotencyKey
         )
         .report
     } catch (e: ReportNotFoundException) {
