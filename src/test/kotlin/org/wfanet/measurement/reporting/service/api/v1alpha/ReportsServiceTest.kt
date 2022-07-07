@@ -1512,6 +1512,7 @@ class ReportsServiceTest {
           internalMeasurementsMock,
           InternalMeasurementsCoroutineImplBase::setMeasurementResult
         )
+        .usingDoubleTolerance(1e-12)
         .isEqualTo(
           setMeasurementResultRequest {
             measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID

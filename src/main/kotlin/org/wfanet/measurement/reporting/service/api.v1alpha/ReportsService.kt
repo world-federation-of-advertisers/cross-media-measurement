@@ -15,6 +15,7 @@
 package org.wfanet.measurement.reporting.service.api.v1alpha
 
 import com.google.protobuf.Duration
+import com.google.protobuf.duration
 import com.google.protobuf.util.Durations
 import io.grpc.Status
 import kotlin.math.min
@@ -306,32 +307,57 @@ private fun Measurement.Failure.toInternal(): InternalMeasurement.Failure {
 private fun aggregateResults(
   internalResultsList: List<InternalMeasurementResult>
 ): InternalMeasurementResult {
-  return internalResultsList.reduce { aggregatedResult, result ->
-    internalMeasurementResult {
-      if (result.hasReach()) {
-        this.reach = internalReach { value = aggregatedResult.reach.value + result.reach.value }
+  if (internalResultsList.isEmpty()) {
+    error("No measurement result.")
+  }
+
+  var reachValue = 0L
+  var impressionValue = 0L
+  val frequencyDistribution = mutableMapOf<Long, Double>()
+  var watchDurationValue = duration {
+    seconds = 0
+    nanos = 0
+  }
+
+  // Aggregation
+  for (result in internalResultsList) {
+    if (result.hasFrequency()) {
+      if (!result.hasReach()) {
+        error("Missing reach measurement in the Reach-Frequency measurement.")
       }
-      if (result.hasFrequency()) {
-        val aggregatedFrequencyHistogramMap =
-          aggregatedResult.frequency.relativeFrequencyDistributionMap.toMutableMap()
-        for ((key, value) in result.frequency.relativeFrequencyDistributionMap) {
-          aggregatedFrequencyHistogramMap[key] =
-            aggregatedFrequencyHistogramMap.getOrDefault(key, 0.0) + value
-        }
-        this.frequency = internalFrequency {
-          relativeFrequencyDistribution.putAll(aggregatedFrequencyHistogramMap)
-        }
+      for ((frequency, percentage) in result.frequency.relativeFrequencyDistributionMap) {
+        val previousTotalReachCount =
+          frequencyDistribution.getOrDefault(frequency, 0.0) * reachValue
+        val currentReachCount = percentage * result.reach.value
+        frequencyDistribution[frequency] =
+          (previousTotalReachCount + currentReachCount) / (reachValue + result.reach.value)
       }
-      if (result.hasImpression()) {
-        this.impression = internalImpression {
-          value = aggregatedResult.impression.value + result.impression.value
-        }
+    }
+    if (result.hasReach()) {
+      reachValue += result.reach.value
+    }
+    if (result.hasImpression()) {
+      impressionValue += result.impression.value
+    }
+    if (result.hasWatchDuration()) {
+      watchDurationValue += result.watchDuration.value
+    }
+  }
+
+  return internalMeasurementResult {
+    if (internalResultsList[0].hasReach()) {
+      this.reach = internalReach { value = reachValue }
+    }
+    if (internalResultsList[0].hasFrequency()) {
+      this.frequency = internalFrequency {
+        relativeFrequencyDistribution.putAll(frequencyDistribution)
       }
-      if (result.hasWatchDuration()) {
-        this.watchDuration = internalWatchDuration {
-          value = aggregatedResult.watchDuration.value + result.watchDuration.value
-        }
-      }
+    }
+    if (internalResultsList[0].hasImpression()) {
+      this.impression = internalImpression { value = impressionValue }
+    }
+    if (internalResultsList[0].hasWatchDuration()) {
+      this.watchDuration = internalWatchDuration { value = watchDurationValue }
     }
   }
 }
