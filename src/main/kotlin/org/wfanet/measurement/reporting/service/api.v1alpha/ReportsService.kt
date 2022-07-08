@@ -60,6 +60,7 @@ import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt.Measurements
 import org.wfanet.measurement.internal.reporting.Metric as InternalMetric
 import org.wfanet.measurement.internal.reporting.Metric.FrequencyHistogramParams as InternalFrequencyHistogramParams
 import org.wfanet.measurement.internal.reporting.Metric.ImpressionCountParams as InternalImpressionCountParams
+import org.wfanet.measurement.internal.reporting.Metric.MeasurementCalculation
 import org.wfanet.measurement.internal.reporting.Metric.NamedSetOperation as InternalNamedSetOperation
 import org.wfanet.measurement.internal.reporting.Metric.SetOperation as InternalSetOperation
 import org.wfanet.measurement.internal.reporting.Metric.SetOperation.Operand as InternalOperand
@@ -342,11 +343,7 @@ private suspend fun CreateReportRequest.toInternal(
   grpcRequire(source.report.metricsList.isNotEmpty()) { "Metrics in Report cannot be empty." }
 
   val reportRequestCompiler =
-    ReportRequestCompiler(
-      source.report.name,
-      measurementConsumerKey.measurementConsumerId,
-      source.report.eventGroupUniverse
-    )
+    ReportRequestCompiler(source.report.name, source.report.eventGroupUniverse)
 
   val internalReport = internalReport {
     measurementConsumerReferenceId = measurementConsumerKey.measurementConsumerId
@@ -425,9 +422,18 @@ private suspend fun NamedSetOperation.toInternal(
     displayName = source.displayName
     setOperation = source.setOperation.toInternal()
 
-    val measurementCalculation = reportRequestCompiler.compileSetOperation(source)
-    this.measurementCalculation.addAll(measurementCalculation.toInternal())
+    val weightedMeasurementsList = reportRequestCompiler.compileSetOperation(source)
+    val measurementCalculationsList =
+      createMeasurementCalculation(weightedMeasurementsList, timeIntervalsList)
+    this.measurementCalculation.addAll(measurementCalculationsList)
   }
+}
+
+fun createMeasurementCalculation(
+  weightedMeasurementsList: List<WeightedMeasurement>,
+  timeIntervalsList: List<org.wfanet.measurement.internal.reporting.TimeInterval>
+): List<MeasurementCalculation> {
+  TODO("Not yet implemented")
 }
 
 private fun SetOperation.toInternal(): InternalSetOperation {
