@@ -26,6 +26,9 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
 
+
+private const val MAX_BATCH_INSERT = 1000
+
 /**
  * A [PrivacyBudgetLedgerBackingStore] implemented in Postgres compatible SQL.
  *
@@ -231,7 +234,7 @@ class PostgresBackingStoreTransactionContext(
       statement.setInt(8, if (refundCharge) -1 else 1) // update RepetitionCount
       statement.addBatch()
       // execute every 1000 rows or less
-      if (index % 1000 == 0 || index == privacyBudgetBalanceEntries.size - 1) {
+      if (index % MAX_BATCH_INSERT == 0 || index == privacyBudgetBalanceEntries.size - 1) {
         statement.executeBatch()
       }
     }
