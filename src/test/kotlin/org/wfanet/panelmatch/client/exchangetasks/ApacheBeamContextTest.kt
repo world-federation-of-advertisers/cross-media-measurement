@@ -64,7 +64,7 @@ class ApacheBeamContextTest : BeamTestBase() {
     val inputLabels = mapOf(LABEL to BLOB_KEY)
     val inputBlobs = mapOf(LABEL to storageClient.writeBlob(BLOB_KEY, BLOB_CONTENTS))
     val context =
-      ApacheBeamContext(pipeline, mapOf(), mapOf(), inputLabels, inputBlobs, storageFactory)
+      ApacheBeamContext(pipeline, mapOf(), inputLabels, mapOf(), inputBlobs, storageFactory)
 
     assertThat(context.readBlob(LABEL)).isEqualTo(BLOB_CONTENTS)
   }
@@ -74,7 +74,7 @@ class ApacheBeamContextTest : BeamTestBase() {
     val inputLabels = mapOf(LABEL to BLOB_KEY)
     val inputBlobs = mapOf(LABEL to storageClient.writeBlob(BLOB_KEY, BLOB_CONTENTS))
     val context =
-      ApacheBeamContext(pipeline, mapOf(), mapOf(), inputLabels, inputBlobs, storageFactory)
+      ApacheBeamContext(pipeline, mapOf(), inputLabels, mapOf(), inputBlobs, storageFactory)
 
     assertThat(context.readBlobAsPCollection(LABEL)).containsInAnyOrder(BLOB_CONTENTS)
     assertThat(context.readBlobAsView(LABEL)).containsInAnyOrder(BLOB_CONTENTS)
@@ -97,7 +97,7 @@ class ApacheBeamContextTest : BeamTestBase() {
     storageClient.writeBlob("foo-2-of-3", shard2Contents)
 
     val context =
-      ApacheBeamContext(pipeline, mapOf(), mapOf(), inputLabels, inputBlobs, storageFactory)
+      ApacheBeamContext(pipeline, mapOf(), inputLabels, mapOf(), inputBlobs, storageFactory)
 
     val stringValueProtos = context.readShardedPCollection(LABEL, stringValue {})
     assertThat(stringValueProtos.map { it.value }).containsInAnyOrder("a", "bc", "def", "xy", "z")
@@ -109,7 +109,7 @@ class ApacheBeamContextTest : BeamTestBase() {
   fun write() = runBlockingTest {
     val outputManifests = mapOf("some-output" to ShardedFileName("some-output-blobkey", 1))
     val context =
-      ApacheBeamContext(pipeline, outputManifests, mapOf(), mapOf(), mapOf(), storageFactory)
+      ApacheBeamContext(pipeline, mapOf(), mapOf(), outputManifests, mapOf(), storageFactory)
     val items = pcollectionOf("Test Collection", stringValue { value = "some-item" })
     with(context) { items.writeShardedFiles("some-output") }
 
@@ -129,7 +129,7 @@ class ApacheBeamContextTest : BeamTestBase() {
     val blobKey = "some-blob-key"
     val outputLabels = mapOf(label to blobKey)
     val context =
-      ApacheBeamContext(pipeline, mapOf(), outputLabels, mapOf(), mapOf(), storageFactory)
+      ApacheBeamContext(pipeline, outputLabels, mapOf(), mapOf(), mapOf(), storageFactory)
     val item = stringValue { value = "some-item" }
 
     with(context) { pcollectionOf("Test Collection", item).writeSingleBlob(label) }

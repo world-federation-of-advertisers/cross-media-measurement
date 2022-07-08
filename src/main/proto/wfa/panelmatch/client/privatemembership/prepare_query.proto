@@ -48,3 +48,9 @@ message LookupKeyAndIdCollection {
 message PrepareQueryResponse {
   repeated LookupKeyAndId lookup_key_and_ids = 1;
 }
+
+// Holds a list of JoinKeyIdentifier such as discarded join keys
+message JoinKeyIdentifierCollection {
+  repeated wfa.panelmatch.client.exchangetasks.JoinKeyIdentifier
+      join_key_identifiers = 1;
+}

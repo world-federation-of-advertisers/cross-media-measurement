@@ -42,9 +42,9 @@ import org.wfanet.panelmatch.common.storage.toStringUtf8
  */
 class ApacheBeamContext(
   val pipeline: Pipeline,
+  val outputLabels: Map<String, String>,
+  val inputLabels: Map<String, String>,
   private val outputManifests: Map<String, ShardedFileName>,
-  private val outputLabels: Map<String, String>,
-  private val inputLabels: Map<String, String>,
   private val inputBlobs: Map<String, Blob>,
   private val storageFactory: StorageFactory
 ) {
