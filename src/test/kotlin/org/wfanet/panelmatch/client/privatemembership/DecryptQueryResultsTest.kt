@@ -24,8 +24,10 @@ import org.apache.beam.sdk.values.PCollection
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.panelmatch.client.common.joinKeyIdentifierOf
 import org.wfanet.panelmatch.client.common.queryIdOf
 import org.wfanet.panelmatch.client.exchangetasks.JoinKeyAndId
+import org.wfanet.panelmatch.client.exchangetasks.JoinKeyIdentifier
 import org.wfanet.panelmatch.client.privatemembership.testing.joinKeyAndIdOf
 import org.wfanet.panelmatch.client.privatemembership.testing.queryIdAndIdOf
 import org.wfanet.panelmatch.common.beam.testing.BeamTestBase
@@ -34,18 +36,19 @@ import org.wfanet.panelmatch.common.compression.CompressionParametersKt.brotliCo
 import org.wfanet.panelmatch.common.compression.compressionParameters
 import org.wfanet.panelmatch.common.crypto.AsymmetricKeyPair
 
-private val ENCRYPTED_QUERY_RESULTS =
-  listOf(
-    encryptedQueryResultOf(1, "payload-1"),
-    encryptedQueryResultOf(2, "payload-2"),
-    encryptedQueryResultOf(3, "payload-3"),
-  )
-
 private val QUERY_ID_AND_IDS: List<QueryIdAndId> =
   listOf(
     queryIdAndIdOf(1, "some-id-1"),
     queryIdAndIdOf(2, "some-id-2"),
     queryIdAndIdOf(3, "some-id-3")
+  )
+
+private val QUERY_ID_AND_IDS_SOME_DISCARDED: List<QueryIdAndId> =
+  listOf(queryIdAndIdOf(1, "some-id-1"), queryIdAndIdOf(3, "some-id-3"))
+
+private val DISCARDED_JOIN_KEYS: List<JoinKeyIdentifier> =
+  listOf(
+    joinKeyIdentifierOf("some-id-2".toByteStringUtf8()),
   )
 
 private val PLAINTEXT_JOIN_KEY_AND_IDS: List<JoinKeyAndId> =
@@ -76,8 +79,14 @@ private const val PRIVATE_MEMBERSHIP_PARAMETERS = "some serialized parameters"
 class DecryptQueryResultsTest : BeamTestBase() {
   @Test
   fun success() {
+    val encryptedQueryResultsList =
+      listOf(
+        encryptedQueryResultOf(1, "payload-1"),
+        encryptedQueryResultOf(2, "payload-2"),
+        encryptedQueryResultOf(3, "payload-3"),
+      )
     val encryptedQueryResults =
-      pcollectionOf("Create EncryptedQueryResults", ENCRYPTED_QUERY_RESULTS)
+      pcollectionOf("Create EncryptedQueryResults", encryptedQueryResultsList)
     val queryIdAndIds: PCollection<QueryIdAndId> =
       pcollectionOf("Create QueryIdAndIds", QUERY_ID_AND_IDS)
     val plaintextJoinKeyAndIds: PCollection<JoinKeyAndId> =
@@ -127,6 +136,77 @@ class DecryptQueryResultsTest : BeamTestBase() {
               ASYMMETRIC_KEYS.serializedPublicKey,
               ASYMMETRIC_KEYS.serializedPrivateKey,
               "payload-2".toByteStringUtf8()
+            ),
+          "some-plaintext-joinkey-3" to
+            listOf(
+              "some-decrypted-join-key-id-3".toByteStringUtf8(),
+              HKDF_PEPPER,
+              PRIVATE_MEMBERSHIP_PARAMETERS.toByteStringUtf8(),
+              COMPRESSION_PARAMETERS.toByteString(),
+              ASYMMETRIC_KEYS.serializedPublicKey,
+              ASYMMETRIC_KEYS.serializedPrivateKey,
+              "payload-3".toByteStringUtf8()
+            )
+        )
+
+      null
+    }
+  }
+
+  @Test
+  fun successWithDiscardedJoinKeys() {
+    val encryptedQueryResultsList =
+      listOf(
+        encryptedQueryResultOf(1, "payload-1"),
+        encryptedQueryResultOf(3, "payload-3"),
+      )
+    val encryptedQueryResults =
+      pcollectionOf("Create EncryptedQueryResults", encryptedQueryResultsList)
+    val queryIdAndIds: PCollection<QueryIdAndId> =
+      pcollectionOf("Create QueryIdAndIds", QUERY_ID_AND_IDS_SOME_DISCARDED)
+    val plaintextJoinKeyAndIds: PCollection<JoinKeyAndId> =
+      pcollectionOf(
+        "Create PlaintextJoinKeyAndIds",
+        PLAINTEXT_JOIN_KEY_AND_IDS.removeDiscardedJoinKeys(DISCARDED_JOIN_KEYS)
+      )
+    val decryptedJoinKeyAndIds: PCollection<JoinKeyAndId> =
+      pcollectionOf(
+        "Create DecryptedJoinKeyAndIds",
+        DECRYPTED_JOIN_KEY_AND_IDS.removeDiscardedJoinKeys(DISCARDED_JOIN_KEYS)
+      )
+
+    val results =
+      decryptQueryResults(
+        encryptedQueryResults = encryptedQueryResults,
+        plaintextJoinKeyAndIds = plaintextJoinKeyAndIds,
+        decryptedJoinKeyAndIds = decryptedJoinKeyAndIds,
+        queryIdAndIds = queryIdAndIds,
+        compressionParameters =
+          pcollectionViewOf("CompressionParameters View", COMPRESSION_PARAMETERS),
+        privateMembershipKeys = pcollectionViewOf("Keys View", ASYMMETRIC_KEYS),
+        parameters = Any.pack(stringValue { value = PRIVATE_MEMBERSHIP_PARAMETERS }),
+        queryResultsDecryptor = TestQueryResultsDecryptor,
+        hkdfPepper = HKDF_PEPPER
+      )
+
+    assertThat(results).satisfies { keyedDecryptedEventDataSets ->
+      val deserializedResults: List<Pair<String, List<ByteString>>> =
+        keyedDecryptedEventDataSets.map {
+          it.plaintextJoinKeyAndId.joinKey.key.toStringUtf8() to
+            it.decryptedEventDataList.map { plaintext -> plaintext.payload }
+        }
+
+      assertThat(deserializedResults)
+        .containsExactly(
+          "some-plaintext-joinkey-1" to
+            listOf(
+              "some-decrypted-join-key-id-1".toByteStringUtf8(),
+              HKDF_PEPPER,
+              PRIVATE_MEMBERSHIP_PARAMETERS.toByteStringUtf8(),
+              COMPRESSION_PARAMETERS.toByteString(),
+              ASYMMETRIC_KEYS.serializedPublicKey,
+              ASYMMETRIC_KEYS.serializedPrivateKey,
+              "payload-1".toByteStringUtf8()
             ),
           "some-plaintext-joinkey-3" to
             listOf(

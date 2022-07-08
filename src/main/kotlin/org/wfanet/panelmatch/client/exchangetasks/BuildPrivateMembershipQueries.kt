@@ -47,6 +47,12 @@ fun ApacheBeamContext.buildPrivateMembershipQueries(
   val outputs =
     createQueries(lookupKeyAndIds, privateKeysView, parameters, privateMembershipCryptor)
 
+  // TODO: remove this functionality v2.0.0
+  // For backwards compatibility for workflows without discarded-join-keys
+  if ("discarded-join-keys" in outputLabels) {
+    outputs.discardedJoinKeyCollection.writeSingleBlob("discarded-join-keys")
+  }
+
   // TODO: consider using `writeSingleBlob` instead of writing a sharded blob for `query-to-ids-map`
   outputs.queryIdMap.writeShardedFiles("query-to-ids-map")
 

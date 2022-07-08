@@ -378,6 +378,7 @@ steps {
 
   output_labels { key: "query-to-ids-map" value: "mp-query-to-ids-map" }
   output_labels { key: "encrypted-queries" value: "mp-encrypted-queries" }
+  output_labels { key: "discarded-join-keys" value: "mp-discarded-join-keys" }
 }
 
 # MP exports its rlwe public key
@@ -563,6 +564,7 @@ steps {
   input_labels { key: "serialized-rlwe-public-key" value: "mp-serialized-rlwe-public-key" }
   input_labels { key: "compression-parameters" value: "mp-compression-parameters" }
   input_labels { key: "query-to-ids-map" value: "mp-query-to-ids-map" }
+  input_labels { key: "discarded-join-keys" value: "mp-discarded-join-keys" }
   input_labels { key: "plaintext-join-keys-to-id-map" value: "mp-plaintext-join-keys" }
   input_labels { key: "decrypted-join-keys-to-id-map" value: "mp-decrypted-join-keys" }
   input_labels { key: "encrypted-results" value: "mp-encrypted-query-results" }

@@ -36,7 +36,7 @@ class ApacheBeamTask(
 ) : ExchangeTask {
   override suspend fun execute(input: Map<String, Blob>): Map<String, Flow<ByteString>> {
     val context =
-      ApacheBeamContext(pipeline, outputManifests, outputLabels, inputLabels, input, storageFactory)
+      ApacheBeamContext(pipeline, outputLabels, inputLabels, outputManifests, input, storageFactory)
     context.executeOnPipeline()
 
     try {

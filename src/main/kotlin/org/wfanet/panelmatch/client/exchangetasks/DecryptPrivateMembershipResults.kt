@@ -17,11 +17,13 @@ package org.wfanet.panelmatch.client.exchangetasks
 import com.google.protobuf.Any
 import org.apache.beam.sdk.values.PCollection
 import org.wfanet.panelmatch.client.privatemembership.EncryptedQueryResult
+import org.wfanet.panelmatch.client.privatemembership.JoinKeyIdentifierCollection
 import org.wfanet.panelmatch.client.privatemembership.KeyedDecryptedEventDataSet
 import org.wfanet.panelmatch.client.privatemembership.QueryResultsDecryptor
 import org.wfanet.panelmatch.client.privatemembership.decryptQueryResults
 import org.wfanet.panelmatch.client.privatemembership.encryptedQueryResult
 import org.wfanet.panelmatch.client.privatemembership.queryIdAndId
+import org.wfanet.panelmatch.client.privatemembership.removeDiscardedJoinKeys
 import org.wfanet.panelmatch.common.beam.flatMap
 import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.beam.mapWithSideInput
@@ -38,13 +40,26 @@ suspend fun ApacheBeamContext.decryptPrivateMembershipResults(
     readShardedPCollection("encrypted-results", encryptedQueryResult {})
 
   val queryAndIds = readShardedPCollection("query-to-ids-map", queryIdAndId {})
+
+  // TODO: remove this functionality v2.0.0
+  // For backwards compatibility for workflows without discarded-join-keys
+  val discardedJoinKeys: List<JoinKeyIdentifier> =
+    if ("discarded-join-keys" in inputLabels) {
+      JoinKeyIdentifierCollection.parseFrom(readBlob("discarded-join-keys")).joinKeyIdentifiersList
+    } else {
+      emptyList()
+    }
   val plaintextJoinKeyAndIds: PCollection<JoinKeyAndId> =
     readBlobAsPCollection("plaintext-join-keys-to-id-map").flatMap {
-      JoinKeyAndIdCollection.parseFrom(it).joinKeyAndIdsList
+      JoinKeyAndIdCollection.parseFrom(it)
+        .joinKeyAndIdsList
+        .removeDiscardedJoinKeys(discardedJoinKeys)
     }
   val decryptedJoinKeyAndIds: PCollection<JoinKeyAndId> =
     readBlobAsPCollection("decrypted-join-keys-to-id-map").flatMap {
-      JoinKeyAndIdCollection.parseFrom(it).joinKeyAndIdsList
+      JoinKeyAndIdCollection.parseFrom(it)
+        .joinKeyAndIdsList
+        .removeDiscardedJoinKeys(discardedJoinKeys)
     }
 
   val compressionParameters =
