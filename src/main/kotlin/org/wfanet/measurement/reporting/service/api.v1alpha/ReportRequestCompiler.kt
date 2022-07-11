@@ -163,6 +163,11 @@ class ReportRequestCompiler() {
     for ((_, unionSetCoefficients) in primitiveRegionsToUnionSetCoefficients) {
       for ((unionSet, coefficient) in unionSetCoefficients) {
         aggregatedResult[unionSet] = aggregatedResult.getOrDefault(unionSet, 0) + coefficient
+
+        // Remove the entry if its coefficient is zero.
+        if (aggregatedResult[unionSet] == 0) {
+          aggregatedResult.remove(unionSet)
+        }
       }
     }
     // Sort the aggregatedResult to make sure the result is consistent every time.
@@ -226,7 +231,9 @@ class ReportRequestCompiler() {
       }
     }
 
-    primitiveRegionsToUnionSetCoefficients[region] = unionSetCoefficients.toMap()
+    if (unionSetCoefficients.isNotEmpty()) {
+      primitiveRegionsToUnionSetCoefficients[region] = unionSetCoefficients.toMap()
+    }
   }
 
   /** Reuses previous result in the memory cache if there is any. */
