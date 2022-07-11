@@ -15,12 +15,15 @@
 package org.wfanet.measurement.reporting.service.api.v1alpha
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import java.nio.file.Path
 import java.nio.file.Paths
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.crypto.PrivateKeyHandle
+import org.wfanet.measurement.common.crypto.tink.TinkPublicKeyHandle
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.readByteString
 import picocli.CommandLine
@@ -43,8 +46,10 @@ private val PUBLIC_KEY_1 = PUBLIC_KEY_FILE_1.readByteString()
 private val PRIVATE_KEY_FILE_1 = SECRETS_DIR.resolve("mc_enc_private.tink").toFile()
 private val PUBLIC_KEY_FILE_2 = SECRETS_DIR.resolve("edp1_enc_public.tink").toFile()
 private val PUBLIC_KEY_2 = PUBLIC_KEY_FILE_2.readByteString()
-private val PRIVATE_KEY_FILE_2 = SECRETS_DIR.resolve("edp2_enc_private.tink").toFile()
+private val PRIVATE_KEY_FILE_2 = SECRETS_DIR.resolve("edp1_enc_private.tink").toFile()
 private val NON_EXISTENT_PUBLIC_KEY = "non existent public key".toByteStringUtf8()
+
+private val PLAIN_TEXT = "THis is plain text".toByteStringUtf8()
 
 @RunWith(JUnit4::class)
 class EncryptionKeyPairStoreTest {
@@ -62,6 +67,13 @@ class EncryptionKeyPairStoreTest {
     assertThat(returnCode).isEqualTo(0)
   }
 
+  private fun verifyKeyPair(publicKeyData: ByteString, privateKeyHandle: PrivateKeyHandle) {
+    val publicKeyHandle = TinkPublicKeyHandle(publicKeyData)
+    val encryptedText = publicKeyHandle.hybridEncrypt(PLAIN_TEXT)
+    val decryptedText = privateKeyHandle.hybridDecrypt(encryptedText)
+    assertThat(decryptedText).isEqualTo(PLAIN_TEXT)
+  }
+
   @Test
   fun `EncryptionKeyPairStore returns corresponding private keys`() {
     val args =
@@ -73,8 +85,8 @@ class EncryptionKeyPairStoreTest {
       )
 
     runTest(args) { keyPairStore ->
-      assertThat(keyPairStore.getPrivateKey(PUBLIC_KEY_1)).isNotNull()
-      assertThat(keyPairStore.getPrivateKey(PUBLIC_KEY_2)).isNotNull()
+      verifyKeyPair(PUBLIC_KEY_1, requireNotNull(keyPairStore.getPrivateKey(PUBLIC_KEY_1)))
+      verifyKeyPair(PUBLIC_KEY_2, requireNotNull(keyPairStore.getPrivateKey(PUBLIC_KEY_2)))
     }
   }
 
