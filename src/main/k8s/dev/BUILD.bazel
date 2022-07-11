@@ -41,6 +41,7 @@ cue_dump(
     },
     tags = ["manual"],
     deps = [
+        ":base_gke",
         ":config",
         "//src/main/k8s:resource_setup",
     ],
@@ -54,6 +55,7 @@ cue_dump(
     },
     tags = ["manual"],
     deps = [
+        ":base_gke",
         "//src/main/k8s:panel_match_resource_setup",
     ],
 )
@@ -131,6 +133,7 @@ cue_dump(
     },
     tags = ["manual"],
     deps = [
+        ":base_gke",
         ":config",
         "//src/main/k8s:edp_simulator",
     ],
@@ -147,6 +150,7 @@ cue_dump(
     },
     tags = ["manual"],
     deps = [
+        ":base_gke",
         ":config",
         "//src/main/k8s:base",
         "//src/main/k8s:frontend_simulator",

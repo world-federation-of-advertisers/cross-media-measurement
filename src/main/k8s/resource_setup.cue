@@ -21,6 +21,7 @@ package k8s
 	_job_image:                  string
 	_job_image_pull_policy:      string | *"Always"
 	_dependencies: [...string]
+	_resourceConfig: #ResourceConfig
 	_edp_cert_key_files_flags:
 		[
 			for d in _edp_display_names {
@@ -65,6 +66,8 @@ package k8s
 		_image:           _job_image
 		_imagePullPolicy: _job_image_pull_policy
 		_dependencies:    ResourceSetup._dependencies
+		_resources:       _resourceConfig.resources
+		_jvmHeapSize:     _resourceConfig.jvmHeapSize
 		_args:
 			_edp_cert_key_files_flags +
 			_mc_cert_key_files_flags +

@@ -22,12 +22,15 @@ package k8s
 	_simulator_image_pull_policy: string | *"Always"
 	_kingdom_public_api_target:   string
 	_blob_storage_flags: [...string]
+	_resourceConfig: #ResourceConfig
 
 	frontend_simulator_job: #Job & {
 		_name:            "frontend-simulator"
 		_secretName:      _mc_secret_name
 		_image:           _simulator_image
 		_imagePullPolicy: _simulator_image_pull_policy
+		_resources:       _resourceConfig.resources
+		_jvmHeapSize:     _resourceConfig.jvmHeapSize
 		_args:            [
 					"--tls-cert-file=/var/run/secrets/files/mc_tls.pem",
 					"--tls-key-file=/var/run/secrets/files/mc_tls.key",
