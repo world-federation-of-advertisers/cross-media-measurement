@@ -21,6 +21,7 @@ cue_dump(
     },
     tags = ["manual"],
     deps = [
+        ":config",
         "//src/main/k8s:base",
     ],
 )
@@ -46,6 +47,7 @@ cue_dump(
     },
     tags = ["manual"],
     deps = [
+        ":config",
         "//src/main/k8s:resource_setup",
     ],
 )
@@ -81,6 +83,7 @@ cue_dump(
     },
     tags = ["manual"],
     deps = [
+        ":config",
         "//src/main/k8s:edp_simulator",
     ],
 )
@@ -95,6 +98,7 @@ cue_dump(
     },
     tags = ["manual"],
     deps = [
+        ":config",
         "//src/main/k8s:frontend_simulator",
     ],
 )
