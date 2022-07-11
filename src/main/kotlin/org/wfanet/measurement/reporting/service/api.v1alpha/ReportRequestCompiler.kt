@@ -14,9 +14,12 @@
 
 package org.wfanet.measurement.reporting.service.api.v1alpha
 
+import io.grpc.Status
 import kotlin.math.pow
+import kotlin.math.sign
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.reporting.v1alpha.Metric.NamedSetOperation
@@ -79,6 +82,12 @@ data class WeightedMeasurement(val reportingSets: List<String>, val coefficient:
 class ReportRequestCompiler() {
 
   private var primitiveRegionCache: PrimitiveRegionCache = mutableMapOf()
+
+  // For unit test only
+  fun getPrimitiveRegionCache():
+    Map<NumberReportingSets, Map<PrimitiveRegion, UnionSetCoefficientMap>> {
+    return primitiveRegionCache.mapValues { it.value.toMap() }.toMap()
+  }
 
   suspend fun compileSetOperation(namedSetOperation: NamedSetOperation): List<WeightedMeasurement> {
     val sortedReportingSetNames = mutableListOf<String>()
@@ -210,7 +219,8 @@ class ReportRequestCompiler() {
     val primitiveRegionWeight = setBitPositions.size
 
     // Always starts from -1 unless the primitive region = (2^numReportingSets - 1) = b'11...1'
-    var sign = if (primitiveRegionWeight != numReportingSets) -1 else 1
+    val baseSign = if (primitiveRegionWeight != numReportingSets) -1 else 1
+    var count = 0
 
     val unionSetCoefficients = mutableMapOf<UnionSet, Int>()
 
@@ -221,13 +231,14 @@ class ReportRequestCompiler() {
           continue
         }
 
+        // Instead of flipping the sign at the end of the loop, this could avoid the race condition.
+        count++
+        val sign = if (count % 2 == 1) baseSign else -baseSign
+
         launch {
           val composingUnionSets = getComposingUnionSets(setBitPositions, unsetBitPositions, size)
           unionSetCoefficients += composingUnionSets.associateWith { sign }
         }
-
-        // Flips the sign.
-        sign = -sign
       }
     }
 
@@ -461,10 +472,12 @@ private fun SetOperation.Type.toOperator(): Operator {
 
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
   return when (source) {
-    SetOperation.Type.TYPE_UNSPECIFIED -> error("Set operator type is not specified.")
+    SetOperation.Type.TYPE_UNSPECIFIED ->
+      failGrpc(Status.INVALID_ARGUMENT) { "Set operator type is not specified." }
     SetOperation.Type.UNION -> Operator.UNION
     SetOperation.Type.DIFFERENCE -> Operator.DIFFERENCE
     SetOperation.Type.INTERSECTION -> Operator.INTERSECT
-    SetOperation.Type.UNRECOGNIZED -> error("Unrecognized Set operator type.")
+    SetOperation.Type.UNRECOGNIZED ->
+      failGrpc(Status.INVALID_ARGUMENT) { "Unrecognized Set operator type." }
   }
 }
