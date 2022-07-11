@@ -97,7 +97,7 @@ class EventGroupsService(
         decryptResult(this@toReportingServer.encryptedMetadata, encryptionPrivateKey).data
       )
     return reportingEventGroup {
-      name = this@toReportingServer.name
+      name = this@toReportingServer.measurementConsumer + "/" + this@toReportingServer.name
       // dataProvider =
       eventGroupReferenceId = this@toReportingServer.eventGroupReferenceId
       eventTemplates +=

@@ -69,6 +69,10 @@ private val SECRET_FILES_PATH: Path =
 val ENCRYPTION_PRIVATE_KEY = loadEncryptionPrivateKey("mc_enc_private.tink")
 val ENCRYPTION_PUBLIC_KEY = loadEncryptionPublicKey("mc_enc_public.tink")
 val EDP_SIGNING_KEY = loadSigningKey("edp1_cs_cert.der", "edp1_cs_private.der")
+private const val MEASUREMENT_CONSUMER_EXTERNAL_ID = 111L
+private val MEASUREMENT_CONSUMER_REFERENCE_ID = externalIdToApiId(MEASUREMENT_CONSUMER_EXTERNAL_ID)
+private val MEASUREMENT_CONSUMER_NAME =
+  MeasurementConsumerKey(MEASUREMENT_CONSUMER_REFERENCE_ID).toName()
 private val TEST_MESSAGE = testMetadataMessage {
   name = name { value = "Bob" }
   age = age { value = 15 }
@@ -76,6 +80,7 @@ private val TEST_MESSAGE = testMetadataMessage {
 }
 private val EVENT_GROUP = eventGroup {
   name = "$DATA_PROVIDER_NAME/eventGroups/AAAAAAAAAHs"
+  measurementConsumer = MEASUREMENT_CONSUMER_NAME
   encryptedMetadata =
     ENCRYPTION_PUBLIC_KEY.hybridEncrypt(
       signMessage(
@@ -95,6 +100,7 @@ private val TEST_MESSAGE_2 = testMetadataMessage {
 }
 private val EVENT_GROUP_2 = eventGroup {
   name = "$DATA_PROVIDER_NAME/eventGroups/AAAAAAAAAGs"
+  measurementConsumer = MEASUREMENT_CONSUMER_NAME
   encryptedMetadata =
     ENCRYPTION_PUBLIC_KEY.hybridEncrypt(
       signMessage(
@@ -107,10 +113,6 @@ private val EVENT_GROUP_2 = eventGroup {
         .toByteString()
     )
 }
-private const val MEASUREMENT_CONSUMER_EXTERNAL_ID = 111L
-private val MEASUREMENT_CONSUMER_REFERENCE_ID = externalIdToApiId(MEASUREMENT_CONSUMER_EXTERNAL_ID)
-private val MEASUREMENT_CONSUMER_NAME =
-  MeasurementConsumerKey(MEASUREMENT_CONSUMER_REFERENCE_ID).toName()
 private const val DATA_PROVIDER_NAME = "dataProviders/123"
 private const val METADATA_NAME = "$DATA_PROVIDER_NAME/eventGroupMetadataDescriptors/abc"
 private val EVENT_GROUP_METADATA_DESCRIPTOR = eventGroupMetadataDescriptor {
@@ -144,6 +146,7 @@ class EventGroupsServiceTest {
 
   @Test
   fun `listEventGroups returns list with no filter`() {
+    println("MEASUREMENT_CONSUMER_NAME " + MEASUREMENT_CONSUMER_NAME)
     val eventGroupsService =
       EventGroupsService(
         EventGroupsCoroutineStub(grpcTestServerRule.channel),
@@ -163,14 +166,14 @@ class EventGroupsServiceTest {
           eventGroups +=
             listOf(
               reportingEventGroup {
-                name = EVENT_GROUP.name
+                name = MEASUREMENT_CONSUMER_NAME + "/" + EVENT_GROUP.name
                 metadata = reportingMetadata {
                   eventGroupMetadataDescriptor = METADATA_NAME
                   metadata = Any.pack(TEST_MESSAGE)
                 }
               },
               reportingEventGroup {
-                name = EVENT_GROUP_2.name
+                name = MEASUREMENT_CONSUMER_NAME + "/" + EVENT_GROUP_2.name
                 metadata = reportingMetadata {
                   eventGroupMetadataDescriptor = METADATA_NAME
                   metadata = Any.pack(TEST_MESSAGE_2)
@@ -205,7 +208,7 @@ class EventGroupsServiceTest {
       .isEqualTo(
         reportingListEventGroupsResponse {
           eventGroups += reportingEventGroup {
-            name = EVENT_GROUP.name
+            name = MEASUREMENT_CONSUMER_NAME + "/" + EVENT_GROUP.name
             metadata = reportingMetadata {
               eventGroupMetadataDescriptor = METADATA_NAME
               metadata = Any.pack(TEST_MESSAGE)
