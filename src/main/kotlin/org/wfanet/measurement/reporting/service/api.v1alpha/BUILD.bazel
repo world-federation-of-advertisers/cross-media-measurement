@@ -28,8 +28,8 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "report_request_compiler",
-    srcs = ["ReportRequestCompiler.kt"],
+    name = "set_operation_compiler",
+    srcs = ["SetOperationCompiler.kt"],
     deps = [
         "//src/main/proto/wfa/measurement/internal/reporting:reporting_sets_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/reporting/v1alpha:report_kt_jvm_proto",

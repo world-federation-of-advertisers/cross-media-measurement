@@ -97,12 +97,12 @@ private val EXPECTED_CACHE_FOR_ALL_UNION_SET_OPERATION =
   )
 
 @RunWith(JUnit4::class)
-class ReportRequestCompilerTest {
-  private lateinit var reportResultCompiler: ReportRequestCompiler
+class SetOperationCompilerTest {
+  private lateinit var reportResultCompiler: SetOperationCompiler
 
   @Before
   fun initService() {
-    reportResultCompiler = ReportRequestCompiler()
+    reportResultCompiler = SetOperationCompiler()
   }
 
   @Test

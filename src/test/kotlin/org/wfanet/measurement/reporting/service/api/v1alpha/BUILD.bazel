@@ -21,12 +21,12 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "ReportRequestCompilerTest",
-    srcs = ["ReportRequestCompilerTest.kt"],
+    name = "SetOperationCompilerTest",
+    srcs = ["SetOperationCompilerTest.kt"],
     associates = [
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api.v1alpha:report_request_compiler",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api.v1alpha:set_operation_compiler",
     ],
-    test_class = "org.wfanet.measurement.reporting.service.api.v1alpha.ReportRequestCompilerTest",
+    test_class = "org.wfanet.measurement.reporting.service.api.v1alpha.SetOperationCompilerTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api.v1alpha:resource_key",
