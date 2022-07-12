@@ -424,10 +424,8 @@ private fun InternalReport.toReport(): Report {
 
 /** Converts an [InternalReport.State] to a public [Report.State]. */
 private fun InternalReport.State.toState(): Report.State {
-  val source = this
-
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-  return when (source) {
+  return when (this) {
     InternalReport.State.RUNNING -> Report.State.RUNNING
     InternalReport.State.SUCCEEDED -> Report.State.SUCCEEDED
     InternalReport.State.FAILED -> Report.State.FAILED
@@ -506,9 +504,8 @@ private fun InternalOperand.toOperand(): SetOperation.Operand {
 
 /** Converts an internal [InternalSetOperation.Type] to a public [SetOperation.Type]. */
 private fun InternalSetOperation.Type.toType(): SetOperation.Type {
-  val source = this
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-  return when (source) {
+  return when (this) {
     InternalSetOperation.Type.UNION -> SetOperation.Type.UNION
     InternalSetOperation.Type.INTERSECTION -> SetOperation.Type.INTERSECTION
     InternalSetOperation.Type.DIFFERENCE -> SetOperation.Type.DIFFERENCE
