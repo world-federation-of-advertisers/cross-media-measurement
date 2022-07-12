@@ -15,7 +15,6 @@
 package org.wfanet.measurement.reporting.deploy.postgres.readers
 
 import kotlinx.coroutines.flow.Flow
-import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
@@ -56,7 +55,7 @@ class MeasurementResultsReader {
       reportId = row["ReportId"],
       measurementReferenceId = row["MeasurementReferenceId"],
       state = Measurement.State.forNumber(row["State"]),
-      result = buildResult(row)
+      result = row.getProtoMessage("Result", Measurement.Result.parser())
     )
 
   suspend fun listMeasurementsForReportsByMeasurementReferenceId(
@@ -71,10 +70,5 @@ class MeasurementResultsReader {
       }
 
     return readContext.executeQuery(statement).consume(::translate)
-  }
-
-  private fun buildResult(row: ResultRow): Measurement.Result? {
-    val result = row.get<String?>("Result") ?: return null
-    return Measurement.Result.parseFrom(result.base64UrlDecode())
   }
 }

@@ -122,8 +122,8 @@ CREATE TABLE Measurements (
   Failure bytea,
 
   -- Serialized org.wfanet.measurement.internal.reporting.Measurement.Result
-  -- protobuf message encoded as base64url.
-  Result text,
+  -- protobuf message.
+  Result bytea,
 
   PRIMARY KEY(MeasurementConsumerReferenceId, MeasurementReferenceId)
 );

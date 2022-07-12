@@ -16,7 +16,6 @@ package org.wfanet.measurement.reporting.deploy.postgres.readers
 
 import com.google.protobuf.ByteString
 import kotlinx.coroutines.flow.firstOrNull
-import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
@@ -78,9 +77,9 @@ class MeasurementReader {
       if (failure != null) {
         this.failure = Measurement.Failure.parseFrom(failure)
       }
-      val result = row.get<String?>("Result")
+      val result: Measurement.Result? = row.getProtoMessage("Result", Measurement.Result.parser())
       if (result != null) {
-        this.result = Measurement.Result.parseFrom(result.base64UrlDecode())
+        this.result = result
       }
     }
   }

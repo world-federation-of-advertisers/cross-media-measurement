@@ -20,7 +20,6 @@ import com.google.protobuf.util.Durations
 import com.google.protobuf.util.Timestamps
 import java.time.Instant
 import java.util.concurrent.TimeUnit
-import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.internal.reporting.Measurement
 import org.wfanet.measurement.internal.reporting.Metric
@@ -59,7 +58,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
       """
       ) {
         bind("$1", Measurement.State.SUCCEEDED_VALUE)
-        bind("$2", request.result.toByteString().base64UrlEncode())
+        bind("$2", request.result)
         bind("$3", request.measurementConsumerReferenceId)
         bind("$4", request.measurementReferenceId)
       }
