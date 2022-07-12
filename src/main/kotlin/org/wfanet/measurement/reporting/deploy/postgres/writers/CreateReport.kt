@@ -18,9 +18,9 @@ import com.google.protobuf.util.Timestamps
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.internal.reporting.CreateReportRequest
 import org.wfanet.measurement.internal.reporting.CreateReportRequest.MeasurementKey
 import org.wfanet.measurement.internal.reporting.Measurement
@@ -274,14 +274,14 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
     val statement =
       boundStatement(
         """
-          INSERT INTO Metrics (MeasurementConsumerReferenceId, ReportId, MetricId, MetricDetailsJson)
+          INSERT INTO Metrics (MeasurementConsumerReferenceId, ReportId, MetricId, MetricDetails)
           VALUES ($1, $2, $3, $4)
           """
       ) {
         bind("$1", measurementConsumerReferenceId)
         bind("$2", reportId)
         bind("$3", metricId)
-        bind("$4", metric.details.toJson())
+        bind("$4", metric.details.toByteString().base64UrlEncode())
       }
 
     transactionContext.executeStatement(statement)

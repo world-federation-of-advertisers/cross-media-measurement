@@ -18,12 +18,12 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.google.protobuf.duration
 import com.google.protobuf.timestamp
-import com.google.protobuf.util.JsonFormat
 import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.singleOrNull
+import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
@@ -94,7 +94,7 @@ class ReportReader {
         SELECT array_agg(
           json_build_object(
             'metricId', MetricId,
-            'metricDetails', MetricDetailsJson,
+            'metricDetails', MetricDetails,
             'namedSetOperations', NamedSetOperations,
             'setOperations', SetOperations
           )
@@ -102,7 +102,7 @@ class ReportReader {
         FROM (
           SELECT
             MetricId,
-            MetricDetailsJson,
+            MetricDetails,
             (
               SELECT json_agg(
                 json_build_object(
@@ -347,11 +347,10 @@ class ReportReader {
       val metricObject = JsonParser.parseString(it).asJsonObject
       metricsList.add(
         metric {
-          val detailsBuilder = Metric.Details.newBuilder()
-          JsonFormat.parser()
-            .ignoringUnknownFields()
-            .merge(metricObject.getAsJsonPrimitive("metricDetails").asString, detailsBuilder)
-          details = detailsBuilder.build()
+          details =
+            Metric.Details.parseFrom(
+              metricObject.getAsJsonPrimitive("metricDetails").asString.base64UrlDecode()
+            )
 
           val setOperationsArr = metricObject.getAsJsonArray("setOperations")
           val setOperationsMap = mutableMapOf<Long, JsonObject>()

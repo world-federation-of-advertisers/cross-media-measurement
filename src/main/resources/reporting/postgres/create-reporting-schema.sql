@@ -99,9 +99,9 @@ CREATE TABLE Metrics (
   ReportId bigint NOT NULL,
   MetricId bigint NOT NULL,
 
-  -- Json serialized org.wfanet.measurement.internal.reporting.Metric.Details
-  -- protobuf message.
-  MetricDetailsJson text NOT NULL,
+  -- Serialized org.wfanet.measurement.internal.reporting.Metric.Details
+  -- protobuf message encoded as base64url.
+  MetricDetails text NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerReferenceId, ReportId, MetricId),
   FOREIGN KEY(MeasurementConsumerReferenceId, ReportId)
