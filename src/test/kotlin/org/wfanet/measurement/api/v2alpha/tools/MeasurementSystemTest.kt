@@ -57,7 +57,13 @@ import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
-import org.wfanet.measurement.api.v2alpha.MeasurementKt
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.frequency
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.impression
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.watchDuration
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.result
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
@@ -186,48 +192,39 @@ private val SUCCEEDED_MEASUREMENT = measurement {
     format = EncryptionPublicKey.Format.TINK_KEYSET
     data = MEASUREMENT_PUBLIC_KEY
   }
-  results +=
-    MeasurementKt.resultPair {
-      val result = MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 4096 } }
-      encryptedResult = getEncryptedResult(result, measurementPublicKey)
-      certificate = DATA_PROVIDER_CERTIFICATE_NAME
+  results += resultPair {
+    val result = result { reach = reach { value = 4096 } }
+    encryptedResult = getEncryptedResult(result, measurementPublicKey)
+    certificate = DATA_PROVIDER_CERTIFICATE_NAME
+  }
+  results += resultPair {
+    val result = result {
+      frequency = frequency {
+        relativeFrequencyDistribution.put(1, 1.0 / 6)
+        relativeFrequencyDistribution.put(2, 3.0 / 6)
+        relativeFrequencyDistribution.put(3, 2.0 / 6)
+      }
     }
-  results +=
-    MeasurementKt.resultPair {
-      val result =
-        MeasurementKt.result {
-          frequency =
-            MeasurementKt.ResultKt.frequency {
-              relativeFrequencyDistribution.put(1, 1.0 / 6)
-              relativeFrequencyDistribution.put(2, 3.0 / 6)
-              relativeFrequencyDistribution.put(3, 2.0 / 6)
-            }
+    encryptedResult = getEncryptedResult(result, measurementPublicKey)
+    certificate = DATA_PROVIDER_CERTIFICATE_NAME
+  }
+  results += resultPair {
+    val result = result { impression = impression { value = 4096 } }
+    encryptedResult = getEncryptedResult(result, measurementPublicKey)
+    certificate = DATA_PROVIDER_CERTIFICATE_NAME
+  }
+  results += resultPair {
+    val result = result {
+      watchDuration = watchDuration {
+        value = duration {
+          seconds = 100
+          nanos = 99
         }
-      encryptedResult = getEncryptedResult(result, measurementPublicKey)
-      certificate = DATA_PROVIDER_CERTIFICATE_NAME
+      }
     }
-  results +=
-    MeasurementKt.resultPair {
-      val result =
-        MeasurementKt.result { impression = MeasurementKt.ResultKt.impression { value = 4096 } }
-      encryptedResult = getEncryptedResult(result, measurementPublicKey)
-      certificate = DATA_PROVIDER_CERTIFICATE_NAME
-    }
-  results +=
-    MeasurementKt.resultPair {
-      val result =
-        MeasurementKt.result {
-          watchDuration =
-            MeasurementKt.ResultKt.watchDuration {
-              value = duration {
-                seconds = 100
-                nanos = 99
-              }
-            }
-        }
-      encryptedResult = getEncryptedResult(result, measurementPublicKey)
-      certificate = DATA_PROVIDER_CERTIFICATE_NAME
-    }
+    encryptedResult = getEncryptedResult(result, measurementPublicKey)
+    certificate = DATA_PROVIDER_CERTIFICATE_NAME
+  }
 }
 
 private val LIST_MEASUREMENT_RESPONSE = listMeasurementsResponse {
@@ -242,11 +239,10 @@ private val LIST_MEASUREMENT_RESPONSE = listMeasurementsResponse {
   measurement += measurement {
     name = "$MEASUREMENT_CONSUMER_NAME/measurements/102"
     state = Measurement.State.FAILED
-    failure =
-      MeasurementKt.failure {
-        reason = Measurement.Failure.Reason.REQUISITION_REFUSED
-        message = "Privacy budget exceeded."
-      }
+    failure = failure {
+      reason = Measurement.Failure.Reason.REQUISITION_REFUSED
+      message = "Privacy budget exceeded."
+    }
   }
 }
 
