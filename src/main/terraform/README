@@ -1,0 +1,91 @@
+Steps
+=========
+IMPORTANT:
+Since this currently uses 'local-exec' to build the code and push a container, you will need to rename the build 
+steps if you want to build a new version of code. This is a drawback of currently using 'local-exec' for building.
+
+
+General Notes:
+--------------
+1. Paths can be relative or absolute
+2. providers is a paramter to determine which project to deploy to. It should be consistent within the two Kingdom
+   modules and the two Duchy modules, but does not have to be the same for the two pairs.
+3. If the same GCP is used for both Kingdom and Duchy, the K8S service account is shared and will need to be 
+   fixed if one set is destroyed and the other is not.
+   Rerunning TF apply (on the piece that's not config) on the remaining piece will fix the issue. This can't be 
+   helped because K8S uses a single account in the entire project.
+
+Prereqs
+--------
+1. A GCP account and a login with admin access
+2. The cross-media-measurement and panel exchange repos downloaded locally
+3. Optional Bucket for TF state
+
+1. Run 01_Kingdom
+----------------
+Parameters:
+- cluster_info
+  - account_name: name of the iam service account to be created
+  - service_account_name: name of the k8s service account to be created
+  - primary_name: name of the cluster to be created
+- db_info
+  - instance_name: name of the spanner db instance
+  - db_name: name of the db within spanner to use
+- path_to_cmm: path to cmm
+- image_paths: the names of the images to build and deploy to k8s (this will generally stay as default)
+- key_data:
+  - key_ring_name: name of the king ring to create or use
+  - key_ring_exists: true/false if the key ring exists or a new one should be created
+  - key_id: name of the key id to create or use
+  - key_id_exists: true/false if the key exists or a new one should be created
+
+2. Create Certs
+---------------
+See step 6 in the docs: https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/kingdom-deployment.md
+
+3. Run 02_Kingdom_K8s_Config
+------------------------------
+Parameters:
+- path_to_cmm: path to cmm
+- path_to_secrets: path to the secrets folder (from Step 2)
+- path_to_configmap: path where a configmap file should be created (it will be removed, the default can be used)
+
+4. Register Duchy with Kingdom
+-------------------------------
+See step 1 in the docs: https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/duchy-deployment.md
+
+5. Run 03_Duchy
+---------------
+Parameters
+- cluster_info
+  - account_name: name of the iam service account to be created
+  - service_account_name: name of the k8s service account to be created
+  - primary_name: name of the cluster to be created
+- db_info
+  - instance_name: name of the spanner db instance 
+  - db_name: name of the db within spanner to use
+- path_to_cmm: path to cmm
+- bucket_name: name of the bucket to create
+- image_paths: the names of the images to build and deploy to k8s (this will generally stay as default)
+- key_data: 
+  - key_ring_name: name of the king ring to create or use
+  - key_ring_exists: true/false if the key ring exists or a new one should be created
+  - key_id: name of the key id to create or use
+  - key_id_exists: true/false if the key exists or a new one should be created
+
+
+6. Create Certs (Optional)
+--------------------------
+Use the same process from Step 2 if you want new certs.
+Otherwise, the same ones can be used depending on what systems you own.
+
+7. Run 04_Duchy_K8s_Config
+--------------------------
+Parameters:
+- path_to_cmm: path to cmm                                       
+- path_to_secrets: path to the secrets folder (from Step 2)
+- path_to_configmap: path where a configmap file should be created (it will be removed, the default can be used)
+- manifest_info
+  - cert_id: certificate id from Step 4
+  - bucket_id: bucket to manage certs, this should be different from the bucket in Step 5 (?)
+

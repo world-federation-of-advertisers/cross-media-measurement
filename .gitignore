@@ -11,3 +11,9 @@
 
 # VIM swap files
 *.swp
+
+# Local Terraform files
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+**/.terraform.lock.hcl
