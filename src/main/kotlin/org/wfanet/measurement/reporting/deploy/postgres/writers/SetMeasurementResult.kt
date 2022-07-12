@@ -20,8 +20,8 @@ import com.google.protobuf.util.Durations
 import com.google.protobuf.util.Timestamps
 import java.time.Instant
 import java.util.concurrent.TimeUnit
+import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
-import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.internal.reporting.Measurement
 import org.wfanet.measurement.internal.reporting.Metric
 import org.wfanet.measurement.internal.reporting.PeriodicTimeInterval
@@ -54,12 +54,12 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
       boundStatement(
         """
       UPDATE Measurements
-      SET State = $1, ResultJson = $2
+      SET State = $1, Result = $2
       WHERE MeasurementConsumerReferenceId = $3 AND MeasurementReferenceId = $4
       """
       ) {
         bind("$1", Measurement.State.SUCCEEDED_VALUE)
-        bind("$2", request.result.toJson())
+        bind("$2", request.result.toByteString().base64UrlEncode())
         bind("$3", request.measurementConsumerReferenceId)
         bind("$4", request.measurementReferenceId)
       }
@@ -70,6 +70,9 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
         throw MeasurementNotFoundException()
       }
 
+      val measurementResultsMap = mutableMapOf<String, MeasurementResultsReader.Result>()
+      val reportsSet = mutableSetOf<Long>()
+      val incompleteReportsSet = mutableSetOf<Long>()
       MeasurementResultsReader()
         .listMeasurementsForReportsByMeasurementReferenceId(
           transactionContext,
@@ -77,39 +80,44 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
           request.measurementReferenceId
         )
         .collect { result ->
-          result.measurementResultsMap.entries.forEach {
-            if (it.value.state != Measurement.State.SUCCEEDED) {
-              return@collect
-            }
+          if (result.state == Measurement.State.SUCCEEDED) {
+            reportsSet.add(result.reportId.value)
+            measurementResultsMap[result.measurementReferenceId] = result
+          } else {
+            incompleteReportsSet.add(result.reportId.value)
+          }
+        }
+
+      reportsSet.forEach {
+        if (incompleteReportsSet.contains(it)) {
+          return@forEach
+        }
+
+        val reportResult =
+          ReportReader()
+            .getReportById(transactionContext, request.measurementConsumerReferenceId, it)
+
+        val updatedDetails =
+          reportResult.report.details.copy {
+            this.result = constructResult(reportResult.report, measurementResultsMap)
           }
 
-          val reportResult =
-            ReportReader()
-              .getReportById(
-                transactionContext,
-                request.measurementConsumerReferenceId,
-                result.reportId.value
-              )
-          val updatedDetails =
-            reportResult.report.details.copy {
-              this.result = constructResult(reportResult.report, result.measurementResultsMap)
-            }
-          val updateReportStatement =
-            boundStatement(
-              """
+        val updateReportStatement =
+          boundStatement(
+            """
               UPDATE Reports
               SET ReportDetails = $1, State = $2
               WHERE MeasurementConsumerReferenceId = $3
               AND ReportId = $4
               """
-            ) {
-              bind("$1", updatedDetails.toByteArray())
-              bind("$2", Report.State.SUCCEEDED.number)
-              bind("$3", request.measurementConsumerReferenceId)
-              bind("$4", result.reportId)
-            }
-          executeStatement(updateReportStatement)
-        }
+          ) {
+            bind("$1", updatedDetails)
+            bind("$2", Report.State.SUCCEEDED.number)
+            bind("$3", request.measurementConsumerReferenceId)
+            bind("$4", it)
+          }
+        executeStatement(updateReportStatement)
+      }
     }
 
     return measurement {
@@ -122,7 +130,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
 
   private fun constructResult(
     report: Report,
-    measurementResultsMap: Map<String, MeasurementResultsReader.MeasurementResult>
+    measurementResultsMap: Map<String, MeasurementResultsReader.Result>
   ): Report.Details.Result {
     return ReportKt.DetailsKt.result {
       val rowHeaders = getRowHeaders(report)
@@ -190,7 +198,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
   /** Convert an [Metric.NamedSetOperation] to a [Report.Details.Result.Column] of a [Report] */
   private fun Metric.NamedSetOperation.toResultColumn(
     metricType: Metric.Details.MetricTypeCase,
-    measurementResultsMap: Map<String, MeasurementResultsReader.MeasurementResult>
+    measurementResultsMap: Map<String, MeasurementResultsReader.Result>
   ): Report.Details.Result.Column {
     val source = this
     return ReportKt.DetailsKt.ResultKt.column {
@@ -206,7 +214,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
   /** Calculate the equation in [Metric.MeasurementCalculation] to get the result. */
   private fun Metric.MeasurementCalculation.toSetOperationResults(
     metricType: Metric.Details.MetricTypeCase,
-    measurementResultsMap: Map<String, MeasurementResultsReader.MeasurementResult>
+    measurementResultsMap: Map<String, MeasurementResultsReader.Result>
   ): List<Double> {
     val source = this
     val measurementResultsList =
@@ -320,7 +328,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
   /** Convert a [Metric] to a [Report.Details.Result.HistogramTable] of a [Report] */
   private fun Metric.toHistogramTable(
     rowHeaders: List<String>,
-    measurementResultsMap: Map<String, MeasurementResultsReader.MeasurementResult>
+    measurementResultsMap: Map<String, MeasurementResultsReader.Result>
   ): Report.Details.Result.HistogramTable {
     val source = this
     val maximumFrequency = source.details.frequencyHistogram.maximumFrequencyPerUser

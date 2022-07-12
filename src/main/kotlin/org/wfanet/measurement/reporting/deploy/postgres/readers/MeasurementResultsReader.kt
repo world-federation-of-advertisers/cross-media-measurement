@@ -14,10 +14,8 @@
 
 package org.wfanet.measurement.reporting.deploy.postgres.readers
 
-import com.google.gson.JsonArray
-import com.google.gson.JsonParser
-import com.google.protobuf.util.JsonFormat
 import kotlinx.coroutines.flow.Flow
+import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
@@ -25,56 +23,40 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.internal.reporting.Measurement
 
 class MeasurementResultsReader {
-  data class MeasurementResult(val state: Measurement.State, val result: Measurement.Result?)
   data class Result(
     val reportId: InternalId,
-    val measurementResultsMap: Map<String, MeasurementResult>
+    val measurementReferenceId: String,
+    val state: Measurement.State,
+    val result: Measurement.Result?
   )
 
   private val sql =
     """
     SELECT
-      MeasurementsPerReport.ReportId,
-      array_agg(MeasurementsArr) AS Measurements
-    FROM (
-      SELECT
-        ReportIds.ReportId,
-        json_build_object(
-          'measurements',
-          json_agg(
-            json_build_object(
-              'measurementReferenceId', Measurements.MeasurementReferenceId,
-              'state', State,
-              'resultJson', ResultJson
-            )
-          )
-        ) AS MeasurementsArr
-      FROM (
+      ReportId,
+      MeasurementReferenceId,
+      Measurements.State,
+      Result
+    FROM
+      (
         SELECT
+          MeasurementConsumerReferenceId,
           ReportId
-        FROM ReportMeasurements
-        WHERE MeasurementConsumerReferenceId = $1 AND MeasurementReferenceId = $2
-      ) AS ReportIds
-      JOIN ReportMeasurements
-        ON ReportMeasurements.MeasurementConsumerReferenceId = $1
-          AND ReportIds.ReportId = ReportMeasurements.ReportId
-      JOIN Measurements
-        ON ReportMeasurements.MeasurementConsumerReferenceId = Measurements.MeasurementConsumerReferenceId
-          AND ReportMeasurements.MeasurementReferenceId = Measurements.MeasurementReferenceId
-      GROUP BY ReportIds.ReportId
-    ) AS MeasurementsPerReport
-    GROUP By ReportId
+        FROM
+          ReportMeasurements
+        WHERE
+          MeasurementConsumerReferenceId = $1 AND MeasurementReferenceId = $2
+      ) AS Reports
+      JOIN ReportMeasurements USING (MeasurementConsumerReferenceId, ReportId)
+      JOIN Measurements USING (MeasurementConsumerReferenceId, MeasurementReferenceId)
     """
 
   fun translate(row: ResultRow): Result =
     Result(
       reportId = row["ReportId"],
-      measurementResultsMap =
-        buildMeasurementResults(
-          JsonParser.parseString(row.get<Array<String>>("measurements")[0])
-            .asJsonObject
-            .getAsJsonArray("measurements")
-        )
+      measurementReferenceId = row["MeasurementReferenceId"],
+      state = Measurement.State.forNumber(row["State"]),
+      result = buildResult(row)
     )
 
   suspend fun listMeasurementsForReportsByMeasurementReferenceId(
@@ -91,28 +73,8 @@ class MeasurementResultsReader {
     return readContext.executeQuery(statement).consume(::translate)
   }
 
-  private fun buildMeasurementResults(measurementArr: JsonArray): Map<String, MeasurementResult> {
-    val measurementResultMap = mutableMapOf<String, MeasurementResult>()
-    measurementArr.forEach {
-      val measurementObject = it.asJsonObject
-      val resultPrimitive = measurementObject.get("resultJson")
-
-      val result =
-        if (resultPrimitive.isJsonNull) {
-          null
-        } else {
-          val resultBuilder = Measurement.Result.newBuilder()
-          JsonFormat.parser().ignoringUnknownFields().merge(resultPrimitive.asString, resultBuilder)
-          resultBuilder.build()
-        }
-
-      measurementResultMap[
-        measurementObject.getAsJsonPrimitive("measurementReferenceId").asString] =
-        MeasurementResult(
-          state = Measurement.State.forNumber(measurementObject.getAsJsonPrimitive("state").asInt),
-          result = result
-        )
-    }
-    return measurementResultMap
+  private fun buildResult(row: ResultRow): Measurement.Result? {
+    val result = row.get<String?>("Result") ?: return null
+    return Measurement.Result.parseFrom(result.base64UrlDecode())
   }
 }
