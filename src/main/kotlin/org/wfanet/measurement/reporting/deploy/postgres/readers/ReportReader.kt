@@ -14,10 +14,12 @@
 
 package org.wfanet.measurement.reporting.deploy.postgres.readers
 
+import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.google.protobuf.duration
 import com.google.protobuf.timestamp
+import io.r2dbc.postgresql.codec.Json
 import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
@@ -63,20 +65,18 @@ class ReportReader {
       ReportDetails,
       ReportIdempotencyKey,
       CreateTime,
-      (
-        SELECT ARRAY(
-          SELECT
-            json_build_object(
-              'timeIntervalId', TimeIntervalId,
-              'startSeconds', StartSeconds,
-              'startNanos', StartNanos,
-              'endSeconds', EndSeconds,
-              'endNanos', EndNanos
-            )
-          FROM TimeIntervals
-          WHERE TimeIntervals.MeasurementConsumerReferenceId = Reports.MeasurementConsumerReferenceId
-          AND TimeIntervals.ReportId = Reports.ReportId
-        )
+      ARRAY(
+        SELECT
+          json_build_object(
+            'timeIntervalId', TimeIntervalId,
+            'startSeconds', StartSeconds,
+            'startNanos', StartNanos,
+            'endSeconds', EndSeconds,
+            'endNanos', EndNanos
+          )
+        FROM TimeIntervals
+        WHERE TimeIntervals.MeasurementConsumerReferenceId = Reports.MeasurementConsumerReferenceId
+        AND TimeIntervals.ReportId = Reports.ReportId
       ) AS TimeIntervals,
       (
         SELECT json_build_object(
@@ -295,10 +295,10 @@ class ReportReader {
       details = row.getProtoMessage("ReportDetails", Report.Details.parser())
       reportIdempotencyKey = row["ReportIdempotencyKey"]
       createTime = row.get<Instant>("CreateTime").toProtoTime()
-      val periodicTimeInterval: String? = row["PeriodicTimeInterval"]
+      val periodicTimeInterval: Json? = row["PeriodicTimeInterval"]
       if (periodicTimeInterval != null) {
         this.periodicTimeInterval =
-          buildPeriodicTimeInterval(JsonParser.parseString(periodicTimeInterval).asJsonObject)
+          buildPeriodicTimeInterval(periodicTimeInterval.toJsonElement().asJsonObject)
       } else {
         timeIntervals = buildTimeIntervals(row["TimeIntervals"])
       }
@@ -460,5 +460,9 @@ class ReportReader {
           }
         }
     }
+  }
+
+  private fun Json.toJsonElement(): JsonElement {
+    return mapInputStream { input -> input.use { JsonParser.parseReader(it.reader()) } }
   }
 }
