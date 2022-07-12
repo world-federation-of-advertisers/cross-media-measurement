@@ -16,7 +16,6 @@ package org.wfanet.measurement.reporting.service.api.v1alpha
 
 import io.grpc.Status
 import kotlin.math.pow
-import kotlin.math.sign
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -79,7 +78,7 @@ private data class SetOperationExpression(
 
 data class WeightedMeasurement(val reportingSets: List<String>, val coefficient: Int)
 
-class ReportRequestCompiler() {
+class SetOperationCompiler() {
 
   private var primitiveRegionCache: PrimitiveRegionCache = mutableMapOf()
 
@@ -89,6 +88,10 @@ class ReportRequestCompiler() {
     return primitiveRegionCache.mapValues { it.value.toMap() }.toMap()
   }
 
+  /**
+   * Compiles a set operation to a list of [WeightedMeasurement]s which will be used for the metric
+   * functions that satisfy Cauchy's functional equation with sets, i.e. F(S1 + S2) = F(S1) + F(S2).
+   */
   suspend fun compileSetOperation(namedSetOperation: NamedSetOperation): List<WeightedMeasurement> {
     val sortedReportingSetNames = mutableListOf<String>()
     namedSetOperation.setOperation.storeReportingSetNames(sortedReportingSetNames)
