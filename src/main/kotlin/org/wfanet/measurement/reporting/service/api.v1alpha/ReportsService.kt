@@ -196,11 +196,13 @@ class ReportsService(
     measurementConsumerReferenceId: String,
   ) = coroutineScope {
     for ((measurementReferenceId, internalMeasurement) in measurementsMap) {
+      // Measurement with SUCCEEDED state is already synced
+      if (internalMeasurement.state == InternalMeasurement.State.SUCCEEDED) continue
+
       launch {
         syncMeasurement(
           measurementReferenceId,
           measurementConsumerReferenceId,
-          internalMeasurement,
         )
       }
     }
@@ -210,11 +212,7 @@ class ReportsService(
   private suspend fun syncMeasurement(
     measurementReferenceId: String,
     measurementConsumerReferenceId: String,
-    internalMeasurement: InternalMeasurement,
   ) {
-    // Measurement with SUCCEEDED state is already synced
-    if (internalMeasurement.state == InternalMeasurement.State.SUCCEEDED) return
-
     val measurement =
       measurementsStub
         .withAuthenticationKey(apiAuthenticationKey)
@@ -253,8 +251,6 @@ class ReportsService(
       Measurement.State.STATE_UNSPECIFIED -> error("The measurement state should've been set.")
       Measurement.State.UNRECOGNIZED -> error("Unrecognized measurement state.")
     }
-
-    return
   }
 
   /** Decrypts a [Measurement.ResultPair] to [Measurement.Result] */
@@ -277,8 +273,7 @@ class ReportsService(
 }
 
 private operator fun Duration.plus(other: Duration): Duration {
-  val source = this
-  return Durations.add(source, other)
+  return Durations.add(this, other)
 }
 
 /** Converts a CMM [Measurement.Failure] to an [InternalMeasurement.Failure]. */
@@ -407,7 +402,7 @@ private fun InternalReport.toReport(): Report {
     name = reportResourceName
     reportIdempotencyKey = source.reportIdempotencyKey
     measurementConsumer = measurementConsumerResourceName
-    eventGroupUniverse = eventGroupUniverse { this.eventGroupEntries.addAll(eventGroupEntries) }
+    eventGroupUniverse = eventGroupUniverse { this.eventGroupEntries += eventGroupEntries }
 
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     when (source.timeCase) {
