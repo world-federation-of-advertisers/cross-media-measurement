@@ -1,10 +1,6 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 
-package(
-    # TODO(@renjiez): Remove testonly after bumping common-jvm
-    default_testonly = True,
-    default_visibility = ["//visibility:public"],
-)
+package(default_visibility = ["//visibility:public"])
 
 kt_jvm_library(
     name = "resource_key",
@@ -28,6 +24,30 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+    ],
+)
+
+kt_jvm_library(
+    name = "reports_service",
+    srcs = ["ReportsService.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
+        "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:principal_server_interceptor",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api.v1alpha:resource_key",
+        "//src/main/proto/wfa/measurement/api/v2alpha:certificate_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:page_token_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting:measurements_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting:reports_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/reporting/v1alpha:reports_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
     ],
 )
 
