@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import org.apache.commons.math3.distribution.LaplaceDistribution
 import org.projectnessie.cel.common.types.pb.ProtoTypeRegistry
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.Sketch
@@ -429,12 +430,29 @@ class EdpSimulator(
     requisitionSpec: RequisitionSpec,
     measurementSpec: MeasurementSpec
   ) {
-    // TODO(@alberthsuu): How to fulfill direct reach and frequency measurement?
-    val testValue = apiIdToExternalId(DataProviderKey.fromName(edpData.name)!!.dataProviderId)
+    // TODO(@alberthsuu): Get reach and frequency from actual resource
+    val reachValue = 1000L
+    val frequencyMap = mapOf(1L to 0.5, 2L to 0.25, 3L to 0.25)
+
+    val laplaceForReach =
+      LaplaceDistribution(0.0, 1 / measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon)
+    laplaceForReach.reseedRandomGenerator(1)
+    val reachNoisedValue = reachValue + laplaceForReach.sample().toInt()
+
+    val laplaceForFrequency =
+      LaplaceDistribution(0.0, 1 / measurementSpec.reachAndFrequency.frequencyPrivacyParams.epsilon)
+    laplaceForFrequency.reseedRandomGenerator(1)
+
+    val frequencyNoisedMap = mutableMapOf<Long, Double>()
+    frequencyMap.forEach { (key, frequency) ->
+      frequencyNoisedMap[key] =
+        (frequency * reachValue.toDouble() + laplaceForFrequency.sample()) / reachValue.toDouble()
+    }
+
     val requisitionData =
       MeasurementKt.result {
-        reach = reach { value = testValue }
-        frequency = frequency { relativeFrequencyDistribution.putAll(mapOf(testValue to 1.0)) }
+        reach = reach { value = reachNoisedValue }
+        frequency = frequency { relativeFrequencyDistribution.putAll(frequencyNoisedMap) }
       }
 
     fulfillDirectMeasurement(requisition, requisitionSpec, measurementSpec, requisitionData)
