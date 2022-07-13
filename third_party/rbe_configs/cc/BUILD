@@ -14,11 +14,11 @@
 
 # This becomes the BUILD file for @local_config_cc// under non-BSD unixes.
 
-package(default_visibility = ["//visibility:public"])
-
 load(":cc_toolchain_config.bzl", "cc_toolchain_config")
 load(":armeabi_cc_toolchain_config.bzl", "armeabi_cc_toolchain_config")
 load("@rules_cc//cc:defs.bzl", "cc_toolchain", "cc_toolchain_suite")
+
+package(default_visibility = ["//visibility:public"])
 
 licenses(["notice"])  # Apache 2.0
 
@@ -87,13 +87,12 @@ cc_toolchain_config(
     "/usr/lib/llvm-10/lib/clang/10.0.0/share",
     "/usr/include/c++/9",
     "/usr/include/x86_64-linux-gnu/c++/9",
-    "/usr/include/c++/9/backward",
-    "/usr/lib/clang/10.0.0/include"],
+    "/usr/include/c++/9/backward"],
     tool_paths = {"ar": "/usr/bin/ar",
         "ld": "/usr/bin/ld",
         "llvm-cov": "None",
         "cpp": "/usr/bin/cpp",
-        "gcc": "/usr/bin/clang",
+        "gcc": "/usr/lib/llvm-10/bin/clang",
         "dwp": "/usr/bin/dwp",
         "gcov": "None",
         "nm": "/usr/bin/nm",
@@ -118,7 +117,7 @@ cc_toolchain_config(
     link_flags = ["-fuse-ld=/usr/bin/ld.gold",
     "-Wl,-no-as-needed",
     "-Wl,-z,relro,-z,now",
-    "-B/usr/bin"],
+    "-B/usr/lib/llvm-10/bin"],
     link_libs = ["-lstdc++",
     "-lm"],
     opt_link_flags = ["-Wl,--gc-sections"],
