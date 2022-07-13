@@ -19,15 +19,3 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
     ],
 )
-
-kt_jvm_test(
-    name = "EncryptionKeyPairStoreTest",
-    srcs = ["EncryptionKeyPairStoreTest.kt"],
-    data = ["//src/main/k8s/testing/secretfiles:secret_files"],
-    test_class = "org.wfanet.measurement.reporting.service.api.v1alpha.EncryptionKeyPairStoreTest",
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api.v1alpha:encryption_key_pair_store",
-        "@wfa_common_jvm//imports/java/com/google/common/truth",
-        "@wfa_common_jvm//imports/kotlin/kotlin/test",
-    ],
-)

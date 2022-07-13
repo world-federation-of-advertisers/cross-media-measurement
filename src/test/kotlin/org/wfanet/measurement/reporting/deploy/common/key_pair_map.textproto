@@ -1,0 +1,12 @@
+# proto-file: src/main/proto/wfa/measurement/reporting/v1alpha/encryption_key_pair_map.proto
+# proto-message: EncryptionKeyPairMap
+
+entries {
+  public_key_filename: "mc_enc_public.tink"
+  private_key_filename: "mc_enc_private.tink"
+}
+entries {
+  public_key_filename: "edp1_enc_public.tink"
+  private_key_filename: "edp1_enc_private.tink"
+}
+

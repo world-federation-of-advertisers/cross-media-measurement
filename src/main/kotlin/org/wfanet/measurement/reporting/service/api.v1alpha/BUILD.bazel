@@ -1,6 +1,7 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 
 package(
+    # TODO(@renjiez): Remove testonly after bumping common-jvm
     default_testonly = True,
     default_visibility = ["//visibility:public"],
 )
@@ -34,7 +35,6 @@ kt_jvm_library(
     name = "encryption_key_pair_store",
     srcs = ["EncryptionKeyPairStore.kt"],
     deps = [
-        "@wfa_common_jvm//imports/java/picocli",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
     ],
 )

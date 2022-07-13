@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.reporting.service.api.v1alpha
+package org.wfanet.measurement.reporting.deploy.common
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
@@ -30,40 +30,81 @@ import picocli.CommandLine
 import picocli.CommandLine.Mixin
 
 private val SECRETS_DIR: Path =
-  getRuntimePath(
-    Paths.get(
-      "wfa_measurement_system",
-      "src",
-      "main",
-      "k8s",
-      "testing",
-      "secretfiles",
-    )
-  )!!
+    getRuntimePath(
+        Paths.get(
+            "wfa_measurement_system",
+            "src",
+            "main",
+            "k8s",
+            "testing",
+            "secretfiles",
+        ))!!
+
+private val ENCRYPTION_KEY_PAIR_MAP: Path =
+    getRuntimePath(
+        Paths.get(
+            "wfa_measurement_system",
+            "src",
+            "test",
+            "kotlin",
+            "org",
+            "wfanet",
+            "measurement",
+            "reporting",
+            "deploy",
+            "common",
+            "key_pair_map.textproto"))!!
 
 private val PUBLIC_KEY_FILE_1 = SECRETS_DIR.resolve("mc_enc_public.tink").toFile()
 private val PUBLIC_KEY_1 = PUBLIC_KEY_FILE_1.readByteString()
-private val PRIVATE_KEY_FILE_1 = SECRETS_DIR.resolve("mc_enc_private.tink").toFile()
 private val PUBLIC_KEY_FILE_2 = SECRETS_DIR.resolve("edp1_enc_public.tink").toFile()
 private val PUBLIC_KEY_2 = PUBLIC_KEY_FILE_2.readByteString()
-private val PRIVATE_KEY_FILE_2 = SECRETS_DIR.resolve("edp1_enc_private.tink").toFile()
 private val NON_EXISTENT_PUBLIC_KEY = "non existent public key".toByteStringUtf8()
 
 private val PLAIN_TEXT = "THis is plain text".toByteStringUtf8()
 
 @RunWith(JUnit4::class)
-class EncryptionKeyPairStoreTest {
-  private class PairStoreWrapper(val verifyBlock: (InMemoryEncryptionKeyPairStore) -> Unit) :
-    Runnable {
-    @Mixin lateinit var encryptionKeyPairStore: InMemoryEncryptionKeyPairStore
+class EncryptionKeyPairMapTest {
+  @Test
+  fun `EncryptionKeyPairStore returns corresponding private keys`() {
+    val args =
+        arrayOf(
+            "--key-pair-dir=$SECRETS_DIR",
+            "--key-pair-map-file=$ENCRYPTION_KEY_PAIR_MAP",
+        )
 
-    override fun run() {
-      verifyBlock(encryptionKeyPairStore)
+    runTest(args) { keyPairMap ->
+      verifyKeyPair(PUBLIC_KEY_1, requireNotNull(keyPairMap[PUBLIC_KEY_1]))
+      verifyKeyPair(PUBLIC_KEY_2, requireNotNull(keyPairMap[PUBLIC_KEY_2]))
     }
   }
 
-  private fun runTest(args: Array<String>, verifyBlock: (InMemoryEncryptionKeyPairStore) -> Unit) {
-    val returnCode = CommandLine(PairStoreWrapper(verifyBlock)).execute(*args)
+  @Test
+  fun `EncryptionKeyPairStore returns null when private key is not found`() {
+    val args =
+        arrayOf(
+            "--key-pair-dir=$SECRETS_DIR",
+            "--key-pair-map-file=$ENCRYPTION_KEY_PAIR_MAP",
+        )
+
+    runTest(args) { keyPairMap -> assertThat(keyPairMap[NON_EXISTENT_PUBLIC_KEY]).isNull() }
+  }
+
+  private class KeyPairMapWrapper(
+      val verifyBlock: (keyPairs: Map<ByteString, PrivateKeyHandle>) -> Unit
+  ) : Runnable {
+    @Mixin lateinit var encryptionKeyPairMap: EncryptionKeyPairMap
+
+    override fun run() {
+      verifyBlock(encryptionKeyPairMap.keyPairs)
+    }
+  }
+
+  private fun runTest(
+      args: Array<String>,
+      verifyBlock: (Map<ByteString, PrivateKeyHandle>) -> Unit
+  ) {
+    val returnCode = CommandLine(KeyPairMapWrapper(verifyBlock)).execute(*args)
     assertThat(returnCode).isEqualTo(0)
   }
 
@@ -72,36 +113,5 @@ class EncryptionKeyPairStoreTest {
     val encryptedText = publicKeyHandle.hybridEncrypt(PLAIN_TEXT)
     val decryptedText = privateKeyHandle.hybridDecrypt(encryptedText)
     assertThat(decryptedText).isEqualTo(PLAIN_TEXT)
-  }
-
-  @Test
-  fun `EncryptionKeyPairStore returns corresponding private keys`() {
-    val args =
-      arrayOf(
-        "--encryption-public-key-file=$PUBLIC_KEY_FILE_1",
-        "--encryption-private-key-file=$PRIVATE_KEY_FILE_1",
-        "--encryption-public-key-file=$PUBLIC_KEY_FILE_2",
-        "--encryption-private-key-file=$PRIVATE_KEY_FILE_2",
-      )
-
-    runTest(args) { keyPairStore ->
-      verifyKeyPair(PUBLIC_KEY_1, requireNotNull(keyPairStore.getPrivateKey(PUBLIC_KEY_1)))
-      verifyKeyPair(PUBLIC_KEY_2, requireNotNull(keyPairStore.getPrivateKey(PUBLIC_KEY_2)))
-    }
-  }
-
-  @Test
-  fun `EncryptionKeyPairStore returns null when private key is not found`() {
-    val args =
-      arrayOf(
-        "--encryption-public-key-file=$PUBLIC_KEY_FILE_1",
-        "--encryption-private-key-file=$PRIVATE_KEY_FILE_1",
-        "--encryption-public-key-file=$PUBLIC_KEY_FILE_2",
-        "--encryption-private-key-file=$PRIVATE_KEY_FILE_2",
-      )
-
-    runTest(args) { keyPairStore ->
-      assertThat(keyPairStore.getPrivateKey(NON_EXISTENT_PUBLIC_KEY)).isNull()
-    }
   }
 }
