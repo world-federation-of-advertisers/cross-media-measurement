@@ -21,11 +21,11 @@ import com.google.protobuf.duration
 import com.google.protobuf.timestamp
 import io.r2dbc.postgresql.codec.Json
 import java.time.Instant
+import java.util.Base64
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.singleOrNull
-import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
@@ -102,7 +102,7 @@ class ReportReader {
         FROM (
           SELECT
             MetricId,
-            MetricDetails,
+            encode(MetricDetails, 'base64') AS MetricDetails,
             (
               SELECT json_agg(
                 json_build_object(
@@ -349,7 +349,7 @@ class ReportReader {
         metric {
           details =
             Metric.Details.parseFrom(
-              metricObject.getAsJsonPrimitive("metricDetails").asString.base64UrlDecode()
+              Base64.getDecoder().decode(metricObject.getAsJsonPrimitive("metricDetails").asString)
             )
 
           val setOperationsArr = metricObject.getAsJsonArray("setOperations")
@@ -464,5 +464,6 @@ class ReportReader {
 
   private fun Json.toJsonElement(): JsonElement {
     return mapInputStream { input -> input.use { JsonParser.parseReader(it.reader()) } }
+      as JsonElement
   }
 }
