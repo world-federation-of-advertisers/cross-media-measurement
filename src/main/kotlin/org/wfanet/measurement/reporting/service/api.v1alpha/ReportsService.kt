@@ -214,12 +214,12 @@ class ReportsService(
     // Report with SUCCEEDED or FAILED state is already synced.
     if (
       internalReport.state == InternalReport.State.SUCCEEDED ||
-        internalReport.state == InternalReport.State.FAILED
+      internalReport.state == InternalReport.State.FAILED
     ) {
       return internalReport
     } else if (
       internalReport.state == InternalReport.State.STATE_UNSPECIFIED ||
-        internalReport.state == InternalReport.State.UNRECOGNIZED
+      internalReport.state == InternalReport.State.UNRECOGNIZED
     ) {
       error(
         "The measurements cannot be synced because the report state was not set correctly as it " +
@@ -678,9 +678,9 @@ private fun InternalReport.toReport(): Report {
     MeasurementConsumerKey(source.measurementConsumerReferenceId).toName()
   val reportResourceName =
     ReportKey(
-        measurementConsumerId = source.measurementConsumerReferenceId,
-        reportId = externalIdToApiId(source.externalReportId)
-      )
+      measurementConsumerId = source.measurementConsumerReferenceId,
+      reportId = externalIdToApiId(source.externalReportId)
+    )
       .toName()
   val eventGroupEntries =
     source.details.eventGroupFiltersMap.toList().map { (eventGroupResourceName, filterPredicate) ->
@@ -785,9 +785,9 @@ private fun InternalOperand.toOperand(): Operand {
       operand {
         reportingSet =
           ReportingSetKey(
-              source.reportingSetId.measurementConsumerReferenceId,
-              externalIdToApiId(source.reportingSetId.externalReportingSetId)
-            )
+            source.reportingSetId.measurementConsumerReferenceId,
+            externalIdToApiId(source.reportingSetId.externalReportingSetId)
+          )
             .toName()
       }
     InternalOperand.OperandCase.OPERAND_NOT_SET -> operand {}

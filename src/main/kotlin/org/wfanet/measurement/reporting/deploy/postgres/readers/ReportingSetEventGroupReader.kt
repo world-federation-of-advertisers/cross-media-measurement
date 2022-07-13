@@ -14,13 +14,12 @@
 
 package org.wfanet.measurement.reporting.deploy.postgres.readers
 
-import io.r2dbc.spi.Row
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
-import org.wfanet.measurement.common.db.r2dbc.StatementBuilder.Companion.statementBuilder
-import org.wfanet.measurement.common.db.r2dbc.getValue
+import org.wfanet.measurement.common.db.r2dbc.ResultRow
+import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.internal.reporting.ReportingSet
 import org.wfanet.measurement.internal.reporting.ReportingSetKt
@@ -38,7 +37,7 @@ class ReportingSetEventGroupReader {
       ReportingSetEventGroups
     """
 
-  fun translate(row: Row): Result = Result(buildEventGroupKey(row))
+  fun translate(row: ResultRow): Result = Result(buildEventGroupKey(row))
 
   fun listEventGroupKeys(
     readContext: ReadContext,
@@ -46,7 +45,7 @@ class ReportingSetEventGroupReader {
     reportingSetId: InternalId
   ): Flow<Result> {
     val builder =
-      statementBuilder(
+      boundStatement(
         baseSql +
           """
         WHERE MeasurementConsumerReferenceId = $1
@@ -60,11 +59,11 @@ class ReportingSetEventGroupReader {
     return flow { emitAll(readContext.executeQuery(builder).consume(::translate)) }
   }
 
-  private fun buildEventGroupKey(row: Row): ReportingSet.EventGroupKey {
+  private fun buildEventGroupKey(row: ResultRow): ReportingSet.EventGroupKey {
     return ReportingSetKt.eventGroupKey {
-      measurementConsumerReferenceId = row.getValue("MeasurementConsumerReferenceId")
-      dataProviderReferenceId = row.getValue("DataProviderReferenceId")
-      eventGroupReferenceId = row.getValue("EventGroupReferenceId")
+      measurementConsumerReferenceId = row["MeasurementConsumerReferenceId"]
+      dataProviderReferenceId = row["DataProviderReferenceId"]
+      eventGroupReferenceId = row["EventGroupReferenceId"]
     }
   }
 }
