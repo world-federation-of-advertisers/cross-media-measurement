@@ -21,8 +21,10 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.logging.Logger
+import kotlin.math.min
 import kotlin.random.Random
 import kotlinx.coroutines.delay
+import org.apache.commons.math3.distribution.LaplaceDistribution
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchProtos
@@ -175,14 +177,28 @@ class FrontendSimulator(
     }
     logger.info("Got reach and frequency result from Kingdom: $reachAndFrequencyResult")
 
-    // EdpSimulator sets it to this value.
-    val expectedResult =
-      apiIdToExternalId(
-        DataProviderKey.fromName(createdReachAndFrequencyMeasurement.dataProvidersList[0].key)!!
-          .dataProviderId
-      )
+    // EdpSimulator sets to those values.
+    val reachValue = 1000L
+    val frequencyMap = mapOf(1L to 0.5, 2L to 0.25, 3L to 0.25)
 
-    assertThat(reachAndFrequencyResult.reach.value).isEqualTo(expectedResult)
+    val laplaceForReach = LaplaceDistribution(0.0, 1 / outputDpParams.epsilon)
+    laplaceForReach.reseedRandomGenerator(1)
+    val laplaceForFrequency = LaplaceDistribution(0.0, 1 / outputDpParams.epsilon)
+    laplaceForFrequency.reseedRandomGenerator(1)
+
+    // EdpSimulator sets to those noised values.
+    val expectedReachNoisedValue = reachValue + laplaceForReach.sample().toInt()
+    val expectedFrequencyNoisedMap = mutableMapOf<Long, Double>()
+    frequencyMap.forEach { (key, frequency) ->
+      expectedFrequencyNoisedMap[key] =
+        (frequency * reachValue.toDouble() + laplaceForFrequency.sample()) / reachValue.toDouble()
+    }
+
+    assertThat(reachAndFrequencyResult.reach.value).isEqualTo(expectedReachNoisedValue)
+    reachAndFrequencyResult.frequency.relativeFrequencyDistributionMap.forEach { (key, frequency) ->
+      assertThat(frequency).isEqualTo(expectedFrequencyNoisedMap[key])
+    }
+
     logger.info(
       "Direct reach and frequency result is equal to the expected result. " +
         "Correctness Test passes."
@@ -265,10 +281,10 @@ class FrontendSimulator(
         serializedMeasurementPublicKey: ByteString,
         nonceHashes: MutableList<ByteString>
       ) -> MeasurementSpec,
-    numberOfEdp: Int = 3,
+    numberOfEdp: Int = 20,
   ): Measurement {
     var eventGroups = listEventGroups(measurementConsumer.name)
-    eventGroups = eventGroups.subList(0, numberOfEdp)
+    eventGroups = eventGroups.subList(0, min(numberOfEdp, eventGroups.size))
     val nonceHashes = mutableListOf<ByteString>()
     val dataProviderEntries =
       eventGroups.map {
