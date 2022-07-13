@@ -22,6 +22,7 @@ internal enum class IdVariable {
   EVENT_GROUP,
   MEASUREMENT_CONSUMER,
   REPORTING_SET,
+  REPORT,
 }
 
 internal fun ResourceNameParser.assembleName(idMap: Map<IdVariable, String>): String {
