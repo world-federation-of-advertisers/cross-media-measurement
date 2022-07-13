@@ -18,6 +18,8 @@ import io.r2dbc.spi.R2dbcDataIntegrityViolationException
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
+import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.internal.reporting.ReportingSet
 import org.wfanet.measurement.internal.reporting.copy
 import org.wfanet.measurement.reporting.service.internal.ReportingSetAlreadyExistsException
@@ -30,9 +32,23 @@ import org.wfanet.measurement.reporting.service.internal.ReportingSetAlreadyExis
  */
 class CreateReportingSet(private val request: ReportingSet) : PostgresWriter<ReportingSet>() {
   override suspend fun TransactionScope.runTransaction(): ReportingSet {
-    val internalReportingSetId = idGenerator.generateInternalId().value
-    val externalReportingSetId = idGenerator.generateExternalId().value
+    val internalReportingSetId = idGenerator.generateInternalId()
+    val externalReportingSetId = idGenerator.generateExternalId()
 
+    insertReportingSet(internalReportingSetId, externalReportingSetId)
+    coroutineScope {
+      request.eventGroupKeysList.forEach {
+        launch { insertReportingSetEventGroup(it, internalReportingSetId) }
+      }
+    }
+
+    return request.copy { this.externalReportingSetId = externalReportingSetId.value }
+  }
+
+  private suspend fun TransactionScope.insertReportingSet(
+    internalReportingSetId: InternalId,
+    externalReportingSetId: ExternalId
+  ) {
     val statement =
       boundStatement(
         """
@@ -47,25 +63,16 @@ class CreateReportingSet(private val request: ReportingSet) : PostgresWriter<Rep
         bind("$5", request.displayName)
       }
 
-    transactionContext.run {
-      try {
-        executeStatement(statement)
-      } catch (e: R2dbcDataIntegrityViolationException) {
-        throw ReportingSetAlreadyExistsException()
-      }
-      coroutineScope {
-        request.eventGroupKeysList.forEach {
-          launch { insertReportingSetEventGroup(it, internalReportingSetId) }
-        }
-      }
+    try {
+      transactionContext.executeStatement(statement)
+    } catch (e: R2dbcDataIntegrityViolationException) {
+      throw ReportingSetAlreadyExistsException()
     }
-
-    return request.copy { this.externalReportingSetId = externalReportingSetId }
   }
 
   private suspend fun TransactionScope.insertReportingSetEventGroup(
     eventGroupKey: ReportingSet.EventGroupKey,
-    reportingSetId: Long
+    reportingSetId: InternalId
   ) {
     val statement =
       boundStatement(
