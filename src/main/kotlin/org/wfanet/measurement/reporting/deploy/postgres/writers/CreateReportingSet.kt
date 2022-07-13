@@ -37,8 +37,10 @@ class CreateReportingSet(private val request: ReportingSet) : PostgresWriter<Rep
 
     insertReportingSet(internalReportingSetId, externalReportingSetId)
     coroutineScope {
-      request.eventGroupKeysList.forEach {
-        launch { insertReportingSetEventGroup(it, internalReportingSetId) }
+      for (i in 0 until request.eventGroupKeysList.size) {
+        launch {
+          insertReportingSetEventGroup(request.eventGroupKeysList[i], internalReportingSetId)
+        }
       }
     }
 
