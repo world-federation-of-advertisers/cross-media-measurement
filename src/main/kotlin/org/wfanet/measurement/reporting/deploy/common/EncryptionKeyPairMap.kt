@@ -25,15 +25,16 @@ import picocli.CommandLine.Option
 
 class EncryptionKeyPairMap {
   @Option(
-      names = ["--key-pair-dir"],
-      description = ["Path to the directory of MeasurementConsumer's encryption keys"],
+    names = ["--key-pair-dir"],
+    description = ["Path to the directory of MeasurementConsumer's encryption keys"],
   )
   private lateinit var keyFilesDirectory: String
 
   @Option(
-      names = ["--key-pair-map-file"],
-      description = ["Path to the map of of MeasurementConsumer's encryption keys"],
-      required = true)
+    names = ["--key-pair-map-file"],
+    description = ["Path to the map of of MeasurementConsumer's encryption keys"],
+    required = true
+  )
   private lateinit var keyPairListFile: File
 
   val keyPairs: Map<ByteString, PrivateKeyHandle> by lazy {

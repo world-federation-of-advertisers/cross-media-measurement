@@ -30,30 +30,33 @@ import picocli.CommandLine
 import picocli.CommandLine.Mixin
 
 private val SECRETS_DIR: Path =
-    getRuntimePath(
-        Paths.get(
-            "wfa_measurement_system",
-            "src",
-            "main",
-            "k8s",
-            "testing",
-            "secretfiles",
-        ))!!
+  getRuntimePath(
+    Paths.get(
+      "wfa_measurement_system",
+      "src",
+      "main",
+      "k8s",
+      "testing",
+      "secretfiles",
+    )
+  )!!
 
 private val ENCRYPTION_KEY_PAIR_MAP: Path =
-    getRuntimePath(
-        Paths.get(
-            "wfa_measurement_system",
-            "src",
-            "test",
-            "kotlin",
-            "org",
-            "wfanet",
-            "measurement",
-            "reporting",
-            "deploy",
-            "common",
-            "key_pair_map.textproto"))!!
+  getRuntimePath(
+    Paths.get(
+      "wfa_measurement_system",
+      "src",
+      "test",
+      "kotlin",
+      "org",
+      "wfanet",
+      "measurement",
+      "reporting",
+      "deploy",
+      "common",
+      "key_pair_map.textproto"
+    )
+  )!!
 
 private val PUBLIC_KEY_FILE_1 = SECRETS_DIR.resolve("mc_enc_public.tink").toFile()
 private val PUBLIC_KEY_1 = PUBLIC_KEY_FILE_1.readByteString()
@@ -68,10 +71,10 @@ class EncryptionKeyPairMapTest {
   @Test
   fun `EncryptionKeyPairStore returns corresponding private keys`() {
     val args =
-        arrayOf(
-            "--key-pair-dir=$SECRETS_DIR",
-            "--key-pair-map-file=$ENCRYPTION_KEY_PAIR_MAP",
-        )
+      arrayOf(
+        "--key-pair-dir=$SECRETS_DIR",
+        "--key-pair-map-file=$ENCRYPTION_KEY_PAIR_MAP",
+      )
 
     runTest(args) { keyPairMap ->
       verifyKeyPair(PUBLIC_KEY_1, requireNotNull(keyPairMap[PUBLIC_KEY_1]))
@@ -82,16 +85,16 @@ class EncryptionKeyPairMapTest {
   @Test
   fun `EncryptionKeyPairStore returns null when private key is not found`() {
     val args =
-        arrayOf(
-            "--key-pair-dir=$SECRETS_DIR",
-            "--key-pair-map-file=$ENCRYPTION_KEY_PAIR_MAP",
-        )
+      arrayOf(
+        "--key-pair-dir=$SECRETS_DIR",
+        "--key-pair-map-file=$ENCRYPTION_KEY_PAIR_MAP",
+      )
 
     runTest(args) { keyPairMap -> assertThat(keyPairMap[NON_EXISTENT_PUBLIC_KEY]).isNull() }
   }
 
   private class KeyPairMapWrapper(
-      val verifyBlock: (keyPairs: Map<ByteString, PrivateKeyHandle>) -> Unit
+    val verifyBlock: (keyPairs: Map<ByteString, PrivateKeyHandle>) -> Unit
   ) : Runnable {
     @Mixin lateinit var encryptionKeyPairMap: EncryptionKeyPairMap
 
@@ -101,8 +104,8 @@ class EncryptionKeyPairMapTest {
   }
 
   private fun runTest(
-      args: Array<String>,
-      verifyBlock: (Map<ByteString, PrivateKeyHandle>) -> Unit
+    args: Array<String>,
+    verifyBlock: (Map<ByteString, PrivateKeyHandle>) -> Unit
   ) {
     val returnCode = CommandLine(KeyPairMapWrapper(verifyBlock)).execute(*args)
     assertThat(returnCode).isEqualTo(0)

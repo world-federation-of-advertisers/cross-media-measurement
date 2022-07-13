@@ -25,10 +25,10 @@ interface EncryptionKeyPairStore {
 }
 
 class InMemoryEncryptionKeyPairStore(keyPairs: Map<ByteString, PrivateKeyHandle>) :
-    EncryptionKeyPairStore {
+  EncryptionKeyPairStore {
   private val keyPairMap: Map<ByteString, PrivateKeyHandle> =
-      keyPairs.mapKeys { hashSha256(it.key) }
+    keyPairs.mapKeys { hashSha256(it.key) }
 
   override suspend fun getPrivateKey(publicKey: ByteString): PrivateKeyHandle? =
-      keyPairMap[hashSha256(publicKey)]
+    keyPairMap[hashSha256(publicKey)]
 }
