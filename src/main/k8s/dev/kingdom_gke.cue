@@ -16,7 +16,7 @@ package k8s
 
 _secret_name: string @tag("secret_name")
 
-#DefaultResourceConfig: {
+#KingdomResourceConfig: {
 	replicas: 1
 	resources: {
 		requests: {
@@ -24,10 +24,10 @@ _secret_name: string @tag("secret_name")
 		}
 		limits: {
 			cpu:    "400m"
-			memory: "512Mi"
+			memory: "1024Mi"
 		}
 	}
-	jvmHeapSize: "400m"
+	jvmHeapSize: "800m"
 }
 
 // Name of K8s service account for the internal API server.
@@ -65,9 +65,9 @@ kingdom: #Kingdom & {
 	}
 
 	_resource_configs: {
-		"gcp-kingdom-data-server":   #DefaultResourceConfig
-		"system-api-server":         #DefaultResourceConfig
-		"v2alpha-public-api-server": #DefaultResourceConfig
+		"gcp-kingdom-data-server":   #KingdomResourceConfig
+		"system-api-server":         #KingdomResourceConfig
+		"v2alpha-public-api-server": #KingdomResourceConfig
 	}
 	_kingdom_image_pull_policy: "Always"
 	_verboseGrpcServerLogging:  true
