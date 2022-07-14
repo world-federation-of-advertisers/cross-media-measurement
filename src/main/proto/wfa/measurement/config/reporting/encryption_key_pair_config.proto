@@ -14,16 +14,13 @@
 
 syntax = "proto3";
 
-package wfa.measurement.reporting.v1alpha;
+package wfa.measurement.config.reporting;
 
-option java_package = "org.wfanet.measurement.reporting.v1alpha";
+option java_package = "org.wfanet.measurement.config.reporting";
 option java_multiple_files = true;
 
-message EncryptionKeyPairMap {
-  repeated Entry entries = 1;
-
-  message Entry {
-    string public_key_filename = 1;
-    string private_key_filename = 2;
-  }
+message EncryptionKeyPairConfig {
+  // Path to the public key as the map key. Path to the private key as the map
+  // value.
+  map<string, string> key_pairs = 1;
 }

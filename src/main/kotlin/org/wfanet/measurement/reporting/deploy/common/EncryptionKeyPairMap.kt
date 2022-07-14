@@ -20,7 +20,7 @@ import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.tink.testing.loadPrivateKey
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.readByteString
-import org.wfanet.measurement.reporting.v1alpha.encryptionKeyPairMap
+import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
 import picocli.CommandLine.Option
 
 class EncryptionKeyPairMap {
@@ -28,7 +28,7 @@ class EncryptionKeyPairMap {
     names = ["--key-pair-dir"],
     description = ["Path to the directory of MeasurementConsumer's encryption keys"],
   )
-  private lateinit var keyFilesDirectory: String
+  private lateinit var keyFilesDirectory: File
 
   @Option(
     names = ["--key-pair-map-file"],
@@ -38,9 +38,9 @@ class EncryptionKeyPairMap {
   private lateinit var keyPairListFile: File
 
   val keyPairs: Map<ByteString, PrivateKeyHandle> by lazy {
-    parseTextProto(keyPairListFile, encryptionKeyPairMap {}).entriesList.associate {
-      val publicKeyFile = File(keyFilesDirectory, it.publicKeyFilename)
-      val privateKeyFile = File(keyFilesDirectory, it.privateKeyFilename)
+    parseTextProto(keyPairListFile, encryptionKeyPairConfig {}).keyPairsMap.entries.associate {
+      val publicKeyFile = keyFilesDirectory.resolve(it.key)
+      val privateKeyFile = keyFilesDirectory.resolve(it.value)
       publicKeyFile.readByteString() to loadPrivateKey(privateKeyFile)
     }
   }

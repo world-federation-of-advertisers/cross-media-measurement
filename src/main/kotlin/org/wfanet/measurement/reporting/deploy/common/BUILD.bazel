@@ -13,7 +13,7 @@ kt_jvm_library(
     name = "encryption_key_pair_map",
     srcs = ["EncryptionKeyPairMap.kt"],
     deps = [
-        "//src/main/proto/wfa/measurement/reporting/v1alpha:encryption_key_pair_map_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/reporting:encryption_key_pair_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
     ],

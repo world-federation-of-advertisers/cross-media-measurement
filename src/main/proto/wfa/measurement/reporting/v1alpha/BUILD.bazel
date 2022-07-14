@@ -150,22 +150,3 @@ kt_jvm_grpc_proto_library(
     name = "reporting_sets_service_kt_jvm_grpc_proto",
     srcs = [":reporting_sets_service_proto"],
 )
-
-# Config
-
-proto_library(
-    name = "encryption_key_pair_map_proto",
-    srcs = ["encryption_key_pair_map.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-)
-
-java_proto_library(
-    name = "encryption_key_pair_map_java_proto",
-    deps = [":encryption_key_pair_map_proto"],
-)
-
-kt_jvm_proto_library(
-    name = "encryption_key_pair_map_kt_jvm_proto",
-    srcs = [":encryption_key_pair_map_proto"],
-    deps = [":encryption_key_pair_map_java_proto"],
-)

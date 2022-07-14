@@ -14,21 +14,24 @@
 
 package org.wfanet.measurement.reporting.service.api.v1alpha
 
+import com.google.common.hash.Hashing.goodFastHash
 import com.google.protobuf.ByteString
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
-import org.wfanet.measurement.common.crypto.hashSha256
+
+private const val DEFAULT_HASH_MINIMUM_BITS = 128
 
 interface EncryptionKeyPairStore {
-  suspend fun getPrivateKey(publicKey: ByteString): PrivateKeyHandle? {
-    return null
-  }
+  suspend fun getPrivateKeyHandle(publicKey: ByteString): PrivateKeyHandle?
 }
 
 class InMemoryEncryptionKeyPairStore(keyPairs: Map<ByteString, PrivateKeyHandle>) :
   EncryptionKeyPairStore {
-  private val keyPairMap: Map<ByteString, PrivateKeyHandle> =
-    keyPairs.mapKeys { hashSha256(it.key) }
+  private val hashFunction = goodFastHash(DEFAULT_HASH_MINIMUM_BITS)
 
-  override suspend fun getPrivateKey(publicKey: ByteString): PrivateKeyHandle? =
-    keyPairMap[hashSha256(publicKey)]
+  private fun hash(key: ByteString) = hashFunction.hashBytes(key.toByteArray()).toString()
+
+  private val keyPairMap: Map<String, PrivateKeyHandle> = keyPairs.mapKeys { hash(it.key) }
+
+  override suspend fun getPrivateKeyHandle(publicKey: ByteString): PrivateKeyHandle? =
+    keyPairMap[hash(publicKey)]
 }
