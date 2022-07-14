@@ -28,10 +28,10 @@ class InMemoryEncryptionKeyPairStore(keyPairs: Map<ByteString, PrivateKeyHandle>
   EncryptionKeyPairStore {
   private val hashFunction = goodFastHash(DEFAULT_HASH_MINIMUM_BITS)
 
-  private fun hash(key: ByteString) = hashFunction.hashBytes(key.toByteArray()).toString()
+  private fun fingerprint(key: ByteString) = hashFunction.hashBytes(key.toByteArray()).toString()
 
-  private val keyPairMap: Map<String, PrivateKeyHandle> = keyPairs.mapKeys { hash(it.key) }
+  private val keyPairMap: Map<String, PrivateKeyHandle> = keyPairs.mapKeys { fingerprint(it.key) }
 
   override suspend fun getPrivateKeyHandle(publicKey: ByteString): PrivateKeyHandle? =
-    keyPairMap[hash(publicKey)]
+    keyPairMap[fingerprint(publicKey)]
 }

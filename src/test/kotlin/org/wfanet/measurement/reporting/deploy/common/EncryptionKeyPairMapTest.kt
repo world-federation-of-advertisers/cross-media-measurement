@@ -73,7 +73,7 @@ class EncryptionKeyPairMapTest {
     val args =
       arrayOf(
         "--key-pair-dir=$SECRETS_DIR",
-        "--key-pair-map-file=$ENCRYPTION_KEY_PAIR_MAP",
+        "--key-pair-config-file=$ENCRYPTION_KEY_PAIR_MAP",
       )
 
     runTest(args) { keyPairMap ->
@@ -87,7 +87,7 @@ class EncryptionKeyPairMapTest {
     val args =
       arrayOf(
         "--key-pair-dir=$SECRETS_DIR",
-        "--key-pair-map-file=$ENCRYPTION_KEY_PAIR_MAP",
+        "--key-pair-config-file=$ENCRYPTION_KEY_PAIR_MAP",
       )
 
     runTest(args) { keyPairMap -> assertThat(keyPairMap[NON_EXISTENT_PUBLIC_KEY]).isNull() }

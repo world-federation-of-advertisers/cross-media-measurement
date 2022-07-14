@@ -31,8 +31,8 @@ class EncryptionKeyPairMap {
   private lateinit var keyFilesDirectory: File
 
   @Option(
-    names = ["--key-pair-map-file"],
-    description = ["Path to the map of of MeasurementConsumer's encryption keys"],
+    names = ["--key-pair-config-file"],
+    description = ["Path to the textproto file of EncryptionKeyPairConfig that contains key pairs"],
     required = true
   )
   private lateinit var keyPairListFile: File
