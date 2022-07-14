@@ -210,9 +210,7 @@ class EdpSimulator(
         )
       }
 
-      if (
-        requisition.protocolConfig.protocolCase != ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2
-      ) {
+      if (!requisition.hasProtocolConfig()) {
         when (measurementSpec.measurementTypeCase) {
           MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
             fulfillDirectReachAndFrequencyMeasurement(requisition, requisitionSpec, measurementSpec)
