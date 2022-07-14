@@ -18,13 +18,16 @@ import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.internal.reporting.GetReportingSetRequest
 import org.wfanet.measurement.internal.reporting.ReportingSet
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.StreamReportingSetsRequest
 import org.wfanet.measurement.reporting.deploy.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.deploy.postgres.writers.CreateReportingSet
 import org.wfanet.measurement.reporting.service.internal.ReportingSetAlreadyExistsException
+import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 
 class PostgresReportingSetsService(
   private val idGenerator: IdGenerator,
@@ -37,6 +40,20 @@ class PostgresReportingSetsService(
       e.throwStatusRuntimeException(Status.ALREADY_EXISTS) {
         "IDs generated for Reporting Set already exist"
       }
+    }
+  }
+
+  override suspend fun getReportingSet(request: GetReportingSetRequest): ReportingSet {
+    return try {
+      ReportingSetReader()
+        .readReportingSetByExternalId(
+          client.singleUse(),
+          request.measurementConsumerReferenceId,
+          ExternalId(request.externalReportingSetId)
+        )
+        .reportingSet
+    } catch (e: ReportingSetNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Reporting Set not found" }
     }
   }
 

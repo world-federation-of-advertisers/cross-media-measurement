@@ -14,19 +14,24 @@
 
 package org.wfanet.measurement.reporting.deploy.postgres.readers
 
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
-import org.wfanet.measurement.common.db.r2dbc.ReadWriteContext
+import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
-import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.internal.reporting.ReportingSet
+import org.wfanet.measurement.internal.reporting.ReportingSet.EventGroupKey
+import org.wfanet.measurement.internal.reporting.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.StreamReportingSetsRequest
-import org.wfanet.measurement.internal.reporting.copy
 import org.wfanet.measurement.internal.reporting.reportingSet
+import org.wfanet.measurement.reporting.service.internal.ReportingInternalException
+import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 
 class ReportingSetReader {
   data class Result(
@@ -42,7 +47,20 @@ class ReportingSetReader {
       ReportingSetId,
       ExternalReportingSetId,
       Filter,
-      DisplayName
+      DisplayName,
+      (
+        SELECT ARRAY(
+          SELECT
+            json_build_object(
+              'measurementConsumerReferenceId', MeasurementConsumerReferenceId,
+              'dataProviderReferenceId', DataProviderReferenceId,
+              'eventGroupReferenceId', EventGroupReferenceId
+            )
+          FROM ReportingSetEventGroups
+          WHERE ReportingSetEventGroups.MeasurementConsumerReferenceId = ReportingSets.MeasurementConsumerReferenceId
+          AND ReportingSetEventGroups.ReportingSetId = ReportingSets.ReportingSetId
+        )
+      ) AS EventGroups
     FROM
       ReportingSets
     """
@@ -50,11 +68,17 @@ class ReportingSetReader {
   fun translate(row: ResultRow): Result =
     Result(row["MeasurementConsumerReferenceId"], row["ReportingSetId"], buildReportingSet(row))
 
+  /**
+   * Reads a Reporting Set using external ID.
+   *
+   * Throws a subclass of [ReportingInternalException].
+   * @throws [ReportingSetNotFoundException] Reporting Set not found.
+   */
   suspend fun readReportingSetByExternalId(
-    readWriteContext: ReadWriteContext,
+    readContext: ReadContext,
     measurementConsumerReferenceId: String,
     externalReportingSetId: ExternalId
-  ): Result? {
+  ): Result {
     val statement =
       boundStatement(
         baseSql +
@@ -67,7 +91,8 @@ class ReportingSetReader {
         bind("$2", externalReportingSetId)
       }
 
-    return readWriteContext.executeQuery(statement).consume(::translate).singleOrNull()
+    return readContext.executeQuery(statement).consume(::translate).firstOrNull()
+      ?: throw ReportingSetNotFoundException()
   }
 
   fun listReportingSets(
@@ -97,19 +122,7 @@ class ReportingSetReader {
     return flow {
       val readContext = client.readTransaction()
       try {
-        readContext.executeQuery(statement).consume(::translate).collect { reportingSetResult ->
-          reportingSetResult.reportingSet =
-            reportingSetResult.reportingSet.copy {
-              ReportingSetEventGroupReader()
-                .listEventGroupKeys(
-                  readContext,
-                  reportingSetResult.measurementConsumerReferenceId,
-                  reportingSetResult.reportingSetId
-                )
-                .collect { eventGroupResult -> eventGroupKeys += eventGroupResult.eventGroupKey }
-            }
-          emit(reportingSetResult)
-        }
+        emitAll(readContext.executeQuery(statement).consume(::translate))
       } finally {
         readContext.close()
       }
@@ -122,6 +135,19 @@ class ReportingSetReader {
       externalReportingSetId = row["ExternalReportingSetId"]
       filter = row["Filter"]
       displayName = row["DisplayName"]
+      val eventGroupsArr = row.get<Array<String>>("EventGroups")
+      eventGroupsArr.forEach {
+        eventGroupKeys += buildEventGroupKey(JsonParser.parseString(it).asJsonObject)
+      }
+    }
+  }
+
+  private fun buildEventGroupKey(eventGroup: JsonObject): EventGroupKey {
+    return ReportingSetKt.eventGroupKey {
+      measurementConsumerReferenceId =
+        eventGroup.getAsJsonPrimitive("measurementConsumerReferenceId").asString
+      dataProviderReferenceId = eventGroup.getAsJsonPrimitive("dataProviderReferenceId").asString
+      eventGroupReferenceId = eventGroup.getAsJsonPrimitive("eventGroupReferenceId").asString
     }
   }
 }
