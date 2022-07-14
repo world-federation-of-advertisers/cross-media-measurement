@@ -19,6 +19,7 @@ import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.panelmatch.client.storage.StorageDetails
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.storage.StorageFactory
+import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.s3.S3Client
 
 /** [StorageFactory] for [S3StorageClient]. */
@@ -28,6 +29,9 @@ class S3StorageFactory(
 ) : StorageFactory {
 
   override fun build(): StorageClient {
-    return S3StorageClient(S3Client.create(), storageDetails.aws.bucket)
+    return S3StorageClient(
+      S3Client.builder().region(Region.of(storageDetails.aws.region)).build(),
+      storageDetails.aws.bucket
+    )
   }
 }
