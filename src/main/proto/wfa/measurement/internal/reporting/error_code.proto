@@ -33,4 +33,11 @@ enum ErrorCode {
 
   /** Reporting Set with the provided IDs does not exist. */
   REPORTING_SET_NOT_FOUND = 4;
+
+  /** Measurement Calculation Time Interval not found in Report Time
+      Intervals. */
+  MEASUREMENT_CALCULATION_TIME_INTERVAL_NOT_FOUND = 5;
+
+  /** Report with the provided IDs does not exist. */
+  REPORT_NOT_FOUND = 6;
 }
