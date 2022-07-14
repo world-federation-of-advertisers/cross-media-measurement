@@ -14,25 +14,29 @@
 
 package org.wfanet.measurement.reporting.service.api.v1alpha
 
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataParser
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.Principal
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
+import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
-import org.wfanet.measurement.reporting.v1alpha.EventGroup as ReportingEventGroup
-import org.wfanet.measurement.reporting.v1alpha.EventGroupKt.eventTemplate as reportingEventTemplate
-import org.wfanet.measurement.reporting.v1alpha.EventGroupKt.metadata as reportingMetadata
+import org.wfanet.measurement.reporting.v1alpha.EventGroup
+import org.wfanet.measurement.reporting.v1alpha.EventGroupKt.eventTemplate
+import org.wfanet.measurement.reporting.v1alpha.EventGroupKt.metadata
 import org.wfanet.measurement.reporting.v1alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.reporting.v1alpha.ListEventGroupsRequest
 import org.wfanet.measurement.reporting.v1alpha.ListEventGroupsResponse
-import org.wfanet.measurement.reporting.v1alpha.eventGroup as reportingEventGroup
+import org.wfanet.measurement.reporting.v1alpha.eventGroup
 import org.wfanet.measurement.reporting.v1alpha.listEventGroupsResponse
 
 class EventGroupsService(
@@ -42,7 +46,7 @@ class EventGroupsService(
   private val encryptionPrivateKey: TinkPrivateKeyHandle
 ) : EventGroupsCoroutineImplBase() {
   override suspend fun listEventGroups(request: ListEventGroupsRequest): ListEventGroupsResponse {
-    val principal = principalFromCurrentContext
+    val principal: Principal<*> = principalFromCurrentContext
     val eventGroups =
       cmmsEventGroupsStub
         .listEventGroups(
@@ -58,15 +62,21 @@ class EventGroupsService(
         )
         .eventGroupsList
     if (request.filter.isEmpty())
-      return listEventGroupsResponse {
-        this.eventGroups += eventGroups.map { it.toReportingServer() }
-      }
+      return listEventGroupsResponse { this.eventGroups += eventGroups.map { it.toEventGroup() } }
     val eventGroupMetadataDescriptors =
       eventGroupsMetadataDescriptorsStub
         .batchGetEventGroupMetadataDescriptors(
           batchGetEventGroupMetadataDescriptorsRequest {
             parent = request.parent
-            names += eventGroups.map { it.name }
+            names +=
+              eventGroups
+                .map {
+                  CmmsEventGroup.Metadata.parseFrom(
+                      decryptResult(it.encryptedMetadata, encryptionPrivateKey).data
+                    )
+                    .eventGroupMetadataDescriptor
+                }
+                .toSet()
           }
         )
         .eventGroupMetadataDescriptorsList
@@ -78,31 +88,49 @@ class EventGroupsService(
         CmmsEventGroup.Metadata.parseFrom(
           decryptResult(eventGroup.encryptedMetadata, encryptionPrivateKey).data
         )
-      val metadataMessage = metadataParser.convertToDynamicMessage(metadata)
+      val metadataMessage =
+        grpcRequireNotNull(metadataParser.convertToDynamicMessage(metadata)) {
+          "Event group metadata message is invalid"
+        }
       val program =
-        EventFilters.compileProgram(request.filter, metadataMessage!!.defaultInstanceForType)
+        EventFilters.compileProgram(request.filter, metadataMessage.defaultInstanceForType)
       if (EventFilters.matches(metadataMessage, program)) {
         filteredEventGroups.add(eventGroup)
       }
     }
 
     return listEventGroupsResponse {
-      this.eventGroups += filteredEventGroups.map { it.toReportingServer() }
+      this.eventGroups += filteredEventGroups.map { it.toEventGroup() }
     }
   }
 
-  private fun CmmsEventGroup.toReportingServer(): ReportingEventGroup {
+  private fun CmmsEventGroup.toEventGroup(): EventGroup {
     val cmmsMetadata =
       CmmsEventGroup.Metadata.parseFrom(
-        decryptResult(this@toReportingServer.encryptedMetadata, encryptionPrivateKey).data
+        decryptResult(this@toEventGroup.encryptedMetadata, encryptionPrivateKey).data
       )
-    return reportingEventGroup {
-      name = this@toReportingServer.measurementConsumer + "/" + this@toReportingServer.name
-      // dataProvider =
-      eventGroupReferenceId = this@toReportingServer.eventGroupReferenceId
+    val dataProviderKey =
+      grpcRequireNotNull(CmmsEventGroupKey.fromName(this@toEventGroup.name)) {
+        "Event group data provider is missing"
+      }
+    val dataProviderReferenceId = dataProviderKey.dataProviderId
+    val measurementConsumerKey =
+      grpcRequireNotNull(MeasurementConsumerKey.fromName(this@toEventGroup.measurementConsumer)) {
+        "Event group measurement consumer key is missing"
+      }
+    return eventGroup {
+      name =
+        EventGroupKey(
+            measurementConsumerKey.measurementConsumerId,
+            dataProviderReferenceId,
+            this@toEventGroup.eventGroupReferenceId
+          )
+          .toName()
+      dataProvider = DataProviderKey(dataProviderReferenceId).toName()
+      eventGroupReferenceId = this@toEventGroup.eventGroupReferenceId
       eventTemplates +=
-        this@toReportingServer.eventTemplatesList.map { reportingEventTemplate { type = it.type } }
-      metadata = reportingMetadata {
+        this@toEventGroup.eventTemplatesList.map { eventTemplate { type = it.type } }
+      metadata = metadata {
         eventGroupMetadataDescriptor = cmmsMetadata.eventGroupMetadataDescriptor
         metadata = cmmsMetadata.metadata
       }

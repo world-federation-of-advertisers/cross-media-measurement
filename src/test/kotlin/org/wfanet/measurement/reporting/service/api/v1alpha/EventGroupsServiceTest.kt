@@ -29,6 +29,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKt.metadata
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
@@ -81,6 +82,7 @@ private val TEST_MESSAGE = testMetadataMessage {
 private val EVENT_GROUP = eventGroup {
   name = "$DATA_PROVIDER_NAME/eventGroups/AAAAAAAAAHs"
   measurementConsumer = MEASUREMENT_CONSUMER_NAME
+  eventGroupReferenceId = "id1"
   encryptedMetadata =
     ENCRYPTION_PUBLIC_KEY.hybridEncrypt(
       signMessage(
@@ -101,6 +103,7 @@ private val TEST_MESSAGE_2 = testMetadataMessage {
 private val EVENT_GROUP_2 = eventGroup {
   name = "$DATA_PROVIDER_NAME/eventGroups/AAAAAAAAAGs"
   measurementConsumer = MEASUREMENT_CONSUMER_NAME
+  eventGroupReferenceId = "id2"
   encryptedMetadata =
     ENCRYPTION_PUBLIC_KEY.hybridEncrypt(
       signMessage(
@@ -113,7 +116,8 @@ private val EVENT_GROUP_2 = eventGroup {
         .toByteString()
     )
 }
-private const val DATA_PROVIDER_NAME = "dataProviders/123"
+private const val DATA_PROVIDER_REFERENCE_ID = "123"
+private const val DATA_PROVIDER_NAME = "dataProviders/$DATA_PROVIDER_REFERENCE_ID"
 private const val METADATA_NAME = "$DATA_PROVIDER_NAME/eventGroupMetadataDescriptors/abc"
 private val EVENT_GROUP_METADATA_DESCRIPTOR = eventGroupMetadataDescriptor {
   name = METADATA_NAME
@@ -146,7 +150,6 @@ class EventGroupsServiceTest {
 
   @Test
   fun `listEventGroups returns list with no filter`() {
-    println("MEASUREMENT_CONSUMER_NAME " + MEASUREMENT_CONSUMER_NAME)
     val eventGroupsService =
       EventGroupsService(
         EventGroupsCoroutineStub(grpcTestServerRule.channel),
@@ -166,14 +169,32 @@ class EventGroupsServiceTest {
           eventGroups +=
             listOf(
               reportingEventGroup {
-                name = MEASUREMENT_CONSUMER_NAME + "/" + EVENT_GROUP.name
+                name =
+                  EventGroupKey(
+                      MeasurementConsumerKey.fromName(EVENT_GROUP.measurementConsumer)!!
+                        .measurementConsumerId,
+                      DATA_PROVIDER_REFERENCE_ID,
+                      EVENT_GROUP.eventGroupReferenceId
+                    )
+                    .toName()
+                dataProvider = DATA_PROVIDER_NAME
+                eventGroupReferenceId = "id1"
                 metadata = reportingMetadata {
                   eventGroupMetadataDescriptor = METADATA_NAME
                   metadata = Any.pack(TEST_MESSAGE)
                 }
               },
               reportingEventGroup {
-                name = MEASUREMENT_CONSUMER_NAME + "/" + EVENT_GROUP_2.name
+                name =
+                  EventGroupKey(
+                      MeasurementConsumerKey.fromName(EVENT_GROUP_2.measurementConsumer)!!
+                        .measurementConsumerId,
+                      DATA_PROVIDER_REFERENCE_ID,
+                      EVENT_GROUP_2.eventGroupReferenceId
+                    )
+                    .toName()
+                dataProvider = DATA_PROVIDER_NAME
+                eventGroupReferenceId = "id2"
                 metadata = reportingMetadata {
                   eventGroupMetadataDescriptor = METADATA_NAME
                   metadata = Any.pack(TEST_MESSAGE_2)
@@ -208,7 +229,16 @@ class EventGroupsServiceTest {
       .isEqualTo(
         reportingListEventGroupsResponse {
           eventGroups += reportingEventGroup {
-            name = MEASUREMENT_CONSUMER_NAME + "/" + EVENT_GROUP.name
+            name =
+              EventGroupKey(
+                  MeasurementConsumerKey.fromName(EVENT_GROUP.measurementConsumer)!!
+                    .measurementConsumerId,
+                  DATA_PROVIDER_REFERENCE_ID,
+                  EVENT_GROUP.eventGroupReferenceId
+                )
+                .toName()
+            dataProvider = DATA_PROVIDER_NAME
+            eventGroupReferenceId = "id1"
             metadata = reportingMetadata {
               eventGroupMetadataDescriptor = METADATA_NAME
               metadata = Any.pack(TEST_MESSAGE)
