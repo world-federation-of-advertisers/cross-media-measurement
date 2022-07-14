@@ -30,20 +30,20 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
-import org.wfanet.measurement.api.v2alpha.EventGroupKt.metadata
+import org.wfanet.measurement.api.v2alpha.EventGroupKt.metadata as cmmsMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsResponse
-import org.wfanet.measurement.api.v2alpha.eventGroup
+import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessageKt.age
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessageKt.duration
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessageKt.name
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testMetadataMessage
-import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
+import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse as cmmsListEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
@@ -56,10 +56,10 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.consent.client.common.signMessage
-import org.wfanet.measurement.reporting.v1alpha.EventGroupKt.metadata as reportingMetadata
-import org.wfanet.measurement.reporting.v1alpha.eventGroup as reportingEventGroup
+import org.wfanet.measurement.reporting.v1alpha.EventGroupKt.metadata
+import org.wfanet.measurement.reporting.v1alpha.eventGroup
 import org.wfanet.measurement.reporting.v1alpha.listEventGroupsRequest
-import org.wfanet.measurement.reporting.v1alpha.listEventGroupsResponse as reportingListEventGroupsResponse
+import org.wfanet.measurement.reporting.v1alpha.listEventGroupsResponse
 
 private val SECRET_FILES_PATH: Path =
   checkNotNull(
@@ -79,14 +79,14 @@ private val TEST_MESSAGE = testMetadataMessage {
   age = age { value = 15 }
   duration = duration { value = 20 }
 }
-private val EVENT_GROUP = eventGroup {
+private val EVENT_GROUP = cmmsEventGroup {
   name = "$DATA_PROVIDER_NAME/eventGroups/AAAAAAAAAHs"
   measurementConsumer = MEASUREMENT_CONSUMER_NAME
   eventGroupReferenceId = "id1"
   encryptedMetadata =
     ENCRYPTION_PUBLIC_KEY.hybridEncrypt(
       signMessage(
-          metadata {
+          cmmsMetadata {
             eventGroupMetadataDescriptor = METADATA_NAME
             metadata = Any.pack(TEST_MESSAGE)
           },
@@ -100,14 +100,14 @@ private val TEST_MESSAGE_2 = testMetadataMessage {
   age = age { value = 5 }
   duration = duration { value = 20 }
 }
-private val EVENT_GROUP_2 = eventGroup {
+private val EVENT_GROUP_2 = cmmsEventGroup {
   name = "$DATA_PROVIDER_NAME/eventGroups/AAAAAAAAAGs"
   measurementConsumer = MEASUREMENT_CONSUMER_NAME
   eventGroupReferenceId = "id2"
   encryptedMetadata =
     ENCRYPTION_PUBLIC_KEY.hybridEncrypt(
       signMessage(
-          metadata {
+          cmmsMetadata {
             eventGroupMetadataDescriptor = METADATA_NAME
             metadata = Any.pack(TEST_MESSAGE_2)
           },
@@ -129,7 +129,9 @@ class EventGroupsServiceTest {
   private val cmmsEventGroupsServiceMock: EventGroupsCoroutineImplBase =
     mockService() {
       onBlocking { listEventGroups(any()) }
-        .thenReturn(listEventGroupsResponse { eventGroups += listOf(EVENT_GROUP, EVENT_GROUP_2) })
+        .thenReturn(
+          cmmsListEventGroupsResponse { eventGroups += listOf(EVENT_GROUP, EVENT_GROUP_2) }
+        )
     }
   private val cmmsEventGroupMetadataDescriptorsServiceMock:
     EventGroupMetadataDescriptorsCoroutineImplBase =
@@ -165,10 +167,10 @@ class EventGroupsServiceTest {
 
     assertThat(result)
       .isEqualTo(
-        reportingListEventGroupsResponse {
+        listEventGroupsResponse {
           eventGroups +=
             listOf(
-              reportingEventGroup {
+              eventGroup {
                 name =
                   EventGroupKey(
                       MeasurementConsumerKey.fromName(EVENT_GROUP.measurementConsumer)!!
@@ -179,12 +181,12 @@ class EventGroupsServiceTest {
                     .toName()
                 dataProvider = DATA_PROVIDER_NAME
                 eventGroupReferenceId = "id1"
-                metadata = reportingMetadata {
+                metadata = metadata {
                   eventGroupMetadataDescriptor = METADATA_NAME
                   metadata = Any.pack(TEST_MESSAGE)
                 }
               },
-              reportingEventGroup {
+              eventGroup {
                 name =
                   EventGroupKey(
                       MeasurementConsumerKey.fromName(EVENT_GROUP_2.measurementConsumer)!!
@@ -195,7 +197,7 @@ class EventGroupsServiceTest {
                     .toName()
                 dataProvider = DATA_PROVIDER_NAME
                 eventGroupReferenceId = "id2"
-                metadata = reportingMetadata {
+                metadata = metadata {
                   eventGroupMetadataDescriptor = METADATA_NAME
                   metadata = Any.pack(TEST_MESSAGE_2)
                 }
@@ -227,8 +229,8 @@ class EventGroupsServiceTest {
 
     assertThat(result)
       .isEqualTo(
-        reportingListEventGroupsResponse {
-          eventGroups += reportingEventGroup {
+        listEventGroupsResponse {
+          eventGroups += eventGroup {
             name =
               EventGroupKey(
                   MeasurementConsumerKey.fromName(EVENT_GROUP.measurementConsumer)!!
@@ -239,7 +241,7 @@ class EventGroupsServiceTest {
                 .toName()
             dataProvider = DATA_PROVIDER_NAME
             eventGroupReferenceId = "id1"
-            metadata = reportingMetadata {
+            metadata = metadata {
               eventGroupMetadataDescriptor = METADATA_NAME
               metadata = Any.pack(TEST_MESSAGE)
             }
