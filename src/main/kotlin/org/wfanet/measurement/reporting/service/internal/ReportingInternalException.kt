@@ -22,6 +22,7 @@ import io.grpc.StatusRuntimeException
 import io.grpc.protobuf.ProtoUtils
 import org.wfanet.measurement.internal.reporting.ErrorCode
 
+/** TODO(tristanvuong2021): Add context when each of these exceptions are thrown. */
 sealed class ReportingInternalException : Exception {
   val code: ErrorCode
   protected abstract val context: Map<String, String>
@@ -76,6 +77,13 @@ class MeasurementAlreadyExistsException(
 
 class MeasurementNotFoundException(provideDescription: () -> String = { "Measurement not found" }) :
   ReportingInternalException(ErrorCode.MEASUREMENT_NOT_FOUND, provideDescription) {
+  override val context
+    get() = emptyMap<String, String>()
+}
+
+class ReportingSetNotFoundException(
+  provideDescription: () -> String = { "Reporting Set not found" }
+) : ReportingInternalException(ErrorCode.REPORTING_SET_NOT_FOUND, provideDescription) {
   override val context
     get() = emptyMap<String, String>()
 }
