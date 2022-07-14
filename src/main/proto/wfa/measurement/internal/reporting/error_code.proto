@@ -24,4 +24,13 @@ enum ErrorCode {
 
   /** Reporting Set with the same IDs already exists. */
   REPORTING_SET_ALREADY_EXISTS = 1;
+
+  /** Measurement with the same reference IDs already exists. */
+  MEASUREMENT_ALREADY_EXISTS = 2;
+
+  /** Measurement with the provided reference IDs does not exist. */
+  MEASUREMENT_NOT_FOUND = 3;
+
+  /** Reporting Set with the provided IDs does not exist. */
+  REPORTING_SET_NOT_FOUND = 4;
 }

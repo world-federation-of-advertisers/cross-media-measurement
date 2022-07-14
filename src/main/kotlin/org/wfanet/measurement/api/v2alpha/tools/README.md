@@ -70,6 +70,7 @@ See the [Examples](##Examples) section below.
 
 To list `Measurement`s of a `MeasurementConsumer`, the user specifies the
 name of the `MeasurementConsumer` with corresponding credential arguments.
+To navigate to next page, use `--page-size` and `page-token`.
 
 See the [Examples](##Examples) section below.
 
