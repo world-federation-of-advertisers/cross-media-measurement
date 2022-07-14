@@ -24,7 +24,8 @@
 --   │   ├── Metrics
 --   │       └── NamedSetOperations
 --   │           ├── SetOperations
---   │           └── WeightedMeasurements
+--   │           └── MeasurementCalculations
+--   │               └── WeightedMeasurements
 --   │   └── ReportMeasurements
 --   ├── Measurements
 --   └── ReportingSets
@@ -36,8 +37,6 @@ CREATE TABLE Reports (
   ReportId bigint NOT NULL,
 
   ExternalReportId bigint NOT NULL,
-
-  IsPeriodic boolean NOT NULL,
 
   -- org.wfanet.measurement.internal.reporting.Report.State
   -- protobuf enum encoded as an integer.
@@ -216,23 +215,38 @@ CREATE TABLE NamedSetOperations (
     REFERENCES SetOperations(MeasurementConsumerReferenceId, ReportId, MetricId, SetOperationId)
 );
 
+-- changeset tristanvuong2021:create-measurement-calculations-table dbms:postgresql
+CREATE TABLE MeasurementCalculations (
+  MeasurementConsumerReferenceId text NOT NULL,
+  ReportId bigint NOT NULL,
+  MetricId bigint NOT NULL,
+  NamedSetOperationId bigint NOT NULL,
+  MeasurementCalculationId bigint NOT NULL,
+
+  TimeIntervalId bigint NOT NULL,
+
+  PRIMARY KEY(MeasurementConsumerReferenceId, ReportId, MetricId, NamedSetOperationId, MeasurementCalculationId),
+  FOREIGN KEY(MeasurementConsumerReferenceId, ReportId, TimeIntervalId)
+    REFERENCES TimeIntervals(MeasurementConsumerReferenceId, ReportId, TimeIntervalId),
+  FOREIGN KEY(MeasurementConsumerReferenceId, ReportId, MetricId, NamedSetOperationId)
+    REFERENCES NamedSetOperations(MeasurementConsumerReferenceId, ReportId, MetricId, NamedSetOperationId)
+);
+
 -- changeset tristanvuong2021:create-weighted-measurements-table dbms:postgresql
 CREATE TABLE WeightedMeasurements (
   MeasurementConsumerReferenceId text NOT NULL,
   ReportId bigint NOT NULL,
   MetricId bigint NOT NULL,
   NamedSetOperationId bigint NOT NULL,
+  MeasurementCalculationId bigint NOT NULL,
   WeightedMeasurementId bigint NOT NULL,
 
-  TimeIntervalId bigint NOT NULL,
   MeasurementReferenceId text NOT NULL,
   Coefficient integer NOT NULL,
 
-  PRIMARY KEY(MeasurementConsumerReferenceId, ReportId, MetricId, NamedSetOperationId, WeightedMeasurementId),
-  FOREIGN KEY(MeasurementConsumerReferenceId, ReportId, TimeIntervalId)
-    REFERENCES TimeIntervals(MeasurementConsumerReferenceId, ReportId, TimeIntervalId),
-  FOREIGN KEY(MeasurementConsumerReferenceId, ReportId, MetricId, NamedSetOperationId)
-    REFERENCES NamedSetOperations(MeasurementConsumerReferenceId, ReportId, MetricId, NamedSetOperationId),
+  PRIMARY KEY(MeasurementConsumerReferenceId, ReportId, MetricId, NamedSetOperationId, MeasurementCalculationId, WeightedMeasurementId),
+  FOREIGN KEY(MeasurementConsumerReferenceId, ReportId, MetricId, NamedSetOperationId, MeasurementCalculationId)
+    REFERENCES MeasurementCalculations(MeasurementConsumerReferenceId, ReportId, MetricId, NamedSetOperationId, MeasurementCalculationId),
   FOREIGN KEY(MeasurementConsumerReferenceId, MeasurementReferenceId)
     REFERENCES Measurements(MeasurementConsumerReferenceId, MeasurementReferenceId)
 );

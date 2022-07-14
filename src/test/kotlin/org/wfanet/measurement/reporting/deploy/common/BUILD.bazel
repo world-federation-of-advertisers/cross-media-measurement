@@ -1,0 +1,21 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
+
+filegroup(
+    name = "textproto_files",
+    srcs = glob(["*.textproto"]),
+)
+
+kt_jvm_test(
+    name = "EncryptionKeyPairMapTest",
+    srcs = ["EncryptionKeyPairMapTest.kt"],
+    data = [
+        "//src/main/k8s/testing/secretfiles:secret_files",
+        "//src/test/kotlin/org/wfanet/measurement/reporting/deploy/common:textproto_files",
+    ],
+    test_class = "org.wfanet.measurement.reporting.deploy.common.EncryptionKeyPairMapTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/common:encryption_key_pair_map",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
