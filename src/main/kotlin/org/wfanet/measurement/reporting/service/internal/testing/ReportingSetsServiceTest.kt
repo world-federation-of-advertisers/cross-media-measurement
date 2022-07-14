@@ -32,6 +32,7 @@ import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.internal.reporting.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.StreamReportingSetsRequestKt
+import org.wfanet.measurement.internal.reporting.getReportingSetRequest
 import org.wfanet.measurement.internal.reporting.reportingSet
 import org.wfanet.measurement.internal.reporting.streamReportingSetsRequest
 
@@ -77,6 +78,14 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
     runBlocking {
       val createdReportingSet = service.createReportingSet(reportingSet)
       assertThat(createdReportingSet.externalReportingSetId).isNotEqualTo(0L)
+      val retrievedReportingSet =
+        service.getReportingSet(
+          getReportingSetRequest {
+            measurementConsumerReferenceId = createdReportingSet.measurementConsumerReferenceId
+            externalReportingSetId = createdReportingSet.externalReportingSetId
+          }
+        )
+      assertThat(createdReportingSet).ignoringRepeatedFieldOrder().isEqualTo(retrievedReportingSet)
     }
   }
 
@@ -93,6 +102,22 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
       val exception =
         assertFailsWith<StatusRuntimeException> { service.createReportingSet(reportingSet) }
       assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    }
+  }
+
+  @Test
+  fun `getReportingSet throws NOT FOUND when reporting set doesn't exist`() {
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.getReportingSet(
+            getReportingSetRequest {
+              measurementConsumerReferenceId = "1234"
+              externalReportingSetId = 1234
+            }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     }
   }
 
