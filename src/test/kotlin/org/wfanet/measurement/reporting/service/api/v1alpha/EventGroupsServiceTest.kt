@@ -35,7 +35,9 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.Ev
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
@@ -43,6 +45,7 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetad
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessageKt.duration
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessageKt.name
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testMetadataMessage
+import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse as cmmsListEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -55,6 +58,7 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.consent.client.common.signMessage
 import org.wfanet.measurement.reporting.v1alpha.EventGroupKt.metadata
 import org.wfanet.measurement.reporting.v1alpha.eventGroup
@@ -248,6 +252,70 @@ class EventGroupsServiceTest {
           }
         }
       )
+  }
+
+  @Test
+  fun `verifyCmmsListEventGroupsRequest`() {
+    val eventGroupsService =
+      EventGroupsService(
+        EventGroupsCoroutineStub(grpcTestServerRule.channel),
+        EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
+        ENCRYPTION_PRIVATE_KEY
+      )
+    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+      runBlocking {
+        eventGroupsService.listEventGroups(
+          listEventGroupsRequest {
+            parent = DATA_PROVIDER_NAME
+            filter = "age.value > 10"
+          }
+        )
+      }
+    }
+    val expectedCmmsRequest = cmmsListEventGroupsRequest {
+      parent = DATA_PROVIDER_NAME
+      pageSize = 0
+      pageToken = ""
+      filter =
+        ListEventGroupsRequestKt.filter {
+          measurementConsumers += MEASUREMENT_CONSUMER_REFERENCE_ID
+        }
+    }
+
+    verifyProtoArgument(cmmsEventGroupsServiceMock, EventGroupsCoroutineImplBase::listEventGroups)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(expectedCmmsRequest)
+  }
+
+  @Test
+  fun `verifyBatchGetEventGroupMetadataDescriptorsRequest`() {
+    val eventGroupsService =
+      EventGroupsService(
+        EventGroupsCoroutineStub(grpcTestServerRule.channel),
+        EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
+        ENCRYPTION_PRIVATE_KEY
+      )
+    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+      runBlocking {
+        eventGroupsService.listEventGroups(
+          listEventGroupsRequest {
+            parent = DATA_PROVIDER_NAME
+            filter = "age.value > 10"
+          }
+        )
+      }
+    }
+    val expectedCmmsRequest = batchGetEventGroupMetadataDescriptorsRequest {
+      parent = DATA_PROVIDER_NAME
+      names += setOf(METADATA_NAME)
+    }
+
+    verifyProtoArgument(
+        cmmsEventGroupMetadataDescriptorsServiceMock,
+        EventGroupMetadataDescriptorsCoroutineImplBase::batchGetEventGroupMetadataDescriptors
+      )
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(expectedCmmsRequest)
   }
 }
 
