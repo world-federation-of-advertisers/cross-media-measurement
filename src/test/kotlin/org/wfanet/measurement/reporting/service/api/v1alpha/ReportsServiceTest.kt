@@ -110,6 +110,8 @@ import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInt
 import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.v1alpha.Metric
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.SetOperationKt.operand as setOperationOperand
+import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase as InternalReportingSetsCoroutineImplBase
+import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.frequencyHistogramParams
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.impressionCountParams
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.namedSetOperation
@@ -885,6 +887,10 @@ class ReportsServiceTest {
         )
     }
 
+  private val internalReportingSetsMock: InternalReportingSetsCoroutineImplBase = mockService() {
+    onBlocking {getReportingSet(any())}.thenReturn(null)
+  }
+
   private val internalMeasurementsMock: InternalMeasurementsCoroutineImplBase =
     mockService() {
       onBlocking { setMeasurementResult(any()) }.thenReturn(null)
@@ -908,6 +914,7 @@ class ReportsServiceTest {
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     addService(internalReportsMock)
+    addService(internalReportingSetsMock)
     addService(internalMeasurementsMock)
     addService(measurementsMock)
     addService(certificateMock)
@@ -920,6 +927,7 @@ class ReportsServiceTest {
     service =
       ReportsService(
         ReportsCoroutineStub(grpcTestServerRule.channel),
+        InternalReportingSetsCoroutineStub(grpcTestServerRule.channel),
         InternalMeasurementsCoroutineStub(grpcTestServerRule.channel),
         MeasurementsCoroutineStub(grpcTestServerRule.channel),
         CertificatesCoroutineStub(grpcTestServerRule.channel),

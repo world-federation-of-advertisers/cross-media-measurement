@@ -14,12 +14,16 @@
 
 package org.wfanet.measurement.reporting.service.api.v1alpha
 
+import com.google.protobuf.ByteString
 import com.google.protobuf.Duration
 import com.google.protobuf.duration
 import com.google.protobuf.util.Durations
 import com.google.protobuf.util.Timestamps
 import io.grpc.Status
+import java.security.PrivateKey
+import java.security.SecureRandom
 import java.time.Instant
+import jdk.javadoc.internal.doclets.toolkit.util.DocPath.parent
 import kotlin.math.min
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.toList
@@ -29,16 +33,38 @@ import org.wfanet.measurement.api.v2.alpha.ListReportsPageTokenKt.previousPageEn
 import org.wfanet.measurement.api.v2.alpha.copy
 import org.wfanet.measurement.api.v2.alpha.listReportsPageToken
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.Measurement
+import org.wfanet.measurement.api.v2alpha.Measurement.DataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt.value as dataProviderEntryValue
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt.value as eventGroupEntryValue
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter as requisitionSpecEventFilter
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
+import org.wfanet.measurement.api.v2alpha.TimeInterval as MeasurementTimeInterval
+import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
+import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
+import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.measurement
+import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
+import org.wfanet.measurement.api.v2alpha.requisitionSpec
+import org.wfanet.measurement.api.v2alpha.timeInterval as measurementTimeInterval
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
+import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
@@ -46,8 +72,13 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
+import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
+import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
+import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
 import org.wfanet.measurement.internal.reporting.CreateReportRequest as InternalCreateReportRequest
+import org.wfanet.measurement.internal.reporting.CreateReportRequest.MeasurementKey
+import org.wfanet.measurement.internal.reporting.CreateReportRequestKt.measurementKey
 import org.wfanet.measurement.internal.reporting.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.Measurement.Result as InternalMeasurementResult
 import org.wfanet.measurement.internal.reporting.MeasurementKt.ResultKt.frequency as internalFrequency
@@ -58,24 +89,31 @@ import org.wfanet.measurement.internal.reporting.MeasurementKt.failure as intern
 import org.wfanet.measurement.internal.reporting.MeasurementKt.result as internalMeasurementResult
 import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.Metric as InternalMetric
+import org.wfanet.measurement.internal.reporting.Metric.Details as InternalMetricDetails
+import org.wfanet.measurement.internal.reporting.Metric.Details.MetricTypeCase as InternalMetricTypeCase
 import org.wfanet.measurement.internal.reporting.Metric.FrequencyHistogramParams as InternalFrequencyHistogramParams
 import org.wfanet.measurement.internal.reporting.Metric.ImpressionCountParams as InternalImpressionCountParams
 import org.wfanet.measurement.internal.reporting.Metric.MeasurementCalculation
+import org.wfanet.measurement.internal.reporting.Metric.MeasurementCalculation.WeightedMeasurement as InternalWeightedMeasurement
 import org.wfanet.measurement.internal.reporting.Metric.NamedSetOperation as InternalNamedSetOperation
 import org.wfanet.measurement.internal.reporting.Metric.SetOperation as InternalSetOperation
 import org.wfanet.measurement.internal.reporting.Metric.SetOperation.Operand as InternalOperand
 import org.wfanet.measurement.internal.reporting.Metric.WatchDurationParams as InternalWatchDurationParams
+import org.wfanet.measurement.internal.reporting.MetricKt.MeasurementCalculationKt.weightedMeasurement as internalWeightedMeasurement
 import org.wfanet.measurement.internal.reporting.MetricKt.SetOperationKt.operand as internalOperand
 import org.wfanet.measurement.internal.reporting.MetricKt.SetOperationKt.reportingSetKey
 import org.wfanet.measurement.internal.reporting.MetricKt.details as internalMetricDetails
 import org.wfanet.measurement.internal.reporting.MetricKt.frequencyHistogramParams as internalFrequencyHistogramParams
 import org.wfanet.measurement.internal.reporting.MetricKt.impressionCountParams as internalImpressionCountParams
+import org.wfanet.measurement.internal.reporting.MetricKt.measurementCalculation as internalMeasurementCalculation
 import org.wfanet.measurement.internal.reporting.MetricKt.namedSetOperation as internalNamedSetOperation
 import org.wfanet.measurement.internal.reporting.MetricKt.reachParams as internalReachParams
 import org.wfanet.measurement.internal.reporting.MetricKt.setOperation as internalSetOperation
 import org.wfanet.measurement.internal.reporting.MetricKt.watchDurationParams as internalWatchDurationParams
 import org.wfanet.measurement.internal.reporting.PeriodicTimeInterval as InternalPeriodicTimeInterval
 import org.wfanet.measurement.internal.reporting.Report as InternalReport
+import org.wfanet.measurement.internal.reporting.ReportKt.details as internalReportDetails
+import org.wfanet.measurement.internal.reporting.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.StreamReportsRequest as StreamInternalReportsRequest
@@ -84,6 +122,7 @@ import org.wfanet.measurement.internal.reporting.TimeInterval as InternalTimeInt
 import org.wfanet.measurement.internal.reporting.TimeIntervals as InternalTimeIntervals
 import org.wfanet.measurement.internal.reporting.createReportRequest as internalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.getReportRequest as getInternalReportRequest
+import org.wfanet.measurement.internal.reporting.getReportingSetRequest
 import org.wfanet.measurement.internal.reporting.metric as internalMetric
 import org.wfanet.measurement.internal.reporting.periodicTimeInterval as internalPeriodicTimeInterval
 import org.wfanet.measurement.internal.reporting.report as internalReport
@@ -92,6 +131,7 @@ import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest
 import org.wfanet.measurement.internal.reporting.streamReportsRequest as streamInternalReportsRequest
 import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInterval
 import org.wfanet.measurement.internal.reporting.timeIntervals as internalTimeIntervals
+import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig.name
 import org.wfanet.measurement.reporting.v1alpha.CreateReportRequest
 import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.v1alpha.ListReportsResponse
@@ -111,7 +151,7 @@ import org.wfanet.measurement.reporting.v1alpha.MetricKt.setOperation
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.watchDurationParams
 import org.wfanet.measurement.reporting.v1alpha.PeriodicTimeInterval
 import org.wfanet.measurement.reporting.v1alpha.Report
-import org.wfanet.measurement.reporting.v1alpha.ReportKt.EventGroupUniverseKt.eventGroupEntry
+import org.wfanet.measurement.reporting.v1alpha.ReportKt.EventGroupUniverseKt.eventGroupEntry as eventGroupUniverseEntry
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.eventGroupUniverse
 import org.wfanet.measurement.reporting.v1alpha.ReportsGrpcKt.ReportsCoroutineImplBase
 import org.wfanet.measurement.reporting.v1alpha.TimeIntervals
@@ -125,6 +165,38 @@ import org.wfanet.measurement.reporting.v1alpha.timeIntervals
 private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
+
+private const val REACH_ONLY_VID_SAMPLING_WIDTH = 3.0 / 300.0
+private const val NUMBER_REACH_ONLY_BUCKETS = 16
+private val REACH_ONLY_VID_SAMPLING_START_LIST =
+  (0 until NUMBER_REACH_ONLY_BUCKETS).map { it * REACH_ONLY_VID_SAMPLING_WIDTH }
+
+private const val REACH_FREQUENCY_VID_SAMPLING_WIDTH = 5.0 / 300.0
+private const val NUMBER_REACH_FREQUENCY_BUCKETS = 19
+private val REACH_FREQUENCY_VID_SAMPLING_START_LIST =
+  (0 until NUMBER_REACH_FREQUENCY_BUCKETS).map {
+    REACH_ONLY_VID_SAMPLING_START_LIST.last() +
+      REACH_ONLY_VID_SAMPLING_WIDTH +
+      it * REACH_FREQUENCY_VID_SAMPLING_WIDTH
+  }
+
+private const val IMPRESSION_VID_SAMPLING_WIDTH = 62.0 / 300.0
+private const val NUMBER_IMPRESSION_BUCKETS = 1
+private val IMPRESSION_VID_SAMPLING_START_LIST =
+  (0 until NUMBER_IMPRESSION_BUCKETS).map {
+    REACH_FREQUENCY_VID_SAMPLING_START_LIST.last() +
+      REACH_FREQUENCY_VID_SAMPLING_WIDTH +
+      it * IMPRESSION_VID_SAMPLING_WIDTH
+  }
+
+private const val WATCH_DURATION_VID_SAMPLING_WIDTH = 95.0 / 300.0
+private const val NUMBER_WATCH_DURATION_BUCKETS = 1
+private val WATCH_DURATION_VID_SAMPLING_START_LIST =
+  (0 until NUMBER_WATCH_DURATION_BUCKETS).map {
+    IMPRESSION_VID_SAMPLING_START_LIST.last() +
+      IMPRESSION_VID_SAMPLING_WIDTH +
+      it * WATCH_DURATION_VID_SAMPLING_WIDTH
+  }
 
 /** TODO(@renjiez) Have a function to get public/private keys */
 class ReportsService(
@@ -214,12 +286,12 @@ class ReportsService(
     // Report with SUCCEEDED or FAILED state is already synced.
     if (
       internalReport.state == InternalReport.State.SUCCEEDED ||
-      internalReport.state == InternalReport.State.FAILED
+        internalReport.state == InternalReport.State.FAILED
     ) {
       return internalReport
     } else if (
       internalReport.state == InternalReport.State.STATE_UNSPECIFIED ||
-      internalReport.state == InternalReport.State.UNRECOGNIZED
+        internalReport.state == InternalReport.State.UNRECOGNIZED
     ) {
       error(
         "The measurements cannot be synced because the report state was not set correctly as it " +
@@ -339,17 +411,20 @@ private suspend fun CreateReportRequest.toInternal(
   grpcRequire(source.report.measurementConsumer == source.parent) {
     "Cannot create a Report for another MeasurementConsumer."
   }
+
   grpcRequire(source.report.hasEventGroupUniverse()) { "EventGroupUniverse is not specified." }
+  val eventGroupFilters =
+    source.report.eventGroupUniverse.eventGroupEntriesList.associate { it.key to it.value }
+
   grpcRequire(source.report.metricsList.isNotEmpty()) { "Metrics in Report cannot be empty." }
 
-  val reportRequestCompiler =
-    ReportRequestCompiler(source.report.name, source.report.eventGroupUniverse)
+  val reportRequestCompiler = ReportRequestCompiler()
 
   val internalReport = internalReport {
     measurementConsumerReferenceId = measurementConsumerKey.measurementConsumerId
 
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-    val timeIntervalsList: List<InternalTimeInterval> =
+    val internalTimeIntervalsList: List<InternalTimeInterval> =
       when (source.report.timeCase) {
         Report.TimeCase.TIME_INTERVALS -> {
           this.timeIntervals = source.report.timeIntervals.toInternal()
@@ -366,24 +441,81 @@ private suspend fun CreateReportRequest.toInternal(
       for (metric in source.report.metricsList) {
         launch {
           this@internalReport.metrics.add(
-            metric.toInternal(reportRequestCompiler, timeIntervalsList)
+            metric.toInternal(
+              measurementConsumerReferenceId,
+              reportRequestCompiler,
+              internalTimeIntervalsList,
+              eventGroupFilters,
+              internalReportingSetsStub
+            )
           )
         }
       }
     }
-    details // TODO
+    details = internalReportDetails { this.eventGroupFilters.putAll(eventGroupFilters) }
     reportIdempotencyKey = source.report.reportIdempotencyKey
   }
 
-  return internalCreateReportRequest {}
+  return internalCreateReportRequest {
+    report = internalReport
+    measurements +=
+      internalReport.metricsList.toMeasurementKeysList(
+        internalReport.measurementConsumerReferenceId
+      )
+  }
+}
+
+/** Converts a list of [InternalMetric]s to a list of [MeasurementKey]s. */
+private fun List<InternalMetric>.toMeasurementKeysList(
+  measurementConsumerReferenceId: String
+): List<MeasurementKey> {
+  return this.map { metric ->
+      metric.toMeasurementReferenceIds().map { measurementReferenceId ->
+        measurementKey {
+          this.measurementConsumerReferenceId = measurementConsumerReferenceId
+          this.measurementReferenceId = measurementReferenceId
+        }
+      }
+    }
+    .flatten()
+}
+
+/** Converts an [InternalMetric] to a list of measurement reference IDs. */
+private fun InternalMetric.toMeasurementReferenceIds(): List<String> {
+  return this.namedSetOperationsList
+    .map { namedSetOperation -> namedSetOperation.toMeasurementReferenceIds() }
+    .flatten()
+}
+
+/** Converts an [InternalNamedSetOperation] to a list of measurement reference IDs. */
+private fun InternalNamedSetOperation.toMeasurementReferenceIds(): List<String> {
+  return this.measurementCalculationList
+    .map { measurementCalculation ->
+      measurementCalculation.weightedMeasurementsList.map { it.measurementReferenceId }
+    }
+    .flatten()
 }
 
 /** Converts a public [Metric] to an [InternalMetric]. */
 private suspend fun Metric.toInternal(
+  measurementConsumerReferenceId: String,
   reportRequestCompiler: ReportRequestCompiler,
-  timeIntervalsList: List<InternalTimeInterval>
+  internalTimeIntervalsList: List<InternalTimeInterval>,
+  eventGroupFilters: Map<String, String>,
+  internalReportingSetsStub: InternalReportingSetsCoroutineStub,
 ): InternalMetric {
   val source = this
+
+  val internalTimeIntervalRequestsList =
+    if (source.cumulative) {
+      val startTime = internalTimeIntervalsList.first().startTime
+      internalTimeIntervalsList.map { internalTimeInterval ->
+        internalTimeInterval {
+          this.startTime = startTime
+          endTime = internalTimeInterval.endTime
+        }
+      }
+    } else internalTimeIntervalsList
 
   return internalMetric {
     details = internalMetricDetails {
@@ -403,63 +535,366 @@ private suspend fun Metric.toInternal(
     }
 
     coroutineScope {
-      for (setOperation in source.setOperationsList) {
+      source.setOperationsList.map { setOperation ->
         launch {
-          namedSetOperations.add(setOperation.toInternal(reportRequestCompiler, timeIntervalsList))
+          namedSetOperations.add(
+            // TODO Add this@internalMetric.details to the arguments.
+            setOperation.toInternal(
+              measurementConsumerReferenceId,
+              reportRequestCompiler,
+              internalTimeIntervalRequestsList,
+              eventGroupFilters,
+              internalReportingSetsStub
+            )
+          )
         }
       }
     }
   }
 }
 
+/** Converts an [InternalTimeInterval] to a [MeasurementTimeInterval] for measurement request. */
+private fun InternalTimeInterval.toMeasurementTimeInterval(): MeasurementTimeInterval {
+  val source = this
+  return measurementTimeInterval {
+    startTime = source.startTime
+    endTime = source.endTime
+  }
+}
+
+/** Converts a public [NamedSetOperation] to an [InternalNamedSetOperation]. */
 private suspend fun NamedSetOperation.toInternal(
+  measurementConsumerReferenceId: String,
   reportRequestCompiler: ReportRequestCompiler,
-  timeIntervalsList: List<InternalTimeInterval>
+  internalTimeIntervalRequestsList: List<InternalTimeInterval>,
+  eventGroupFilters: Map<String, String>,
+  internalReportingSetsStub: InternalReportingSetsCoroutineStub,
 ): InternalNamedSetOperation {
   val source = this
 
   return internalNamedSetOperation {
     displayName = source.displayName
-    setOperation = source.setOperation.toInternal()
+    setOperation =
+      source.setOperation.toInternal(
+        measurementConsumerReferenceId,
+        internalReportingSetsStub,
+        eventGroupFilters
+      )
 
     val weightedMeasurementsList = reportRequestCompiler.compileSetOperation(source)
     val measurementCalculationsList =
-      createMeasurementCalculation(weightedMeasurementsList, timeIntervalsList)
-    this.measurementCalculation.addAll(measurementCalculationsList)
+      getMeasurementCalculationList(weightedMeasurementsList, internalTimeIntervalRequestsList)
+    this.measurementCalculation += measurementCalculationsList
   }
 }
 
-fun createMeasurementCalculation(
+/**
+ * Gets a list of [MeasurementCalculation]s from a list of public [WeightedMeasurement]s and a list
+ * of [InternalTimeInterval]s.
+ */
+private suspend fun getMeasurementCalculationList(
   weightedMeasurementsList: List<WeightedMeasurement>,
-  timeIntervalsList: List<org.wfanet.measurement.internal.reporting.TimeInterval>
+  internalTimeIntervalRequestsList: List<InternalTimeInterval>,
 ): List<MeasurementCalculation> {
-  TODO("Not yet implemented")
+  return internalTimeIntervalRequestsList.map { timeInterval ->
+    internalMeasurementCalculation {
+      this.timeInterval = timeInterval
+      // TODO
+      weightedMeasurements +=
+        weightedMeasurementsList.map { weightedMeasurement ->
+          val measurementReferenceId =
+            getMeasurementReferenceId(
+              reportIdempotencyKey,
+              timeInterval,
+              namedSetOperationDisplayName,
+              weightedMeasurement.reportingSets
+            )
+          weightedMeasurement.toInternal(timeInterval, measurementReferenceId)
+        }
+    }
+  }
 }
 
-private fun SetOperation.toInternal(): InternalSetOperation {
+/** Gets a reference ID for a [Measurement]. */
+fun getMeasurementReferenceId(
+  reportIdempotencyKey: String,
+  internalTimeInterval: InternalTimeInterval,
+  namedSetOperationDisplayName: String,
+  reportingSets: List<String>,
+): String {
+  val rowHeader = internalTimeInterval.toRowHeader()
+  return "$reportIdempotencyKey-${namedSetOperationDisplayName}-${rowHeader}-measurement-" +
+    reportingSets.joinToString(separator = "-")
+}
+
+/** Converts a public [WeightedMeasurement] to an [InternalWeightedMeasurement]. */
+private suspend fun WeightedMeasurement.toInternal(
+  timeInterval: InternalTimeInterval,
+  measurementConsumerName: String,
+  measurementReferenceId: String,
+  eventGroupFilters: Map<String, String>,
+  internalMetricDetails: InternalMetricDetails,
+  internalReportingSetsStub: InternalReportingSetsCoroutineStub,
+  measurementConsumersStub: MeasurementConsumersCoroutineStub,
+  measurementsStub: MeasurementsCoroutineStub,
+  dataProvidersStub: DataProvidersCoroutineStub,
+  measurementConsumerPrivateKey: PrivateKey,
+  apiAuthenticationKey: String,
+): InternalWeightedMeasurement {
+  val source = this
+
+  val measurementConsumer =
+    measurementConsumersStub
+      .withAuthenticationKey(apiAuthenticationKey)
+      .getMeasurementConsumer(getMeasurementConsumerRequest { name = measurementConsumerName })
+
+  val measurementConsumerCertificate = readCertificate(measurementConsumer.certificateDer)
+  val measurementConsumerSigningKey =
+    SigningKeyHandle(measurementConsumerCertificate, measurementConsumerPrivateKey)
+  val measurementEncryptionPublicKey = measurementConsumer.publicKey.data
+
+  val secureRandom = SecureRandom.getInstance("SHA1PRNG")
+
+  val measurement = measurement {
+    this.measurementConsumerCertificate = measurementConsumer.certificate
+    dataProviders +=
+      getDataProviderEntries(
+        source.reportingSets,
+        timeInterval.toMeasurementTimeInterval(),
+        eventGroupFilters,
+        measurementEncryptionPublicKey,
+        measurementConsumerSigningKey,
+        secureRandom,
+        internalReportingSetsStub,
+        dataProvidersStub,
+        apiAuthenticationKey,
+      )
+
+    val unsignedMeasurementSpec: MeasurementSpec =
+      getUnsignedMeasurementSpec(
+        measurementEncryptionPublicKey,
+        dataProviders.map { it.value.nonceHash },
+        internalMetricDetails
+      )
+
+    this.measurementSpec =
+      signMeasurementSpec(unsignedMeasurementSpec, measurementConsumerSigningKey)
+
+    this.measurementReferenceId = measurementReferenceId
+  }
+
+  measurementsStub
+    .withAuthenticationKey(apiAuthenticationKey)
+    .createMeasurement(createMeasurementRequest { this.measurement = measurement })
+
+  return internalWeightedMeasurement {
+    this.measurementReferenceId = measurementReferenceId
+    coefficient = source.coefficient
+  }
+}
+
+/** Gets a list of [DataProviderEntry]. */
+private suspend fun getDataProviderEntries(
+  reportingSetNames: List<String>,
+  timeInterval: MeasurementTimeInterval,
+  eventGroupFilters: Map<String, String>,
+  measurementEncryptionPublicKey: ByteString,
+  measurementConsumerSigningKey: SigningKeyHandle,
+  secureRandom: SecureRandom,
+  internalReportingSetsStub: InternalReportingSetsCoroutineStub,
+  dataProvidersStub: DataProvidersCoroutineStub,
+  apiAuthenticationKey: String,
+): List<DataProviderEntry> {
+  // TODO: Each DataProviderEntry needs to have the same data provider.
+  val dataProviderNameToInternalEventGroupEntriesList =
+    getInternalEventGroupEntriesListByDataProviderName(
+      internalReportingSetsStub,
+      reportingSetNames,
+      timeInterval,
+      eventGroupFilters
+    )
+
+  return dataProviderNameToInternalEventGroupEntriesList.map {
+    (dataProviderName, eventGroupEntriesList) ->
+    dataProviderEntry {
+      val requisitionSpec = requisitionSpec {
+        eventGroups += eventGroupEntriesList
+        this.measurementPublicKey = measurementEncryptionPublicKey
+        nonce = secureRandom.nextLong()
+      }
+
+      val dataProvider =
+        dataProvidersStub
+          .withAuthenticationKey(apiAuthenticationKey)
+          .getDataProvider(getDataProviderRequest { name = dataProviderName })
+
+      key = dataProviderName
+      value = dataProviderEntryValue {
+        dataProviderCertificate = dataProvider.certificate
+        dataProviderPublicKey = dataProvider.publicKey
+        encryptedRequisitionSpec =
+          encryptRequisitionSpec(
+            signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
+            EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
+          )
+        nonceHash = hashSha256(requisitionSpec.nonce)
+      }
+    }
+  }
+}
+
+/** Gets a map of data provider resource name to a list of [EventGroupEntry]. */
+private suspend fun getInternalEventGroupEntriesListByDataProviderName(
+  internalReportingSetsStub: InternalReportingSetsCoroutineStub,
+  reportingSetNames: List<String>,
+  timeInterval: MeasurementTimeInterval,
+  eventGroupFilters: Map<String, String>,
+): Map<String, List<EventGroupEntry>> {
+  val result = mutableMapOf<String, MutableList<EventGroupEntry>>().withDefault { mutableListOf() }
+
+  coroutineScope {
+    for (reportingSetName in reportingSetNames) {
+      val reportingSetKey =
+        grpcRequireNotNull(ReportingSetKey.fromName(reportingSetName)) {
+          "Invalid reporting set name ${reportingSetName}."
+        }
+
+      var internalReportingSet: InternalReportingSet? = null
+      launch {
+        internalReportingSet =
+          internalReportingSetsStub.getReportingSet(
+            getReportingSetRequest {
+              measurementConsumerReferenceId = reportingSetKey.measurementConsumerId
+              externalReportingSetId = apiIdToExternalId(reportingSetKey.reportingSetId)
+            }
+          )
+      }
+
+      internalReportingSet?.also {
+        for (eventGroupKey in it.eventGroupKeysList) {
+          val dataProviderKey = DataProviderKey(eventGroupKey.dataProviderReferenceId)
+          val eventGroupName =
+            EventGroupKey(
+                eventGroupKey.measurementConsumerReferenceId,
+                eventGroupKey.dataProviderReferenceId,
+                eventGroupKey.eventGroupReferenceId
+              )
+              .toName()
+
+          result
+            .getValue(dataProviderKey.toName())
+            .add(
+              eventGroupEntry {
+                key = eventGroupName
+                value = eventGroupEntryValue {
+                  collectionInterval = timeInterval
+                  filter = requisitionSpecEventFilter {
+                    // TODO: Is this the correct way to combine filters?
+                    expression = it.filter + eventGroupFilters[eventGroupName]
+                  }
+                }
+              }
+            )
+        }
+      }
+    }
+  }
+
+  return result
+}
+
+/** Gets the unsigned [MeasurementSpec]. */
+fun getUnsignedMeasurementSpec(
+  measurementEncryptionPublicKey: ByteString,
+  nonceHashes: List<ByteString>,
+  internalMetricDetails: InternalMetricDetails
+): MeasurementSpec {
+  return measurementSpec {
+    measurementPublicKey = measurementEncryptionPublicKey
+    this.nonceHashes += nonceHashes
+
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    when (internalMetricDetails.metricTypeCase) {
+      InternalMetricTypeCase.REACH -> {
+        reachAndFrequency = internalMetricDetails.reach.toMeasurementSpecReach()
+        vidSamplingInterval = getReachVidSamplingInterval()
+      }
+      InternalMetricTypeCase.FREQUENCY_HISTOGRAM -> {
+        reachAndFrequency = internalMetricDetails.reach.toMeasurementSpecReachAndFrequency()
+        vidSamplingInterval = getReachAndFrequencyVidSamplingInterval()
+      }
+      InternalMetricTypeCase.IMPRESSION_COUNT -> {
+        impression = internalMetricDetails.impressionCount.toMeasurementSpecImpression()
+        vidSamplingInterval = getImpressionVidSamplingInterval()
+      }
+      InternalMetricTypeCase.WATCH_DURATION -> {
+        duration = internalMetricDetails.watchDuration.toMeasurementSpecDuration()
+        vidSamplingInterval = getDurationVidSamplingInterval()
+      }
+      InternalMetricTypeCase.METRICTYPE_NOT_SET ->
+        error("Unset metric type should've alraedy raised error.")
+    }
+  }
+}
+
+/** Converts a public [SetOperation] to an [InternalSetOperation]. */
+private suspend fun SetOperation.toInternal(
+  measurementConsumerReferenceId: String,
+  internalReportingSetsStub: InternalReportingSetsCoroutineStub,
+  eventGroupFilters: Map<String, String>,
+): InternalSetOperation {
   val source = this
 
   return internalSetOperation {
     this.type = source.type.toInternal()
-    this.lhs = source.lhs.toInternal()
-    this.rhs = source.rhs.toInternal()
+    this.lhs =
+      source.lhs.toInternal(
+        measurementConsumerReferenceId,
+        internalReportingSetsStub,
+        eventGroupFilters
+      )
+    this.rhs =
+      source.rhs.toInternal(
+        measurementConsumerReferenceId,
+        internalReportingSetsStub,
+        eventGroupFilters
+      )
   }
 }
 
-private fun Operand.toInternal(): InternalOperand {
+private suspend fun Operand.toInternal(
+  measurementConsumerReferenceId: String,
+  internalReportingSetsStub: InternalReportingSetsCoroutineStub,
+  eventGroupFilters: Map<String, String>,
+): InternalOperand {
   val source = this
 
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
   return when (source.operandCase) {
-    Operand.OperandCase.OPERATION -> internalOperand { operation = source.operation.toInternal() }
+    Operand.OperandCase.OPERATION ->
+      internalOperand {
+        operation =
+          source.operation.toInternal(
+            measurementConsumerReferenceId,
+            internalReportingSetsStub,
+            eventGroupFilters
+          )
+      }
     Operand.OperandCase.REPORTING_SET -> {
       val reportingSetKey =
         grpcRequireNotNull(ReportingSetKey.fromName(source.reportingSet)) {
           "Invalid reporting set name ${source.reportingSet}."
         }
+
+      grpcRequire(measurementConsumerReferenceId == reportingSetKey.measurementConsumerId) {
+        "No access to the reporting set [${source.reportingSet}]."
+      }
+
+      checkReportingSet(reportingSetKey, internalReportingSetsStub, eventGroupFilters)
+
       internalOperand {
         reportingSetId = reportingSetKey {
-          measurementConsumerReferenceId = reportingSetKey.measurementConsumerId
+          this.measurementConsumerReferenceId = measurementConsumerReferenceId
           externalReportingSetId = apiIdToExternalId(reportingSetKey.reportingSetId)
         }
       }
@@ -468,6 +903,40 @@ private fun Operand.toInternal(): InternalOperand {
   }
 }
 
+/**
+ * Check if the event groups in the public [ReportingSet] are covered by the event group universe.
+ */
+private suspend fun checkReportingSet(
+  reportingSetKey: ReportingSetKey,
+  internalReportingSetsStub: InternalReportingSetsCoroutineStub,
+  eventGroupFilters: Map<String, String>,
+) = coroutineScope {
+  launch {
+    val internalReportingSet =
+      internalReportingSetsStub.getReportingSet(
+        getReportingSetRequest {
+          this.measurementConsumerReferenceId = reportingSetKey.measurementConsumerId
+          externalReportingSetId = apiIdToExternalId(reportingSetKey.reportingSetId)
+        }
+      )
+
+    for (eventGroupKey in internalReportingSet.eventGroupKeysList) {
+      val eventGroupName =
+        EventGroupKey(
+            eventGroupKey.measurementConsumerReferenceId,
+            eventGroupKey.dataProviderReferenceId,
+            eventGroupKey.eventGroupReferenceId
+          )
+          .toName()
+      grpcRequire(eventGroupFilters.containsKey(eventGroupName)) {
+        "The event group [$eventGroupName] in the reporting Set [${reportingSetKey.toName()}] is " +
+          "not included in the event group universe."
+      }
+    }
+  }
+}
+
+/** Converts a public [SetOperation.Type] to an [InternalSetOperation.Type]. */
 private fun SetOperation.Type.toInternal(): InternalSetOperation.Type {
   val source = this
 
@@ -490,15 +959,11 @@ private fun WatchDurationParams.toInternal(): InternalWatchDurationParams {
 }
 
 private fun ImpressionCountParams.toInternal(): InternalImpressionCountParams {
-  val source = this
-  return internalImpressionCountParams { maximumFrequencyPerUser = source.maximumFrequencyPerUser }
+  return internalImpressionCountParams { maximumFrequencyPerUser = this.maximumFrequencyPerUser }
 }
 
 private fun FrequencyHistogramParams.toInternal(): InternalFrequencyHistogramParams {
-  val source = this
-  return internalFrequencyHistogramParams {
-    maximumFrequencyPerUser = source.maximumFrequencyPerUser
-  }
+  return internalFrequencyHistogramParams { maximumFrequencyPerUser = this.maximumFrequencyPerUser }
 }
 
 /** Converts a public [PeriodicTimeInterval] to an [InternalPeriodicTimeInterval]. */
@@ -678,13 +1143,13 @@ private fun InternalReport.toReport(): Report {
     MeasurementConsumerKey(source.measurementConsumerReferenceId).toName()
   val reportResourceName =
     ReportKey(
-      measurementConsumerId = source.measurementConsumerReferenceId,
-      reportId = externalIdToApiId(source.externalReportId)
-    )
+        measurementConsumerId = source.measurementConsumerReferenceId,
+        reportId = externalIdToApiId(source.externalReportId)
+      )
       .toName()
   val eventGroupEntries =
     source.details.eventGroupFiltersMap.toList().map { (eventGroupResourceName, filterPredicate) ->
-      eventGroupEntry {
+      eventGroupUniverseEntry {
         key = eventGroupResourceName
         value = filterPredicate
       }
@@ -733,14 +1198,14 @@ private fun InternalMetric.toMetric(): Metric {
   return metric {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     when (source.details.metricTypeCase) {
-      InternalMetric.Details.MetricTypeCase.REACH -> reach = reachParams {}
-      InternalMetric.Details.MetricTypeCase.FREQUENCY_HISTOGRAM ->
+      InternalMetricTypeCase.REACH -> reach = reachParams {}
+      InternalMetricTypeCase.FREQUENCY_HISTOGRAM ->
         frequencyHistogram = source.details.frequencyHistogram.toFrequencyHistogram()
-      InternalMetric.Details.MetricTypeCase.IMPRESSION_COUNT ->
+      InternalMetricTypeCase.IMPRESSION_COUNT ->
         impressionCount = source.details.impressionCount.toImpressionCount()
-      InternalMetric.Details.MetricTypeCase.WATCH_DURATION ->
+      InternalMetricTypeCase.WATCH_DURATION ->
         watchDuration = source.details.watchDuration.toWatchDuration()
-      InternalMetric.Details.MetricTypeCase.METRICTYPE_NOT_SET ->
+      InternalMetricTypeCase.METRICTYPE_NOT_SET ->
         error("The metric type in the internal report should've be set.")
     }
 
@@ -785,9 +1250,9 @@ private fun InternalOperand.toOperand(): Operand {
       operand {
         reportingSet =
           ReportingSetKey(
-            source.reportingSetId.measurementConsumerReferenceId,
-            externalIdToApiId(source.reportingSetId.externalReportingSetId)
-          )
+              source.reportingSetId.measurementConsumerReferenceId,
+              externalIdToApiId(source.reportingSetId.externalReportingSetId)
+            )
             .toName()
       }
     InternalOperand.OperandCase.OPERAND_NOT_SET -> operand {}
