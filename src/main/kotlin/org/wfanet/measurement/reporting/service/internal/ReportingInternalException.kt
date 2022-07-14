@@ -87,3 +87,20 @@ class ReportingSetNotFoundException(
   override val context
     get() = emptyMap<String, String>()
 }
+
+class MeasurementCalculationTimeIntervalNotFoundException(
+  provideDescription: () -> String = { "Measurement Calculation Time Interval not found" }
+) :
+  ReportingInternalException(
+    ErrorCode.MEASUREMENT_CALCULATION_TIME_INTERVAL_NOT_FOUND,
+    provideDescription
+  ) {
+  override val context
+    get() = emptyMap<String, String>()
+}
+
+class ReportNotFoundException(provideDescription: () -> String = { "Report not found" }) :
+  ReportingInternalException(ErrorCode.REPORT_NOT_FOUND, provideDescription) {
+  override val context
+    get() = emptyMap<String, String>()
+}

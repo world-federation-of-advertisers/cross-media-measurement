@@ -27,7 +27,8 @@ service Reports {
 
   rpc GetReport(GetReportRequest) returns (Report);
 
-  rpc SetReportResult(SetReportResultRequest) returns (Report);
+  rpc GetReportByIdempotencyKey(GetReportByIdempotencyKeyRequest)
+      returns (Report);
 
   rpc StreamReports(StreamReportsRequest) returns (stream Report);
 }
@@ -50,11 +51,10 @@ message GetReportRequest {
   fixed64 external_report_id = 2;
 }
 
-message SetReportResultRequest {
+message GetReportByIdempotencyKeyRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
   string measurement_consumer_reference_id = 1;
-  fixed64 external_report_id = 2;
-  Report.Details.Result result = 3;
+  string report_idempotency_key = 2;
 }
 
 message StreamReportsRequest {
