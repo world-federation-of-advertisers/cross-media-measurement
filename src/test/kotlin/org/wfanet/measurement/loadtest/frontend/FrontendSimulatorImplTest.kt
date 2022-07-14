@@ -48,7 +48,7 @@ import org.wfanet.measurement.common.crypto.testing.FIXED_ENCRYPTION_PRIVATE_KEY
 import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_DER_FILE
 import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_KEY_DER_FILE
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
-import org.wfanet.measurement.common.crypto.tink.testing.loadPrivateKey
+import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.loadtest.storage.SketchStore
