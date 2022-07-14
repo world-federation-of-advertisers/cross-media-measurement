@@ -14,13 +14,9 @@
 
 package org.wfanet.measurement.reporting.service.api.v1alpha
 
-import io.grpc.Status
 import kotlin.math.pow
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-import org.wfanet.measurement.common.grpc.failGrpc
-import org.wfanet.measurement.common.grpc.grpcRequire
-import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.reporting.v1alpha.Metric.NamedSetOperation
 import org.wfanet.measurement.reporting.v1alpha.Metric.SetOperation
 
@@ -401,8 +397,8 @@ private fun createReportingSetsMap(
   val reportingSetsMap: MutableMap<String, ReportingSet> = mutableMapOf()
 
   for ((id, reportingSet) in sortedReportingSetNames.withIndex()) {
-    grpcRequire(!reportingSetsMap.containsKey(reportingSet)) {
-      "Reporting sets in SetOperation should be unique."
+    if (reportingSetsMap.containsKey(reportingSet)) {
+      throw IllegalArgumentException("Reporting sets in SetOperation should be unique.")
     }
     reportingSetsMap[reportingSet] = ReportingSet(id, reportingSet)
   }
@@ -412,9 +408,11 @@ private fun createReportingSetsMap(
 /** Gets all resource names of the reporting sets used in this [SetOperation]. */
 private fun SetOperation.storeReportingSetNames(reportingSetNames: MutableList<String>) {
   val root = this
-  grpcRequire(root.hasLhs()) { "lhs in SetOperation must be set." }
-  grpcRequire(root.lhs.hasReportingSet() || root.lhs.hasOperation()) {
-    "Operand type of lhs in SetOperation must be set."
+  if (!root.hasLhs()) {
+    throw IllegalArgumentException("lhs in SetOperation must be set.")
+  }
+  if (!root.lhs.hasReportingSet() && !root.lhs.hasOperation()) {
+    throw IllegalArgumentException("Operand type of lhs in SetOperation must be set.")
   }
 
   root.lhs.storeReportingSetNames(reportingSetNames)
@@ -443,12 +441,15 @@ private fun SetOperation.toSetOperationExpression(
   reportingSetsMap: Map<String, ReportingSet>
 ): SetOperationExpression {
   val root = this
-  grpcRequire(root.hasLhs()) { "lhs in SetOperation must be set." }
+
+  if (!root.hasLhs()) {
+    throw IllegalArgumentException("lhs in SetOperation must be set.")
+  }
 
   val lhs =
-    grpcRequireNotNull(root.lhs.toOperand(reportingSetsMap)) {
-      "Operand type of lhs in SetOperation must be set."
-    }
+    root.lhs.toOperand(reportingSetsMap)
+      ?: throw IllegalArgumentException("Operand type of lhs in SetOperation must be set.")
+
   val rhs = root.rhs.toOperand(reportingSetsMap)
 
   return SetOperationExpression(root.type.toOperator(), lhs, rhs)
@@ -476,11 +477,11 @@ private fun SetOperation.Type.toOperator(): Operator {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
   return when (source) {
     SetOperation.Type.TYPE_UNSPECIFIED ->
-      failGrpc(Status.INVALID_ARGUMENT) { "Set operator type is not specified." }
+      throw IllegalArgumentException("Set operator type is not specified.")
     SetOperation.Type.UNION -> Operator.UNION
     SetOperation.Type.DIFFERENCE -> Operator.DIFFERENCE
     SetOperation.Type.INTERSECTION -> Operator.INTERSECT
     SetOperation.Type.UNRECOGNIZED ->
-      failGrpc(Status.INVALID_ARGUMENT) { "Unrecognized Set operator type." }
+      throw IllegalArgumentException("Unrecognized Set operator type.")
   }
 }

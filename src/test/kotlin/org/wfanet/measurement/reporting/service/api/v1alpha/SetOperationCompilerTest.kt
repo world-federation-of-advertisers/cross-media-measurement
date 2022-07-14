@@ -15,15 +15,12 @@
 package org.wfanet.measurement.reporting.service.api.v1alpha
 
 import com.google.common.truth.Truth.assertThat
-import io.grpc.Status
-import io.grpc.StatusRuntimeException
-import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.reporting.v1alpha.Metric
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.SetOperationKt.operand
@@ -33,14 +30,7 @@ import org.wfanet.measurement.reporting.v1alpha.copy
 
 // Measurement consumer IDs and names
 private const val MEASUREMENT_CONSUMER_EXTERNAL_ID = 111L
-private const val MEASUREMENT_CONSUMER_EXTERNAL_ID_2 = 112L
 private val MEASUREMENT_CONSUMER_REFERENCE_ID = externalIdToApiId(MEASUREMENT_CONSUMER_EXTERNAL_ID)
-private val MEASUREMENT_CONSUMER_REFERENCE_ID_2 =
-  externalIdToApiId(MEASUREMENT_CONSUMER_EXTERNAL_ID_2)
-private val MEASUREMENT_CONSUMER_NAME =
-  MeasurementConsumerKey(MEASUREMENT_CONSUMER_REFERENCE_ID).toName()
-private val MEASUREMENT_CONSUMER_NAME_2 =
-  MeasurementConsumerKey(MEASUREMENT_CONSUMER_REFERENCE_ID_2).toName()
 
 // Reporting set IDs and names
 private val REPORTING_SET_EXTERNAL_ID = 331L
@@ -135,11 +125,10 @@ class SetOperationCompilerTest {
       }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
+      assertThrows(IllegalArgumentException::class.java) {
         runBlocking { reportResultCompiler.compileSetOperation(namedSetOperationWithLhsNotSet) }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("lhs in SetOperation must be set.")
+    assertThat(exception.message).isEqualTo("lhs in SetOperation must be set.")
   }
 
   @Test
@@ -150,14 +139,12 @@ class SetOperationCompilerTest {
       }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
+      assertThrows(IllegalArgumentException::class.java) {
         runBlocking {
           reportResultCompiler.compileSetOperation(namedSetOperationWithLhsOperandTypeNotSet)
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Operand type of lhs in SetOperation must be set.")
+    assertThat(exception.message).isEqualTo("Operand type of lhs in SetOperation must be set.")
   }
 
   @Test
@@ -168,13 +155,12 @@ class SetOperationCompilerTest {
       }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
+      assertThrows(IllegalArgumentException::class.java) {
         runBlocking {
           reportResultCompiler.compileSetOperation(namedSetOperationWithSetOperatorTypeNotSet)
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description).isEqualTo("Set operator type is not specified.")
+    assertThat(exception.message).isEqualTo("Set operator type is not specified.")
   }
 
   @Test
@@ -186,13 +172,11 @@ class SetOperationCompilerTest {
       }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
+      assertThrows(IllegalArgumentException::class.java) {
         runBlocking {
           reportResultCompiler.compileSetOperation(namedSetOperationWithDuplicateReportingSets)
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.status.description)
-      .isEqualTo("Reporting sets in SetOperation should be unique.")
+    assertThat(exception.message).isEqualTo("Reporting sets in SetOperation should be unique.")
   }
 }
