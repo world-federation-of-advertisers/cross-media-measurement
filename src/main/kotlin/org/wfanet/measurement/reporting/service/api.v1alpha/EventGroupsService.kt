@@ -14,9 +14,12 @@
 
 package org.wfanet.measurement.reporting.service.api.v1alpha
 
+import io.grpc.Status
+import org.projectnessie.cel.Program
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataParser
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
@@ -27,6 +30,7 @@ import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsR
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
@@ -47,7 +51,7 @@ class EventGroupsService(
 ) : EventGroupsCoroutineImplBase() {
   override suspend fun listEventGroups(request: ListEventGroupsRequest): ListEventGroupsResponse {
     val principal: Principal<*> = principalFromCurrentContext
-    val eventGroups =
+    val eventGroups: List<CmmsEventGroup> =
       cmmsEventGroupsStub
         .listEventGroups(
           cmmsListEventGroupsRequest {
@@ -63,19 +67,23 @@ class EventGroupsService(
         .eventGroupsList
     if (request.filter.isEmpty())
       return listEventGroupsResponse { this.eventGroups += eventGroups.map { it.toEventGroup() } }
-    val eventGroupMetadataDescriptors =
+    val parsedEventGroupMetadataMap: Map<String, CmmsEventGroup.Metadata> =
+      eventGroups
+        .map {
+          it.name to
+            CmmsEventGroup.Metadata.parseFrom(
+              decryptResult(it.encryptedMetadata, encryptionPrivateKey).data
+            )
+        }
+        .toMap()
+    val eventGroupMetadataDescriptors: List<EventGroupMetadataDescriptor> =
       eventGroupsMetadataDescriptorsStub
         .batchGetEventGroupMetadataDescriptors(
           batchGetEventGroupMetadataDescriptorsRequest {
             parent = request.parent
             names +=
               eventGroups
-                .map {
-                  CmmsEventGroup.Metadata.parseFrom(
-                      decryptResult(it.encryptedMetadata, encryptionPrivateKey).data
-                    )
-                    .eventGroupMetadataDescriptor
-                }
+                .map { parsedEventGroupMetadataMap[it.name]!!.eventGroupMetadataDescriptor }
                 .toSet()
           }
         )
@@ -84,15 +92,13 @@ class EventGroupsService(
     val filteredEventGroups: MutableList<CmmsEventGroup> = mutableListOf()
 
     for (eventGroup in eventGroups) {
-      val metadata =
-        CmmsEventGroup.Metadata.parseFrom(
-          decryptResult(eventGroup.encryptedMetadata, encryptionPrivateKey).data
-        )
+      val metadata = parsedEventGroupMetadataMap[eventGroup.name]!!
       val metadataMessage =
-        grpcRequireNotNull(metadataParser.convertToDynamicMessage(metadata)) {
-          "Event group metadata message is invalid"
-        }
-      val program =
+        metadataParser.convertToDynamicMessage(metadata)
+          ?: failGrpc(Status.FAILED_PRECONDITION) {
+            "Event group metadata message descriptor not found"
+          }
+      val program: Program =
         EventFilters.compileProgram(request.filter, metadataMessage.defaultInstanceForType)
       if (EventFilters.matches(metadataMessage, program)) {
         filteredEventGroups.add(eventGroup)
@@ -123,7 +129,7 @@ class EventGroupsService(
         EventGroupKey(
             measurementConsumerKey.measurementConsumerId,
             dataProviderReferenceId,
-            this@toEventGroup.eventGroupReferenceId
+            CmmsEventGroupKey.fromName(this@toEventGroup.name)!!.eventGroupId
           )
           .toName()
       dataProvider = DataProviderKey(dataProviderReferenceId).toName()
