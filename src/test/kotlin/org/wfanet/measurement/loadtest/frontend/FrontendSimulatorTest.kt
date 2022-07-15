@@ -64,6 +64,7 @@ import org.wfanet.measurement.common.crypto.testing.FIXED_ENCRYPTION_PUBLIC_KEYS
 import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_DER_FILE
 import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_KEY_DER_FILE
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
+import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.crypto.tink.testing.loadPrivateKey
 import org.wfanet.measurement.common.crypto.tink.testing.loadPublicKey
 import org.wfanet.measurement.common.flatten
