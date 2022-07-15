@@ -39,9 +39,11 @@ import org.wfanet.measurement.api.v2.alpha.listReportsPageToken
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
@@ -94,8 +96,10 @@ import org.wfanet.measurement.internal.reporting.MetricKt.setOperation as intern
 import org.wfanet.measurement.internal.reporting.MetricKt.watchDurationParams as internalWatchDurationParams
 import org.wfanet.measurement.internal.reporting.Report as InternalReport
 import org.wfanet.measurement.internal.reporting.ReportKt.details as internalReportDetails
+import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase as InternalReportingSetsCoroutineImplBase
+import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineImplBase
-import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub
+import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.StreamReportsRequestKt.filter
 import org.wfanet.measurement.internal.reporting.copy
 import org.wfanet.measurement.internal.reporting.getReportRequest as getInternalReportRequest
@@ -110,8 +114,6 @@ import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInt
 import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.v1alpha.Metric
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.SetOperationKt.operand as setOperationOperand
-import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase as InternalReportingSetsCoroutineImplBase
-import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.frequencyHistogramParams
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.impressionCountParams
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.namedSetOperation
@@ -161,7 +163,7 @@ private val AGGREGATOR_SIGNING_KEY: SigningKeyHandle by lazy {
 }
 private val AGGREGATOR_CERTIFICATE = certificate { x509Der = AGGREGATOR_CERTIFICATE_DER }
 
-// Public and private keys
+// Public keys of measurement consumers
 private val MEASUREMENT_PUBLIC_KEY_DATA =
   SECRETS_DIR.resolve("mc_enc_public.tink").toFile().readByteString()
 private val MEASUREMENT_PUBLIC_KEY = encryptionPublicKey {
@@ -169,8 +171,20 @@ private val MEASUREMENT_PUBLIC_KEY = encryptionPublicKey {
   data = MEASUREMENT_PUBLIC_KEY_DATA
 }
 
-private val MEASUREMENT_PRIVATE_KEY_DATA = SECRETS_DIR.resolve("mc_enc_private.tink").toFile()
-private val MEASUREMENT_PRIVATE_KEY: PrivateKeyHandle = loadPrivateKey(MEASUREMENT_PRIVATE_KEY_DATA)
+// private keys of measurement consumers
+private val MEASUREMENT_CONSUMER_CERTIFICATE_DER =
+  SECRETS_DIR.resolve("mc_cs_cert.der").toFile().readByteString()
+private val MEASUREMENT_CONSUMER_PRIVATE_KEY_DER =
+  SECRETS_DIR.resolve("mc_cs_private.der").toFile().readByteString()
+private val measurementConsumerCert = readCertificate(MEASUREMENT_CONSUMER_CERTIFICATE_DER)
+private val MEASUREMENT_CONSUMER_PRIVATE_KEY =
+  readPrivateKey(MEASUREMENT_CONSUMER_PRIVATE_KEY_DER, measurementConsumerCert.publicKey.algorithm)
+
+// private key handles of measurement consumers
+private val MEASUREMENT_CONSUMER_PRIVATE_KEY_DATA =
+  SECRETS_DIR.resolve("mc_enc_private.tink").toFile()
+private val MEASUREMENT_CONSUMER_PRIVATE_KEY_HANDLE: PrivateKeyHandle =
+  loadPrivateKey(MEASUREMENT_CONSUMER_PRIVATE_KEY_DATA)
 
 // Measurement consumer IDs and names
 private const val MEASUREMENT_CONSUMER_EXTERNAL_ID = 111L
@@ -887,9 +901,8 @@ class ReportsServiceTest {
         )
     }
 
-  private val internalReportingSetsMock: InternalReportingSetsCoroutineImplBase = mockService() {
-    onBlocking {getReportingSet(any())}.thenReturn(null)
-  }
+  private val internalReportingSetsMock: InternalReportingSetsCoroutineImplBase =
+    mockService() { onBlocking { getReportingSet(any()) }.thenReturn(null) }
 
   private val internalMeasurementsMock: InternalMeasurementsCoroutineImplBase =
     mockService() {
@@ -926,12 +939,17 @@ class ReportsServiceTest {
   fun initService() {
     service =
       ReportsService(
-        ReportsCoroutineStub(grpcTestServerRule.channel),
-        InternalReportingSetsCoroutineStub(grpcTestServerRule.channel),
-        InternalMeasurementsCoroutineStub(grpcTestServerRule.channel),
-        MeasurementsCoroutineStub(grpcTestServerRule.channel),
-        CertificatesCoroutineStub(grpcTestServerRule.channel),
-        MEASUREMENT_PRIVATE_KEY,
+        ServiceStubs(
+          InternalReportsCoroutineStub(grpcTestServerRule.channel),
+          InternalReportingSetsCoroutineStub(grpcTestServerRule.channel),
+          InternalMeasurementsCoroutineStub(grpcTestServerRule.channel),
+          DataProvidersCoroutineStub(grpcTestServerRule.channel),
+          MeasurementConsumersCoroutineStub(grpcTestServerRule.channel),
+          MeasurementsCoroutineStub(grpcTestServerRule.channel),
+          CertificatesCoroutineStub(grpcTestServerRule.channel),
+        ),
+        MEASUREMENT_CONSUMER_PRIVATE_KEY_HANDLE,
+        MEASUREMENT_CONSUMER_PRIVATE_KEY,
         API_AUTHENTICATION_KEY,
       )
   }
