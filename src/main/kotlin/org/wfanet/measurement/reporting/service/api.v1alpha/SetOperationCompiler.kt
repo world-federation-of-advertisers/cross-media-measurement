@@ -74,7 +74,7 @@ private data class SetOperationExpression(
 
 data class WeightedMeasurement(val reportingSets: List<String>, val coefficient: Int)
 
-class SetOperationCompiler() {
+class SetOperationCompiler {
 
   private var primitiveRegionCache: PrimitiveRegionCache = mutableMapOf()
 
@@ -89,18 +89,16 @@ class SetOperationCompiler() {
    * functions that satisfy Cauchy's functional equation with sets, i.e. F(S1 + S2) = F(S1) + F(S2).
    */
   suspend fun compileSetOperation(namedSetOperation: NamedSetOperation): List<WeightedMeasurement> {
-    val sortedReportingSetNames = mutableListOf<String>()
-    namedSetOperation.setOperation.storeReportingSetNames(sortedReportingSetNames)
+    val reportingSetNames = mutableSetOf<String>()
+    namedSetOperation.setOperation.storeReportingSetNames(reportingSetNames)
 
     // Sorts the list to make sure the IDs are consistent for the same run.
-    sortedReportingSetNames.sort()
-
+    val sortedReportingSetNames = reportingSetNames.sortedBy { it }
     val reportingSetsMap = createReportingSetsMap(sortedReportingSetNames)
+    val numReportingSets = reportingSetsMap.size
 
     val setOperationExpression =
       namedSetOperation.setOperation.toSetOperationExpression(reportingSetsMap)
-
-    val numReportingSets = reportingSetsMap.size
 
     // Step 1 - Gets the primitive regions that form the set operation
     val primitiveRegions =
@@ -123,7 +121,7 @@ class SetOperationCompiler() {
   ): WeightedMeasurement {
     // Find the reporting sets in the union-set.
     val reportingSetNames =
-      (0 until sortedReportingSetNames.size).mapNotNull { bitPosition ->
+      (sortedReportingSetNames.indices).mapNotNull { bitPosition ->
         if (isBitSet(unionSet, bitPosition)) sortedReportingSetNames[bitPosition] else null
       }
 
@@ -395,18 +393,14 @@ private fun createReportingSetsMap(
   sortedReportingSetNames: List<String>
 ): Map<String, ReportingSet> {
   val reportingSetsMap: MutableMap<String, ReportingSet> = mutableMapOf()
-
   for ((id, reportingSet) in sortedReportingSetNames.withIndex()) {
-    if (reportingSetsMap.containsKey(reportingSet)) {
-      throw IllegalArgumentException("Reporting sets in SetOperation should be unique.")
-    }
     reportingSetsMap[reportingSet] = ReportingSet(id, reportingSet)
   }
   return reportingSetsMap.toMap()
 }
 
 /** Gets all resource names of the reporting sets used in this [SetOperation]. */
-private fun SetOperation.storeReportingSetNames(reportingSetNames: MutableList<String>) {
+private fun SetOperation.storeReportingSetNames(reportingSetNames: MutableSet<String>) {
   val root = this
   if (!root.hasLhs()) {
     throw IllegalArgumentException("lhs in SetOperation must be set.")
@@ -421,7 +415,7 @@ private fun SetOperation.storeReportingSetNames(reportingSetNames: MutableList<S
 
 /** Gets all resource names of the reporting sets used in this [SetOperation.Operand]. */
 private fun SetOperation.Operand.storeReportingSetNames(
-  reportingSetNames: MutableList<String>,
+  reportingSetNames: MutableSet<String>,
 ) {
   val node = this
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
