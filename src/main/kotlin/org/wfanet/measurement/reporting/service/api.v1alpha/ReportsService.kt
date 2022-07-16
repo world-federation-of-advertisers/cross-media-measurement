@@ -126,6 +126,7 @@ import org.wfanet.measurement.internal.reporting.StreamReportsRequestKt.filter
 import org.wfanet.measurement.internal.reporting.TimeInterval as InternalTimeInterval
 import org.wfanet.measurement.internal.reporting.TimeIntervals as InternalTimeIntervals
 import org.wfanet.measurement.internal.reporting.createReportRequest as internalCreateReportRequest
+import org.wfanet.measurement.internal.reporting.getReportByIdempotencyKeyRequest
 import org.wfanet.measurement.internal.reporting.getReportRequest as getInternalReportRequest
 import org.wfanet.measurement.internal.reporting.getReportingSetRequest
 import org.wfanet.measurement.internal.reporting.metric as internalMetric
@@ -264,6 +265,17 @@ class ReportsService(
     }
     // TODO(@riemanli) If a user tries to create a report with duplicate idempotency key, the
     //  service must error with ALREADY_EXISTS.
+    try {
+      serviceStubs.internalReportsStub.getReportByIdempotencyKey(
+        getReportByIdempotencyKeyRequest {
+          measurementConsumerReferenceId = resourceKey.measurementConsumerId
+          reportIdempotencyKey = request.report.reportIdempotencyKey
+        }
+      )
+      failGrpc(Status.ALREADY_EXISTS) {
+        "Report with reportIdempotencyKey=${request.report.reportIdempotencyKey} already exists."
+      }
+    } catch (_: RuntimeException) {} // No existing reports have the same reportIdempotencyKey
 
     val credential =
       Credential(
