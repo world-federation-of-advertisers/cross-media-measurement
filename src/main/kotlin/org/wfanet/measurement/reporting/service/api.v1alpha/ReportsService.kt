@@ -225,7 +225,7 @@ data class Credential(
   val measurementConsumerReferenceId: String,
   val measurementConsumerResourceName: String,
   val reportIdempotencyKey: String,
-  val encryptionKeyPairStore: EncryptionKeyPairStore,
+  val encryptionPrivateKeyHandle: PrivateKeyHandle,
   val signingPrivateKey: PrivateKey,
   val apiAuthenticationKey: String,
   val secureRandom: SecureRandom,
@@ -234,7 +234,7 @@ data class Credential(
 /** TODO(@renjiez) Have a function to get public/private keys */
 class ReportsService(
   private val serviceStubs: ServiceStubs,
-  private val encryptionKeyPairStore: EncryptionKeyPairStore,
+  private val encryptionPrivateKeyHandle: PrivateKeyHandle,
   private val signingPrivateKey: PrivateKey,
   private val apiAuthenticationKey: String,
 ) : ReportsCoroutineImplBase() {
@@ -270,7 +270,7 @@ class ReportsService(
         resourceKey.measurementConsumerId,
         request.parent,
         request.report.reportIdempotencyKey,
-        encryptionKeyPairStore,
+        encryptionPrivateKeyHandle,
         signingPrivateKey,
         apiAuthenticationKey,
         secureRandom
@@ -394,12 +394,6 @@ class ReportsService(
       Measurement.State.SUCCEEDED -> {
         // Converts a Measurement to an InternalMeasurement and store it into the database with
         // SUCCEEDED state
-        val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
-        val privateKeyHandle =
-          requireNotNull(
-            encryptionKeyPairStore.getPrivateKeyHandle(measurementSpec.measurementPublicKey)
-          ) { failGrpc(Status.PERMISSION_DENIED) { "Failed to find the encryption private key" } }
-
         serviceStubs.internalMeasurementsStub.setMeasurementResult(
           setMeasurementResultRequest {
             this.measurementConsumerReferenceId = measurementConsumerReferenceId
@@ -407,7 +401,7 @@ class ReportsService(
             result =
               aggregateResults(
                 measurement.resultsList
-                  .map { it.toMeasurementResult(privateKeyHandle) }
+                  .map { it.toMeasurementResult() }
                   .map(Measurement.Result::toInternal)
               )
           }
@@ -431,16 +425,14 @@ class ReportsService(
   }
 
   /** Decrypts a [Measurement.ResultPair] to [Measurement.Result] */
-  private suspend fun Measurement.ResultPair.toMeasurementResult(
-    privateKeyHandle: PrivateKeyHandle
-  ): Measurement.Result {
+  private suspend fun Measurement.ResultPair.toMeasurementResult(): Measurement.Result {
     val source = this
     val certificate =
       serviceStubs.certificateStub
         .withAuthenticationKey(apiAuthenticationKey)
         .getCertificate(getCertificateRequest { name = source.certificate })
 
-    val signedResult = decryptResult(source.encryptedResult, privateKeyHandle)
+    val signedResult = decryptResult(source.encryptedResult, encryptionPrivateKeyHandle)
 
     val result = Measurement.Result.parseFrom(signedResult.data)
 
