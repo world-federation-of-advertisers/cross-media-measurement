@@ -147,6 +147,7 @@ import org.wfanet.measurement.reporting.v1alpha.ListReportsResponse
 import org.wfanet.measurement.reporting.v1alpha.Metric
 import org.wfanet.measurement.reporting.v1alpha.Metric.FrequencyHistogramParams
 import org.wfanet.measurement.reporting.v1alpha.Metric.ImpressionCountParams
+import org.wfanet.measurement.reporting.v1alpha.Metric.MetricTypeCase
 import org.wfanet.measurement.reporting.v1alpha.Metric.NamedSetOperation
 import org.wfanet.measurement.reporting.v1alpha.Metric.SetOperation
 import org.wfanet.measurement.reporting.v1alpha.Metric.SetOperation.Operand
@@ -484,7 +485,8 @@ private suspend fun CreateReportRequest.toInternal(
   }
   grpcRequire(source.report.hasEventGroupUniverse()) { "EventGroupUniverse is not specified." }
   grpcRequire(source.report.metricsList.isNotEmpty()) { "Metrics in Report cannot be empty." }
-  // TODO: Check if the display names of the set operations within the same metric are unique.
+
+  checkSetOperationDisplayNamesUniqueness(source.report.metricsList)
 
   val eventGroupFilters =
     source.report.eventGroupUniverse.eventGroupEntriesList.associate { it.key to it.value }
@@ -534,6 +536,60 @@ private suspend fun CreateReportRequest.toInternal(
   }
 }
 
+/** Check if the display names of the set operations within the same metric are unique. */
+private fun checkSetOperationDisplayNamesUniqueness(metricsList: List<Metric>) {
+  val metricToSetOperationDisplayNamesList =
+    mutableMapOf<MetricTypeCase, MutableSet<String>>().withDefault { mutableSetOf() }
+
+  for (metric in metricsList) {
+    for (setOperation in metric.setOperationsList) {
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+      when (metric.metricTypeCase) {
+        MetricTypeCase.REACH -> {
+          grpcRequire(
+            !metricToSetOperationDisplayNamesList
+              .getValue(MetricTypeCase.REACH)
+              .contains(setOperation.displayName)
+          ) { "The display names of the set operations within the same metric should be unique." }
+          metricToSetOperationDisplayNamesList.getValue(MetricTypeCase.REACH) +=
+            setOperation.displayName
+        }
+        MetricTypeCase.FREQUENCY_HISTOGRAM -> {
+          grpcRequire(
+            !metricToSetOperationDisplayNamesList
+              .getValue(MetricTypeCase.FREQUENCY_HISTOGRAM)
+              .contains(setOperation.displayName)
+          ) { "The display names of the set operations within the same metric should be unique." }
+          metricToSetOperationDisplayNamesList.getValue(MetricTypeCase.FREQUENCY_HISTOGRAM) +=
+            setOperation.displayName
+        }
+        MetricTypeCase.IMPRESSION_COUNT -> {
+          grpcRequire(
+            !metricToSetOperationDisplayNamesList
+              .getValue(MetricTypeCase.IMPRESSION_COUNT)
+              .contains(setOperation.displayName)
+          ) { "The display names of the set operations within the same metric should be unique." }
+          metricToSetOperationDisplayNamesList.getValue(MetricTypeCase.IMPRESSION_COUNT) +=
+            setOperation.displayName
+        }
+        MetricTypeCase.WATCH_DURATION -> {
+          grpcRequire(
+            !metricToSetOperationDisplayNamesList
+              .getValue(MetricTypeCase.WATCH_DURATION)
+              .contains(setOperation.displayName)
+          ) { "The display names of the set operations within the same metric should be unique." }
+          metricToSetOperationDisplayNamesList.getValue(MetricTypeCase.WATCH_DURATION) +=
+            setOperation.displayName
+        }
+        MetricTypeCase.METRICTYPE_NOT_SET ->
+          failGrpc(Status.INVALID_ARGUMENT) {
+            "The metric type in the internal report should've be set."
+          }
+      }
+    }
+  }
+}
+
 /** Converts a [InternalMetric] to a list of [InternalMeasurementKey]s. */
 private fun InternalMetric.toInternalMeasurementKey(
   measurementConsumerReferenceId: String
@@ -576,13 +632,12 @@ private suspend fun Metric.toInternal(
     details = internalMetricDetails {
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (source.metricTypeCase) {
-        Metric.MetricTypeCase.REACH -> reach = internalReachParams {}
-        Metric.MetricTypeCase.FREQUENCY_HISTOGRAM ->
+        MetricTypeCase.REACH -> reach = internalReachParams {}
+        MetricTypeCase.FREQUENCY_HISTOGRAM ->
           frequencyHistogram = source.frequencyHistogram.toInternal()
-        Metric.MetricTypeCase.IMPRESSION_COUNT ->
-          impressionCount = source.impressionCount.toInternal()
-        Metric.MetricTypeCase.WATCH_DURATION -> watchDuration = source.watchDuration.toInternal()
-        Metric.MetricTypeCase.METRICTYPE_NOT_SET ->
+        MetricTypeCase.IMPRESSION_COUNT -> impressionCount = source.impressionCount.toInternal()
+        MetricTypeCase.WATCH_DURATION -> watchDuration = source.watchDuration.toInternal()
+        MetricTypeCase.METRICTYPE_NOT_SET ->
           error("The metric type in the internal report should've be set.")
       }
 
@@ -719,7 +774,7 @@ private suspend fun WeightedMeasurement.toInternalWeightedMeasurement(
 }
 
 /** Gets a unique reference ID for a [Measurement]. */
-fun getMeasurementReferenceId(
+private fun getMeasurementReferenceId(
   reportIdempotencyKey: String,
   internalTimeInterval: InternalTimeInterval,
   internalMetricDetails: InternalMetricDetails,
@@ -953,7 +1008,7 @@ private suspend fun aggregateInternalEventGroupEntryByDataProviderName(
 }
 
 /** Combines two event group filters. */
-fun combineEventGroupFilters(filter1: String?, filter2: String?): String? {
+private fun combineEventGroupFilters(filter1: String?, filter2: String?): String? {
   if (filter1 == null) return filter2
 
   return if (filter2 == null) filter1
@@ -963,7 +1018,7 @@ fun combineEventGroupFilters(filter1: String?, filter2: String?): String? {
 }
 
 /** Gets the unsigned [MeasurementSpec]. */
-fun getUnsignedMeasurementSpec(
+private fun getUnsignedMeasurementSpec(
   measurementEncryptionPublicKey: ByteString,
   nonceHashes: List<ByteString>,
   internalMetricDetails: InternalMetricDetails
@@ -1007,7 +1062,7 @@ fun getUnsignedMeasurementSpec(
 }
 
 /** Gets a [VidSamplingInterval] for reach-only. */
-fun getReachOnlyVidSamplingInterval(): VidSamplingInterval {
+private fun getReachOnlyVidSamplingInterval(): VidSamplingInterval {
   return vidSamplingInterval {
     // Random draw the start point from the list
     start = REACH_ONLY_VID_SAMPLING_START_LIST.random()
@@ -1016,7 +1071,7 @@ fun getReachOnlyVidSamplingInterval(): VidSamplingInterval {
 }
 
 /** Gets a [VidSamplingInterval] for reach-frequency. */
-fun getReachAndFrequencyVidSamplingInterval(): VidSamplingInterval {
+private fun getReachAndFrequencyVidSamplingInterval(): VidSamplingInterval {
   return vidSamplingInterval {
     // Random draw the start point from the list
     start = REACH_FREQUENCY_VID_SAMPLING_START_LIST.random()
@@ -1025,7 +1080,7 @@ fun getReachAndFrequencyVidSamplingInterval(): VidSamplingInterval {
 }
 
 /** Gets a [VidSamplingInterval] for impression count. */
-fun getImpressionVidSamplingInterval(): VidSamplingInterval {
+private fun getImpressionVidSamplingInterval(): VidSamplingInterval {
   return vidSamplingInterval {
     // Random draw the start point from the list
     start = IMPRESSION_VID_SAMPLING_START_LIST.random()
@@ -1034,7 +1089,7 @@ fun getImpressionVidSamplingInterval(): VidSamplingInterval {
 }
 
 /** Gets a [VidSamplingInterval] for watch duration. */
-fun getDurationVidSamplingInterval(): VidSamplingInterval {
+private fun getDurationVidSamplingInterval(): VidSamplingInterval {
   return vidSamplingInterval {
     // Random draw the start point from the list
     start = WATCH_DURATION_VID_SAMPLING_START_LIST.random()
@@ -1058,7 +1113,7 @@ private fun getMeasurementSpecReachOnly(): MeasurementSpec.ReachAndFrequency {
 }
 
 /** Gets a [MeasurementSpec.ReachAndFrequency] for reach-frequency. */
-fun getMeasurementSpecReachAndFrequency(
+private fun getMeasurementSpecReachAndFrequency(
   maximumFrequencyPerUser: Int
 ): MeasurementSpec.ReachAndFrequency {
   return measurementSpecReachAndFrequency {
@@ -1075,7 +1130,7 @@ fun getMeasurementSpecReachAndFrequency(
 }
 
 /** Gets a [MeasurementSpec.ReachAndFrequency] for impression count. */
-fun getMeasurementSpecImpression(maximumFrequencyPerUser: Int): MeasurementSpec.Impression {
+private fun getMeasurementSpecImpression(maximumFrequencyPerUser: Int): MeasurementSpec.Impression {
   return measurementSpecImpression {
     privacyParams = differentialPrivacyParams {
       epsilon = IMPRESSION_EPSILON
@@ -1086,7 +1141,7 @@ fun getMeasurementSpecImpression(maximumFrequencyPerUser: Int): MeasurementSpec.
 }
 
 /** Gets a [MeasurementSpec.ReachAndFrequency] for watch duration. */
-fun getMeasurementSpecDuration(
+private fun getMeasurementSpecDuration(
   maximumWatchDurationPerUser: Int,
   maximumFrequencyPerUser: Int
 ): MeasurementSpec.Duration {
