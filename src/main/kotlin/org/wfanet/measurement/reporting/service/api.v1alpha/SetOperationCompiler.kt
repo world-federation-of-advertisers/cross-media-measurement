@@ -14,14 +14,9 @@
 
 package org.wfanet.measurement.reporting.service.api.v1alpha
 
-import io.grpc.Status
 import kotlin.math.pow
-import kotlin.math.sign
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-import org.wfanet.measurement.common.grpc.failGrpc
-import org.wfanet.measurement.common.grpc.grpcRequire
-import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.reporting.v1alpha.Metric.NamedSetOperation
 import org.wfanet.measurement.reporting.v1alpha.Metric.SetOperation
 
@@ -79,7 +74,7 @@ private data class SetOperationExpression(
 
 data class WeightedMeasurement(val reportingSets: List<String>, val coefficient: Int)
 
-class ReportRequestCompiler() {
+class SetOperationCompiler {
 
   private var primitiveRegionCache: PrimitiveRegionCache = mutableMapOf()
 
@@ -89,19 +84,21 @@ class ReportRequestCompiler() {
     return primitiveRegionCache.mapValues { it.value.toMap() }.toMap()
   }
 
+  /**
+   * Compiles a set operation to a list of [WeightedMeasurement]s which will be used for the metric
+   * functions that satisfy Cauchy's functional equation with sets, i.e. F(S1 + S2) = F(S1) + F(S2).
+   */
   suspend fun compileSetOperation(namedSetOperation: NamedSetOperation): List<WeightedMeasurement> {
-    val sortedReportingSetNames = mutableListOf<String>()
-    namedSetOperation.setOperation.storeReportingSetNames(sortedReportingSetNames)
+    val reportingSetNames = mutableSetOf<String>()
+    namedSetOperation.setOperation.storeReportingSetNames(reportingSetNames)
 
     // Sorts the list to make sure the IDs are consistent for the same run.
-    sortedReportingSetNames.sort()
-
+    val sortedReportingSetNames = reportingSetNames.sortedBy { it }
     val reportingSetsMap = createReportingSetsMap(sortedReportingSetNames)
+    val numReportingSets = reportingSetsMap.size
 
     val setOperationExpression =
       namedSetOperation.setOperation.toSetOperationExpression(reportingSetsMap)
-
-    val numReportingSets = reportingSetsMap.size
 
     // Step 1 - Gets the primitive regions that form the set operation
     val primitiveRegions =
@@ -124,7 +121,7 @@ class ReportRequestCompiler() {
   ): WeightedMeasurement {
     // Find the reporting sets in the union-set.
     val reportingSetNames =
-      (0 until sortedReportingSetNames.size).mapNotNull { bitPosition ->
+      (sortedReportingSetNames.indices).mapNotNull { bitPosition ->
         if (isBitSet(unionSet, bitPosition)) sortedReportingSetNames[bitPosition] else null
       }
 
@@ -396,22 +393,20 @@ private fun createReportingSetsMap(
   sortedReportingSetNames: List<String>
 ): Map<String, ReportingSet> {
   val reportingSetsMap: MutableMap<String, ReportingSet> = mutableMapOf()
-
   for ((id, reportingSet) in sortedReportingSetNames.withIndex()) {
-    grpcRequire(!reportingSetsMap.containsKey(reportingSet)) {
-      "Reporting sets in SetOperation should be unique."
-    }
     reportingSetsMap[reportingSet] = ReportingSet(id, reportingSet)
   }
   return reportingSetsMap.toMap()
 }
 
 /** Gets all resource names of the reporting sets used in this [SetOperation]. */
-private fun SetOperation.storeReportingSetNames(reportingSetNames: MutableList<String>) {
+private fun SetOperation.storeReportingSetNames(reportingSetNames: MutableSet<String>) {
   val root = this
-  grpcRequire(root.hasLhs()) { "lhs in SetOperation must be set." }
-  grpcRequire(root.lhs.hasReportingSet() || root.lhs.hasOperation()) {
-    "Operand type of lhs in SetOperation must be set."
+  if (!root.hasLhs()) {
+    throw IllegalArgumentException("lhs in SetOperation must be set.")
+  }
+  if (!root.lhs.hasReportingSet() && !root.lhs.hasOperation()) {
+    throw IllegalArgumentException("Operand type of lhs in SetOperation must be set.")
   }
 
   root.lhs.storeReportingSetNames(reportingSetNames)
@@ -420,7 +415,7 @@ private fun SetOperation.storeReportingSetNames(reportingSetNames: MutableList<S
 
 /** Gets all resource names of the reporting sets used in this [SetOperation.Operand]. */
 private fun SetOperation.Operand.storeReportingSetNames(
-  reportingSetNames: MutableList<String>,
+  reportingSetNames: MutableSet<String>,
 ) {
   val node = this
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
@@ -440,12 +435,15 @@ private fun SetOperation.toSetOperationExpression(
   reportingSetsMap: Map<String, ReportingSet>
 ): SetOperationExpression {
   val root = this
-  grpcRequire(root.hasLhs()) { "lhs in SetOperation must be set." }
+
+  if (!root.hasLhs()) {
+    throw IllegalArgumentException("lhs in SetOperation must be set.")
+  }
 
   val lhs =
-    grpcRequireNotNull(root.lhs.toOperand(reportingSetsMap)) {
-      "Operand type of lhs in SetOperation must be set."
-    }
+    root.lhs.toOperand(reportingSetsMap)
+      ?: throw IllegalArgumentException("Operand type of lhs in SetOperation must be set.")
+
   val rhs = root.rhs.toOperand(reportingSetsMap)
 
   return SetOperationExpression(root.type.toOperator(), lhs, rhs)
@@ -473,11 +471,11 @@ private fun SetOperation.Type.toOperator(): Operator {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
   return when (source) {
     SetOperation.Type.TYPE_UNSPECIFIED ->
-      failGrpc(Status.INVALID_ARGUMENT) { "Set operator type is not specified." }
+      throw IllegalArgumentException("Set operator type is not specified.")
     SetOperation.Type.UNION -> Operator.UNION
     SetOperation.Type.DIFFERENCE -> Operator.DIFFERENCE
     SetOperation.Type.INTERSECTION -> Operator.INTERSECT
     SetOperation.Type.UNRECOGNIZED ->
-      failGrpc(Status.INVALID_ARGUMENT) { "Unrecognized Set operator type." }
+      throw IllegalArgumentException("Unrecognized Set operator type.")
   }
 }

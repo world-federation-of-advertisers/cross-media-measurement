@@ -490,7 +490,7 @@ private suspend fun CreateReportRequest.toInternal(
 
   val eventGroupFilters =
     source.report.eventGroupUniverse.eventGroupEntriesList.associate { it.key to it.value }
-  val reportRequestCompiler = ReportRequestCompiler()
+  val setOperationCompiler = SetOperationCompiler()
 
   val internalReport = internalReport {
     measurementConsumerReferenceId = credential.measurementConsumerReferenceId
@@ -516,7 +516,7 @@ private suspend fun CreateReportRequest.toInternal(
             metric.toInternal(
               serviceStubs,
               credential,
-              reportRequestCompiler,
+              setOperationCompiler,
               internalTimeIntervalsList,
               eventGroupFilters,
             )
@@ -622,7 +622,7 @@ private fun InternalNamedSetOperation.toMeasurementReferenceIds(): List<String> 
 private suspend fun Metric.toInternal(
   serviceStubs: ServiceStubs,
   credential: Credential,
-  reportRequestCompiler: ReportRequestCompiler,
+  setOperationCompiler: SetOperationCompiler,
   internalTimeIntervalsList: List<InternalTimeInterval>,
   eventGroupFilters: Map<String, String>,
 ): InternalMetric {
@@ -651,7 +651,7 @@ private suspend fun Metric.toInternal(
             setOperation.toInternal(
               serviceStubs,
               credential,
-              reportRequestCompiler,
+              setOperationCompiler,
               internalTimeIntervalsList,
               eventGroupFilters,
               this@internalMetric.details,
@@ -676,7 +676,7 @@ private fun InternalTimeInterval.toMeasurementTimeInterval(): MeasurementTimeInt
 private suspend fun NamedSetOperation.toInternal(
   serviceStubs: ServiceStubs,
   credential: Credential,
-  reportRequestCompiler: ReportRequestCompiler,
+  setOperationCompiler: SetOperationCompiler,
   internalTimeIntervalsList: List<InternalTimeInterval>,
   eventGroupFilters: Map<String, String>,
   internalMetricDetails: InternalMetricDetails,
@@ -698,7 +698,7 @@ private suspend fun NamedSetOperation.toInternal(
     displayName = source.displayName
     setOperation = source.setOperation.toInternal(serviceStubs, credential, eventGroupFilters)
 
-    val weightedMeasurementsList = reportRequestCompiler.compileSetOperation(source)
+    val weightedMeasurementsList = setOperationCompiler.compileSetOperation(source)
 
     this.measurementCalculations +=
       getMeasurementCalculationList(
