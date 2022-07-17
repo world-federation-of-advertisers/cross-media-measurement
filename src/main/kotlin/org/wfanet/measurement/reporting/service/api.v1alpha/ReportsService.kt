@@ -84,8 +84,8 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurement
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
 import org.wfanet.measurement.internal.reporting.CreateReportRequest as InternalCreateReportRequest
-import org.wfanet.measurement.internal.reporting.CreateReportRequest.MeasurementKey
-import org.wfanet.measurement.internal.reporting.CreateReportRequestKt.measurementKey
+import org.wfanet.measurement.internal.reporting.CreateReportRequest.MeasurementKey as InternalMeasurementKey
+import org.wfanet.measurement.internal.reporting.CreateReportRequestKt.measurementKey as internalMeasurementKey
 import org.wfanet.measurement.internal.reporting.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.Measurement.Result as InternalMeasurementResult
 import org.wfanet.measurement.internal.reporting.MeasurementKt.ResultKt.frequency as internalFrequency
@@ -122,6 +122,7 @@ import org.wfanet.measurement.internal.reporting.Report as InternalReport
 import org.wfanet.measurement.internal.reporting.ReportKt.details as internalReportDetails
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
+import org.wfanet.measurement.internal.reporting.SetMeasurementResultRequest as SetInternalMeasurementResultRequest
 import org.wfanet.measurement.internal.reporting.StreamReportsRequest as StreamInternalReportsRequest
 import org.wfanet.measurement.internal.reporting.StreamReportsRequestKt.filter
 import org.wfanet.measurement.internal.reporting.TimeInterval as InternalTimeInterval
@@ -131,6 +132,7 @@ import org.wfanet.measurement.internal.reporting.getMeasurementRequest as getInt
 import org.wfanet.measurement.internal.reporting.getReportByIdempotencyKeyRequest
 import org.wfanet.measurement.internal.reporting.getReportRequest as getInternalReportRequest
 import org.wfanet.measurement.internal.reporting.getReportingSetRequest
+import org.wfanet.measurement.internal.reporting.measurement as internalMeasurement
 import org.wfanet.measurement.internal.reporting.metric as internalMetric
 import org.wfanet.measurement.internal.reporting.periodicTimeInterval as internalPeriodicTimeInterval
 import org.wfanet.measurement.internal.reporting.report as internalReport
@@ -407,17 +409,14 @@ class ReportsService(
       Measurement.State.SUCCEEDED -> {
         // Converts a Measurement to an InternalMeasurement and store it into the database with
         // SUCCEEDED state
+        val setInternalMeasurementResultRequest =
+          getSetInternalMeasurementResultRequest(
+            measurementConsumerReferenceId,
+            measurementReferenceId,
+            measurement.resultsList,
+          )
         serviceStubs.internalMeasurementsStub.setMeasurementResult(
-          setInternalMeasurementResultRequest {
-            this.measurementConsumerReferenceId = measurementConsumerReferenceId
-            this.measurementReferenceId = measurement.measurementReferenceId
-            result =
-              aggregateResults(
-                measurement.resultsList
-                  .map { it.toMeasurementResult() }
-                  .map(Measurement.Result::toInternal)
-              )
-          }
+          setInternalMeasurementResultRequest
         )
       }
       Measurement.State.AWAITING_REQUISITION_FULFILLMENT,
@@ -434,6 +433,23 @@ class ReportsService(
       }
       Measurement.State.STATE_UNSPECIFIED -> error("The measurement state should've been set.")
       Measurement.State.UNRECOGNIZED -> error("Unrecognized measurement state.")
+    }
+  }
+
+  /** Gets a [SetInternalMeasurementResultRequest]. */
+  private suspend fun getSetInternalMeasurementResultRequest(
+    measurementConsumerReferenceId: String,
+    measurementReferenceId: String,
+    resultsList: List<Measurement.ResultPair>,
+  ): SetInternalMeasurementResultRequest {
+
+    return setInternalMeasurementResultRequest {
+      this.measurementConsumerReferenceId = measurementConsumerReferenceId
+      this.measurementReferenceId = measurementReferenceId
+      result =
+        aggregateResults(
+          resultsList.map { it.toMeasurementResult() }.map(Measurement.Result::toInternal)
+        )
     }
   }
 
@@ -513,17 +529,17 @@ private suspend fun CreateReportRequest.toInternal(
     report = internalReport
     measurements +=
       internalReport.metricsList
-        .map { it.toMeasurementKey(credential.measurementConsumerReferenceId) }
+        .map { it.toInternalMeasurementKey(credential.measurementConsumerReferenceId) }
         .flatten()
   }
 }
 
-/** Converts a [InternalMetric] to a list of [MeasurementKey]s. */
-private fun InternalMetric.toMeasurementKey(
+/** Converts a [InternalMetric] to a list of [InternalMeasurementKey]s. */
+private fun InternalMetric.toInternalMeasurementKey(
   measurementConsumerReferenceId: String
-): List<MeasurementKey> {
+): List<InternalMeasurementKey> {
   return this.toMeasurementReferenceIds().map { measurementReferenceId ->
-    measurementKey {
+    internalMeasurementKey {
       this.measurementConsumerReferenceId = measurementConsumerReferenceId
       this.measurementReferenceId = measurementReferenceId
     }
@@ -1419,6 +1435,8 @@ private fun InternalReport.toReport(): Report {
     }
 
     this.state = source.state.toState()
+
+    // TODO(@riemanli) Add conversion of the reuslt.
   }
 }
 
