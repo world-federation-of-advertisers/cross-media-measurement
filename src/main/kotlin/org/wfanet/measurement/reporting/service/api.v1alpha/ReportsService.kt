@@ -410,6 +410,7 @@ class ReportsService(
     measurementReferenceId: String,
     measurementConsumerReferenceId: String,
   ) {
+    // TODO(@riemanli) This should be a measurement resource name but not a measurement reference ID
     val measurement =
       serviceStubs.measurementsStub
         .withAuthenticationKey(apiAuthenticationKey)
