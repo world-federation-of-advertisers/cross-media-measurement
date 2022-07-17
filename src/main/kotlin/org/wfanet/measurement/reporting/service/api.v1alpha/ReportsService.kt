@@ -638,7 +638,7 @@ private suspend fun Metric.toInternal(
         MetricTypeCase.IMPRESSION_COUNT -> impressionCount = source.impressionCount.toInternal()
         MetricTypeCase.WATCH_DURATION -> watchDuration = source.watchDuration.toInternal()
         MetricTypeCase.METRICTYPE_NOT_SET ->
-          error("The metric type in the internal report should've be set.")
+          error("The type of the metric in the internal report should've be set.")
       }
 
       cumulative = source.cumulative
@@ -731,46 +731,26 @@ private suspend fun getMeasurementCalculationList(
       this.timeInterval = timeInterval
       weightedMeasurements +=
         weightedMeasurementsList.mapIndexed { index, weightedMeasurement ->
-          weightedMeasurement.toInternalWeightedMeasurement(
+          val measurementReferenceId =
+            getMeasurementReferenceId(
+              credential.reportIdempotencyKey,
+              timeInterval,
+              internalMetricDetails,
+              setOperationDisplayName,
+              index,
+            )
+
+          weightedMeasurement.toInternal(
             serviceStubs,
             credential,
             timeInterval,
             eventGroupFilters,
             internalMetricDetails,
-            setOperationDisplayName,
-            index
+            measurementReferenceId
           )
         }
     }
   }
-}
-
-/** Converts a [WeightedMeasurement] to an [InternalWeightedMeasurement] */
-private suspend fun WeightedMeasurement.toInternalWeightedMeasurement(
-  serviceStubs: ServiceStubs,
-  credential: Credential,
-  timeInterval: org.wfanet.measurement.internal.reporting.TimeInterval,
-  eventGroupFilters: Map<String, String>,
-  internalMetricDetails: org.wfanet.measurement.internal.reporting.Metric.Details,
-  setOperationDisplayName: String,
-  index: Int
-): InternalWeightedMeasurement {
-  val measurementReferenceId =
-    getMeasurementReferenceId(
-      credential.reportIdempotencyKey,
-      timeInterval,
-      internalMetricDetails,
-      setOperationDisplayName,
-      index,
-    )
-  return this.toInternal(
-    serviceStubs,
-    credential,
-    timeInterval,
-    eventGroupFilters,
-    internalMetricDetails,
-    measurementReferenceId,
-  )
 }
 
 /** Gets a unique reference ID for a [Measurement]. */
@@ -850,9 +830,9 @@ private suspend fun WeightedMeasurement.toInternal(
 private suspend fun getCreateMeasurementRequest(
   serviceStubs: ServiceStubs,
   credential: Credential,
-  internalTimeInterval: org.wfanet.measurement.internal.reporting.TimeInterval,
+  internalTimeInterval: InternalTimeInterval,
   eventGroupFilters: Map<String, String>,
-  internalMetricDetails: org.wfanet.measurement.internal.reporting.Metric.Details,
+  internalMetricDetails: InternalMetricDetails,
   measurementReferenceId: String,
   reportingSetNames: List<String>,
 ): CreateMeasurementRequest {
