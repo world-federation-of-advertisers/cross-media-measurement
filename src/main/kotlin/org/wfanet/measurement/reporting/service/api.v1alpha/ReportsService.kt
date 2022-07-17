@@ -775,6 +775,14 @@ private suspend fun WeightedMeasurement.toInternal(
     serviceStubs.measurementsStub
       .withAuthenticationKey(credential.apiAuthenticationKey)
       .createMeasurement(createMeasurementRequest)
+
+    serviceStubs.internalMeasurementsStub.createMeasurement(
+      internalMeasurement {
+        measurementConsumerReferenceId = credential.measurementConsumerReferenceId
+        this.measurementReferenceId = measurementReferenceId
+        state = InternalMeasurement.State.PENDING
+      }
+    )
   }
 
   return internalWeightedMeasurement {
@@ -1261,7 +1269,7 @@ private fun InternalPeriodicTimeInterval.toInternalTimeIntervalsList(): List<Int
   }
 }
 
-/** Generate row headers of [InternalReport.Details.Result] from an [InternalReport]. */
+/** Generate row headers of [InternalReport] from an [InternalReport]. */
 private fun getRowHeaders(report: InternalReport): List<String> {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
   return when (report.timeCase) {
@@ -1436,7 +1444,7 @@ private fun InternalReport.toReport(): Report {
 
     this.state = source.state.toState()
 
-    // TODO(@riemanli) Add conversion of the reuslt.
+    // TODO(@riemanli) Add conversion of the result.
   }
 }
 
