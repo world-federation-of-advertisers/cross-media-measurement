@@ -270,14 +270,24 @@ class ReportsService(
     }
 
     try {
-      serviceStubs.internalReportsStub.getReportByIdempotencyKey(
-        getReportByIdempotencyKeyRequest {
-          measurementConsumerReferenceId = resourceKey.measurementConsumerId
-          reportIdempotencyKey = request.report.reportIdempotencyKey
-        }
-      )
+      val internalReport =
+        serviceStubs.internalReportsStub.getReportByIdempotencyKey(
+          getReportByIdempotencyKeyRequest {
+            measurementConsumerReferenceId = resourceKey.measurementConsumerId
+            reportIdempotencyKey = request.report.reportIdempotencyKey
+          }
+        )
+
+      val reportResourceName =
+        ReportKey(
+            internalReport.measurementConsumerReferenceId,
+            externalIdToApiId(internalReport.externalReportId)
+          )
+          .toName()
+
       failGrpc(Status.ALREADY_EXISTS) {
-        "Report with reportIdempotencyKey=${request.report.reportIdempotencyKey} already exists."
+        "Report [$reportResourceName] with reportIdempotencyKey=" +
+          "${request.report.reportIdempotencyKey} already exists."
       }
     } catch (_: RuntimeException) {} // No existing reports have the same reportIdempotencyKey
 
@@ -1441,16 +1451,16 @@ private fun Measurement.Result.toInternal(): InternalMeasurementResult {
 /** Converts an internal [InternalReport] to a public [Report]. */
 private fun InternalReport.toReport(): Report {
   val source = this
-  val measurementConsumerResourceName =
-    MeasurementConsumerKey(source.measurementConsumerReferenceId).toName()
   val reportResourceName =
     ReportKey(
         measurementConsumerId = source.measurementConsumerReferenceId,
         reportId = externalIdToApiId(source.externalReportId)
       )
       .toName()
+  val measurementConsumerResourceName =
+    MeasurementConsumerKey(source.measurementConsumerReferenceId).toName()
   val eventGroupEntries =
-    source.details.eventGroupFiltersMap.toList().map { (eventGroupResourceName, filterPredicate) ->
+    source.details.eventGroupFiltersMap.map { (eventGroupResourceName, filterPredicate) ->
       eventGroupUniverseEntry {
         key = eventGroupResourceName
         value = filterPredicate
@@ -1470,7 +1480,7 @@ private fun InternalReport.toReport(): Report {
       InternalReport.TimeCase.PERIODIC_TIME_INTERVAL ->
         this.periodicTimeInterval = source.periodicTimeInterval.toPeriodicTimeInterval()
       InternalReport.TimeCase.TIME_NOT_SET ->
-        error("The time in the internal report should've be set.")
+        error("The time in the internal report should've been set.")
     }
 
     for (metric in source.metricsList) {
@@ -1490,7 +1500,7 @@ private fun InternalReport.State.toState(): Report.State {
     InternalReport.State.RUNNING -> Report.State.RUNNING
     InternalReport.State.SUCCEEDED -> Report.State.SUCCEEDED
     InternalReport.State.FAILED -> Report.State.FAILED
-    InternalReport.State.STATE_UNSPECIFIED -> error("Report state should've be set.")
+    InternalReport.State.STATE_UNSPECIFIED -> error("Report state should've been set.")
     InternalReport.State.UNRECOGNIZED -> error("Unrecognized report state.")
   }
 }
@@ -1510,7 +1520,7 @@ private fun InternalMetric.toMetric(): Metric {
       InternalMetricTypeCase.WATCH_DURATION ->
         watchDuration = source.details.watchDuration.toWatchDuration()
       InternalMetricTypeCase.METRICTYPE_NOT_SET ->
-        error("The metric type in the internal report should've be set.")
+        error("The metric type in the internal report should've been set.")
     }
 
     cumulative = source.details.cumulative
@@ -1570,7 +1580,7 @@ private fun InternalSetOperation.Type.toType(): SetOperation.Type {
     InternalSetOperation.Type.UNION -> SetOperation.Type.UNION
     InternalSetOperation.Type.INTERSECTION -> SetOperation.Type.INTERSECTION
     InternalSetOperation.Type.DIFFERENCE -> SetOperation.Type.DIFFERENCE
-    InternalSetOperation.Type.TYPE_UNSPECIFIED -> error("Set operator type should've be set.")
+    InternalSetOperation.Type.TYPE_UNSPECIFIED -> error("Set operator type should've been set.")
     InternalSetOperation.Type.UNRECOGNIZED -> error("Unrecognized Set operator type.")
   }
 }
