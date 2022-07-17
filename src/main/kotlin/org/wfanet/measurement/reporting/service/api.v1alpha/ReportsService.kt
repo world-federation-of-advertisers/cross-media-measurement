@@ -876,7 +876,8 @@ private suspend fun getCreateMeasurementRequest(
       getUnsignedMeasurementSpec(
         measurementEncryptionPublicKey,
         dataProviders.map { it.value.nonceHash },
-        internalMetricDetails
+        internalMetricDetails,
+        credential.secureRandom,
       )
 
     this.measurementSpec =
@@ -1012,7 +1013,8 @@ private fun combineEventGroupFilters(filter1: String?, filter2: String?): String
 private fun getUnsignedMeasurementSpec(
   measurementEncryptionPublicKey: ByteString,
   nonceHashes: List<ByteString>,
-  internalMetricDetails: InternalMetricDetails
+  internalMetricDetails: InternalMetricDetails,
+  secureRandom: SecureRandom,
 ): MeasurementSpec {
   return measurementSpec {
     measurementPublicKey = measurementEncryptionPublicKey
@@ -1022,21 +1024,21 @@ private fun getUnsignedMeasurementSpec(
     when (internalMetricDetails.metricTypeCase) {
       InternalMetricTypeCase.REACH -> {
         reachAndFrequency = getMeasurementSpecReachOnly()
-        vidSamplingInterval = getReachOnlyVidSamplingInterval()
+        vidSamplingInterval = getReachOnlyVidSamplingInterval(secureRandom)
       }
       InternalMetricTypeCase.FREQUENCY_HISTOGRAM -> {
         reachAndFrequency =
           getMeasurementSpecReachAndFrequency(
             internalMetricDetails.frequencyHistogram.maximumFrequencyPerUser
           )
-        vidSamplingInterval = getReachAndFrequencyVidSamplingInterval()
+        vidSamplingInterval = getReachAndFrequencyVidSamplingInterval(secureRandom)
       }
       InternalMetricTypeCase.IMPRESSION_COUNT -> {
         impression =
           getMeasurementSpecImpression(
             internalMetricDetails.impressionCount.maximumFrequencyPerUser
           )
-        vidSamplingInterval = getImpressionVidSamplingInterval()
+        vidSamplingInterval = getImpressionVidSamplingInterval(secureRandom)
       }
       InternalMetricTypeCase.WATCH_DURATION -> {
         duration =
@@ -1044,7 +1046,7 @@ private fun getUnsignedMeasurementSpec(
             internalMetricDetails.watchDuration.maximumWatchDurationPerUser,
             internalMetricDetails.watchDuration.maximumFrequencyPerUser
           )
-        vidSamplingInterval = getDurationVidSamplingInterval()
+        vidSamplingInterval = getDurationVidSamplingInterval(secureRandom)
       }
       InternalMetricTypeCase.METRICTYPE_NOT_SET ->
         error("Unset metric type should've already raised error.")
@@ -1053,37 +1055,43 @@ private fun getUnsignedMeasurementSpec(
 }
 
 /** Gets a [VidSamplingInterval] for reach-only. */
-private fun getReachOnlyVidSamplingInterval(): VidSamplingInterval {
+private fun getReachOnlyVidSamplingInterval(secureRandom: SecureRandom): VidSamplingInterval {
   return vidSamplingInterval {
     // Random draw the start point from the list
-    start = REACH_ONLY_VID_SAMPLING_START_LIST.random()
+    val index = secureRandom.nextInt(REACH_ONLY_VID_SAMPLING_START_LIST.size)
+    start = REACH_ONLY_VID_SAMPLING_START_LIST[index]
     width = REACH_ONLY_VID_SAMPLING_WIDTH
   }
 }
 
 /** Gets a [VidSamplingInterval] for reach-frequency. */
-private fun getReachAndFrequencyVidSamplingInterval(): VidSamplingInterval {
+private fun getReachAndFrequencyVidSamplingInterval(
+  secureRandom: SecureRandom
+): VidSamplingInterval {
   return vidSamplingInterval {
     // Random draw the start point from the list
-    start = REACH_FREQUENCY_VID_SAMPLING_START_LIST.random()
+    val index = secureRandom.nextInt(REACH_ONLY_VID_SAMPLING_START_LIST.size)
+    start = REACH_FREQUENCY_VID_SAMPLING_START_LIST[index]
     width = REACH_FREQUENCY_VID_SAMPLING_WIDTH
   }
 }
 
 /** Gets a [VidSamplingInterval] for impression count. */
-private fun getImpressionVidSamplingInterval(): VidSamplingInterval {
+private fun getImpressionVidSamplingInterval(secureRandom: SecureRandom): VidSamplingInterval {
   return vidSamplingInterval {
     // Random draw the start point from the list
-    start = IMPRESSION_VID_SAMPLING_START_LIST.random()
+    val index = secureRandom.nextInt(REACH_ONLY_VID_SAMPLING_START_LIST.size)
+    start = IMPRESSION_VID_SAMPLING_START_LIST[index]
     width = IMPRESSION_VID_SAMPLING_WIDTH
   }
 }
 
 /** Gets a [VidSamplingInterval] for watch duration. */
-private fun getDurationVidSamplingInterval(): VidSamplingInterval {
+private fun getDurationVidSamplingInterval(secureRandom: SecureRandom): VidSamplingInterval {
   return vidSamplingInterval {
     // Random draw the start point from the list
-    start = WATCH_DURATION_VID_SAMPLING_START_LIST.random()
+    val index = secureRandom.nextInt(REACH_ONLY_VID_SAMPLING_START_LIST.size)
+    start = WATCH_DURATION_VID_SAMPLING_START_LIST[index]
     width = WATCH_DURATION_VID_SAMPLING_WIDTH
   }
 }
