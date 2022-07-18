@@ -22,7 +22,6 @@ import com.google.protobuf.timestamp
 import com.google.protobuf.util.Durations
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
-import java.nio.file.Path
 import java.nio.file.Paths
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
@@ -39,10 +38,13 @@ import org.wfanet.measurement.api.v2.alpha.listReportsPageToken
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.Measurement
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
@@ -53,10 +55,13 @@ import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCorouti
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.makeDataProviderCertificateName
 import org.wfanet.measurement.api.v2alpha.measurement
+import org.wfanet.measurement.api.v2alpha.measurementConsumer
+import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.common.base64UrlEncode
@@ -65,12 +70,14 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.tink.testing.loadPrivateKey
+import org.wfanet.measurement.common.crypto.tink.testing.loadPublicKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.testing.verifyProtoArgument
+import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.duchy.encryptResult
 import org.wfanet.measurement.consent.client.duchy.signResult
 import org.wfanet.measurement.internal.reporting.Measurement as InternalMeasurement
@@ -96,6 +103,7 @@ import org.wfanet.measurement.internal.reporting.MetricKt.setOperation as intern
 import org.wfanet.measurement.internal.reporting.MetricKt.watchDurationParams as internalWatchDurationParams
 import org.wfanet.measurement.internal.reporting.Report as InternalReport
 import org.wfanet.measurement.internal.reporting.ReportKt.details as internalReportDetails
+import org.wfanet.measurement.internal.reporting.ReportingSetKt.eventGroupKey as internalReportingSetEventGroupKey
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase as InternalReportingSetsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineImplBase
@@ -107,6 +115,7 @@ import org.wfanet.measurement.internal.reporting.measurement as internalMeasurem
 import org.wfanet.measurement.internal.reporting.metric as internalMetric
 import org.wfanet.measurement.internal.reporting.periodicTimeInterval as internalPeriodicTimeInterval
 import org.wfanet.measurement.internal.reporting.report as internalReport
+import org.wfanet.measurement.internal.reporting.reportingSet as internalReportingSet
 import org.wfanet.measurement.internal.reporting.setMeasurementFailureRequest
 import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest
 import org.wfanet.measurement.internal.reporting.streamReportsRequest
@@ -129,31 +138,33 @@ import org.wfanet.measurement.reporting.v1alpha.listReportsResponse
 import org.wfanet.measurement.reporting.v1alpha.metric
 import org.wfanet.measurement.reporting.v1alpha.periodicTimeInterval
 import org.wfanet.measurement.reporting.v1alpha.report
+import org.wfanet.measurement.reporting.v1alpha.reportingSet
 
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 private const val PAGE_SIZE = 3
 
-private val SECRETS_DIR: Path =
+private val SECRETS_DIR =
   getRuntimePath(
-    Paths.get(
-      "wfa_measurement_system",
-      "src",
-      "main",
-      "k8s",
-      "testing",
-      "secretfiles",
-    )
-  )!!
+      Paths.get(
+        "wfa_measurement_system",
+        "src",
+        "main",
+        "k8s",
+        "testing",
+        "secretfiles",
+      )
+    )!!
+    .toFile()
 
 // Authentication key
 private const val API_AUTHENTICATION_KEY = "nR5QPN7ptx"
 
-// Certificate
+// Aggregatir certificate
 private val AGGREGATOR_CERTIFICATE_DER =
-  SECRETS_DIR.resolve("aggregator_cs_cert.der").toFile().readByteString()
+  SECRETS_DIR.resolve("aggregator_cs_cert.der").readByteString()
 private val AGGREGATOR_PRIVATE_KEY_DER =
-  SECRETS_DIR.resolve("aggregator_cs_private.der").toFile().readByteString()
+  SECRETS_DIR.resolve("aggregator_cs_private.der").readByteString()
 private val AGGREGATOR_SIGNING_KEY: SigningKeyHandle by lazy {
   val consentSignal509Cert = readCertificate(AGGREGATOR_CERTIFICATE_DER)
   SigningKeyHandle(
@@ -164,25 +175,26 @@ private val AGGREGATOR_SIGNING_KEY: SigningKeyHandle by lazy {
 private val AGGREGATOR_CERTIFICATE = certificate { x509Der = AGGREGATOR_CERTIFICATE_DER }
 
 // Public keys of measurement consumers
-private val MEASUREMENT_PUBLIC_KEY_DATA =
-  SECRETS_DIR.resolve("mc_enc_public.tink").toFile().readByteString()
+private val MEASUREMENT_PUBLIC_KEY_DATA = SECRETS_DIR.resolve("mc_enc_public.tink").readByteString()
 private val MEASUREMENT_PUBLIC_KEY = encryptionPublicKey {
   format = EncryptionPublicKey.Format.TINK_KEYSET
   data = MEASUREMENT_PUBLIC_KEY_DATA
 }
 
-// private keys of measurement consumers
+// Private keys of measurement consumers
 private val MEASUREMENT_CONSUMER_CERTIFICATE_DER =
-  SECRETS_DIR.resolve("mc_cs_cert.der").toFile().readByteString()
+  SECRETS_DIR.resolve("mc_cs_cert.der").readByteString()
 private val MEASUREMENT_CONSUMER_PRIVATE_KEY_DER =
-  SECRETS_DIR.resolve("mc_cs_private.der").toFile().readByteString()
-private val measurementConsumerCert = readCertificate(MEASUREMENT_CONSUMER_CERTIFICATE_DER)
+  SECRETS_DIR.resolve("mc_cs_private.der").readByteString()
+private val MEASUREMENT_CONSUMER_CERTIFICATE = readCertificate(MEASUREMENT_CONSUMER_CERTIFICATE_DER)
 private val MEASUREMENT_CONSUMER_PRIVATE_KEY =
-  readPrivateKey(MEASUREMENT_CONSUMER_PRIVATE_KEY_DER, measurementConsumerCert.publicKey.algorithm)
+  readPrivateKey(
+    MEASUREMENT_CONSUMER_PRIVATE_KEY_DER,
+    MEASUREMENT_CONSUMER_CERTIFICATE.publicKey.algorithm
+  )
 
-// private key handles of measurement consumers
-private val MEASUREMENT_CONSUMER_PRIVATE_KEY_DATA =
-  SECRETS_DIR.resolve("mc_enc_private.tink").toFile()
+// Private key handles of measurement consumers
+private val MEASUREMENT_CONSUMER_PRIVATE_KEY_DATA = SECRETS_DIR.resolve("mc_enc_private.tink")
 private val MEASUREMENT_CONSUMER_PRIVATE_KEY_HANDLE: PrivateKeyHandle =
   loadPrivateKey(MEASUREMENT_CONSUMER_PRIVATE_KEY_DATA)
 
@@ -202,6 +214,34 @@ private val MEASUREMENT_CONSUMER_NAME =
   MeasurementConsumerKey(MEASUREMENT_CONSUMER_REFERENCE_ID).toName()
 private val MEASUREMENT_CONSUMER_NAME_2 =
   MeasurementConsumerKey(MEASUREMENT_CONSUMER_REFERENCE_ID_2).toName()
+
+// Measurement consumer certificate IDs
+private const val MEASUREMENT_CONSUMER_CERTIFICATE_EXTERNAL_ID = 121L
+private const val MEASUREMENT_CONSUMER_CERTIFICATE_EXTERNAL_ID_2 = 122L
+private val MEASUREMENT_CONSUMER_CERTIFICATE_REFERENCE_ID =
+  externalIdToApiId(MEASUREMENT_CONSUMER_CERTIFICATE_EXTERNAL_ID)
+private val MEASUREMENT_CONSUMER_CERTIFICATE_REFERENCE_ID_2 =
+  externalIdToApiId(MEASUREMENT_CONSUMER_CERTIFICATE_EXTERNAL_ID_2)
+private val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
+  MeasurementConsumerCertificateKey(
+      MEASUREMENT_CONSUMER_REFERENCE_ID,
+      MEASUREMENT_CONSUMER_CERTIFICATE_REFERENCE_ID
+    )
+    .toName()
+private val MEASUREMENT_CONSUMER_CERTIFICATE_NAME_2 =
+  MeasurementConsumerCertificateKey(
+      MEASUREMENT_CONSUMER_REFERENCE_ID_2,
+      MEASUREMENT_CONSUMER_CERTIFICATE_REFERENCE_ID_2
+    )
+    .toName()
+
+// Measurement consumers
+private val MEASUREMENT_CONSUMER = measurementConsumer {
+  name = MEASUREMENT_CONSUMER_NAME
+  certificateDer = MEASUREMENT_CONSUMER_CERTIFICATE_DER
+  certificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
+  publicKey = signedData { data = MEASUREMENT_PUBLIC_KEY_DATA }
+}
 
 // Reporting set IDs and names
 private const val REPORTING_SET_EXTERNAL_ID = 221L
@@ -270,6 +310,11 @@ private val DATA_PROVIDER_NAME = DataProviderKey(DATA_PROVIDER_REFERENCE_ID).toN
 private val DATA_PROVIDER_NAME_2 = DataProviderKey(DATA_PROVIDER_REFERENCE_ID_2).toName()
 private val DATA_PROVIDER_NAME_3 = DataProviderKey(DATA_PROVIDER_REFERENCE_ID_3).toName()
 
+private val DATA_PROVIDER_PUBLIC_KEY =
+  loadPublicKey(SECRETS_DIR.resolve("edp1_enc_public.tink")).toEncryptionPublicKey()
+private val DATA_PROVIDER_PRIVATE_KEY_HANDLE =
+  loadPrivateKey(SECRETS_DIR.resolve("edp1_enc_private.tink"))
+
 private const val DATA_PROVIDER_CERTIFICATE_EXTERNAL_ID = 561L
 private const val DATA_PROVIDER_CERTIFICATE_EXTERNAL_ID_2 = 562L
 private const val DATA_PROVIDER_CERTIFICATE_EXTERNAL_ID_3 = 563L
@@ -295,6 +340,13 @@ private val DATA_PROVIDER_CERTIFICATE_NAME_3 =
     DATA_PROVIDER_REFERENCE_ID_3,
     DATA_PROVIDER_CERTIFICATE_REFERENCE_ID_3
   )
+
+// Data providers
+private val DATA_PROVIDER = dataProvider {
+  name = DATA_PROVIDER_NAME
+  certificate = DATA_PROVIDER_CERTIFICATE_NAME
+  publicKey = signedData { data = DATA_PROVIDER_PUBLIC_KEY.toByteString() }
+}
 
 // Event group IDs and names
 private const val EVENT_GROUP_EXTERNAL_ID = 661L
@@ -325,6 +377,70 @@ private val EVENT_GROUP_NAME_3 =
       EVENT_GROUP_REFERENCE_ID_3
     )
     .toName()
+private val EVENT_GROUP_NAMES = listOf(EVENT_GROUP_NAME, EVENT_GROUP_NAME_2, EVENT_GROUP_NAME_3)
+
+// Event group keys
+private val INTERNAL_EVENT_GROUP_KEY = internalReportingSetEventGroupKey {
+  measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+  dataProviderReferenceId = DATA_PROVIDER_REFERENCE_ID
+  eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
+}
+private val INTERNAL_EVENT_GROUP_KEY_2 = internalReportingSetEventGroupKey {
+  measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+  dataProviderReferenceId = DATA_PROVIDER_REFERENCE_ID_2
+  eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID_2
+}
+private val INTERNAL_EVENT_GROUP_KEY_3 = internalReportingSetEventGroupKey {
+  measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+  dataProviderReferenceId = DATA_PROVIDER_REFERENCE_ID_3
+  eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID_3
+}
+private val INTERNAL_EVENT_GROUP_KEYS =
+  listOf(INTERNAL_EVENT_GROUP_KEY, INTERNAL_EVENT_GROUP_KEY_2, INTERNAL_EVENT_GROUP_KEY_3)
+
+// Reporting sets
+private const val REPORTING_SET_FILTER = "AGE>18"
+
+private val DISPLAY_NAME = REPORTING_SET_NAME + REPORTING_SET_FILTER
+private val DISPLAY_NAME_2 = REPORTING_SET_NAME_2 + REPORTING_SET_FILTER
+private val DISPLAY_NAME_3 = REPORTING_SET_NAME_3 + REPORTING_SET_FILTER
+
+private val INTERNAL_REPORTING_SET = internalReportingSet {
+  measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+  externalReportingSetId = REPORTING_SET_EXTERNAL_ID
+  eventGroupKeys.addAll(INTERNAL_EVENT_GROUP_KEYS)
+  filter = REPORTING_SET_FILTER
+  displayName = DISPLAY_NAME
+}
+private val INTERNAL_REPORTING_SET_2 =
+  INTERNAL_REPORTING_SET.copy {
+    externalReportingSetId = REPORTING_SET_EXTERNAL_ID_2
+    displayName = DISPLAY_NAME_2
+  }
+private val INTERNAL_REPORTING_SET_3 =
+  INTERNAL_REPORTING_SET.copy {
+    externalReportingSetId = REPORTING_SET_EXTERNAL_ID_3
+    displayName = DISPLAY_NAME_3
+  }
+
+private val REPORTING_SET = reportingSet {
+  name = REPORTING_SET_NAME
+  eventGroups.addAll(EVENT_GROUP_NAMES)
+  filter = REPORTING_SET_FILTER
+  displayName = DISPLAY_NAME
+}
+private val REPORTING_SET_2 = reportingSet {
+  name = REPORTING_SET_NAME_2
+  eventGroups.addAll(EVENT_GROUP_NAMES)
+  filter = REPORTING_SET_FILTER
+  displayName = DISPLAY_NAME_2
+}
+private val REPORTING_SET_3 = reportingSet {
+  name = REPORTING_SET_NAME_3
+  eventGroups.addAll(EVENT_GROUP_NAMES)
+  filter = REPORTING_SET_FILTER
+  displayName = DISPLAY_NAME_3
+}
 
 // Time intervals
 private val START_TIME = timestamp {
@@ -889,7 +1005,13 @@ class ReportsServiceTest {
 
   private val internalReportsMock: ReportsCoroutineImplBase =
     mockService() {
-      onBlocking { createReport(any()) }.thenReturn(INTERNAL_PENDING_REACH_REPORT)
+      onBlocking { createReport(any()) }
+        .thenReturn(
+          INTERNAL_PENDING_REACH_REPORT,
+          INTERNAL_PENDING_IMPRESSION_REPORT,
+          INTERNAL_PENDING_WATCH_DURATION_REPORT,
+          INTERNAL_PENDING_FREQUENCY_HISTOGRAM_REPORT,
+        )
       onBlocking { streamReports(any()) }
         .thenReturn(
           flowOf(
@@ -911,16 +1033,22 @@ class ReportsServiceTest {
     }
 
   private val internalReportingSetsMock: InternalReportingSetsCoroutineImplBase =
-    mockService() { onBlocking { getReportingSet(any()) }.thenReturn(null) }
+    mockService() {
+      onBlocking { getReportingSet(any()) }
+        .thenReturn(INTERNAL_REPORTING_SET, INTERNAL_REPORTING_SET_2, INTERNAL_REPORTING_SET_3)
+    }
 
   private val internalMeasurementsMock: InternalMeasurementsCoroutineImplBase =
     mockService() {
+      onBlocking { getMeasurement(any()) }.thenThrow(StatusRuntimeException(Status.NOT_FOUND))
       onBlocking { setMeasurementResult(any()) }.thenReturn(null)
       onBlocking { setMeasurementFailure(any()) }.thenReturn(null)
+      onBlocking { createMeasurement(any()) }.thenReturn(null)
     }
 
   private val measurementsMock: MeasurementsCoroutineImplBase =
     mockService() {
+      onBlocking { createMeasurement(any()) }.thenReturn(null)
       onBlocking { getMeasurement(any()) }
         .thenReturn(
           SUCCEEDED_REACH_MEASUREMENT,
@@ -929,6 +1057,14 @@ class ReportsServiceTest {
           SUCCEEDED_FREQUENCY_HISTOGRAM_MEASUREMENT,
         )
     }
+
+  private val measurementConsumersMock: MeasurementConsumersCoroutineImplBase = mockService {
+    onBlocking { getMeasurementConsumer(any()) }.thenReturn(MEASUREMENT_CONSUMER)
+  }
+
+  private val dataProvidersMock: DataProvidersGrpcKt.DataProvidersCoroutineImplBase = mockService {
+    onBlocking { getDataProvider(any()) }.thenReturn(DATA_PROVIDER)
+  }
 
   private val certificateMock: CertificatesCoroutineImplBase =
     mockService() { onBlocking { getCertificate(any()) }.thenReturn(AGGREGATOR_CERTIFICATE) }
@@ -939,6 +1075,8 @@ class ReportsServiceTest {
     addService(internalReportingSetsMock)
     addService(internalMeasurementsMock)
     addService(measurementsMock)
+    addService(measurementConsumersMock)
+    addService(dataProvidersMock)
     addService(certificateMock)
   }
 
