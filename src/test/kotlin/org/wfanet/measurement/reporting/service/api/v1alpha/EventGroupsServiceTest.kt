@@ -32,8 +32,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.stub
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
-import org.wfanet.measurement.api.v2alpha.EventGroupKt.metadata as cmmsMetadata
+import org.wfanet.measurement.api.v2alpha.EventGroupKt as CmmsEventGroups
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
@@ -95,7 +96,7 @@ private val EVENT_GROUP = cmmsEventGroup {
   encryptedMetadata =
     ENCRYPTION_PUBLIC_KEY.hybridEncrypt(
       signMessage(
-          cmmsMetadata {
+          CmmsEventGroups.metadata {
             eventGroupMetadataDescriptor = METADATA_NAME
             metadata = Any.pack(TEST_MESSAGE)
           },
@@ -117,7 +118,7 @@ private val EVENT_GROUP_2 = cmmsEventGroup {
   encryptedMetadata =
     ENCRYPTION_PUBLIC_KEY.hybridEncrypt(
       signMessage(
-          cmmsMetadata {
+          CmmsEventGroups.metadata {
             eventGroupMetadataDescriptor = METADATA_NAME
             metadata = Any.pack(TEST_MESSAGE_2)
           },
@@ -125,6 +126,21 @@ private val EVENT_GROUP_2 = cmmsEventGroup {
         )
         .toByteString()
     )
+}
+private val RETURNED_EVENT_GROUP = eventGroup {
+  name =
+    EventGroupKey(
+        MeasurementConsumerKey.fromName(EVENT_GROUP.measurementConsumer)!!.measurementConsumerId,
+        DATA_PROVIDER_REFERENCE_ID,
+        EVENT_GROUP_ID
+      )
+      .toName()
+  dataProvider = DATA_PROVIDER_NAME
+  eventGroupReferenceId = "id1"
+  metadata = metadata {
+    eventGroupMetadataDescriptor = METADATA_NAME
+    metadata = Any.pack(TEST_MESSAGE)
+  }
 }
 private const val DATA_PROVIDER_REFERENCE_ID = "123"
 private const val DATA_PROVIDER_NAME = "dataProviders/$DATA_PROVIDER_REFERENCE_ID"
@@ -160,46 +176,6 @@ class EventGroupsServiceTest {
     addService(cmmsEventGroupMetadataDescriptorsServiceMock)
   }
 
-  val EVENT_GROUP_INVALID_METADATA = cmmsEventGroup {
-    name = "$DATA_PROVIDER_NAME/eventGroups/$EVENT_GROUP_ID"
-    measurementConsumer = MEASUREMENT_CONSUMER_NAME
-    eventGroupReferenceId = "id1"
-    encryptedMetadata =
-      ENCRYPTION_PUBLIC_KEY.hybridEncrypt(
-        signMessage(
-            cmmsMetadata {
-              eventGroupMetadataDescriptor = METADATA_NAME
-              metadata = Any.pack(testParentMetadataMessage { name = "name" })
-            },
-            EDP_SIGNING_KEY
-          )
-          .toByteString()
-      )
-  }
-  val cmmsEventGroupsServiceMock2: EventGroupsCoroutineImplBase =
-    mockService() {
-      onBlocking { listEventGroups(any()) }
-        .thenReturn(
-          cmmsListEventGroupsResponse { eventGroups += listOf(EVENT_GROUP_INVALID_METADATA) }
-        )
-    }
-  val cmmsEventGroupMetadataDescriptorsServiceMock2:
-    EventGroupMetadataDescriptorsCoroutineImplBase =
-    mockService() {
-      onBlocking { batchGetEventGroupMetadataDescriptors(any()) }
-        .thenReturn(
-          batchGetEventGroupMetadataDescriptorsResponse {
-            eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR
-          }
-        )
-    }
-
-  @get:Rule
-  val grpcTestServerRule2 = GrpcTestServerRule {
-    addService(cmmsEventGroupsServiceMock2)
-    addService(cmmsEventGroupMetadataDescriptorsServiceMock2)
-  }
-
   @Test
   fun `listEventGroups returns list with no filter`() {
     val eventGroupsService =
@@ -220,22 +196,7 @@ class EventGroupsServiceTest {
         listEventGroupsResponse {
           eventGroups +=
             listOf(
-              eventGroup {
-                name =
-                  EventGroupKey(
-                      MeasurementConsumerKey.fromName(EVENT_GROUP.measurementConsumer)!!
-                        .measurementConsumerId,
-                      DATA_PROVIDER_REFERENCE_ID,
-                      EVENT_GROUP_ID
-                    )
-                    .toName()
-                dataProvider = DATA_PROVIDER_NAME
-                eventGroupReferenceId = "id1"
-                metadata = metadata {
-                  eventGroupMetadataDescriptor = METADATA_NAME
-                  metadata = Any.pack(TEST_MESSAGE)
-                }
-              },
+              RETURNED_EVENT_GROUP,
               eventGroup {
                 name =
                   EventGroupKey(
@@ -260,11 +221,13 @@ class EventGroupsServiceTest {
       parent = DATA_PROVIDER_NAME
       pageSize = 0
       pageToken = ""
-      filter = ListEventGroupsRequestKt.filter {}
+      filter =
+        ListEventGroupsRequestKt.filter {
+          measurementConsumers += MEASUREMENT_CONSUMER_REFERENCE_ID
+        }
     }
 
     verifyProtoArgument(cmmsEventGroupsServiceMock, EventGroupsCoroutineImplBase::listEventGroups)
-      .comparingExpectedFieldsOnly()
       .isEqualTo(expectedCmmsEventGroupsRequest)
   }
 
@@ -288,27 +251,7 @@ class EventGroupsServiceTest {
         }
       }
 
-    assertThat(result)
-      .isEqualTo(
-        listEventGroupsResponse {
-          eventGroups += eventGroup {
-            name =
-              EventGroupKey(
-                  MeasurementConsumerKey.fromName(EVENT_GROUP.measurementConsumer)!!
-                    .measurementConsumerId,
-                  DATA_PROVIDER_REFERENCE_ID,
-                  EVENT_GROUP_ID
-                )
-                .toName()
-            dataProvider = DATA_PROVIDER_NAME
-            eventGroupReferenceId = "id1"
-            metadata = metadata {
-              eventGroupMetadataDescriptor = METADATA_NAME
-              metadata = Any.pack(TEST_MESSAGE)
-            }
-          }
-        }
-      )
+    assertThat(result).isEqualTo(listEventGroupsResponse { eventGroups += RETURNED_EVENT_GROUP })
 
     val expectedCmmsMetadataDescriptorRequest = batchGetEventGroupMetadataDescriptorsRequest {
       parent = DATA_PROVIDER_NAME
@@ -319,7 +262,6 @@ class EventGroupsServiceTest {
         cmmsEventGroupMetadataDescriptorsServiceMock,
         EventGroupMetadataDescriptorsCoroutineImplBase::batchGetEventGroupMetadataDescriptors
       )
-      .comparingExpectedFieldsOnly()
       .isEqualTo(expectedCmmsMetadataDescriptorRequest)
 
     val expectedCmmsEventGroupsRequest = cmmsListEventGroupsRequest {
@@ -333,16 +275,39 @@ class EventGroupsServiceTest {
     }
 
     verifyProtoArgument(cmmsEventGroupsServiceMock, EventGroupsCoroutineImplBase::listEventGroups)
-      .comparingExpectedFieldsOnly()
       .isEqualTo(expectedCmmsEventGroupsRequest)
   }
 
   @Test
   fun `listEventGroups throws FAILED_PRECONDITION if message descriptor not found`() {
+    val eventGroupInvalidMetadata = cmmsEventGroup {
+      name = "$DATA_PROVIDER_NAME/eventGroups/$EVENT_GROUP_ID"
+      measurementConsumer = MEASUREMENT_CONSUMER_NAME
+      eventGroupReferenceId = "id1"
+      encryptedMetadata =
+        ENCRYPTION_PUBLIC_KEY.hybridEncrypt(
+          signMessage(
+              CmmsEventGroups.metadata {
+                eventGroupMetadataDescriptor = METADATA_NAME
+                metadata = Any.pack(testParentMetadataMessage { name = "name" })
+              },
+              EDP_SIGNING_KEY
+            )
+            .toByteString()
+        )
+    }
+    cmmsEventGroupsServiceMock.stub {
+      onBlocking { listEventGroups(any()) }
+        .thenReturn(
+          cmmsListEventGroupsResponse {
+            eventGroups += listOf(EVENT_GROUP, EVENT_GROUP_2, eventGroupInvalidMetadata)
+          }
+        )
+    }
     val eventGroupsService =
       EventGroupsService(
-        EventGroupsCoroutineStub(grpcTestServerRule2.channel),
-        EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule2.channel),
+        EventGroupsCoroutineStub(grpcTestServerRule.channel),
+        EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
         ENCRYPTION_PRIVATE_KEY
       )
     val result =

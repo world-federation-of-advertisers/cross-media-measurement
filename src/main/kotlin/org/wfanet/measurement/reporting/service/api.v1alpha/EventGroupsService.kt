@@ -82,9 +82,7 @@ class EventGroupsService(
           batchGetEventGroupMetadataDescriptorsRequest {
             parent = request.parent
             names +=
-              eventGroups
-                .map { parsedEventGroupMetadataMap[it.name]!!.eventGroupMetadataDescriptor }
-                .toSet()
+              parsedEventGroupMetadataMap.values.map { it.eventGroupMetadataDescriptor }.toSet()
           }
         )
         .eventGroupMetadataDescriptorsList
@@ -92,7 +90,7 @@ class EventGroupsService(
     val filteredEventGroups: MutableList<CmmsEventGroup> = mutableListOf()
 
     for (eventGroup in eventGroups) {
-      val metadata = parsedEventGroupMetadataMap[eventGroup.name]!!
+      val metadata = parsedEventGroupMetadataMap.getValue(eventGroup.name)
       val metadataMessage =
         metadataParser.convertToDynamicMessage(metadata)
           ?: failGrpc(Status.FAILED_PRECONDITION) {
@@ -111,14 +109,16 @@ class EventGroupsService(
   }
 
   private fun CmmsEventGroup.toEventGroup(): EventGroup {
+    val source = this
     val cmmsMetadata =
       CmmsEventGroup.Metadata.parseFrom(
         decryptResult(this@toEventGroup.encryptedMetadata, encryptionPrivateKey).data
       )
-    val dataProviderKey =
+    val cmmsEventGroupKey =
       grpcRequireNotNull(CmmsEventGroupKey.fromName(this@toEventGroup.name)) {
-        "Event group data provider is missing"
+        "Event group name is missing"
       }
+    val dataProviderKey = DataProviderKey(cmmsEventGroupKey.dataProviderId)
     val dataProviderReferenceId = dataProviderKey.dataProviderId
     val measurementConsumerKey =
       grpcRequireNotNull(MeasurementConsumerKey.fromName(this@toEventGroup.measurementConsumer)) {
@@ -129,10 +129,10 @@ class EventGroupsService(
         EventGroupKey(
             measurementConsumerKey.measurementConsumerId,
             dataProviderReferenceId,
-            CmmsEventGroupKey.fromName(this@toEventGroup.name)!!.eventGroupId
+            cmmsEventGroupKey!!.eventGroupId
           )
           .toName()
-      dataProvider = DataProviderKey(dataProviderReferenceId).toName()
+      dataProvider = dataProviderKey.toName()
       eventGroupReferenceId = this@toEventGroup.eventGroupReferenceId
       eventTemplates +=
         this@toEventGroup.eventTemplatesList.map { eventTemplate { type = it.type } }
