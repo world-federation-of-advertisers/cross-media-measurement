@@ -246,7 +246,7 @@ class ReportsService(
   private val signingPrivateKey: PrivateKey,
   private val apiAuthenticationKey: String,
 ) : ReportsCoroutineImplBase() {
-  private val secureRandom = SecureRandom.getInstance("SHA1PRNG")
+  private val secureRandom = SecureRandom()
 
   override suspend fun createReport(request: CreateReportRequest): Report {
     val principal = principalFromCurrentContext
@@ -508,7 +508,8 @@ private suspend fun CreateReportRequest.toInternal(
               this.periodicTimeInterval = source.report.periodicTimeInterval.toInternal()
               this.periodicTimeInterval.toInternalTimeIntervalsList()
             }
-            Report.TimeCase.TIME_NOT_SET -> error("The time in Report is not specified.")
+            Report.TimeCase.TIME_NOT_SET ->
+              failGrpc(Status.INVALID_ARGUMENT) { "The time in Report is not specified." }
           }
 
         coroutineScope {
@@ -641,7 +642,9 @@ private suspend fun Metric.toInternal(
         MetricTypeCase.IMPRESSION_COUNT -> impressionCount = source.impressionCount.toInternal()
         MetricTypeCase.WATCH_DURATION -> watchDuration = source.watchDuration.toInternal()
         MetricTypeCase.METRICTYPE_NOT_SET ->
-          error("The type of the metric in the internal report should've be set.")
+          failGrpc(Status.INVALID_ARGUMENT) {
+            "The type of the metric in the internal report should've be set."
+          }
       }
 
       cumulative = source.cumulative
