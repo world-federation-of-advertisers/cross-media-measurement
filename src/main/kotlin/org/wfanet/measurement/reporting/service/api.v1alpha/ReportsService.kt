@@ -953,7 +953,7 @@ private suspend fun aggregateInternalEventGroupEntryByDataProviderName(
     for (reportingSetName in reportingSetNames) {
       val reportingSetKey =
         grpcRequireNotNull(ReportingSetKey.fromName(reportingSetName)) {
-          "Invalid reporting set name ${reportingSetName}."
+          "Invalid reporting set name $reportingSetName."
         }
 
       val internalReportingSet = async {
@@ -1216,11 +1216,11 @@ private suspend fun checkReportingSet(
 ): String {
   val reportingSetKey =
     grpcRequireNotNull(ReportingSetKey.fromName(reportingSet)) {
-      "Invalid reporting set name ${reportingSet}."
+      "Invalid reporting set name $reportingSet."
     }
 
   grpcRequire(reportingSetKey.measurementConsumerId == measurementConsumerReferenceId) {
-    "No access to the reporting set [${reportingSet}]."
+    "No access to the reporting set [$reportingSet]."
   }
 
   val internalReportingSet = coroutineScope {
