@@ -129,7 +129,7 @@ class EventGroupsService(
         EventGroupKey(
             measurementConsumerKey.measurementConsumerId,
             dataProviderReferenceId,
-            cmmsEventGroupKey!!.eventGroupId
+            cmmsEventGroupKey.eventGroupId
           )
           .toName()
       dataProvider = dataProviderKey.toName()

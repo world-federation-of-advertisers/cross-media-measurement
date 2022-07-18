@@ -34,7 +34,7 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.stub
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
-import org.wfanet.measurement.api.v2alpha.EventGroupKt as CmmsEventGroups
+import org.wfanet.measurement.api.v2alpha.EventGroupKt as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
@@ -96,7 +96,7 @@ private val EVENT_GROUP = cmmsEventGroup {
   encryptedMetadata =
     ENCRYPTION_PUBLIC_KEY.hybridEncrypt(
       signMessage(
-          CmmsEventGroups.metadata {
+          CmmsEventGroup.metadata {
             eventGroupMetadataDescriptor = METADATA_NAME
             metadata = Any.pack(TEST_MESSAGE)
           },
@@ -118,7 +118,7 @@ private val EVENT_GROUP_2 = cmmsEventGroup {
   encryptedMetadata =
     ENCRYPTION_PUBLIC_KEY.hybridEncrypt(
       signMessage(
-          CmmsEventGroups.metadata {
+          CmmsEventGroup.metadata {
             eventGroupMetadataDescriptor = METADATA_NAME
             metadata = Any.pack(TEST_MESSAGE_2)
           },
@@ -287,7 +287,7 @@ class EventGroupsServiceTest {
       encryptedMetadata =
         ENCRYPTION_PUBLIC_KEY.hybridEncrypt(
           signMessage(
-              CmmsEventGroups.metadata {
+              CmmsEventGroup.metadata {
                 eventGroupMetadataDescriptor = METADATA_NAME
                 metadata = Any.pack(testParentMetadataMessage { name = "name" })
               },
