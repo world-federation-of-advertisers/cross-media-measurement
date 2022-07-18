@@ -266,7 +266,7 @@ class ReportsService(
         val privateKeyHandle =
           requireNotNull(
             encryptionKeyPairStore.getPrivateKeyHandle(measurementSpec.measurementPublicKey)
-          ) { failGrpc(Status.PERMISSION_DENIED) { "Failed to find the encryption private key" } }
+          ) { failGrpc(Status.PERMISSION_DENIED) { "Encryption private key not found" } }
 
         internalMeasurementsStub.setMeasurementResult(
           setMeasurementResultRequest {
