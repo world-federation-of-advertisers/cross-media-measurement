@@ -68,3 +68,11 @@ kt_jvm_library(
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
     ],
 )
+
+kt_jvm_library(
+    name = "encryption_key_pair_store",
+    srcs = ["EncryptionKeyPairStore.kt"],
+    deps = [
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+    ],
+)

@@ -70,11 +70,27 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/common:key_handles",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/duchy",
+    ],
+)
+
+kt_jvm_test(
+    name = "EncryptionKeyPairStoreTest",
+    srcs = ["EncryptionKeyPairStoreTest.kt"],
+    associates = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api.v1alpha:encryption_key_pair_store",
+    ],
+    data = [
+        "//src/main/k8s/testing/secretfiles:secret_files",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
     ],
 )
