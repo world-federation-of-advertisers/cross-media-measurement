@@ -41,6 +41,7 @@ import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Measurement.DataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt.value as dataProviderEntryValue
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -410,11 +411,12 @@ class ReportsService(
     measurementReferenceId: String,
     measurementConsumerReferenceId: String,
   ) {
-    // TODO(@riemanli) This should be a measurement resource name but not a measurement reference ID
+    val measurementResourceName =
+      MeasurementKey(measurementConsumerReferenceId, measurementReferenceId).toName()
     val measurement =
       serviceStubs.measurementsStub
         .withAuthenticationKey(apiAuthenticationKey)
-        .getMeasurement(getMeasurementRequest { name = measurementReferenceId })
+        .getMeasurement(getMeasurementRequest { name = measurementResourceName })
 
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     when (measurement.state) {

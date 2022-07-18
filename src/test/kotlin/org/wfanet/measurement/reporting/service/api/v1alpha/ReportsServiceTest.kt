@@ -889,6 +889,7 @@ class ReportsServiceTest {
 
   private val internalReportsMock: ReportsCoroutineImplBase =
     mockService() {
+      onBlocking { createReport(any()) }.thenReturn(INTERNAL_PENDING_REACH_REPORT)
       onBlocking { streamReports(any()) }
         .thenReturn(
           flowOf(
@@ -905,6 +906,8 @@ class ReportsServiceTest {
           INTERNAL_SUCCEEDED_WATCH_DURATION_REPORT,
           INTERNAL_SUCCEEDED_FREQUENCY_HISTOGRAM_REPORT,
         )
+      onBlocking { getReportByIdempotencyKey(any()) }
+        .thenThrow(StatusRuntimeException(Status.NOT_FOUND))
     }
 
   private val internalReportingSetsMock: InternalReportingSetsCoroutineImplBase =
@@ -1433,7 +1436,7 @@ class ReportsServiceTest {
           }
         )
       verifyProtoArgument(measurementsMock, MeasurementsCoroutineImplBase::getMeasurement)
-        .isEqualTo(getMeasurementRequest { name = REACH_MEASUREMENT_REFERENCE_ID })
+        .isEqualTo(getMeasurementRequest { name = REACH_MEASUREMENT_NAME })
       verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::getReport)
         .isEqualTo(
           getInternalReportRequest {
@@ -1486,7 +1489,7 @@ class ReportsServiceTest {
           }
         )
       verifyProtoArgument(measurementsMock, MeasurementsCoroutineImplBase::getMeasurement)
-        .isEqualTo(getMeasurementRequest { name = REACH_MEASUREMENT_REFERENCE_ID })
+        .isEqualTo(getMeasurementRequest { name = REACH_MEASUREMENT_NAME })
       verifyProtoArgument(
           internalMeasurementsMock,
           InternalMeasurementsCoroutineImplBase::setMeasurementFailure
@@ -1539,7 +1542,7 @@ class ReportsServiceTest {
           }
         )
       verifyProtoArgument(measurementsMock, MeasurementsCoroutineImplBase::getMeasurement)
-        .isEqualTo(getMeasurementRequest { name = REACH_MEASUREMENT_REFERENCE_ID })
+        .isEqualTo(getMeasurementRequest { name = REACH_MEASUREMENT_NAME })
       verifyProtoArgument(
           internalMeasurementsMock,
           InternalMeasurementsCoroutineImplBase::setMeasurementResult
@@ -1594,7 +1597,7 @@ class ReportsServiceTest {
         }
       )
     verifyProtoArgument(measurementsMock, MeasurementsCoroutineImplBase::getMeasurement)
-      .isEqualTo(getMeasurementRequest { name = IMPRESSION_MEASUREMENT_REFERENCE_ID })
+      .isEqualTo(getMeasurementRequest { name = IMPRESSION_MEASUREMENT_NAME })
     verifyProtoArgument(
         internalMeasurementsMock,
         InternalMeasurementsCoroutineImplBase::setMeasurementResult
@@ -1649,7 +1652,7 @@ class ReportsServiceTest {
         }
       )
     verifyProtoArgument(measurementsMock, MeasurementsCoroutineImplBase::getMeasurement)
-      .isEqualTo(getMeasurementRequest { name = WATCH_DURATION_MEASUREMENT_REFERENCE_ID })
+      .isEqualTo(getMeasurementRequest { name = WATCH_DURATION_MEASUREMENT_NAME })
     verifyProtoArgument(
         internalMeasurementsMock,
         InternalMeasurementsCoroutineImplBase::setMeasurementResult
