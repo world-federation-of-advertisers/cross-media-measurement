@@ -23,6 +23,7 @@ import com.google.protobuf.util.Durations
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.nio.file.Paths
+import java.security.SecureRandom
 import java.time.Instant
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
@@ -35,13 +36,18 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.KArgumentCaptor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2.alpha.ListReportsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2.alpha.listReportsPageToken
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
@@ -54,13 +60,20 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt.value as dataProviderEntryValue
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.result
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency as measurementSpecReachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt.value as eventGroupEntryValue
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter as requisitionSpecEventFilter
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.dataProvider
@@ -73,12 +86,15 @@ import org.wfanet.measurement.api.v2alpha.makeDataProviderCertificateName
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.api.v2alpha.timeInterval as measurementTimeInterval
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
@@ -88,11 +104,17 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
+import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
+import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
+import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
 import org.wfanet.measurement.consent.client.duchy.encryptResult
 import org.wfanet.measurement.consent.client.duchy.signResult
+import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
+import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.internal.reporting.GetReportingSetRequest
 import org.wfanet.measurement.internal.reporting.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.MeasurementKt.ResultKt.frequency as internalFrequency
@@ -147,7 +169,7 @@ import org.wfanet.measurement.reporting.v1alpha.MetricKt.reachParams
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.setOperation
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.watchDurationParams
 import org.wfanet.measurement.reporting.v1alpha.Report
-import org.wfanet.measurement.reporting.v1alpha.ReportKt.EventGroupUniverseKt.eventGroupEntry
+import org.wfanet.measurement.reporting.v1alpha.ReportKt.EventGroupUniverseKt.eventGroupEntry as eventGroupUniverseEntry
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.eventGroupUniverse
 import org.wfanet.measurement.reporting.v1alpha.copy
 import org.wfanet.measurement.reporting.v1alpha.createReportRequest
@@ -203,7 +225,8 @@ private const val WATCH_DURATION_EPSILON = 0.001
 
 private const val DIFFERENTIAL_PRIVACY_DETLA = 1e-12
 
-private const val SECURE_RANDOM_OUTPUT = 0
+private const val SECURE_RANDOM_OUTPUT_INT = 0
+private const val SECURE_RANDOM_OUTPUT_LONG = 0L
 
 private val SECRETS_DIR =
   getRuntimePath(
@@ -248,13 +271,13 @@ private val MEASUREMENT_CONSUMER_CERTIFICATE_DER =
 private val MEASUREMENT_CONSUMER_PRIVATE_KEY_DER =
   SECRETS_DIR.resolve("mc_cs_private.der").readByteString()
 private val MEASUREMENT_CONSUMER_CERTIFICATE = readCertificate(MEASUREMENT_CONSUMER_CERTIFICATE_DER)
-private val MEASUREMENT_CONSUMER_PRIVATE_KEY =
+private val MEASUREMENT_CONSUMER_SIGNING_PRIVATE_KEY =
   readPrivateKey(
     MEASUREMENT_CONSUMER_PRIVATE_KEY_DER,
     MEASUREMENT_CONSUMER_CERTIFICATE.publicKey.algorithm
   )
 private val MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE =
-  SigningKeyHandle(MEASUREMENT_CONSUMER_CERTIFICATE, MEASUREMENT_CONSUMER_PRIVATE_KEY)
+  SigningKeyHandle(MEASUREMENT_CONSUMER_CERTIFICATE, MEASUREMENT_CONSUMER_SIGNING_PRIVATE_KEY)
 
 // Private key handles of measurement consumers
 private val MEASUREMENT_CONSUMER_PRIVATE_KEY_DATA = SECRETS_DIR.resolve("mc_enc_private.tink")
@@ -506,7 +529,11 @@ private val END_TIME = timestamp {
   seconds = END_INSTANT.epochSecond
   nanos = END_INSTANT.nano
 }
-private val TIME_INTERVAL = internalTimeInterval {
+private val MEASUREMENT_TIME_INTERVAL = measurementTimeInterval {
+  startTime = START_TIME
+  endTime = END_TIME
+}
+private val INTERNAL_TIME_INTERVAL = internalTimeInterval {
   startTime = START_TIME
   endTime = END_TIME
 }
@@ -593,31 +620,105 @@ private val WATCH_DURATION = duration { seconds = 100 }
 private val WATCH_DURATION_2 = duration { seconds = 200 }
 private val WATCH_DURATION_3 = duration { seconds = 300 }
 
+// Event group filters
+private const val EVENT_GROUP_FILTER = "AGE>20"
+private val EVENT_GROUP_FILTERS_MAP =
+  mapOf(
+    EVENT_GROUP_NAME to EVENT_GROUP_FILTER,
+    EVENT_GROUP_NAME_2 to EVENT_GROUP_FILTER,
+    EVENT_GROUP_NAME_3 to EVENT_GROUP_FILTER,
+  )
+
+// Event group entries
+private val EVENT_GROUP_ENTRY = eventGroupEntry {
+  key = EVENT_GROUP_NAME
+  value = eventGroupEntryValue {
+    collectionInterval = MEASUREMENT_TIME_INTERVAL
+    filter = requisitionSpecEventFilter {
+      expression = "($REPORTING_SET_FILTER) AND ($EVENT_GROUP_FILTER)"
+    }
+  }
+}
+private val EVENT_GROUP_ENTRY_2 = EVENT_GROUP_ENTRY.copy { key = EVENT_GROUP_NAME_2 }
+private val EVENT_GROUP_ENTRY_3 = EVENT_GROUP_ENTRY.copy { key = EVENT_GROUP_NAME_3 }
+
+// Requisition specs
+private val REQUISITION_SPEC = requisitionSpec {
+  eventGroups.add(EVENT_GROUP_ENTRY)
+  measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.data
+  nonce = SECURE_RANDOM_OUTPUT_LONG
+}
+private val REQUISITION_SPEC_2 =
+  REQUISITION_SPEC.copy {
+    eventGroups.clear()
+    eventGroups.add(EVENT_GROUP_ENTRY_2)
+  }
+
+// Data provider entries
+private val DATA_PROVIDER_ENTRY = dataProviderEntry {
+  key = DATA_PROVIDER_NAME
+  value = dataProviderEntryValue {
+    dataProviderCertificate = DATA_PROVIDER.certificate
+    dataProviderPublicKey = DATA_PROVIDER.publicKey
+    encryptedRequisitionSpec =
+      encryptRequisitionSpec(
+        signRequisitionSpec(REQUISITION_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE),
+        EncryptionPublicKey.parseFrom(DATA_PROVIDER.publicKey.data)
+      )
+    nonceHash = hashSha256(REQUISITION_SPEC.nonce)
+  }
+}
+private val DATA_PROVIDER_ENTRY_2 = dataProviderEntry {
+  key = DATA_PROVIDER_NAME_2
+  value = dataProviderEntryValue {
+    dataProviderCertificate = DATA_PROVIDER_2.certificate
+    dataProviderPublicKey = DATA_PROVIDER_2.publicKey
+    encryptedRequisitionSpec =
+      encryptRequisitionSpec(
+        signRequisitionSpec(REQUISITION_SPEC_2, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE),
+        EncryptionPublicKey.parseFrom(DATA_PROVIDER_2.publicKey.data)
+      )
+    nonceHash = hashSha256(REQUISITION_SPEC_2.nonce)
+  }
+}
+
 // Reach
+private val REACH_ONLY_UNSIGNED_MEASUREMENT_SPEC = measurementSpec {
+  measurementPublicKey = MEASUREMENT_PUBLIC_KEY_DATA
+
+  nonceHashes.addAll(
+    listOf(hashSha256(SECURE_RANDOM_OUTPUT_LONG), hashSha256(SECURE_RANDOM_OUTPUT_LONG))
+  )
+
+  reachAndFrequency = measurementSpecReachAndFrequency {
+    reachPrivacyParams = differentialPrivacyParams {
+      epsilon = REACH_ONLY_REACH_EPSILON
+      delta = DIFFERENTIAL_PRIVACY_DETLA
+    }
+    frequencyPrivacyParams = differentialPrivacyParams {
+      epsilon = REACH_ONLY_FREQUENCY_EPSILON
+      delta = DIFFERENTIAL_PRIVACY_DETLA
+    }
+    maximumFrequencyPerUser = REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER
+  }
+  vidSamplingInterval = vidSamplingInterval {
+    start = REACH_ONLY_VID_SAMPLING_START_LIST[SECURE_RANDOM_OUTPUT_INT]
+    width = REACH_ONLY_VID_SAMPLING_WIDTH
+  }
+}
+
 private val SUCCEEDED_REACH_MEASUREMENT = measurement {
   name = REACH_MEASUREMENT_NAME
   measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
 
-  val unsignedMeasurementSpec = measurementSpec {
-    measurementPublicKey = MEASUREMENT_PUBLIC_KEY_DATA
-    reachAndFrequency = measurementSpecReachAndFrequency {
-      reachPrivacyParams = differentialPrivacyParams {
-        epsilon = REACH_ONLY_REACH_EPSILON
-        delta = DIFFERENTIAL_PRIVACY_DETLA
-      }
-      frequencyPrivacyParams = differentialPrivacyParams {
-        epsilon = REACH_ONLY_FREQUENCY_EPSILON
-        delta = DIFFERENTIAL_PRIVACY_DETLA
-      }
-      maximumFrequencyPerUser = REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER
-    }
-    vidSamplingInterval = vidSamplingInterval {
-      start = REACH_ONLY_VID_SAMPLING_START_LIST[SECURE_RANDOM_OUTPUT]
-      width = REACH_ONLY_VID_SAMPLING_WIDTH
-    }
-  }
+  dataProviders += DATA_PROVIDER_ENTRY
+  dataProviders += DATA_PROVIDER_ENTRY_2
+
   measurementSpec =
-    signMeasurementSpec(unsignedMeasurementSpec, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
+    signMeasurementSpec(
+      REACH_ONLY_UNSIGNED_MEASUREMENT_SPEC,
+      MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
+    )
 
   state = Measurement.State.SUCCEEDED
   measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
@@ -817,22 +918,22 @@ private val WEIGHTED_WATCH_DURATION_MEASUREMENT = weightedMeasurement {
 
 // Measurement Calculations
 private val REACH_MEASUREMENT_CALCULATION = measurementCalculation {
-  timeInterval = TIME_INTERVAL
+  timeInterval = INTERNAL_TIME_INTERVAL
   weightedMeasurements.add(WEIGHTED_REACH_MEASUREMENT)
 }
 
 private val FREQUENCY_HISTOGRAM_MEASUREMENT_CALCULATION = measurementCalculation {
-  timeInterval = TIME_INTERVAL
+  timeInterval = INTERNAL_TIME_INTERVAL
   weightedMeasurements.add(WEIGHTED_FREQUENCY_HISTOGRAM_MEASUREMENT)
 }
 
 private val IMPRESSION_MEASUREMENT_CALCULATION = measurementCalculation {
-  timeInterval = TIME_INTERVAL
+  timeInterval = INTERNAL_TIME_INTERVAL
   weightedMeasurements.add(WEIGHTED_IMPRESSION_MEASUREMENT)
 }
 
 private val WATCH_DURATION_MEASUREMENT_CALCULATION = measurementCalculation {
-  timeInterval = TIME_INTERVAL
+  timeInterval = INTERNAL_TIME_INTERVAL
   weightedMeasurements.add(WEIGHTED_WATCH_DURATION_MEASUREMENT)
 }
 
@@ -947,15 +1048,6 @@ private val INTERNAL_WATCH_DURATION_METRIC = internalMetric {
   namedSetOperations.add(INTERNAL_NAMED_WATCH_DURATION_SET_OPERATION)
 }
 
-// Event group filters
-private const val EVENT_GROUP_FILTER = "AGE>20"
-private val EVENT_GROUP_FILTERS_MAP =
-  mapOf(
-    EVENT_GROUP_NAME to EVENT_GROUP_FILTER,
-    EVENT_GROUP_NAME_2 to EVENT_GROUP_FILTER,
-    EVENT_GROUP_NAME_3 to EVENT_GROUP_FILTER,
-  )
-
 // Internal reports with running states
 // Internal reports of reach
 private val INTERNAL_PENDING_REACH_REPORT = internalReport {
@@ -1039,21 +1131,23 @@ private val INTERNAL_SUCCEEDED_FREQUENCY_HISTOGRAM_REPORT =
   }
 
 // Event Group Universe
-private val EVENT_GROUP_ENTRY = eventGroupEntry {
+private val EVENT_GROUP_UNIVERSE_ENTRY = eventGroupUniverseEntry {
   key = EVENT_GROUP_NAME
   value = EVENT_GROUP_FILTER
 }
-private val EVENT_GROUP_ENTRY_2 = eventGroupEntry {
+private val EVENT_GROUP_UNIVERSE_ENTRY_2 = eventGroupUniverseEntry {
   key = EVENT_GROUP_NAME_2
   value = EVENT_GROUP_FILTER
 }
-private val EVENT_GROUP_ENTRY_3 = eventGroupEntry {
+private val EVENT_GROUP_UNIVERSE_ENTRY_3 = eventGroupUniverseEntry {
   key = EVENT_GROUP_NAME_3
   value = EVENT_GROUP_FILTER
 }
 
 private val EVENT_GROUP_UNIVERSE = eventGroupUniverse {
-  eventGroupEntries.addAll(listOf(EVENT_GROUP_ENTRY, EVENT_GROUP_ENTRY_2, EVENT_GROUP_ENTRY_3))
+  eventGroupEntries.addAll(
+    listOf(EVENT_GROUP_UNIVERSE_ENTRY, EVENT_GROUP_UNIVERSE_ENTRY_2, EVENT_GROUP_UNIVERSE_ENTRY_3)
+  )
 }
 
 // Public reports with running states
@@ -1179,6 +1273,8 @@ class ReportsServiceTest {
   private val certificateMock: CertificatesCoroutineImplBase =
     mockService() { onBlocking { getCertificate(any()) }.thenReturn(AGGREGATOR_CERTIFICATE) }
 
+  private val secureRandomMock: SecureRandom = mock()
+
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     addService(internalReportsMock)
@@ -1194,6 +1290,12 @@ class ReportsServiceTest {
 
   @Before
   fun initService() {
+    secureRandomMock.stub {
+      on { nextInt(any()) } doReturn SECURE_RANDOM_OUTPUT_INT
+      on { nextInt() } doReturn SECURE_RANDOM_OUTPUT_INT
+      on { nextLong() } doReturn SECURE_RANDOM_OUTPUT_LONG
+    }
+
     service =
       ReportsService(
         ServiceStubs(
@@ -1206,8 +1308,9 @@ class ReportsServiceTest {
           CertificatesCoroutineStub(grpcTestServerRule.channel),
         ),
         MEASUREMENT_CONSUMER_PRIVATE_KEY_HANDLE,
-        MEASUREMENT_CONSUMER_PRIVATE_KEY,
+        MEASUREMENT_CONSUMER_SIGNING_PRIVATE_KEY,
         API_AUTHENTICATION_KEY,
+        secureRandomMock
       )
   }
 
@@ -1225,6 +1328,7 @@ class ReportsServiceTest {
 
     val expected = PENDING_REACH_REPORT
 
+    // Verify proto argument of ReportsCoroutineImplBase::getReportByIdempotencyKey
     verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::getReportByIdempotencyKey)
       .isEqualTo(
         getReportByIdempotencyKeyRequest {
@@ -1233,6 +1337,7 @@ class ReportsServiceTest {
         }
       )
 
+    // Verify proto argument of InternalReportingSetsCoroutineImplBase::getReportingSet
     val internalReportingSetCaptor: KArgumentCaptor<GetReportingSetRequest> = argumentCaptor()
     verifyBlocking(internalReportingSetsMock, times(4)) {
       getReportingSet(internalReportingSetCaptor.capture())
@@ -1257,6 +1362,7 @@ class ReportsServiceTest {
         }
       )
 
+    // Verify proto argument of InternalMeasurementsCoroutineImplBase::getMeasurement
     verifyProtoArgument(
         internalMeasurementsMock,
         InternalMeasurementsCoroutineImplBase::getMeasurement
@@ -1267,33 +1373,95 @@ class ReportsServiceTest {
           measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
         }
       )
+    // Verify proto argument of MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
     verifyProtoArgument(
         measurementConsumersMock,
         MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
       )
       .isEqualTo(getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMER_NAME })
 
-    val DataProviderCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
-    verifyBlocking(dataProvidersMock, times(2)) { getDataProvider(DataProviderCaptor.capture()) }
-    val capturedDataProviderRequests = DataProviderCaptor.allValues
+    // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
+    val dataProvidersCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
+    verifyBlocking(dataProvidersMock, times(2)) { getDataProvider(dataProvidersCaptor.capture()) }
+    val capturedDataProviderRequests = dataProvidersCaptor.allValues
     assertThat(capturedDataProviderRequests)
       .containsExactly(
         getDataProviderRequest { name = DATA_PROVIDER_NAME },
         getDataProviderRequest { name = DATA_PROVIDER_NAME_2 }
       )
 
-    // verifyProtoArgument(
-    //   measurementsMock,
-    //   MeasurementsCoroutineImplBase::createMeasurement
-    // )
-    //   .isEqualTo(
-    //     createMeasurementRequest {
-    //       measurement = PENDING_REACH_MEASUREMENT.copy {
-    //         clearState()
-    //       }
-    //     }
-    //   )
+    // Verify proto argument of MeasurementsCoroutineImplBase::createMeasurement
+    val capturedMeasurementRequest =
+      captureFirst<CreateMeasurementRequest> {
+        runBlocking { verify(measurementsMock).createMeasurement(capture()) }
+      }
+    val capturedMeasurement = capturedMeasurementRequest.measurement
+    assertThat(capturedMeasurement.name).isEqualTo(REACH_MEASUREMENT_NAME)
+    assertThat(capturedMeasurement.measurementConsumerCertificate)
+      .isEqualTo(MEASUREMENT_CONSUMER_CERTIFICATE_NAME)
 
+    val unsignedMeasurementSpec =
+      MeasurementSpec.parseFrom(capturedMeasurement.measurementSpec.data)
+    val expectedUnsignedMeasurementSpec = REACH_ONLY_UNSIGNED_MEASUREMENT_SPEC
+    assertThat(unsignedMeasurementSpec).isEqualTo(expectedUnsignedMeasurementSpec)
+    assertThat(
+        verifyMeasurementSpec(
+          capturedMeasurement.measurementSpec.signature,
+          unsignedMeasurementSpec,
+          MEASUREMENT_CONSUMER_CERTIFICATE
+        )
+      )
+      .isTrue()
+
+    val dataProviderEntry = capturedMeasurement.dataProvidersList[0]
+    val expectedDataProviderEntry = DATA_PROVIDER_ENTRY
+    assertThat(dataProviderEntry.key).isEqualTo(expectedDataProviderEntry.key)
+    assertThat(dataProviderEntry.value)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(expectedDataProviderEntry.value.copy { clearEncryptedRequisitionSpec() })
+
+    val signedRequisitionSpec =
+      decryptRequisitionSpec(
+        dataProviderEntry.value.encryptedRequisitionSpec,
+        DATA_PROVIDER_PRIVATE_KEY_HANDLE
+      )
+    val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
+    assertThat(
+        verifyRequisitionSpec(
+          signedRequisitionSpec.signature,
+          requisitionSpec,
+          unsignedMeasurementSpec,
+          MEASUREMENT_CONSUMER_CERTIFICATE
+        )
+      )
+      .isTrue()
+    assertThat(requisitionSpec).isEqualTo(REQUISITION_SPEC)
+
+    val dataProviderEntry2 = capturedMeasurement.dataProvidersList[1]
+    val expectedDataProviderEntry2 = DATA_PROVIDER_ENTRY_2
+    assertThat(dataProviderEntry2.key).isEqualTo(expectedDataProviderEntry2.key)
+    assertThat(dataProviderEntry2.value)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(expectedDataProviderEntry2.value.copy { clearEncryptedRequisitionSpec() })
+
+    val signedRequisitionSpec2 =
+      decryptRequisitionSpec(
+        dataProviderEntry2.value.encryptedRequisitionSpec,
+        DATA_PROVIDER_PRIVATE_KEY_HANDLE
+      )
+    val requisitionSpec2 = RequisitionSpec.parseFrom(signedRequisitionSpec2.data)
+    assertThat(
+        verifyRequisitionSpec(
+          signedRequisitionSpec2.signature,
+          requisitionSpec2,
+          unsignedMeasurementSpec,
+          MEASUREMENT_CONSUMER_CERTIFICATE
+        )
+      )
+      .isTrue()
+    assertThat(requisitionSpec2).isEqualTo(REQUISITION_SPEC_2)
+
+    // Verify proto argument of InternalMeasurementsCoroutineImplBase::createMeasurement
     verifyProtoArgument(
         internalMeasurementsMock,
         InternalMeasurementsCoroutineImplBase::createMeasurement

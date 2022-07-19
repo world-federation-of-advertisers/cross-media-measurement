@@ -246,8 +246,8 @@ class ReportsService(
   private val encryptionPrivateKeyHandle: PrivateKeyHandle,
   private val signingPrivateKey: PrivateKey,
   private val apiAuthenticationKey: String,
+  private val secureRandom: SecureRandom,
 ) : ReportsCoroutineImplBase() {
-  private val secureRandom = SecureRandom()
 
   override suspend fun createReport(request: CreateReportRequest): Report {
     val principal = principalFromCurrentContext
@@ -1066,7 +1066,7 @@ private fun getUnsignedMeasurementSpec(
 private fun getReachOnlyVidSamplingInterval(secureRandom: SecureRandom): VidSamplingInterval {
   return vidSamplingInterval {
     // Random draw the start point from the list
-    val index = secureRandom.nextInt(REACH_ONLY_VID_SAMPLING_START_LIST.size)
+    val index = secureRandom.nextInt(NUMBER_REACH_ONLY_BUCKETS)
     start = REACH_ONLY_VID_SAMPLING_START_LIST[index]
     width = REACH_ONLY_VID_SAMPLING_WIDTH
   }
@@ -1078,7 +1078,7 @@ private fun getReachAndFrequencyVidSamplingInterval(
 ): VidSamplingInterval {
   return vidSamplingInterval {
     // Random draw the start point from the list
-    val index = secureRandom.nextInt(REACH_ONLY_VID_SAMPLING_START_LIST.size)
+    val index = secureRandom.nextInt(NUMBER_REACH_FREQUENCY_BUCKETS)
     start = REACH_FREQUENCY_VID_SAMPLING_START_LIST[index]
     width = REACH_FREQUENCY_VID_SAMPLING_WIDTH
   }
@@ -1088,7 +1088,7 @@ private fun getReachAndFrequencyVidSamplingInterval(
 private fun getImpressionVidSamplingInterval(secureRandom: SecureRandom): VidSamplingInterval {
   return vidSamplingInterval {
     // Random draw the start point from the list
-    val index = secureRandom.nextInt(REACH_ONLY_VID_SAMPLING_START_LIST.size)
+    val index = secureRandom.nextInt(NUMBER_IMPRESSION_BUCKETS)
     start = IMPRESSION_VID_SAMPLING_START_LIST[index]
     width = IMPRESSION_VID_SAMPLING_WIDTH
   }
@@ -1098,7 +1098,7 @@ private fun getImpressionVidSamplingInterval(secureRandom: SecureRandom): VidSam
 private fun getDurationVidSamplingInterval(secureRandom: SecureRandom): VidSamplingInterval {
   return vidSamplingInterval {
     // Random draw the start point from the list
-    val index = secureRandom.nextInt(REACH_ONLY_VID_SAMPLING_START_LIST.size)
+    val index = secureRandom.nextInt(NUMBER_WATCH_DURATION_BUCKETS)
     start = WATCH_DURATION_VID_SAMPLING_START_LIST[index]
     width = WATCH_DURATION_VID_SAMPLING_WIDTH
   }
