@@ -1,4 +1,22 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
+load("@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl", "spanner_emulator_test")
+
+spanner_emulator_test(
+    name = "PostgresInProcessLifeOfAReportIntegrationTest",
+    size = "large",
+    srcs = ["PostgresInProcessLifeOfAReportIntegrationTest.kt"],
+    test_class = "org.wfanet.measurement.integration.postgres.PostgresInProcessLifeOfAReportIntegrationTest",
+    runtime_deps = [
+        "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
+    ],
+    deps = [
+        "//imports/java/com/opentable/db/postgres:otj_pg_embedded",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting:in_process_life_of_a_report_integration_test",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/testing",
+        "//src/test/kotlin/org/wfanet/measurement/integration/gcloud",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:embedded_postgres",
+    ],
+)
 
 kt_jvm_test(
     name = "PrivacyBudgetPostgresSchemaTest",
