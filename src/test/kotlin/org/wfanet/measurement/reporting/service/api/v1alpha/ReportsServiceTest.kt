@@ -23,6 +23,7 @@ import com.google.protobuf.util.Durations
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.nio.file.Paths
+import java.time.Instant
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -31,14 +32,18 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.kotlin.KArgumentCaptor
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2.alpha.ListReportsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2.alpha.listReportsPageToken
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.Measurement
@@ -80,6 +85,7 @@ import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.duchy.encryptResult
 import org.wfanet.measurement.consent.client.duchy.signResult
+import org.wfanet.measurement.internal.reporting.GetReportingSetRequest
 import org.wfanet.measurement.internal.reporting.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.MeasurementKt.ResultKt.frequency as internalFrequency
 import org.wfanet.measurement.internal.reporting.MeasurementKt.ResultKt.impression as internalImpression
@@ -110,7 +116,10 @@ import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineI
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.StreamReportsRequestKt.filter
 import org.wfanet.measurement.internal.reporting.copy
+import org.wfanet.measurement.internal.reporting.getMeasurementRequest as getInternalMeasurementRequest
+import org.wfanet.measurement.internal.reporting.getReportByIdempotencyKeyRequest
 import org.wfanet.measurement.internal.reporting.getReportRequest as getInternalReportRequest
+import org.wfanet.measurement.internal.reporting.getReportingSetRequest
 import org.wfanet.measurement.internal.reporting.measurement as internalMeasurement
 import org.wfanet.measurement.internal.reporting.metric as internalMetric
 import org.wfanet.measurement.internal.reporting.periodicTimeInterval as internalPeriodicTimeInterval
@@ -123,6 +132,10 @@ import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInt
 import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.v1alpha.Metric
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.SetOperationKt.operand as setOperationOperand
+import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
+import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
+import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.frequencyHistogramParams
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.impressionCountParams
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.namedSetOperation
@@ -133,6 +146,7 @@ import org.wfanet.measurement.reporting.v1alpha.Report
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.EventGroupUniverseKt.eventGroupEntry
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.eventGroupUniverse
 import org.wfanet.measurement.reporting.v1alpha.copy
+import org.wfanet.measurement.reporting.v1alpha.createReportRequest
 import org.wfanet.measurement.reporting.v1alpha.listReportsRequest
 import org.wfanet.measurement.reporting.v1alpha.listReportsResponse
 import org.wfanet.measurement.reporting.v1alpha.metric
@@ -273,31 +287,6 @@ private val REPORT_NAME_3 =
 private val REPORT_NAME_4 =
   ReportKey(MEASUREMENT_CONSUMER_REFERENCE_ID, externalIdToApiId(REPORT_EXTERNAL_ID_4)).toName()
 
-// Measurement IDs and names
-private const val REACH_MEASUREMENT_EXTERNAL_ID = 441L
-private const val FREQUENCY_HISTOGRAM_MEASUREMENT_EXTERNAL_ID = 442L
-private const val IMPRESSION_MEASUREMENT_EXTERNAL_ID = 443L
-private const val WATCH_DURATION_MEASUREMENT_EXTERNAL_ID = 444L
-
-private val REACH_MEASUREMENT_REFERENCE_ID = externalIdToApiId(REACH_MEASUREMENT_EXTERNAL_ID)
-private val FREQUENCY_HISTOGRAM_MEASUREMENT_REFERENCE_ID =
-  externalIdToApiId(FREQUENCY_HISTOGRAM_MEASUREMENT_EXTERNAL_ID)
-private val IMPRESSION_MEASUREMENT_REFERENCE_ID =
-  externalIdToApiId(IMPRESSION_MEASUREMENT_EXTERNAL_ID)
-private val WATCH_DURATION_MEASUREMENT_REFERENCE_ID =
-  externalIdToApiId(WATCH_DURATION_MEASUREMENT_EXTERNAL_ID)
-
-private val REACH_MEASUREMENT_NAME =
-  MeasurementKey(MEASUREMENT_CONSUMER_REFERENCE_ID, REACH_MEASUREMENT_REFERENCE_ID).toName()
-private val FREQUENCY_HISTOGRAM_MEASUREMENT_NAME =
-  MeasurementKey(MEASUREMENT_CONSUMER_REFERENCE_ID, FREQUENCY_HISTOGRAM_MEASUREMENT_REFERENCE_ID)
-    .toName()
-private val IMPRESSION_MEASUREMENT_NAME =
-  MeasurementKey(MEASUREMENT_CONSUMER_REFERENCE_ID, IMPRESSION_MEASUREMENT_REFERENCE_ID).toName()
-private val WATCH_DURATION_MEASUREMENT_NAME =
-  MeasurementKey(MEASUREMENT_CONSUMER_REFERENCE_ID, WATCH_DURATION_MEASUREMENT_REFERENCE_ID)
-    .toName()
-
 // Data provider IDs and names
 private const val DATA_PROVIDER_EXTERNAL_ID = 551L
 private const val DATA_PROVIDER_EXTERNAL_ID_2 = 552L
@@ -425,33 +414,38 @@ private val INTERNAL_REPORTING_SET_3 =
 
 private val REPORTING_SET = reportingSet {
   name = REPORTING_SET_NAME
-  eventGroups.addAll(EVENT_GROUP_NAMES)
+  eventGroups.add(EVENT_GROUP_NAME)
   filter = REPORTING_SET_FILTER
   displayName = DISPLAY_NAME
 }
 private val REPORTING_SET_2 = reportingSet {
   name = REPORTING_SET_NAME_2
-  eventGroups.addAll(EVENT_GROUP_NAMES)
+  eventGroups.add(EVENT_GROUP_NAME_2)
   filter = REPORTING_SET_FILTER
   displayName = DISPLAY_NAME_2
 }
 private val REPORTING_SET_3 = reportingSet {
   name = REPORTING_SET_NAME_3
-  eventGroups.addAll(EVENT_GROUP_NAMES)
+  eventGroups.add(EVENT_GROUP_NAME_3)
   filter = REPORTING_SET_FILTER
   displayName = DISPLAY_NAME_3
 }
 
 // Time intervals
+private val START_INSTANT = Instant.now()
+private const val DAY_SECONDS = 86400L
+private val END_INSTANT =
+  Instant.ofEpochSecond(START_INSTANT.epochSecond + DAY_SECONDS, START_INSTANT.nano.toLong())
+
 private val START_TIME = timestamp {
-  seconds = 1000
-  nanos = 1000
+  seconds = START_INSTANT.epochSecond
+  nanos = START_INSTANT.nano
 }
-private val TIME_INTERVAL_INCREMENT = duration { seconds = 1000 }
+private val TIME_INTERVAL_INCREMENT = duration { seconds = DAY_SECONDS }
 private const val INTERVAL_COUNT = 1
 private val END_TIME = timestamp {
-  seconds = 2000
-  nanos = 1000
+  seconds = END_INSTANT.epochSecond
+  nanos = END_INSTANT.nano
 }
 private val TIME_INTERVAL = internalTimeInterval {
   startTime = START_TIME
@@ -468,6 +462,44 @@ private val PERIODIC_TIME_INTERVAL = periodicTimeInterval {
   increment = TIME_INTERVAL_INCREMENT
   intervalCount = INTERVAL_COUNT
 }
+
+// Report idempotency keys
+private const val REACH_REPORT_IDEMPOTENCY_KEY = "TEST_REACH_REPORT"
+private const val IMPRESSION_REPORT_IDEMPOTENCY_KEY = "TEST_IMPRESSION_REPORT"
+private const val WATCH_DURATION_REPORT_IDEMPOTENCY_KEY = "TEST_WATCH_DURATION_REPORT"
+private const val FREQUENCY_HISTOGRAM_REPORT_IDEMPOTENCY_KEY = "TEST_FREQUENCY_HISTOGRAM_REPORT"
+
+// Set operation display names
+private const val REACH_SET_OPERATION_DISPLAY_NAME = "Reach Set Operation"
+private const val FREQUENCY_HISTOGRAM_SET_OPERATION_DISPLAY_NAME =
+  "Frequency Histogram Set Operation"
+private const val IMPRESSION_SET_OPERATION_DISPLAY_NAME = "Impression Set Operation"
+private const val WATCH_DURATION_SET_OPERATION_DISPLAY_NAME = "Watch Duration Set Operation"
+
+// Measurement IDs and names
+private val REACH_MEASUREMENT_REFERENCE_ID =
+  "$REACH_REPORT_IDEMPOTENCY_KEY-$START_INSTANT-$END_INSTANT-Reach-" +
+    "$REACH_SET_OPERATION_DISPLAY_NAME-measurement-0"
+private val FREQUENCY_HISTOGRAM_MEASUREMENT_REFERENCE_ID =
+  "$FREQUENCY_HISTOGRAM_REPORT_IDEMPOTENCY_KEY-$START_INSTANT-$END_INSTANT-FrequencyHistogram-" +
+    "$FREQUENCY_HISTOGRAM_SET_OPERATION_DISPLAY_NAME-measurement-0"
+private val IMPRESSION_MEASUREMENT_REFERENCE_ID =
+  "$IMPRESSION_REPORT_IDEMPOTENCY_KEY-$START_INSTANT-$END_INSTANT-ImpressionCount-" +
+    "$IMPRESSION_SET_OPERATION_DISPLAY_NAME-measurement-0"
+private val WATCH_DURATION_MEASUREMENT_REFERENCE_ID =
+  "$WATCH_DURATION_REPORT_IDEMPOTENCY_KEY-$START_INSTANT-$END_INSTANT-WatchDuration-" +
+    "$WATCH_DURATION_SET_OPERATION_DISPLAY_NAME-measurement-0"
+
+private val REACH_MEASUREMENT_NAME =
+  MeasurementKey(MEASUREMENT_CONSUMER_REFERENCE_ID, REACH_MEASUREMENT_REFERENCE_ID).toName()
+private val FREQUENCY_HISTOGRAM_MEASUREMENT_NAME =
+  MeasurementKey(MEASUREMENT_CONSUMER_REFERENCE_ID, FREQUENCY_HISTOGRAM_MEASUREMENT_REFERENCE_ID)
+    .toName()
+private val IMPRESSION_MEASUREMENT_NAME =
+  MeasurementKey(MEASUREMENT_CONSUMER_REFERENCE_ID, IMPRESSION_MEASUREMENT_REFERENCE_ID).toName()
+private val WATCH_DURATION_MEASUREMENT_NAME =
+  MeasurementKey(MEASUREMENT_CONSUMER_REFERENCE_ID, WATCH_DURATION_MEASUREMENT_REFERENCE_ID)
+    .toName()
 
 // Set operations
 private val INTERNAL_SET_OPERATION = internalSetOperation {
@@ -505,6 +537,7 @@ private val WATCH_DURATION_3 = duration { seconds = 300 }
 // Reach
 private val SUCCEEDED_REACH_MEASUREMENT = measurement {
   name = REACH_MEASUREMENT_NAME
+  measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
   state = Measurement.State.SUCCEEDED
   measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
 
@@ -723,11 +756,6 @@ private val WATCH_DURATION_MEASUREMENT_CALCULATION = measurementCalculation {
 }
 
 // Named set operations
-private const val REACH_SET_OPERATION_DISPLAY_NAME = "Reach Set Operation"
-private const val FREQUENCY_HISTOGRAM_SET_OPERATION_DISPLAY_NAME =
-  "Frequency Histogram Set Operation"
-private const val IMPRESSION_SET_OPERATION_DISPLAY_NAME = "Impression Set Operation"
-private const val WATCH_DURATION_SET_OPERATION_DISPLAY_NAME = "Watch Duration Set Operation"
 // Reach set operation
 private val INTERNAL_NAMED_REACH_SET_OPERATION = internalNamedSetOperation {
   displayName = REACH_SET_OPERATION_DISPLAY_NAME
@@ -848,10 +876,6 @@ private val EVENT_GROUP_FILTERS_MAP =
   )
 
 // Internal reports with running states
-private const val REACH_REPORT_IDEMPOTENCY_KEY = "TEST_REACH_REPORT"
-private const val IMPRESSION_REPORT_IDEMPOTENCY_KEY = "TEST_IMPRESSION_REPORT"
-private const val WATCH_DURATION_REPORT_IDEMPOTENCY_KEY = "TEST_WATCH_DURATION_REPORT"
-private const val FREQUENCY_HISTOGRAM_REPORT_IDEMPOTENCY_KEY = "TEST_FREQUENCY_HISTOGRAM_REPORT"
 // Internal reports of reach
 private val INTERNAL_PENDING_REACH_REPORT = internalReport {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
@@ -1062,7 +1086,7 @@ class ReportsServiceTest {
     onBlocking { getMeasurementConsumer(any()) }.thenReturn(MEASUREMENT_CONSUMER)
   }
 
-  private val dataProvidersMock: DataProvidersGrpcKt.DataProvidersCoroutineImplBase = mockService {
+  private val dataProvidersMock: DataProvidersCoroutineImplBase = mockService {
     onBlocking { getDataProvider(any()) }.thenReturn(DATA_PROVIDER)
   }
 
@@ -1099,6 +1123,114 @@ class ReportsServiceTest {
         MEASUREMENT_CONSUMER_PRIVATE_KEY,
         API_AUTHENTICATION_KEY,
       )
+  }
+
+  @Test
+  fun `createReport returns a report of reach with RUNNING state`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      report = PENDING_REACH_REPORT.copy { clearState() }
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.createReport(request) }
+      }
+
+    val expected = PENDING_REACH_REPORT
+
+    verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::getReportByIdempotencyKey)
+      .isEqualTo(
+        getReportByIdempotencyKeyRequest {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+          reportIdempotencyKey = REACH_REPORT_IDEMPOTENCY_KEY
+        }
+      )
+
+    val internalReportingSetCaptor: KArgumentCaptor<GetReportingSetRequest> = argumentCaptor()
+    verifyBlocking(internalReportingSetsMock, times(4)) {
+      getReportingSet(internalReportingSetCaptor.capture())
+    }
+    val capturedInternalReportingSetRequests = internalReportingSetCaptor.allValues
+    val expectedInternalReportingSetRequest = getReportingSetRequest {
+      measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+    }
+    assertThat(capturedInternalReportingSetRequests)
+      .containsExactly(
+        expectedInternalReportingSetRequest.copy { externalReportingSetId = REPORTING_SET_EXTERNAL_ID },
+        expectedInternalReportingSetRequest.copy { externalReportingSetId = REPORTING_SET_EXTERNAL_ID },
+        expectedInternalReportingSetRequest.copy { externalReportingSetId = REPORTING_SET_EXTERNAL_ID_2 },
+        expectedInternalReportingSetRequest.copy { externalReportingSetId = REPORTING_SET_EXTERNAL_ID_2 }
+      )
+
+    verifyProtoArgument(
+        internalMeasurementsMock,
+        InternalMeasurementsCoroutineImplBase::getMeasurement
+      )
+      .isEqualTo(
+        getInternalMeasurementRequest {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+          measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
+        }
+      )
+    verifyProtoArgument(
+      measurementConsumersMock,
+      MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
+    )
+      .isEqualTo(
+        getMeasurementConsumerRequest {
+          name = MEASUREMENT_CONSUMER_NAME
+        }
+      )
+
+    // val internalDataProviderCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
+    // verifyBlocking(dataProvidersMock, times(2)) {
+    //   getDataProvider(internalDataProviderCaptor.capture())
+    // }
+    // val capturedRequests = internalDataProviderCaptor.allValues
+    // val expectedRequest = getDataProviderRequest {
+    //   name = DATA_PROVIDER_NAME
+    // }
+    // assertThat(capturedRequests)
+    //   .containsExactly(
+    //     expectedRequest,
+    //     expectedRequest
+    //   )
+
+    // verifyProtoArgument(
+    //   dataProvidersMock,
+    //   DataProvidersCoroutineImplBase::getDataProvider
+    // )
+    //   .isEqualTo(
+    //     getDataProviderRequest {
+    //       name = DATA_PROVIDER_NAME
+    //     }
+    //   )
+    verifyProtoArgument(
+      measurementsMock,
+      MeasurementsCoroutineImplBase::createMeasurement
+    )
+      .isEqualTo(
+        createMeasurementRequest {
+          measurement = PENDING_REACH_MEASUREMENT.copy {
+            clearState()
+          }
+        }
+      )
+
+    verifyProtoArgument(
+      internalMeasurementsMock,
+      InternalMeasurementsCoroutineImplBase::createMeasurement
+    )
+      .isEqualTo(
+        internalMeasurement {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+          measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
+          state = InternalMeasurement.State.PENDING
+        }
+      )
+
+    assertThat(result).isEqualTo(expected)
   }
 
   @Test

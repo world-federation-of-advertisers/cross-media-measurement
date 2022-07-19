@@ -853,7 +853,11 @@ private suspend fun getCreateMeasurementRequest(
     SigningKeyHandle(measurementConsumerCertificate, credential.signingPrivateKey)
   val measurementEncryptionPublicKey = measurementConsumer.publicKey.data
 
+  val measurementResourceName =
+    MeasurementKey(credential.measurementConsumerReferenceId, measurementReferenceId).toName()
+
   val measurement = measurement {
+    name = measurementResourceName
     this.measurementConsumerCertificate = measurementConsumer.certificate
 
     dataProviders +=
