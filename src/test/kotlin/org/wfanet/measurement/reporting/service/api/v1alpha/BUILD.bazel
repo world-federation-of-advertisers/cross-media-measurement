@@ -4,7 +4,7 @@ kt_jvm_test(
     name = "ReportingSetsServiceTest",
     srcs = ["ReportingSetsServiceTest.kt"],
     associates = [
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api.v1alpha:reporting_sets_service",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:reporting_sets_service",
     ],
     test_class = "org.wfanet.measurement.reporting.service.api.v1alpha.ReportingSetsServiceTest",
     deps = [
@@ -24,7 +24,7 @@ kt_jvm_test(
     name = "ReportsServiceTest",
     srcs = ["ReportsServiceTest.kt"],
     associates = [
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api.v1alpha:reports_service",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:reports_service",
     ],
     data = [
         "//src/main/k8s/testing/secretfiles:root_certs",
@@ -55,7 +55,7 @@ kt_jvm_test(
     name = "EncryptionKeyPairStoreTest",
     srcs = ["EncryptionKeyPairStoreTest.kt"],
     associates = [
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api.v1alpha:encryption_key_pair_store",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:encryption_key_pair_store",
     ],
     data = [
         "//src/main/k8s/testing/secretfiles:secret_files",
