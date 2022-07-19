@@ -122,6 +122,7 @@ import org.wfanet.measurement.internal.reporting.MetricKt.watchDurationParams as
 import org.wfanet.measurement.internal.reporting.PeriodicTimeInterval as InternalPeriodicTimeInterval
 import org.wfanet.measurement.internal.reporting.Report as InternalReport
 import org.wfanet.measurement.internal.reporting.ReportKt.details as internalReportDetails
+import org.wfanet.measurement.internal.reporting.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.SetMeasurementResultRequest as SetInternalMeasurementResultRequest
@@ -943,8 +944,7 @@ private suspend fun aggregateInternalEventGroupEntryByDataProviderName(
   timeInterval: MeasurementTimeInterval,
   eventGroupFilters: Map<String, String>,
 ): Map<String, List<EventGroupEntry>> {
-  val dataProviderNameToInternalEventGroupEntriesList =
-    mutableMapOf<String, MutableList<EventGroupEntry>>().withDefault { mutableListOf() }
+  val internalReportingSetsList = mutableListOf<InternalReportingSet>()
 
   coroutineScope {
     for (reportingSetName in reportingSetNames) {
@@ -953,45 +953,48 @@ private suspend fun aggregateInternalEventGroupEntryByDataProviderName(
           "Invalid reporting set name $reportingSetName."
         }
 
-      val internalReportingSet = async {
-        internalReportingSetsStub.getReportingSet(
-          getReportingSetRequest {
-            measurementConsumerReferenceId = reportingSetKey.measurementConsumerId
-            externalReportingSetId = apiIdToExternalId(reportingSetKey.reportingSetId)
-          }
-        )
-      }
-
-      for (eventGroupKey in internalReportingSet.await().eventGroupKeysList) {
-        val dataProviderName = DataProviderKey(eventGroupKey.dataProviderReferenceId).toName()
-        val eventGroupName =
-          EventGroupKey(
-              eventGroupKey.measurementConsumerReferenceId,
-              eventGroupKey.dataProviderReferenceId,
-              eventGroupKey.eventGroupReferenceId
-            )
-            .toName()
-
-        dataProviderNameToInternalEventGroupEntriesList
-          .getValue(dataProviderName)
-          .add(
-            eventGroupEntry {
-              key = eventGroupName
-              value = eventGroupEntryValue {
-                collectionInterval = timeInterval
-
-                val filter =
-                  combineEventGroupFilters(
-                    internalReportingSet.await().filter,
-                    eventGroupFilters[eventGroupName]
-                  )
-                if (filter != null) {
-                  this.filter = requisitionSpecEventFilter { expression = filter }
-                }
-              }
+      launch {
+        internalReportingSetsList +=
+          internalReportingSetsStub.getReportingSet(
+            getReportingSetRequest {
+              measurementConsumerReferenceId = reportingSetKey.measurementConsumerId
+              externalReportingSetId = apiIdToExternalId(reportingSetKey.reportingSetId)
             }
           )
       }
+    }
+  }
+
+  val dataProviderNameToInternalEventGroupEntriesList =
+    mutableMapOf<String, MutableList<EventGroupEntry>>()
+
+  for (internalReportingSet in internalReportingSetsList) {
+    for (eventGroupKey in internalReportingSet.eventGroupKeysList) {
+      val dataProviderName = DataProviderKey(eventGroupKey.dataProviderReferenceId).toName()
+      val eventGroupName =
+        EventGroupKey(
+            eventGroupKey.measurementConsumerReferenceId,
+            eventGroupKey.dataProviderReferenceId,
+            eventGroupKey.eventGroupReferenceId
+          )
+          .toName()
+
+      dataProviderNameToInternalEventGroupEntriesList.getOrPut(dataProviderName, ::mutableListOf) +=
+        eventGroupEntry {
+          key = eventGroupName
+          value = eventGroupEntryValue {
+            collectionInterval = timeInterval
+
+            val filter =
+              combineEventGroupFilters(
+                internalReportingSet.filter,
+                eventGroupFilters[eventGroupName]
+              )
+            if (filter != null) {
+              this.filter = requisitionSpecEventFilter { expression = filter }
+            }
+          }
+        }
     }
   }
 

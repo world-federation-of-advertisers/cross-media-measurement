@@ -46,6 +46,7 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
@@ -56,16 +57,22 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.result
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency as measurementSpecReachAndFrequency
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.dataProvider
+import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
+import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.makeDataProviderCertificateName
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
+import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
@@ -85,6 +92,7 @@ import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.duchy.encryptResult
 import org.wfanet.measurement.consent.client.duchy.signResult
+import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.internal.reporting.GetReportingSetRequest
 import org.wfanet.measurement.internal.reporting.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.MeasurementKt.ResultKt.frequency as internalFrequency
@@ -132,10 +140,6 @@ import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInt
 import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.v1alpha.Metric
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.SetOperationKt.operand as setOperationOperand
-import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
-import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
-import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
-import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.frequencyHistogramParams
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.impressionCountParams
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.namedSetOperation
@@ -157,6 +161,49 @@ import org.wfanet.measurement.reporting.v1alpha.reportingSet
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 private const val PAGE_SIZE = 3
+
+private const val REACH_ONLY_VID_SAMPLING_WIDTH = 3.0f / 300.0f
+private const val NUMBER_REACH_ONLY_BUCKETS = 16
+private val REACH_ONLY_VID_SAMPLING_START_LIST =
+  (0 until NUMBER_REACH_ONLY_BUCKETS).map { it * REACH_ONLY_VID_SAMPLING_WIDTH }
+private const val REACH_ONLY_REACH_EPSILON = 0.0041
+private const val REACH_ONLY_FREQUENCY_EPSILON = 0.0001
+private const val REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER = 1
+
+private const val REACH_FREQUENCY_VID_SAMPLING_WIDTH = 5.0f / 300.0f
+private const val NUMBER_REACH_FREQUENCY_BUCKETS = 19
+private val REACH_FREQUENCY_VID_SAMPLING_START_LIST =
+  (0 until NUMBER_REACH_FREQUENCY_BUCKETS).map {
+    REACH_ONLY_VID_SAMPLING_START_LIST.last() +
+      REACH_ONLY_VID_SAMPLING_WIDTH +
+      it * REACH_FREQUENCY_VID_SAMPLING_WIDTH
+  }
+private const val REACH_FREQUENCY_REACH_EPSILON = 0.0033
+private const val REACH_FREQUENCY_FREQUENCY_EPSILON = 0.115
+
+private const val IMPRESSION_VID_SAMPLING_WIDTH = 62.0f / 300.0f
+private const val NUMBER_IMPRESSION_BUCKETS = 1
+private val IMPRESSION_VID_SAMPLING_START_LIST =
+  (0 until NUMBER_IMPRESSION_BUCKETS).map {
+    REACH_FREQUENCY_VID_SAMPLING_START_LIST.last() +
+      REACH_FREQUENCY_VID_SAMPLING_WIDTH +
+      it * IMPRESSION_VID_SAMPLING_WIDTH
+  }
+private const val IMPRESSION_EPSILON = 0.0011
+
+private const val WATCH_DURATION_VID_SAMPLING_WIDTH = 95.0f / 300.0f
+private const val NUMBER_WATCH_DURATION_BUCKETS = 1
+private val WATCH_DURATION_VID_SAMPLING_START_LIST =
+  (0 until NUMBER_WATCH_DURATION_BUCKETS).map {
+    IMPRESSION_VID_SAMPLING_START_LIST.last() +
+      IMPRESSION_VID_SAMPLING_WIDTH +
+      it * WATCH_DURATION_VID_SAMPLING_WIDTH
+  }
+private const val WATCH_DURATION_EPSILON = 0.001
+
+private const val DIFFERENTIAL_PRIVACY_DETLA = 1e-12
+
+private const val SECURE_RANDOM_OUTPUT = 0
 
 private val SECRETS_DIR =
   getRuntimePath(
@@ -206,6 +253,8 @@ private val MEASUREMENT_CONSUMER_PRIVATE_KEY =
     MEASUREMENT_CONSUMER_PRIVATE_KEY_DER,
     MEASUREMENT_CONSUMER_CERTIFICATE.publicKey.algorithm
   )
+private val MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE =
+  SigningKeyHandle(MEASUREMENT_CONSUMER_CERTIFICATE, MEASUREMENT_CONSUMER_PRIVATE_KEY)
 
 // Private key handles of measurement consumers
 private val MEASUREMENT_CONSUMER_PRIVATE_KEY_DATA = SECRETS_DIR.resolve("mc_enc_private.tink")
@@ -337,6 +386,12 @@ private val DATA_PROVIDER = dataProvider {
   publicKey = signedData { data = DATA_PROVIDER_PUBLIC_KEY.toByteString() }
 }
 
+private val DATA_PROVIDER_2 = dataProvider {
+  name = DATA_PROVIDER_NAME_2
+  certificate = DATA_PROVIDER_CERTIFICATE_NAME_2
+  publicKey = signedData { data = DATA_PROVIDER_PUBLIC_KEY.toByteString() }
+}
+
 // Event group IDs and names
 private const val EVENT_GROUP_EXTERNAL_ID = 661L
 private const val EVENT_GROUP_EXTERNAL_ID_2 = 662L
@@ -397,18 +452,22 @@ private val DISPLAY_NAME_3 = REPORTING_SET_NAME_3 + REPORTING_SET_FILTER
 private val INTERNAL_REPORTING_SET = internalReportingSet {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
   externalReportingSetId = REPORTING_SET_EXTERNAL_ID
-  eventGroupKeys.addAll(INTERNAL_EVENT_GROUP_KEYS)
+  eventGroupKeys.add(INTERNAL_EVENT_GROUP_KEY)
   filter = REPORTING_SET_FILTER
   displayName = DISPLAY_NAME
 }
 private val INTERNAL_REPORTING_SET_2 =
   INTERNAL_REPORTING_SET.copy {
     externalReportingSetId = REPORTING_SET_EXTERNAL_ID_2
+    eventGroupKeys.clear()
+    eventGroupKeys.add(INTERNAL_EVENT_GROUP_KEY_2)
     displayName = DISPLAY_NAME_2
   }
 private val INTERNAL_REPORTING_SET_3 =
   INTERNAL_REPORTING_SET.copy {
     externalReportingSetId = REPORTING_SET_EXTERNAL_ID_3
+    eventGroupKeys.clear()
+    eventGroupKeys.add(INTERNAL_EVENT_GROUP_KEY_3)
     displayName = DISPLAY_NAME_3
   }
 
@@ -538,6 +597,28 @@ private val WATCH_DURATION_3 = duration { seconds = 300 }
 private val SUCCEEDED_REACH_MEASUREMENT = measurement {
   name = REACH_MEASUREMENT_NAME
   measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
+
+  val unsignedMeasurementSpec = measurementSpec {
+    measurementPublicKey = MEASUREMENT_PUBLIC_KEY_DATA
+    reachAndFrequency = measurementSpecReachAndFrequency {
+      reachPrivacyParams = differentialPrivacyParams {
+        epsilon = REACH_ONLY_REACH_EPSILON
+        delta = DIFFERENTIAL_PRIVACY_DETLA
+      }
+      frequencyPrivacyParams = differentialPrivacyParams {
+        epsilon = REACH_ONLY_FREQUENCY_EPSILON
+        delta = DIFFERENTIAL_PRIVACY_DETLA
+      }
+      maximumFrequencyPerUser = REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER
+    }
+    vidSamplingInterval = vidSamplingInterval {
+      start = REACH_ONLY_VID_SAMPLING_START_LIST[SECURE_RANDOM_OUTPUT]
+      width = REACH_ONLY_VID_SAMPLING_WIDTH
+    }
+  }
+  measurementSpec =
+    signMeasurementSpec(unsignedMeasurementSpec, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
+
   state = Measurement.State.SUCCEEDED
   measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
 
@@ -1059,7 +1140,12 @@ class ReportsServiceTest {
   private val internalReportingSetsMock: InternalReportingSetsCoroutineImplBase =
     mockService() {
       onBlocking { getReportingSet(any()) }
-        .thenReturn(INTERNAL_REPORTING_SET, INTERNAL_REPORTING_SET_2, INTERNAL_REPORTING_SET_3)
+        .thenReturn(
+          INTERNAL_REPORTING_SET,
+          INTERNAL_REPORTING_SET_2,
+          INTERNAL_REPORTING_SET,
+          INTERNAL_REPORTING_SET_2
+        )
     }
 
   private val internalMeasurementsMock: InternalMeasurementsCoroutineImplBase =
@@ -1087,7 +1173,7 @@ class ReportsServiceTest {
   }
 
   private val dataProvidersMock: DataProvidersCoroutineImplBase = mockService {
-    onBlocking { getDataProvider(any()) }.thenReturn(DATA_PROVIDER)
+    onBlocking { getDataProvider(any()) }.thenReturn(DATA_PROVIDER, DATA_PROVIDER_2)
   }
 
   private val certificateMock: CertificatesCoroutineImplBase =
@@ -1157,10 +1243,18 @@ class ReportsServiceTest {
     }
     assertThat(capturedInternalReportingSetRequests)
       .containsExactly(
-        expectedInternalReportingSetRequest.copy { externalReportingSetId = REPORTING_SET_EXTERNAL_ID },
-        expectedInternalReportingSetRequest.copy { externalReportingSetId = REPORTING_SET_EXTERNAL_ID },
-        expectedInternalReportingSetRequest.copy { externalReportingSetId = REPORTING_SET_EXTERNAL_ID_2 },
-        expectedInternalReportingSetRequest.copy { externalReportingSetId = REPORTING_SET_EXTERNAL_ID_2 }
+        expectedInternalReportingSetRequest.copy {
+          externalReportingSetId = REPORTING_SET_EXTERNAL_ID
+        },
+        expectedInternalReportingSetRequest.copy {
+          externalReportingSetId = REPORTING_SET_EXTERNAL_ID
+        },
+        expectedInternalReportingSetRequest.copy {
+          externalReportingSetId = REPORTING_SET_EXTERNAL_ID_2
+        },
+        expectedInternalReportingSetRequest.copy {
+          externalReportingSetId = REPORTING_SET_EXTERNAL_ID_2
+        }
       )
 
     verifyProtoArgument(
@@ -1174,54 +1268,36 @@ class ReportsServiceTest {
         }
       )
     verifyProtoArgument(
-      measurementConsumersMock,
-      MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
-    )
-      .isEqualTo(
-        getMeasurementConsumerRequest {
-          name = MEASUREMENT_CONSUMER_NAME
-        }
+        measurementConsumersMock,
+        MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
       )
+      .isEqualTo(getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMER_NAME })
 
-    // val internalDataProviderCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
-    // verifyBlocking(dataProvidersMock, times(2)) {
-    //   getDataProvider(internalDataProviderCaptor.capture())
-    // }
-    // val capturedRequests = internalDataProviderCaptor.allValues
-    // val expectedRequest = getDataProviderRequest {
-    //   name = DATA_PROVIDER_NAME
-    // }
-    // assertThat(capturedRequests)
-    //   .containsExactly(
-    //     expectedRequest,
-    //     expectedRequest
-    //   )
+    val DataProviderCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
+    verifyBlocking(dataProvidersMock, times(2)) { getDataProvider(DataProviderCaptor.capture()) }
+    val capturedDataProviderRequests = DataProviderCaptor.allValues
+    assertThat(capturedDataProviderRequests)
+      .containsExactly(
+        getDataProviderRequest { name = DATA_PROVIDER_NAME },
+        getDataProviderRequest { name = DATA_PROVIDER_NAME_2 }
+      )
 
     // verifyProtoArgument(
-    //   dataProvidersMock,
-    //   DataProvidersCoroutineImplBase::getDataProvider
+    //   measurementsMock,
+    //   MeasurementsCoroutineImplBase::createMeasurement
     // )
     //   .isEqualTo(
-    //     getDataProviderRequest {
-    //       name = DATA_PROVIDER_NAME
+    //     createMeasurementRequest {
+    //       measurement = PENDING_REACH_MEASUREMENT.copy {
+    //         clearState()
+    //       }
     //     }
     //   )
-    verifyProtoArgument(
-      measurementsMock,
-      MeasurementsCoroutineImplBase::createMeasurement
-    )
-      .isEqualTo(
-        createMeasurementRequest {
-          measurement = PENDING_REACH_MEASUREMENT.copy {
-            clearState()
-          }
-        }
-      )
 
     verifyProtoArgument(
-      internalMeasurementsMock,
-      InternalMeasurementsCoroutineImplBase::createMeasurement
-    )
+        internalMeasurementsMock,
+        InternalMeasurementsCoroutineImplBase::createMeasurement
+      )
       .isEqualTo(
         internalMeasurement {
           measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
