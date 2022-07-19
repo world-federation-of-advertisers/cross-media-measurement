@@ -141,7 +141,7 @@ class EdpSimulator(
   }
 
   /** Creates an eventGroup for the MC. */
-  private suspend fun createEventGroup() {
+  suspend fun createEventGroup() {
     val eventGroup =
       eventGroupsStub.createEventGroup(
         createEventGroupRequest {
@@ -157,7 +157,7 @@ class EdpSimulator(
   }
 
   /** Executes the requisition fulfillment workflow. */
-  private suspend fun executeRequisitionFulfillingWorkflow() {
+  suspend fun executeRequisitionFulfillingWorkflow() {
     logger.info("Executing requisitionFulfillingWorkflow...")
     val requisitions = getRequisitions()
     if (requisitions.isEmpty()) {
@@ -287,7 +287,7 @@ class EdpSimulator(
       )
     }
 
-  suspend fun generateSketch(
+  private suspend fun generateSketch(
     requisitionName: String,
     sketchConfig: SketchConfig,
     measurementSpec: MeasurementSpec,
