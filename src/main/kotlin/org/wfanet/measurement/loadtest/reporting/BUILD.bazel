@@ -1,4 +1,7 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+load("@rules_java//java:defs.bzl", "java_binary")
+load("@io_bazel_rules_docker//java:image.bzl", "java_image")
+load("//build/platforms:constraints.bzl", "DISTROLESS_JAVA")
 
 package(
     default_testonly = True,
@@ -19,4 +22,55 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/reporting/v1alpha:reporting_sets_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/reporting/v1alpha:reports_service_kt_jvm_grpc_proto",
     ],
+)
+
+kt_jvm_library(
+    name = "reporting_public_api_flags",
+    srcs = ["ReportingPublicApiFlags.kt"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/reporting:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/loadtest/reporting:__subpackages__",
+    ],
+    deps = [
+        "@wfa_common_jvm//imports/java/picocli",
+    ],
+)
+
+kt_jvm_library(
+    name = "reporting_simulator_runner",
+    srcs = [
+        "ReportingSimulatorFlags.kt",
+        "ReportingSimulatorRunner.kt",
+    ],
+    deps = [
+        ":reporting_public_api_flags",
+        ":reporting_simulator",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:event_filters",
+        "//src/main/proto/wfa/measurement/reporting/v1alpha:event_groups_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/reporting/v1alpha:reporting_sets_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/reporting/v1alpha:reports_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)
+
+java_binary(
+    name = "ReportingSimulatorRunner",
+    main_class = "org.wfanet.measurement.loadtest.reporting.ReportingSimulatorRunnerKt",
+    runtime_deps = [":reporting_simulator_runner"],
+)
+
+java_image(
+    name = "reporting_simulator_runner_image",
+    main_class = "org.wfanet.measurement.loadtest.reporting.ReportingSimulatorRunnerKt",
+    target_compatible_with = DISTROLESS_JAVA,
+    visibility = [
+        "//src:docker_image_deployment",
+    ],
+    runtime_deps = [":reporting_simulator_runner"],
 )
