@@ -556,7 +556,7 @@ private fun checkSetOperationDisplayNamesUniqueness(metricsList: List<Metric>) {
               .getValue(MetricTypeCase.REACH)
               .contains(setOperation.displayName)
           ) { "The display names of the set operations within the same metric should be unique." }
-          metricToSetOperationDisplayNamesList.getValue(MetricTypeCase.REACH) +=
+          metricToSetOperationDisplayNamesList.getOrPut(MetricTypeCase.REACH, ::mutableSetOf) +=
             setOperation.displayName
         }
         MetricTypeCase.FREQUENCY_HISTOGRAM -> {
@@ -565,8 +565,10 @@ private fun checkSetOperationDisplayNamesUniqueness(metricsList: List<Metric>) {
               .getValue(MetricTypeCase.FREQUENCY_HISTOGRAM)
               .contains(setOperation.displayName)
           ) { "The display names of the set operations within the same metric should be unique." }
-          metricToSetOperationDisplayNamesList.getValue(MetricTypeCase.FREQUENCY_HISTOGRAM) +=
-            setOperation.displayName
+          metricToSetOperationDisplayNamesList.getOrPut(
+            MetricTypeCase.FREQUENCY_HISTOGRAM,
+            ::mutableSetOf
+          ) += setOperation.displayName
         }
         MetricTypeCase.IMPRESSION_COUNT -> {
           grpcRequire(
@@ -574,8 +576,10 @@ private fun checkSetOperationDisplayNamesUniqueness(metricsList: List<Metric>) {
               .getValue(MetricTypeCase.IMPRESSION_COUNT)
               .contains(setOperation.displayName)
           ) { "The display names of the set operations within the same metric should be unique." }
-          metricToSetOperationDisplayNamesList.getValue(MetricTypeCase.IMPRESSION_COUNT) +=
-            setOperation.displayName
+          metricToSetOperationDisplayNamesList.getOrPut(
+            MetricTypeCase.IMPRESSION_COUNT,
+            ::mutableSetOf
+          ) += setOperation.displayName
         }
         MetricTypeCase.WATCH_DURATION -> {
           grpcRequire(
@@ -583,8 +587,10 @@ private fun checkSetOperationDisplayNamesUniqueness(metricsList: List<Metric>) {
               .getValue(MetricTypeCase.WATCH_DURATION)
               .contains(setOperation.displayName)
           ) { "The display names of the set operations within the same metric should be unique." }
-          metricToSetOperationDisplayNamesList.getValue(MetricTypeCase.WATCH_DURATION) +=
-            setOperation.displayName
+          metricToSetOperationDisplayNamesList.getOrPut(
+            MetricTypeCase.WATCH_DURATION,
+            ::mutableSetOf
+          ) += setOperation.displayName
         }
         MetricTypeCase.METRICTYPE_NOT_SET ->
           failGrpc(Status.INVALID_ARGUMENT) {
