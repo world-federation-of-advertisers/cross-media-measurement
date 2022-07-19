@@ -1022,26 +1022,26 @@ private fun getUnsignedMeasurementSpec(
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     when (internalMetricDetails.metricTypeCase) {
       InternalMetricTypeCase.REACH -> {
-        reachAndFrequency = getMeasurementSpecReachOnly()
+        reachAndFrequency = getReachOnlyMeasurementSpec()
         vidSamplingInterval = getReachOnlyVidSamplingInterval(secureRandom)
       }
       InternalMetricTypeCase.FREQUENCY_HISTOGRAM -> {
         reachAndFrequency =
-          getMeasurementSpecReachAndFrequency(
+          getReachAndFrequencyMeasurementSpec(
             internalMetricDetails.frequencyHistogram.maximumFrequencyPerUser
           )
         vidSamplingInterval = getReachAndFrequencyVidSamplingInterval(secureRandom)
       }
       InternalMetricTypeCase.IMPRESSION_COUNT -> {
         impression =
-          getMeasurementSpecImpression(
+          getImpressionMeasurementSpec(
             internalMetricDetails.impressionCount.maximumFrequencyPerUser
           )
         vidSamplingInterval = getImpressionVidSamplingInterval(secureRandom)
       }
       InternalMetricTypeCase.WATCH_DURATION -> {
         duration =
-          getMeasurementSpecDuration(
+          getDurationMeasurementSpec(
             internalMetricDetails.watchDuration.maximumWatchDurationPerUser,
             internalMetricDetails.watchDuration.maximumFrequencyPerUser
           )
@@ -1096,7 +1096,7 @@ private fun getDurationVidSamplingInterval(secureRandom: SecureRandom): VidSampl
 }
 
 /** Gets a [MeasurementSpec.ReachAndFrequency] for reach-only. */
-private fun getMeasurementSpecReachOnly(): MeasurementSpec.ReachAndFrequency {
+private fun getReachOnlyMeasurementSpec(): MeasurementSpec.ReachAndFrequency {
   return measurementSpecReachAndFrequency {
     reachPrivacyParams = differentialPrivacyParams {
       epsilon = REACH_ONLY_REACH_EPSILON
@@ -1111,7 +1111,7 @@ private fun getMeasurementSpecReachOnly(): MeasurementSpec.ReachAndFrequency {
 }
 
 /** Gets a [MeasurementSpec.ReachAndFrequency] for reach-frequency. */
-private fun getMeasurementSpecReachAndFrequency(
+private fun getReachAndFrequencyMeasurementSpec(
   maximumFrequencyPerUser: Int
 ): MeasurementSpec.ReachAndFrequency {
   return measurementSpecReachAndFrequency {
@@ -1128,7 +1128,7 @@ private fun getMeasurementSpecReachAndFrequency(
 }
 
 /** Gets a [MeasurementSpec.ReachAndFrequency] for impression count. */
-private fun getMeasurementSpecImpression(maximumFrequencyPerUser: Int): MeasurementSpec.Impression {
+private fun getImpressionMeasurementSpec(maximumFrequencyPerUser: Int): MeasurementSpec.Impression {
   return measurementSpecImpression {
     privacyParams = differentialPrivacyParams {
       epsilon = IMPRESSION_EPSILON
@@ -1139,7 +1139,7 @@ private fun getMeasurementSpecImpression(maximumFrequencyPerUser: Int): Measurem
 }
 
 /** Gets a [MeasurementSpec.ReachAndFrequency] for watch duration. */
-private fun getMeasurementSpecDuration(
+private fun getDurationMeasurementSpec(
   maximumWatchDurationPerUser: Int,
   maximumFrequencyPerUser: Int
 ): MeasurementSpec.Duration {
