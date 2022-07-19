@@ -100,6 +100,32 @@ message Report {
   // Report state.
   State state = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
 
-  // Results in CSV format. Each result can be seen as one table.
-  repeated string results = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Set operation calculations are done for each set operation for a given
+  // `Metric`, which is column by column.
+  message Result {
+    message Column {
+      string column_header = 1;
+      // Required to be in the same order as `row_headers`.
+      repeated double set_operations = 2;
+    }
+
+    message ScalarTable {
+      repeated string row_headers = 1;
+      repeated Column columns = 2;
+    }
+    ScalarTable scalar_table = 1;
+
+    message HistogramTable {
+      message Row {
+        string row_header = 1;
+        int32 frequency = 2;
+      }
+      repeated Row rows = 1;
+      repeated Column columns = 2;
+    }
+    repeated HistogramTable histogram_tables = 2;
+  }
+
+  // Set only when `state` is `SUCCEEDED`. Output-only.
+  Result result = 9;
 }
