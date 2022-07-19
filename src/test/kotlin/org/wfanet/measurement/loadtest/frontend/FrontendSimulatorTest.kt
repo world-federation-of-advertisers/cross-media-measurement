@@ -139,7 +139,7 @@ private val LIQUID_LEGIONS_V2_PROTOCOL_CONFIG = liquidLegionsV2 {
   maximumFrequency = MAX_FREQUENCY
 }
 private val RF_MEASUREMENT = measurement {
-  name = "rf measurement"
+  name = "rfMeasurement"
   state = Measurement.State.SUCCEEDED
   results += resultPair {
     val result = result {

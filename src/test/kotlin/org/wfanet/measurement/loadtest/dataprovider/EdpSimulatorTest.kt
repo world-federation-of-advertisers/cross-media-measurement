@@ -368,9 +368,8 @@ class EdpSimulatorTest {
           EVENT_TEMPLATES,
           privacyBudgetManager
         )
-      val edpJob = launch { edpSimulator.process() }
-      delay(1000)
-      edpJob.cancelAndJoin()
+      edpSimulator.createEventGroup()
+      edpSimulator.executeRequisitionFulfillingWorkflow()
       val storedSketch = sketchStore.get(REQUISITION_ONE)?.read()?.flatten()
       assertThat(storedSketch).isNotNull()
 
@@ -640,8 +639,26 @@ class EdpSimulatorTest {
 
     private val CONSENT_SIGNALING_ELGAMAL_PUBLIC_KEY = elGamalPublicKey {
       ellipticCurveId = 415
-      generator = ByteString.copyFrom(byteArrayOf(3))
-      element = ByteString.copyFrom(byteArrayOf(3))
+      generator =
+        ByteString.copyFrom(
+          byteArrayOf(
+            3, 107, 23, -47, -14, -31, 44, 66,
+            71, -8, -68, -26, -27, 99, -92, 64,
+            -14, 119, 3, 125, -127, 45, -21, 51,
+            -96, -12, -95, 57, 69, -40, -104, -62,
+            -106
+          )
+        )
+      element =
+        ByteString.copyFrom(
+          byteArrayOf(
+            2, 119, -65, 64, 108, 90, -92, 55,
+            100, 19, -28, -128, -32, -85, -117, 14,
+            -4, -87, -103, -45, 98, 32, 78, 109,
+            22, -122, -32, -66, 86, 120, 17, 96,
+            77
+          )
+        )
     }
 
     private val REQUISITION_ONE = requisition {

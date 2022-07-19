@@ -2,7 +2,7 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 
 kt_jvm_test(
     name = "FrontendSimulatorImplTest",
-    srcs = ["FrontendSimulatorImplTest.kt"],
+    srcs = ["FrontendSimulatorTest.kt"],
     data = [
         "//src/main/k8s/testing/secretfiles:all_configs",
         "//src/main/k8s/testing/secretfiles:all_der_files",
