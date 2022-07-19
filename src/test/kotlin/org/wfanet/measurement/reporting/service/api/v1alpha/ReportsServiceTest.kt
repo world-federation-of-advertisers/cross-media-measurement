@@ -36,7 +36,6 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.KArgumentCaptor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
-import org.mockito.kotlin.capture
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
@@ -392,7 +391,6 @@ private val WATCH_DURATION = duration { seconds = 100 }
 private val WATCH_DURATION_2 = duration { seconds = 200 }
 private val WATCH_DURATION_3 = duration { seconds = 300 }
 
-// Base Measurement
 private val BASE_MEASUREMENT = measurement {
   val unsignedMeasurementSpec = measurementSpec {
     measurementPublicKey = MEASUREMENT_PUBLIC_KEY_DATA
@@ -1736,157 +1734,149 @@ class ReportsServiceTest {
   }
 
   @Test
-  fun `getReport returns the report with RUNNING when measurements are pending`() = runBlocking {
-    whenever(internalReportsMock.getReport(any()))
-      .thenReturn(INTERNAL_PENDING_WATCH_DURATION_REPORT)
-    whenever(measurementsMock.getMeasurement(any())).thenReturn(PENDING_WATCH_DURATION_MEASUREMENT)
+  fun `getReport returns the report with RUNNING when measurements are pending`(): Unit =
+    runBlocking {
+      whenever(internalReportsMock.getReport(any()))
+        .thenReturn(INTERNAL_PENDING_WATCH_DURATION_REPORT)
+      whenever(measurementsMock.getMeasurement(any()))
+        .thenReturn(PENDING_WATCH_DURATION_MEASUREMENT)
 
-    val request = getReportRequest { name = REPORT_NAME_3 }
+      val request = getReportRequest { name = REPORT_NAME_3 }
 
-    val report =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-        runBlocking { service.getReport(request) }
-      }
-
-    assertThat(report).isEqualTo(PENDING_WATCH_DURATION_REPORT)
-
-    verifyProtoArgument(measurementsMock, MeasurementsCoroutineImplBase::getMeasurement)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(getMeasurementRequest { name = WATCH_DURATION_MEASUREMENT_REFERENCE_ID })
-
-    val internalReportCaptor: KArgumentCaptor<GetInternalReportRequest> = argumentCaptor()
-    verifyBlocking(internalReportsMock, times(2)) { getReport(internalReportCaptor.capture()) }
-    val capturedRequests = internalReportCaptor.allValues
-    assertThat(capturedRequests[0])
-      .isEqualTo(
-        getInternalReportRequest {
-          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
-          externalReportId = REPORT_EXTERNAL_ID_3
+      val report =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.getReport(request) }
         }
-      )
-    assertThat(capturedRequests[1])
-      .isEqualTo(
-        getInternalReportRequest {
-          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
-          externalReportId = REPORT_EXTERNAL_ID_3
-        }
-      )
-  }
+
+      assertThat(report).isEqualTo(PENDING_WATCH_DURATION_REPORT)
+
+      verifyProtoArgument(measurementsMock, MeasurementsCoroutineImplBase::getMeasurement)
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(getMeasurementRequest { name = WATCH_DURATION_MEASUREMENT_REFERENCE_ID })
+
+      val internalReportCaptor: KArgumentCaptor<GetInternalReportRequest> = argumentCaptor()
+      verifyBlocking(internalReportsMock, times(2)) { getReport(internalReportCaptor.capture()) }
+      assertThat(internalReportCaptor.allValues)
+        .containsExactly(
+          getInternalReportRequest {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            externalReportId = REPORT_EXTERNAL_ID_3
+          },
+          getInternalReportRequest {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            externalReportId = REPORT_EXTERNAL_ID_3
+          }
+        )
+    }
 
   @Test
-  fun `getReport syncs and returns an SUCCEEDED report with aggregated results`() = runBlocking {
-    whenever(measurementsMock.getMeasurement(any())).thenReturn(SUCCEEDED_IMPRESSION_MEASUREMENT)
-    whenever(internalReportsMock.getReport(any()))
-      .thenReturn(INTERNAL_PENDING_IMPRESSION_REPORT, INTERNAL_SUCCEEDED_IMPRESSION_REPORT)
+  fun `getReport syncs and returns an SUCCEEDED report with aggregated results`(): Unit =
+    runBlocking {
+      whenever(measurementsMock.getMeasurement(any())).thenReturn(SUCCEEDED_IMPRESSION_MEASUREMENT)
+      whenever(internalReportsMock.getReport(any()))
+        .thenReturn(INTERNAL_PENDING_IMPRESSION_REPORT, INTERNAL_SUCCEEDED_IMPRESSION_REPORT)
 
-    val request = getReportRequest { name = REPORT_NAME_2 }
+      val request = getReportRequest { name = REPORT_NAME_2 }
 
-    val report =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-        runBlocking { service.getReport(request) }
-      }
+      val report =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.getReport(request) }
+        }
 
-    assertThat(report).isEqualTo(SUCCEEDED_IMPRESSION_REPORT)
+      assertThat(report).isEqualTo(SUCCEEDED_IMPRESSION_REPORT)
 
-    verifyProtoArgument(measurementsMock, MeasurementsCoroutineImplBase::getMeasurement)
-      .isEqualTo(getMeasurementRequest { name = IMPRESSION_MEASUREMENT_REFERENCE_ID })
-    verifyProtoArgument(
-        internalMeasurementsMock,
-        InternalMeasurementsCoroutineImplBase::setMeasurementResult
-      )
-      .isEqualTo(
-        setMeasurementResultRequest {
-          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
-          measurementReferenceId = IMPRESSION_MEASUREMENT_REFERENCE_ID
-          this.result = internalMeasurementResult {
-            impression = internalImpression {
-              value = IMPRESSION_VALUE + IMPRESSION_VALUE_2 + IMPRESSION_VALUE_3
+      verifyProtoArgument(measurementsMock, MeasurementsCoroutineImplBase::getMeasurement)
+        .isEqualTo(getMeasurementRequest { name = IMPRESSION_MEASUREMENT_REFERENCE_ID })
+      verifyProtoArgument(
+          internalMeasurementsMock,
+          InternalMeasurementsCoroutineImplBase::setMeasurementResult
+        )
+        .isEqualTo(
+          setMeasurementResultRequest {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            measurementReferenceId = IMPRESSION_MEASUREMENT_REFERENCE_ID
+            this.result = internalMeasurementResult {
+              impression = internalImpression {
+                value = IMPRESSION_VALUE + IMPRESSION_VALUE_2 + IMPRESSION_VALUE_3
+              }
             }
           }
-        }
-      )
+        )
 
-    val internalReportCaptor: KArgumentCaptor<GetInternalReportRequest> = argumentCaptor()
-    verifyBlocking(internalReportsMock, times(2)) { getReport(internalReportCaptor.capture()) }
-    val capturedRequests = internalReportCaptor.allValues
-    assertThat(capturedRequests[0])
-      .isEqualTo(
-        getInternalReportRequest {
-          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
-          externalReportId = REPORT_EXTERNAL_ID_2
-        }
-      )
-    assertThat(capturedRequests[1])
-      .isEqualTo(
-        getInternalReportRequest {
-          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
-          externalReportId = REPORT_EXTERNAL_ID_2
-        }
-      )
-  }
+      val internalReportCaptor: KArgumentCaptor<GetInternalReportRequest> = argumentCaptor()
+      verifyBlocking(internalReportsMock, times(2)) { getReport(internalReportCaptor.capture()) }
+      assertThat(internalReportCaptor.allValues)
+        .containsExactly(
+          getInternalReportRequest {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            externalReportId = REPORT_EXTERNAL_ID_2
+          },
+          getInternalReportRequest {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            externalReportId = REPORT_EXTERNAL_ID_2
+          }
+        )
+    }
 
   @Test
-  fun `getReport syncs and returns an FAILED report when measurements failed`() = runBlocking {
-    whenever(measurementsMock.getMeasurement(any()))
-      .thenReturn(
-        IMPRESSION_MEASUREMENT.copy {
-          state = Measurement.State.FAILED
-          failure = failure {
-            reason = Measurement.Failure.Reason.REQUISITION_REFUSED
-            message = "Privacy budget exceeded."
+  fun `getReport syncs and returns an FAILED report when measurements failed`(): Unit =
+    runBlocking {
+      whenever(measurementsMock.getMeasurement(any()))
+        .thenReturn(
+          IMPRESSION_MEASUREMENT.copy {
+            state = Measurement.State.FAILED
+            failure = failure {
+              reason = Measurement.Failure.Reason.REQUISITION_REFUSED
+              message = "Privacy budget exceeded."
+            }
           }
+        )
+      whenever(internalReportsMock.getReport(any()))
+        .thenReturn(
+          INTERNAL_PENDING_IMPRESSION_REPORT,
+          INTERNAL_PENDING_IMPRESSION_REPORT.copy { state = InternalReport.State.FAILED }
+        )
+
+      val request = getReportRequest { name = REPORT_NAME_2 }
+
+      val report =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.getReport(request) }
         }
-      )
-    whenever(internalReportsMock.getReport(any()))
-      .thenReturn(
-        INTERNAL_PENDING_IMPRESSION_REPORT,
-        INTERNAL_PENDING_IMPRESSION_REPORT.copy { state = InternalReport.State.FAILED }
-      )
 
-    val request = getReportRequest { name = REPORT_NAME_2 }
+      assertThat(report).isEqualTo(PENDING_IMPRESSION_REPORT.copy { state = Report.State.FAILED })
 
-    val report =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-        runBlocking { service.getReport(request) }
-      }
-
-    assertThat(report).isEqualTo(PENDING_IMPRESSION_REPORT.copy { state = Report.State.FAILED })
-
-    verifyProtoArgument(measurementsMock, MeasurementsCoroutineImplBase::getMeasurement)
-      .isEqualTo(getMeasurementRequest { name = IMPRESSION_MEASUREMENT_REFERENCE_ID })
-    verifyProtoArgument(
-        internalMeasurementsMock,
-        InternalMeasurementsCoroutineImplBase::setMeasurementFailure
-      )
-      .isEqualTo(
-        setMeasurementFailureRequest {
-          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
-          measurementReferenceId = IMPRESSION_MEASUREMENT_REFERENCE_ID
-          failure = internalFailure {
-            reason = InternalMeasurement.Failure.Reason.REQUISITION_REFUSED
-            message = "Privacy budget exceeded."
+      verifyProtoArgument(measurementsMock, MeasurementsCoroutineImplBase::getMeasurement)
+        .isEqualTo(getMeasurementRequest { name = IMPRESSION_MEASUREMENT_REFERENCE_ID })
+      verifyProtoArgument(
+          internalMeasurementsMock,
+          InternalMeasurementsCoroutineImplBase::setMeasurementFailure
+        )
+        .isEqualTo(
+          setMeasurementFailureRequest {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            measurementReferenceId = IMPRESSION_MEASUREMENT_REFERENCE_ID
+            failure = internalFailure {
+              reason = InternalMeasurement.Failure.Reason.REQUISITION_REFUSED
+              message = "Privacy budget exceeded."
+            }
           }
-        }
-      )
+        )
 
-    val internalReportCaptor: KArgumentCaptor<GetInternalReportRequest> = argumentCaptor()
-    verifyBlocking(internalReportsMock, times(2)) { getReport(internalReportCaptor.capture()) }
-    val capturedRequests = internalReportCaptor.allValues
-    assertThat(capturedRequests[0])
-      .isEqualTo(
-        getInternalReportRequest {
-          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
-          externalReportId = REPORT_EXTERNAL_ID_2
-        }
-      )
-    assertThat(capturedRequests[1])
-      .isEqualTo(
-        getInternalReportRequest {
-          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
-          externalReportId = REPORT_EXTERNAL_ID_2
-        }
-      )
-  }
+      val internalReportCaptor: KArgumentCaptor<GetInternalReportRequest> = argumentCaptor()
+      verifyBlocking(internalReportsMock, times(2)) { getReport(internalReportCaptor.capture()) }
+      assertThat(internalReportCaptor.allValues)
+        .containsExactly(
+          getInternalReportRequest {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            externalReportId = REPORT_EXTERNAL_ID_2
+          },
+          getInternalReportRequest {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            externalReportId = REPORT_EXTERNAL_ID_2
+          }
+        )
+    }
 
   @Test
   fun `getReport throws INVALID_ARGUMENT when Report name is invalid`() {
