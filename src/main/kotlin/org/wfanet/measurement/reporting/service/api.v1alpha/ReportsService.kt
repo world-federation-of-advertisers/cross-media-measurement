@@ -220,7 +220,7 @@ private const val WATCH_DURATION_EPSILON = 0.001
 
 private const val DIFFERENTIAL_PRIVACY_DETLA = 1e-12
 
-data class ServiceStubs(
+private data class ServiceStubs(
   val internalReportsStub: InternalReportsCoroutineStub,
   val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
   val internalMeasurementsStub: InternalMeasurementsCoroutineStub,
@@ -230,7 +230,7 @@ data class ServiceStubs(
   val certificateStub: CertificatesCoroutineStub,
 )
 
-data class Credential(
+private data class Credential(
   val measurementConsumerReferenceId: String,
   val measurementConsumerResourceName: String,
   val reportIdempotencyKey: String,
@@ -242,12 +242,28 @@ data class Credential(
 
 /** TODO(@renjiez) Have a function to get public/private keys */
 class ReportsService(
-  private val serviceStubs: ServiceStubs,
+  private val internalReportsStub: InternalReportsCoroutineStub,
+  private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
+  private val internalMeasurementsStub: InternalMeasurementsCoroutineStub,
+  private val dataProvidersStub: DataProvidersCoroutineStub,
+  private val measurementConsumersStub: MeasurementConsumersCoroutineStub,
+  private val measurementsStub: MeasurementsCoroutineStub,
+  private val certificateStub: CertificatesCoroutineStub,
   private val encryptionPrivateKeyHandle: PrivateKeyHandle,
   private val signingPrivateKey: PrivateKey,
   private val apiAuthenticationKey: String,
   private val secureRandom: SecureRandom,
 ) : ReportsCoroutineImplBase() {
+  private val serviceStubs =
+    ServiceStubs(
+      internalReportsStub,
+      internalReportingSetsStub,
+      internalMeasurementsStub,
+      dataProvidersStub,
+      measurementConsumersStub,
+      measurementsStub,
+      certificateStub,
+    )
 
   override suspend fun createReport(request: CreateReportRequest): Report {
     val principal = principalFromCurrentContext

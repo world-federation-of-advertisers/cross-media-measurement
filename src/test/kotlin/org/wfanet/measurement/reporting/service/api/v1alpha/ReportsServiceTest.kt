@@ -1298,15 +1298,13 @@ class ReportsServiceTest {
 
     service =
       ReportsService(
-        ServiceStubs(
-          InternalReportsCoroutineStub(grpcTestServerRule.channel),
-          InternalReportingSetsCoroutineStub(grpcTestServerRule.channel),
-          InternalMeasurementsCoroutineStub(grpcTestServerRule.channel),
-          DataProvidersCoroutineStub(grpcTestServerRule.channel),
-          MeasurementConsumersCoroutineStub(grpcTestServerRule.channel),
-          MeasurementsCoroutineStub(grpcTestServerRule.channel),
-          CertificatesCoroutineStub(grpcTestServerRule.channel),
-        ),
+        InternalReportsCoroutineStub(grpcTestServerRule.channel),
+        InternalReportingSetsCoroutineStub(grpcTestServerRule.channel),
+        InternalMeasurementsCoroutineStub(grpcTestServerRule.channel),
+        DataProvidersCoroutineStub(grpcTestServerRule.channel),
+        MeasurementConsumersCoroutineStub(grpcTestServerRule.channel),
+        MeasurementsCoroutineStub(grpcTestServerRule.channel),
+        CertificatesCoroutineStub(grpcTestServerRule.channel),
         MEASUREMENT_CONSUMER_PRIVATE_KEY_HANDLE,
         MEASUREMENT_CONSUMER_SIGNING_PRIVATE_KEY,
         API_AUTHENTICATION_KEY,
