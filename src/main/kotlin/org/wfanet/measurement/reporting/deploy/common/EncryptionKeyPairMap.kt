@@ -17,7 +17,7 @@ package org.wfanet.measurement.reporting.deploy.common
 import com.google.protobuf.ByteString
 import java.io.File
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
-import org.wfanet.measurement.common.crypto.tink.testing.loadPrivateKey
+import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
