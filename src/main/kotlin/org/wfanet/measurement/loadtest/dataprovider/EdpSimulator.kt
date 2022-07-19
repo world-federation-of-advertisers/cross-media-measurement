@@ -212,8 +212,10 @@ class EdpSimulator(
 
       if (!requisition.hasProtocolConfig()) {
         when (measurementSpec.measurementTypeCase) {
-          MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
+          MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
+            // Direct R/F measurement(single EDP) will not have protocolConfig
             fulfillDirectReachAndFrequencyMeasurement(requisition, requisitionSpec, measurementSpec)
+          }
           MeasurementSpec.MeasurementTypeCase.IMPRESSION ->
             fulfillImpressionMeasurement(requisition, requisitionSpec, measurementSpec)
           MeasurementSpec.MeasurementTypeCase.DURATION ->

@@ -275,6 +275,7 @@ fun Measurement.toInternal(
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (measurementSpecProto.measurementTypeCase) {
         MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
+          // For single EDP direct R/F measurement, don't generate internal protocolConfig
           if (dataProvidersCount > 1) {
             protocolConfig = internalProtocolConfig {
               externalProtocolConfigId = Llv2ProtocolConfig.name
