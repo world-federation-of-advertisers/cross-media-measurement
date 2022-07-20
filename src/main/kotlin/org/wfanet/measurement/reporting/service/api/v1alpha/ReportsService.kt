@@ -471,6 +471,7 @@ private fun InternalReport.toReport(): Report {
     }
 
     this.state = source.state.toState()
+    this.result = source.details.result.toResult()
   }
 }
 

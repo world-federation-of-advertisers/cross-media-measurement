@@ -1958,81 +1958,78 @@ class ReportsServiceTest {
   }
 
   @Test
-  fun `toResult() converts internal result to external result with the same content`() =
-    runBlocking {
-      val internalResult = internalReportResult {
-        scalarTable = internalScalarTable {
-          rowHeaders += listOf("row1", "row2", "row3")
-          columns += internalColumn {
-            columnHeader = "column1"
-            setOperations += listOf(1.0, 2.0, 3.0)
-          }
-        }
-        histogramTables += internalHistogramTable {
-          rows += internalRow {
-            rowHeader = "row4"
-            frequency = 100
-          }
-          rows += internalRow {
-            rowHeader = "row5"
-            frequency = 101
-          }
-          columns += internalColumn {
-            columnHeader = "column1"
-            setOperations += listOf(10.0, 11.0, 12.0)
-          }
-          columns += internalColumn {
-            columnHeader = "column2"
-            setOperations += listOf(20.0, 21.0, 22.0)
-          }
+  fun `toResult converts internal result to external result with the same content`() = runBlocking {
+    val internalResult = internalReportResult {
+      scalarTable = internalScalarTable {
+        rowHeaders += listOf("row1", "row2", "row3")
+        columns += internalColumn {
+          columnHeader = "column1"
+          setOperations += listOf(1.0, 2.0, 3.0)
         }
       }
-
-      whenever(internalReportsMock.getReport(any()))
-        .thenReturn(
-          internalReport {
-            state = InternalReport.State.SUCCEEDED
-            externalReportId = REPORT_EXTERNAL_ID_3
-            details = internalReportDetails { result = internalResult }
-          }
-        )
-
-      val request = getReportRequest { name = REPORT_NAME_3 }
-
-      val report =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking { service.getReport(request) }
+      histogramTables += internalHistogramTable {
+        rows += internalRow {
+          rowHeader = "row4"
+          frequency = 100
         }
+        rows += internalRow {
+          rowHeader = "row5"
+          frequency = 101
+        }
+        columns += internalColumn {
+          columnHeader = "column1"
+          setOperations += listOf(10.0, 11.0, 12.0)
+        }
+        columns += internalColumn {
+          columnHeader = "column2"
+          setOperations += listOf(20.0, 21.0, 22.0)
+        }
+      }
+    }
 
-      assertThat(report.result)
-        .isEqualTo(
-          reportResult {
-            scalarTable = scalarTable {
-              rowHeaders += listOf("row1", "row2", "row3")
-              columns += column {
-                columnHeader = "column1"
-                setOperations += listOf(1.0, 2.0, 3.0)
-              }
-            }
-            histogramTables += histogramTable {
-              rows += row {
-                rowHeader = "row4"
-                frequency = 100
-              }
-              rows += row {
-                rowHeader = "row5"
-                frequency = 101
-              }
-              columns += column {
-                columnHeader = "column1"
-                setOperations += listOf(10.0, 11.0, 12.0)
-              }
-              columns += column {
-                columnHeader = "column2"
-                setOperations += listOf(20.0, 21.0, 22.0)
-              }
+    whenever(internalReportsMock.getReport(any()))
+      .thenReturn(
+        INTERNAL_SUCCEEDED_WATCH_DURATION_REPORT.copy {
+          details = internalReportDetails { result = internalResult }
+        }
+      )
+
+    val request = getReportRequest { name = REPORT_NAME_3 }
+
+    val report =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.getReport(request) }
+      }
+
+    assertThat(report.result)
+      .isEqualTo(
+        reportResult {
+          scalarTable = scalarTable {
+            rowHeaders += listOf("row1", "row2", "row3")
+            columns += column {
+              columnHeader = "column1"
+              setOperations += listOf(1.0, 2.0, 3.0)
             }
           }
-        )
-    }
+          histogramTables += histogramTable {
+            rows += row {
+              rowHeader = "row4"
+              frequency = 100
+            }
+            rows += row {
+              rowHeader = "row5"
+              frequency = 101
+            }
+            columns += column {
+              columnHeader = "column1"
+              setOperations += listOf(10.0, 11.0, 12.0)
+            }
+            columns += column {
+              columnHeader = "column2"
+              setOperations += listOf(20.0, 21.0, 22.0)
+            }
+          }
+        }
+      )
+  }
 }
