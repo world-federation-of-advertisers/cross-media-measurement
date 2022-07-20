@@ -18,6 +18,7 @@ import com.google.protobuf.Duration
 import com.google.protobuf.duration
 import com.google.protobuf.util.Durations
 import io.grpc.Status
+import java.security.PrivateKey
 import kotlin.math.min
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.toList
@@ -29,6 +30,7 @@ import org.wfanet.measurement.api.v2.alpha.listReportsPageToken
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
@@ -41,6 +43,7 @@ import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
@@ -70,6 +73,7 @@ import org.wfanet.measurement.internal.reporting.getReportRequest as getInternal
 import org.wfanet.measurement.internal.reporting.setMeasurementFailureRequest
 import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest
 import org.wfanet.measurement.internal.reporting.streamReportsRequest as streamInternalReportsRequest
+import org.wfanet.measurement.reporting.v1alpha.GetReportRequest
 import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.v1alpha.ListReportsResponse
 import org.wfanet.measurement.reporting.v1alpha.Metric
@@ -114,7 +118,8 @@ class ReportsService(
   private val internalMeasurementsStub: InternalMeasurementsCoroutineStub,
   private val measurementsStub: MeasurementsCoroutineStub,
   private val certificateStub: CertificatesCoroutineStub,
-  private val privateKey: PrivateKeyHandle,
+  private val encryptionKeyPairStore: EncryptionKeyPairStore,
+  private val signingPrivateKey: PrivateKey,
   private val apiAuthenticationKey: String,
 ) : ReportsCoroutineImplBase() {
 
@@ -158,7 +163,7 @@ class ReportsService(
       reports +=
         results
           .subList(0, min(results.size, listReportsPageToken.pageSize))
-          .map { syncReports(it) }
+          .map { syncReport(it) }
           .map(InternalReport::toReport)
 
       if (nextPageToken != null) {
@@ -167,8 +172,42 @@ class ReportsService(
     }
   }
 
+  override suspend fun getReport(request: GetReportRequest): Report {
+    val reportKey =
+      grpcRequireNotNull(ReportKey.fromName(request.name)) {
+        "Report name is either unspecified or invalid"
+      }
+
+    val principal = principalFromCurrentContext
+
+    when (val resourceKey = principal.resourceKey) {
+      is MeasurementConsumerKey -> {
+        if (reportKey.measurementConsumerId != resourceKey.measurementConsumerId) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot get Report belonging to other MeasurementConsumers."
+          }
+        }
+      }
+      else -> {
+        failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to get Report." }
+      }
+    }
+
+    val internalReport =
+      internalReportsStub.getReport(
+        getInternalReportRequest {
+          measurementConsumerReferenceId = reportKey.measurementConsumerId
+          externalReportId = apiIdToExternalId(reportKey.reportId)
+        }
+      )
+
+    val syncedInternalReport = syncReport(internalReport)
+
+    return syncedInternalReport.toReport()
+  }
+
   /** Syncs the [InternalReport] and all [InternalMeasurement]s used by it. */
-  private suspend fun syncReports(internalReport: InternalReport): InternalReport {
+  private suspend fun syncReport(internalReport: InternalReport): InternalReport {
     // Report with SUCCEEDED or FAILED state is already synced.
     if (
       internalReport.state == InternalReport.State.SUCCEEDED ||
@@ -229,6 +268,11 @@ class ReportsService(
       Measurement.State.SUCCEEDED -> {
         // Converts a Measurement to an InternalMeasurement and store it into the database with
         // SUCCEEDED state
+        val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
+        val privateKeyHandle =
+          encryptionKeyPairStore.getPrivateKeyHandle(measurementSpec.measurementPublicKey)
+            ?: failGrpc(Status.PERMISSION_DENIED) { "Encryption private key not found" }
+
         internalMeasurementsStub.setMeasurementResult(
           setMeasurementResultRequest {
             this.measurementConsumerReferenceId = measurementConsumerReferenceId
@@ -236,7 +280,7 @@ class ReportsService(
             result =
               aggregateResults(
                 measurement.resultsList
-                  .map { it.toMeasurementResult() }
+                  .map { it.toMeasurementResult(privateKeyHandle) }
                   .map(Measurement.Result::toInternal)
               )
           }
@@ -260,14 +304,16 @@ class ReportsService(
   }
 
   /** Decrypts a [Measurement.ResultPair] to [Measurement.Result] */
-  private suspend fun Measurement.ResultPair.toMeasurementResult(): Measurement.Result {
+  private suspend fun Measurement.ResultPair.toMeasurementResult(
+    privateKeyHandle: PrivateKeyHandle
+  ): Measurement.Result {
     val source = this
     val certificate =
       certificateStub
         .withAuthenticationKey(apiAuthenticationKey)
         .getCertificate(getCertificateRequest { name = source.certificate })
 
-    val signedResult = decryptResult(source.encryptedResult, privateKey)
+    val signedResult = decryptResult(source.encryptedResult, privateKeyHandle)
 
     val result = Measurement.Result.parseFrom(signedResult.data)
 
