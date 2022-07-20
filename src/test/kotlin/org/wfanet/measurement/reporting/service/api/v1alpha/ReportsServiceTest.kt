@@ -18,6 +18,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.duration
+import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.protobuf.timestamp
 import com.google.protobuf.util.Durations
 import io.grpc.Status
@@ -115,6 +116,7 @@ import org.wfanet.measurement.consent.client.duchy.signResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
+import org.wfanet.measurement.internal.reporting.GetReportRequest as GetInternalReportRequest
 import org.wfanet.measurement.internal.reporting.GetReportingSetRequest
 import org.wfanet.measurement.internal.reporting.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.MeasurementKt.ResultKt.frequency as internalFrequency
@@ -173,6 +175,7 @@ import org.wfanet.measurement.reporting.v1alpha.ReportKt.EventGroupUniverseKt.ev
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.eventGroupUniverse
 import org.wfanet.measurement.reporting.v1alpha.copy
 import org.wfanet.measurement.reporting.v1alpha.createReportRequest
+import org.wfanet.measurement.reporting.v1alpha.getReportRequest
 import org.wfanet.measurement.reporting.v1alpha.listReportsRequest
 import org.wfanet.measurement.reporting.v1alpha.listReportsResponse
 import org.wfanet.measurement.reporting.v1alpha.metric
@@ -244,7 +247,7 @@ private val SECRETS_DIR =
 // Authentication key
 private const val API_AUTHENTICATION_KEY = "nR5QPN7ptx"
 
-// Aggregatir certificate
+// Aggregator certificate
 private val AGGREGATOR_CERTIFICATE_DER =
   SECRETS_DIR.resolve("aggregator_cs_cert.der").readByteString()
 private val AGGREGATOR_PRIVATE_KEY_DER =
@@ -264,6 +267,7 @@ private val MEASUREMENT_PUBLIC_KEY = encryptionPublicKey {
   format = EncryptionPublicKey.Format.TINK_KEYSET
   data = MEASUREMENT_PUBLIC_KEY_DATA
 }
+private val INVALID_MEASUREMENT_PUBLIC_KEY_DATA = "Invalid public key".toByteStringUtf8()
 
 // Private keys of measurement consumers
 private val MEASUREMENT_CONSUMER_CERTIFICATE_DER =
@@ -358,6 +362,8 @@ private val REPORT_NAME_3 =
   ReportKey(MEASUREMENT_CONSUMER_REFERENCE_ID, externalIdToApiId(REPORT_EXTERNAL_ID_3)).toName()
 private val REPORT_NAME_4 =
   ReportKey(MEASUREMENT_CONSUMER_REFERENCE_ID, externalIdToApiId(REPORT_EXTERNAL_ID_4)).toName()
+// Typo causes invalid name
+private const val INVALID_REPORT_NAME = "measurementConsumer/AAAAAAAAAG8/report/AAAAAAAAAU0"
 
 // Data provider IDs and names
 private const val DATA_PROVIDER_EXTERNAL_ID = 551L
@@ -610,16 +616,6 @@ private val SET_OPERATION = setOperation {
   rhs = setOperationOperand { reportingSet = REPORTING_SET_NAME_2 }
 }
 
-// Measurements
-private const val REACH_VALUE = 100_000L
-private val FREQUENCY_DISTRIBUTION = mapOf(1L to 1.0 / 6, 2L to 2.0 / 6, 3L to 3.0 / 6)
-private const val IMPRESSION_VALUE = 100L
-private const val IMPRESSION_VALUE_2 = 150L
-private const val IMPRESSION_VALUE_3 = 200L
-private val WATCH_DURATION = duration { seconds = 100 }
-private val WATCH_DURATION_2 = duration { seconds = 200 }
-private val WATCH_DURATION_3 = duration { seconds = 300 }
-
 // Event group filters
 private const val EVENT_GROUP_FILTER = "AGE>20"
 private val EVENT_GROUP_FILTERS_MAP =
@@ -682,7 +678,35 @@ private val DATA_PROVIDER_ENTRY_2 = dataProviderEntry {
   }
 }
 
+// Measurements
+private val BASE_MEASUREMENT = measurement {
+  val unsignedMeasurementSpec = measurementSpec {
+    measurementPublicKey = MEASUREMENT_PUBLIC_KEY_DATA
+  }
+  measurementSpec =
+    signMeasurementSpec(unsignedMeasurementSpec, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
+}
+
+// Measurement values
+private const val REACH_VALUE = 100_000L
+private val FREQUENCY_DISTRIBUTION = mapOf(1L to 1.0 / 6, 2L to 2.0 / 6, 3L to 3.0 / 6)
+private const val IMPRESSION_VALUE = 100L
+private const val IMPRESSION_VALUE_2 = 150L
+private const val IMPRESSION_VALUE_3 = 200L
+private val WATCH_DURATION = duration { seconds = 100 }
+private val WATCH_DURATION_2 = duration { seconds = 200 }
+private val WATCH_DURATION_3 = duration { seconds = 300 }
+
 // Reach
+private val BASE_REACH_MEASUREMENT =
+  BASE_MEASUREMENT.copy {
+    name = REACH_MEASUREMENT_NAME
+    measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
+  }
+
+private val PENDING_REACH_MEASUREMENT =
+  BASE_REACH_MEASUREMENT.copy { state = Measurement.State.COMPUTING }
+
 private val REACH_ONLY_UNSIGNED_MEASUREMENT_SPEC = measurementSpec {
   measurementPublicKey = MEASUREMENT_PUBLIC_KEY_DATA
 
@@ -707,75 +731,70 @@ private val REACH_ONLY_UNSIGNED_MEASUREMENT_SPEC = measurementSpec {
   }
 }
 
-private val SUCCEEDED_REACH_MEASUREMENT = measurement {
-  name = REACH_MEASUREMENT_NAME
-  measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
+private val SUCCEEDED_REACH_MEASUREMENT =
+  BASE_REACH_MEASUREMENT.copy {
+    dataProviders += DATA_PROVIDER_ENTRY
+    dataProviders += DATA_PROVIDER_ENTRY_2
 
-  dataProviders += DATA_PROVIDER_ENTRY
-  dataProviders += DATA_PROVIDER_ENTRY_2
+    measurementSpec =
+      signMeasurementSpec(
+        REACH_ONLY_UNSIGNED_MEASUREMENT_SPEC,
+        MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
+      )
 
-  measurementSpec =
-    signMeasurementSpec(
-      REACH_ONLY_UNSIGNED_MEASUREMENT_SPEC,
-      MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
-    )
+    state = Measurement.State.SUCCEEDED
 
-  state = Measurement.State.SUCCEEDED
-  measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
-
-  results += resultPair {
-    val result = result {
-      reach = MeasurementKt.ResultKt.reach { value = REACH_VALUE }
-      frequency =
-        MeasurementKt.ResultKt.frequency {
-          relativeFrequencyDistribution.putAll(FREQUENCY_DISTRIBUTION)
-        }
+    results += resultPair {
+      val result = result {
+        reach = MeasurementKt.ResultKt.reach { value = REACH_VALUE }
+        frequency =
+          MeasurementKt.ResultKt.frequency {
+            relativeFrequencyDistribution.putAll(FREQUENCY_DISTRIBUTION)
+          }
+      }
+      encryptedResult = getEncryptedResult(result)
+      certificate = DATA_PROVIDER_CERTIFICATE_NAME
     }
-    encryptedResult = getEncryptedResult(result)
-    certificate = DATA_PROVIDER_CERTIFICATE_NAME
   }
-}
-private val PENDING_REACH_MEASUREMENT =
-  SUCCEEDED_REACH_MEASUREMENT.copy {
-    state = Measurement.State.COMPUTING
-    results.clear()
-  }
-private val INTERNAL_SUCCEEDED_REACH_MEASUREMENT = internalMeasurement {
+
+private val INTERNAL_PENDING_REACH_MEASUREMENT = internalMeasurement {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
   measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
-  state = InternalMeasurement.State.SUCCEEDED
-  result = internalMeasurementResult {
-    reach = internalReach { value = REACH_VALUE }
-    frequency = internalFrequency { relativeFrequencyDistribution.putAll(FREQUENCY_DISTRIBUTION) }
-  }
+  state = InternalMeasurement.State.PENDING
 }
-private val INTERNAL_PENDING_REACH_MEASUREMENT =
-  INTERNAL_SUCCEEDED_REACH_MEASUREMENT.copy {
-    state = InternalMeasurement.State.PENDING
-    clearResult()
-  }
-// Frequency histogram
-private val SUCCEEDED_FREQUENCY_HISTOGRAM_MEASUREMENT = measurement {
-  name = FREQUENCY_HISTOGRAM_MEASUREMENT_NAME
-  state = Measurement.State.SUCCEEDED
-  measurementReferenceId = FREQUENCY_HISTOGRAM_MEASUREMENT_REFERENCE_ID
-
-  results += resultPair {
-    val result = result {
-      reach = MeasurementKt.ResultKt.reach { value = REACH_VALUE }
-      frequency =
-        MeasurementKt.ResultKt.frequency {
-          relativeFrequencyDistribution.putAll(FREQUENCY_DISTRIBUTION)
-        }
+private val INTERNAL_SUCCEEDED_REACH_MEASUREMENT =
+  INTERNAL_PENDING_REACH_MEASUREMENT.copy {
+    state = InternalMeasurement.State.SUCCEEDED
+    result = internalMeasurementResult {
+      reach = internalReach { value = REACH_VALUE }
+      frequency = internalFrequency { relativeFrequencyDistribution.putAll(FREQUENCY_DISTRIBUTION) }
     }
-    encryptedResult = getEncryptedResult(result)
-    certificate = DATA_PROVIDER_CERTIFICATE_NAME
   }
-}
+
+// Frequency histogram
+private val BASE_FREQUENCY_HISTOGRAM_MEASUREMENT =
+  BASE_MEASUREMENT.copy {
+    name = FREQUENCY_HISTOGRAM_MEASUREMENT_NAME
+    measurementReferenceId = FREQUENCY_HISTOGRAM_MEASUREMENT_REFERENCE_ID
+  }
+
 private val PENDING_FREQUENCY_HISTOGRAM_MEASUREMENT =
-  SUCCEEDED_FREQUENCY_HISTOGRAM_MEASUREMENT.copy {
-    state = Measurement.State.COMPUTING
-    results.clear()
+  BASE_FREQUENCY_HISTOGRAM_MEASUREMENT.copy { state = Measurement.State.COMPUTING }
+
+private val SUCCEEDED_FREQUENCY_HISTOGRAM_MEASUREMENT =
+  BASE_FREQUENCY_HISTOGRAM_MEASUREMENT.copy {
+    state = Measurement.State.SUCCEEDED
+    results += resultPair {
+      val result = result {
+        reach = MeasurementKt.ResultKt.reach { value = REACH_VALUE }
+        frequency =
+          MeasurementKt.ResultKt.frequency {
+            relativeFrequencyDistribution.putAll(FREQUENCY_DISTRIBUTION)
+          }
+      }
+      encryptedResult = getEncryptedResult(result)
+      certificate = DATA_PROVIDER_CERTIFICATE_NAME
+    }
   }
 private val INTERNAL_SUCCEEDED_FREQUENCY_HISTOGRAM_MEASUREMENT = internalMeasurement {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
@@ -792,38 +811,38 @@ private val INTERNAL_PENDING_FREQUENCY_HISTOGRAM_MEASUREMENT =
     clearResult()
   }
 // Impression
-private val SUCCEEDED_IMPRESSION_MEASUREMENT = measurement {
-  name = IMPRESSION_MEASUREMENT_NAME
-  state = Measurement.State.SUCCEEDED
-  measurementReferenceId = IMPRESSION_MEASUREMENT_REFERENCE_ID
-
-  results += resultPair {
-    val result = result {
-      impression = MeasurementKt.ResultKt.impression { value = IMPRESSION_VALUE }
-    }
-    encryptedResult = getEncryptedResult(result)
-    certificate = DATA_PROVIDER_CERTIFICATE_NAME
+private val IMPRESSION_MEASUREMENT =
+  BASE_MEASUREMENT.copy {
+    name = IMPRESSION_MEASUREMENT_NAME
+    measurementReferenceId = IMPRESSION_MEASUREMENT_REFERENCE_ID
   }
-  results += resultPair {
-    val result = result {
-      impression = MeasurementKt.ResultKt.impression { value = IMPRESSION_VALUE_2 }
+private val SUCCEEDED_IMPRESSION_MEASUREMENT =
+  IMPRESSION_MEASUREMENT.copy {
+    state = Measurement.State.SUCCEEDED
+    results += resultPair {
+      val result = result {
+        impression = MeasurementKt.ResultKt.impression { value = IMPRESSION_VALUE }
+      }
+      encryptedResult = getEncryptedResult(result)
+      certificate = DATA_PROVIDER_CERTIFICATE_NAME
     }
-    encryptedResult = getEncryptedResult(result)
-    certificate = DATA_PROVIDER_CERTIFICATE_NAME_2
-  }
-  results += resultPair {
-    val result = result {
-      impression = MeasurementKt.ResultKt.impression { value = IMPRESSION_VALUE_3 }
+    results += resultPair {
+      val result = result {
+        impression = MeasurementKt.ResultKt.impression { value = IMPRESSION_VALUE_2 }
+      }
+      encryptedResult = getEncryptedResult(result)
+      certificate = DATA_PROVIDER_CERTIFICATE_NAME_2
     }
-    encryptedResult = getEncryptedResult(result)
-    certificate = DATA_PROVIDER_CERTIFICATE_NAME_3
+    results += resultPair {
+      val result = result {
+        impression = MeasurementKt.ResultKt.impression { value = IMPRESSION_VALUE_3 }
+      }
+      encryptedResult = getEncryptedResult(result)
+      certificate = DATA_PROVIDER_CERTIFICATE_NAME_3
+    }
   }
-}
 private val PENDING_IMPRESSION_MEASUREMENT =
-  SUCCEEDED_IMPRESSION_MEASUREMENT.copy {
-    state = Measurement.State.COMPUTING
-    results.clear()
-  }
+  IMPRESSION_MEASUREMENT.copy { state = Measurement.State.COMPUTING }
 private val INTERNAL_SUCCEEDED_IMPRESSION_MEASUREMENT = internalMeasurement {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
   measurementReferenceId = IMPRESSION_MEASUREMENT_REFERENCE_ID
@@ -840,38 +859,42 @@ private val INTERNAL_PENDING_IMPRESSION_MEASUREMENT =
     clearResult()
   }
 // Watch Duration
-private val SUCCEEDED_WATCH_DURATION_MEASUREMENT = measurement {
-  name = WATCH_DURATION_MEASUREMENT_NAME
-  state = Measurement.State.SUCCEEDED
-  measurementReferenceId = WATCH_DURATION_MEASUREMENT_REFERENCE_ID
+private val WATCH_DURATION_MEASUREMENT =
+  BASE_MEASUREMENT.copy {
+    name = WATCH_DURATION_MEASUREMENT_NAME
+    measurementReferenceId = WATCH_DURATION_MEASUREMENT_REFERENCE_ID
+  }
 
-  results += resultPair {
-    val result = result {
-      watchDuration = MeasurementKt.ResultKt.watchDuration { value = WATCH_DURATION }
+private val SUCCEEDED_WATCH_DURATION_MEASUREMENT =
+  WATCH_DURATION_MEASUREMENT.copy {
+    state = Measurement.State.SUCCEEDED
+
+    results += resultPair {
+      val result = result {
+        watchDuration = MeasurementKt.ResultKt.watchDuration { value = WATCH_DURATION }
+      }
+      encryptedResult = getEncryptedResult(result)
+      certificate = DATA_PROVIDER_CERTIFICATE_NAME
     }
-    encryptedResult = getEncryptedResult(result)
-    certificate = DATA_PROVIDER_CERTIFICATE_NAME
-  }
-  results += resultPair {
-    val result = result {
-      watchDuration = MeasurementKt.ResultKt.watchDuration { value = WATCH_DURATION_2 }
+    results += resultPair {
+      val result = result {
+        watchDuration = MeasurementKt.ResultKt.watchDuration { value = WATCH_DURATION_2 }
+      }
+      encryptedResult = getEncryptedResult(result)
+      certificate = DATA_PROVIDER_CERTIFICATE_NAME_2
     }
-    encryptedResult = getEncryptedResult(result)
-    certificate = DATA_PROVIDER_CERTIFICATE_NAME_2
-  }
-  results += resultPair {
-    val result = result {
-      watchDuration = MeasurementKt.ResultKt.watchDuration { value = WATCH_DURATION_3 }
+    results += resultPair {
+      val result = result {
+        watchDuration = MeasurementKt.ResultKt.watchDuration { value = WATCH_DURATION_3 }
+      }
+      encryptedResult = getEncryptedResult(result)
+      certificate = DATA_PROVIDER_CERTIFICATE_NAME_3
     }
-    encryptedResult = getEncryptedResult(result)
-    certificate = DATA_PROVIDER_CERTIFICATE_NAME_3
   }
-}
+
 private val PENDING_WATCH_DURATION_MEASUREMENT =
-  SUCCEEDED_WATCH_DURATION_MEASUREMENT.copy {
-    state = Measurement.State.COMPUTING
-    results.clear()
-  }
+  WATCH_DURATION_MEASUREMENT.copy { state = Measurement.State.COMPUTING }
+
 private val INTERNAL_SUCCEEDED_WATCH_DURATION_MEASUREMENT = internalMeasurement {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
   measurementReferenceId = WATCH_DURATION_MEASUREMENT_REFERENCE_ID
@@ -1306,6 +1329,7 @@ class ReportsServiceTest {
         MeasurementsCoroutineStub(grpcTestServerRule.channel),
         CertificatesCoroutineStub(grpcTestServerRule.channel),
         MEASUREMENT_CONSUMER_PRIVATE_KEY_HANDLE,
+        ENCRYPTION_KEY_PAIR_STORE,
         MEASUREMENT_CONSUMER_SIGNING_PRIVATE_KEY,
         API_AUTHENTICATION_KEY,
         secureRandomMock
@@ -2190,5 +2214,268 @@ class ReportsServiceTest {
       )
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `getReport returns the report with SUCCEEDED when the report is already succeeded`() =
+    runBlocking {
+      whenever(internalReportsMock.getReport(any()))
+        .thenReturn(INTERNAL_SUCCEEDED_WATCH_DURATION_REPORT)
+
+      val request = getReportRequest { name = REPORT_NAME_3 }
+
+      val report =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.getReport(request) }
+        }
+
+      assertThat(report).isEqualTo(SUCCEEDED_WATCH_DURATION_REPORT)
+
+      verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::getReport)
+        .isEqualTo(
+          getInternalReportRequest {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            externalReportId = REPORT_EXTERNAL_ID_3
+          }
+        )
+    }
+
+  @Test
+  fun `getReport returns the report with FAILED when the report is already failed`() = runBlocking {
+    whenever(internalReportsMock.getReport(any()))
+      .thenReturn(
+        INTERNAL_PENDING_WATCH_DURATION_REPORT.copy { state = InternalReport.State.FAILED }
+      )
+
+    val request = getReportRequest { name = REPORT_NAME_3 }
+
+    val report =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.getReport(request) }
+      }
+
+    assertThat(report).isEqualTo(PENDING_WATCH_DURATION_REPORT.copy { state = Report.State.FAILED })
+
+    verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::getReport)
+      .isEqualTo(
+        getInternalReportRequest {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+          externalReportId = REPORT_EXTERNAL_ID_3
+        }
+      )
+  }
+
+  @Test
+  fun `getReport returns the report with RUNNING when measurements are pending`(): Unit =
+    runBlocking {
+      whenever(internalReportsMock.getReport(any()))
+        .thenReturn(INTERNAL_PENDING_WATCH_DURATION_REPORT)
+      whenever(measurementsMock.getMeasurement(any()))
+        .thenReturn(PENDING_WATCH_DURATION_MEASUREMENT)
+
+      val request = getReportRequest { name = REPORT_NAME_3 }
+
+      val report =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.getReport(request) }
+        }
+
+      assertThat(report).isEqualTo(PENDING_WATCH_DURATION_REPORT)
+
+      verifyProtoArgument(measurementsMock, MeasurementsCoroutineImplBase::getMeasurement)
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(getMeasurementRequest { name = WATCH_DURATION_MEASUREMENT_NAME })
+
+      val internalReportCaptor: KArgumentCaptor<GetInternalReportRequest> = argumentCaptor()
+      verifyBlocking(internalReportsMock, times(2)) { getReport(internalReportCaptor.capture()) }
+      assertThat(internalReportCaptor.allValues)
+        .containsExactly(
+          getInternalReportRequest {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            externalReportId = REPORT_EXTERNAL_ID_3
+          },
+          getInternalReportRequest {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            externalReportId = REPORT_EXTERNAL_ID_3
+          }
+        )
+    }
+
+  @Test
+  fun `getReport syncs and returns an SUCCEEDED report with aggregated results`(): Unit =
+    runBlocking {
+      whenever(measurementsMock.getMeasurement(any())).thenReturn(SUCCEEDED_IMPRESSION_MEASUREMENT)
+      whenever(internalReportsMock.getReport(any()))
+        .thenReturn(INTERNAL_PENDING_IMPRESSION_REPORT, INTERNAL_SUCCEEDED_IMPRESSION_REPORT)
+
+      val request = getReportRequest { name = REPORT_NAME_2 }
+
+      val report =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.getReport(request) }
+        }
+
+      assertThat(report).isEqualTo(SUCCEEDED_IMPRESSION_REPORT)
+
+      verifyProtoArgument(measurementsMock, MeasurementsCoroutineImplBase::getMeasurement)
+        .isEqualTo(getMeasurementRequest { name = IMPRESSION_MEASUREMENT_NAME })
+      verifyProtoArgument(
+          internalMeasurementsMock,
+          InternalMeasurementsCoroutineImplBase::setMeasurementResult
+        )
+        .isEqualTo(
+          setMeasurementResultRequest {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            measurementReferenceId = IMPRESSION_MEASUREMENT_REFERENCE_ID
+            this.result = internalMeasurementResult {
+              impression = internalImpression {
+                value = IMPRESSION_VALUE + IMPRESSION_VALUE_2 + IMPRESSION_VALUE_3
+              }
+            }
+          }
+        )
+
+      val internalReportCaptor: KArgumentCaptor<GetInternalReportRequest> = argumentCaptor()
+      verifyBlocking(internalReportsMock, times(2)) { getReport(internalReportCaptor.capture()) }
+      assertThat(internalReportCaptor.allValues)
+        .containsExactly(
+          getInternalReportRequest {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            externalReportId = REPORT_EXTERNAL_ID_2
+          },
+          getInternalReportRequest {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            externalReportId = REPORT_EXTERNAL_ID_2
+          }
+        )
+    }
+
+  @Test
+  fun `getReport syncs and returns an FAILED report when measurements failed`(): Unit =
+    runBlocking {
+      whenever(measurementsMock.getMeasurement(any()))
+        .thenReturn(
+          IMPRESSION_MEASUREMENT.copy {
+            state = Measurement.State.FAILED
+            failure = failure {
+              reason = Measurement.Failure.Reason.REQUISITION_REFUSED
+              message = "Privacy budget exceeded."
+            }
+          }
+        )
+      whenever(internalReportsMock.getReport(any()))
+        .thenReturn(
+          INTERNAL_PENDING_IMPRESSION_REPORT,
+          INTERNAL_PENDING_IMPRESSION_REPORT.copy { state = InternalReport.State.FAILED }
+        )
+
+      val request = getReportRequest { name = REPORT_NAME_2 }
+
+      val report =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.getReport(request) }
+        }
+
+      assertThat(report).isEqualTo(PENDING_IMPRESSION_REPORT.copy { state = Report.State.FAILED })
+
+      verifyProtoArgument(measurementsMock, MeasurementsCoroutineImplBase::getMeasurement)
+        .isEqualTo(getMeasurementRequest { name = IMPRESSION_MEASUREMENT_NAME })
+      verifyProtoArgument(
+          internalMeasurementsMock,
+          InternalMeasurementsCoroutineImplBase::setMeasurementFailure
+        )
+        .isEqualTo(
+          setMeasurementFailureRequest {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            measurementReferenceId = IMPRESSION_MEASUREMENT_REFERENCE_ID
+            failure = internalFailure {
+              reason = InternalMeasurement.Failure.Reason.REQUISITION_REFUSED
+              message = "Privacy budget exceeded."
+            }
+          }
+        )
+
+      val internalReportCaptor: KArgumentCaptor<GetInternalReportRequest> = argumentCaptor()
+      verifyBlocking(internalReportsMock, times(2)) { getReport(internalReportCaptor.capture()) }
+      assertThat(internalReportCaptor.allValues)
+        .containsExactly(
+          getInternalReportRequest {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            externalReportId = REPORT_EXTERNAL_ID_2
+          },
+          getInternalReportRequest {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            externalReportId = REPORT_EXTERNAL_ID_2
+          }
+        )
+    }
+
+  @Test
+  fun `getReport throws INVALID_ARGUMENT when Report name is invalid`() {
+    val request = getReportRequest { name = INVALID_REPORT_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.getReport(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `getReport throws PERMISSION_DENIED when MeasurementConsumer's identity does not match`() {
+    val request = getReportRequest { name = REPORT_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME_2) {
+          runBlocking { service.getReport(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `getReport throws PERMISSION_DENIED when the caller is not a MeasurementConsumer`() {
+    val request = getReportRequest { name = REPORT_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) { runBlocking { service.getReport(request) } }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `getReport throws PERMISSION_DENIED when encryption private key not found`() = runBlocking {
+    whenever(internalReportsMock.getReport(any()))
+      .thenReturn(INTERNAL_PENDING_WATCH_DURATION_REPORT)
+
+    whenever(measurementsMock.getMeasurement(any()))
+      .thenReturn(
+        SUCCEEDED_WATCH_DURATION_MEASUREMENT.copy {
+          val unsignedMeasurementSpec = measurementSpec {
+            measurementPublicKey = INVALID_MEASUREMENT_PUBLIC_KEY_DATA
+          }
+          measurementSpec =
+            signMeasurementSpec(unsignedMeasurementSpec, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
+        }
+      )
+
+    val request = getReportRequest { name = REPORT_NAME_3 }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.getReport(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.description).contains("private key")
   }
 }

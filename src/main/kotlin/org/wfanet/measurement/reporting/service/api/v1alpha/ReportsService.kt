@@ -145,6 +145,7 @@ import org.wfanet.measurement.internal.reporting.streamReportsRequest as streamI
 import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInterval
 import org.wfanet.measurement.internal.reporting.timeIntervals as internalTimeIntervals
 import org.wfanet.measurement.reporting.v1alpha.CreateReportRequest
+import org.wfanet.measurement.reporting.v1alpha.GetReportRequest
 import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.v1alpha.ListReportsResponse
 import org.wfanet.measurement.reporting.v1alpha.Metric
@@ -242,14 +243,15 @@ private data class Credential(
 
 /** TODO(@renjiez) Have a function to get public/private keys */
 class ReportsService(
-  private val internalReportsStub: InternalReportsCoroutineStub,
-  private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
-  private val internalMeasurementsStub: InternalMeasurementsCoroutineStub,
-  private val dataProvidersStub: DataProvidersCoroutineStub,
-  private val measurementConsumersStub: MeasurementConsumersCoroutineStub,
-  private val measurementsStub: MeasurementsCoroutineStub,
-  private val certificateStub: CertificatesCoroutineStub,
+  internalReportsStub: InternalReportsCoroutineStub,
+  internalReportingSetsStub: InternalReportingSetsCoroutineStub,
+  internalMeasurementsStub: InternalMeasurementsCoroutineStub,
+  dataProvidersStub: DataProvidersCoroutineStub,
+  measurementConsumersStub: MeasurementConsumersCoroutineStub,
+  measurementsStub: MeasurementsCoroutineStub,
+  certificateStub: CertificatesCoroutineStub,
   private val encryptionPrivateKeyHandle: PrivateKeyHandle,
+  private val encryptionKeyPairStore: EncryptionKeyPairStore,
   private val signingPrivateKey: PrivateKey,
   private val apiAuthenticationKey: String,
   private val secureRandom: SecureRandom,
@@ -348,7 +350,7 @@ class ReportsService(
       reports +=
         results
           .subList(0, min(results.size, listReportsPageToken.pageSize))
-          .map { syncReports(it) }
+          .map { syncReport(it) }
           .map(InternalReport::toReport)
 
       if (nextPageToken != null) {
@@ -357,8 +359,42 @@ class ReportsService(
     }
   }
 
+  override suspend fun getReport(request: GetReportRequest): Report {
+    val reportKey =
+      grpcRequireNotNull(ReportKey.fromName(request.name)) {
+        "Report name is either unspecified or invalid"
+      }
+
+    val principal = principalFromCurrentContext
+
+    when (val resourceKey = principal.resourceKey) {
+      is MeasurementConsumerKey -> {
+        if (reportKey.measurementConsumerId != resourceKey.measurementConsumerId) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot get Report belonging to other MeasurementConsumers."
+          }
+        }
+      }
+      else -> {
+        failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to get Report." }
+      }
+    }
+
+    val internalReport =
+      serviceStubs.internalReportsStub.getReport(
+        getInternalReportRequest {
+          measurementConsumerReferenceId = reportKey.measurementConsumerId
+          externalReportId = apiIdToExternalId(reportKey.reportId)
+        }
+      )
+
+    val syncedInternalReport = syncReport(internalReport)
+
+    return syncedInternalReport.toReport()
+  }
+
   /** Syncs the [InternalReport] and all [InternalMeasurement]s used by it. */
-  private suspend fun syncReports(internalReport: InternalReport): InternalReport {
+  private suspend fun syncReport(internalReport: InternalReport): InternalReport {
     // Report with SUCCEEDED or FAILED state is already synced.
     if (
       internalReport.state == InternalReport.State.SUCCEEDED ||
@@ -421,11 +457,17 @@ class ReportsService(
       Measurement.State.SUCCEEDED -> {
         // Converts a Measurement to an InternalMeasurement and store it into the database with
         // SUCCEEDED state
+        val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
+        val encryptionPrivateKeyHandle =
+          encryptionKeyPairStore.getPrivateKeyHandle(measurementSpec.measurementPublicKey)
+            ?: failGrpc(Status.PERMISSION_DENIED) { "Encryption private key not found" }
+
         val setInternalMeasurementResultRequest =
           getSetInternalMeasurementResultRequest(
             measurementConsumerReferenceId,
             measurementReferenceId,
             measurement.resultsList,
+            encryptionPrivateKeyHandle
           )
         serviceStubs.internalMeasurementsStub.setMeasurementResult(
           setInternalMeasurementResultRequest
@@ -453,6 +495,7 @@ class ReportsService(
     measurementConsumerReferenceId: String,
     measurementReferenceId: String,
     resultsList: List<Measurement.ResultPair>,
+    privateKeyHandle: PrivateKeyHandle
   ): SetInternalMeasurementResultRequest {
 
     return setInternalMeasurementResultRequest {
@@ -460,13 +503,17 @@ class ReportsService(
       this.measurementReferenceId = measurementReferenceId
       result =
         aggregateResults(
-          resultsList.map { it.toMeasurementResult() }.map(Measurement.Result::toInternal)
+          resultsList
+            .map { it.toMeasurementResult(privateKeyHandle) }
+            .map(Measurement.Result::toInternal)
         )
     }
   }
 
   /** Decrypts a [Measurement.ResultPair] to [Measurement.Result] */
-  private suspend fun Measurement.ResultPair.toMeasurementResult(): Measurement.Result {
+  private suspend fun Measurement.ResultPair.toMeasurementResult(
+    encryptionPrivateKeyHandle: PrivateKeyHandle
+  ): Measurement.Result {
     val source = this
     val certificate =
       serviceStubs.certificateStub
