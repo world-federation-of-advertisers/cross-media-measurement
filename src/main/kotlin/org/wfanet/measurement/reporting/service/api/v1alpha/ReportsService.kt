@@ -270,6 +270,10 @@ class ReportsService(
     val principal = principalFromCurrentContext
     val resourceKey = principal.resourceKey
 
+    grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
+      "Parent is either unspecified or invalid."
+    }
+
     when (resourceKey) {
       is MeasurementConsumerKey -> {
         if (request.parent != resourceKey.toName()) {
@@ -282,7 +286,6 @@ class ReportsService(
         failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to create a Report." }
       }
     }
-
     grpcRequire(request.hasReport()) { "Report is not specified." }
 
     // TODO(@riemanli) Put the check here as the reportIdempotencyKey will be moved to the request
@@ -655,9 +658,7 @@ private fun checkSetOperationDisplayNamesUniqueness(metricsList: List<Metric>) {
           ) += setOperation.displayName
         }
         MetricTypeCase.METRICTYPE_NOT_SET ->
-          failGrpc(Status.INVALID_ARGUMENT) {
-            "The metric type in the internal report should've be set."
-          }
+          failGrpc(Status.INVALID_ARGUMENT) { "The metric type in Report is not specified." }
       }
     }
   }
@@ -711,9 +712,7 @@ private suspend fun Metric.toInternal(
         MetricTypeCase.IMPRESSION_COUNT -> impressionCount = source.impressionCount.toInternal()
         MetricTypeCase.WATCH_DURATION -> watchDuration = source.watchDuration.toInternal()
         MetricTypeCase.METRICTYPE_NOT_SET ->
-          failGrpc(Status.INVALID_ARGUMENT) {
-            "The type of the metric in the internal report should've be set."
-          }
+          failGrpc(Status.INVALID_ARGUMENT) { "The metric type in Report is not specified." }
       }
 
       cumulative = source.cumulative
