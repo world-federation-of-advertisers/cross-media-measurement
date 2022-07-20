@@ -1575,9 +1575,17 @@ class ReportsServiceTest {
       )
       .isTrue()
 
-    val dataProviderEntry = capturedMeasurement.dataProvidersList[0]
+    val dataProviderEntryKeys = capturedMeasurement.dataProvidersList.map { it.key }
+    assertThat(dataProviderEntryKeys).containsExactly(DATA_PROVIDER_NAME, DATA_PROVIDER_NAME_2)
+
+    // Handle the random sequence due to the execution of corourtine.
+    val dataProvidersList =
+      if (capturedMeasurement.dataProvidersList[0].key == DATA_PROVIDER_NAME_2)
+        capturedMeasurement.dataProvidersList.asReversed()
+      else capturedMeasurement.dataProvidersList
+
+    val dataProviderEntry = dataProvidersList[0]
     val expectedDataProviderEntry = DATA_PROVIDER_ENTRY
-    assertThat(dataProviderEntry.key).isEqualTo(expectedDataProviderEntry.key)
     assertThat(dataProviderEntry.value)
       .comparingExpectedFieldsOnly()
       .isEqualTo(expectedDataProviderEntry.value.copy { clearEncryptedRequisitionSpec() })
@@ -1599,9 +1607,8 @@ class ReportsServiceTest {
       .isTrue()
     assertThat(requisitionSpec).isEqualTo(REQUISITION_SPEC)
 
-    val dataProviderEntry2 = capturedMeasurement.dataProvidersList[1]
+    val dataProviderEntry2 = dataProvidersList[1]
     val expectedDataProviderEntry2 = DATA_PROVIDER_ENTRY_2
-    assertThat(dataProviderEntry2.key).isEqualTo(expectedDataProviderEntry2.key)
     assertThat(dataProviderEntry2.value)
       .comparingExpectedFieldsOnly()
       .isEqualTo(expectedDataProviderEntry2.value.copy { clearEncryptedRequisitionSpec() })
