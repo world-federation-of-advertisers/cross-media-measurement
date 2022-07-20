@@ -338,6 +338,8 @@ private val MEASUREMENT_CONSUMER = measurementConsumer {
 private const val REPORTING_SET_EXTERNAL_ID = 221L
 private const val REPORTING_SET_EXTERNAL_ID_2 = 222L
 private const val REPORTING_SET_EXTERNAL_ID_3 = 223L
+private const val REPORTING_SET_EXTERNAL_ID_4 = 224L
+private const val REPORTING_SET_EXTERNAL_ID_FOR_MC_2 = 241L
 
 private val REPORTING_SET_NAME =
   ReportingSetKey(MEASUREMENT_CONSUMER_REFERENCE_ID, externalIdToApiId(REPORTING_SET_EXTERNAL_ID))
@@ -347,6 +349,16 @@ private val REPORTING_SET_NAME_2 =
     .toName()
 private val REPORTING_SET_NAME_3 =
   ReportingSetKey(MEASUREMENT_CONSUMER_REFERENCE_ID, externalIdToApiId(REPORTING_SET_EXTERNAL_ID_3))
+    .toName()
+private val REPORTING_SET_NAME_4 =
+  ReportingSetKey(MEASUREMENT_CONSUMER_REFERENCE_ID, externalIdToApiId(REPORTING_SET_EXTERNAL_ID_4))
+    .toName()
+private const val INVALID_REPORTING_SET_NAME = "INVALID_REPORTING_SET_NAME"
+private val REPORTING_SET_NAME_FOR_MC_2 =
+  ReportingSetKey(
+      MEASUREMENT_CONSUMER_REFERENCE_ID_2,
+      externalIdToApiId(REPORTING_SET_EXTERNAL_ID_FOR_MC_2)
+    )
     .toName()
 
 // Report IDs and names
@@ -426,9 +438,11 @@ private val DATA_PROVIDER_2 = dataProvider {
 private const val EVENT_GROUP_EXTERNAL_ID = 661L
 private const val EVENT_GROUP_EXTERNAL_ID_2 = 662L
 private const val EVENT_GROUP_EXTERNAL_ID_3 = 663L
+private const val EVENT_GROUP_EXTERNAL_ID_4 = 664L
 private val EVENT_GROUP_REFERENCE_ID = externalIdToApiId(EVENT_GROUP_EXTERNAL_ID)
 private val EVENT_GROUP_REFERENCE_ID_2 = externalIdToApiId(EVENT_GROUP_EXTERNAL_ID_2)
 private val EVENT_GROUP_REFERENCE_ID_3 = externalIdToApiId(EVENT_GROUP_EXTERNAL_ID_3)
+private val EVENT_GROUP_REFERENCE_ID_4 = externalIdToApiId(EVENT_GROUP_EXTERNAL_ID_4)
 
 private val EVENT_GROUP_NAME =
   EventGroupKey(
@@ -451,6 +465,14 @@ private val EVENT_GROUP_NAME_3 =
       EVENT_GROUP_REFERENCE_ID_3
     )
     .toName()
+private val EVENT_GROUP_NAME_4 =
+  EventGroupKey(
+      MEASUREMENT_CONSUMER_REFERENCE_ID,
+      DATA_PROVIDER_REFERENCE_ID_3,
+      EVENT_GROUP_REFERENCE_ID_4
+    )
+    .toName()
+
 private val EVENT_GROUP_NAMES = listOf(EVENT_GROUP_NAME, EVENT_GROUP_NAME_2, EVENT_GROUP_NAME_3)
 
 // Event group keys
@@ -469,6 +491,11 @@ private val INTERNAL_EVENT_GROUP_KEY_3 = internalReportingSetEventGroupKey {
   dataProviderReferenceId = DATA_PROVIDER_REFERENCE_ID_3
   eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID_3
 }
+private val INTERNAL_EVENT_GROUP_KEY_4 = internalReportingSetEventGroupKey {
+  measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+  dataProviderReferenceId = DATA_PROVIDER_REFERENCE_ID_3
+  eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID_4
+}
 private val INTERNAL_EVENT_GROUP_KEYS =
   listOf(INTERNAL_EVENT_GROUP_KEY, INTERNAL_EVENT_GROUP_KEY_2, INTERNAL_EVENT_GROUP_KEY_3)
 
@@ -478,6 +505,7 @@ private const val REPORTING_SET_FILTER = "AGE>18"
 private val DISPLAY_NAME = REPORTING_SET_NAME + REPORTING_SET_FILTER
 private val DISPLAY_NAME_2 = REPORTING_SET_NAME_2 + REPORTING_SET_FILTER
 private val DISPLAY_NAME_3 = REPORTING_SET_NAME_3 + REPORTING_SET_FILTER
+private val DISPLAY_NAME_4 = REPORTING_SET_NAME_4 + REPORTING_SET_FILTER
 
 private val INTERNAL_REPORTING_SET = internalReportingSet {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
@@ -500,6 +528,13 @@ private val INTERNAL_REPORTING_SET_3 =
     eventGroupKeys.add(INTERNAL_EVENT_GROUP_KEY_3)
     displayName = DISPLAY_NAME_3
   }
+private val INTERNAL_REPORTING_SET_4 =
+  INTERNAL_REPORTING_SET.copy {
+    externalReportingSetId = REPORTING_SET_EXTERNAL_ID_4
+    eventGroupKeys.clear()
+    eventGroupKeys.add(INTERNAL_EVENT_GROUP_KEY_4)
+    displayName = DISPLAY_NAME_4
+  }
 
 private val REPORTING_SET = reportingSet {
   name = REPORTING_SET_NAME
@@ -518,6 +553,12 @@ private val REPORTING_SET_3 = reportingSet {
   eventGroups.add(EVENT_GROUP_NAME_3)
   filter = REPORTING_SET_FILTER
   displayName = DISPLAY_NAME_3
+}
+private val REPORTING_SET_4 = reportingSet {
+  name = REPORTING_SET_NAME_4
+  eventGroups.add(EVENT_GROUP_NAME_4)
+  filter = REPORTING_SET_FILTER
+  displayName = DISPLAY_NAME_4
 }
 
 // Time intervals
@@ -614,6 +655,18 @@ private val INTERNAL_SET_OPERATION = internalSetOperation {
 private val SET_OPERATION = setOperation {
   type = Metric.SetOperation.Type.UNION
   lhs = setOperationOperand { reportingSet = REPORTING_SET_NAME }
+  rhs = setOperationOperand { reportingSet = REPORTING_SET_NAME_2 }
+}
+
+private val SET_OPERATION_WITH_INVALID_REPORTING_SET = setOperation {
+  type = Metric.SetOperation.Type.UNION
+  lhs = setOperationOperand { reportingSet = INVALID_REPORTING_SET_NAME }
+  rhs = setOperationOperand { reportingSet = REPORTING_SET_NAME_2 }
+}
+
+private val SET_OPERATION_WITH_INACCESSIBLE_REPORTING_SET = setOperation {
+  type = Metric.SetOperation.Type.UNION
+  lhs = setOperationOperand { reportingSet = REPORTING_SET_NAME_FOR_MC_2 }
   rhs = setOperationOperand { reportingSet = REPORTING_SET_NAME_2 }
 }
 
@@ -1416,7 +1469,6 @@ class ReportsServiceTest {
         MeasurementConsumersCoroutineStub(grpcTestServerRule.channel),
         MeasurementsCoroutineStub(grpcTestServerRule.channel),
         CertificatesCoroutineStub(grpcTestServerRule.channel),
-        MEASUREMENT_CONSUMER_PRIVATE_KEY_HANDLE,
         ENCRYPTION_KEY_PAIR_STORE,
         MEASUREMENT_CONSUMER_SIGNING_PRIVATE_KEY,
         API_AUTHENTICATION_KEY,
@@ -1586,6 +1638,294 @@ class ReportsServiceTest {
 
     assertThat(result).isEqualTo(expected)
   }
+
+  @Test
+  fun `createReport throws UNAUTHENTICATED when no principal is found`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      report = PENDING_REACH_REPORT.copy { clearState() }
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.createReport(request) } }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `createReport throws PERMISSION_DENIED when MeasurementConsumer caller doesn't match`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      report = PENDING_REACH_REPORT.copy { clearState() }
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME_2) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.description)
+      .isEqualTo("Cannot create a Report for another MeasurementConsumer.")
+  }
+
+  @Test
+  fun `createReport throws PERMISSION_DENIED when report doesn't belong to caller`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAME_2
+      report = PENDING_REACH_REPORT.copy { clearState() }
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.description)
+      .isEqualTo("Cannot create a Report for another MeasurementConsumer.")
+  }
+
+  @Test
+  fun `createReport throws PERMISSION_DENIED when the caller is not MeasurementConsumer`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      report = PENDING_REACH_REPORT.copy { clearState() }
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.description)
+      .isEqualTo("Caller does not have permission to create a Report.")
+  }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when parent is unspecified`() {
+    val request = createReportRequest { report = PENDING_REACH_REPORT.copy { clearState() } }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("Parent is either unspecified or invalid.")
+  }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when report is unspecified`() {
+    val request = createReportRequest { parent = MEASUREMENT_CONSUMER_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("Report is not specified.")
+  }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when reportIdempotencyKey is unspecified`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearState()
+          clearReportIdempotencyKey()
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("ReportIdempotencyKey is not specified.")
+  }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when eventGroupUniverse in Report is unspecified`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearState()
+          clearEventGroupUniverse()
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("EventGroupUniverse is not specified.")
+  }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when setOperation names duplicate for same metric`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearState()
+          metrics.add(REACH_METRIC)
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("The display names of the set operations within the same metric should be unique.")
+  }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when time in Report is unspecified`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearState()
+          clearTime()
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("The time in Report is not specified.")
+  }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when any metric type in Report is unspecified`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearState()
+          metrics.clear()
+          metrics.add(REACH_METRIC.copy { clearReach() })
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("The metric type in Report is not specified.")
+  }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when provided reporting set name is invalid`() {
+    val invalidMetric = metric {
+      reach = reachParams {}
+      cumulative = false
+      setOperations.add(
+        NAMED_REACH_SET_OPERATION.copy { setOperation = SET_OPERATION_WITH_INVALID_REPORTING_SET }
+      )
+    }
+
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearState()
+          metrics.clear()
+          metrics.add(invalidMetric)
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("Invalid reporting set name $INVALID_REPORTING_SET_NAME.")
+  }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when any reporting set is not accessible to caller`() {
+    val invalidMetric = metric {
+      reach = reachParams {}
+      cumulative = false
+      setOperations.add(
+        NAMED_REACH_SET_OPERATION.copy {
+          setOperation = SET_OPERATION_WITH_INACCESSIBLE_REPORTING_SET
+        }
+      )
+    }
+
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearState()
+          metrics.clear()
+          metrics.add(invalidMetric)
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("No access to the reporting set [$REPORTING_SET_NAME_FOR_MC_2].")
+  }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when eventGroup isn't covered by eventGroupUniverse`() =
+    runBlocking {
+      whenever(internalReportingSetsMock.getReportingSet(any()))
+        .thenReturn(
+          INTERNAL_REPORTING_SET,
+          INTERNAL_REPORTING_SET_4,
+        )
+      val request = createReportRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        report = PENDING_REACH_REPORT.copy { clearState() }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+            runBlocking { service.createReport(request) }
+          }
+        }
+      val expectedExceptionDescription =
+        "The event group [$EVENT_GROUP_NAME_4] in the reporting set" +
+          " [${INTERNAL_REPORTING_SET_4.displayName}] is not included in the event group universe."
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.status.description).isEqualTo(expectedExceptionDescription)
+    }
 
   @Test
   fun `listReports returns without a next page token when there is no previous page token`() {
