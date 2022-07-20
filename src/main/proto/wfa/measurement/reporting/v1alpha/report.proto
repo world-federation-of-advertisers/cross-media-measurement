@@ -134,7 +134,8 @@ message Report {
       // Required to be in the same order as row's `row_headers`.
       repeated Column columns = 2;
     }
-    // histogram_tables are separated by different maximum frequency.
+    // Each HistogramTable contains the result of one frequency histogram
+    // metric.
     repeated HistogramTable histogram_tables = 2;
   }
 
