@@ -20,7 +20,6 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.duration
 import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.protobuf.timestamp
-import com.google.protobuf.util.Durations
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.nio.file.Paths
@@ -67,6 +66,8 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.result
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration as measurementSpecDuration
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression as measurementSpecImpression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency as measurementSpecReachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
@@ -680,6 +681,8 @@ private val DATA_PROVIDER_ENTRY_2 = dataProviderEntry {
 
 // Measurements
 private val BASE_MEASUREMENT = measurement {
+  measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
+
   val unsignedMeasurementSpec = measurementSpec {
     measurementPublicKey = MEASUREMENT_PUBLIC_KEY_DATA
   }
@@ -692,10 +695,14 @@ private const val REACH_VALUE = 100_000L
 private val FREQUENCY_DISTRIBUTION = mapOf(1L to 1.0 / 6, 2L to 2.0 / 6, 3L to 3.0 / 6)
 private const val IMPRESSION_VALUE = 100L
 private const val IMPRESSION_VALUE_2 = 150L
-private const val IMPRESSION_VALUE_3 = 200L
-private val WATCH_DURATION = duration { seconds = 100 }
-private val WATCH_DURATION_2 = duration { seconds = 200 }
-private val WATCH_DURATION_3 = duration { seconds = 300 }
+private const val TOTAL_IMPRESSION_VALUE = IMPRESSION_VALUE + IMPRESSION_VALUE_2
+private const val WATCH_DURATION_SECOND = 100L
+private const val WATCH_DURATION_SECOND_2 = 200L
+private val WATCH_DURATION = duration { seconds = WATCH_DURATION_SECOND }
+private val WATCH_DURATION_2 = duration { seconds = WATCH_DURATION_SECOND_2 }
+private val TOTAL_WATCH_DURATION = duration {
+  seconds = WATCH_DURATION_SECOND + WATCH_DURATION_SECOND_2
+}
 
 // Reach
 private val BASE_REACH_MEASUREMENT =
@@ -772,17 +779,50 @@ private val INTERNAL_SUCCEEDED_REACH_MEASUREMENT =
   }
 
 // Frequency histogram
-private val BASE_FREQUENCY_HISTOGRAM_MEASUREMENT =
+private val BASE_REACH_FREQUENCY_HISTOGRAM_MEASUREMENT =
   BASE_MEASUREMENT.copy {
     name = FREQUENCY_HISTOGRAM_MEASUREMENT_NAME
     measurementReferenceId = FREQUENCY_HISTOGRAM_MEASUREMENT_REFERENCE_ID
   }
 
 private val PENDING_FREQUENCY_HISTOGRAM_MEASUREMENT =
-  BASE_FREQUENCY_HISTOGRAM_MEASUREMENT.copy { state = Measurement.State.COMPUTING }
+  BASE_REACH_FREQUENCY_HISTOGRAM_MEASUREMENT.copy { state = Measurement.State.COMPUTING }
+
+private val REACH_FREQUENCY_UNSIGNED_MEASUREMENT_SPEC = measurementSpec {
+  measurementPublicKey = MEASUREMENT_PUBLIC_KEY_DATA
+
+  nonceHashes.addAll(
+    listOf(hashSha256(SECURE_RANDOM_OUTPUT_LONG), hashSha256(SECURE_RANDOM_OUTPUT_LONG))
+  )
+
+  reachAndFrequency = measurementSpecReachAndFrequency {
+    reachPrivacyParams = differentialPrivacyParams {
+      epsilon = REACH_FREQUENCY_REACH_EPSILON
+      delta = DIFFERENTIAL_PRIVACY_DETLA
+    }
+    frequencyPrivacyParams = differentialPrivacyParams {
+      epsilon = REACH_FREQUENCY_FREQUENCY_EPSILON
+      delta = DIFFERENTIAL_PRIVACY_DETLA
+    }
+    maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
+  }
+  vidSamplingInterval = vidSamplingInterval {
+    start = REACH_FREQUENCY_VID_SAMPLING_START_LIST[SECURE_RANDOM_OUTPUT_INT]
+    width = REACH_FREQUENCY_VID_SAMPLING_WIDTH
+  }
+}
 
 private val SUCCEEDED_FREQUENCY_HISTOGRAM_MEASUREMENT =
-  BASE_FREQUENCY_HISTOGRAM_MEASUREMENT.copy {
+  BASE_REACH_FREQUENCY_HISTOGRAM_MEASUREMENT.copy {
+    dataProviders += DATA_PROVIDER_ENTRY
+    dataProviders += DATA_PROVIDER_ENTRY_2
+
+    measurementSpec =
+      signMeasurementSpec(
+        REACH_FREQUENCY_UNSIGNED_MEASUREMENT_SPEC,
+        MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
+      )
+
     state = Measurement.State.SUCCEEDED
     results += resultPair {
       val result = result {
@@ -796,29 +836,65 @@ private val SUCCEEDED_FREQUENCY_HISTOGRAM_MEASUREMENT =
       certificate = DATA_PROVIDER_CERTIFICATE_NAME
     }
   }
-private val INTERNAL_SUCCEEDED_FREQUENCY_HISTOGRAM_MEASUREMENT = internalMeasurement {
+
+private val INTERNAL_PENDING_FREQUENCY_HISTOGRAM_MEASUREMENT = internalMeasurement {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
   measurementReferenceId = FREQUENCY_HISTOGRAM_MEASUREMENT_REFERENCE_ID
-  state = InternalMeasurement.State.SUCCEEDED
-  result = internalMeasurementResult {
-    reach = internalReach { value = REACH_VALUE }
-    frequency = internalFrequency { relativeFrequencyDistribution.putAll(FREQUENCY_DISTRIBUTION) }
-  }
+  state = InternalMeasurement.State.PENDING
 }
-private val INTERNAL_PENDING_FREQUENCY_HISTOGRAM_MEASUREMENT =
-  INTERNAL_SUCCEEDED_FREQUENCY_HISTOGRAM_MEASUREMENT.copy {
-    state = InternalMeasurement.State.PENDING
-    clearResult()
+
+private val INTERNAL_SUCCEEDED_FREQUENCY_HISTOGRAM_MEASUREMENT =
+  INTERNAL_PENDING_FREQUENCY_HISTOGRAM_MEASUREMENT.copy {
+    state = InternalMeasurement.State.SUCCEEDED
+    result = internalMeasurementResult {
+      reach = internalReach { value = REACH_VALUE }
+      frequency = internalFrequency { relativeFrequencyDistribution.putAll(FREQUENCY_DISTRIBUTION) }
+    }
   }
+
 // Impression
-private val IMPRESSION_MEASUREMENT =
+private val BASE_IMPRESSION_MEASUREMENT =
   BASE_MEASUREMENT.copy {
     name = IMPRESSION_MEASUREMENT_NAME
     measurementReferenceId = IMPRESSION_MEASUREMENT_REFERENCE_ID
   }
+
+private val PENDING_IMPRESSION_MEASUREMENT =
+  BASE_IMPRESSION_MEASUREMENT.copy { state = Measurement.State.COMPUTING }
+
+private val IMPRESSION_UNSIGNED_MEASUREMENT_SPEC = measurementSpec {
+  measurementPublicKey = MEASUREMENT_PUBLIC_KEY_DATA
+
+  nonceHashes.addAll(
+    listOf(hashSha256(SECURE_RANDOM_OUTPUT_LONG), hashSha256(SECURE_RANDOM_OUTPUT_LONG))
+  )
+
+  impression = measurementSpecImpression {
+    privacyParams = differentialPrivacyParams {
+      epsilon = IMPRESSION_EPSILON
+      delta = DIFFERENTIAL_PRIVACY_DETLA
+    }
+    maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
+  }
+  vidSamplingInterval = vidSamplingInterval {
+    start = IMPRESSION_VID_SAMPLING_START_LIST[SECURE_RANDOM_OUTPUT_INT]
+    width = IMPRESSION_VID_SAMPLING_WIDTH
+  }
+}
+
 private val SUCCEEDED_IMPRESSION_MEASUREMENT =
-  IMPRESSION_MEASUREMENT.copy {
+  BASE_IMPRESSION_MEASUREMENT.copy {
+    dataProviders += DATA_PROVIDER_ENTRY
+    dataProviders += DATA_PROVIDER_ENTRY_2
+
+    measurementSpec =
+      signMeasurementSpec(
+        IMPRESSION_UNSIGNED_MEASUREMENT_SPEC,
+        MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
+      )
+
     state = Measurement.State.SUCCEEDED
+
     results += resultPair {
       val result = result {
         impression = MeasurementKt.ResultKt.impression { value = IMPRESSION_VALUE }
@@ -833,40 +909,64 @@ private val SUCCEEDED_IMPRESSION_MEASUREMENT =
       encryptedResult = getEncryptedResult(result)
       certificate = DATA_PROVIDER_CERTIFICATE_NAME_2
     }
-    results += resultPair {
-      val result = result {
-        impression = MeasurementKt.ResultKt.impression { value = IMPRESSION_VALUE_3 }
-      }
-      encryptedResult = getEncryptedResult(result)
-      certificate = DATA_PROVIDER_CERTIFICATE_NAME_3
-    }
   }
-private val PENDING_IMPRESSION_MEASUREMENT =
-  IMPRESSION_MEASUREMENT.copy { state = Measurement.State.COMPUTING }
-private val INTERNAL_SUCCEEDED_IMPRESSION_MEASUREMENT = internalMeasurement {
+
+private val INTERNAL_PENDING_IMPRESSION_MEASUREMENT = internalMeasurement {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
   measurementReferenceId = IMPRESSION_MEASUREMENT_REFERENCE_ID
-  state = InternalMeasurement.State.SUCCEEDED
-  result = internalMeasurementResult {
-    impression = internalImpression {
-      value = IMPRESSION_VALUE + IMPRESSION_VALUE_2 + IMPRESSION_VALUE_3
+  state = InternalMeasurement.State.PENDING
+}
+
+private val INTERNAL_SUCCEEDED_IMPRESSION_MEASUREMENT =
+  INTERNAL_PENDING_IMPRESSION_MEASUREMENT.copy {
+    state = InternalMeasurement.State.SUCCEEDED
+    result = internalMeasurementResult {
+      impression = internalImpression { value = TOTAL_IMPRESSION_VALUE }
     }
   }
-}
-private val INTERNAL_PENDING_IMPRESSION_MEASUREMENT =
-  INTERNAL_SUCCEEDED_IMPRESSION_MEASUREMENT.copy {
-    state = InternalMeasurement.State.PENDING
-    clearResult()
-  }
+
 // Watch Duration
-private val WATCH_DURATION_MEASUREMENT =
+private val BASE_WATCH_DURATION_MEASUREMENT =
   BASE_MEASUREMENT.copy {
     name = WATCH_DURATION_MEASUREMENT_NAME
     measurementReferenceId = WATCH_DURATION_MEASUREMENT_REFERENCE_ID
   }
 
+private val PENDING_WATCH_DURATION_MEASUREMENT =
+  BASE_WATCH_DURATION_MEASUREMENT.copy { state = Measurement.State.COMPUTING }
+
+private val WATCH_DURATION_UNSIGNED_MEASUREMENT_SPEC = measurementSpec {
+  measurementPublicKey = MEASUREMENT_PUBLIC_KEY_DATA
+
+  nonceHashes.addAll(
+    listOf(hashSha256(SECURE_RANDOM_OUTPUT_LONG), hashSha256(SECURE_RANDOM_OUTPUT_LONG))
+  )
+
+  duration = measurementSpecDuration {
+    privacyParams = differentialPrivacyParams {
+      epsilon = WATCH_DURATION_EPSILON
+      delta = DIFFERENTIAL_PRIVACY_DETLA
+    }
+    maximumWatchDurationPerUser = MAXIMUM_WATCH_DURATION_PER_USER
+    maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
+  }
+  vidSamplingInterval = vidSamplingInterval {
+    start = WATCH_DURATION_VID_SAMPLING_START_LIST[SECURE_RANDOM_OUTPUT_INT]
+    width = WATCH_DURATION_VID_SAMPLING_WIDTH
+  }
+}
+
 private val SUCCEEDED_WATCH_DURATION_MEASUREMENT =
-  WATCH_DURATION_MEASUREMENT.copy {
+  BASE_WATCH_DURATION_MEASUREMENT.copy {
+    dataProviders += DATA_PROVIDER_ENTRY
+    dataProviders += DATA_PROVIDER_ENTRY_2
+
+    measurementSpec =
+      signMeasurementSpec(
+        WATCH_DURATION_UNSIGNED_MEASUREMENT_SPEC,
+        MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
+      )
+
     state = Measurement.State.SUCCEEDED
 
     results += resultPair {
@@ -883,34 +983,22 @@ private val SUCCEEDED_WATCH_DURATION_MEASUREMENT =
       encryptedResult = getEncryptedResult(result)
       certificate = DATA_PROVIDER_CERTIFICATE_NAME_2
     }
-    results += resultPair {
-      val result = result {
-        watchDuration = MeasurementKt.ResultKt.watchDuration { value = WATCH_DURATION_3 }
-      }
-      encryptedResult = getEncryptedResult(result)
-      certificate = DATA_PROVIDER_CERTIFICATE_NAME_3
-    }
   }
 
-private val PENDING_WATCH_DURATION_MEASUREMENT =
-  WATCH_DURATION_MEASUREMENT.copy { state = Measurement.State.COMPUTING }
-
-private val INTERNAL_SUCCEEDED_WATCH_DURATION_MEASUREMENT = internalMeasurement {
+private val INTERNAL_PENDING_WATCH_DURATION_MEASUREMENT = internalMeasurement {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
   measurementReferenceId = WATCH_DURATION_MEASUREMENT_REFERENCE_ID
-  state = InternalMeasurement.State.SUCCEEDED
-  result = internalMeasurementResult {
-    watchDuration = internalWatchDuration {
-      value = Durations.add(Durations.add(WATCH_DURATION, WATCH_DURATION_2), WATCH_DURATION_3)
+  state = InternalMeasurement.State.PENDING
+}
+private val INTERNAL_SUCCEEDED_WATCH_DURATION_MEASUREMENT =
+  INTERNAL_PENDING_WATCH_DURATION_MEASUREMENT.copy {
+    state = InternalMeasurement.State.SUCCEEDED
+    result = internalMeasurementResult {
+      watchDuration = internalWatchDuration { value = TOTAL_WATCH_DURATION }
     }
   }
-}
-private val INTERNAL_PENDING_WATCH_DURATION_MEASUREMENT =
-  INTERNAL_SUCCEEDED_WATCH_DURATION_MEASUREMENT.copy {
-    state = InternalMeasurement.State.PENDING
-    clearResult()
-  }
 
+/** Verify and decrypt a measurement result. */
 private fun getEncryptedResult(
   result: Measurement.Result,
 ): ByteString {
@@ -2143,9 +2231,7 @@ class ReportsServiceTest {
           measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
           measurementReferenceId = IMPRESSION_MEASUREMENT_REFERENCE_ID
           this.result = internalMeasurementResult {
-            impression = internalImpression {
-              value = IMPRESSION_VALUE + IMPRESSION_VALUE_2 + IMPRESSION_VALUE_3
-            }
+            impression = internalImpression { value = TOTAL_IMPRESSION_VALUE }
           }
         }
       )
@@ -2198,10 +2284,7 @@ class ReportsServiceTest {
           measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
           measurementReferenceId = WATCH_DURATION_MEASUREMENT_REFERENCE_ID
           this.result = internalMeasurementResult {
-            watchDuration = internalWatchDuration {
-              value =
-                Durations.add(Durations.add(WATCH_DURATION, WATCH_DURATION_2), WATCH_DURATION_3)
-            }
+            watchDuration = internalWatchDuration { value = TOTAL_WATCH_DURATION }
           }
         }
       )
@@ -2328,9 +2411,7 @@ class ReportsServiceTest {
             measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
             measurementReferenceId = IMPRESSION_MEASUREMENT_REFERENCE_ID
             this.result = internalMeasurementResult {
-              impression = internalImpression {
-                value = IMPRESSION_VALUE + IMPRESSION_VALUE_2 + IMPRESSION_VALUE_3
-              }
+              impression = internalImpression { value = TOTAL_IMPRESSION_VALUE }
             }
           }
         )
@@ -2355,7 +2436,7 @@ class ReportsServiceTest {
     runBlocking {
       whenever(measurementsMock.getMeasurement(any()))
         .thenReturn(
-          IMPRESSION_MEASUREMENT.copy {
+          BASE_IMPRESSION_MEASUREMENT.copy {
             state = Measurement.State.FAILED
             failure = failure {
               reason = Measurement.Failure.Reason.REQUISITION_REFUSED
