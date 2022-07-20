@@ -24,27 +24,35 @@ import org.wfanet.measurement.reporting.v1alpha.Metric.SetOperation
  * A primitive region of a Venn diagram is the intersection of a set of reporting sets, and it is
  * represented by a bit representation of an integer. Only the reporting sets with IDs equal to the
  * bit positions of set bits constitute the primitive region. Ex: Given a Venn Diagram of 3
- * reporting sets, a primitive region with an integer value equal to 3 has the bit representation
- * b’011’. This means this primitive region is covered by the reporting set with ID==0 and the
- * reporting set with ID==1 (the order of the bit positions is from right to left)
+ * reporting sets (rs0, rs1, rs2), a primitive region with an integer value equal to 3 has the bit
+ * representation b’011’. This means this primitive region is only covered by the intersection of
+ * rs0 and rs1 and not covered by rs2 (the order of the bit positions is from right to left). In
+ * other words, rs0 INTERSECT rs1 INTERSECT COMPLEMENT(rs2). Note that primitive regions are
+ * disjoint.
  */
 private typealias PrimitiveRegion = ULong
 
 /**
  * A union set is the union of a set of reporting sets, and it is represented by a bit
  * representation of an integer. Only the reporting sets with IDs equal to the bit positions of set
- * bits constitute the union set.
+ * bits constitute the union set. Given a Venn Diagram of 3 reporting sets (rs0, rs1, rs2), a
+ * union-set with an integer value equal to 3 has the bit representation b’011’. This means this
+ * union-set is only covered by the union of rs0 and rs1 (the order of the bit positions is from
+ * right to left).
  */
 private typealias UnionSet = ULong
 
 private typealias NumberReportingSets = Int
 
-/** A mapping from [UnionSet] to its coefficient in the Venn diagram region decomposition. */
+/** A mapping from a [UnionSet] to its coefficient in the Venn diagram region decomposition. */
 private typealias UnionSetCoefficientMap = Map<UnionSet, Int>
 
 /**
- * A mapping from [PrimitiveRegion] to its linear decomposition represented by
- * [UnionSetCoefficientMap].
+ * A mapping from a [PrimitiveRegion] to its decomposition in terms of union-sets represented by
+ * [UnionSetCoefficientMap]. Take a case of 3 reporting sets (rs0, rs1, rs2) as an example. A
+ * primitive region with value equal to 3 (b'011') is the intersection of rs0 and rs1. Its
+ * decomposition = PrimitiveRegionToUnionSetCoefficientMap\[region\] = {4: -1, 5: 1, 6: 1, 7: -1} =
+ * union-set5 UNION(+) union-set6 DIFFERENCE(-) union-set4 DIFFERENCE(-) union-set7.
  */
 private typealias PrimitiveRegionToUnionSetCoefficientMap =
   MutableMap<PrimitiveRegion, UnionSetCoefficientMap>
@@ -78,15 +86,19 @@ class SetOperationCompiler {
 
   private var primitiveRegionCache: PrimitiveRegionCache = mutableMapOf()
 
-  // For unit test only
+  // For unit test only.
   fun getPrimitiveRegionCache():
     Map<NumberReportingSets, Map<PrimitiveRegion, UnionSetCoefficientMap>> {
     return primitiveRegionCache.mapValues { it.value.toMap() }.toMap()
   }
 
   /**
-   * Compiles a set operation to a list of [WeightedMeasurement]s which will be used for the metric
+   * Compiles a set operation to a list of [WeightedMeasurement]s which will be used for the
    * functions that satisfy Cauchy's functional equation with sets, i.e. F(S1 + S2) = F(S1) + F(S2).
+   * An example of this type of function is `count`. For example, given that set = primitiveRegion1,
+   * and that primitiveRegion1 = unionSet1 DIFFERENCE unionSet2. Count(set) =
+   * Count(primitiveRegion1) = Count(unionSet1 DIFFERENCE unionSet2) = Count(unionSet1) -
+   * Count(unionSet2).
    */
   suspend fun compileSetOperation(namedSetOperation: NamedSetOperation): List<WeightedMeasurement> {
     val reportingSetNames = mutableSetOf<String>()
@@ -261,7 +273,7 @@ class SetOperationCompiler {
     return primitiveRegionsToUnionSetCoefficients.containsKey(region)
   }
 
-  /** Gets the union-sets which will be part of the linear combination to form the target region. */
+  /** Gets the union-sets which will be part of the combination to form the target region. */
   private fun getComposingUnionSets(
     setBitPositions: MutableList<Int>,
     unsetBitPositions: MutableList<Int>,
