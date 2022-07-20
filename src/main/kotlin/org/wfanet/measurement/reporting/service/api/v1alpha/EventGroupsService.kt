@@ -113,13 +113,11 @@ class EventGroupsService(
   private fun CmmsEventGroup.toEventGroup(): EventGroup {
     val source = this
     val cmmsMetadata =
-      CmmsEventGroup.Metadata.parseFrom(
-        decryptResult(source.encryptedMetadata, encryptionPrivateKey).data
-      )
+      CmmsEventGroup.Metadata.parseFrom(decryptResult(encryptedMetadata, encryptionPrivateKey).data)
     val cmmsEventGroupKey =
-      grpcRequireNotNull(CmmsEventGroupKey.fromName(source.name)) { "Event group name is missing" }
+      grpcRequireNotNull(CmmsEventGroupKey.fromName(name)) { "Event group name is missing" }
     val measurementConsumerKey =
-      grpcRequireNotNull(MeasurementConsumerKey.fromName(source.measurementConsumer)) {
+      grpcRequireNotNull(MeasurementConsumerKey.fromName(measurementConsumer)) {
         "Event group measurement consumer key is missing"
       }
     return eventGroup {

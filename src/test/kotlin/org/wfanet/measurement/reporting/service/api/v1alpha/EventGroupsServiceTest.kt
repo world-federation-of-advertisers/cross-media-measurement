@@ -62,7 +62,6 @@ import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.consent.client.common.signMessage
 import org.wfanet.measurement.reporting.v1alpha.EventGroupKt.metadata
@@ -76,11 +75,10 @@ private val SECRET_FILES_PATH: Path =
       Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
     )
   )
-val ENCRYPTION_PRIVATE_KEY = loadEncryptionPrivateKey("mc_enc_private.tink")
-val ENCRYPTION_PUBLIC_KEY = loadEncryptionPublicKey("mc_enc_public.tink")
-val EDP_SIGNING_KEY = loadSigningKey("edp1_cs_cert.der", "edp1_cs_private.der")
-private const val MEASUREMENT_CONSUMER_EXTERNAL_ID = 111L
-private val MEASUREMENT_CONSUMER_REFERENCE_ID = externalIdToApiId(MEASUREMENT_CONSUMER_EXTERNAL_ID)
+private val ENCRYPTION_PRIVATE_KEY = loadEncryptionPrivateKey("mc_enc_private.tink")
+private val ENCRYPTION_PUBLIC_KEY = loadEncryptionPublicKey("mc_enc_public.tink")
+private val EDP_SIGNING_KEY = loadSigningKey("edp1_cs_cert.der", "edp1_cs_private.der")
+private const val MEASUREMENT_CONSUMER_REFERENCE_ID = "measurementConsumerRefId"
 private val MEASUREMENT_CONSUMER_NAME =
   MeasurementConsumerKey(MEASUREMENT_CONSUMER_REFERENCE_ID).toName()
 private val TEST_MESSAGE = testMetadataMessage {
@@ -130,8 +128,7 @@ private val CMMS_EVENT_GROUP_2 = cmmsEventGroup {
 private val EVENT_GROUP = eventGroup {
   name =
     EventGroupKey(
-        MeasurementConsumerKey.fromName(CMMS_EVENT_GROUP.measurementConsumer)!!
-          .measurementConsumerId,
+        MEASUREMENT_CONSUMER_REFERENCE_ID,
         DATA_PROVIDER_REFERENCE_ID,
         CMMS_EVENT_GROUP_ID
       )
