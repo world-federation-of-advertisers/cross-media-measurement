@@ -88,9 +88,9 @@ private val TEST_MESSAGE = testMetadataMessage {
   age = age { value = 15 }
   duration = duration { value = 20 }
 }
-private val EVENT_GROUP_ID = "AAAAAAAAAHs"
-private val EVENT_GROUP = cmmsEventGroup {
-  name = "$DATA_PROVIDER_NAME/eventGroups/$EVENT_GROUP_ID"
+private val CMMS_EVENT_GROUP_ID = "AAAAAAAAAHs"
+private val CMMS_EVENT_GROUP = cmmsEventGroup {
+  name = "$DATA_PROVIDER_NAME/eventGroups/$CMMS_EVENT_GROUP_ID"
   measurementConsumer = MEASUREMENT_CONSUMER_NAME
   eventGroupReferenceId = "id1"
   encryptedMetadata =
@@ -110,9 +110,9 @@ private val TEST_MESSAGE_2 = testMetadataMessage {
   age = age { value = 5 }
   duration = duration { value = 20 }
 }
-private val EVENT_GROUP_ID_2 = "AAAAAAAAAGs"
-private val EVENT_GROUP_2 = cmmsEventGroup {
-  name = "$DATA_PROVIDER_NAME/eventGroups/$EVENT_GROUP_ID_2"
+private val CMMS_EVENT_GROUP_ID_2 = "AAAAAAAAAGs"
+private val CMMS_EVENT_GROUP_2 = cmmsEventGroup {
+  name = "$DATA_PROVIDER_NAME/eventGroups/$CMMS_EVENT_GROUP_ID_2"
   measurementConsumer = MEASUREMENT_CONSUMER_NAME
   eventGroupReferenceId = "id2"
   encryptedMetadata =
@@ -127,12 +127,13 @@ private val EVENT_GROUP_2 = cmmsEventGroup {
         .toByteString()
     )
 }
-private val RETURNED_EVENT_GROUP = eventGroup {
+private val EVENT_GROUP = eventGroup {
   name =
     EventGroupKey(
-        MeasurementConsumerKey.fromName(EVENT_GROUP.measurementConsumer)!!.measurementConsumerId,
+        MeasurementConsumerKey.fromName(CMMS_EVENT_GROUP.measurementConsumer)!!
+          .measurementConsumerId,
         DATA_PROVIDER_REFERENCE_ID,
-        EVENT_GROUP_ID
+        CMMS_EVENT_GROUP_ID
       )
       .toName()
   dataProvider = DATA_PROVIDER_NAME
@@ -142,6 +143,8 @@ private val RETURNED_EVENT_GROUP = eventGroup {
     metadata = Any.pack(TEST_MESSAGE)
   }
 }
+private const val PAGE_TOKEN = "base64encodedtoken"
+private const val NEXT_PAGE_TOKEN = "base64encodedtoken2"
 private const val DATA_PROVIDER_REFERENCE_ID = "123"
 private const val DATA_PROVIDER_NAME = "dataProviders/$DATA_PROVIDER_REFERENCE_ID"
 private const val METADATA_NAME = "$DATA_PROVIDER_NAME/eventGroupMetadataDescriptors/abc"
@@ -156,7 +159,10 @@ class EventGroupsServiceTest {
     mockService() {
       onBlocking { listEventGroups(any()) }
         .thenReturn(
-          cmmsListEventGroupsResponse { eventGroups += listOf(EVENT_GROUP, EVENT_GROUP_2) }
+          cmmsListEventGroupsResponse {
+            eventGroups += listOf(CMMS_EVENT_GROUP, CMMS_EVENT_GROUP_2)
+            nextPageToken = NEXT_PAGE_TOKEN
+          }
         )
     }
   private val cmmsEventGroupMetadataDescriptorsServiceMock:
@@ -187,7 +193,13 @@ class EventGroupsServiceTest {
     val result =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
         runBlocking {
-          eventGroupsService.listEventGroups(listEventGroupsRequest { parent = DATA_PROVIDER_NAME })
+          eventGroupsService.listEventGroups(
+            listEventGroupsRequest {
+              parent = DATA_PROVIDER_NAME
+              pageSize = 10
+              pageToken = PAGE_TOKEN
+            }
+          )
         }
       }
 
@@ -196,14 +208,14 @@ class EventGroupsServiceTest {
         listEventGroupsResponse {
           eventGroups +=
             listOf(
-              RETURNED_EVENT_GROUP,
+              EVENT_GROUP,
               eventGroup {
                 name =
                   EventGroupKey(
-                      MeasurementConsumerKey.fromName(EVENT_GROUP_2.measurementConsumer)!!
+                      MeasurementConsumerKey.fromName(CMMS_EVENT_GROUP_2.measurementConsumer)!!
                         .measurementConsumerId,
                       DATA_PROVIDER_REFERENCE_ID,
-                      EVENT_GROUP_ID_2
+                      CMMS_EVENT_GROUP_ID_2
                     )
                     .toName()
                 dataProvider = DATA_PROVIDER_NAME
@@ -214,13 +226,14 @@ class EventGroupsServiceTest {
                 }
               }
             )
+          nextPageToken = NEXT_PAGE_TOKEN
         }
       )
 
     val expectedCmmsEventGroupsRequest = cmmsListEventGroupsRequest {
       parent = DATA_PROVIDER_NAME
-      pageSize = 0
-      pageToken = ""
+      pageSize = 10
+      pageToken = PAGE_TOKEN
       filter =
         ListEventGroupsRequestKt.filter {
           measurementConsumers += MEASUREMENT_CONSUMER_REFERENCE_ID
@@ -246,12 +259,19 @@ class EventGroupsServiceTest {
             listEventGroupsRequest {
               parent = DATA_PROVIDER_NAME
               filter = "age.value > 10"
+              pageToken = PAGE_TOKEN
             }
           )
         }
       }
 
-    assertThat(result).isEqualTo(listEventGroupsResponse { eventGroups += RETURNED_EVENT_GROUP })
+    assertThat(result)
+      .isEqualTo(
+        listEventGroupsResponse {
+          eventGroups += EVENT_GROUP
+          nextPageToken = NEXT_PAGE_TOKEN
+        }
+      )
 
     val expectedCmmsMetadataDescriptorRequest = batchGetEventGroupMetadataDescriptorsRequest {
       parent = DATA_PROVIDER_NAME
@@ -267,7 +287,7 @@ class EventGroupsServiceTest {
     val expectedCmmsEventGroupsRequest = cmmsListEventGroupsRequest {
       parent = DATA_PROVIDER_NAME
       pageSize = 0
-      pageToken = ""
+      pageToken = PAGE_TOKEN
       filter =
         ListEventGroupsRequestKt.filter {
           measurementConsumers += MEASUREMENT_CONSUMER_REFERENCE_ID
@@ -281,7 +301,7 @@ class EventGroupsServiceTest {
   @Test
   fun `listEventGroups throws FAILED_PRECONDITION if message descriptor not found`() {
     val eventGroupInvalidMetadata = cmmsEventGroup {
-      name = "$DATA_PROVIDER_NAME/eventGroups/$EVENT_GROUP_ID"
+      name = "$DATA_PROVIDER_NAME/eventGroups/$CMMS_EVENT_GROUP_ID"
       measurementConsumer = MEASUREMENT_CONSUMER_NAME
       eventGroupReferenceId = "id1"
       encryptedMetadata =
@@ -300,7 +320,7 @@ class EventGroupsServiceTest {
       onBlocking { listEventGroups(any()) }
         .thenReturn(
           cmmsListEventGroupsResponse {
-            eventGroups += listOf(EVENT_GROUP, EVENT_GROUP_2, eventGroupInvalidMetadata)
+            eventGroups += listOf(CMMS_EVENT_GROUP, CMMS_EVENT_GROUP_2, eventGroupInvalidMetadata)
           }
         )
     }

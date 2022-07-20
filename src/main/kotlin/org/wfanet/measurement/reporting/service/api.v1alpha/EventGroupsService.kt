@@ -51,31 +51,32 @@ class EventGroupsService(
 ) : EventGroupsCoroutineImplBase() {
   override suspend fun listEventGroups(request: ListEventGroupsRequest): ListEventGroupsResponse {
     val principal: Principal<*> = principalFromCurrentContext
-    val eventGroups: List<CmmsEventGroup> =
-      cmmsEventGroupsStub
-        .listEventGroups(
-          cmmsListEventGroupsRequest {
-            parent = request.parent
-            pageSize = request.pageSize
-            pageToken = request.pageToken
-            filter = filter {
-              measurementConsumers +=
-                (principal.resourceKey as MeasurementConsumerKey).measurementConsumerId
-            }
+    val cmmsListEventGroupResponse =
+      cmmsEventGroupsStub.listEventGroups(
+        cmmsListEventGroupsRequest {
+          parent = request.parent
+          pageSize = request.pageSize
+          pageToken = request.pageToken
+          filter = filter {
+            measurementConsumers +=
+              (principal.resourceKey as MeasurementConsumerKey).measurementConsumerId
           }
-        )
-        .eventGroupsList
-    if (request.filter.isEmpty())
-      return listEventGroupsResponse { this.eventGroups += eventGroups.map { it.toEventGroup() } }
-    val parsedEventGroupMetadataMap: Map<String, CmmsEventGroup.Metadata> =
-      eventGroups
-        .map {
-          it.name to
-            CmmsEventGroup.Metadata.parseFrom(
-              decryptResult(it.encryptedMetadata, encryptionPrivateKey).data
-            )
         }
-        .toMap()
+      )
+    val cmmsEventGroups = cmmsListEventGroupResponse.eventGroupsList
+
+    if (request.filter.isEmpty())
+      return listEventGroupsResponse {
+        this.eventGroups += cmmsEventGroups.map { it.toEventGroup() }
+        nextPageToken = cmmsListEventGroupResponse.nextPageToken
+      }
+    val parsedEventGroupMetadataMap: Map<String, CmmsEventGroup.Metadata> =
+      cmmsEventGroups.associate {
+        it.name to
+          CmmsEventGroup.Metadata.parseFrom(
+            decryptResult(it.encryptedMetadata, encryptionPrivateKey).data
+          )
+      }
     val eventGroupMetadataDescriptors: List<EventGroupMetadataDescriptor> =
       eventGroupsMetadataDescriptorsStub
         .batchGetEventGroupMetadataDescriptors(
@@ -89,8 +90,8 @@ class EventGroupsService(
     val metadataParser = EventGroupMetadataParser(eventGroupMetadataDescriptors)
     val filteredEventGroups: MutableList<CmmsEventGroup> = mutableListOf()
 
-    for (eventGroup in eventGroups) {
-      val metadata = parsedEventGroupMetadataMap.getValue(eventGroup.name)
+    for (cmmsEventGroup in cmmsEventGroups) {
+      val metadata = parsedEventGroupMetadataMap.getValue(cmmsEventGroup.name)
       val metadataMessage =
         metadataParser.convertToDynamicMessage(metadata)
           ?: failGrpc(Status.FAILED_PRECONDITION) {
@@ -99,12 +100,13 @@ class EventGroupsService(
       val program: Program =
         EventFilters.compileProgram(request.filter, metadataMessage.defaultInstanceForType)
       if (EventFilters.matches(metadataMessage, program)) {
-        filteredEventGroups.add(eventGroup)
+        filteredEventGroups.add(cmmsEventGroup)
       }
     }
 
     return listEventGroupsResponse {
       this.eventGroups += filteredEventGroups.map { it.toEventGroup() }
+      nextPageToken = cmmsListEventGroupResponse.nextPageToken
     }
   }
 
@@ -112,30 +114,25 @@ class EventGroupsService(
     val source = this
     val cmmsMetadata =
       CmmsEventGroup.Metadata.parseFrom(
-        decryptResult(this@toEventGroup.encryptedMetadata, encryptionPrivateKey).data
+        decryptResult(source.encryptedMetadata, encryptionPrivateKey).data
       )
     val cmmsEventGroupKey =
-      grpcRequireNotNull(CmmsEventGroupKey.fromName(this@toEventGroup.name)) {
-        "Event group name is missing"
-      }
-    val dataProviderKey = DataProviderKey(cmmsEventGroupKey.dataProviderId)
-    val dataProviderReferenceId = dataProviderKey.dataProviderId
+      grpcRequireNotNull(CmmsEventGroupKey.fromName(source.name)) { "Event group name is missing" }
     val measurementConsumerKey =
-      grpcRequireNotNull(MeasurementConsumerKey.fromName(this@toEventGroup.measurementConsumer)) {
+      grpcRequireNotNull(MeasurementConsumerKey.fromName(source.measurementConsumer)) {
         "Event group measurement consumer key is missing"
       }
     return eventGroup {
       name =
         EventGroupKey(
             measurementConsumerKey.measurementConsumerId,
-            dataProviderReferenceId,
+            cmmsEventGroupKey.dataProviderId,
             cmmsEventGroupKey.eventGroupId
           )
           .toName()
-      dataProvider = dataProviderKey.toName()
-      eventGroupReferenceId = this@toEventGroup.eventGroupReferenceId
-      eventTemplates +=
-        this@toEventGroup.eventTemplatesList.map { eventTemplate { type = it.type } }
+      dataProvider = DataProviderKey(cmmsEventGroupKey.dataProviderId).toName()
+      eventGroupReferenceId = source.eventGroupReferenceId
+      eventTemplates += source.eventTemplatesList.map { eventTemplate { type = it.type } }
       metadata = metadata {
         eventGroupMetadataDescriptor = cmmsMetadata.eventGroupMetadataDescriptor
         metadata = cmmsMetadata.metadata
