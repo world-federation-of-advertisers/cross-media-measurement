@@ -59,3 +59,23 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
     ],
 )
+
+kt_jvm_library(
+    name = "measurement_consumer_constants",
+    srcs = ["MeasurementConsumerConstants.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/io/grpc:context",
+    ],
+)
+
+kt_jvm_library(
+    name = "measurement_consumer_server_interceptor",
+    srcs = ["MeasurementConsumerServerInterceptor.kt"],
+    deps = [
+        ":measurement_consumer_constants",
+        "//src/main/kotlin/org/wfanet/measurement/api:principal_constants",
+        "//src/main/kotlin/org/wfanet/measurement/common/api:resource_key",
+        "@wfa_common_jvm//imports/java/io/grpc:context",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)
