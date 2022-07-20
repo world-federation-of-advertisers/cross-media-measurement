@@ -1276,18 +1276,18 @@ private suspend fun Operand.toInternal(
  * Check if the event groups in the public [ReportingSet] are covered by the event group universe.
  */
 private suspend fun checkReportingSet(
-  reportingSet: String,
+  reportingSetName: String,
   measurementConsumerReferenceId: String,
   internalReportingSetsStub: InternalReportingSetsCoroutineStub,
   eventGroupFilters: Map<String, String>,
 ): String {
   val reportingSetKey =
-    grpcRequireNotNull(ReportingSetKey.fromName(reportingSet)) {
-      "Invalid reporting set name $reportingSet."
+    grpcRequireNotNull(ReportingSetKey.fromName(reportingSetName)) {
+      "Invalid reporting set name $reportingSetName."
     }
 
   grpcRequire(reportingSetKey.measurementConsumerId == measurementConsumerReferenceId) {
-    "No access to the reporting set [$reportingSet]."
+    "No access to the reporting set [$reportingSetName]."
   }
 
   val internalReportingSet = coroutineScope {
@@ -1309,10 +1309,10 @@ private suspend fun checkReportingSet(
           eventGroupKey.eventGroupReferenceId
         )
         .toName()
-
+    val internalReportingSetDisplayName = internalReportingSet.await().displayName
     grpcRequire(eventGroupFilters.containsKey(eventGroupName)) {
-      "The event group [$eventGroupName] in the reporting Set [${reportingSetKey.toName()}] is " +
-        "not included in the event group universe."
+      "The event group [$eventGroupName] in the reporting set [$internalReportingSetDisplayName]" +
+        " is not included in the event group universe."
     }
   }
 
