@@ -104,7 +104,7 @@ class SetOperationCompiler {
     val reportingSetNames = mutableSetOf<String>()
     namedSetOperation.setOperation.storeReportingSetNames(reportingSetNames)
 
-    // Sorts the list to make sure the IDs are consistent for the same run.
+    // Sorts the list in alphabetical order to make sure the IDs are consistent for the same run.
     val sortedReportingSetNames = reportingSetNames.sortedBy { it }
     val reportingSetsMap = createReportingSetsMap(sortedReportingSetNames)
     val numReportingSets = reportingSetsMap.size
@@ -312,7 +312,7 @@ class SetOperationCompiler {
     return
   }
 
-  /** Gets the set of the primitive regions that form the set operation expression. */
+  /** Gets the set of the primitive regions that form the set from the set operation expression. */
   private fun setOperationExpressionToPrimitiveRegions(
     numReportingSets: Int,
     setOperationExpression: SetOperationExpression
@@ -362,13 +362,16 @@ private fun calculateBinarySetOperation(
 
 /**
  * Gets a list of primitive regions where the index represents the reporting set ID and the element
- * is the set of primitive regions which forms the corresponding reporting set.
+ * is the set of primitive regions which forms the corresponding reporting set. For example, if
+ * reportingSetId = 1, then allPrimitiveRegionSetsList\[reportingSetId\] = setOf(1(=b’001’),
+ * 3(=b’011’), 5(=b’101’), 7(=b’111’)).
  */
 private fun getAllPrimitiveRegions(numReportingSets: Int): List<Set<PrimitiveRegion>> {
   val numPrimitiveRegions = 2.0.pow(numReportingSets).toPrimitiveRegion() - 1.toPrimitiveRegion()
   val allPrimitiveRegionSetsList: List<MutableSet<PrimitiveRegion>> =
     List(numReportingSets) { mutableSetOf() }
 
+  // A region is in the set of reportingSet when its bit at bit position == reportingSetId is set.
   for (region in 1.toPrimitiveRegion()..numPrimitiveRegions) {
     for (reportingSetId in 0 until numReportingSets) {
       if (isBitSet(region, reportingSetId)) {
@@ -405,8 +408,8 @@ private fun createReportingSetsMap(
   sortedReportingSetNames: List<String>
 ): Map<String, ReportingSet> {
   val reportingSetsMap: MutableMap<String, ReportingSet> = mutableMapOf()
-  for ((id, reportingSet) in sortedReportingSetNames.withIndex()) {
-    reportingSetsMap[reportingSet] = ReportingSet(id, reportingSet)
+  for ((id, reportingSetName) in sortedReportingSetNames.withIndex()) {
+    reportingSetsMap[reportingSetName] = ReportingSet(id, reportingSetName)
   }
   return reportingSetsMap.toMap()
 }
