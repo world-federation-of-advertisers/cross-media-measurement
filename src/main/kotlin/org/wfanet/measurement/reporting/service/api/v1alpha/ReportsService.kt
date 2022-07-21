@@ -574,10 +574,10 @@ class ReportsService(
         )
       } catch (e: StatusException) {
         if (e.status.code != Status.Code.NOT_FOUND) {
-          failGrpc(e.status) {
+          throw Exception(
             "Unable to retrieve a report from the reporting database using the provided " +
               "reportIdempotencyKey [${reportIdempotencyKey}]."
-          }
+          )
         }
 
         grpcRequire(request.report.measurementConsumer == request.parent) {
@@ -854,9 +854,9 @@ private suspend fun WeightedMeasurement.toInternal(
     )
   } catch (e: StatusException) {
     if (e.status.code != Status.Code.NOT_FOUND) {
-      failGrpc(e.status) {
+      throw Exception(
         "Unable to retrieve the measurement [$measurementReferenceId] from the reporting database."
-      }
+      )
     }
 
     val createMeasurementRequest: CreateMeasurementRequest =

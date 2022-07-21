@@ -28,6 +28,7 @@ import java.time.Instant
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -1958,7 +1959,7 @@ class ReportsServiceTest {
       }
 
       val exception =
-        assertFailsWith<StatusRuntimeException> {
+        assertThrows(Exception::class.java) {
           withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
             runBlocking { service.createReport(request) }
           }
@@ -1966,8 +1967,7 @@ class ReportsServiceTest {
       val expectedExceptionDescription =
         "Unable to retrieve a report from the reporting database using the provided " +
           "reportIdempotencyKey [${PENDING_REACH_REPORT.reportIdempotencyKey}]."
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.status.description).isEqualTo(expectedExceptionDescription)
+      assertThat(exception.message).isEqualTo(expectedExceptionDescription)
     }
 
   @Test
@@ -1982,7 +1982,7 @@ class ReportsServiceTest {
       }
 
       val exception =
-        assertFailsWith<StatusRuntimeException> {
+        assertThrows(Exception::class.java) {
           withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
             runBlocking { service.createReport(request) }
           }
@@ -1990,8 +1990,7 @@ class ReportsServiceTest {
       val expectedExceptionDescription =
         "Unable to retrieve the measurement [$REACH_MEASUREMENT_REFERENCE_ID] from the reporting " +
           "database."
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.status.description).isEqualTo(expectedExceptionDescription)
+      assertThat(exception.message).isEqualTo(expectedExceptionDescription)
     }
 
   @Test
