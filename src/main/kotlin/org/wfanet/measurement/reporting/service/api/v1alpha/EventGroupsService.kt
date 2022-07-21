@@ -67,7 +67,7 @@ class EventGroupsService(
 
     if (request.filter.isEmpty())
       return listEventGroupsResponse {
-        this.eventGroups += cmmsEventGroups.map { it.toEventGroup() }
+        this.eventGroups += cmmsEventGroups.map { it.toEventGroup(encryptionPrivateKey) }
         nextPageToken = cmmsListEventGroupResponse.nextPageToken
       }
     val parsedEventGroupMetadataMap: Map<String, CmmsEventGroup.Metadata> =
@@ -105,36 +105,36 @@ class EventGroupsService(
     }
 
     return listEventGroupsResponse {
-      this.eventGroups += filteredEventGroups.map { it.toEventGroup() }
+      this.eventGroups += filteredEventGroups.map { it.toEventGroup(encryptionPrivateKey) }
       nextPageToken = cmmsListEventGroupResponse.nextPageToken
     }
   }
+}
 
-  private fun CmmsEventGroup.toEventGroup(): EventGroup {
-    val source = this
-    val cmmsMetadata =
-      CmmsEventGroup.Metadata.parseFrom(decryptResult(encryptedMetadata, encryptionPrivateKey).data)
-    val cmmsEventGroupKey =
-      grpcRequireNotNull(CmmsEventGroupKey.fromName(name)) { "Event group name is missing" }
-    val measurementConsumerKey =
-      grpcRequireNotNull(MeasurementConsumerKey.fromName(measurementConsumer)) {
-        "Event group measurement consumer key is missing"
-      }
-    return eventGroup {
-      name =
-        EventGroupKey(
-            measurementConsumerKey.measurementConsumerId,
-            cmmsEventGroupKey.dataProviderId,
-            cmmsEventGroupKey.eventGroupId
-          )
-          .toName()
-      dataProvider = DataProviderKey(cmmsEventGroupKey.dataProviderId).toName()
-      eventGroupReferenceId = source.eventGroupReferenceId
-      eventTemplates += source.eventTemplatesList.map { eventTemplate { type = it.type } }
-      metadata = metadata {
-        eventGroupMetadataDescriptor = cmmsMetadata.eventGroupMetadataDescriptor
-        metadata = cmmsMetadata.metadata
-      }
+private fun CmmsEventGroup.toEventGroup(encryptionPrivateKey: TinkPrivateKeyHandle): EventGroup {
+  val source = this
+  val cmmsMetadata =
+    CmmsEventGroup.Metadata.parseFrom(decryptResult(encryptedMetadata, encryptionPrivateKey).data)
+  val cmmsEventGroupKey =
+    grpcRequireNotNull(CmmsEventGroupKey.fromName(name)) { "Event group name is missing" }
+  val measurementConsumerKey =
+    grpcRequireNotNull(MeasurementConsumerKey.fromName(measurementConsumer)) {
+      "Event group measurement consumer key is missing"
+    }
+  return eventGroup {
+    name =
+      EventGroupKey(
+          measurementConsumerKey.measurementConsumerId,
+          cmmsEventGroupKey.dataProviderId,
+          cmmsEventGroupKey.eventGroupId
+        )
+        .toName()
+    dataProvider = DataProviderKey(cmmsEventGroupKey.dataProviderId).toName()
+    eventGroupReferenceId = source.eventGroupReferenceId
+    eventTemplates += source.eventTemplatesList.map { eventTemplate { type = it.type } }
+    metadata = metadata {
+      eventGroupMetadataDescriptor = cmmsMetadata.eventGroupMetadataDescriptor
+      metadata = cmmsMetadata.metadata
     }
   }
 }
