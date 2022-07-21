@@ -116,7 +116,8 @@ class SetOperationCompiler {
     val primitiveRegions =
       setOperationExpressionToPrimitiveRegions(numReportingSets, setOperationExpression)
 
-    // Step 2 - Converts a set of primitive regions to a map of union-set to its coefficients.
+    // Step 2 - Converts a set of primitive regions to a map of union-set to its coefficients for
+    // cardinality computation.
     val unionSetCoefficientMap =
       convertPrimitiveRegionsToUnionSetCoefficientMap(numReportingSets, primitiveRegions)
 
@@ -140,7 +141,10 @@ class SetOperationCompiler {
     return WeightedMeasurement(reportingSetNames, coefficient)
   }
 
-  /** Converts a set of primitive regions to a map of union-set to its coefficients */
+  /**
+   * Converts a set of primitive regions to a map of union-set to its coefficients for cardinality
+   * computation
+   */
   private suspend fun convertPrimitiveRegionsToUnionSetCoefficientMap(
     numReportingSets: Int,
     primitiveRegions: Set<PrimitiveRegion>
@@ -168,7 +172,9 @@ class SetOperationCompiler {
       }
     }
 
-    updatePrimitiveRegionCache(numReportingSets, primitiveRegionsToUnionSetCoefficients)
+    // Updates the memory cache with new computation result.
+    primitiveRegionCache.getOrPut(numReportingSets, ::mutableMapOf) +=
+      primitiveRegionsToUnionSetCoefficients
 
     return aggregateCoefficientsByUnionSets(primitiveRegionsToUnionSetCoefficients)
   }
@@ -192,29 +198,27 @@ class SetOperationCompiler {
     return aggregatedResult.toSortedMap().toMap()
   }
 
-  /** Updates the memory cache with new computation result. */
-  private fun updatePrimitiveRegionCache(
-    numReportingSets: Int,
-    primitiveRegionsToUnionSetCoefficients: PrimitiveRegionToUnionSetCoefficientMap
-  ) {
-    if (!primitiveRegionCache.containsKey(numReportingSets)) {
-      primitiveRegionCache[numReportingSets] = mutableMapOf()
-    }
-    primitiveRegionCache[numReportingSets]?.also { cachedPrimitiveRegionsToUnionSetCoefficients ->
-      cachedPrimitiveRegionsToUnionSetCoefficients.putAll(primitiveRegionsToUnionSetCoefficients)
-    }
-  }
-
   /**
    * Converts a single primitive region to a map of union-set to its coefficients, where the
    * cardinality of the input primitive region is equal to the linear combination of the
-   * cardinalities of the union-sets with the coeffcients.
+   * cardinalities of the union-sets with the coefficients.
+   *
+   * The algorithm is based on the observation on the linear transformation matrix from primitive
+   * regions to union-sets. Ex:
+   *
+   * ```
+   *           b'01'    b'10'    b'11'
+   *     A      0        -1       1
+   *     B     -1         0       1
+   *   A U B    1         1      -1
+   * ```
    */
   private suspend fun convertSinglePrimitiveRegionToUnionSetCoefficientMap(
     numReportingSets: Int,
     region: PrimitiveRegion,
     primitiveRegionsToUnionSetCoefficients: PrimitiveRegionToUnionSetCoefficientMap
   ) {
+    // For a given region, we first find which bit positions are set and which are not.
     val setBitPositions = mutableListOf<Int>()
     val unsetBitPositions = mutableListOf<Int>()
 
@@ -227,7 +231,7 @@ class SetOperationCompiler {
     }
     val primitiveRegionWeight = setBitPositions.size
 
-    // Always starts from -1 unless the primitive region = (2^numReportingSets - 1) = b'11...1'
+    // Always starts from -1 unless the primitive region = (2^numReportingSets - 1) = b'11...1'.
     val baseSign = if (primitiveRegionWeight != numReportingSets) -1 else 1
     var count = 0
 
@@ -245,7 +249,7 @@ class SetOperationCompiler {
         val sign = if (count % 2 == 1) baseSign else -baseSign
 
         launch {
-          val composingUnionSets = buildComposingUnionSets(setBitPositions, unsetBitPositions, size)
+          val composingUnionSets = findComposingUnionSets(setBitPositions, unsetBitPositions, size)
           unionSetCoefficients += composingUnionSets.associateWith { sign }
         }
       }
@@ -273,14 +277,20 @@ class SetOperationCompiler {
     return primitiveRegionsToUnionSetCoefficients.containsKey(region)
   }
 
-  /** Builds the union-sets which will be part of the combination to form the target region. */
-  private fun buildComposingUnionSets(
+  /**
+   * Finds the union-sets which will be part of the combination to form the target region.
+   * Essentially, given the size of a combination, we are finding all the combinations of the bit
+   * positions where at least unset bit positions are selected.
+   */
+  private fun findComposingUnionSets(
     setBitPositions: MutableList<Int>,
     unsetBitPositions: MutableList<Int>,
     size: Int
   ): MutableList<UnionSet> {
     val composingUnionSets = mutableListOf<UnionSet>()
 
+    // If the size is not large enough to at least contain all unset bit positions or the size is
+    // too large to fill, return empty result.
     if (unsetBitPositions.size > size || setBitPositions.size + unsetBitPositions.size < size) {
       return composingUnionSets
     }
@@ -290,7 +300,7 @@ class SetOperationCompiler {
     return composingUnionSets
   }
 
-  /** Finds the valid union-sets using backtracking. */
+  /** Finds the valid combinations as [UnionSet]s using backtracking. */
   private fun findValidUnionSets(
     size: Int,
     start: Int,
