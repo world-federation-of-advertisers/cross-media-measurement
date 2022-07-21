@@ -50,8 +50,8 @@ private typealias UnionSetCoefficientMap = Map<UnionSet, Int>
 /**
  * A mapping for cardinality computation from a [PrimitiveRegion] to its decomposition in terms of
  * union-sets represented by [UnionSetCoefficientMap]. Take a case of 3 reporting sets (rs0, rs1,
- * rs2) as an example. A primitive region with its value equal to 3 (b'011') is the intersection of
- * rs0 and rs1. The decomposition of the cardinality of the region =
+ * rs2) as an example. A primitive region with its value equal to 3 (b'011') means rs0 INTERSECT rs1
+ * INTERSECT COMPLEMENT(rs2). The decomposition of the cardinality of the region =
  * PrimitiveRegionToUnionSetCoefficientMap\[region\] = {4: -1, 5: 1, 6: 1, 7: -1}, i.e. |union-set5|
  * + |union-set6| - |union-set4| - |union-set7|.
  */
