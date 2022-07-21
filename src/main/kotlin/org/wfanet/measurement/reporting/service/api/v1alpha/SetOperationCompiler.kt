@@ -245,7 +245,7 @@ class SetOperationCompiler {
         val sign = if (count % 2 == 1) baseSign else -baseSign
 
         launch {
-          val composingUnionSets = getComposingUnionSets(setBitPositions, unsetBitPositions, size)
+          val composingUnionSets = buildComposingUnionSets(setBitPositions, unsetBitPositions, size)
           unionSetCoefficients += composingUnionSets.associateWith { sign }
         }
       }
@@ -273,8 +273,8 @@ class SetOperationCompiler {
     return primitiveRegionsToUnionSetCoefficients.containsKey(region)
   }
 
-  /** Gets the union-sets which will be part of the combination to form the target region. */
-  private fun getComposingUnionSets(
+  /** Builds the union-sets which will be part of the combination to form the target region. */
+  private fun buildComposingUnionSets(
     setBitPositions: MutableList<Int>,
     unsetBitPositions: MutableList<Int>,
     size: Int
@@ -317,7 +317,7 @@ class SetOperationCompiler {
     numReportingSets: Int,
     setOperationExpression: SetOperationExpression
   ): Set<PrimitiveRegion> {
-    val allPrimitiveRegionSetsList = getAllPrimitiveRegions(numReportingSets)
+    val allPrimitiveRegionSetsList = buildAllPrimitiveRegions(numReportingSets)
     return setOperationExpression.decompose(allPrimitiveRegionSetsList)
   }
 }
@@ -361,12 +361,12 @@ private fun calculateBinarySetOperation(
 }
 
 /**
- * Gets a list of primitive regions where the index represents the reporting set ID and the element
- * is the set of primitive regions which forms the corresponding reporting set. For example, if
- * reportingSetId = 1, then allPrimitiveRegionSetsList\[reportingSetId\] = setOf(1(=b’001’),
+ * Builds a list of primitive regions where the index represents the reporting set ID and the
+ * element is the set of primitive regions which forms the corresponding reporting set. For example,
+ * if reportingSetId = 1, then allPrimitiveRegionSetsList\[reportingSetId\] = setOf(1(=b’001’),
  * 3(=b’011’), 5(=b’101’), 7(=b’111’)).
  */
-private fun getAllPrimitiveRegions(numReportingSets: Int): List<Set<PrimitiveRegion>> {
+private fun buildAllPrimitiveRegions(numReportingSets: Int): List<Set<PrimitiveRegion>> {
   val numPrimitiveRegions = 2.0.pow(numReportingSets).toPrimitiveRegion() - 1.toPrimitiveRegion()
   val allPrimitiveRegionSetsList: List<MutableSet<PrimitiveRegion>> =
     List(numReportingSets) { mutableSetOf() }
