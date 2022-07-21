@@ -1,5 +1,15 @@
 load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 
+java_binary(
+    name = "UpdateSchema",
+    main_class = "org.wfanet.measurement.postgres.tools.UpdateSchema",
+    resources = ["//src/main/resources/reporting/postgres"],
+    runtime_deps = [
+        "@wfa_common_jvm//imports/java/org/postgresql:j2dbc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/postgres/tools:update_schema",
+    ],
+)
+
 java_image(
     name = "update_schema_image",
     args = [
@@ -12,6 +22,7 @@ java_image(
         "//src/main/k8s:__subpackages__",
     ],
     runtime_deps = [
+        "@wfa_common_jvm//imports/java/org/postgresql:j2dbc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/postgres/tools:update_schema",
     ],
 )

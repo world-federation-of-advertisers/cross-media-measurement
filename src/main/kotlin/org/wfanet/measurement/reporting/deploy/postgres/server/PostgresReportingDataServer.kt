@@ -38,7 +38,7 @@ class PostgresReportingDataServer : ReportingDataServer() {
     val clock = Clock.systemUTC()
     val idGenerator = RandomIdGenerator(clock)
 
-    val client = PostgresDatabaseClient.fromJDBCConnectionString(postgresFlags.jdbcConnectionString)
+    val client = PostgresDatabaseClient.fromFlags(postgresFlags)
 
     run(PostgresDataServices(idGenerator, client))
   }

@@ -58,8 +58,8 @@ private fun run(
   val principalLookup =
     TextprotoFilePrincipalLookup(v1alphaFlags.authorityKeyIdentifierToPrincipalMapFile)
 
-  val apiKeyLookup =
-    TextprotoFileApiKeyLookup(v1alphaFlags.measurementConsumerToApiKeyMapFile)
+  //val apiKeyLookup =
+  //  TextprotoFileApiKeyLookup(v1alphaFlags.measurementConsumerToApiKeyMapFile)
 
   val services: List<ServerServiceDefinition> =
     listOf(
