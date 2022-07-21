@@ -141,6 +141,11 @@ import org.wfanet.measurement.internal.reporting.MetricKt.reachParams as interna
 import org.wfanet.measurement.internal.reporting.MetricKt.setOperation as internalSetOperation
 import org.wfanet.measurement.internal.reporting.MetricKt.watchDurationParams as internalWatchDurationParams
 import org.wfanet.measurement.internal.reporting.Report as InternalReport
+import org.wfanet.measurement.internal.reporting.ReportKt.DetailsKt.ResultKt.HistogramTableKt.row as internalRow
+import org.wfanet.measurement.internal.reporting.ReportKt.DetailsKt.ResultKt.column as internalColumn
+import org.wfanet.measurement.internal.reporting.ReportKt.DetailsKt.ResultKt.histogramTable as internalHistogramTable
+import org.wfanet.measurement.internal.reporting.ReportKt.DetailsKt.ResultKt.scalarTable as internalScalarTable
+import org.wfanet.measurement.internal.reporting.ReportKt.DetailsKt.result as internalReportResult
 import org.wfanet.measurement.internal.reporting.ReportKt.details as internalReportDetails
 import org.wfanet.measurement.internal.reporting.ReportingSetKt.eventGroupKey as internalReportingSetEventGroupKey
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase as InternalReportingSetsCoroutineImplBase
@@ -173,7 +178,12 @@ import org.wfanet.measurement.reporting.v1alpha.MetricKt.setOperation
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.watchDurationParams
 import org.wfanet.measurement.reporting.v1alpha.Report
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.EventGroupUniverseKt.eventGroupEntry as eventGroupUniverseEntry
+import org.wfanet.measurement.reporting.v1alpha.ReportKt.ResultKt.HistogramTableKt.row
+import org.wfanet.measurement.reporting.v1alpha.ReportKt.ResultKt.column
+import org.wfanet.measurement.reporting.v1alpha.ReportKt.ResultKt.histogramTable
+import org.wfanet.measurement.reporting.v1alpha.ReportKt.ResultKt.scalarTable
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.eventGroupUniverse
+import org.wfanet.measurement.reporting.v1alpha.ReportKt.result as reportResult
 import org.wfanet.measurement.reporting.v1alpha.copy
 import org.wfanet.measurement.reporting.v1alpha.createReportRequest
 import org.wfanet.measurement.reporting.v1alpha.getReportRequest
@@ -2955,5 +2965,81 @@ class ReportsServiceTest {
 
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
     assertThat(exception.status.description).contains("private key")
+  }
+
+  @Test
+  fun `toResult converts internal result to external result with the same content`() = runBlocking {
+    val internalResult = internalReportResult {
+      scalarTable = internalScalarTable {
+        rowHeaders += listOf("row1", "row2", "row3")
+        columns += internalColumn {
+          columnHeader = "column1"
+          setOperations += listOf(1.0, 2.0, 3.0)
+        }
+      }
+      histogramTables += internalHistogramTable {
+        rows += internalRow {
+          rowHeader = "row4"
+          frequency = 100
+        }
+        rows += internalRow {
+          rowHeader = "row5"
+          frequency = 101
+        }
+        columns += internalColumn {
+          columnHeader = "column1"
+          setOperations += listOf(10.0, 11.0, 12.0)
+        }
+        columns += internalColumn {
+          columnHeader = "column2"
+          setOperations += listOf(20.0, 21.0, 22.0)
+        }
+      }
+    }
+
+    whenever(internalReportsMock.getReport(any()))
+      .thenReturn(
+        INTERNAL_SUCCEEDED_WATCH_DURATION_REPORT.copy {
+          details = internalReportDetails { result = internalResult }
+        }
+      )
+
+    val request = getReportRequest { name = REPORT_NAME_3 }
+
+    val report =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.getReport(request) }
+      }
+
+    assertThat(report.result)
+      .isEqualTo(
+        reportResult {
+          scalarTable = scalarTable {
+            rowHeaders += listOf("row1", "row2", "row3")
+            columns += column {
+              columnHeader = "column1"
+              setOperations += listOf(1.0, 2.0, 3.0)
+            }
+          }
+          histogramTables += histogramTable {
+            rows += row {
+              rowHeader = "row4"
+              frequency = 100
+            }
+            rows += row {
+              rowHeader = "row5"
+              frequency = 101
+            }
+            columns += column {
+              columnHeader = "column1"
+              setOperations += listOf(10.0, 11.0, 12.0)
+            }
+            columns += column {
+              columnHeader = "column2"
+              setOperations += listOf(20.0, 21.0, 22.0)
+            }
+          }
+        }
+      )
   }
 }
