@@ -1779,7 +1779,7 @@ class ReportsServiceTest {
   }
 
   @Test
-  fun `createReport throws INVALID_ARGUMENT when setOperation names duplicate for same metric`() {
+  fun `createReport throws INVALID_ARGUMENT when setOperationName duplicate for same metricType`() {
     val request = createReportRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       report =
@@ -1797,7 +1797,9 @@ class ReportsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description)
-      .isEqualTo("The display names of the set operations within the same metric should be unique.")
+      .isEqualTo(
+        "The display names of the set operations within the same metric type should be unique."
+      )
   }
 
   @Test

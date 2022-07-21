@@ -606,7 +606,7 @@ private suspend fun CreateReportRequest.toInternal(
   }
 }
 
-/** Check if the display names of the set operations within the same metric are unique. */
+/** Check if the display names of the set operations within the same metric type are unique. */
 private fun checkSetOperationDisplayNamesUniqueness(metricsList: List<Metric>) {
   val metricToSetOperationDisplayNamesList =
     mutableMapOf<MetricTypeCase, MutableSet<String>>().withDefault { mutableSetOf() }
@@ -620,7 +620,9 @@ private fun checkSetOperationDisplayNamesUniqueness(metricsList: List<Metric>) {
             !metricToSetOperationDisplayNamesList
               .getValue(MetricTypeCase.REACH)
               .contains(setOperation.displayName)
-          ) { "The display names of the set operations within the same metric should be unique." }
+          ) {
+            "The display names of the set operations within the same metric type should be unique."
+          }
           metricToSetOperationDisplayNamesList.getOrPut(MetricTypeCase.REACH, ::mutableSetOf) +=
             setOperation.displayName
         }
@@ -629,7 +631,9 @@ private fun checkSetOperationDisplayNamesUniqueness(metricsList: List<Metric>) {
             !metricToSetOperationDisplayNamesList
               .getValue(MetricTypeCase.FREQUENCY_HISTOGRAM)
               .contains(setOperation.displayName)
-          ) { "The display names of the set operations within the same metric should be unique." }
+          ) {
+            "The display names of the set operations within the same metric type should be unique."
+          }
           metricToSetOperationDisplayNamesList.getOrPut(
             MetricTypeCase.FREQUENCY_HISTOGRAM,
             ::mutableSetOf
@@ -640,7 +644,9 @@ private fun checkSetOperationDisplayNamesUniqueness(metricsList: List<Metric>) {
             !metricToSetOperationDisplayNamesList
               .getValue(MetricTypeCase.IMPRESSION_COUNT)
               .contains(setOperation.displayName)
-          ) { "The display names of the set operations within the same metric should be unique." }
+          ) {
+            "The display names of the set operations within the same metric type should be unique."
+          }
           metricToSetOperationDisplayNamesList.getOrPut(
             MetricTypeCase.IMPRESSION_COUNT,
             ::mutableSetOf
@@ -651,7 +657,9 @@ private fun checkSetOperationDisplayNamesUniqueness(metricsList: List<Metric>) {
             !metricToSetOperationDisplayNamesList
               .getValue(MetricTypeCase.WATCH_DURATION)
               .contains(setOperation.displayName)
-          ) { "The display names of the set operations within the same metric should be unique." }
+          ) {
+            "The display names of the set operations within the same metric type should be unique."
+          }
           metricToSetOperationDisplayNamesList.getOrPut(
             MetricTypeCase.WATCH_DURATION,
             ::mutableSetOf
