@@ -165,8 +165,8 @@ import org.wfanet.measurement.reporting.v1alpha.MetricKt.setOperation
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.watchDurationParams
 import org.wfanet.measurement.reporting.v1alpha.PeriodicTimeInterval
 import org.wfanet.measurement.reporting.v1alpha.Report
-import org.wfanet.measurement.reporting.v1alpha.ReportKt.EventGroupUniverseKt.eventGroupEntry as eventGroupUniverseEntry
 import org.wfanet.measurement.reporting.v1alpha.Report.Result
+import org.wfanet.measurement.reporting.v1alpha.ReportKt.EventGroupUniverseKt.eventGroupEntry as eventGroupUniverseEntry
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.ResultKt.HistogramTableKt.row
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.ResultKt.column
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.ResultKt.histogramTable
@@ -632,66 +632,15 @@ private suspend fun CreateReportRequest.toInternal(
 
 /** Check if the display names of the set operations within the same metric type are unique. */
 private fun checkSetOperationDisplayNamesUniqueness(metricsList: List<Metric>) {
-  val metricToSetOperationDisplayNamesList =
+  val seenDisplayNames =
     mutableMapOf<MetricTypeCase, MutableSet<String>>().withDefault { mutableSetOf() }
 
   for (metric in metricsList) {
     for (setOperation in metric.setOperationsList) {
-      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-      when (metric.metricTypeCase) {
-        MetricTypeCase.REACH -> {
-          grpcRequire(
-            !metricToSetOperationDisplayNamesList
-              .getValue(MetricTypeCase.REACH)
-              .contains(setOperation.displayName)
-          ) {
-            "The display names of the set operations within the same metric type should be unique."
-          }
-          metricToSetOperationDisplayNamesList.getOrPut(MetricTypeCase.REACH, ::mutableSetOf) +=
-            setOperation.displayName
-        }
-        MetricTypeCase.FREQUENCY_HISTOGRAM -> {
-          grpcRequire(
-            !metricToSetOperationDisplayNamesList
-              .getValue(MetricTypeCase.FREQUENCY_HISTOGRAM)
-              .contains(setOperation.displayName)
-          ) {
-            "The display names of the set operations within the same metric type should be unique."
-          }
-          metricToSetOperationDisplayNamesList.getOrPut(
-            MetricTypeCase.FREQUENCY_HISTOGRAM,
-            ::mutableSetOf
-          ) += setOperation.displayName
-        }
-        MetricTypeCase.IMPRESSION_COUNT -> {
-          grpcRequire(
-            !metricToSetOperationDisplayNamesList
-              .getValue(MetricTypeCase.IMPRESSION_COUNT)
-              .contains(setOperation.displayName)
-          ) {
-            "The display names of the set operations within the same metric type should be unique."
-          }
-          metricToSetOperationDisplayNamesList.getOrPut(
-            MetricTypeCase.IMPRESSION_COUNT,
-            ::mutableSetOf
-          ) += setOperation.displayName
-        }
-        MetricTypeCase.WATCH_DURATION -> {
-          grpcRequire(
-            !metricToSetOperationDisplayNamesList
-              .getValue(MetricTypeCase.WATCH_DURATION)
-              .contains(setOperation.displayName)
-          ) {
-            "The display names of the set operations within the same metric type should be unique."
-          }
-          metricToSetOperationDisplayNamesList.getOrPut(
-            MetricTypeCase.WATCH_DURATION,
-            ::mutableSetOf
-          ) += setOperation.displayName
-        }
-        MetricTypeCase.METRICTYPE_NOT_SET ->
-          failGrpc(Status.INVALID_ARGUMENT) { "The metric type in Report is not specified." }
-      }
+      grpcRequire(
+        !seenDisplayNames.getValue(metric.metricTypeCase).contains(setOperation.displayName)
+      ) { "The display names of the set operations within the same metric type should be unique." }
+      seenDisplayNames.getOrPut(metric.metricTypeCase, ::mutableSetOf) += setOperation.displayName
     }
   }
 }
