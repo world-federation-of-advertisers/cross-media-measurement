@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.reporting.service.api.v1alpha
 
+import com.google.protobuf.ByteString
 import io.grpc.Status
 import org.projectnessie.cel.Program
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -29,7 +30,7 @@ import org.wfanet.measurement.api.v2alpha.Principal
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
-import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
+import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
@@ -46,8 +47,8 @@ import org.wfanet.measurement.reporting.v1alpha.listEventGroupsResponse
 class EventGroupsService(
   private val cmmsEventGroupsStub: EventGroupsCoroutineStub,
   private val eventGroupsMetadataDescriptorsStub: EventGroupMetadataDescriptorsCoroutineStub,
-  // TODO(@chipingyeh): Call key retrieval service once implemented
-  private val encryptionPrivateKey: TinkPrivateKeyHandle
+  private val measurementConsumerPublicKey: ByteString,
+  private val encryptionKeyPairStore: EncryptionKeyPairStore
 ) : EventGroupsCoroutineImplBase() {
   override suspend fun listEventGroups(request: ListEventGroupsRequest): ListEventGroupsResponse {
     val principal: Principal<*> = principalFromCurrentContext
@@ -64,6 +65,10 @@ class EventGroupsService(
         }
       )
     val cmmsEventGroups = cmmsListEventGroupResponse.eventGroupsList
+    val encryptionPrivateKey =
+      grpcRequireNotNull(encryptionKeyPairStore.getPrivateKeyHandle(measurementConsumerPublicKey)) {
+        "No private key found for provided public key"
+      }
 
     if (request.filter.isEmpty())
       return listEventGroupsResponse {
@@ -111,7 +116,7 @@ class EventGroupsService(
   }
 }
 
-private fun CmmsEventGroup.toEventGroup(encryptionPrivateKey: TinkPrivateKeyHandle): EventGroup {
+private fun CmmsEventGroup.toEventGroup(encryptionPrivateKey: PrivateKeyHandle): EventGroup {
   val source = this
   val cmmsMetadata =
     CmmsEventGroup.Metadata.parseFrom(decryptResult(encryptedMetadata, encryptionPrivateKey).data)

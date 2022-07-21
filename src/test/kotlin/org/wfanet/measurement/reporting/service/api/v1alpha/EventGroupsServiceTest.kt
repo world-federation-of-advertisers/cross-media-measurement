@@ -62,6 +62,7 @@ import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.consent.client.common.signMessage
 import org.wfanet.measurement.reporting.v1alpha.EventGroupKt.metadata
@@ -77,6 +78,10 @@ private val SECRET_FILES_PATH: Path =
   )
 private val ENCRYPTION_PRIVATE_KEY = loadEncryptionPrivateKey("mc_enc_private.tink")
 private val ENCRYPTION_PUBLIC_KEY = loadEncryptionPublicKey("mc_enc_public.tink")
+private val PUBLIC_KEY_FILE = SECRET_FILES_PATH.resolve("mc_enc_public.tink").toFile()
+private val PUBLIC_KEY = PUBLIC_KEY_FILE.readByteString()
+private val ENCRYPTION_KEY_PAIR_STORE =
+  InMemoryEncryptionKeyPairStore(mapOf(PUBLIC_KEY to ENCRYPTION_PRIVATE_KEY))
 private val EDP_SIGNING_KEY = loadSigningKey("edp1_cs_cert.der", "edp1_cs_private.der")
 private const val MEASUREMENT_CONSUMER_REFERENCE_ID = "measurementConsumerRefId"
 private val MEASUREMENT_CONSUMER_NAME =
@@ -185,7 +190,8 @@ class EventGroupsServiceTest {
       EventGroupsService(
         EventGroupsCoroutineStub(grpcTestServerRule.channel),
         EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
-        ENCRYPTION_PRIVATE_KEY
+        PUBLIC_KEY,
+        ENCRYPTION_KEY_PAIR_STORE
       )
     val result =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
@@ -247,7 +253,8 @@ class EventGroupsServiceTest {
       EventGroupsService(
         EventGroupsCoroutineStub(grpcTestServerRule.channel),
         EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
-        ENCRYPTION_PRIVATE_KEY
+        PUBLIC_KEY,
+        ENCRYPTION_KEY_PAIR_STORE
       )
     val result =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
@@ -325,7 +332,8 @@ class EventGroupsServiceTest {
       EventGroupsService(
         EventGroupsCoroutineStub(grpcTestServerRule.channel),
         EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
-        ENCRYPTION_PRIVATE_KEY
+        PUBLIC_KEY,
+        ENCRYPTION_KEY_PAIR_STORE
       )
     val result =
       assertFailsWith<StatusRuntimeException> {
