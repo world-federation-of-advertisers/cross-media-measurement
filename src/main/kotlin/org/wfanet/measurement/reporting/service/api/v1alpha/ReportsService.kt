@@ -219,7 +219,19 @@ private val WATCH_DURATION_VID_SAMPLING_START_LIST =
   }
 private const val WATCH_DURATION_EPSILON = 0.001
 
-private const val DIFFERENTIAL_PRIVACY_DETLA = 1e-12
+private const val DIFFERENTIAL_PRIVACY_DELTA = 1e-12
+
+private val REACH_ONLY_MEASUREMENT_SPEC = measurementSpecReachAndFrequency {
+  reachPrivacyParams = differentialPrivacyParams {
+    epsilon = REACH_ONLY_REACH_EPSILON
+    delta = DIFFERENTIAL_PRIVACY_DELTA
+  }
+  frequencyPrivacyParams = differentialPrivacyParams {
+    epsilon = REACH_ONLY_FREQUENCY_EPSILON
+    delta = DIFFERENTIAL_PRIVACY_DELTA
+  }
+  maximumFrequencyPerUser = REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER
+}
 
 private data class ServiceStubs(
   val internalReportsStub: InternalReportsCoroutineStub,
@@ -1113,7 +1125,7 @@ private fun buildUnsignedMeasurementSpec(
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     when (internalMetricDetails.metricTypeCase) {
       InternalMetricTypeCase.REACH -> {
-        reachAndFrequency = buildReachOnlyMeasurementSpec()
+        reachAndFrequency = REACH_ONLY_MEASUREMENT_SPEC
         vidSamplingInterval = buildReachOnlyVidSamplingInterval(secureRandom)
       }
       InternalMetricTypeCase.FREQUENCY_HISTOGRAM -> {
@@ -1186,21 +1198,6 @@ private fun buildDurationVidSamplingInterval(secureRandom: SecureRandom): VidSam
   }
 }
 
-/** Builds a [MeasurementSpec.ReachAndFrequency] for reach-only. */
-private fun buildReachOnlyMeasurementSpec(): MeasurementSpec.ReachAndFrequency {
-  return measurementSpecReachAndFrequency {
-    reachPrivacyParams = differentialPrivacyParams {
-      epsilon = REACH_ONLY_REACH_EPSILON
-      delta = DIFFERENTIAL_PRIVACY_DETLA
-    }
-    frequencyPrivacyParams = differentialPrivacyParams {
-      epsilon = REACH_ONLY_FREQUENCY_EPSILON
-      delta = DIFFERENTIAL_PRIVACY_DETLA
-    }
-    maximumFrequencyPerUser = REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER
-  }
-}
-
 /** Builds a [MeasurementSpec.ReachAndFrequency] for reach-frequency. */
 private fun buildReachAndFrequencyMeasurementSpec(
   maximumFrequencyPerUser: Int
@@ -1208,11 +1205,11 @@ private fun buildReachAndFrequencyMeasurementSpec(
   return measurementSpecReachAndFrequency {
     reachPrivacyParams = differentialPrivacyParams {
       epsilon = REACH_FREQUENCY_REACH_EPSILON
-      delta = DIFFERENTIAL_PRIVACY_DETLA
+      delta = DIFFERENTIAL_PRIVACY_DELTA
     }
     frequencyPrivacyParams = differentialPrivacyParams {
       epsilon = REACH_FREQUENCY_FREQUENCY_EPSILON
-      delta = DIFFERENTIAL_PRIVACY_DETLA
+      delta = DIFFERENTIAL_PRIVACY_DELTA
     }
     this.maximumFrequencyPerUser = maximumFrequencyPerUser
   }
@@ -1225,7 +1222,7 @@ private fun buildImpressionMeasurementSpec(
   return measurementSpecImpression {
     privacyParams = differentialPrivacyParams {
       epsilon = IMPRESSION_EPSILON
-      delta = DIFFERENTIAL_PRIVACY_DETLA
+      delta = DIFFERENTIAL_PRIVACY_DELTA
     }
     this.maximumFrequencyPerUser = maximumFrequencyPerUser
   }
@@ -1239,7 +1236,7 @@ private fun buildDurationMeasurementSpec(
   return measurementSpecDuration {
     privacyParams = differentialPrivacyParams {
       epsilon = WATCH_DURATION_EPSILON
-      delta = DIFFERENTIAL_PRIVACY_DETLA
+      delta = DIFFERENTIAL_PRIVACY_DELTA
     }
     this.maximumWatchDurationPerUser = maximumWatchDurationPerUser
     this.maximumFrequencyPerUser = maximumFrequencyPerUser
