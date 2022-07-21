@@ -548,7 +548,14 @@ private suspend fun CreateReportRequest.toInternal(
           reportIdempotencyKey = credential.reportIdempotencyKey
         }
       )
-    } catch (_: StatusException) {
+    } catch (e: StatusException) {
+      if (e.status.code != Status.Code.NOT_FOUND) {
+        failGrpc(e.status) {
+          "Unable to retrieve a report from the reporting database using the provided " +
+            "reportIdempotencyKey [${credential.reportIdempotencyKey}]."
+        }
+      }
+
       grpcRequire(source.report.measurementConsumer == source.parent) {
         "Cannot create a Report for another MeasurementConsumer."
       }
@@ -877,7 +884,13 @@ private suspend fun WeightedMeasurement.toInternal(
         this.measurementReferenceId = measurementReferenceId
       }
     )
-  } catch (_: StatusException) {
+  } catch (e: StatusException) {
+    if (e.status.code != Status.Code.NOT_FOUND) {
+      failGrpc(e.status) {
+        "Unable to retrieve the measurement [$measurementReferenceId] from the reporting database."
+      }
+    }
+
     val createMeasurementRequest: CreateMeasurementRequest =
       buildCreateMeasurementRequest(
         serviceStubs,

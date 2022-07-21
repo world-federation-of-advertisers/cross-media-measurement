@@ -1937,6 +1937,54 @@ class ReportsServiceTest {
     }
 
   @Test
+  fun `createReport throws exception from getReportByIdempotencyKey when status isn't NOT_FOUND`() =
+    runBlocking {
+      whenever(internalReportsMock.getReportByIdempotencyKey(any()))
+        .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
+
+      val request = createReportRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        report = PENDING_REACH_REPORT.copy { clearState() }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+            runBlocking { service.createReport(request) }
+          }
+        }
+      val expectedExceptionDescription =
+        "Unable to retrieve a report from the reporting database using the provided " +
+          "reportIdempotencyKey [${PENDING_REACH_REPORT.reportIdempotencyKey}]."
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.status.description).isEqualTo(expectedExceptionDescription)
+    }
+
+  @Test
+  fun `createReport throws exception from internal getMeasurement when status isn't NOT_FOUND`() =
+    runBlocking {
+      whenever(internalMeasurementsMock.getMeasurement(any()))
+        .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
+
+      val request = createReportRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        report = PENDING_REACH_REPORT.copy { clearState() }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+            runBlocking { service.createReport(request) }
+          }
+        }
+      val expectedExceptionDescription =
+        "Unable to retrieve the measurement [$REACH_MEASUREMENT_REFERENCE_ID] from the reporting " +
+          "database."
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.status.description).isEqualTo(expectedExceptionDescription)
+    }
+
+  @Test
   fun `listReports returns without a next page token when there is no previous page token`() {
     val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAME }
 
