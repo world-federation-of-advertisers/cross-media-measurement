@@ -107,16 +107,17 @@ message Report {
     message Column {
       // The header of the column.
       string column_header = 1;
-      // Required to be in the same order as `row_headers`.
+      // Must be in the same order as `row_headers`.
       repeated double set_operations = 2;
     }
     // The measurement result of Reach, ImpressionCount, or WatchDuration
     message ScalarTable {
-      // Required to be in the same order as column's set_operations.
+      // Must be in the same order as column's set_operations.
       repeated string row_headers = 1;
-      // Required to be in the same order as `row_headers`.
+      // Must be in the same order as `row_headers`.
       repeated Column columns = 2;
     }
+    // For Reach, ImpressionCount, or WatchDuration
     ScalarTable scalar_table = 1;
 
     // HistogramTable has an additional field frequency for each row, thus
@@ -124,14 +125,14 @@ message Report {
     message HistogramTable {
       // Combine header and frequency as Row.
       message Row {
-        // Required to be in the same order as column's set_operations.
+        // Must be in the same order as column's set_operations.
         string row_header = 1;
         // frequency of the row
         int32 frequency = 2;
       }
-      // Required to be in the same order as column's set_operations.
+      // Must be in the same order as column's set_operations.
       repeated Row rows = 1;
-      // Required to be in the same order as row's `row_headers`.
+      // Must be in the same order as row's `row_headers`.
       repeated Column columns = 2;
     }
     // Each HistogramTable contains the result of one frequency histogram
@@ -139,6 +140,6 @@ message Report {
     repeated HistogramTable histogram_tables = 2;
   }
 
-  // Set only when `state` is `SUCCEEDED`. Output-only.
-  Result result = 9;
+  // Set only when `state` is `SUCCEEDED`.
+  Result result = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
