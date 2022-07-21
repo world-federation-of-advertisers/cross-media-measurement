@@ -902,6 +902,14 @@ private suspend fun buildCreateMeasurementRequest(
   val measurementResourceName =
     MeasurementKey(credential.measurementConsumerReferenceId, measurementReferenceId).toName()
 
+  val dataProviderNameToInternalEventGroupEntriesList =
+    aggregateInternalEventGroupEntryByDataProviderName(
+      serviceStubs.internalReportingSetsStub,
+      reportingSetNames,
+      internalTimeInterval.toMeasurementTimeInterval(),
+      eventGroupFilters
+    )
+
   val measurement = measurement {
     name = measurementResourceName
     this.measurementConsumerCertificate = measurementConsumer.certificate
@@ -910,9 +918,7 @@ private suspend fun buildCreateMeasurementRequest(
       buildDataProviderEntries(
         serviceStubs,
         credential,
-        reportingSetNames,
-        internalTimeInterval.toMeasurementTimeInterval(),
-        eventGroupFilters,
+        dataProviderNameToInternalEventGroupEntriesList,
         measurementEncryptionPublicKey,
         measurementConsumerSigningKey,
       )
@@ -938,21 +944,10 @@ private suspend fun buildCreateMeasurementRequest(
 private suspend fun buildDataProviderEntries(
   serviceStubs: ServiceStubs,
   credential: Credential,
-  reportingSetNames: List<String>,
-  timeInterval: MeasurementTimeInterval,
-  eventGroupFilters: Map<String, String>,
+  dataProviderNameToInternalEventGroupEntriesList: Map<String, List<EventGroupEntry>>,
   measurementEncryptionPublicKey: ByteString,
   measurementConsumerSigningKey: SigningKeyHandle,
 ): List<DataProviderEntry> {
-
-  val dataProviderNameToInternalEventGroupEntriesList =
-    aggregateInternalEventGroupEntryByDataProviderName(
-      serviceStubs.internalReportingSetsStub,
-      reportingSetNames,
-      timeInterval,
-      eventGroupFilters
-    )
-
   return dataProviderNameToInternalEventGroupEntriesList.map {
     (dataProviderName, eventGroupEntriesList) ->
     dataProviderEntry {
