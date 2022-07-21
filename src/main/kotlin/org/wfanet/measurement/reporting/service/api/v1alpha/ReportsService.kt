@@ -465,7 +465,7 @@ class ReportsService(
             ?: failGrpc(Status.PERMISSION_DENIED) { "Encryption private key not found" }
 
         val setInternalMeasurementResultRequest =
-          getSetInternalMeasurementResultRequest(
+          buildSetInternalMeasurementResultRequest(
             measurementConsumerReferenceId,
             measurementReferenceId,
             measurement.resultsList,
@@ -492,8 +492,8 @@ class ReportsService(
     }
   }
 
-  /** Gets a [SetInternalMeasurementResultRequest]. */
-  private suspend fun getSetInternalMeasurementResultRequest(
+  /** Builds a [SetInternalMeasurementResultRequest]. */
+  private suspend fun buildSetInternalMeasurementResultRequest(
     measurementConsumerReferenceId: String,
     measurementReferenceId: String,
     resultsList: List<Measurement.ResultPair>,
@@ -775,7 +775,7 @@ private suspend fun NamedSetOperation.toInternal(
     val weightedMeasurementsList = setOperationCompiler.compileSetOperation(source)
 
     this.measurementCalculations +=
-      getMeasurementCalculationList(
+      buildMeasurementCalculationList(
         serviceStubs,
         credential,
         weightedMeasurementsList,
@@ -788,10 +788,10 @@ private suspend fun NamedSetOperation.toInternal(
 }
 
 /**
- * Gets a list of [MeasurementCalculation]s from a list of public [WeightedMeasurement]s and a list
- * of [InternalTimeInterval]s.
+ * Builds a list of [MeasurementCalculation]s from a list of public [WeightedMeasurement]s and a
+ * list of [InternalTimeInterval]s.
  */
-private suspend fun getMeasurementCalculationList(
+private suspend fun buildMeasurementCalculationList(
   serviceStubs: ServiceStubs,
   credential: Credential,
   weightedMeasurementsList: List<WeightedMeasurement>,
@@ -806,7 +806,7 @@ private suspend fun getMeasurementCalculationList(
       weightedMeasurements +=
         weightedMeasurementsList.mapIndexed { index, weightedMeasurement ->
           val measurementReferenceId =
-            getMeasurementReferenceId(
+            buildMeasurementReferenceId(
               credential.reportIdempotencyKey,
               timeInterval,
               internalMetricDetails,
@@ -827,8 +827,8 @@ private suspend fun getMeasurementCalculationList(
   }
 }
 
-/** Gets a unique reference ID for a [Measurement]. */
-private fun getMeasurementReferenceId(
+/** Builds a unique reference ID for a [Measurement]. */
+private fun buildMeasurementReferenceId(
   reportIdempotencyKey: String,
   internalTimeInterval: InternalTimeInterval,
   internalMetricDetails: InternalMetricDetails,
@@ -871,7 +871,7 @@ private suspend fun WeightedMeasurement.toInternal(
     )
   } catch (_: StatusException) {
     val createMeasurementRequest: CreateMeasurementRequest =
-      getCreateMeasurementRequest(
+      buildCreateMeasurementRequest(
         serviceStubs,
         credential,
         internalTimeInterval,
@@ -900,8 +900,8 @@ private suspend fun WeightedMeasurement.toInternal(
   }
 }
 
-/** Gets a [CreateMeasurementRequest]. */
-private suspend fun getCreateMeasurementRequest(
+/** Builds a [CreateMeasurementRequest]. */
+private suspend fun buildCreateMeasurementRequest(
   serviceStubs: ServiceStubs,
   credential: Credential,
   internalTimeInterval: InternalTimeInterval,
@@ -929,7 +929,7 @@ private suspend fun getCreateMeasurementRequest(
     this.measurementConsumerCertificate = measurementConsumer.certificate
 
     dataProviders +=
-      getDataProviderEntries(
+      buildDataProviderEntries(
         serviceStubs,
         credential,
         reportingSetNames,
@@ -940,7 +940,7 @@ private suspend fun getCreateMeasurementRequest(
       )
 
     val unsignedMeasurementSpec: MeasurementSpec =
-      getUnsignedMeasurementSpec(
+      buildUnsignedMeasurementSpec(
         measurementEncryptionPublicKey,
         dataProviders.map { it.value.nonceHash },
         internalMetricDetails,
@@ -956,8 +956,8 @@ private suspend fun getCreateMeasurementRequest(
   return createMeasurementRequest { this.measurement = measurement }
 }
 
-/** Gets a list of [DataProviderEntry]s. */
-private suspend fun getDataProviderEntries(
+/** Builds a list of [DataProviderEntry]s. */
+private suspend fun buildDataProviderEntries(
   serviceStubs: ServiceStubs,
   credential: Credential,
   reportingSetNames: List<String>,
@@ -1078,8 +1078,8 @@ private fun combineEventGroupFilters(filter1: String?, filter2: String?): String
   }
 }
 
-/** Gets the unsigned [MeasurementSpec]. */
-private fun getUnsignedMeasurementSpec(
+/** Builds the unsigned [MeasurementSpec]. */
+private fun buildUnsignedMeasurementSpec(
   measurementEncryptionPublicKey: ByteString,
   nonceHashes: List<ByteString>,
   internalMetricDetails: InternalMetricDetails,
@@ -1092,30 +1092,30 @@ private fun getUnsignedMeasurementSpec(
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     when (internalMetricDetails.metricTypeCase) {
       InternalMetricTypeCase.REACH -> {
-        reachAndFrequency = getReachOnlyMeasurementSpec()
-        vidSamplingInterval = getReachOnlyVidSamplingInterval(secureRandom)
+        reachAndFrequency = buildReachOnlyMeasurementSpec()
+        vidSamplingInterval = buildReachOnlyVidSamplingInterval(secureRandom)
       }
       InternalMetricTypeCase.FREQUENCY_HISTOGRAM -> {
         reachAndFrequency =
-          getReachAndFrequencyMeasurementSpec(
+          buildReachAndFrequencyMeasurementSpec(
             internalMetricDetails.frequencyHistogram.maximumFrequencyPerUser
           )
-        vidSamplingInterval = getReachAndFrequencyVidSamplingInterval(secureRandom)
+        vidSamplingInterval = buildReachAndFrequencyVidSamplingInterval(secureRandom)
       }
       InternalMetricTypeCase.IMPRESSION_COUNT -> {
         impression =
-          getImpressionMeasurementSpec(
+          buildImpressionMeasurementSpec(
             internalMetricDetails.impressionCount.maximumFrequencyPerUser
           )
-        vidSamplingInterval = getImpressionVidSamplingInterval(secureRandom)
+        vidSamplingInterval = buildImpressionVidSamplingInterval(secureRandom)
       }
       InternalMetricTypeCase.WATCH_DURATION -> {
         duration =
-          getDurationMeasurementSpec(
+          buildDurationMeasurementSpec(
             internalMetricDetails.watchDuration.maximumWatchDurationPerUser,
             internalMetricDetails.watchDuration.maximumFrequencyPerUser
           )
-        vidSamplingInterval = getDurationVidSamplingInterval(secureRandom)
+        vidSamplingInterval = buildDurationVidSamplingInterval(secureRandom)
       }
       InternalMetricTypeCase.METRICTYPE_NOT_SET ->
         error("Unset metric type should've already raised error.")
@@ -1123,8 +1123,8 @@ private fun getUnsignedMeasurementSpec(
   }
 }
 
-/** Gets a [VidSamplingInterval] for reach-only. */
-private fun getReachOnlyVidSamplingInterval(secureRandom: SecureRandom): VidSamplingInterval {
+/** Builds a [VidSamplingInterval] for reach-only. */
+private fun buildReachOnlyVidSamplingInterval(secureRandom: SecureRandom): VidSamplingInterval {
   return vidSamplingInterval {
     // Random draw the start point from the list
     val index = secureRandom.nextInt(NUMBER_REACH_ONLY_BUCKETS)
@@ -1133,8 +1133,8 @@ private fun getReachOnlyVidSamplingInterval(secureRandom: SecureRandom): VidSamp
   }
 }
 
-/** Gets a [VidSamplingInterval] for reach-frequency. */
-private fun getReachAndFrequencyVidSamplingInterval(
+/** Builds a [VidSamplingInterval] for reach-frequency. */
+private fun buildReachAndFrequencyVidSamplingInterval(
   secureRandom: SecureRandom
 ): VidSamplingInterval {
   return vidSamplingInterval {
@@ -1145,8 +1145,8 @@ private fun getReachAndFrequencyVidSamplingInterval(
   }
 }
 
-/** Gets a [VidSamplingInterval] for impression count. */
-private fun getImpressionVidSamplingInterval(secureRandom: SecureRandom): VidSamplingInterval {
+/** Builds a [VidSamplingInterval] for impression count. */
+private fun buildImpressionVidSamplingInterval(secureRandom: SecureRandom): VidSamplingInterval {
   return vidSamplingInterval {
     // Random draw the start point from the list
     val index = secureRandom.nextInt(NUMBER_IMPRESSION_BUCKETS)
@@ -1155,8 +1155,8 @@ private fun getImpressionVidSamplingInterval(secureRandom: SecureRandom): VidSam
   }
 }
 
-/** Gets a [VidSamplingInterval] for watch duration. */
-private fun getDurationVidSamplingInterval(secureRandom: SecureRandom): VidSamplingInterval {
+/** Builds a [VidSamplingInterval] for watch duration. */
+private fun buildDurationVidSamplingInterval(secureRandom: SecureRandom): VidSamplingInterval {
   return vidSamplingInterval {
     // Random draw the start point from the list
     val index = secureRandom.nextInt(NUMBER_WATCH_DURATION_BUCKETS)
@@ -1165,8 +1165,8 @@ private fun getDurationVidSamplingInterval(secureRandom: SecureRandom): VidSampl
   }
 }
 
-/** Gets a [MeasurementSpec.ReachAndFrequency] for reach-only. */
-private fun getReachOnlyMeasurementSpec(): MeasurementSpec.ReachAndFrequency {
+/** Builds a [MeasurementSpec.ReachAndFrequency] for reach-only. */
+private fun buildReachOnlyMeasurementSpec(): MeasurementSpec.ReachAndFrequency {
   return measurementSpecReachAndFrequency {
     reachPrivacyParams = differentialPrivacyParams {
       epsilon = REACH_ONLY_REACH_EPSILON
@@ -1180,8 +1180,8 @@ private fun getReachOnlyMeasurementSpec(): MeasurementSpec.ReachAndFrequency {
   }
 }
 
-/** Gets a [MeasurementSpec.ReachAndFrequency] for reach-frequency. */
-private fun getReachAndFrequencyMeasurementSpec(
+/** Builds a [MeasurementSpec.ReachAndFrequency] for reach-frequency. */
+private fun buildReachAndFrequencyMeasurementSpec(
   maximumFrequencyPerUser: Int
 ): MeasurementSpec.ReachAndFrequency {
   return measurementSpecReachAndFrequency {
@@ -1197,8 +1197,10 @@ private fun getReachAndFrequencyMeasurementSpec(
   }
 }
 
-/** Gets a [MeasurementSpec.ReachAndFrequency] for impression count. */
-private fun getImpressionMeasurementSpec(maximumFrequencyPerUser: Int): MeasurementSpec.Impression {
+/** Builds a [MeasurementSpec.ReachAndFrequency] for impression count. */
+private fun buildImpressionMeasurementSpec(
+  maximumFrequencyPerUser: Int
+): MeasurementSpec.Impression {
   return measurementSpecImpression {
     privacyParams = differentialPrivacyParams {
       epsilon = IMPRESSION_EPSILON
@@ -1208,8 +1210,8 @@ private fun getImpressionMeasurementSpec(maximumFrequencyPerUser: Int): Measurem
   }
 }
 
-/** Gets a [MeasurementSpec.ReachAndFrequency] for watch duration. */
-private fun getDurationMeasurementSpec(
+/** Builds a [MeasurementSpec.ReachAndFrequency] for watch duration. */
+private fun buildDurationMeasurementSpec(
   maximumWatchDurationPerUser: Int,
   maximumFrequencyPerUser: Int
 ): MeasurementSpec.Duration {
@@ -1388,24 +1390,6 @@ private fun InternalPeriodicTimeInterval.toInternalTimeIntervalsList(): List<Int
       this.startTime = startTime
       this.endTime = Timestamps.add(startTime, source.increment)
       startTime = this.endTime
-    }
-  }
-}
-
-/** Generate row headers of [InternalReport] from an [InternalReport]. */
-private fun getRowHeaders(report: InternalReport): List<String> {
-  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-  return when (report.timeCase) {
-    InternalReport.TimeCase.TIME_INTERVALS -> {
-      report.timeIntervals.timeIntervalsList.map(InternalTimeInterval::toRowHeader)
-    }
-    InternalReport.TimeCase.PERIODIC_TIME_INTERVAL -> {
-      report.periodicTimeInterval
-        .toInternalTimeIntervalsList()
-        .map(InternalTimeInterval::toRowHeader)
-    }
-    InternalReport.TimeCase.TIME_NOT_SET -> {
-      error("Time in the internal report should've been set.")
     }
   }
 }
