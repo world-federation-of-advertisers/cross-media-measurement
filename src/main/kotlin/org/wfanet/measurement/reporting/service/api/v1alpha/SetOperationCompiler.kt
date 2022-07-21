@@ -48,18 +48,19 @@ private typealias NumberReportingSets = Int
 private typealias UnionSetCoefficientMap = Map<UnionSet, Int>
 
 /**
- * A mapping from a [PrimitiveRegion] to its decomposition in terms of union-sets represented by
- * [UnionSetCoefficientMap]. Take a case of 3 reporting sets (rs0, rs1, rs2) as an example. A
- * primitive region with value equal to 3 (b'011') is the intersection of rs0 and rs1. Its
- * decomposition = PrimitiveRegionToUnionSetCoefficientMap\[region\] = {4: -1, 5: 1, 6: 1, 7: -1} =
- * union-set5 UNION(+) union-set6 DIFFERENCE(-) union-set4 DIFFERENCE(-) union-set7.
+ * A mapping for cardinality computation from a [PrimitiveRegion] to its decomposition in terms of
+ * union-sets represented by [UnionSetCoefficientMap]. Take a case of 3 reporting sets (rs0, rs1,
+ * rs2) as an example. A primitive region with its value equal to 3 (b'011') is the intersection of
+ * rs0 and rs1. The decomposition of the cardinality of the region =
+ * PrimitiveRegionToUnionSetCoefficientMap\[region\] = {4: -1, 5: 1, 6: 1, 7: -1}, i.e. |union-set5|
+ * + |union-set6| - |union-set4| - |union-set7|.
  */
 private typealias PrimitiveRegionToUnionSetCoefficientMap =
   MutableMap<PrimitiveRegion, UnionSetCoefficientMap>
 
 /**
- * A memory cache that stores the Venn diagram region decompositions for different numbers of
- * reporting sets.
+ * A memory cache that stores the Venn diagram region cardinality decompositions for different
+ * numbers of reporting sets.
  */
 private typealias PrimitiveRegionCache =
   MutableMap<NumberReportingSets, PrimitiveRegionToUnionSetCoefficientMap>
@@ -94,11 +95,10 @@ class SetOperationCompiler {
 
   /**
    * Compiles a set operation to a list of [WeightedMeasurement]s which will be used for the
-   * functions that satisfy Cauchy's functional equation with sets, i.e. F(S1 + S2) = F(S1) + F(S2).
-   * An example of this type of function is `count`. For example, given that set = primitiveRegion1,
-   * and that primitiveRegion1 = unionSet1 DIFFERENCE unionSet2. Count(set) =
-   * Count(primitiveRegion1) = Count(unionSet1 DIFFERENCE unionSet2) = Count(unionSet1) -
-   * Count(unionSet2).
+   * cardinality computation. For example, given a set = primitiveRegion1 UNION primitiveRegion2,
+   * Count(set) = Count(primitiveRegion1) + Count(primitiveRegion2) = Count(unionSet1) -
+   * Count(unionSet2) + Count(unionSet3) - Count(unionSet2) = Count(unionSet1) + Count(unionSet3) -
+   * 2 * Count(unionSet2).
    */
   suspend fun compileSetOperation(namedSetOperation: NamedSetOperation): List<WeightedMeasurement> {
     val reportingSetNames = mutableSetOf<String>()
@@ -151,7 +151,7 @@ class SetOperationCompiler {
 
     coroutineScope {
       for (region in primitiveRegions) {
-        // Reuse previous computation if possible
+        // Reuse previous computation if available
         if (
           reusePreviousComputation(numReportingSets, region, primitiveRegionsToUnionSetCoefficients)
         ) {
@@ -206,9 +206,9 @@ class SetOperationCompiler {
   }
 
   /**
-   * Converts a single primitive region to a map of union-set to its coefficients where the
-   * primitive region is the result of the set operation on the union-sets with `+` as intersection
-   * and `-` as difference.
+   * Converts a single primitive region to a map of union-set to its coefficients, where the
+   * cardinality of the input primitive region is equal to the linear combination of the
+   * cardinalities of the union-sets with the coeffcients.
    */
   private suspend fun convertSinglePrimitiveRegionToUnionSetCoefficientMap(
     numReportingSets: Int,
@@ -262,8 +262,8 @@ class SetOperationCompiler {
     region: PrimitiveRegion,
     primitiveRegionsToUnionSetCoefficients: PrimitiveRegionToUnionSetCoefficientMap,
   ): Boolean {
-    // If the compiler has run in the case where the number of reporting sets equal to
-    // numReportingSets.
+    // If the compiler has already run the case where the number of reporting sets equal to
+    // `numReportingSets`.
     primitiveRegionCache[numReportingSets]?.also { cachedPrimitiveRegionsToUnionSetCoefficients ->
       // If the compiler has calculated this region before.
       cachedPrimitiveRegionsToUnionSetCoefficients[region]?.also { cachedUnionSetCoefficientMap ->
@@ -322,7 +322,10 @@ class SetOperationCompiler {
   }
 }
 
-/** Decomposes the set operation expression to a set of primitive regions. */
+/**
+ * Decomposes the set operation expression to a set of primitive regions by calculating the set
+ * operation between each two operands.
+ */
 private fun SetOperationExpression.decompose(
   allPrimitiveRegionSetsList: List<Set<PrimitiveRegion>>
 ): Set<PrimitiveRegion> {
