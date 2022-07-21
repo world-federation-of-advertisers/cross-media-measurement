@@ -625,9 +625,9 @@ private suspend fun CreateReportRequest.toInternal(
   return internalCreateReportRequest {
     report = internalReport
     measurements +=
-      internalReport.metricsList
-        .map { it.toInternalMeasurementKey(credential.measurementConsumerReferenceId) }
-        .flatten()
+      internalReport.metricsList.flatMap {
+        it.buildInternalMeasurementKeys(credential.measurementConsumerReferenceId)
+      }
   }
 }
 
@@ -646,32 +646,22 @@ private fun checkSetOperationDisplayNamesUniqueness(metricsList: List<Metric>) {
   }
 }
 
-/** Converts a [InternalMetric] to a list of [InternalMeasurementKey]s. */
-private fun InternalMetric.toInternalMeasurementKey(
+/** Builds a list of [InternalMeasurementKey]s from an [InternalMetric]. */
+private fun InternalMetric.buildInternalMeasurementKeys(
   measurementConsumerReferenceId: String
 ): List<InternalMeasurementKey> {
-  return this.toMeasurementReferenceIds().map { measurementReferenceId ->
-    internalMeasurementKey {
-      this.measurementConsumerReferenceId = measurementConsumerReferenceId
-      this.measurementReferenceId = measurementReferenceId
-    }
-  }
-}
-
-/** Converts an [InternalMetric] to a list of measurement reference IDs. */
-private fun InternalMetric.toMeasurementReferenceIds(): List<String> {
   return this.namedSetOperationsList
-    .map { namedSetOperation -> namedSetOperation.toMeasurementReferenceIds() }
-    .flatten()
-}
-
-/** Converts an [InternalNamedSetOperation] to a list of measurement reference IDs. */
-private fun InternalNamedSetOperation.toMeasurementReferenceIds(): List<String> {
-  return this.measurementCalculationsList
-    .map { measurementCalculation ->
-      measurementCalculation.weightedMeasurementsList.map { it.measurementReferenceId }
+    .flatMap { namedSetOperation ->
+      namedSetOperation.measurementCalculationsList.flatMap { measurementCalculation ->
+        measurementCalculation.weightedMeasurementsList.map { it.measurementReferenceId }
+      }
     }
-    .flatten()
+    .map { measurementReferenceId ->
+      internalMeasurementKey {
+        this.measurementConsumerReferenceId = measurementConsumerReferenceId
+        this.measurementReferenceId = measurementReferenceId
+      }
+    }
 }
 
 /** Converts a public [Metric] to an [InternalMetric]. */
