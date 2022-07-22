@@ -635,8 +635,8 @@ class ReportsService(
     return internalCreateReportRequest {
       report = internalReport
       measurements +=
-        internalReport.metricsList.flatMap {
-          it.buildInternalMeasurementKeys(measurementConsumerReferenceId)
+        internalReport.metricsList.flatMap { internalMetric ->
+          buildInternalMeasurementKeys(internalMetric, measurementConsumerReferenceId)
         }
     }
   }
@@ -658,10 +658,11 @@ private fun checkSetOperationDisplayNamesUniqueness(metricsList: List<Metric>) {
 }
 
 /** Builds a list of [InternalMeasurementKey]s from an [InternalMetric]. */
-private fun InternalMetric.buildInternalMeasurementKeys(
+private fun buildInternalMeasurementKeys(
+  internalMetric: InternalMetric,
   measurementConsumerReferenceId: String
 ): List<InternalMeasurementKey> {
-  return this.namedSetOperationsList
+  return internalMetric.namedSetOperationsList
     .flatMap { namedSetOperation ->
       namedSetOperation.measurementCalculationsList.flatMap { measurementCalculation ->
         measurementCalculation.weightedMeasurementsList.map { it.measurementReferenceId }
