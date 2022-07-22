@@ -704,7 +704,7 @@ class ReportsService(
     return internalNamedSetOperation {
       displayName = namedSetOperation.displayName
       setOperation =
-        namedSetOperation.setOperation.toInternal(serviceStubs, credential, eventGroupFilters)
+        buildInternalSetOperation(namedSetOperation.setOperation, credential, eventGroupFilters)
 
       val weightedMeasurementsList = setOperationCompiler.compileSetOperation(namedSetOperation)
 
@@ -718,6 +718,51 @@ class ReportsService(
           internalMetricDetails,
           displayName,
         )
+    }
+  }
+
+  /** Builds an [InternalSetOperation] from a public [SetOperation]. */
+  private suspend fun buildInternalSetOperation(
+    setOperation: SetOperation,
+    credential: Credential,
+    eventGroupFilters: Map<String, String>,
+  ): InternalSetOperation {
+    return internalSetOperation {
+      this.type = setOperation.type.toInternal()
+      this.lhs = buildInternalOperand(setOperation.lhs, credential, eventGroupFilters)
+      this.rhs = buildInternalOperand(setOperation.rhs, credential, eventGroupFilters)
+    }
+  }
+
+  /** Builds an [InternalOperand] from an [Operand]. */
+  private suspend fun buildInternalOperand(
+    operand: Operand,
+    credential: Credential,
+    eventGroupFilters: Map<String, String>,
+  ): InternalOperand {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    return when (operand.operandCase) {
+      Operand.OperandCase.OPERATION ->
+        internalOperand {
+          operation = buildInternalSetOperation(operand.operation, credential, eventGroupFilters)
+        }
+      Operand.OperandCase.REPORTING_SET -> {
+        val reportingSetId =
+          checkReportingSet(
+            operand.reportingSet,
+            credential.measurementConsumerReferenceId,
+            internalReportingSetsStub,
+            eventGroupFilters
+          )
+
+        internalOperand {
+          this.reportingSetId = reportingSetKey {
+            this.measurementConsumerReferenceId = measurementConsumerReferenceId
+            externalReportingSetId = apiIdToExternalId(reportingSetId)
+          }
+        }
+      }
+      Operand.OperandCase.OPERAND_NOT_SET -> internalOperand {}
     }
   }
 }
@@ -1186,55 +1231,6 @@ private fun buildDurationMeasurementSpec(
     }
     this.maximumWatchDurationPerUser = maximumWatchDurationPerUser
     this.maximumFrequencyPerUser = maximumFrequencyPerUser
-  }
-}
-
-/** Converts a public [SetOperation] to an [InternalSetOperation]. */
-private suspend fun SetOperation.toInternal(
-  serviceStubs: ServiceStubs,
-  credential: Credential,
-  eventGroupFilters: Map<String, String>,
-): InternalSetOperation {
-  val source = this
-
-  return internalSetOperation {
-    this.type = source.type.toInternal()
-    this.lhs = source.lhs.toInternal(serviceStubs, credential, eventGroupFilters)
-    this.rhs = source.rhs.toInternal(serviceStubs, credential, eventGroupFilters)
-  }
-}
-
-/** Converts an [Operand] to an [InternalOperand]. */
-private suspend fun Operand.toInternal(
-  serviceStubs: ServiceStubs,
-  credential: Credential,
-  eventGroupFilters: Map<String, String>,
-): InternalOperand {
-  val source = this
-
-  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-  return when (source.operandCase) {
-    Operand.OperandCase.OPERATION ->
-      internalOperand {
-        operation = source.operation.toInternal(serviceStubs, credential, eventGroupFilters)
-      }
-    Operand.OperandCase.REPORTING_SET -> {
-      val reportingSetId =
-        checkReportingSet(
-          source.reportingSet,
-          credential.measurementConsumerReferenceId,
-          serviceStubs.internalReportingSetsStub,
-          eventGroupFilters
-        )
-
-      internalOperand {
-        this.reportingSetId = reportingSetKey {
-          this.measurementConsumerReferenceId = measurementConsumerReferenceId
-          externalReportingSetId = apiIdToExternalId(reportingSetId)
-        }
-      }
-    }
-    Operand.OperandCase.OPERAND_NOT_SET -> internalOperand {}
   }
 }
 
