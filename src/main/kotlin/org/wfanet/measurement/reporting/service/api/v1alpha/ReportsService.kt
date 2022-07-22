@@ -532,23 +532,24 @@ class ReportsService(
       result =
         aggregateResults(
           resultsList
-            .map { it.toMeasurementResult(privateKeyHandle) }
+            .map { decryptMeasurementResultPair(it, privateKeyHandle) }
             .map(Measurement.Result::toInternal)
         )
     }
   }
 
   /** Decrypts a [Measurement.ResultPair] to [Measurement.Result] */
-  private suspend fun Measurement.ResultPair.toMeasurementResult(
+  private suspend fun decryptMeasurementResultPair(
+    measurementResultPair: Measurement.ResultPair,
     encryptionPrivateKeyHandle: PrivateKeyHandle
   ): Measurement.Result {
-    val source = this
     val certificate =
-      serviceStubs.certificateStub
+      certificateStub
         .withAuthenticationKey(apiAuthenticationKey)
-        .getCertificate(getCertificateRequest { name = source.certificate })
+        .getCertificate(getCertificateRequest { name = measurementResultPair.certificate })
 
-    val signedResult = decryptResult(source.encryptedResult, encryptionPrivateKeyHandle)
+    val signedResult =
+      decryptResult(measurementResultPair.encryptedResult, encryptionPrivateKeyHandle)
 
     val result = Measurement.Result.parseFrom(signedResult.data)
 
