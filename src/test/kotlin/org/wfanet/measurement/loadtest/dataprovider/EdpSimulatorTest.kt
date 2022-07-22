@@ -16,7 +16,6 @@ package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.common.truth.Correspondence
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.ByteString
 import com.google.protobuf.Message
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -87,6 +86,7 @@ import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.timeInterval
+import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
@@ -185,26 +185,8 @@ private val MEASUREMENT_PUBLIC_KEY =
   SECRET_FILES_PATH.resolve("${MC_NAME}_enc_public.tink").toFile().readByteString()
 private val CONSENT_SIGNALING_ELGAMAL_PUBLIC_KEY = elGamalPublicKey {
   ellipticCurveId = 415
-  generator =
-    ByteString.copyFrom(
-      byteArrayOf(
-        3, 107, 23, -47, -14, -31, 44, 66,
-        71, -8, -68, -26, -27, 99, -92, 64,
-        -14, 119, 3, 125, -127, 45, -21, 51,
-        -96, -12, -95, 57, 69, -40, -104, -62,
-        -106
-      )
-    )
-  element =
-    ByteString.copyFrom(
-      byteArrayOf(
-        2, 119, -65, 64, 108, 90, -92, 55,
-        100, 19, -28, -128, -32, -85, -117, 14,
-        -4, -87, -103, -45, 98, 32, 78, 109,
-        22, -122, -32, -66, 86, 120, 17, 96,
-        77
-      )
-    )
+  generator = HexString("036B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C296").bytes
+  element = HexString("0277BF406C5AA4376413E480E0AB8B0EFCA999D362204E6D1686E0BE567811604D").bytes
 }
 
 private val REQUISITION_ONE_SPEC = requisitionSpec {
@@ -393,13 +375,13 @@ class EdpSimulatorTest {
       val storedSketch = sketchStore.get(REQUISITION_ONE)?.read()?.flatten()
       assertThat(storedSketch).isNotNull()
 
-      val anySketchesResult = SketchProtos.toAnySketch(Sketch.parseFrom(storedSketch))
+      val anySketchResult = SketchProtos.toAnySketch(Sketch.parseFrom(storedSketch))
 
       val vidSamplingIntervalStart = 0.0f
       val vidSamplingIntervalWidth = PRIVACY_BUCKET_VID_SAMPLE_WIDTH
 
       assertAnySketchEquals(
-        anySketchesResult,
+        anySketchResult,
         getExpectedResult(matchingVids, vidSamplingIntervalStart, vidSamplingIntervalWidth)
       )
 
