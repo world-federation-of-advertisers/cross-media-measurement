@@ -444,12 +444,22 @@ class ReportsService(
     // Syncs measurements
     syncMeasurements(internalReport.measurementsMap, internalReport.measurementConsumerReferenceId)
 
-    return internalReportsStub.getReport(
-      getInternalReportRequest {
-        measurementConsumerReferenceId = internalReport.measurementConsumerReferenceId
-        externalReportId = internalReport.externalReportId
-      }
-    )
+    return try {
+      internalReportsStub.getReport(
+        getInternalReportRequest {
+          measurementConsumerReferenceId = internalReport.measurementConsumerReferenceId
+          externalReportId = internalReport.externalReportId
+        }
+      )
+    } catch (e: StatusException) {
+      val reportName =
+        ReportKey(
+            internalReport.measurementConsumerReferenceId,
+            externalIdToApiId(internalReport.externalReportId)
+          )
+          .toName()
+      throw Exception("Unable to get the report [$reportName] from the reporting database.", e)
+    }
   }
 
   /** Syncs [InternalMeasurement]s. */

@@ -2392,6 +2392,24 @@ class ReportsServiceTest {
     }
 
   @Test
+  fun `listReports throws Exception when the interanl getReport throws Exception`() = runBlocking {
+    whenever(internalReportsMock.getReport(any()))
+      .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
+
+    val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAME }
+
+    val exception =
+      assertThrows(Exception::class.java) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.listReports(request) }
+        }
+      }
+    val expectedExceptionDescription =
+      "Unable to get the report [$REPORT_NAME] from the reporting database."
+    assertThat(exception.message).isEqualTo(expectedExceptionDescription)
+  }
+
+  @Test
   fun `listReports returns reports with SUCCEEDED states when reports are already succeeded`() {
     whenever(internalReportsMock.streamReports(any()))
       .thenReturn(
