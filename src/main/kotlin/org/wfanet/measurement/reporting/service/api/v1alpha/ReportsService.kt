@@ -883,7 +883,6 @@ class ReportsService(
 
     val dataProviderNameToInternalEventGroupEntriesList =
       aggregateInternalEventGroupEntryByDataProviderName(
-        internalReportingSetsStub,
         reportingSetNames,
         internalTimeInterval.toMeasurementTimeInterval(),
         eventGroupFilters
@@ -915,6 +914,72 @@ class ReportsService(
     }
 
     return createMeasurementRequest { this.measurement = measurement }
+  }
+
+  /** Builds a map of data provider resource name to a list of [EventGroupEntry]s. */
+  private suspend fun aggregateInternalEventGroupEntryByDataProviderName(
+    reportingSetNames: List<String>,
+    timeInterval: MeasurementTimeInterval,
+    eventGroupFilters: Map<String, String>,
+  ): Map<String, List<EventGroupEntry>> {
+    val internalReportingSetsList = mutableListOf<InternalReportingSet>()
+
+    coroutineScope {
+      for (reportingSetName in reportingSetNames) {
+        val reportingSetKey =
+          grpcRequireNotNull(ReportingSetKey.fromName(reportingSetName)) {
+            "Invalid reporting set name $reportingSetName."
+          }
+
+        launch {
+          internalReportingSetsList +=
+            internalReportingSetsStub.getReportingSet(
+              getReportingSetRequest {
+                measurementConsumerReferenceId = reportingSetKey.measurementConsumerId
+                externalReportingSetId = apiIdToExternalId(reportingSetKey.reportingSetId)
+              }
+            )
+        }
+      }
+    }
+
+    val dataProviderNameToInternalEventGroupEntriesList =
+      mutableMapOf<String, MutableList<EventGroupEntry>>()
+
+    for (internalReportingSet in internalReportingSetsList) {
+      for (eventGroupKey in internalReportingSet.eventGroupKeysList) {
+        val dataProviderName = DataProviderKey(eventGroupKey.dataProviderReferenceId).toName()
+        val eventGroupName =
+          EventGroupKey(
+              eventGroupKey.measurementConsumerReferenceId,
+              eventGroupKey.dataProviderReferenceId,
+              eventGroupKey.eventGroupReferenceId
+            )
+            .toName()
+
+        dataProviderNameToInternalEventGroupEntriesList.getOrPut(
+          dataProviderName,
+          ::mutableListOf
+        ) +=
+          eventGroupEntry {
+            key = eventGroupName
+            value = eventGroupEntryValue {
+              collectionInterval = timeInterval
+
+              val filter =
+                combineEventGroupFilters(
+                  internalReportingSet.filter,
+                  eventGroupFilters[eventGroupName]
+                )
+              if (filter != null) {
+                this.filter = requisitionSpecEventFilter { expression = filter }
+              }
+            }
+          }
+      }
+    }
+
+    return dataProviderNameToInternalEventGroupEntriesList.mapValues { it.value.toList() }.toMap()
   }
 
   /** Builds a list of [DataProviderEntry]s from lists of [EventGroupEntry]s. */
@@ -1018,70 +1083,6 @@ private fun buildMeasurementReferenceId(
     }
 
   return "$reportIdempotencyKey-$rowHeader-$metricType-$setOperationDisplayName-measurement-$index"
-}
-
-/** Builds a map of data provider resource name to a list of [EventGroupEntry]s. */
-private suspend fun aggregateInternalEventGroupEntryByDataProviderName(
-  internalReportingSetsStub: InternalReportingSetsCoroutineStub,
-  reportingSetNames: List<String>,
-  timeInterval: MeasurementTimeInterval,
-  eventGroupFilters: Map<String, String>,
-): Map<String, List<EventGroupEntry>> {
-  val internalReportingSetsList = mutableListOf<InternalReportingSet>()
-
-  coroutineScope {
-    for (reportingSetName in reportingSetNames) {
-      val reportingSetKey =
-        grpcRequireNotNull(ReportingSetKey.fromName(reportingSetName)) {
-          "Invalid reporting set name $reportingSetName."
-        }
-
-      launch {
-        internalReportingSetsList +=
-          internalReportingSetsStub.getReportingSet(
-            getReportingSetRequest {
-              measurementConsumerReferenceId = reportingSetKey.measurementConsumerId
-              externalReportingSetId = apiIdToExternalId(reportingSetKey.reportingSetId)
-            }
-          )
-      }
-    }
-  }
-
-  val dataProviderNameToInternalEventGroupEntriesList =
-    mutableMapOf<String, MutableList<EventGroupEntry>>()
-
-  for (internalReportingSet in internalReportingSetsList) {
-    for (eventGroupKey in internalReportingSet.eventGroupKeysList) {
-      val dataProviderName = DataProviderKey(eventGroupKey.dataProviderReferenceId).toName()
-      val eventGroupName =
-        EventGroupKey(
-            eventGroupKey.measurementConsumerReferenceId,
-            eventGroupKey.dataProviderReferenceId,
-            eventGroupKey.eventGroupReferenceId
-          )
-          .toName()
-
-      dataProviderNameToInternalEventGroupEntriesList.getOrPut(dataProviderName, ::mutableListOf) +=
-        eventGroupEntry {
-          key = eventGroupName
-          value = eventGroupEntryValue {
-            collectionInterval = timeInterval
-
-            val filter =
-              combineEventGroupFilters(
-                internalReportingSet.filter,
-                eventGroupFilters[eventGroupName]
-              )
-            if (filter != null) {
-              this.filter = requisitionSpecEventFilter { expression = filter }
-            }
-          }
-        }
-    }
-  }
-
-  return dataProviderNameToInternalEventGroupEntriesList.mapValues { it.value.toList() }.toMap()
 }
 
 /** Combines two event group filters. */
