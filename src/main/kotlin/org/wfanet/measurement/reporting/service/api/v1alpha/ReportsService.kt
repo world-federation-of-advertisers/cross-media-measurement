@@ -591,7 +591,7 @@ class ReportsService(
         grpcRequire(request.report.metricsList.isNotEmpty()) {
           "Metrics in Report cannot be empty."
         }
-        checkSetOperationDisplayNamesUniqueness(request.report.metricsList)
+        checkSetOperationNamesUniqueness(request.report.metricsList)
 
         val eventGroupFilters =
           request.report.eventGroupUniverse.eventGroupEntriesList.associate { it.key to it.value }
@@ -703,7 +703,7 @@ class ReportsService(
       } else internalTimeIntervalsList
 
     return internalNamedSetOperation {
-      displayName = namedSetOperation.displayName
+      displayName = namedSetOperation.uniqueName
       setOperation =
         buildInternalSetOperation(namedSetOperation.setOperation, credential, eventGroupFilters)
 
@@ -716,7 +716,7 @@ class ReportsService(
           internalReportTimeIntervalsList,
           eventGroupFilters,
           internalMetricDetails,
-          displayName,
+          namedSetOperation.uniqueName,
         )
     }
   }
@@ -776,7 +776,7 @@ class ReportsService(
     internalReportTimeIntervalsList: List<InternalTimeInterval>,
     eventGroupFilters: Map<String, String>,
     internalMetricDetails: InternalMetricDetails,
-    setOperationDisplayName: String,
+    setOperationUniqueName: String,
   ): List<MeasurementCalculation> {
     return internalReportTimeIntervalsList.map { timeInterval ->
       internalMeasurementCalculation {
@@ -788,7 +788,7 @@ class ReportsService(
                 credential.reportIdempotencyKey,
                 timeInterval,
                 internalMetricDetails,
-                setOperationDisplayName,
+                setOperationUniqueName,
                 index,
               )
 
@@ -1019,17 +1019,16 @@ class ReportsService(
   }
 }
 
-/** Check if the display names of the set operations within the same metric type are unique. */
-private fun checkSetOperationDisplayNamesUniqueness(metricsList: List<Metric>) {
-  val seenDisplayNames =
-    mutableMapOf<MetricTypeCase, MutableSet<String>>().withDefault { mutableSetOf() }
+/** Check if the names of the set operations within the same metric type are unique. */
+private fun checkSetOperationNamesUniqueness(metricsList: List<Metric>) {
+  val seenNames = mutableMapOf<MetricTypeCase, MutableSet<String>>().withDefault { mutableSetOf() }
 
   for (metric in metricsList) {
     for (setOperation in metric.setOperationsList) {
-      grpcRequire(
-        !seenDisplayNames.getValue(metric.metricTypeCase).contains(setOperation.displayName)
-      ) { "The display names of the set operations within the same metric type should be unique." }
-      seenDisplayNames.getOrPut(metric.metricTypeCase, ::mutableSetOf) += setOperation.displayName
+      grpcRequire(!seenNames.getValue(metric.metricTypeCase).contains(setOperation.uniqueName)) {
+        "The names of the set operations within the same metric type should be unique."
+      }
+      seenNames.getOrPut(metric.metricTypeCase, ::mutableSetOf) += setOperation.uniqueName
     }
   }
 }
@@ -1067,7 +1066,7 @@ private fun buildMeasurementReferenceId(
   reportIdempotencyKey: String,
   internalTimeInterval: InternalTimeInterval,
   internalMetricDetails: InternalMetricDetails,
-  setOperationDisplayName: String,
+  setOperationUniqueName: String,
   index: Int,
 ): String {
   val rowHeader = internalTimeInterval.toRowHeader()
@@ -1083,7 +1082,7 @@ private fun buildMeasurementReferenceId(
         error("Unset metric type should've already raised error.")
     }
 
-  return "$reportIdempotencyKey-$rowHeader-$metricType-$setOperationDisplayName-measurement-$index"
+  return "$reportIdempotencyKey-$rowHeader-$metricType-$setOperationUniqueName-measurement-$index"
 }
 
 /** Combines two event group filters. */
@@ -1585,7 +1584,7 @@ private fun InternalNamedSetOperation.toNamedSetOperation(): NamedSetOperation {
   val source = this
 
   return namedSetOperation {
-    displayName = source.displayName
+    uniqueName = source.displayName
     setOperation = source.setOperation.toSetOperation()
   }
 }

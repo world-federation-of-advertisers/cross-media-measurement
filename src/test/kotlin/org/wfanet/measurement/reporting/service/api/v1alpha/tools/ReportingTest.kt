@@ -263,7 +263,7 @@ class ReportingTest {
       """
     reach { }
     set_operations {
-      display_name: "operation1"
+      unique_name: "operation1"
       set_operation {
         type: 1
         lhs {
@@ -317,7 +317,7 @@ class ReportingTest {
             metrics += metric {
               reach = reachParams {}
               setOperations += namedSetOperation {
-                displayName = "operation1"
+                uniqueName = "operation1"
                 setOperation = setOperation {
                   type = Metric.SetOperation.Type.UNION
                   lhs = operand { reportingSet = "measurementConsumers/1/reportingSets/1" }
@@ -336,7 +336,7 @@ class ReportingTest {
       """
     reach { }
     set_operations {
-      display_name: "operation1"
+      unique_name: "operation1"
       set_operation {
         type: 1
         lhs {
@@ -419,7 +419,7 @@ class ReportingTest {
               reach = reachParams {}
               cumulative = true
               setOperations += namedSetOperation {
-                displayName = "operation1"
+                uniqueName = "operation1"
                 setOperation = setOperation {
                   type = Metric.SetOperation.Type.UNION
                   lhs = operand { reportingSet = "measurementConsumers/1/reportingSets/1" }
@@ -427,7 +427,7 @@ class ReportingTest {
                 }
               }
               setOperations += namedSetOperation {
-                displayName = "operation2"
+                uniqueName = "operation2"
                 setOperation = setOperation {
                   type = Metric.SetOperation.Type.DIFFERENCE
                   lhs = operand { reportingSet = "measurementConsumers/1/reportingSets/3" }

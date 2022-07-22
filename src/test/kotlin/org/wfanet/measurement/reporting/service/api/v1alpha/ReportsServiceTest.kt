@@ -513,63 +513,63 @@ private val INTERNAL_EVENT_GROUP_KEYS =
 // Reporting sets
 private const val REPORTING_SET_FILTER = "AGE>18"
 
-private val DISPLAY_NAME = REPORTING_SET_NAME + REPORTING_SET_FILTER
-private val DISPLAY_NAME_2 = REPORTING_SET_NAME_2 + REPORTING_SET_FILTER
-private val DISPLAY_NAME_3 = REPORTING_SET_NAME_3 + REPORTING_SET_FILTER
-private val DISPLAY_NAME_4 = REPORTING_SET_NAME_4 + REPORTING_SET_FILTER
+private val REPORTING_SET_DISPLAY_NAME = REPORTING_SET_NAME + REPORTING_SET_FILTER
+private val REPORTING_SET_DISPLAY_NAME_2 = REPORTING_SET_NAME_2 + REPORTING_SET_FILTER
+private val REPORTING_SET_DISPLAY_NAME_3 = REPORTING_SET_NAME_3 + REPORTING_SET_FILTER
+private val REPORTING_SET_DISPLAY_NAME_4 = REPORTING_SET_NAME_4 + REPORTING_SET_FILTER
 
 private val INTERNAL_REPORTING_SET = internalReportingSet {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
   externalReportingSetId = REPORTING_SET_EXTERNAL_ID
   eventGroupKeys.add(INTERNAL_EVENT_GROUP_KEY)
   filter = REPORTING_SET_FILTER
-  displayName = DISPLAY_NAME
+  displayName = REPORTING_SET_DISPLAY_NAME
 }
 private val INTERNAL_REPORTING_SET_2 =
   INTERNAL_REPORTING_SET.copy {
     externalReportingSetId = REPORTING_SET_EXTERNAL_ID_2
     eventGroupKeys.clear()
     eventGroupKeys.add(INTERNAL_EVENT_GROUP_KEY_2)
-    displayName = DISPLAY_NAME_2
+    displayName = REPORTING_SET_DISPLAY_NAME_2
   }
 private val INTERNAL_REPORTING_SET_3 =
   INTERNAL_REPORTING_SET.copy {
     externalReportingSetId = REPORTING_SET_EXTERNAL_ID_3
     eventGroupKeys.clear()
     eventGroupKeys.add(INTERNAL_EVENT_GROUP_KEY_3)
-    displayName = DISPLAY_NAME_3
+    displayName = REPORTING_SET_DISPLAY_NAME_3
   }
 private val INTERNAL_REPORTING_SET_4 =
   INTERNAL_REPORTING_SET.copy {
     externalReportingSetId = REPORTING_SET_EXTERNAL_ID_4
     eventGroupKeys.clear()
     eventGroupKeys.add(INTERNAL_EVENT_GROUP_KEY_4)
-    displayName = DISPLAY_NAME_4
+    displayName = REPORTING_SET_DISPLAY_NAME_4
   }
 
 private val REPORTING_SET = reportingSet {
   name = REPORTING_SET_NAME
   eventGroups.add(EVENT_GROUP_NAME)
   filter = REPORTING_SET_FILTER
-  displayName = DISPLAY_NAME
+  displayName = REPORTING_SET_DISPLAY_NAME
 }
 private val REPORTING_SET_2 = reportingSet {
   name = REPORTING_SET_NAME_2
   eventGroups.add(EVENT_GROUP_NAME_2)
   filter = REPORTING_SET_FILTER
-  displayName = DISPLAY_NAME_2
+  displayName = REPORTING_SET_DISPLAY_NAME_2
 }
 private val REPORTING_SET_3 = reportingSet {
   name = REPORTING_SET_NAME_3
   eventGroups.add(EVENT_GROUP_NAME_3)
   filter = REPORTING_SET_FILTER
-  displayName = DISPLAY_NAME_3
+  displayName = REPORTING_SET_DISPLAY_NAME_3
 }
 private val REPORTING_SET_4 = reportingSet {
   name = REPORTING_SET_NAME_4
   eventGroups.add(EVENT_GROUP_NAME_4)
   filter = REPORTING_SET_FILTER
-  displayName = DISPLAY_NAME_4
+  displayName = REPORTING_SET_DISPLAY_NAME_4
 }
 
 // Time intervals
@@ -614,26 +614,26 @@ private const val IMPRESSION_REPORT_IDEMPOTENCY_KEY = "TEST_IMPRESSION_REPORT"
 private const val WATCH_DURATION_REPORT_IDEMPOTENCY_KEY = "TEST_WATCH_DURATION_REPORT"
 private const val FREQUENCY_HISTOGRAM_REPORT_IDEMPOTENCY_KEY = "TEST_FREQUENCY_HISTOGRAM_REPORT"
 
-// Set operation display names
-private const val REACH_SET_OPERATION_DISPLAY_NAME = "Reach Set Operation"
-private const val FREQUENCY_HISTOGRAM_SET_OPERATION_DISPLAY_NAME =
+// Set operation unique names
+private const val REACH_SET_OPERATION_UNIQUE_NAME = "Reach Set Operation"
+private const val FREQUENCY_HISTOGRAM_SET_OPERATION_UNIQUE_NAME =
   "Frequency Histogram Set Operation"
-private const val IMPRESSION_SET_OPERATION_DISPLAY_NAME = "Impression Set Operation"
-private const val WATCH_DURATION_SET_OPERATION_DISPLAY_NAME = "Watch Duration Set Operation"
+private const val IMPRESSION_SET_OPERATION_UNIQUE_NAME = "Impression Set Operation"
+private const val WATCH_DURATION_SET_OPERATION_UNIQUE_NAME = "Watch Duration Set Operation"
 
 // Measurement IDs and names
 private val REACH_MEASUREMENT_REFERENCE_ID =
   "$REACH_REPORT_IDEMPOTENCY_KEY-$START_INSTANT-$END_INSTANT-Reach-" +
-    "$REACH_SET_OPERATION_DISPLAY_NAME-measurement-0"
+    "$REACH_SET_OPERATION_UNIQUE_NAME-measurement-0"
 private val FREQUENCY_HISTOGRAM_MEASUREMENT_REFERENCE_ID =
   "$FREQUENCY_HISTOGRAM_REPORT_IDEMPOTENCY_KEY-$START_INSTANT-$END_INSTANT-FrequencyHistogram-" +
-    "$FREQUENCY_HISTOGRAM_SET_OPERATION_DISPLAY_NAME-measurement-0"
+    "$FREQUENCY_HISTOGRAM_SET_OPERATION_UNIQUE_NAME-measurement-0"
 private val IMPRESSION_MEASUREMENT_REFERENCE_ID =
   "$IMPRESSION_REPORT_IDEMPOTENCY_KEY-$START_INSTANT-$END_INSTANT-ImpressionCount-" +
-    "$IMPRESSION_SET_OPERATION_DISPLAY_NAME-measurement-0"
+    "$IMPRESSION_SET_OPERATION_UNIQUE_NAME-measurement-0"
 private val WATCH_DURATION_MEASUREMENT_REFERENCE_ID =
   "$WATCH_DURATION_REPORT_IDEMPOTENCY_KEY-$START_INSTANT-$END_INSTANT-WatchDuration-" +
-    "$WATCH_DURATION_SET_OPERATION_DISPLAY_NAME-measurement-0"
+    "$WATCH_DURATION_SET_OPERATION_UNIQUE_NAME-measurement-0"
 
 private val REACH_MEASUREMENT_NAME =
   MeasurementKey(MEASUREMENT_CONSUMER_REFERENCE_ID, REACH_MEASUREMENT_REFERENCE_ID).toName()
@@ -1115,42 +1115,42 @@ private val WATCH_DURATION_MEASUREMENT_CALCULATION = measurementCalculation {
 // Named set operations
 // Reach set operation
 private val INTERNAL_NAMED_REACH_SET_OPERATION = internalNamedSetOperation {
-  displayName = REACH_SET_OPERATION_DISPLAY_NAME
+  displayName = REACH_SET_OPERATION_UNIQUE_NAME
   setOperation = INTERNAL_SET_OPERATION
   measurementCalculations += REACH_MEASUREMENT_CALCULATION
 }
 private val NAMED_REACH_SET_OPERATION = namedSetOperation {
-  displayName = REACH_SET_OPERATION_DISPLAY_NAME
+  uniqueName = REACH_SET_OPERATION_UNIQUE_NAME
   setOperation = SET_OPERATION
 }
 // Frequency histogram set operation
 private val INTERNAL_NAMED_FREQUENCY_HISTOGRAM_SET_OPERATION = internalNamedSetOperation {
-  displayName = FREQUENCY_HISTOGRAM_SET_OPERATION_DISPLAY_NAME
+  displayName = FREQUENCY_HISTOGRAM_SET_OPERATION_UNIQUE_NAME
   setOperation = INTERNAL_SET_OPERATION
   measurementCalculations += FREQUENCY_HISTOGRAM_MEASUREMENT_CALCULATION
 }
 private val NAMED_FREQUENCY_HISTOGRAM_SET_OPERATION = namedSetOperation {
-  displayName = FREQUENCY_HISTOGRAM_SET_OPERATION_DISPLAY_NAME
+  uniqueName = FREQUENCY_HISTOGRAM_SET_OPERATION_UNIQUE_NAME
   setOperation = SET_OPERATION
 }
 // Impression set operation
 private val INTERNAL_NAMED_IMPRESSION_SET_OPERATION = internalNamedSetOperation {
-  displayName = IMPRESSION_SET_OPERATION_DISPLAY_NAME
+  displayName = IMPRESSION_SET_OPERATION_UNIQUE_NAME
   setOperation = INTERNAL_SET_OPERATION
   measurementCalculations += IMPRESSION_MEASUREMENT_CALCULATION
 }
 private val NAMED_IMPRESSION_SET_OPERATION = namedSetOperation {
-  displayName = IMPRESSION_SET_OPERATION_DISPLAY_NAME
+  uniqueName = IMPRESSION_SET_OPERATION_UNIQUE_NAME
   setOperation = SET_OPERATION
 }
 // Watch duration set operation
 private val INTERNAL_NAMED_WATCH_DURATION_SET_OPERATION = internalNamedSetOperation {
-  displayName = WATCH_DURATION_SET_OPERATION_DISPLAY_NAME
+  displayName = WATCH_DURATION_SET_OPERATION_UNIQUE_NAME
   setOperation = INTERNAL_SET_OPERATION
   measurementCalculations += WATCH_DURATION_MEASUREMENT_CALCULATION
 }
 private val NAMED_WATCH_DURATION_SET_OPERATION = namedSetOperation {
-  displayName = WATCH_DURATION_SET_OPERATION_DISPLAY_NAME
+  uniqueName = WATCH_DURATION_SET_OPERATION_UNIQUE_NAME
   setOperation = SET_OPERATION
 }
 
@@ -1809,7 +1809,7 @@ class ReportsServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description)
       .isEqualTo(
-        "The display names of the set operations within the same metric type should be unique."
+        "The names of the set operations within the same metric type should be unique."
       )
   }
 
