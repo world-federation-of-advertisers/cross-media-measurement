@@ -791,8 +791,8 @@ class ReportsService(
                 index,
               )
 
-            weightedMeasurement.toInternal(
-              serviceStubs,
+            buildInternalWeightedMeasurement(
+              weightedMeasurement,
               credential,
               timeInterval,
               eventGroupFilters,
@@ -801,6 +801,59 @@ class ReportsService(
             )
           }
       }
+    }
+  }
+
+  /** Builds an [InternalWeightedMeasurement] from a public [WeightedMeasurement]. */
+  private suspend fun buildInternalWeightedMeasurement(
+    weightedMeasurement: WeightedMeasurement,
+    credential: Credential,
+    internalTimeInterval: InternalTimeInterval,
+    eventGroupFilters: Map<String, String>,
+    internalMetricDetails: InternalMetricDetails,
+    measurementReferenceId: String,
+  ): InternalWeightedMeasurement {
+    try {
+      internalMeasurementsStub.getMeasurement(
+        getInternalMeasurementRequest {
+          measurementConsumerReferenceId = credential.measurementConsumerReferenceId
+          this.measurementReferenceId = measurementReferenceId
+        }
+      )
+    } catch (e: StatusException) {
+      if (e.status.code != Status.Code.NOT_FOUND) {
+        throw Exception(
+          "Unable to retrieve the measurement [$measurementReferenceId] from the reporting database."
+        )
+      }
+
+      val createMeasurementRequest: CreateMeasurementRequest =
+        buildCreateMeasurementRequest(
+          serviceStubs,
+          credential,
+          internalTimeInterval,
+          eventGroupFilters,
+          internalMetricDetails,
+          measurementReferenceId,
+          weightedMeasurement.reportingSets
+        )
+
+      measurementsStub
+        .withAuthenticationKey(credential.apiAuthenticationKey)
+        .createMeasurement(createMeasurementRequest)
+
+      internalMeasurementsStub.createMeasurement(
+        internalMeasurement {
+          measurementConsumerReferenceId = credential.measurementConsumerReferenceId
+          this.measurementReferenceId = measurementReferenceId
+          state = InternalMeasurement.State.PENDING
+        }
+      )
+    }
+
+    return internalWeightedMeasurement {
+      this.measurementReferenceId = measurementReferenceId
+      coefficient = weightedMeasurement.coefficient
     }
   }
 }
@@ -870,61 +923,6 @@ private fun buildMeasurementReferenceId(
     }
 
   return "$reportIdempotencyKey-$rowHeader-$metricType-$setOperationDisplayName-measurement-$index"
-}
-
-/** Converts a public [WeightedMeasurement] to an [InternalWeightedMeasurement]. */
-private suspend fun WeightedMeasurement.toInternal(
-  serviceStubs: ServiceStubs,
-  credential: Credential,
-  internalTimeInterval: InternalTimeInterval,
-  eventGroupFilters: Map<String, String>,
-  internalMetricDetails: InternalMetricDetails,
-  measurementReferenceId: String,
-): InternalWeightedMeasurement {
-  val source = this
-
-  try {
-    serviceStubs.internalMeasurementsStub.getMeasurement(
-      getInternalMeasurementRequest {
-        measurementConsumerReferenceId = credential.measurementConsumerReferenceId
-        this.measurementReferenceId = measurementReferenceId
-      }
-    )
-  } catch (e: StatusException) {
-    if (e.status.code != Status.Code.NOT_FOUND) {
-      throw Exception(
-        "Unable to retrieve the measurement [$measurementReferenceId] from the reporting database."
-      )
-    }
-
-    val createMeasurementRequest: CreateMeasurementRequest =
-      buildCreateMeasurementRequest(
-        serviceStubs,
-        credential,
-        internalTimeInterval,
-        eventGroupFilters,
-        internalMetricDetails,
-        measurementReferenceId,
-        source.reportingSets
-      )
-
-    serviceStubs.measurementsStub
-      .withAuthenticationKey(credential.apiAuthenticationKey)
-      .createMeasurement(createMeasurementRequest)
-
-    serviceStubs.internalMeasurementsStub.createMeasurement(
-      internalMeasurement {
-        measurementConsumerReferenceId = credential.measurementConsumerReferenceId
-        this.measurementReferenceId = measurementReferenceId
-        state = InternalMeasurement.State.PENDING
-      }
-    )
-  }
-
-  return internalWeightedMeasurement {
-    this.measurementReferenceId = measurementReferenceId
-    coefficient = source.coefficient
-  }
 }
 
 /** Builds a [CreateMeasurementRequest]. */
