@@ -2428,6 +2428,26 @@ class ReportsServiceTest {
   }
 
   @Test
+  fun `listReports throws Exception when the internal setMeasurementResult throws Exception`() =
+    runBlocking {
+      whenever(internalMeasurementsMock.setMeasurementResult(any()))
+        .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
+
+      val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAME }
+
+      val exception =
+        assertThrows(Exception::class.java) {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+            runBlocking { service.listReports(request) }
+          }
+        }
+      val expectedExceptionDescription =
+        "Unable to save the result of the measurement [$REACH_MEASUREMENT_NAME] to the reporting " +
+          "database."
+      assertThat(exception.message).isEqualTo(expectedExceptionDescription)
+    }
+
+  @Test
   fun `listReports returns reports with SUCCEEDED states when reports are already succeeded`() {
     whenever(internalReportsMock.streamReports(any()))
       .thenReturn(

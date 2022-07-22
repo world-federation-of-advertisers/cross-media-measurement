@@ -513,7 +513,15 @@ class ReportsService(
             measurement.resultsList,
             encryptionPrivateKeyHandle
           )
-        internalMeasurementsStub.setMeasurementResult(setInternalMeasurementResultRequest)
+
+        try {
+          internalMeasurementsStub.setMeasurementResult(setInternalMeasurementResultRequest)
+        } catch (e: StatusException) {
+          throw Exception(
+            "Unable to save the result of the measurement [$measurementResourceName] to the " +
+              "reporting database."
+          )
+        }
       }
       Measurement.State.AWAITING_REQUISITION_FULFILLMENT,
       Measurement.State.COMPUTING -> {} // No action needed
