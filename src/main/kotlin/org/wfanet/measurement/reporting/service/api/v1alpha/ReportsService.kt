@@ -52,6 +52,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression as measur
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency as measurementSpecReachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.Principal
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt.value as eventGroupEntryValue
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter as requisitionSpecEventFilter
@@ -265,7 +266,8 @@ class ReportsService(
   )
 
   override suspend fun createReport(request: CreateReportRequest): Report {
-    val principal = principalFromCurrentContext
+    // TODO(@riemanli) Use the Principal from the reporting API.
+    val principal: Principal<*> = principalFromCurrentContext
     val resourceKey = principal.resourceKey
 
     grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
@@ -304,7 +306,8 @@ class ReportsService(
   }
 
   override suspend fun listReports(request: ListReportsRequest): ListReportsResponse {
-    val principal = principalFromCurrentContext
+    // TODO(@riemanli) Use the Principal from the reporting API.
+    val principal: Principal<*> = principalFromCurrentContext
     val listReportsPageToken = request.toListReportsPageToken()
 
     // Based on AIP-132#Errors
@@ -358,7 +361,8 @@ class ReportsService(
         "Report name is either unspecified or invalid"
       }
 
-    val principal = principalFromCurrentContext
+    // TODO(@riemanli) Use the Principal from the reporting API.
+    val principal: Principal<*> = principalFromCurrentContext
 
     when (val resourceKey = principal.resourceKey) {
       is MeasurementConsumerKey -> {
