@@ -488,9 +488,13 @@ class ReportsService(
     val measurementResourceName =
       MeasurementKey(measurementConsumerReferenceId, measurementReferenceId).toName()
     val measurement =
-      measurementsStub
-        .withAuthenticationKey(apiAuthenticationKey)
-        .getMeasurement(getMeasurementRequest { name = measurementResourceName })
+      try {
+        measurementsStub
+          .withAuthenticationKey(apiAuthenticationKey)
+          .getMeasurement(getMeasurementRequest { name = measurementResourceName })
+      } catch (e: StatusException) {
+        throw Exception("Unable to retrieve the measurement [$measurementResourceName].")
+      }
 
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     when (measurement.state) {
