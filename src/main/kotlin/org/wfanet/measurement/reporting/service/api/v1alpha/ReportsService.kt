@@ -240,16 +240,6 @@ private val REACH_ONLY_MEASUREMENT_SPEC = measurementSpecReachAndFrequency {
   maximumFrequencyPerUser = REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER
 }
 
-private data class ServiceStubs(
-  val internalReportsStub: InternalReportsCoroutineStub,
-  val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
-  val internalMeasurementsStub: InternalMeasurementsCoroutineStub,
-  val dataProvidersStub: DataProvidersCoroutineStub,
-  val measurementConsumersStub: MeasurementConsumersCoroutineStub,
-  val measurementsStub: MeasurementsCoroutineStub,
-  val certificateStub: CertificatesCoroutineStub,
-)
-
 private data class Credential(
   val measurementConsumerReferenceId: String,
   val measurementConsumerResourceName: String,
@@ -273,16 +263,6 @@ class ReportsService(
   private val apiAuthenticationKey: String,
   private val secureRandom: SecureRandom,
 ) : ReportsCoroutineImplBase() {
-  private val serviceStubs =
-    ServiceStubs(
-      internalReportsStub,
-      internalReportingSetsStub,
-      internalMeasurementsStub,
-      dataProvidersStub,
-      measurementConsumersStub,
-      measurementsStub,
-      certificateStub,
-    )
   private val setOperationCompiler = SetOperationCompiler()
 
   override suspend fun createReport(request: CreateReportRequest): Report {
@@ -324,7 +304,7 @@ class ReportsService(
         secureRandom
       )
 
-    return serviceStubs.internalReportsStub
+    return internalReportsStub
       .createReport(
         buildInternalCreateReportRequest(
           request,
@@ -355,9 +335,7 @@ class ReportsService(
     }
 
     val results: List<InternalReport> =
-      serviceStubs.internalReportsStub
-        .streamReports(listReportsPageToken.toStreamReportsRequest())
-        .toList()
+      internalReportsStub.streamReports(listReportsPageToken.toStreamReportsRequest()).toList()
 
     if (results.isEmpty()) {
       return ListReportsResponse.getDefaultInstance()
@@ -409,7 +387,7 @@ class ReportsService(
     }
 
     val internalReport =
-      serviceStubs.internalReportsStub.getReport(
+      internalReportsStub.getReport(
         getInternalReportRequest {
           measurementConsumerReferenceId = reportKey.measurementConsumerId
           externalReportId = apiIdToExternalId(reportKey.reportId)
@@ -442,7 +420,7 @@ class ReportsService(
     // Syncs measurements
     syncMeasurements(internalReport.measurementsMap, internalReport.measurementConsumerReferenceId)
 
-    return serviceStubs.internalReportsStub.getReport(
+    return internalReportsStub.getReport(
       getInternalReportRequest {
         measurementConsumerReferenceId = internalReport.measurementConsumerReferenceId
         externalReportId = internalReport.externalReportId
@@ -476,7 +454,7 @@ class ReportsService(
     val measurementResourceName =
       MeasurementKey(measurementConsumerReferenceId, measurementReferenceId).toName()
     val measurement =
-      serviceStubs.measurementsStub
+      measurementsStub
         .withAuthenticationKey(apiAuthenticationKey)
         .getMeasurement(getMeasurementRequest { name = measurementResourceName })
 
@@ -497,15 +475,13 @@ class ReportsService(
             measurement.resultsList,
             encryptionPrivateKeyHandle
           )
-        serviceStubs.internalMeasurementsStub.setMeasurementResult(
-          setInternalMeasurementResultRequest
-        )
+        internalMeasurementsStub.setMeasurementResult(setInternalMeasurementResultRequest)
       }
       Measurement.State.AWAITING_REQUISITION_FULFILLMENT,
       Measurement.State.COMPUTING -> {} // No action needed
       Measurement.State.FAILED,
       Measurement.State.CANCELLED -> {
-        serviceStubs.internalMeasurementsStub.setMeasurementFailure(
+        internalMeasurementsStub.setMeasurementFailure(
           setInternalMeasurementFailureRequest {
             this.measurementConsumerReferenceId = measurementConsumerReferenceId
             this.measurementReferenceId = measurementReferenceId
