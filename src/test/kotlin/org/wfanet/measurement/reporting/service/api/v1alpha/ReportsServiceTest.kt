@@ -1808,9 +1808,7 @@ class ReportsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description)
-      .isEqualTo(
-        "The names of the set operations within the same metric type should be unique."
-      )
+      .isEqualTo("The names of the set operations within the same metric type should be unique.")
   }
 
   @Test
