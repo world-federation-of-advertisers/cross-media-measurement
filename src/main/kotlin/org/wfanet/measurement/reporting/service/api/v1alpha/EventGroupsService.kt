@@ -77,7 +77,9 @@ class EventGroupsService(
                 it.encryptedMetadata,
                 runBlocking {
                   encryptionKeyPairStore.getPrivateKeyHandle(it.measurementConsumerPublicKey.data)
-                    ?: failGrpc { "Public key does not have corresponding private key" }
+                    ?: failGrpc(Status.FAILED_PRECONDITION) {
+                      "Public key does not have corresponding private key"
+                    }
                 }
               )
               .data
@@ -127,7 +129,9 @@ private fun CmmsEventGroup.toEventGroup(
           encryptedMetadata,
           runBlocking {
             encryptionKeyPairStore.getPrivateKeyHandle(measurementConsumerPublicKey.data)
-              ?: failGrpc { "Public key does not have corresponding private key" }
+              ?: failGrpc(Status.FAILED_PRECONDITION) {
+                "Public key does not have corresponding private key"
+              }
           }
         )
         .data

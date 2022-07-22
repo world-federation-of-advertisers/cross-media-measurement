@@ -17,6 +17,7 @@ package org.wfanet.measurement.reporting.service.api.v1alpha
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any
+import com.google.protobuf.ByteString
 import com.google.protobuf.DescriptorProtos.FileDescriptorSet
 import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.Descriptors.FileDescriptor
@@ -326,6 +327,56 @@ class EventGroupsServiceTest {
         .thenReturn(
           cmmsListEventGroupsResponse {
             eventGroups += listOf(CMMS_EVENT_GROUP, CMMS_EVENT_GROUP_2, eventGroupInvalidMetadata)
+          }
+        )
+    }
+    val eventGroupsService =
+      EventGroupsService(
+        EventGroupsCoroutineStub(grpcTestServerRule.channel),
+        EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
+        ENCRYPTION_KEY_PAIR_STORE
+      )
+    val result =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            eventGroupsService.listEventGroups(
+              listEventGroupsRequest {
+                parent = DATA_PROVIDER_NAME
+                filter = "age.value > 10"
+              }
+            )
+          }
+        }
+      }
+
+    assertThat(result.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `listEventGroups throws FAILED_PRECONDITION if private key not found`() {
+    val eventGroupInvalidPublicKey = cmmsEventGroup {
+      name = "$DATA_PROVIDER_NAME/eventGroups/$CMMS_EVENT_GROUP_ID"
+      measurementConsumer = MEASUREMENT_CONSUMER_NAME
+      eventGroupReferenceId = "id1"
+      measurementConsumerPublicKey = signedData { data = ByteString.copyFromUtf8("consumerkey") }
+      encryptedMetadata =
+        ENCRYPTION_PUBLIC_KEY.hybridEncrypt(
+          signMessage(
+              CmmsEventGroup.metadata {
+                eventGroupMetadataDescriptor = METADATA_NAME
+                metadata = Any.pack(testParentMetadataMessage { name = "name" })
+              },
+              EDP_SIGNING_KEY
+            )
+            .toByteString()
+        )
+    }
+    cmmsEventGroupsServiceMock.stub {
+      onBlocking { listEventGroups(any()) }
+        .thenReturn(
+          cmmsListEventGroupsResponse {
+            eventGroups += listOf(CMMS_EVENT_GROUP, CMMS_EVENT_GROUP_2, eventGroupInvalidPublicKey)
           }
         )
     }
