@@ -2442,8 +2442,43 @@ class ReportsServiceTest {
           }
         }
       val expectedExceptionDescription =
-        "Unable to save the result of the measurement [$REACH_MEASUREMENT_NAME] to the reporting " +
-          "database."
+        "Unable to update the measurement [$REACH_MEASUREMENT_NAME] in the reporting database."
+      assertThat(exception.message).isEqualTo(expectedExceptionDescription)
+    }
+
+  @Test
+  fun `listReports throws Exception when the internal setMeasurementFailure throws Exception`() =
+    runBlocking {
+      whenever(internalMeasurementsMock.setMeasurementFailure(any()))
+        .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
+
+      whenever(internalReportsMock.streamReports(any()))
+        .thenReturn(flowOf(INTERNAL_PENDING_REACH_REPORT))
+      whenever(measurementsMock.getMeasurement(any()))
+        .thenReturn(
+          PENDING_REACH_MEASUREMENT.copy {
+            state = Measurement.State.FAILED
+            failure = failure {
+              reason = Measurement.Failure.Reason.REQUISITION_REFUSED
+              message = "Privacy budget exceeded."
+            }
+          }
+        )
+      whenever(internalReportsMock.getReport(any()))
+        .thenReturn(
+          INTERNAL_PENDING_REACH_REPORT.copy { state = InternalReport.State.FAILED },
+        )
+
+      val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAME }
+
+      val exception =
+        assertThrows(Exception::class.java) {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+            runBlocking { service.listReports(request) }
+          }
+        }
+      val expectedExceptionDescription =
+        "Unable to update the measurement [$REACH_MEASUREMENT_NAME] in the reporting database."
       assertThat(exception.message).isEqualTo(expectedExceptionDescription)
     }
 

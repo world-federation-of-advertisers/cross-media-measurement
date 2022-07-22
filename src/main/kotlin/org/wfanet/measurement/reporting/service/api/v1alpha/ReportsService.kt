@@ -518,8 +518,7 @@ class ReportsService(
           internalMeasurementsStub.setMeasurementResult(setInternalMeasurementResultRequest)
         } catch (e: StatusException) {
           throw Exception(
-            "Unable to save the result of the measurement [$measurementResourceName] to the " +
-              "reporting database."
+            "Unable to update the measurement [$measurementResourceName] in the reporting database."
           )
         }
       }
@@ -527,13 +526,19 @@ class ReportsService(
       Measurement.State.COMPUTING -> {} // No action needed
       Measurement.State.FAILED,
       Measurement.State.CANCELLED -> {
-        internalMeasurementsStub.setMeasurementFailure(
-          setInternalMeasurementFailureRequest {
-            this.measurementConsumerReferenceId = measurementConsumerReferenceId
-            this.measurementReferenceId = measurementReferenceId
-            failure = measurement.failure.toInternal()
-          }
-        )
+        val setInternalMeasurementFailureRequest = setInternalMeasurementFailureRequest {
+          this.measurementConsumerReferenceId = measurementConsumerReferenceId
+          this.measurementReferenceId = measurementReferenceId
+          failure = measurement.failure.toInternal()
+        }
+
+        try {
+          internalMeasurementsStub.setMeasurementFailure(setInternalMeasurementFailureRequest)
+        } catch (e: StatusException) {
+          throw Exception(
+            "Unable to update the measurement [$measurementResourceName] in the reporting database."
+          )
+        }
       }
       Measurement.State.STATE_UNSPECIFIED -> error("The measurement state should've been set.")
       Measurement.State.UNRECOGNIZED -> error("Unrecognized measurement state.")
