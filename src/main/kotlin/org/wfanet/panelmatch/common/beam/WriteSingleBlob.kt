@@ -73,8 +73,9 @@ private class WriteBlobFn<T : Message>(
 
   @DoFn.ProcessElement
   fun processElement(context: ProcessContext) {
+    val pipelineOptions = context.getPipelineOptions()
     check(context.sideInput(count) == 1L)
-    val storageClient = storageFactory.build()
+    val storageClient = storageFactory.build(pipelineOptions)
     runBlocking(Dispatchers.IO) {
       storageClient.writeBlob(blobKey, context.element().toByteString())
     }

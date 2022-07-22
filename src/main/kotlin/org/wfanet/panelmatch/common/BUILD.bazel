@@ -9,6 +9,7 @@ kt_jvm_library(
     name = "common",
     srcs = glob(["*.kt"]),
     deps = [
+        "//imports/java/org/apache/beam:core",
         "//src/main/proto/wfa/measurement/api/v2alpha:certificate_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:exchange_workflow_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common:guava",

@@ -9,6 +9,7 @@ kt_jvm_library(
     srcs = glob(["*.kt"]),
     deps = [
         "//imports/java/org/apache/beam/runners:google_cloud_dataflow",
+        "//imports/java/software/amazon/awssdk/auth",
         "//src/main/kotlin/org/wfanet/panelmatch/client/deploy",
         "//src/main/kotlin/org/wfanet/panelmatch/client/deploy/example",
         "//src/main/kotlin/org/wfanet/panelmatch/client/storage",
