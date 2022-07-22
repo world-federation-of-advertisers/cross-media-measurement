@@ -52,6 +52,7 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testMetad
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testParentMetadataMessage
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse as cmmsListEventGroupsResponse
+import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
@@ -62,7 +63,6 @@ import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.consent.client.common.signMessage
 import org.wfanet.measurement.reporting.v1alpha.EventGroupKt.metadata
@@ -78,10 +78,10 @@ private val SECRET_FILES_PATH: Path =
   )
 private val ENCRYPTION_PRIVATE_KEY = loadEncryptionPrivateKey("mc_enc_private.tink")
 private val ENCRYPTION_PUBLIC_KEY = loadEncryptionPublicKey("mc_enc_public.tink")
-private val PUBLIC_KEY_FILE = SECRET_FILES_PATH.resolve("mc_enc_public.tink").toFile()
-private val PUBLIC_KEY = PUBLIC_KEY_FILE.readByteString()
 private val ENCRYPTION_KEY_PAIR_STORE =
-  InMemoryEncryptionKeyPairStore(mapOf(PUBLIC_KEY to ENCRYPTION_PRIVATE_KEY))
+  InMemoryEncryptionKeyPairStore(
+    mapOf(ENCRYPTION_PUBLIC_KEY.toByteString() to ENCRYPTION_PRIVATE_KEY)
+  )
 private val EDP_SIGNING_KEY = loadSigningKey("edp1_cs_cert.der", "edp1_cs_private.der")
 private const val MEASUREMENT_CONSUMER_REFERENCE_ID = "measurementConsumerRefId"
 private val MEASUREMENT_CONSUMER_NAME =
@@ -96,6 +96,7 @@ private val CMMS_EVENT_GROUP = cmmsEventGroup {
   name = "$DATA_PROVIDER_NAME/eventGroups/$CMMS_EVENT_GROUP_ID"
   measurementConsumer = MEASUREMENT_CONSUMER_NAME
   eventGroupReferenceId = "id1"
+  measurementConsumerPublicKey = signedData { data = ENCRYPTION_PUBLIC_KEY.toByteString() }
   encryptedMetadata =
     ENCRYPTION_PUBLIC_KEY.hybridEncrypt(
       signMessage(
@@ -118,6 +119,7 @@ private val CMMS_EVENT_GROUP_2 = cmmsEventGroup {
   name = "$DATA_PROVIDER_NAME/eventGroups/$CMMS_EVENT_GROUP_ID_2"
   measurementConsumer = MEASUREMENT_CONSUMER_NAME
   eventGroupReferenceId = "id2"
+  measurementConsumerPublicKey = signedData { data = ENCRYPTION_PUBLIC_KEY.toByteString() }
   encryptedMetadata =
     ENCRYPTION_PUBLIC_KEY.hybridEncrypt(
       signMessage(
@@ -190,7 +192,6 @@ class EventGroupsServiceTest {
       EventGroupsService(
         EventGroupsCoroutineStub(grpcTestServerRule.channel),
         EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
-        PUBLIC_KEY,
         ENCRYPTION_KEY_PAIR_STORE
       )
     val result =
@@ -253,7 +254,6 @@ class EventGroupsServiceTest {
       EventGroupsService(
         EventGroupsCoroutineStub(grpcTestServerRule.channel),
         EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
-        PUBLIC_KEY,
         ENCRYPTION_KEY_PAIR_STORE
       )
     val result =
@@ -308,6 +308,7 @@ class EventGroupsServiceTest {
       name = "$DATA_PROVIDER_NAME/eventGroups/$CMMS_EVENT_GROUP_ID"
       measurementConsumer = MEASUREMENT_CONSUMER_NAME
       eventGroupReferenceId = "id1"
+      measurementConsumerPublicKey = signedData { data = ENCRYPTION_PUBLIC_KEY.toByteString() }
       encryptedMetadata =
         ENCRYPTION_PUBLIC_KEY.hybridEncrypt(
           signMessage(
@@ -332,7 +333,6 @@ class EventGroupsServiceTest {
       EventGroupsService(
         EventGroupsCoroutineStub(grpcTestServerRule.channel),
         EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
-        PUBLIC_KEY,
         ENCRYPTION_KEY_PAIR_STORE
       )
     val result =
