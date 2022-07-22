@@ -710,7 +710,6 @@ class ReportsService(
 
       this.measurementCalculations +=
         buildMeasurementCalculationList(
-          serviceStubs,
           credential,
           weightedMeasurementsList,
           internalReportTimeIntervalsList,
@@ -765,6 +764,45 @@ class ReportsService(
       Operand.OperandCase.OPERAND_NOT_SET -> internalOperand {}
     }
   }
+
+  /**
+   * Builds a list of [MeasurementCalculation]s from a list of public [WeightedMeasurement]s and a
+   * list of [InternalTimeInterval]s.
+   */
+  private suspend fun buildMeasurementCalculationList(
+    credential: Credential,
+    weightedMeasurementsList: List<WeightedMeasurement>,
+    internalReportTimeIntervalsList: List<InternalTimeInterval>,
+    eventGroupFilters: Map<String, String>,
+    internalMetricDetails: InternalMetricDetails,
+    setOperationDisplayName: String,
+  ): List<MeasurementCalculation> {
+    return internalReportTimeIntervalsList.map { timeInterval ->
+      internalMeasurementCalculation {
+        this.timeInterval = timeInterval
+        weightedMeasurements +=
+          weightedMeasurementsList.mapIndexed { index, weightedMeasurement ->
+            val measurementReferenceId =
+              buildMeasurementReferenceId(
+                credential.reportIdempotencyKey,
+                timeInterval,
+                internalMetricDetails,
+                setOperationDisplayName,
+                index,
+              )
+
+            weightedMeasurement.toInternal(
+              serviceStubs,
+              credential,
+              timeInterval,
+              eventGroupFilters,
+              internalMetricDetails,
+              measurementReferenceId
+            )
+          }
+      }
+    }
+  }
 }
 
 /** Check if the display names of the set operations within the same metric type are unique. */
@@ -807,46 +845,6 @@ private fun InternalTimeInterval.toMeasurementTimeInterval(): MeasurementTimeInt
   return measurementTimeInterval {
     startTime = source.startTime
     endTime = source.endTime
-  }
-}
-
-/**
- * Builds a list of [MeasurementCalculation]s from a list of public [WeightedMeasurement]s and a
- * list of [InternalTimeInterval]s.
- */
-private suspend fun buildMeasurementCalculationList(
-  serviceStubs: ServiceStubs,
-  credential: Credential,
-  weightedMeasurementsList: List<WeightedMeasurement>,
-  internalReportTimeIntervalsList: List<InternalTimeInterval>,
-  eventGroupFilters: Map<String, String>,
-  internalMetricDetails: InternalMetricDetails,
-  setOperationDisplayName: String,
-): List<MeasurementCalculation> {
-  return internalReportTimeIntervalsList.map { timeInterval ->
-    internalMeasurementCalculation {
-      this.timeInterval = timeInterval
-      weightedMeasurements +=
-        weightedMeasurementsList.mapIndexed { index, weightedMeasurement ->
-          val measurementReferenceId =
-            buildMeasurementReferenceId(
-              credential.reportIdempotencyKey,
-              timeInterval,
-              internalMetricDetails,
-              setOperationDisplayName,
-              index,
-            )
-
-          weightedMeasurement.toInternal(
-            serviceStubs,
-            credential,
-            timeInterval,
-            eventGroupFilters,
-            internalMetricDetails,
-            measurementReferenceId
-          )
-        }
-    }
   }
 }
 
