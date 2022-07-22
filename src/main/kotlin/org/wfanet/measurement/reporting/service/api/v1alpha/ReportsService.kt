@@ -261,13 +261,13 @@ private data class Credential(
 )
 
 class ReportsService(
-  internalReportsStub: InternalReportsCoroutineStub,
-  internalReportingSetsStub: InternalReportingSetsCoroutineStub,
-  internalMeasurementsStub: InternalMeasurementsCoroutineStub,
-  dataProvidersStub: DataProvidersCoroutineStub,
-  measurementConsumersStub: MeasurementConsumersCoroutineStub,
-  measurementsStub: MeasurementsCoroutineStub,
-  certificateStub: CertificatesCoroutineStub,
+  private val internalReportsStub: InternalReportsCoroutineStub,
+  private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
+  private val internalMeasurementsStub: InternalMeasurementsCoroutineStub,
+  private val dataProvidersStub: DataProvidersCoroutineStub,
+  private val measurementConsumersStub: MeasurementConsumersCoroutineStub,
+  private val measurementsStub: MeasurementsCoroutineStub,
+  private val certificateStub: CertificatesCoroutineStub,
   private val encryptionKeyPairStore: EncryptionKeyPairStore,
   private val signingPrivateKey: PrivateKey,
   private val apiAuthenticationKey: String,
@@ -283,6 +283,7 @@ class ReportsService(
       measurementsStub,
       certificateStub,
     )
+  private val setOperationCompiler = SetOperationCompiler()
 
   override suspend fun createReport(request: CreateReportRequest): Report {
     val principal = principalFromCurrentContext
@@ -566,7 +567,7 @@ class ReportsService(
   ): InternalCreateReportRequest {
     val internalReport: InternalReport =
       try {
-        serviceStubs.internalReportsStub.getReportByIdempotencyKey(
+        internalReportsStub.getReportByIdempotencyKey(
           getReportByIdempotencyKeyRequest {
             this.measurementConsumerReferenceId = measurementConsumerReferenceId
             this.reportIdempotencyKey = reportIdempotencyKey
@@ -593,7 +594,6 @@ class ReportsService(
 
         val eventGroupFilters =
           request.report.eventGroupUniverse.eventGroupEntriesList.associate { it.key to it.value }
-        val setOperationCompiler = SetOperationCompiler()
 
         internalReport {
           this.measurementConsumerReferenceId = measurementConsumerReferenceId
@@ -617,10 +617,9 @@ class ReportsService(
             for (metric in request.report.metricsList) {
               launch {
                 this@internalReport.metrics +=
-                  metric.toInternal(
-                    serviceStubs,
+                  buildInternalMetric(
+                    metric,
                     credential,
-                    setOperationCompiler,
                     internalTimeIntervalsList,
                     eventGroupFilters,
                   )
@@ -638,6 +637,48 @@ class ReportsService(
         internalReport.metricsList.flatMap { internalMetric ->
           buildInternalMeasurementKeys(internalMetric, measurementConsumerReferenceId)
         }
+    }
+  }
+
+  /** Builds an [InternalMetric] from a public [Metric]. */
+  private suspend fun buildInternalMetric(
+    metric: Metric,
+    credential: Credential,
+    internalTimeIntervalsList: List<InternalTimeInterval>,
+    eventGroupFilters: Map<String, String>,
+  ): InternalMetric {
+    return internalMetric {
+      details = internalMetricDetails {
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+        when (metric.metricTypeCase) {
+          MetricTypeCase.REACH -> reach = internalReachParams {}
+          MetricTypeCase.FREQUENCY_HISTOGRAM ->
+            frequencyHistogram = metric.frequencyHistogram.toInternal()
+          MetricTypeCase.IMPRESSION_COUNT -> impressionCount = metric.impressionCount.toInternal()
+          MetricTypeCase.WATCH_DURATION -> watchDuration = metric.watchDuration.toInternal()
+          MetricTypeCase.METRICTYPE_NOT_SET ->
+            failGrpc(Status.INVALID_ARGUMENT) { "The metric type in Report is not specified." }
+        }
+
+        cumulative = metric.cumulative
+      }
+
+      coroutineScope {
+        metric.setOperationsList.map { setOperation ->
+          launch {
+            val internalNamedSetOperation =
+              setOperation.toInternal(
+                serviceStubs,
+                credential,
+                setOperationCompiler,
+                internalTimeIntervalsList,
+                eventGroupFilters,
+                this@internalMetric.details,
+              )
+            namedSetOperations += internalNamedSetOperation
+          }
+        }
+      }
     }
   }
 }
@@ -674,51 +715,6 @@ private fun buildInternalMeasurementKeys(
         this.measurementReferenceId = measurementReferenceId
       }
     }
-}
-
-/** Converts a public [Metric] to an [InternalMetric]. */
-private suspend fun Metric.toInternal(
-  serviceStubs: ServiceStubs,
-  credential: Credential,
-  setOperationCompiler: SetOperationCompiler,
-  internalTimeIntervalsList: List<InternalTimeInterval>,
-  eventGroupFilters: Map<String, String>,
-): InternalMetric {
-  val source = this
-
-  return internalMetric {
-    details = internalMetricDetails {
-      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-      when (source.metricTypeCase) {
-        MetricTypeCase.REACH -> reach = internalReachParams {}
-        MetricTypeCase.FREQUENCY_HISTOGRAM ->
-          frequencyHistogram = source.frequencyHistogram.toInternal()
-        MetricTypeCase.IMPRESSION_COUNT -> impressionCount = source.impressionCount.toInternal()
-        MetricTypeCase.WATCH_DURATION -> watchDuration = source.watchDuration.toInternal()
-        MetricTypeCase.METRICTYPE_NOT_SET ->
-          failGrpc(Status.INVALID_ARGUMENT) { "The metric type in Report is not specified." }
-      }
-
-      cumulative = source.cumulative
-    }
-
-    coroutineScope {
-      source.setOperationsList.map { setOperation ->
-        launch {
-          val internalNamedSetOperation =
-            setOperation.toInternal(
-              serviceStubs,
-              credential,
-              setOperationCompiler,
-              internalTimeIntervalsList,
-              eventGroupFilters,
-              this@internalMetric.details,
-            )
-          namedSetOperations += internalNamedSetOperation
-        }
-      }
-    }
-  }
 }
 
 /** Converts an [InternalTimeInterval] to a [MeasurementTimeInterval] for measurement request. */
