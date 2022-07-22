@@ -24,6 +24,8 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
@@ -84,10 +86,6 @@ private const val MAX_FREQUENCY = 10
 
 private val REQUISITION_ONE = requisition { name = "requisition_one" }
 private val REQUISITION_TWO = requisition { name = "requisition_two" }
-private val REQUISITION_LIST = listRequisitionsResponse {
-  requisitions += REQUISITION_ONE
-  requisitions += REQUISITION_TWO
-}
 
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
@@ -139,7 +137,7 @@ private val LIQUID_LEGIONS_V2_PROTOCOL_CONFIG = liquidLegionsV2 {
   maximumFrequency = MAX_FREQUENCY
 }
 private val RF_MEASUREMENT = measurement {
-  name = "rfMeasurement"
+  name = "$MEASUREMENT_CONSUMER_NAME/measurements/YENiIm1WA94"
   state = Measurement.State.SUCCEEDED
   results += resultPair {
     val result = result {
@@ -227,9 +225,12 @@ class FrontendSimulatorTest {
         sketchStore
       )
     frontendSimulator.executeReachAndFrequency("foo")
+    verify(measurementsServiceMock, times(1)).createMeasurement(any())
+    verify(measurementsServiceMock, times(1)).getMeasurement(any())
+    verify(requisitionsServiceMock, times(1)).listRequisitions(any())
 
     val anySketches =
-      REQUISITION_LIST.requisitionsList.map {
+      listOf(REQUISITION_ONE, REQUISITION_TWO).map {
         val storedSketch =
           sketchStore.get(it)?.read()?.flatten() ?: error("Sketch blob not found for ${it.name}.")
         SketchProtos.toAnySketch(Sketch.parseFrom(storedSketch))
