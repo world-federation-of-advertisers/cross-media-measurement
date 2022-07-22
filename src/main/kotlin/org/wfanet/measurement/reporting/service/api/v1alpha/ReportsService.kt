@@ -294,15 +294,36 @@ class ReportsService(
       "ReportIdempotencyKey is not specified."
     }
 
-    return internalReportsStub
-      .createReport(
-        buildInternalCreateReportRequest(
-          request,
-          resourceKey.measurementConsumerId,
-          request.report.reportIdempotencyKey,
+    val existingInternalReport: InternalReport? =
+      try {
+        internalReportsStub.getReportByIdempotencyKey(
+          getReportByIdempotencyKeyRequest {
+            this.measurementConsumerReferenceId = resourceKey.measurementConsumerId
+            this.reportIdempotencyKey = request.report.reportIdempotencyKey
+          }
         )
-      )
-      .toReport()
+      } catch (e: StatusException) {
+        if (e.status.code != Status.Code.NOT_FOUND) {
+          throw Exception(
+            "Unable to retrieve a report from the reporting database using the provided " +
+              "reportIdempotencyKey [${request.report.reportIdempotencyKey}].",
+            e
+          )
+        }
+        null
+      }
+
+    val internalReport =
+      existingInternalReport
+        ?: internalReportsStub.createReport(
+          buildInternalCreateReportRequest(
+            request,
+            resourceKey.measurementConsumerId,
+            request.report.reportIdempotencyKey,
+          )
+        )
+
+    return internalReport.toReport()
   }
 
   override suspend fun listReports(request: ListReportsRequest): ListReportsResponse {
@@ -532,78 +553,57 @@ class ReportsService(
     measurementConsumerReferenceId: String,
     reportIdempotencyKey: String,
   ): InternalCreateReportRequest {
-    val internalReport: InternalReport =
-      try {
-        internalReportsStub.getReportByIdempotencyKey(
-          getReportByIdempotencyKeyRequest {
-            this.measurementConsumerReferenceId = measurementConsumerReferenceId
-            this.reportIdempotencyKey = reportIdempotencyKey
+
+    grpcRequire(request.report.measurementConsumer == request.parent) {
+      "Cannot create a Report for another MeasurementConsumer."
+    }
+    grpcRequire(request.report.hasEventGroupUniverse()) { "EventGroupUniverse is not specified." }
+    grpcRequire(request.report.metricsList.isNotEmpty()) { "Metrics in Report cannot be empty." }
+    checkSetOperationNamesUniqueness(request.report.metricsList)
+
+    val eventGroupFilters =
+      request.report.eventGroupUniverse.eventGroupEntriesList.associate { it.key to it.value }
+
+    val internalReport: InternalReport = internalReport {
+      this.measurementConsumerReferenceId = measurementConsumerReferenceId
+
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+      val timeIntervalsList: List<TimeInterval> =
+        when (request.report.timeCase) {
+          Report.TimeCase.TIME_INTERVALS -> {
+            this.timeIntervals = request.report.timeIntervals.toInternal()
+            request.report.timeIntervals.timeIntervalsList.map { it }
           }
-        )
-      } catch (e: StatusException) {
-        if (e.status.code != Status.Code.NOT_FOUND) {
-          throw Exception(
-            "Unable to retrieve a report from the reporting database using the provided " +
-              "reportIdempotencyKey [$reportIdempotencyKey].",
-            e
-          )
-        }
-
-        grpcRequire(request.report.measurementConsumer == request.parent) {
-          "Cannot create a Report for another MeasurementConsumer."
-        }
-        grpcRequire(request.report.hasEventGroupUniverse()) {
-          "EventGroupUniverse is not specified."
-        }
-        grpcRequire(request.report.metricsList.isNotEmpty()) {
-          "Metrics in Report cannot be empty."
-        }
-        checkSetOperationNamesUniqueness(request.report.metricsList)
-
-        val eventGroupFilters =
-          request.report.eventGroupUniverse.eventGroupEntriesList.associate { it.key to it.value }
-
-        internalReport {
-          this.measurementConsumerReferenceId = measurementConsumerReferenceId
-
-          @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-          val timeIntervalsList: List<TimeInterval> =
-            when (request.report.timeCase) {
-              Report.TimeCase.TIME_INTERVALS -> {
-                this.timeIntervals = request.report.timeIntervals.toInternal()
-                request.report.timeIntervals.timeIntervalsList.map { it }
-              }
-              Report.TimeCase.PERIODIC_TIME_INTERVAL -> {
-                this.periodicTimeInterval = request.report.periodicTimeInterval.toInternal()
-                request.report.periodicTimeInterval.toTimeIntervalsList()
-              }
-              Report.TimeCase.TIME_NOT_SET ->
-                failGrpc(Status.INVALID_ARGUMENT) { "The time in Report is not specified." }
-            }
-
-          coroutineScope {
-            for (metric in request.report.metricsList) {
-              val reportDetails =
-                ReportDetails(
-                  measurementConsumerReferenceId,
-                  reportIdempotencyKey,
-                  eventGroupFilters,
-                  timeIntervalsList
-                )
-
-              launch {
-                this@internalReport.metrics +=
-                  buildInternalMetric(
-                    metric,
-                    reportDetails,
-                  )
-              }
-            }
+          Report.TimeCase.PERIODIC_TIME_INTERVAL -> {
+            this.periodicTimeInterval = request.report.periodicTimeInterval.toInternal()
+            request.report.periodicTimeInterval.toTimeIntervalsList()
           }
-          details = internalReportDetails { this.eventGroupFilters.putAll(eventGroupFilters) }
-          this.reportIdempotencyKey = reportIdempotencyKey
+          Report.TimeCase.TIME_NOT_SET ->
+            failGrpc(Status.INVALID_ARGUMENT) { "The time in Report is not specified." }
+        }
+
+      coroutineScope {
+        for (metric in request.report.metricsList) {
+          val reportDetails =
+            ReportDetails(
+              measurementConsumerReferenceId,
+              reportIdempotencyKey,
+              eventGroupFilters,
+              timeIntervalsList
+            )
+
+          launch {
+            this@internalReport.metrics +=
+              buildInternalMetric(
+                metric,
+                reportDetails,
+              )
+          }
         }
       }
+      details = internalReportDetails { this.eventGroupFilters.putAll(eventGroupFilters) }
+      this.reportIdempotencyKey = reportIdempotencyKey
+    }
 
     return internalCreateReportRequest {
       report = internalReport
