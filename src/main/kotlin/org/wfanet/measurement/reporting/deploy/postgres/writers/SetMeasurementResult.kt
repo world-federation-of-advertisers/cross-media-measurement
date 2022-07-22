@@ -45,7 +45,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
 
     transactionContext.run {
       val numRowsUpdated = executeStatement(builder).numRowsUpdated
-      if (numRowsUpdated == 0) {
+      if (numRowsUpdated == 0L) {
         throw MeasurementNotFoundException()
       }
     }

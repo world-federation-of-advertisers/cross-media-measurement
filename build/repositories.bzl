@@ -24,8 +24,12 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_common_jvm",
         repo = "common-jvm",
-        sha256 = "c435f27922f95ef117d863938d1b79d3bd4d25505e795fbf7fd39653dceeb5ab",
-        version = "0.40.0",
+        sha256 = "35d1ea1ce1b052adee834eccbd696d03a44172575ac7052d152fa514c3da80ac",
+        #TODO: replace with new version when
+        #https://github.com/world-federation-of-advertisers/common-jvm/pull/141
+        #is merged
+        #version = "0.39.0",
+        commit = "00181e2efeb05eb71883ed8912cb95aeae16abcd",
     )
 
     wfa_repo_archive(
