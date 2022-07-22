@@ -313,17 +313,21 @@ class ReportsService(
         null
       }
 
-    val internalReport =
-      existingInternalReport
-        ?: internalReportsStub.createReport(
+    if (existingInternalReport != null) return existingInternalReport.toReport()
+
+    try {
+      return internalReportsStub
+        .createReport(
           buildInternalCreateReportRequest(
             request,
             resourceKey.measurementConsumerId,
             request.report.reportIdempotencyKey,
           )
         )
-
-    return internalReport.toReport()
+        .toReport()
+    } catch (e: StatusException) {
+      throw Exception("Unable to create a report.", e)
+    }
   }
 
   override suspend fun listReports(request: ListReportsRequest): ListReportsResponse {
