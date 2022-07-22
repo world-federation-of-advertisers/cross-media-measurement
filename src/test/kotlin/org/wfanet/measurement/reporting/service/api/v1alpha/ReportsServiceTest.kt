@@ -2007,7 +2007,7 @@ class ReportsServiceTest {
           runBlocking { service.createReport(request) }
         }
       }
-    val expectedExceptionDescription = "Unable to create a report."
+    val expectedExceptionDescription = "Unable to create a report to the reporting database."
     assertThat(exception.message).isEqualTo(expectedExceptionDescription)
   }
 
@@ -2372,6 +2372,24 @@ class ReportsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
+
+  @Test
+  fun `listReports throws Exception when the interanl streamReports throws Exception`() =
+    runBlocking {
+      whenever(internalReportsMock.streamReports(any()))
+        .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
+
+      val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAME }
+
+      val exception =
+        assertThrows(Exception::class.java) {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+            runBlocking { service.listReports(request) }
+          }
+        }
+      val expectedExceptionDescription = "Unable to list reports from the reporting database."
+      assertThat(exception.message).isEqualTo(expectedExceptionDescription)
+    }
 
   @Test
   fun `listReports returns reports with SUCCEEDED states when reports are already succeeded`() {

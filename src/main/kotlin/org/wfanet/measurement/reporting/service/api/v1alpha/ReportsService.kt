@@ -315,18 +315,16 @@ class ReportsService(
 
     if (existingInternalReport != null) return existingInternalReport.toReport()
 
+    val internalCreateReportRequest: InternalCreateReportRequest =
+      buildInternalCreateReportRequest(
+        request,
+        resourceKey.measurementConsumerId,
+        request.report.reportIdempotencyKey,
+      )
     try {
-      return internalReportsStub
-        .createReport(
-          buildInternalCreateReportRequest(
-            request,
-            resourceKey.measurementConsumerId,
-            request.report.reportIdempotencyKey,
-          )
-        )
-        .toReport()
+      return internalReportsStub.createReport(internalCreateReportRequest).toReport()
     } catch (e: StatusException) {
-      throw Exception("Unable to create a report.", e)
+      throw Exception("Unable to create a report to the reporting database.", e)
     }
   }
 
@@ -349,8 +347,14 @@ class ReportsService(
       }
     }
 
+    val streamInternalReportsRequest: StreamInternalReportsRequest =
+      listReportsPageToken.toStreamReportsRequest()
     val results: List<InternalReport> =
-      internalReportsStub.streamReports(listReportsPageToken.toStreamReportsRequest()).toList()
+      try {
+        internalReportsStub.streamReports(streamInternalReportsRequest).toList()
+      } catch (e: StatusException) {
+        throw Exception("Unable to list reports from the reporting database.", e)
+      }
 
     if (results.isEmpty()) {
       return ListReportsResponse.getDefaultInstance()
