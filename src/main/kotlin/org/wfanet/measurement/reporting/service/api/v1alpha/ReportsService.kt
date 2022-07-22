@@ -240,16 +240,6 @@ private val REACH_ONLY_MEASUREMENT_SPEC = measurementSpecReachAndFrequency {
   maximumFrequencyPerUser = REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER
 }
 
-private data class Credential(
-  val measurementConsumerReferenceId: String,
-  val measurementConsumerResourceName: String,
-  val reportIdempotencyKey: String,
-  val encryptionKeyPairStore: EncryptionKeyPairStore,
-  val signingPrivateKey: PrivateKey,
-  val apiAuthenticationKey: String,
-  val secureRandom: SecureRandom,
-)
-
 class ReportsService(
   private val internalReportsStub: InternalReportsCoroutineStub,
   private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
@@ -293,22 +283,10 @@ class ReportsService(
       "ReportIdempotencyKey is not specified."
     }
 
-    val credential =
-      Credential(
-        resourceKey.measurementConsumerId,
-        request.parent,
-        request.report.reportIdempotencyKey,
-        encryptionKeyPairStore,
-        signingPrivateKey,
-        apiAuthenticationKey,
-        secureRandom
-      )
-
     return internalReportsStub
       .createReport(
         buildInternalCreateReportRequest(
           request,
-          credential,
           resourceKey.measurementConsumerId,
           request.report.reportIdempotencyKey,
         )
@@ -538,7 +516,6 @@ class ReportsService(
   /** Builds an [InternalCreateReportRequest] from a public [CreateReportRequest]. */
   private suspend fun buildInternalCreateReportRequest(
     request: CreateReportRequest,
-    credential: Credential,
     measurementConsumerReferenceId: String,
     reportIdempotencyKey: String,
   ): InternalCreateReportRequest {
@@ -596,7 +573,8 @@ class ReportsService(
                 this@internalReport.metrics +=
                   buildInternalMetric(
                     metric,
-                    credential,
+                    measurementConsumerReferenceId,
+                    reportIdempotencyKey,
                     internalTimeIntervalsList,
                     eventGroupFilters,
                   )
@@ -620,7 +598,8 @@ class ReportsService(
   /** Builds an [InternalMetric] from a public [Metric]. */
   private suspend fun buildInternalMetric(
     metric: Metric,
-    credential: Credential,
+    measurementConsumerReferenceId: String,
+    reportIdempotencyKey: String,
     internalTimeIntervalsList: List<InternalTimeInterval>,
     eventGroupFilters: Map<String, String>,
   ): InternalMetric {
@@ -646,7 +625,8 @@ class ReportsService(
             val internalNamedSetOperation =
               buildInternalNamedSetOperation(
                 setOperation,
-                credential,
+                measurementConsumerReferenceId,
+                reportIdempotencyKey,
                 internalTimeIntervalsList,
                 eventGroupFilters,
                 this@internalMetric.details,
@@ -661,7 +641,8 @@ class ReportsService(
   /** Builds an [InternalNamedSetOperation] from a public [NamedSetOperation]. */
   private suspend fun buildInternalNamedSetOperation(
     namedSetOperation: NamedSetOperation,
-    credential: Credential,
+    measurementConsumerReferenceId: String,
+    reportIdempotencyKey: String,
     internalTimeIntervalsList: List<InternalTimeInterval>,
     eventGroupFilters: Map<String, String>,
     internalMetricDetails: InternalMetricDetails,
@@ -681,14 +662,19 @@ class ReportsService(
     return internalNamedSetOperation {
       displayName = namedSetOperation.uniqueName
       setOperation =
-        buildInternalSetOperation(namedSetOperation.setOperation, credential, eventGroupFilters)
+        buildInternalSetOperation(
+          namedSetOperation.setOperation,
+          measurementConsumerReferenceId,
+          eventGroupFilters
+        )
 
       val weightedMeasurementsList = setOperationCompiler.compileSetOperation(namedSetOperation)
 
       this.measurementCalculations +=
         buildMeasurementCalculationList(
-          credential,
           weightedMeasurementsList,
+          measurementConsumerReferenceId,
+          reportIdempotencyKey,
           internalReportTimeIntervalsList,
           eventGroupFilters,
           internalMetricDetails,
@@ -700,33 +686,40 @@ class ReportsService(
   /** Builds an [InternalSetOperation] from a public [SetOperation]. */
   private suspend fun buildInternalSetOperation(
     setOperation: SetOperation,
-    credential: Credential,
+    measurementConsumerReferenceId: String,
     eventGroupFilters: Map<String, String>,
   ): InternalSetOperation {
     return internalSetOperation {
       this.type = setOperation.type.toInternal()
-      this.lhs = buildInternalOperand(setOperation.lhs, credential, eventGroupFilters)
-      this.rhs = buildInternalOperand(setOperation.rhs, credential, eventGroupFilters)
+      this.lhs =
+        buildInternalOperand(setOperation.lhs, measurementConsumerReferenceId, eventGroupFilters)
+      this.rhs =
+        buildInternalOperand(setOperation.rhs, measurementConsumerReferenceId, eventGroupFilters)
     }
   }
 
   /** Builds an [InternalOperand] from an [Operand]. */
   private suspend fun buildInternalOperand(
     operand: Operand,
-    credential: Credential,
+    measurementConsumerReferenceId: String,
     eventGroupFilters: Map<String, String>,
   ): InternalOperand {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     return when (operand.operandCase) {
       Operand.OperandCase.OPERATION ->
         internalOperand {
-          operation = buildInternalSetOperation(operand.operation, credential, eventGroupFilters)
+          operation =
+            buildInternalSetOperation(
+              operand.operation,
+              measurementConsumerReferenceId,
+              eventGroupFilters
+            )
         }
       Operand.OperandCase.REPORTING_SET -> {
         val reportingSetId =
           checkReportingSet(
             operand.reportingSet,
-            credential.measurementConsumerReferenceId,
+            measurementConsumerReferenceId,
             internalReportingSetsStub,
             eventGroupFilters
           )
@@ -747,8 +740,9 @@ class ReportsService(
    * list of [InternalTimeInterval]s.
    */
   private suspend fun buildMeasurementCalculationList(
-    credential: Credential,
     weightedMeasurementsList: List<WeightedMeasurement>,
+    measurementConsumerReferenceId: String,
+    reportIdempotencyKey: String,
     internalReportTimeIntervalsList: List<InternalTimeInterval>,
     eventGroupFilters: Map<String, String>,
     internalMetricDetails: InternalMetricDetails,
@@ -761,7 +755,7 @@ class ReportsService(
           weightedMeasurementsList.mapIndexed { index, weightedMeasurement ->
             val measurementReferenceId =
               buildMeasurementReferenceId(
-                credential.reportIdempotencyKey,
+                reportIdempotencyKey,
                 timeInterval,
                 internalMetricDetails,
                 setOperationUniqueName,
@@ -770,7 +764,8 @@ class ReportsService(
 
             buildInternalWeightedMeasurement(
               weightedMeasurement,
-              credential,
+              measurementConsumerReferenceId,
+              reportIdempotencyKey,
               timeInterval,
               eventGroupFilters,
               internalMetricDetails,
@@ -784,7 +779,8 @@ class ReportsService(
   /** Builds an [InternalWeightedMeasurement] from a public [WeightedMeasurement]. */
   private suspend fun buildInternalWeightedMeasurement(
     weightedMeasurement: WeightedMeasurement,
-    credential: Credential,
+    measurementConsumerReferenceId: String,
+    reportIdempotencyKey: String,
     internalTimeInterval: InternalTimeInterval,
     eventGroupFilters: Map<String, String>,
     internalMetricDetails: InternalMetricDetails,
@@ -793,7 +789,7 @@ class ReportsService(
     try {
       internalMeasurementsStub.getMeasurement(
         getInternalMeasurementRequest {
-          measurementConsumerReferenceId = credential.measurementConsumerReferenceId
+          this.measurementConsumerReferenceId = measurementConsumerReferenceId
           this.measurementReferenceId = measurementReferenceId
         }
       )
@@ -806,7 +802,7 @@ class ReportsService(
 
       val createMeasurementRequest: CreateMeasurementRequest =
         buildCreateMeasurementRequest(
-          credential,
+          measurementConsumerReferenceId,
           internalTimeInterval,
           eventGroupFilters,
           internalMetricDetails,
@@ -820,7 +816,7 @@ class ReportsService(
 
       internalMeasurementsStub.createMeasurement(
         internalMeasurement {
-          measurementConsumerReferenceId = credential.measurementConsumerReferenceId
+          this.measurementConsumerReferenceId = measurementConsumerReferenceId
           this.measurementReferenceId = measurementReferenceId
           state = InternalMeasurement.State.PENDING
         }
@@ -835,7 +831,7 @@ class ReportsService(
 
   /** Builds a [CreateMeasurementRequest]. */
   private suspend fun buildCreateMeasurementRequest(
-    credential: Credential,
+    measurementConsumerReferenceId: String,
     internalTimeInterval: InternalTimeInterval,
     eventGroupFilters: Map<String, String>,
     internalMetricDetails: InternalMetricDetails,
@@ -847,7 +843,7 @@ class ReportsService(
         .withAuthenticationKey(apiAuthenticationKey)
         .getMeasurementConsumer(
           getMeasurementConsumerRequest {
-            name = MeasurementConsumerKey(credential.measurementConsumerReferenceId).toName()
+            name = MeasurementConsumerKey(measurementConsumerReferenceId).toName()
           }
         )
     val measurementConsumerCertificate = readCertificate(measurementConsumer.certificateDer)
@@ -856,7 +852,7 @@ class ReportsService(
     val measurementEncryptionPublicKey = measurementConsumer.publicKey.data
 
     val measurementResourceName =
-      MeasurementKey(credential.measurementConsumerReferenceId, measurementReferenceId).toName()
+      MeasurementKey(measurementConsumerReferenceId, measurementReferenceId).toName()
 
     val dataProviderNameToInternalEventGroupEntriesList =
       aggregateInternalEventGroupEntryByDataProviderName(
