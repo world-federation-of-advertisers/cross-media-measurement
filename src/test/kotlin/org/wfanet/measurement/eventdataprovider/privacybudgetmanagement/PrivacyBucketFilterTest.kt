@@ -179,7 +179,7 @@ class PrivacyBucketFilterTest {
       )
   }
 
-   @Test
+  @Test
   fun `Mapper succeeds with left out privacy budget Fields`() {
 
     val privacyLandscapeMask =
@@ -235,7 +235,7 @@ class PrivacyBucketFilterTest {
           PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
           PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
         ),
-         PrivacyBucketGroup(
+        PrivacyBucketGroup(
           MEASUREMENT_CONSUMER_ID,
           LocalDate.now(),
           LocalDate.now(),
