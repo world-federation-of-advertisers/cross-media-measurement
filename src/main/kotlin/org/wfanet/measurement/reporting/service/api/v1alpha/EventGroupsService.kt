@@ -15,7 +15,6 @@
 package org.wfanet.measurement.reporting.service.api.v1alpha
 
 import io.grpc.Status
-import kotlinx.coroutines.runBlocking
 import org.projectnessie.cel.Program
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
@@ -63,27 +62,25 @@ class EventGroupsService(
         }
       )
     val cmmsEventGroups = cmmsListEventGroupResponse.eventGroupsList
-
-    if (request.filter.isEmpty())
-      return listEventGroupsResponse {
-        this.eventGroups += cmmsEventGroups.map { it.toEventGroup(encryptionKeyPairStore) }
-        nextPageToken = cmmsListEventGroupResponse.nextPageToken
-      }
     val parsedEventGroupMetadataMap: Map<String, CmmsEventGroup.Metadata> =
       cmmsEventGroups.associate {
         it.name to
           CmmsEventGroup.Metadata.parseFrom(
             decryptResult(
                 it.encryptedMetadata,
-                runBlocking {
-                  encryptionKeyPairStore.getPrivateKeyHandle(it.measurementConsumerPublicKey.data)
-                    ?: failGrpc(Status.FAILED_PRECONDITION) {
-                      "Public key does not have corresponding private key"
-                    }
-                }
+                encryptionKeyPairStore.getPrivateKeyHandle(it.measurementConsumerPublicKey.data)
+                  ?: failGrpc(Status.FAILED_PRECONDITION) {
+                    "Public key does not have corresponding private key"
+                  }
               )
               .data
           )
+      }
+
+    if (request.filter.isEmpty())
+      return listEventGroupsResponse {
+        this.eventGroups += cmmsEventGroups.map { it.toEventGroup(parsedEventGroupMetadataMap) }
+        nextPageToken = cmmsListEventGroupResponse.nextPageToken
       }
     val eventGroupMetadataDescriptors: List<EventGroupMetadataDescriptor> =
       eventGroupsMetadataDescriptorsStub
@@ -113,29 +110,17 @@ class EventGroupsService(
     }
 
     return listEventGroupsResponse {
-      this.eventGroups += filteredEventGroups.map { it.toEventGroup(encryptionKeyPairStore) }
+      this.eventGroups += filteredEventGroups.map { it.toEventGroup(parsedEventGroupMetadataMap) }
       nextPageToken = cmmsListEventGroupResponse.nextPageToken
     }
   }
 }
 
 private fun CmmsEventGroup.toEventGroup(
-  encryptionKeyPairStore: EncryptionKeyPairStore
+  parsedEventGroupMetadataMap: Map<String, CmmsEventGroup.Metadata>
 ): EventGroup {
   val source = this
-  val cmmsMetadata =
-    CmmsEventGroup.Metadata.parseFrom(
-      decryptResult(
-          encryptedMetadata,
-          runBlocking {
-            encryptionKeyPairStore.getPrivateKeyHandle(measurementConsumerPublicKey.data)
-              ?: failGrpc(Status.FAILED_PRECONDITION) {
-                "Public key does not have corresponding private key"
-              }
-          }
-        )
-        .data
-    )
+  val cmmsMetadata = parsedEventGroupMetadataMap[name]!!
   val cmmsEventGroupKey =
     grpcRequireNotNull(CmmsEventGroupKey.fromName(name)) { "Event group name is missing" }
   val measurementConsumerKey =
