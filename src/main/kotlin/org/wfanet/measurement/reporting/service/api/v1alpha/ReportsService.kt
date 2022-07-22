@@ -407,12 +407,16 @@ class ReportsService(
     }
 
     val internalReport =
-      internalReportsStub.getReport(
-        getInternalReportRequest {
-          measurementConsumerReferenceId = reportKey.measurementConsumerId
-          externalReportId = apiIdToExternalId(reportKey.reportId)
-        }
-      )
+      try {
+        internalReportsStub.getReport(
+          getInternalReportRequest {
+            measurementConsumerReferenceId = reportKey.measurementConsumerId
+            externalReportId = apiIdToExternalId(reportKey.reportId)
+          }
+        )
+      } catch (e: StatusException) {
+        throw Exception("Unable to get the report from the reporting database.", e)
+      }
 
     val syncedInternalReport = syncReport(internalReport)
 

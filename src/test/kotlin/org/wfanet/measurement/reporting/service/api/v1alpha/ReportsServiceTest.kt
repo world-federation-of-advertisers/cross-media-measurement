@@ -3003,6 +3003,23 @@ class ReportsServiceTest {
   }
 
   @Test
+  fun `getReport throws Exception when the internal GetReport throws Exception`() = runBlocking {
+    whenever(internalReportsMock.getReport(any()))
+      .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
+
+    val request = getReportRequest { name = REPORT_NAME_3 }
+
+    val exception =
+      assertThrows(Exception::class.java) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.getReport(request) }
+        }
+      }
+    val expectedExceptionDescription = "Unable to get the report from the reporting database."
+    assertThat(exception.message).isEqualTo(expectedExceptionDescription)
+  }
+
+  @Test
   fun `toResult converts internal result to external result with the same content`() = runBlocking {
     val internalResult = internalReportResult {
       scalarTable = internalScalarTable {
