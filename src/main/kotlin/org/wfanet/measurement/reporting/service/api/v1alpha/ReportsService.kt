@@ -869,7 +869,9 @@ class ReportsService(
       measurementConsumersStub
         .withAuthenticationKey(apiAuthenticationKey)
         .getMeasurementConsumer(
-          getMeasurementConsumerRequest { name = credential.measurementConsumerResourceName }
+          getMeasurementConsumerRequest {
+            name = MeasurementConsumerKey(credential.measurementConsumerReferenceId).toName()
+          }
         )
     val measurementConsumerCertificate = readCertificate(measurementConsumer.certificateDer)
     val measurementConsumerSigningKey =
@@ -893,8 +895,6 @@ class ReportsService(
 
       dataProviders +=
         buildDataProviderEntries(
-          serviceStubs,
-          credential,
           dataProviderNameToInternalEventGroupEntriesList,
           measurementEncryptionPublicKey,
           measurementConsumerSigningKey,
@@ -917,6 +917,40 @@ class ReportsService(
     return createMeasurementRequest { this.measurement = measurement }
   }
 
+  /** Builds a list of [DataProviderEntry]s from lists of [EventGroupEntry]s. */
+  private suspend fun buildDataProviderEntries(
+    dataProviderNameToInternalEventGroupEntriesList: Map<String, List<EventGroupEntry>>,
+    measurementEncryptionPublicKey: ByteString,
+    measurementConsumerSigningKey: SigningKeyHandle,
+  ): List<DataProviderEntry> {
+    return dataProviderNameToInternalEventGroupEntriesList.map {
+      (dataProviderName, eventGroupEntriesList) ->
+      dataProviderEntry {
+        val requisitionSpec = requisitionSpec {
+          eventGroups += eventGroupEntriesList
+          this.measurementPublicKey = measurementEncryptionPublicKey
+          nonce = secureRandom.nextLong()
+        }
+
+        val dataProvider =
+          dataProvidersStub
+            .withAuthenticationKey(apiAuthenticationKey)
+            .getDataProvider(getDataProviderRequest { name = dataProviderName })
+
+        key = dataProviderName
+        value = dataProviderEntryValue {
+          dataProviderCertificate = dataProvider.certificate
+          dataProviderPublicKey = dataProvider.publicKey
+          encryptedRequisitionSpec =
+            encryptRequisitionSpec(
+              signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
+              EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
+            )
+          nonceHash = hashSha256(requisitionSpec.nonce)
+        }
+      }
+    }
+  }
 }
 
 /** Check if the display names of the set operations within the same metric type are unique. */
@@ -986,44 +1020,7 @@ private fun buildMeasurementReferenceId(
   return "$reportIdempotencyKey-$rowHeader-$metricType-$setOperationDisplayName-measurement-$index"
 }
 
-/** Builds a list of [DataProviderEntry]s. */
-private suspend fun buildDataProviderEntries(
-  serviceStubs: ServiceStubs,
-  credential: Credential,
-  dataProviderNameToInternalEventGroupEntriesList: Map<String, List<EventGroupEntry>>,
-  measurementEncryptionPublicKey: ByteString,
-  measurementConsumerSigningKey: SigningKeyHandle,
-): List<DataProviderEntry> {
-  return dataProviderNameToInternalEventGroupEntriesList.map {
-    (dataProviderName, eventGroupEntriesList) ->
-    dataProviderEntry {
-      val requisitionSpec = requisitionSpec {
-        eventGroups += eventGroupEntriesList
-        this.measurementPublicKey = measurementEncryptionPublicKey
-        nonce = credential.secureRandom.nextLong()
-      }
-
-      val dataProvider =
-        serviceStubs.dataProvidersStub
-          .withAuthenticationKey(credential.apiAuthenticationKey)
-          .getDataProvider(getDataProviderRequest { name = dataProviderName })
-
-      key = dataProviderName
-      value = dataProviderEntryValue {
-        dataProviderCertificate = dataProvider.certificate
-        dataProviderPublicKey = dataProvider.publicKey
-        encryptedRequisitionSpec =
-          encryptRequisitionSpec(
-            signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
-            EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
-          )
-        nonceHash = hashSha256(requisitionSpec.nonce)
-      }
-    }
-  }
-}
-
-/** Gets a map of data provider resource name to a list of [EventGroupEntry]s. */
+/** Builds a map of data provider resource name to a list of [EventGroupEntry]s. */
 private suspend fun aggregateInternalEventGroupEntryByDataProviderName(
   internalReportingSetsStub: InternalReportingSetsCoroutineStub,
   reportingSetNames: List<String>,
