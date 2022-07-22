@@ -582,7 +582,7 @@ class ReportsService(
             }
           }
           details = internalReportDetails { this.eventGroupFilters.putAll(eventGroupFilters) }
-          this.reportIdempotencyKey = request.report.reportIdempotencyKey
+          this.reportIdempotencyKey = reportIdempotencyKey
         }
       }
 
@@ -619,15 +619,27 @@ class ReportsService(
         cumulative = metric.cumulative
       }
 
+      val firstStartTime = internalTimeIntervalsList.first().startTime
+      val internalCumulativeTimeIntervalsList =
+        internalTimeIntervalsList.map { internalTimeInterval ->
+          internalTimeInterval {
+            this.startTime = firstStartTime
+            endTime = internalTimeInterval.endTime
+          }
+        }
+
       coroutineScope {
         metric.setOperationsList.map { setOperation ->
           launch {
+            val timeIntervals =
+              if (metric.cumulative) internalCumulativeTimeIntervalsList
+              else internalTimeIntervalsList
             val internalNamedSetOperation =
               buildInternalNamedSetOperation(
                 setOperation,
                 measurementConsumerReferenceId,
                 reportIdempotencyKey,
-                internalTimeIntervalsList,
+                timeIntervals,
                 eventGroupFilters,
                 this@internalMetric.details,
               )
@@ -647,18 +659,6 @@ class ReportsService(
     eventGroupFilters: Map<String, String>,
     internalMetricDetails: InternalMetricDetails,
   ): InternalNamedSetOperation {
-
-    val internalReportTimeIntervalsList =
-      if (internalMetricDetails.cumulative) {
-        val startTime = internalTimeIntervalsList.first().startTime
-        internalTimeIntervalsList.map { internalTimeInterval ->
-          internalTimeInterval {
-            this.startTime = startTime
-            endTime = internalTimeInterval.endTime
-          }
-        }
-      } else internalTimeIntervalsList
-
     return internalNamedSetOperation {
       displayName = namedSetOperation.uniqueName
       setOperation =
@@ -675,7 +675,7 @@ class ReportsService(
           weightedMeasurementsList,
           measurementConsumerReferenceId,
           reportIdempotencyKey,
-          internalReportTimeIntervalsList,
+          internalTimeIntervalsList,
           eventGroupFilters,
           internalMetricDetails,
           namedSetOperation.uniqueName,
@@ -765,7 +765,6 @@ class ReportsService(
             buildInternalWeightedMeasurement(
               weightedMeasurement,
               measurementConsumerReferenceId,
-              reportIdempotencyKey,
               timeInterval,
               eventGroupFilters,
               internalMetricDetails,
@@ -780,7 +779,6 @@ class ReportsService(
   private suspend fun buildInternalWeightedMeasurement(
     weightedMeasurement: WeightedMeasurement,
     measurementConsumerReferenceId: String,
-    reportIdempotencyKey: String,
     internalTimeInterval: InternalTimeInterval,
     eventGroupFilters: Map<String, String>,
     internalMetricDetails: InternalMetricDetails,
