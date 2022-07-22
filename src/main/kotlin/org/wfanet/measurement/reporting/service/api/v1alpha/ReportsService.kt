@@ -829,7 +829,6 @@ class ReportsService(
 
       val createMeasurementRequest: CreateMeasurementRequest =
         buildCreateMeasurementRequest(
-          serviceStubs,
           credential,
           internalTimeInterval,
           eventGroupFilters,
@@ -839,7 +838,7 @@ class ReportsService(
         )
 
       measurementsStub
-        .withAuthenticationKey(credential.apiAuthenticationKey)
+        .withAuthenticationKey(apiAuthenticationKey)
         .createMeasurement(createMeasurementRequest)
 
       internalMeasurementsStub.createMeasurement(
@@ -856,6 +855,68 @@ class ReportsService(
       coefficient = weightedMeasurement.coefficient
     }
   }
+
+  /** Builds a [CreateMeasurementRequest]. */
+  private suspend fun buildCreateMeasurementRequest(
+    credential: Credential,
+    internalTimeInterval: InternalTimeInterval,
+    eventGroupFilters: Map<String, String>,
+    internalMetricDetails: InternalMetricDetails,
+    measurementReferenceId: String,
+    reportingSetNames: List<String>,
+  ): CreateMeasurementRequest {
+    val measurementConsumer =
+      measurementConsumersStub
+        .withAuthenticationKey(apiAuthenticationKey)
+        .getMeasurementConsumer(
+          getMeasurementConsumerRequest { name = credential.measurementConsumerResourceName }
+        )
+    val measurementConsumerCertificate = readCertificate(measurementConsumer.certificateDer)
+    val measurementConsumerSigningKey =
+      SigningKeyHandle(measurementConsumerCertificate, signingPrivateKey)
+    val measurementEncryptionPublicKey = measurementConsumer.publicKey.data
+
+    val measurementResourceName =
+      MeasurementKey(credential.measurementConsumerReferenceId, measurementReferenceId).toName()
+
+    val dataProviderNameToInternalEventGroupEntriesList =
+      aggregateInternalEventGroupEntryByDataProviderName(
+        internalReportingSetsStub,
+        reportingSetNames,
+        internalTimeInterval.toMeasurementTimeInterval(),
+        eventGroupFilters
+      )
+
+    val measurement = measurement {
+      name = measurementResourceName
+      this.measurementConsumerCertificate = measurementConsumer.certificate
+
+      dataProviders +=
+        buildDataProviderEntries(
+          serviceStubs,
+          credential,
+          dataProviderNameToInternalEventGroupEntriesList,
+          measurementEncryptionPublicKey,
+          measurementConsumerSigningKey,
+        )
+
+      val unsignedMeasurementSpec: MeasurementSpec =
+        buildUnsignedMeasurementSpec(
+          measurementEncryptionPublicKey,
+          dataProviders.map { it.value.nonceHash },
+          internalMetricDetails,
+          secureRandom,
+        )
+
+      this.measurementSpec =
+        signMeasurementSpec(unsignedMeasurementSpec, measurementConsumerSigningKey)
+
+      this.measurementReferenceId = measurementReferenceId
+    }
+
+    return createMeasurementRequest { this.measurement = measurement }
+  }
+
 }
 
 /** Check if the display names of the set operations within the same metric type are unique. */
@@ -923,68 +984,6 @@ private fun buildMeasurementReferenceId(
     }
 
   return "$reportIdempotencyKey-$rowHeader-$metricType-$setOperationDisplayName-measurement-$index"
-}
-
-/** Builds a [CreateMeasurementRequest]. */
-private suspend fun buildCreateMeasurementRequest(
-  serviceStubs: ServiceStubs,
-  credential: Credential,
-  internalTimeInterval: InternalTimeInterval,
-  eventGroupFilters: Map<String, String>,
-  internalMetricDetails: InternalMetricDetails,
-  measurementReferenceId: String,
-  reportingSetNames: List<String>,
-): CreateMeasurementRequest {
-  val measurementConsumer =
-    serviceStubs.measurementConsumersStub
-      .withAuthenticationKey(credential.apiAuthenticationKey)
-      .getMeasurementConsumer(
-        getMeasurementConsumerRequest { name = credential.measurementConsumerResourceName }
-      )
-  val measurementConsumerCertificate = readCertificate(measurementConsumer.certificateDer)
-  val measurementConsumerSigningKey =
-    SigningKeyHandle(measurementConsumerCertificate, credential.signingPrivateKey)
-  val measurementEncryptionPublicKey = measurementConsumer.publicKey.data
-
-  val measurementResourceName =
-    MeasurementKey(credential.measurementConsumerReferenceId, measurementReferenceId).toName()
-
-  val dataProviderNameToInternalEventGroupEntriesList =
-    aggregateInternalEventGroupEntryByDataProviderName(
-      serviceStubs.internalReportingSetsStub,
-      reportingSetNames,
-      internalTimeInterval.toMeasurementTimeInterval(),
-      eventGroupFilters
-    )
-
-  val measurement = measurement {
-    name = measurementResourceName
-    this.measurementConsumerCertificate = measurementConsumer.certificate
-
-    dataProviders +=
-      buildDataProviderEntries(
-        serviceStubs,
-        credential,
-        dataProviderNameToInternalEventGroupEntriesList,
-        measurementEncryptionPublicKey,
-        measurementConsumerSigningKey,
-      )
-
-    val unsignedMeasurementSpec: MeasurementSpec =
-      buildUnsignedMeasurementSpec(
-        measurementEncryptionPublicKey,
-        dataProviders.map { it.value.nonceHash },
-        internalMetricDetails,
-        credential.secureRandom,
-      )
-
-    this.measurementSpec =
-      signMeasurementSpec(unsignedMeasurementSpec, measurementConsumerSigningKey)
-
-    this.measurementReferenceId = measurementReferenceId
-  }
-
-  return createMeasurementRequest { this.measurement = measurement }
 }
 
 /** Builds a list of [DataProviderEntry]s. */
