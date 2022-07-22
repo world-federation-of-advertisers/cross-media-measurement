@@ -667,10 +667,9 @@ class ReportsService(
         metric.setOperationsList.map { setOperation ->
           launch {
             val internalNamedSetOperation =
-              setOperation.toInternal(
-                serviceStubs,
+              buildInternalNamedSetOperation(
+                setOperation,
                 credential,
-                setOperationCompiler,
                 internalTimeIntervalsList,
                 eventGroupFilters,
                 this@internalMetric.details,
@@ -679,6 +678,46 @@ class ReportsService(
           }
         }
       }
+    }
+  }
+
+  /** Builds an [InternalNamedSetOperation] from a public [NamedSetOperation]. */
+  private suspend fun buildInternalNamedSetOperation(
+    namedSetOperation: NamedSetOperation,
+    credential: Credential,
+    internalTimeIntervalsList: List<InternalTimeInterval>,
+    eventGroupFilters: Map<String, String>,
+    internalMetricDetails: InternalMetricDetails,
+  ): InternalNamedSetOperation {
+
+    val internalReportTimeIntervalsList =
+      if (internalMetricDetails.cumulative) {
+        val startTime = internalTimeIntervalsList.first().startTime
+        internalTimeIntervalsList.map { internalTimeInterval ->
+          internalTimeInterval {
+            this.startTime = startTime
+            endTime = internalTimeInterval.endTime
+          }
+        }
+      } else internalTimeIntervalsList
+
+    return internalNamedSetOperation {
+      displayName = namedSetOperation.displayName
+      setOperation =
+        namedSetOperation.setOperation.toInternal(serviceStubs, credential, eventGroupFilters)
+
+      val weightedMeasurementsList = setOperationCompiler.compileSetOperation(namedSetOperation)
+
+      this.measurementCalculations +=
+        buildMeasurementCalculationList(
+          serviceStubs,
+          credential,
+          weightedMeasurementsList,
+          internalReportTimeIntervalsList,
+          eventGroupFilters,
+          internalMetricDetails,
+          displayName,
+        )
     }
   }
 }
@@ -723,47 +762,6 @@ private fun InternalTimeInterval.toMeasurementTimeInterval(): MeasurementTimeInt
   return measurementTimeInterval {
     startTime = source.startTime
     endTime = source.endTime
-  }
-}
-
-/** Converts a public [NamedSetOperation] to an [InternalNamedSetOperation]. */
-private suspend fun NamedSetOperation.toInternal(
-  serviceStubs: ServiceStubs,
-  credential: Credential,
-  setOperationCompiler: SetOperationCompiler,
-  internalTimeIntervalsList: List<InternalTimeInterval>,
-  eventGroupFilters: Map<String, String>,
-  internalMetricDetails: InternalMetricDetails,
-): InternalNamedSetOperation {
-  val source = this
-
-  val internalReportTimeIntervalsList =
-    if (internalMetricDetails.cumulative) {
-      val startTime = internalTimeIntervalsList.first().startTime
-      internalTimeIntervalsList.map { internalTimeInterval ->
-        internalTimeInterval {
-          this.startTime = startTime
-          endTime = internalTimeInterval.endTime
-        }
-      }
-    } else internalTimeIntervalsList
-
-  return internalNamedSetOperation {
-    displayName = source.displayName
-    setOperation = source.setOperation.toInternal(serviceStubs, credential, eventGroupFilters)
-
-    val weightedMeasurementsList = setOperationCompiler.compileSetOperation(source)
-
-    this.measurementCalculations +=
-      buildMeasurementCalculationList(
-        serviceStubs,
-        credential,
-        weightedMeasurementsList,
-        internalReportTimeIntervalsList,
-        eventGroupFilters,
-        internalMetricDetails,
-        displayName,
-      )
   }
 }
 
