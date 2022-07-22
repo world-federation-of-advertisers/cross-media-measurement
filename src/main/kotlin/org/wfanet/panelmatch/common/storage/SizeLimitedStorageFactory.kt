@@ -14,6 +14,7 @@
 
 package org.wfanet.panelmatch.common.storage
 
+import org.apache.beam.sdk.options.PipelineOptions
 import org.wfanet.measurement.storage.StorageClient
 
 /** [StorageFactory] for [SizeLimitedStorageClient]. */
@@ -23,6 +24,10 @@ private class SizeLimitedStorageFactory(
 ) : StorageFactory {
   override fun build(): StorageClient {
     return SizeLimitedStorageClient(sizeLimitBytes, delegate.build())
+  }
+
+  override fun build(options: PipelineOptions?): StorageClient {
+    return SizeLimitedStorageClient(sizeLimitBytes, delegate.build(options))
   }
 }
 

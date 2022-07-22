@@ -12,16 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.panelmatch.common.storage
+package org.wfanet.panelmatch.common.beam
 
-import java.io.Serializable
-import org.apache.beam.sdk.options.PipelineOptions
-import org.wfanet.measurement.storage.StorageClient
+import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions
+import org.apache.beam.sdk.options.SdkHarnessOptions
 
-fun interface StorageFactory : Serializable {
-  fun build(): StorageClient
-
-  fun build(options: PipelineOptions?): StorageClient {
-    return build()
-  }
+interface BeamOptions : DataflowPipelineOptions, SdkHarnessOptions {
+  var awsAccessKey: String
+  var awsSecretAccessKey: String
+  var awsSessionToken: String
 }

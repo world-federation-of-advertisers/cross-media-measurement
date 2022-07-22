@@ -17,6 +17,8 @@ package org.wfanet.panelmatch.client.exchangetasks
 import com.google.protobuf.ByteString
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import org.apache.beam.sdk.transforms.DoFn
+import org.apache.beam.sdk.transforms.ParDo
 import org.apache.beam.sdk.values.PCollection
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions
 import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow.Step.CopyOptions.LabelType.MANIFEST
@@ -26,7 +28,6 @@ import org.wfanet.panelmatch.client.storage.SigningStorageClient
 import org.wfanet.panelmatch.common.ShardedFileName
 import org.wfanet.panelmatch.common.beam.breakFusion
 import org.wfanet.panelmatch.common.beam.flatMap
-import org.wfanet.panelmatch.common.beam.map
 import org.wfanet.panelmatch.common.storage.StorageFactory
 
 /** Implementation of CopyToSharedStorageStep for manifest blobs. */
@@ -41,21 +42,45 @@ fun ApacheBeamContext.copyToSharedStorage(
 
   val manifestBytes: PCollection<ByteString> = readBlobAsPCollection(sourceManifestLabel)
 
-  manifestBytes.map("Write Destination Manifest") { manifest ->
-    runBlocking(Dispatchers.IO) { destination.writeBlob(destinationManifestBlobKey, manifest) }
-    manifest
-  }
-
   manifestBytes
+    .apply(
+      "Copy Manifest Bytes",
+      ParDo.of(CopyManifestToSharedDoFn(destination, destinationManifestBlobKey))
+    )
     .flatMap("Generate Shard Names") { ShardedFileName(it.toStringUtf8()).fileNames.asIterable() }
     .breakFusion("Break Fusion Before Copy")
-    .map("Copy Shards To Shared Storage") { shardName ->
-      runBlocking(Dispatchers.IO) {
-        val source: StorageClient = sourceFactory.build()
-        val sourceBlob: Blob =
-          requireNotNull(source.getBlob(shardName)) { "Missing blob with key $shardName" }
-        destination.writeBlob(shardName, sourceBlob.read())
-      }
-      shardName
+    .apply("Copy Shards To Shared Storage", ParDo.of(ReadFilesDoFn(sourceFactory, destination)))
+}
+
+private class CopyManifestToSharedDoFn(
+  private val destination: SigningStorageClient,
+  private val destinationManifestBlobKey: String,
+) : DoFn<ByteString, ByteString>() {
+
+  @DoFn.ProcessElement
+  fun processElement(@Element manifest: ByteString, context: ProcessContext) {
+    val pipelineOptions = context.getPipelineOptions()
+    runBlocking(Dispatchers.IO) {
+      destination.writeBlob(destinationManifestBlobKey, manifest, pipelineOptions)
     }
+    context.output(manifest)
+  }
+}
+
+private class ReadFilesDoFn(
+  private val sourceFactory: StorageFactory,
+  private val destination: SigningStorageClient,
+) : DoFn<String, String>() {
+
+  @DoFn.ProcessElement
+  fun processElement(@Element shardName: String, context: ProcessContext) {
+    val pipelineOptions = context.getPipelineOptions()
+    runBlocking(Dispatchers.IO) {
+      val source: StorageClient = sourceFactory.build(pipelineOptions)
+      val sourceBlob: Blob =
+        requireNotNull(source.getBlob(shardName)) { "Missing blob with key $shardName" }
+      destination.writeBlob(shardName, sourceBlob.read(), pipelineOptions)
+    }
+    context.output(shardName)
+  }
 }

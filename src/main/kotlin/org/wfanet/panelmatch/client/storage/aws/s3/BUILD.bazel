@@ -6,6 +6,7 @@ kt_jvm_library(
     name = "s3",
     srcs = glob(["*.kt"]),
     deps = [
+        "//imports/java/software/amazon/awssdk/auth",
         "//imports/java/software/amazon/awssdk/sts",
         "//imports/java/software/amazon/awssdk/utils",
         "//src/main/kotlin/org/wfanet/panelmatch/client/common",

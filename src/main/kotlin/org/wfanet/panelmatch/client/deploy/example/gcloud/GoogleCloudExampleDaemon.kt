@@ -18,7 +18,6 @@ import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import java.util.Optional
 import kotlin.properties.Delegates
 import org.apache.beam.runners.dataflow.DataflowRunner
-import org.apache.beam.runners.dataflow.options.DataflowPipelineOptions
 import org.apache.beam.runners.dataflow.options.DataflowWorkerLoggingOptions
 import org.apache.beam.sdk.options.PipelineOptions
 import org.apache.beam.sdk.options.PipelineOptionsFactory
@@ -32,6 +31,7 @@ import org.wfanet.panelmatch.client.deploy.CertificateAuthorityFlags
 import org.wfanet.panelmatch.client.deploy.DaemonStorageClientDefaults
 import org.wfanet.panelmatch.client.deploy.example.ExampleDaemon
 import org.wfanet.panelmatch.client.storage.StorageDetailsProvider
+import org.wfanet.panelmatch.common.beam.BeamOptions
 import org.wfanet.panelmatch.common.certificates.gcloud.CertificateAuthority
 import org.wfanet.panelmatch.common.certificates.gcloud.PrivateCaClient
 import org.wfanet.panelmatch.common.secrets.MutableSecretMap
@@ -39,6 +39,8 @@ import org.wfanet.panelmatch.common.secrets.SecretMap
 import picocli.CommandLine.Command
 import picocli.CommandLine.Mixin
 import picocli.CommandLine.Option
+import software.amazon.awssdk.auth.credentials.AwsSessionCredentials
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider
 
 private class PrivateCaFlags {
   @Option(
@@ -139,20 +141,41 @@ private class GoogleCloudExampleDaemon : ExampleDaemon() {
   )
   private var dataflowMaxNumWorkers by Delegates.notNull<Int>()
 
-  interface Options : DataflowPipelineOptions, SdkHarnessOptions
+  @set:Option(
+    names = ["--s3-from-beam"],
+    description = ["Whether to configure s3 access from Apache Beam."],
+    defaultValue = "false"
+  )
+  private var s3FromBeam by Delegates.notNull<Boolean>()
 
   override fun makePipelineOptions(): PipelineOptions {
-    return PipelineOptionsFactory.`as`(Options::class.java).apply {
-      runner = DataflowRunner::class.java
-      project = dataflowProjectId
-      region = dataflowRegion
-      tempLocation = dataflowTempLocation
-      serviceAccount = dataflowServiceAccount
-      workerMachineType = dataflowWorkerMachineType
-      maxNumWorkers = dataflowMaxNumWorkers
-      diskSizeGb = dataflowDiskSize
-      defaultWorkerLogLevel = DataflowWorkerLoggingOptions.Level.DEBUG
-      defaultSdkHarnessLogLevel = SdkHarnessOptions.LogLevel.DEBUG
+    val baseOptions =
+      PipelineOptionsFactory.`as`(BeamOptions::class.java).apply {
+        runner = DataflowRunner::class.java
+        project = dataflowProjectId
+        region = dataflowRegion
+        tempLocation = dataflowTempLocation
+        serviceAccount = dataflowServiceAccount
+        workerMachineType = dataflowWorkerMachineType
+        maxNumWorkers = dataflowMaxNumWorkers
+        diskSizeGb = dataflowDiskSize
+        defaultWorkerLogLevel = DataflowWorkerLoggingOptions.Level.DEBUG
+        defaultSdkHarnessLogLevel = SdkHarnessOptions.LogLevel.DEBUG
+      }
+    return if (!s3FromBeam) {
+      baseOptions
+    } else {
+      // aws-sdk-java-v2 casts responses to AwsSessionCredentials if its assumed you need a
+      // sessionToken
+      val awsCredentials =
+        DefaultCredentialsProvider.create().resolveCredentials() as AwsSessionCredentials
+      // TODO: Encrypt using KMS or store in Secrets
+      // Think about moving this logic to a CredentialsProvider
+      baseOptions.apply {
+        awsAccessKey = awsCredentials.accessKeyId()
+        awsSecretAccessKey = awsCredentials.secretAccessKey()
+        awsSessionToken = awsCredentials.sessionToken()
+      }
     }
   }
 

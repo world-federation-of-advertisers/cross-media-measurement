@@ -20,6 +20,7 @@ import java.security.PrivateKey
 import java.security.cert.X509Certificate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import org.apache.beam.sdk.options.PipelineOptions
 import org.wfanet.measurement.common.crypto.createSignedBlob
 import org.wfanet.measurement.common.crypto.newSigner
 import org.wfanet.measurement.storage.StorageClient
@@ -41,8 +42,12 @@ class SigningStorageClient(
    * Writes [content] to shared storage using the given [blobKey]. Also writes a serialized
    * [NamedSignature] for the blob.
    */
-  suspend fun writeBlob(blobKey: String, content: Flow<ByteString>) {
-    val sharedStorage: StorageClient = sharedStorageFactory.build()
+  suspend fun writeBlob(
+    blobKey: String,
+    content: Flow<ByteString>,
+    pipelineOptions: PipelineOptions? = null
+  ) {
+    val sharedStorage: StorageClient = sharedStorageFactory.build(pipelineOptions)
 
     // Since StorageClient has no concept of "overwriting" a blob, we first delete existing blobs.
     // This is to ensure that transient failures after some blobs are written do not cause problems
@@ -55,5 +60,9 @@ class SigningStorageClient(
     sharedStorage.writeBlob(signatureBlobKeyFor(blobKey), signature.toByteString())
   }
 
-  suspend fun writeBlob(blobKey: String, content: ByteString) = writeBlob(blobKey, flowOf(content))
+  suspend fun writeBlob(
+    blobKey: String,
+    content: ByteString,
+    pipelineOptions: PipelineOptions? = null
+  ) = writeBlob(blobKey, flowOf(content), pipelineOptions)
 }
