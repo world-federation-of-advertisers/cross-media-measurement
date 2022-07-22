@@ -540,7 +540,7 @@ class ReportsService(
         if (e.status.code != Status.Code.NOT_FOUND) {
           throw Exception(
             "Unable to retrieve a report from the reporting database using the provided " +
-              "reportIdempotencyKey [${reportIdempotencyKey}]."
+              "reportIdempotencyKey [$reportIdempotencyKey]."
           )
         }
 
@@ -788,7 +788,8 @@ class ReportsService(
     } catch (e: StatusException) {
       if (e.status.code != Status.Code.NOT_FOUND) {
         throw Exception(
-          "Unable to retrieve the measurement [$measurementReferenceId] from the reporting database."
+          "Unable to retrieve the measurement [$measurementReferenceId] from the reporting " +
+            "database."
         )
       }
 
