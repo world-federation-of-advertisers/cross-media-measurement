@@ -20,6 +20,7 @@ package k8s
 	_resource_setup_secret_name: string
 	_job_image:                  string
 	_job_image_pull_policy:      string | *"Always"
+	_resourceConfig:             #ResourceConfig
 	_tls_cert_key_files_flags: [
 		"--tls-cert-file=/var/run/secrets/files/mc_tls.pem",
 		"--tls-key-file=/var/run/secrets/files/mc_tls.key",
@@ -50,6 +51,8 @@ package k8s
 		_secretName:      _resource_setup_secret_name
 		_image:           _job_image
 		_imagePullPolicy: _job_image_pull_policy
+		_resources:       _resourceConfig.resources
+		_jvmHeapSize:     _resourceConfig.jvmHeapSize
 		_args:
 			_tls_cert_key_files_flags +
 			_kingdom_internal_api_flags +
