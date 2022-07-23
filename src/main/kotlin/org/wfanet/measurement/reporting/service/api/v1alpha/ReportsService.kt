@@ -779,8 +779,8 @@ class ReportsService(
   }
 
   /**
-   * Builds a list of [MeasurementCalculation]s from a list of public [WeightedMeasurement]s and a
-   * list of [InternalTimeInterval]s.
+   * Builds a list of [MeasurementCalculation]s from a list of [WeightedMeasurement]s and a list of
+   * [InternalTimeInterval]s.
    */
   private suspend fun buildMeasurementCalculationList(
     weightedMeasurementsList: List<WeightedMeasurement>,
@@ -814,7 +814,7 @@ class ReportsService(
     }
   }
 
-  /** Builds an [InternalWeightedMeasurement] from a public [WeightedMeasurement]. */
+  /** Builds an [InternalWeightedMeasurement] from a [WeightedMeasurement]. */
   private suspend fun buildInternalWeightedMeasurement(
     weightedMeasurement: WeightedMeasurement,
     reportDetails: ReportDetails,
