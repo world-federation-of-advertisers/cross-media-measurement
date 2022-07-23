@@ -1,0 +1,43 @@
+// Copyright 2022 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.reporting;
+
+option java_package = "org.wfanet.measurement.internal.reporting";
+option java_multiple_files = true;
+
+enum ErrorCode {
+  UNKNOWN_ERROR = 0;
+
+  /** Reporting Set with the same IDs already exists. */
+  REPORTING_SET_ALREADY_EXISTS = 1;
+
+  /** Measurement with the same reference IDs already exists. */
+  MEASUREMENT_ALREADY_EXISTS = 2;
+
+  /** Measurement with the provided reference IDs does not exist. */
+  MEASUREMENT_NOT_FOUND = 3;
+
+  /** Reporting Set with the provided IDs does not exist. */
+  REPORTING_SET_NOT_FOUND = 4;
+
+  /** Measurement Calculation Time Interval not found in Report Time
+      Intervals. */
+  MEASUREMENT_CALCULATION_TIME_INTERVAL_NOT_FOUND = 5;
+
+  /** Report with the provided IDs does not exist. */
+  REPORT_NOT_FOUND = 6;
+}

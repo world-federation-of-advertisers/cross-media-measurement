@@ -1,9 +1,10 @@
 # Configuration for running Bazel in a container using the
-# docker.io/wfameasurement/bazel image.
+# gcr.io/ads-open-measurement/bazel image.
 
 # Toolchain configuration.
-build:container --host_javabase=//third_party/rbe_configs/java:jdk
-build:container --javabase=//third_party/rbe_configs/java:jdk
+build:container --java_runtime_version=rbe_jdk
+build:container --tool_java_runtime_version=rbe_jdk
+build:container --extra_toolchains=//third_party/rbe_configs/java:all
 build:container --crosstool_top=//third_party/rbe_configs/cc:toolchain
 build:container --action_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
 build:container --extra_toolchains=//third_party/rbe_configs/config:cc-toolchain

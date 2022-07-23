@@ -74,8 +74,8 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.crypto.tink.TinkPublicKeyHandle
-import org.wfanet.measurement.common.crypto.tink.testing.loadPrivateKey
-import org.wfanet.measurement.common.crypto.tink.testing.loadPublicKey
+import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
+import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -198,7 +198,8 @@ class EdpSimulatorTest {
     val expectedResult: AnySketch = SketchProtos.toAnySketch(SKETCH_CONFIG)
 
     matchingVids.forEach {
-      if (vidSampler.vidIsInSamplingBucket(
+      if (
+        vidSampler.vidIsInSamplingBucket(
           it.toLong(),
           vidSamplingIntervalStart,
           vidSamplingIntervalWidth
@@ -347,9 +348,9 @@ class EdpSimulatorTest {
         backingStore.getBalancesMap()
 
       // All the Buckets are only charged once, so all entries should have a repetition count of 1.
-      balanceLedger.values.flatMap { it.values }.forEach {
-        assertThat(it.repetitionCount).isEqualTo(1)
-      }
+      balanceLedger.values
+        .flatMap { it.values }
+        .forEach { assertThat(it.repetitionCount).isEqualTo(1) }
 
       // The list of all the charged privacy bucket groups should be correct based on the filter.
       assertThat(balanceLedger.keys)

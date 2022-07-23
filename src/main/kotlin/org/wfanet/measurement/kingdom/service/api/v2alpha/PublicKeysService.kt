@@ -24,9 +24,9 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPublicKeyKey
 import org.wfanet.measurement.api.v2alpha.PublicKey
 import org.wfanet.measurement.api.v2alpha.PublicKeysGrpcKt.PublicKeysCoroutineImplBase
-import org.wfanet.measurement.api.v2alpha.ResourceKey
 import org.wfanet.measurement.api.v2alpha.UpdatePublicKeyRequest
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
+import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -54,7 +54,8 @@ class PublicKeysService(private val internalPublicKeysStub: PublicKeysCoroutineS
       is DataProviderKey -> {
         when (publicKeyKey) {
           is DataProviderPublicKeyKey -> {
-            if (apiIdToExternalId(resourceKey.dataProviderId) !=
+            if (
+              apiIdToExternalId(resourceKey.dataProviderId) !=
                 apiIdToExternalId(publicKeyKey.dataProviderId)
             ) {
               failGrpc(Status.PERMISSION_DENIED) {
@@ -70,7 +71,8 @@ class PublicKeysService(private val internalPublicKeysStub: PublicKeysCoroutineS
       is MeasurementConsumerKey -> {
         when (publicKeyKey) {
           is MeasurementConsumerPublicKeyKey -> {
-            if (apiIdToExternalId(resourceKey.measurementConsumerId) !=
+            if (
+              apiIdToExternalId(resourceKey.measurementConsumerId) !=
                 apiIdToExternalId(publicKeyKey.measurementConsumerId)
             ) {
               failGrpc(Status.PERMISSION_DENIED) {

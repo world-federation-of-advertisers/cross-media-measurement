@@ -243,8 +243,7 @@ class RequisitionFulfillmentServiceTest {
     val e =
       assertFailsWith(StatusRuntimeException::class) {
         service.fulfillRequisition(
-          HEADER
-            .copy {
+          HEADER.copy {
               nonce = 404L // Mismatching nonce value.
             }
             .withContent(TEST_REQUISITION_DATA)

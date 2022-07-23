@@ -58,3 +58,23 @@ message ListRequisitionsPageToken {
   PreviousPageEnd last_requisition = 6;
   repeated Measurement.State measurement_states = 7;
 }
+
+message ListReportingSetsPageToken {
+  int32 page_size = 1;
+  string measurement_consumer_reference_id = 2;
+  message PreviousPageEnd {
+    string measurement_consumer_reference_id = 1;
+    fixed64 external_reporting_set_id = 2;
+  }
+  PreviousPageEnd last_reporting_set = 3;
+}
+
+message ListReportsPageToken {
+  int32 page_size = 1;
+  string measurement_consumer_reference_id = 2;
+  message PreviousPageEnd {
+    string measurement_consumer_reference_id = 1;
+    fixed64 external_report_id = 2;
+  }
+  PreviousPageEnd last_report = 3;
+}

@@ -30,7 +30,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.ModelProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.ReleaseCertificateHoldRequest
-import org.wfanet.measurement.api.v2alpha.ResourceKey
 import org.wfanet.measurement.api.v2alpha.RevokeCertificateRequest
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.makeDataProviderCertificateName
@@ -38,6 +37,7 @@ import org.wfanet.measurement.api.v2alpha.makeDuchyCertificateName
 import org.wfanet.measurement.api.v2alpha.makeMeasurementConsumerCertificateName
 import org.wfanet.measurement.api.v2alpha.makeModelProviderCertificateName
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
+import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -90,7 +90,8 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
           when (val resourceKey = principal.resourceKey) {
             is DataProviderKey -> {}
             is MeasurementConsumerKey -> {
-              if (apiIdToExternalId(resourceKey.measurementConsumerId) !=
+              if (
+                apiIdToExternalId(resourceKey.measurementConsumerId) !=
                   externalMeasurementConsumerId
               ) {
                 failGrpc(Status.PERMISSION_DENIED) {
@@ -165,7 +166,8 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
 
           when (val resourceKey = principal.resourceKey) {
             is MeasurementConsumerKey -> {
-              if (apiIdToExternalId(resourceKey.measurementConsumerId) !=
+              if (
+                apiIdToExternalId(resourceKey.measurementConsumerId) !=
                   externalMeasurementConsumerId
               ) {
                 failGrpc(Status.PERMISSION_DENIED) {
@@ -259,7 +261,8 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
 
           when (val resourceKey = principal.resourceKey) {
             is MeasurementConsumerKey -> {
-              if (apiIdToExternalId(resourceKey.measurementConsumerId) !=
+              if (
+                apiIdToExternalId(resourceKey.measurementConsumerId) !=
                   externalMeasurementConsumerId
               ) {
                 failGrpc(Status.PERMISSION_DENIED) {
@@ -351,7 +354,8 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
 
           when (val resourceKey = principal.resourceKey) {
             is MeasurementConsumerKey -> {
-              if (apiIdToExternalId(resourceKey.measurementConsumerId) !=
+              if (
+                apiIdToExternalId(resourceKey.measurementConsumerId) !=
                   externalMeasurementConsumerId
               ) {
                 failGrpc(Status.PERMISSION_DENIED) {
@@ -430,7 +434,8 @@ private fun InternalRevocationState.toRevocationState(): RevocationState =
   when (this) {
     InternalRevocationState.REVOKED -> RevocationState.REVOKED
     InternalRevocationState.HOLD -> RevocationState.HOLD
-    InternalRevocationState.UNRECOGNIZED, InternalRevocationState.REVOCATION_STATE_UNSPECIFIED ->
+    InternalRevocationState.UNRECOGNIZED,
+    InternalRevocationState.REVOCATION_STATE_UNSPECIFIED ->
       RevocationState.REVOCATION_STATE_UNSPECIFIED
   }
 
@@ -439,7 +444,8 @@ private fun RevocationState.toInternal(): InternalRevocationState =
   when (this) {
     RevocationState.REVOKED -> InternalRevocationState.REVOKED
     RevocationState.HOLD -> InternalRevocationState.HOLD
-    RevocationState.UNRECOGNIZED, RevocationState.REVOCATION_STATE_UNSPECIFIED ->
+    RevocationState.UNRECOGNIZED,
+    RevocationState.REVOCATION_STATE_UNSPECIFIED ->
       InternalRevocationState.REVOCATION_STATE_UNSPECIFIED
   }
 

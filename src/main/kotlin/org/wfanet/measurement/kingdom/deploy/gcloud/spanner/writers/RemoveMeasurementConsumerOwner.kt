@@ -46,7 +46,8 @@ class RemoveMeasurementConsumerOwner(
     val measurementConsumerResult = readMeasurementConsumerResult(externalMeasurementConsumerId)
     val accountId = readAccountId(externalAccountId)
 
-    if (MeasurementConsumerOwnerReader()
+    if (
+      MeasurementConsumerOwnerReader()
         .checkOwnershipExist(
           transactionContext,
           internalAccountId = accountId,
