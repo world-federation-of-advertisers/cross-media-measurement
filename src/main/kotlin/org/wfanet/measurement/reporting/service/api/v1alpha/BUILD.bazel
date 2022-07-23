@@ -78,3 +78,12 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
     ],
 )
+
+kt_jvm_library(
+    name = "set_operation_compiler",
+    srcs = ["SetOperationCompiler.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/reporting/v1alpha:report_kt_jvm_proto",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
