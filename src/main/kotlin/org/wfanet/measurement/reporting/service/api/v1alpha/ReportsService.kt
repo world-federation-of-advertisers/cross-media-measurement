@@ -258,7 +258,7 @@ class ReportsService(
 ) : ReportsCoroutineImplBase() {
   private val setOperationCompiler = SetOperationCompiler()
 
-  private data class ReportDetails(
+  private data class ReportInfo(
     val measurementConsumerReferenceId: String,
     val reportIdempotencyKey: String,
     val eventGroupFilters: Map<String, String>,
@@ -570,6 +570,7 @@ class ReportsService(
     measurementResultPair: Measurement.ResultPair,
     encryptionPrivateKeyHandle: PrivateKeyHandle
   ): Measurement.Result {
+    // TODO: Cache the certificate
     val certificate =
       certificateStub
         .withAuthenticationKey(apiAuthenticationKey)
@@ -607,35 +608,32 @@ class ReportsService(
       this.measurementConsumerReferenceId = measurementConsumerReferenceId
 
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-      val timeIntervalsList: List<TimeInterval> =
-        when (request.report.timeCase) {
-          Report.TimeCase.TIME_INTERVALS -> {
-            this.timeIntervals = request.report.timeIntervals.toInternal()
-            request.report.timeIntervals.timeIntervalsList.map { it }
-          }
-          Report.TimeCase.PERIODIC_TIME_INTERVAL -> {
-            this.periodicTimeInterval = request.report.periodicTimeInterval.toInternal()
-            request.report.periodicTimeInterval.toTimeIntervalsList()
-          }
-          Report.TimeCase.TIME_NOT_SET ->
-            failGrpc(Status.INVALID_ARGUMENT) { "The time in Report is not specified." }
+      when (request.report.timeCase) {
+        Report.TimeCase.TIME_INTERVALS -> {
+          this.timeIntervals = request.report.timeIntervals.toInternal()
         }
+        Report.TimeCase.PERIODIC_TIME_INTERVAL -> {
+          this.periodicTimeInterval = request.report.periodicTimeInterval.toInternal()
+        }
+        Report.TimeCase.TIME_NOT_SET ->
+          failGrpc(Status.INVALID_ARGUMENT) { "The time in Report is not specified." }
+      }
 
       coroutineScope {
         for (metric in request.report.metricsList) {
-          val reportDetails =
-            ReportDetails(
+          val reportInfo =
+            ReportInfo(
               measurementConsumerReferenceId,
               reportIdempotencyKey,
               eventGroupFilters,
-              timeIntervalsList
+              request.report.timeIntervalsList()
             )
 
           launch {
             this@internalReport.metrics +=
               buildInternalMetric(
                 metric,
-                reportDetails,
+                reportInfo,
               )
           }
         }
@@ -656,7 +654,7 @@ class ReportsService(
   /** Builds an [InternalMetric] from a public [Metric]. */
   private suspend fun buildInternalMetric(
     metric: Metric,
-    reportDetails: ReportDetails,
+    reportInfo: ReportInfo,
   ): InternalMetric {
     return internalMetric {
       details = internalMetricDetails {
@@ -674,7 +672,7 @@ class ReportsService(
         cumulative = metric.cumulative
       }
 
-      val timeIntervalsList = reportDetails.timeIntervalsList
+      val timeIntervalsList = reportInfo.timeIntervalsList
       val cumulativeTimeIntervalsList =
         timeIntervalsList.map { timeInterval ->
           timeInterval.copy { this.startTime = timeIntervalsList.first().startTime }
@@ -683,13 +681,13 @@ class ReportsService(
       coroutineScope {
         metric.setOperationsList.map { setOperation ->
           launch {
-            reportDetails.timeIntervalsList =
+            reportInfo.timeIntervalsList =
               if (metric.cumulative) cumulativeTimeIntervalsList else timeIntervalsList
 
             val internalNamedSetOperation =
               buildInternalNamedSetOperation(
                 setOperation,
-                reportDetails,
+                reportInfo,
                 this@internalMetric.details,
               )
             namedSetOperations += internalNamedSetOperation
@@ -702,7 +700,7 @@ class ReportsService(
   /** Builds an [InternalNamedSetOperation] from a public [NamedSetOperation]. */
   private suspend fun buildInternalNamedSetOperation(
     namedSetOperation: NamedSetOperation,
-    reportDetails: ReportDetails,
+    reportInfo: ReportInfo,
     internalMetricDetails: InternalMetricDetails,
   ): InternalNamedSetOperation {
     return internalNamedSetOperation {
@@ -710,8 +708,8 @@ class ReportsService(
       setOperation =
         buildInternalSetOperation(
           namedSetOperation.setOperation,
-          reportDetails.measurementConsumerReferenceId,
-          reportDetails.eventGroupFilters
+          reportInfo.measurementConsumerReferenceId,
+          reportInfo.eventGroupFilters
         )
 
       val weightedMeasurementsList = setOperationCompiler.compileSetOperation(namedSetOperation)
@@ -719,7 +717,7 @@ class ReportsService(
       this.measurementCalculations +=
         buildMeasurementCalculationList(
           weightedMeasurementsList,
-          reportDetails,
+          reportInfo,
           internalMetricDetails,
           namedSetOperation.uniqueName,
         )
@@ -784,18 +782,18 @@ class ReportsService(
    */
   private suspend fun buildMeasurementCalculationList(
     weightedMeasurementsList: List<WeightedMeasurement>,
-    reportDetails: ReportDetails,
+    reportInfo: ReportInfo,
     internalMetricDetails: InternalMetricDetails,
     setOperationUniqueName: String,
   ): List<MeasurementCalculation> {
-    return reportDetails.timeIntervalsList.map { timeInterval ->
+    return reportInfo.timeIntervalsList.map { timeInterval ->
       internalMeasurementCalculation {
         this.timeInterval = timeInterval.toInternal()
         weightedMeasurements +=
           weightedMeasurementsList.mapIndexed { index, weightedMeasurement ->
             val measurementReferenceId =
               buildMeasurementReferenceId(
-                reportDetails.reportIdempotencyKey,
+                reportInfo.reportIdempotencyKey,
                 timeInterval,
                 internalMetricDetails,
                 setOperationUniqueName,
@@ -804,7 +802,7 @@ class ReportsService(
 
             buildInternalWeightedMeasurement(
               weightedMeasurement,
-              reportDetails,
+              reportInfo,
               timeInterval,
               internalMetricDetails,
               measurementReferenceId
@@ -817,7 +815,7 @@ class ReportsService(
   /** Builds an [InternalWeightedMeasurement] from a [WeightedMeasurement]. */
   private suspend fun buildInternalWeightedMeasurement(
     weightedMeasurement: WeightedMeasurement,
-    reportDetails: ReportDetails,
+    reportInfo: ReportInfo,
     timeInterval: TimeInterval,
     internalMetricDetails: InternalMetricDetails,
     measurementReferenceId: String,
@@ -825,7 +823,7 @@ class ReportsService(
     try {
       internalMeasurementsStub.getMeasurement(
         getInternalMeasurementRequest {
-          this.measurementConsumerReferenceId = reportDetails.measurementConsumerReferenceId
+          this.measurementConsumerReferenceId = reportInfo.measurementConsumerReferenceId
           this.measurementReferenceId = measurementReferenceId
         }
       )
@@ -842,12 +840,12 @@ class ReportsService(
         aggregateInternalEventGroupEntryByDataProviderName(
           weightedMeasurement.reportingSets,
           timeInterval.toMeasurementTimeInterval(),
-          reportDetails.eventGroupFilters
+          reportInfo.eventGroupFilters
         )
 
       val createMeasurementRequest: CreateMeasurementRequest =
         buildCreateMeasurementRequest(
-          reportDetails.measurementConsumerReferenceId,
+          reportInfo.measurementConsumerReferenceId,
           dataProviderNameToInternalEventGroupEntriesList,
           internalMetricDetails,
           measurementReferenceId,
@@ -859,7 +857,7 @@ class ReportsService(
 
       internalMeasurementsStub.createMeasurement(
         internalMeasurement {
-          this.measurementConsumerReferenceId = reportDetails.measurementConsumerReferenceId
+          this.measurementConsumerReferenceId = reportInfo.measurementConsumerReferenceId
           this.measurementReferenceId = measurementReferenceId
           state = InternalMeasurement.State.PENDING
         }
@@ -1022,6 +1020,22 @@ class ReportsService(
         }
       }
     }
+  }
+}
+
+/** Converts the time in [Report] to a list of [TimeInterval]. */
+private fun Report.timeIntervalsList(): List<TimeInterval> {
+  val source = this
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+  return when (source.timeCase) {
+    Report.TimeCase.TIME_INTERVALS -> {
+      source.timeIntervals.timeIntervalsList.map { it }
+    }
+    Report.TimeCase.PERIODIC_TIME_INTERVAL -> {
+      source.periodicTimeInterval.toTimeIntervalsList()
+    }
+    Report.TimeCase.TIME_NOT_SET ->
+      failGrpc(Status.INVALID_ARGUMENT) { "The time in Report is not specified." }
   }
 }
 
