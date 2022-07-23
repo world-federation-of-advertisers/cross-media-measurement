@@ -19,3 +19,17 @@ package k8s
 	instance:     "emulator-instance"
 	emulatorHost: (#Target & {name: "spanner-emulator"}).target
 }
+
+#DefaultResourceConfig: #ResourceConfig & {
+	replicas: replicas | *1
+	resources: {
+		requests: {
+			cpu: cpu | *"100m"
+		}
+		limits: {
+			cpu:    cpu | *"400m"
+			memory: memory | *"512Mi"
+		}
+	}
+	jvmHeapSize: jvmHeapSize | *"400m"
+}

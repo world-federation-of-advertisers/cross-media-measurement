@@ -29,7 +29,6 @@ import org.wfanet.measurement.api.v2alpha.Principal
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
-import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
@@ -46,8 +45,7 @@ import org.wfanet.measurement.reporting.v1alpha.listEventGroupsResponse
 class EventGroupsService(
   private val cmmsEventGroupsStub: EventGroupsCoroutineStub,
   private val eventGroupsMetadataDescriptorsStub: EventGroupMetadataDescriptorsCoroutineStub,
-  // TODO(@chipingyeh): Call key retrieval service once implemented
-  private val encryptionPrivateKey: TinkPrivateKeyHandle
+  private val encryptionKeyPairStore: EncryptionKeyPairStore
 ) : EventGroupsCoroutineImplBase() {
   override suspend fun listEventGroups(request: ListEventGroupsRequest): ListEventGroupsResponse {
     val principal: Principal<*> = principalFromCurrentContext
@@ -64,18 +62,25 @@ class EventGroupsService(
         }
       )
     val cmmsEventGroups = cmmsListEventGroupResponse.eventGroupsList
-
-    if (request.filter.isEmpty())
-      return listEventGroupsResponse {
-        this.eventGroups += cmmsEventGroups.map { it.toEventGroup(encryptionPrivateKey) }
-        nextPageToken = cmmsListEventGroupResponse.nextPageToken
-      }
     val parsedEventGroupMetadataMap: Map<String, CmmsEventGroup.Metadata> =
       cmmsEventGroups.associate {
         it.name to
           CmmsEventGroup.Metadata.parseFrom(
-            decryptResult(it.encryptedMetadata, encryptionPrivateKey).data
+            decryptResult(
+                it.encryptedMetadata,
+                encryptionKeyPairStore.getPrivateKeyHandle(it.measurementConsumerPublicKey.data)
+                  ?: failGrpc(Status.FAILED_PRECONDITION) {
+                    "Public key does not have corresponding private key"
+                  }
+              )
+              .data
           )
+      }
+
+    if (request.filter.isEmpty())
+      return listEventGroupsResponse {
+        this.eventGroups += cmmsEventGroups.map { it.toEventGroup(parsedEventGroupMetadataMap) }
+        nextPageToken = cmmsListEventGroupResponse.nextPageToken
       }
     val eventGroupMetadataDescriptors: List<EventGroupMetadataDescriptor> =
       eventGroupsMetadataDescriptorsStub
@@ -105,16 +110,17 @@ class EventGroupsService(
     }
 
     return listEventGroupsResponse {
-      this.eventGroups += filteredEventGroups.map { it.toEventGroup(encryptionPrivateKey) }
+      this.eventGroups += filteredEventGroups.map { it.toEventGroup(parsedEventGroupMetadataMap) }
       nextPageToken = cmmsListEventGroupResponse.nextPageToken
     }
   }
 }
 
-private fun CmmsEventGroup.toEventGroup(encryptionPrivateKey: TinkPrivateKeyHandle): EventGroup {
+private fun CmmsEventGroup.toEventGroup(
+  parsedEventGroupMetadataMap: Map<String, CmmsEventGroup.Metadata>
+): EventGroup {
   val source = this
-  val cmmsMetadata =
-    CmmsEventGroup.Metadata.parseFrom(decryptResult(encryptedMetadata, encryptionPrivateKey).data)
+  val cmmsMetadata = parsedEventGroupMetadataMap.getValue(name)
   val cmmsEventGroupKey =
     grpcRequireNotNull(CmmsEventGroupKey.fromName(name)) { "Event group name is missing" }
   val measurementConsumerKey =

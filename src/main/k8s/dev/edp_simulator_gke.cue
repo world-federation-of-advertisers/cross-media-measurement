@@ -27,13 +27,6 @@ _cloudStorageBucket: string @tag("cloud_storage_bucket")
 #KingdomPublicApiTarget: "public.kingdom.dev.halo-cmm.org:8443"
 #DuchyPublicApiTarget:   "public.worker1.dev.halo-cmm.org:8443"
 #BigQueryTableName:      "demo.labelled_events"
-#ResourceConfig: {
-	replicas:              1
-	resourceRequestCpu:    "100m"
-	resourceLimitCpu:      "400m"
-	resourceRequestMemory: "256Mi"
-	resourceLimitMemory:   "512Mi"
-}
 
 objectSets: [ for edp in edp_simulators {edp}]
 
@@ -84,9 +77,9 @@ edp_simulators: {
 			_blob_storage_flags:          _cloudStorageConfig.flags
 			_mc_resource_name:            _mc_name
 			_edp_simulator_image:         _imageConfig.image
-			_resource_configs:            #ResourceConfig
 			_simulator_image_pull_policy: "Always"
 			_additional_args:             _bigQueryConfig.flags
+			_resourceConfig:              #DefaultResourceConfig
 		}
 	}
 }
