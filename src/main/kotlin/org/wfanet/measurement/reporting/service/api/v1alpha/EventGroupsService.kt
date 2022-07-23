@@ -120,7 +120,7 @@ private fun CmmsEventGroup.toEventGroup(
   parsedEventGroupMetadataMap: Map<String, CmmsEventGroup.Metadata>
 ): EventGroup {
   val source = this
-  val cmmsMetadata = parsedEventGroupMetadataMap[name]!!
+  val cmmsMetadata = parsedEventGroupMetadataMap.getValue(name)
   val cmmsEventGroupKey =
     grpcRequireNotNull(CmmsEventGroupKey.fromName(name)) { "Event group name is missing" }
   val measurementConsumerKey =
