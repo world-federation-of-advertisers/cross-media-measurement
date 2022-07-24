@@ -493,7 +493,7 @@ class ReportsService(
           .withAuthenticationKey(apiAuthenticationKey)
           .getMeasurement(getMeasurementRequest { name = measurementResourceName })
       } catch (e: StatusException) {
-        throw Exception("Unable to retrieve the measurement [$measurementResourceName].")
+        throw Exception("Unable to retrieve the measurement [$measurementResourceName].", e)
       }
 
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
@@ -518,7 +518,9 @@ class ReportsService(
           internalMeasurementsStub.setMeasurementResult(setInternalMeasurementResultRequest)
         } catch (e: StatusException) {
           throw Exception(
-            "Unable to update the measurement [$measurementResourceName] in the reporting database."
+            "Unable to update the measurement [$measurementResourceName] in the reporting " +
+              "database.",
+            e
           )
         }
       }
@@ -536,7 +538,9 @@ class ReportsService(
           internalMeasurementsStub.setMeasurementFailure(setInternalMeasurementFailureRequest)
         } catch (e: StatusException) {
           throw Exception(
-            "Unable to update the measurement [$measurementResourceName] in the reporting database."
+            "Unable to update the measurement [$measurementResourceName] in the reporting " +
+              "database.",
+            e
           )
         }
       }
@@ -578,7 +582,8 @@ class ReportsService(
           .getCertificate(getCertificateRequest { name = measurementResultPair.certificate })
       } catch (e: StatusException) {
         throw Exception(
-          "Unable to retrieve the certificate [${measurementResultPair.certificate}]."
+          "Unable to retrieve the certificate [${measurementResultPair.certificate}].",
+          e
         )
       }
 
@@ -863,7 +868,8 @@ class ReportsService(
           .createMeasurement(createMeasurementRequest)
       } catch (e: StatusException) {
         throw Exception(
-          "Unable to create the measurement [${createMeasurementRequest.measurement.name}]."
+          "Unable to create the measurement [${createMeasurementRequest.measurement.name}].",
+          e
         )
       }
 
@@ -878,7 +884,8 @@ class ReportsService(
       } catch (e: StatusException) {
         throw Exception(
           "Unable to create the measurement [${createMeasurementRequest.measurement.name}] " +
-            "in the reporting database."
+            "in the reporting database.",
+          e
         )
       }
     }
@@ -908,7 +915,8 @@ class ReportsService(
       } catch (e: StatusException) {
         throw Exception(
           "Unable to retrieve the measurement consumer " +
-            "[${MeasurementConsumerKey(measurementConsumerReferenceId).toName()}]."
+            "[${MeasurementConsumerKey(measurementConsumerReferenceId).toName()}].",
+          e
         )
       }
 
