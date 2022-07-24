@@ -2103,6 +2103,26 @@ class ReportsServiceTest {
     }
 
   @Test
+  fun `createReport throws exception when getDataProvider throws exception`() = runBlocking {
+    whenever(dataProvidersMock.getDataProvider(any()))
+      .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
+
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      report = PENDING_REACH_REPORT.copy { clearState() }
+    }
+
+    val exception =
+      assertThrows(Exception::class.java) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    val expectedExceptionDescription = "Unable to retrieve the data provider [$DATA_PROVIDER_NAME]."
+    assertThat(exception.message).isEqualTo(expectedExceptionDescription)
+  }
+
+  @Test
   fun `listReports returns without a next page token when there is no previous page token`() {
     val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAME }
 

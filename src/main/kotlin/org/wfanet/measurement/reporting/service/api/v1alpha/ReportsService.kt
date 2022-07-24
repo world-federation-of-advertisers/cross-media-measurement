@@ -1038,9 +1038,13 @@ class ReportsService(
         }
 
         val dataProvider =
-          dataProvidersStub
-            .withAuthenticationKey(apiAuthenticationKey)
-            .getDataProvider(getDataProviderRequest { name = dataProviderName })
+          try {
+            dataProvidersStub
+              .withAuthenticationKey(apiAuthenticationKey)
+              .getDataProvider(getDataProviderRequest { name = dataProviderName })
+          } catch (e: StatusException) {
+            throw Exception("Unable to retrieve the data provider [$dataProviderName].", e)
+          }
 
         key = dataProviderName
         value = dataProviderEntryValue {
