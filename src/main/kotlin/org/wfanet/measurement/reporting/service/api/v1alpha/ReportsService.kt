@@ -857,9 +857,15 @@ class ReportsService(
           measurementReferenceId,
         )
 
-      measurementsStub
-        .withAuthenticationKey(apiAuthenticationKey)
-        .createMeasurement(createMeasurementRequest)
+      try {
+        measurementsStub
+          .withAuthenticationKey(apiAuthenticationKey)
+          .createMeasurement(createMeasurementRequest)
+      } catch (e: StatusException) {
+        throw Exception(
+          "Unable to create the measurement [${createMeasurementRequest.measurement.name}."
+        )
+      }
 
       internalMeasurementsStub.createMeasurement(
         internalMeasurement {
