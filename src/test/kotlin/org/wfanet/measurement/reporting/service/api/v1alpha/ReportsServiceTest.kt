@@ -2629,7 +2629,7 @@ class ReportsServiceTest {
         }
       }
     val expectedExceptionDescription =
-      "Unable to retrieve the certificate [${DATA_PROVIDER_CERTIFICATE_NAME}]."
+      "Unable to retrieve the certificate [$DATA_PROVIDER_CERTIFICATE_NAME]."
     assertThat(exception.message).isEqualTo(expectedExceptionDescription)
   }
 
