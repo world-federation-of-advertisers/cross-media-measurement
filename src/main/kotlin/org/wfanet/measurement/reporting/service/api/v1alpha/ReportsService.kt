@@ -324,7 +324,7 @@ class ReportsService(
     try {
       return internalReportsStub.createReport(internalCreateReportRequest).toReport()
     } catch (e: StatusException) {
-      throw Exception("Unable to create a report to the reporting database.", e)
+      throw Exception("Unable to create a report in the reporting database.", e)
     }
   }
 
@@ -867,13 +867,20 @@ class ReportsService(
         )
       }
 
-      internalMeasurementsStub.createMeasurement(
-        internalMeasurement {
-          this.measurementConsumerReferenceId = reportInfo.measurementConsumerReferenceId
-          this.measurementReferenceId = measurementReferenceId
-          state = InternalMeasurement.State.PENDING
-        }
-      )
+      try {
+        internalMeasurementsStub.createMeasurement(
+          internalMeasurement {
+            this.measurementConsumerReferenceId = reportInfo.measurementConsumerReferenceId
+            this.measurementReferenceId = measurementReferenceId
+            state = InternalMeasurement.State.PENDING
+          }
+        )
+      } catch (e: StatusException) {
+        throw Exception(
+          "Unable to create the internal measurement " +
+            "[${createMeasurementRequest.measurement.name} in the reporting database."
+        )
+      }
     }
 
     return internalWeightedMeasurement {

@@ -2007,7 +2007,7 @@ class ReportsServiceTest {
           runBlocking { service.createReport(request) }
         }
       }
-    val expectedExceptionDescription = "Unable to create a report to the reporting database."
+    val expectedExceptionDescription = "Unable to create a report in the reporting database."
     assertThat(exception.message).isEqualTo(expectedExceptionDescription)
   }
 
@@ -2030,6 +2030,29 @@ class ReportsServiceTest {
         }
       val expectedExceptionDescription =
         "Unable to create the measurement [${REACH_MEASUREMENT_NAME}."
+      assertThat(exception.message).isEqualTo(expectedExceptionDescription)
+    }
+
+  @Test
+  fun `createReport throws exception when the internal createMeasurement throws exception`() =
+    runBlocking {
+      whenever(internalMeasurementsMock.createMeasurement(any()))
+        .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
+
+      val request = createReportRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        report = PENDING_REACH_REPORT.copy { clearState() }
+      }
+
+      val exception =
+        assertThrows(Exception::class.java) {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+            runBlocking { service.createReport(request) }
+          }
+        }
+      val expectedExceptionDescription =
+        "Unable to create the internal measurement [${REACH_MEASUREMENT_NAME} in the reporting" +
+          " database."
       assertThat(exception.message).isEqualTo(expectedExceptionDescription)
     }
 
