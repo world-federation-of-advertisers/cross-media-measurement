@@ -595,7 +595,6 @@ class ReportsService(
   }
 
   override suspend fun listReports(request: ListReportsRequest): ListReportsResponse {
-    // TODO(@riemanli) Use the Principal from the reporting API.
     val principal: Principal<*> = principalFromCurrentContext
     val listReportsPageToken = request.toListReportsPageToken()
 
@@ -656,7 +655,6 @@ class ReportsService(
         "Report name is either unspecified or invalid"
       }
 
-    // TODO(@riemanli) Use the Principal from the reporting API.
     val principal: Principal<*> = principalFromCurrentContext
 
     when (val resourceKey = principal.resourceKey) {

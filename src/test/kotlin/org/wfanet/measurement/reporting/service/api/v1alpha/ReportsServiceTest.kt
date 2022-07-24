@@ -94,7 +94,6 @@ import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.api.v2alpha.timeInterval as measurementTimeInterval
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
-import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -2245,7 +2244,7 @@ class ReportsServiceTest {
   }
 
   @Test
-  fun `listReports throws PERMISSION_DENIED when the caller is not MeasurementConsumer`() {
+  fun `listReports throws UNAUTHENTICATED when the caller is not MeasurementConsumer`() {
     val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAMES[0] }
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -2253,9 +2252,8 @@ class ReportsServiceTest {
           runBlocking { service.listReports(request) }
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description)
-      .isEqualTo("Caller does not have permission to list Reports.")
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(exception.status.description).isEqualTo("No Principal found")
   }
 
   @Test
@@ -3008,7 +3006,7 @@ class ReportsServiceTest {
   }
 
   @Test
-  fun `getReport throws PERMISSION_DENIED when the caller is not a MeasurementConsumer`() {
+  fun `getReport throws UNAUTHENTICATED when the caller is not a MeasurementConsumer`() {
     val request = getReportRequest { name = REPORT_NAMES[0] }
 
     val exception =
@@ -3018,7 +3016,7 @@ class ReportsServiceTest {
         }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 
   @Test
