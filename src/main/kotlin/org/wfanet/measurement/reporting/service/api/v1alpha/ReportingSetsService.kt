@@ -22,7 +22,6 @@ import org.wfanet.measurement.api.v2.alpha.ListReportingSetsPageTokenKt.previous
 import org.wfanet.measurement.api.v2.alpha.copy
 import org.wfanet.measurement.api.v2.alpha.listReportingSetsPageToken
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
-import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -57,7 +56,7 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
         "Parent is either unspecified or invalid."
       }
 
-    val principal = principalFromCurrentContext
+    val principal: Principal<*> = principalFromCurrentContext
 
     when (val resourceKey = principal.resourceKey) {
       is MeasurementConsumerKey -> {
@@ -88,7 +87,7 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
   override suspend fun listReportingSets(
     request: ListReportingSetsRequest
   ): ListReportingSetsResponse {
-    val principal = principalFromCurrentContext
+    val principal: Principal<*> = principalFromCurrentContext
     val listReportingSetsPageToken = request.toListReportingSetsPageToken()
 
     // Based on AIP-132#Errors
