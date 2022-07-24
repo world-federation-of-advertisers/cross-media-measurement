@@ -863,7 +863,7 @@ class ReportsService(
           .createMeasurement(createMeasurementRequest)
       } catch (e: StatusException) {
         throw Exception(
-          "Unable to create the measurement [${createMeasurementRequest.measurement.name}."
+          "Unable to create the measurement [${createMeasurementRequest.measurement.name}]."
         )
       }
 
@@ -877,8 +877,8 @@ class ReportsService(
         )
       } catch (e: StatusException) {
         throw Exception(
-          "Unable to create the internal measurement " +
-            "[${createMeasurementRequest.measurement.name} in the reporting database."
+          "Unable to create the measurement [${createMeasurementRequest.measurement.name}] " +
+            "in the reporting database."
         )
       }
     }
@@ -897,13 +897,21 @@ class ReportsService(
     measurementReferenceId: String,
   ): CreateMeasurementRequest {
     val measurementConsumer =
-      measurementConsumersStub
-        .withAuthenticationKey(apiAuthenticationKey)
-        .getMeasurementConsumer(
-          getMeasurementConsumerRequest {
-            name = MeasurementConsumerKey(measurementConsumerReferenceId).toName()
-          }
+      try {
+        measurementConsumersStub
+          .withAuthenticationKey(apiAuthenticationKey)
+          .getMeasurementConsumer(
+            getMeasurementConsumerRequest {
+              name = MeasurementConsumerKey(measurementConsumerReferenceId).toName()
+            }
+          )
+      } catch (e: StatusException) {
+        throw Exception(
+          "Unable to retrieve the measurement consumer " +
+            "[${MeasurementConsumerKey(measurementConsumerReferenceId).toName()}]."
         )
+      }
+
     val measurementConsumerCertificate = readCertificate(measurementConsumer.certificateDer)
     val measurementConsumerSigningKey =
       SigningKeyHandle(measurementConsumerCertificate, signingPrivateKey)

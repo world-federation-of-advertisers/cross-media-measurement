@@ -2029,7 +2029,7 @@ class ReportsServiceTest {
           }
         }
       val expectedExceptionDescription =
-        "Unable to create the measurement [${REACH_MEASUREMENT_NAME}."
+        "Unable to create the measurement [$REACH_MEASUREMENT_NAME]."
       assertThat(exception.message).isEqualTo(expectedExceptionDescription)
     }
 
@@ -2051,10 +2051,30 @@ class ReportsServiceTest {
           }
         }
       val expectedExceptionDescription =
-        "Unable to create the internal measurement [${REACH_MEASUREMENT_NAME} in the reporting" +
-          " database."
+        "Unable to create the measurement [$REACH_MEASUREMENT_NAME] in the reporting database."
       assertThat(exception.message).isEqualTo(expectedExceptionDescription)
     }
+
+  @Test
+  fun `createReport throws exception when getMeasurementConsumer throws exception`() = runBlocking {
+    whenever(measurementConsumersMock.getMeasurementConsumer(any()))
+      .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
+
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      report = PENDING_REACH_REPORT.copy { clearState() }
+    }
+
+    val exception =
+      assertThrows(Exception::class.java) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    val expectedExceptionDescription =
+      "Unable to retrieve the measurement consumer [$MEASUREMENT_CONSUMER_NAME]."
+    assertThat(exception.message).isEqualTo(expectedExceptionDescription)
+  }
 
   @Test
   fun `listReports returns without a next page token when there is no previous page token`() {
