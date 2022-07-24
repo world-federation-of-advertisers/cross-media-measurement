@@ -572,9 +572,15 @@ class ReportsService(
   ): Measurement.Result {
     // TODO: Cache the certificate
     val certificate =
-      certificateStub
-        .withAuthenticationKey(apiAuthenticationKey)
-        .getCertificate(getCertificateRequest { name = measurementResultPair.certificate })
+      try {
+        certificateStub
+          .withAuthenticationKey(apiAuthenticationKey)
+          .getCertificate(getCertificateRequest { name = measurementResultPair.certificate })
+      } catch (e: StatusException) {
+        throw Exception(
+          "Unable to retrieve the certificate [${measurementResultPair.certificate}]."
+        )
+      }
 
     val signedResult =
       decryptResult(measurementResultPair.encryptedResult, encryptionPrivateKeyHandle)
