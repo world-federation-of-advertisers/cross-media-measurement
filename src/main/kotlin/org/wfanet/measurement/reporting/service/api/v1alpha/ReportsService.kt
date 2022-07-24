@@ -965,12 +965,20 @@ class ReportsService(
 
         launch {
           internalReportingSetsList +=
-            internalReportingSetsStub.getReportingSet(
-              getReportingSetRequest {
-                measurementConsumerReferenceId = reportingSetKey.measurementConsumerId
-                externalReportingSetId = apiIdToExternalId(reportingSetKey.reportingSetId)
-              }
-            )
+            try {
+              internalReportingSetsStub.getReportingSet(
+                getReportingSetRequest {
+                  measurementConsumerReferenceId = reportingSetKey.measurementConsumerId
+                  externalReportingSetId = apiIdToExternalId(reportingSetKey.reportingSetId)
+                }
+              )
+            } catch (e: StatusException) {
+              throw Exception(
+                "Unable to retrieve the reporting set [$reportingSetName] from the reporting " +
+                  "database.",
+                e
+              )
+            }
         }
       }
     }

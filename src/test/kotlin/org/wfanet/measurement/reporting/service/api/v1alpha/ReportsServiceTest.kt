@@ -2077,6 +2077,32 @@ class ReportsServiceTest {
   }
 
   @Test
+  fun `createReport throws exception when the internal getReportingSet throws exception`() =
+    runBlocking {
+      whenever(internalReportingSetsMock.getReportingSet(any()))
+        .thenReturn(
+          INTERNAL_REPORTING_SET,
+          INTERNAL_REPORTING_SET_2,
+        )
+        .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
+
+      val request = createReportRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        report = PENDING_REACH_REPORT.copy { clearState() }
+      }
+
+      val exception =
+        assertThrows(Exception::class.java) {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+            runBlocking { service.createReport(request) }
+          }
+        }
+      val expectedExceptionDescription =
+        "Unable to retrieve the reporting set [$REPORTING_SET_NAME] from the reporting database."
+      assertThat(exception.message).isEqualTo(expectedExceptionDescription)
+    }
+
+  @Test
   fun `listReports returns without a next page token when there is no previous page token`() {
     val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAME }
 
