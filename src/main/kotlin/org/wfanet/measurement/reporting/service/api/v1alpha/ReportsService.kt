@@ -1315,12 +1315,19 @@ private suspend fun checkReportingSet(
 
   val internalReportingSet = coroutineScope {
     async {
-      internalReportingSetsStub.getReportingSet(
-        getReportingSetRequest {
-          this.measurementConsumerReferenceId = measurementConsumerReferenceId
-          externalReportingSetId = apiIdToExternalId(reportingSetKey.reportingSetId)
-        }
-      )
+      try {
+        internalReportingSetsStub.getReportingSet(
+          getReportingSetRequest {
+            this.measurementConsumerReferenceId = measurementConsumerReferenceId
+            externalReportingSetId = apiIdToExternalId(reportingSetKey.reportingSetId)
+          }
+        )
+      } catch (e: StatusException) {
+        throw Exception(
+          "Unable to retrieve the reporting set [$reportingSetName] from the reporting database.",
+          e
+        )
+      }
     }
   }
 
