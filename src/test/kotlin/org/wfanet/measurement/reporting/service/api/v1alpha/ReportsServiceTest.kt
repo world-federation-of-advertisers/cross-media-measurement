@@ -62,7 +62,6 @@ import org.wfanet.measurement.api.v2alpha.makeDataProviderCertificateName
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
-import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -1274,7 +1273,7 @@ class ReportsServiceTest {
   }
 
   @Test
-  fun `listReports throws PERMISSION_DENIED when the caller is not MeasurementConsumer`() {
+  fun `listReports throws UNAUTHENTICATED when the caller is not MeasurementConsumer`() {
     val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAME }
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -1282,9 +1281,8 @@ class ReportsServiceTest {
           runBlocking { service.listReports(request) }
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description)
-      .isEqualTo("Caller does not have permission to list Reports.")
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(exception.status.description).isEqualTo("No Principal found")
   }
 
   @Test
@@ -1917,7 +1915,7 @@ class ReportsServiceTest {
   }
 
   @Test
-  fun `getReport throws PERMISSION_DENIED when the caller is not a MeasurementConsumer`() {
+  fun `getReport throws UNAUTHENTICATED when the caller is not a MeasurementConsumer`() {
     val request = getReportRequest { name = REPORT_NAME }
 
     val exception =
@@ -1925,7 +1923,7 @@ class ReportsServiceTest {
         withDataProviderPrincipal(DATA_PROVIDER_NAME) { runBlocking { service.getReport(request) } }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 
   @Test

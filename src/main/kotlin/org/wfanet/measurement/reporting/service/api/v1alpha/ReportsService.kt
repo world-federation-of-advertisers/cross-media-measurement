@@ -34,7 +34,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
-import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
@@ -124,7 +123,7 @@ class ReportsService(
 ) : ReportsCoroutineImplBase() {
 
   override suspend fun listReports(request: ListReportsRequest): ListReportsResponse {
-    val principal = principalFromCurrentContext
+    val principal: Principal<*> = principalFromCurrentContext
     val listReportsPageToken = request.toListReportsPageToken()
 
     // Based on AIP-132#Errors
@@ -178,7 +177,7 @@ class ReportsService(
         "Report name is either unspecified or invalid"
       }
 
-    val principal = principalFromCurrentContext
+    val principal: Principal<*> = principalFromCurrentContext
 
     when (val resourceKey = principal.resourceKey) {
       is MeasurementConsumerKey -> {
