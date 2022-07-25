@@ -45,6 +45,8 @@ TEST_K8S_SETTINGS = struct(
     edp4_name = "$(edp4_name)",
     edp5_name = "$(edp5_name)",
     edp6_name = "$(edp6_name)",
+    reporting_db_user = "$(reporting_db_user)",
+    reporting_db_password = "$(reporting_db_password)",
 )
 
 # Settings for Kingdom Kubernetes deployments.
@@ -71,4 +73,12 @@ SIMULATOR_K8S_SETTINGS = struct(
     edp4_name = "$(edp4_name)",
     edp5_name = "$(edp5_name)",
     edp6_name = "$(edp6_name)",
+)
+
+# Settings for Reporting server Kubernetes deployments.
+REPORTING_K8S_SETTINGS = struct(
+    secret_name = "$(k8s_reporting_secret_name)",
+    db_cloud_sql_instance = "$(k8s_reporting_db_cloud_sql_instance)",
+    db_user = "$(k8s_reporting_db_user)",
+    db_password = "$(k8s_reporting_db_password)",
 )

@@ -52,7 +52,9 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 #Target: {
 	name:   string
 	_caps:  strings.Replace(strings.ToUpper(name), "-", "_", -1)
-	target: "$(" + _caps + "_SERVICE_HOST):$(" + _caps + "_SERVICE_PORT)"
+	host: "$(" + _caps + "_SERVICE_HOST)"
+	port: "$(" + _caps + "_SERVICE_PORT)"
+	target: host + ":" + port
 }
 
 #SecretMount: {
