@@ -24,6 +24,12 @@ import org.wfanet.measurement.internal.reporting.ReportsGrpcKt
 import picocli.CommandLine
 
 abstract class ReportingDataServer : Runnable {
+  data class Services(
+    val measurementsService: MeasurementsGrpcKt.MeasurementsCoroutineImplBase,
+    val reportingSetsService: ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase,
+    val reportsService: ReportsGrpcKt.ReportsCoroutineImplBase
+  )
+
   @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags
 
   protected suspend fun run(services: Services) {
@@ -33,12 +39,6 @@ abstract class ReportingDataServer : Runnable {
   }
 
   companion object {
-    data class Services(
-      val measurementsService: MeasurementsGrpcKt.MeasurementsCoroutineImplBase,
-      val reportingSetsService: ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase,
-      val reportsService: ReportsGrpcKt.ReportsCoroutineImplBase
-    )
-
     fun Services.toList(): List<BindableService> {
       return Services::class.declaredMemberProperties.map { it.get(this) as BindableService }
     }

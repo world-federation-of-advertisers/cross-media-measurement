@@ -16,7 +16,7 @@ package org.wfanet.measurement.reporting.deploy.common.server.postgres
 
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.reporting.deploy.common.server.ReportingDataServer.Companion.Services
+import org.wfanet.measurement.reporting.deploy.common.server.ReportingDataServer.Services
 import org.wfanet.measurement.reporting.deploy.postgres.PostgresMeasurementsService
 import org.wfanet.measurement.reporting.deploy.postgres.PostgresReportingSetsService
 import org.wfanet.measurement.reporting.deploy.postgres.PostgresReportsService

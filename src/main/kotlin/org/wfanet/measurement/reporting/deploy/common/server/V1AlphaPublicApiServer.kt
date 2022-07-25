@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.reporting.deploy.common.server
 
+import io.grpc.Channel
 import io.grpc.ServerServiceDefinition
 import java.io.File
 import org.wfanet.measurement.api.v2alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
@@ -51,7 +52,7 @@ private fun run(
       privateKeyFile = commonServerFlags.tlsFlags.privateKeyFile,
       trustedCertCollectionFile = commonServerFlags.tlsFlags.certCollectionFile
     )
-  val channel =
+  val channel: Channel =
     buildMutualTlsChannel(
         reportingApiServerFlags.internalApiFlags.target,
         clientCerts,
@@ -59,7 +60,7 @@ private fun run(
       )
       .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
 
-  val kingdomChannel =
+  val kingdomChannel: Channel =
     buildMutualTlsChannel(kingdomApiFlags.target, clientCerts, kingdomApiFlags.target)
       .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
 
