@@ -60,6 +60,13 @@ fun <T> withMeasurementConsumerPrincipal(measurementConsumerName: String, block:
     .call(block)
 }
 
+/** Adds [MeasurementConsumer] [Principal] to the receiver and returns the new [Context]. */
+fun Context.withMeasurementConsumerPrincipal(measurementConsumerName: String): Context {
+  return withPrincipal(
+    Principal.MeasurementConsumer(MeasurementConsumerKey.fromName(measurementConsumerName)!!)
+  )
+}
+
 /** Adds [principal] to the receiver and returns the new [Context]. */
 fun Context.withPrincipal(principal: Principal<*>): Context {
   return withValue(PrincipalConstants.PRINCIPAL_CONTEXT_KEY, principal)

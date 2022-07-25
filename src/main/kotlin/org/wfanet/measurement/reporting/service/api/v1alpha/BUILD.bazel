@@ -52,6 +52,7 @@ kt_jvm_library(
     name = "reports_service",
     srcs = ["ReportsService.kt"],
     deps = [
+        ":measurement_consumer_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:encryption_key_pair_store",
@@ -79,6 +80,43 @@ kt_jvm_library(
     srcs = ["EncryptionKeyPairStore.kt"],
     deps = [
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+    ],
+)
+
+kt_jvm_library(
+    name = "measurement_consumer_constants",
+    srcs = ["MeasurementConsumerConstants.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/io/grpc:context",
+    ],
+)
+
+kt_jvm_library(
+    name = "measurement_consumer_server_interceptor",
+    srcs = ["MeasurementConsumerServerInterceptor.kt"],
+    deps = [
+        ":measurement_consumer_constants",
+        ":principal_constants",
+        "//src/main/kotlin/org/wfanet/measurement/common/api:resource_key",
+        "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:context",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)
+
+kt_jvm_library(
+    name = "textproto_file_measurement_consumer_config_lookup",
+    srcs = [
+        "TextprotoFileMeasurementConsumerConfigLookup.kt",
+    ],
+    deps = [
+        ":measurement_consumer_server_interceptor",
+        ":principal",
+        ":principal_server_interceptor",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
 
