@@ -152,7 +152,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
             histogramTables += metric.toHistogramTable(rowHeaders, measurementResultsMap)
           }
           Metric.Details.MetricTypeCase.METRICTYPE_NOT_SET ->
-            error("The metric type in the internal report should be set.")
+            error("Metric Type should be set.")
         }
       }
       if (scalarTableColumnsList.size > 0) {
@@ -177,7 +177,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
         report.periodicTimeInterval.toTimeIntervals().map(TimeInterval::toRowHeader)
       }
       Report.TimeCase.TIME_NOT_SET -> {
-        error("Time in the internal report should be set.")
+        error("Time should be set.")
       }
     }
   }
