@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.reporting.service.api.v1alpha
 
-import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.api.ResourceKey
 
