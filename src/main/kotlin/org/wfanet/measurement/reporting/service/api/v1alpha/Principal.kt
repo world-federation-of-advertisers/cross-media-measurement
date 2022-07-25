@@ -28,14 +28,12 @@ sealed class Principal<T : ResourceKey> {
 
   class MeasurementConsumer(override val resourceKey: MeasurementConsumerKey) :
     Principal<MeasurementConsumerKey>()
-  class Duchy(override val resourceKey: DuchyKey) : Principal<DuchyKey>()
 
   companion object {
     fun fromName(name: String): Principal<*>? {
       return when (name.substringBefore('/')) {
         MeasurementConsumerKey.COLLECTION_NAME ->
           MeasurementConsumerKey.fromName(name)?.let(::MeasurementConsumer)
-        DuchyKey.COLLECTION_NAME -> DuchyKey.fromName(name)?.let(::Duchy)
         else -> null
       }
     }
