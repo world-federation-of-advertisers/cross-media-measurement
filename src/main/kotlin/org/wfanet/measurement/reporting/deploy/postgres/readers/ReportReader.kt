@@ -220,6 +220,32 @@ class ReportReader {
   }
 
   /**
+   * Gets the report by report id.
+   *
+   * @throws [ReportNotFoundException]
+   */
+  suspend fun getReportById(
+    readContext: ReadContext,
+    measurementConsumerReferenceId: String,
+    reportId: Long
+  ): Result {
+    val statement =
+      boundStatement(
+        (baseSql +
+          """
+        WHERE MeasurementConsumerReferenceId = $1
+          AND ReportId = $2
+          """)
+      ) {
+        bind("$1", measurementConsumerReferenceId)
+        bind("$2", reportId)
+      }
+
+    return readContext.executeQuery(statement).consume(::translate).singleOrNull()
+      ?: throw ReportNotFoundException()
+  }
+
+  /**
    * Gets the report by report idempotency key.
    *
    * @throws [ReportNotFoundException]
