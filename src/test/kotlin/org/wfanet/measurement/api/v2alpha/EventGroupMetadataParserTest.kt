@@ -1,4 +1,4 @@
-// Copyright 2020 The Cross-Media Measurement Authors
+// Copyright 2022 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,28 +20,30 @@ import com.google.protobuf.Any
 import com.google.protobuf.DescriptorProtos.FileDescriptorSet
 import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.Descriptors.FileDescriptor
-import com.google.protobuf.Duration
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.EventGroupKt.metadata
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessage
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessageKt.age
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessageKt.duration
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessageKt.name
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestParentMetadataMessage
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testMetadataMessage
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testParentMetadataMessage
 
 private val TEST_MESSAGE = testMetadataMessage {
-  name = "Bob"
-  value = 1
-  duration = Duration.newBuilder().setSeconds(30).build()
+  name = name { value = "Bob" }
+  age = age { value = 10 }
+  duration = duration { value = 2 }
 }
 
 private val TEST_PARENT_MESSAGE = testParentMetadataMessage {
   name = "Joe"
   message = testMetadataMessage {
-    name = "Susan"
-    value = 2
-    duration = Duration.newBuilder().setSeconds(60).build()
+    name = name { value = "Susan" }
+    age = age { value = 20 }
+    duration = duration { value = 60 }
   }
 }
 

@@ -143,7 +143,6 @@ private val LIST_REPORTS_RESPONSE = listReportsResponse {
         name = "$MEASUREMENT_CONSUMER_NAME/reports/2"
         measurementConsumer = MEASUREMENT_CONSUMER_NAME
         state = Report.State.SUCCEEDED
-        results += "CVS string"
       },
       report {
         name = "$MEASUREMENT_CONSUMER_NAME/reports/3"

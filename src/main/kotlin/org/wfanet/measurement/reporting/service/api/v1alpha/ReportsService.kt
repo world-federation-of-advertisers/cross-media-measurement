@@ -91,8 +91,14 @@ import org.wfanet.measurement.reporting.v1alpha.MetricKt.setOperation
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.watchDurationParams
 import org.wfanet.measurement.reporting.v1alpha.PeriodicTimeInterval
 import org.wfanet.measurement.reporting.v1alpha.Report
+import org.wfanet.measurement.reporting.v1alpha.Report.Result
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.EventGroupUniverseKt.eventGroupEntry
+import org.wfanet.measurement.reporting.v1alpha.ReportKt.ResultKt.HistogramTableKt.row
+import org.wfanet.measurement.reporting.v1alpha.ReportKt.ResultKt.column
+import org.wfanet.measurement.reporting.v1alpha.ReportKt.ResultKt.histogramTable
+import org.wfanet.measurement.reporting.v1alpha.ReportKt.ResultKt.scalarTable
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.eventGroupUniverse
+import org.wfanet.measurement.reporting.v1alpha.ReportKt.result
 import org.wfanet.measurement.reporting.v1alpha.ReportsGrpcKt.ReportsCoroutineImplBase
 import org.wfanet.measurement.reporting.v1alpha.TimeIntervals
 import org.wfanet.measurement.reporting.v1alpha.listReportsResponse
@@ -465,6 +471,9 @@ private fun InternalReport.toReport(): Report {
     }
 
     this.state = source.state.toState()
+    if (source.details.hasResult()) {
+      this.result = source.details.result.toResult()
+    }
   }
 }
 
@@ -477,6 +486,38 @@ private fun InternalReport.State.toState(): Report.State {
     InternalReport.State.FAILED -> Report.State.FAILED
     InternalReport.State.STATE_UNSPECIFIED -> error("Report state should've be set.")
     InternalReport.State.UNRECOGNIZED -> error("Unrecognized report state.")
+  }
+}
+
+/** Converts an [InternalReport.Details.Result] to a public [Report.Result]. */
+private fun InternalReport.Details.Result.toResult(): Result {
+  val source = this
+  return result {
+    scalarTable = scalarTable {
+      rowHeaders += source.scalarTable.rowHeadersList
+      for (sourceColumn in source.scalarTable.columnsList) {
+        columns += column {
+          columnHeader = sourceColumn.columnHeader
+          setOperations += sourceColumn.setOperationsList
+        }
+      }
+    }
+    for (sourceHistogram in source.histogramTablesList) {
+      histogramTables += histogramTable {
+        for (sourceRow in sourceHistogram.rowsList) {
+          rows += row {
+            rowHeader = sourceRow.rowHeader
+            frequency = sourceRow.frequency
+          }
+        }
+        for (sourceColumn in sourceHistogram.columnsList) {
+          columns += column {
+            columnHeader = sourceColumn.columnHeader
+            setOperations += sourceColumn.setOperationsList
+          }
+        }
+      }
+    }
   }
 }
 

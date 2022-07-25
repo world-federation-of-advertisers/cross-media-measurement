@@ -28,6 +28,25 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "event_groups_service",
+    srcs = ["EventGroupsService.kt"],
+    deps = [
+        ":encryption_key_pair_store",
+        ":resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_group_metadata_parser",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:principal_server_interceptor",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_metadata_descriptors_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/reporting/v1alpha:event_group_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v1alpha:event_groups_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
+    ],
+)
+
+kt_jvm_library(
     name = "reports_service",
     srcs = ["ReportsService.kt"],
     deps = [
@@ -57,5 +76,14 @@ kt_jvm_library(
     srcs = ["EncryptionKeyPairStore.kt"],
     deps = [
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+    ],
+)
+
+kt_jvm_library(
+    name = "set_operation_compiler",
+    srcs = ["SetOperationCompiler.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/reporting/v1alpha:report_kt_jvm_proto",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )
