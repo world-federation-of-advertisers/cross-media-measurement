@@ -29,7 +29,7 @@ import org.wfanet.measurement.reporting.service.api.v1alpha.MeasurementConsumerS
  */
 class TextprotoFileMeasurementConsumerConfigLookup(textprotoFile: File) : ConfigLookup {
   private val map: Map<String, MeasurementConsumerConfig> =
-    parseTextProto(textprotoFile, measurementConsumerConfigs {}).configsMapMap
+    parseTextProto(textprotoFile, measurementConsumerConfigs {}).configsMap
 
   override fun get(measurementConsumerName: String): MeasurementConsumerConfig? {
     return map[measurementConsumerName]

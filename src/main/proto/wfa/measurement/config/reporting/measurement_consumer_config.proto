@@ -26,5 +26,5 @@ message MeasurementConsumerConfig {
 }
 
 message MeasurementConsumerConfigs {
-  map<string, MeasurementConsumerConfig> configs_map = 1;
+  map<string, MeasurementConsumerConfig> configs = 1;
 }
