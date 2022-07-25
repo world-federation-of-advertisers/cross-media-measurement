@@ -831,10 +831,72 @@ class ReportsService(
     internalMetricDetails: InternalMetricDetails,
     measurementReferenceId: String,
   ): InternalWeightedMeasurement {
+    val existingInternalMeasurement: InternalMeasurement? =
+      getInternalMeasurement(reportInfo.measurementConsumerReferenceId, measurementReferenceId)
+
+    if (existingInternalMeasurement != null)
+      return internalWeightedMeasurement {
+        this.measurementReferenceId = measurementReferenceId
+        coefficient = weightedMeasurement.coefficient
+      }
+
+    val dataProviderNameToInternalEventGroupEntriesList =
+      aggregateInternalEventGroupEntryByDataProviderName(
+        weightedMeasurement.reportingSets,
+        timeInterval.toMeasurementTimeInterval(),
+        reportInfo.eventGroupFilters
+      )
+
+    val createMeasurementRequest: CreateMeasurementRequest =
+      buildCreateMeasurementRequest(
+        reportInfo.measurementConsumerReferenceId,
+        dataProviderNameToInternalEventGroupEntriesList,
+        internalMetricDetails,
+        measurementReferenceId,
+      )
+
     try {
+      measurementsStub
+        .withAuthenticationKey(apiAuthenticationKey)
+        .createMeasurement(createMeasurementRequest)
+    } catch (e: StatusException) {
+      throw Exception(
+        "Unable to create the measurement [${createMeasurementRequest.measurement.name}].",
+        e
+      )
+    }
+
+    try {
+      internalMeasurementsStub.createMeasurement(
+        internalMeasurement {
+          this.measurementConsumerReferenceId = reportInfo.measurementConsumerReferenceId
+          this.measurementReferenceId = measurementReferenceId
+          state = InternalMeasurement.State.PENDING
+        }
+      )
+    } catch (e: StatusException) {
+      throw Exception(
+        "Unable to create the measurement [${createMeasurementRequest.measurement.name}] " +
+          "in the reporting database.",
+        e
+      )
+    }
+
+    return internalWeightedMeasurement {
+      this.measurementReferenceId = measurementReferenceId
+      coefficient = weightedMeasurement.coefficient
+    }
+  }
+
+  /** Gets an [InternalMeasurement]. */
+  private suspend fun getInternalMeasurement(
+    measurementConsumerReferenceId: String,
+    measurementReferenceId: String
+  ): InternalMeasurement? {
+    return try {
       internalMeasurementsStub.getMeasurement(
         getInternalMeasurementRequest {
-          this.measurementConsumerReferenceId = reportInfo.measurementConsumerReferenceId
+          this.measurementConsumerReferenceId = measurementConsumerReferenceId
           this.measurementReferenceId = measurementReferenceId
         }
       )
@@ -846,53 +908,7 @@ class ReportsService(
           e
         )
       }
-
-      val dataProviderNameToInternalEventGroupEntriesList =
-        aggregateInternalEventGroupEntryByDataProviderName(
-          weightedMeasurement.reportingSets,
-          timeInterval.toMeasurementTimeInterval(),
-          reportInfo.eventGroupFilters
-        )
-
-      val createMeasurementRequest: CreateMeasurementRequest =
-        buildCreateMeasurementRequest(
-          reportInfo.measurementConsumerReferenceId,
-          dataProviderNameToInternalEventGroupEntriesList,
-          internalMetricDetails,
-          measurementReferenceId,
-        )
-
-      try {
-        measurementsStub
-          .withAuthenticationKey(apiAuthenticationKey)
-          .createMeasurement(createMeasurementRequest)
-      } catch (e: StatusException) {
-        throw Exception(
-          "Unable to create the measurement [${createMeasurementRequest.measurement.name}].",
-          e
-        )
-      }
-
-      try {
-        internalMeasurementsStub.createMeasurement(
-          internalMeasurement {
-            this.measurementConsumerReferenceId = reportInfo.measurementConsumerReferenceId
-            this.measurementReferenceId = measurementReferenceId
-            state = InternalMeasurement.State.PENDING
-          }
-        )
-      } catch (e: StatusException) {
-        throw Exception(
-          "Unable to create the measurement [${createMeasurementRequest.measurement.name}] " +
-            "in the reporting database.",
-          e
-        )
-      }
-    }
-
-    return internalWeightedMeasurement {
-      this.measurementReferenceId = measurementReferenceId
-      coefficient = weightedMeasurement.coefficient
+      null
     }
   }
 
