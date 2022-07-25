@@ -15,11 +15,12 @@
 package k8s
 
 #PostgresConfig: {
-	database?: string
-	host:     string
-	port:     string
-	user:     string
-	password: string
+  cloudSqlInstance?: string
+	database?:         string
+	host:              string
+	port:              string
+	user:              string
+	password:          string
 
 	flags: [
 		"--postgres-host=\(host)",
@@ -27,5 +28,6 @@ package k8s
 		"--postgres-user=\(user)",
 		"--postgres-password=\(password)",
 		if database != _|_ {"--postgres-database=\(database)"},
+		if cloudSqlInstance != _|_ {"--postgres-cloud-sql-instance=\(database)"},
 	]
 }
