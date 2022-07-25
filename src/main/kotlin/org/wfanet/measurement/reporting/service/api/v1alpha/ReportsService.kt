@@ -295,23 +295,7 @@ class ReportsService(
     }
 
     val existingInternalReport: InternalReport? =
-      try {
-        internalReportsStub.getReportByIdempotencyKey(
-          getReportByIdempotencyKeyRequest {
-            this.measurementConsumerReferenceId = resourceKey.measurementConsumerId
-            this.reportIdempotencyKey = request.report.reportIdempotencyKey
-          }
-        )
-      } catch (e: StatusException) {
-        if (e.status.code != Status.Code.NOT_FOUND) {
-          throw Exception(
-            "Unable to retrieve a report from the reporting database using the provided " +
-              "reportIdempotencyKey [${request.report.reportIdempotencyKey}].",
-            e
-          )
-        }
-        null
-      }
+      getInternalReport(resourceKey.measurementConsumerId, request.report.reportIdempotencyKey)
 
     if (existingInternalReport != null) return existingInternalReport.toReport()
 
@@ -325,6 +309,30 @@ class ReportsService(
       return internalReportsStub.createReport(internalCreateReportRequest).toReport()
     } catch (e: StatusException) {
       throw Exception("Unable to create a report in the reporting database.", e)
+    }
+  }
+
+  /** Gets an [InternalReport]. */
+  private suspend fun getInternalReport(
+    measurementConsumerId: String,
+    reportIdempotencyKey: String,
+  ): InternalReport? {
+    return try {
+      internalReportsStub.getReportByIdempotencyKey(
+        getReportByIdempotencyKeyRequest {
+          this.measurementConsumerReferenceId = measurementConsumerId
+          this.reportIdempotencyKey = reportIdempotencyKey
+        }
+      )
+    } catch (e: StatusException) {
+      if (e.status.code != Status.Code.NOT_FOUND) {
+        throw Exception(
+          "Unable to retrieve a report from the reporting database using the provided " +
+            "reportIdempotencyKey [$reportIdempotencyKey].",
+          e
+        )
+      }
+      null
     }
   }
 
