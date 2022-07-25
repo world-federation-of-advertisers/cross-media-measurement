@@ -17,9 +17,15 @@ package org.wfanet.measurement.duchy.daemon.herald
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import java.time.Clock
-import kotlin.test.assertFails
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -33,8 +39,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.common.testing.pollFor
-import org.wfanet.measurement.common.throttler.testing.FakeThrottler
 import org.wfanet.measurement.duchy.daemon.testing.TestRequisition
 import org.wfanet.measurement.duchy.daemon.utils.key
 import org.wfanet.measurement.duchy.daemon.utils.toDuchyEncryptionPublicKey
@@ -68,6 +72,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoro
 import org.wfanet.measurement.system.v1alpha.Requisition
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
 import org.wfanet.measurement.system.v1alpha.differentialPrivacyParams
+import org.wfanet.measurement.system.v1alpha.streamActiveComputationsResponse
 
 private const val PUBLIC_API_VERSION = "v2alpha"
 private const val EMPTY_TOKEN = ""
@@ -153,6 +158,7 @@ private val NON_AGGREGATOR_COMPUTATION_DETAILS =
     .build()
 
 @RunWith(JUnit4::class)
+@OptIn(ExperimentalCoroutinesApi::class) // For `runTest`.
 class HeraldTest {
 
   private val systemComputations: SystemComputationsCoroutineImplBase = mockService()
@@ -200,7 +206,7 @@ class HeraldTest {
   }
 
   @Test
-  fun `syncStatuses on empty stream retains same computation token`() = runBlocking {
+  fun `syncStatuses on empty stream retains same computation token`() = runTest {
     mockStreamActiveComputationsToReturn() // No items in stream.
     assertThat(nonAggregatorHerald.syncStatuses("TOKEN_OF_LAST_ITEM"))
       .isEqualTo("TOKEN_OF_LAST_ITEM")
@@ -208,7 +214,7 @@ class HeraldTest {
   }
 
   @Test
-  fun `syncStatuses creates new computations`() = runBlocking {
+  fun `syncStatuses creates new computations`() = runTest {
     val confirmingKnown =
       buildComputationAtKingdom("454647484950", Computation.State.PENDING_REQUISITION_PARAMS)
     val systemApiRequisitions1 =
@@ -301,199 +307,210 @@ class HeraldTest {
   }
 
   @Test
-  fun `syncStatuses update llv2 computations in WAIT_REQUISITIONS_AND_KEY_SET`() =
-    runBlocking<Unit> {
-      val globalId = "123456"
-      val systemApiRequisitions1 =
-        REQUISITION_1.toSystemRequisition(globalId, Requisition.State.FULFILLED, DUCHY_ONE)
-      val systemApiRequisitions2 =
-        REQUISITION_2.toSystemRequisition(globalId, Requisition.State.FULFILLED, DUCHY_TWO)
-      val v2alphaApiElgamalPublicKey1 =
-        ElGamalPublicKey.newBuilder()
-          .apply {
-            generator = ByteString.copyFromUtf8("generator_1")
-            element = ByteString.copyFromUtf8("element_1")
-          }
-          .build()
-      val v2alphaApiElgamalPublicKey2 =
-        ElGamalPublicKey.newBuilder()
-          .apply {
-            generator = ByteString.copyFromUtf8("generator_2")
-            element = ByteString.copyFromUtf8("element_2")
-          }
-          .build()
-      val v2alphaApiElgamalPublicKey3 =
-        ElGamalPublicKey.newBuilder()
-          .apply {
-            generator = ByteString.copyFromUtf8("generator_3")
-            element = ByteString.copyFromUtf8("element_3")
-          }
-          .build()
-      val systemComputationParticipant1 =
-        SystemComputationParticipant.newBuilder()
-          .apply {
-            name = ComputationParticipantKey(globalId, DUCHY_ONE).toName()
-            requisitionParamsBuilder.apply {
-              duchyCertificate = "duchyCertificate_1"
-              duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_1")
-              liquidLegionsV2Builder.apply {
-                elGamalPublicKey = v2alphaApiElgamalPublicKey1.toByteString()
-                elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_1")
-              }
+  fun `syncStatuses update llv2 computations in WAIT_REQUISITIONS_AND_KEY_SET`() = runTest {
+    val globalId = "123456"
+    val systemApiRequisitions1 =
+      REQUISITION_1.toSystemRequisition(globalId, Requisition.State.FULFILLED, DUCHY_ONE)
+    val systemApiRequisitions2 =
+      REQUISITION_2.toSystemRequisition(globalId, Requisition.State.FULFILLED, DUCHY_TWO)
+    val v2alphaApiElgamalPublicKey1 =
+      ElGamalPublicKey.newBuilder()
+        .apply {
+          generator = ByteString.copyFromUtf8("generator_1")
+          element = ByteString.copyFromUtf8("element_1")
+        }
+        .build()
+    val v2alphaApiElgamalPublicKey2 =
+      ElGamalPublicKey.newBuilder()
+        .apply {
+          generator = ByteString.copyFromUtf8("generator_2")
+          element = ByteString.copyFromUtf8("element_2")
+        }
+        .build()
+    val v2alphaApiElgamalPublicKey3 =
+      ElGamalPublicKey.newBuilder()
+        .apply {
+          generator = ByteString.copyFromUtf8("generator_3")
+          element = ByteString.copyFromUtf8("element_3")
+        }
+        .build()
+    val systemComputationParticipant1 =
+      SystemComputationParticipant.newBuilder()
+        .apply {
+          name = ComputationParticipantKey(globalId, DUCHY_ONE).toName()
+          requisitionParamsBuilder.apply {
+            duchyCertificate = "duchyCertificate_1"
+            duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_1")
+            liquidLegionsV2Builder.apply {
+              elGamalPublicKey = v2alphaApiElgamalPublicKey1.toByteString()
+              elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_1")
             }
           }
-          .build()
-      val systemComputationParticipant2 =
-        SystemComputationParticipant.newBuilder()
-          .apply {
-            name = ComputationParticipantKey(globalId, DUCHY_TWO).toName()
-            requisitionParamsBuilder.apply {
-              duchyCertificate = "duchyCertificate_2"
-              duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_2")
-              liquidLegionsV2Builder.apply {
-                elGamalPublicKey = v2alphaApiElgamalPublicKey2.toByteString()
-                elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_2")
-              }
+        }
+        .build()
+    val systemComputationParticipant2 =
+      SystemComputationParticipant.newBuilder()
+        .apply {
+          name = ComputationParticipantKey(globalId, DUCHY_TWO).toName()
+          requisitionParamsBuilder.apply {
+            duchyCertificate = "duchyCertificate_2"
+            duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_2")
+            liquidLegionsV2Builder.apply {
+              elGamalPublicKey = v2alphaApiElgamalPublicKey2.toByteString()
+              elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_2")
             }
           }
-          .build()
-      val systemComputationParticipant3 =
-        SystemComputationParticipant.newBuilder()
-          .apply {
-            name = ComputationParticipantKey(globalId, DUCHY_THREE).toName()
-            requisitionParamsBuilder.apply {
-              duchyCertificate = "duchyCertificate_3"
+        }
+        .build()
+    val systemComputationParticipant3 =
+      SystemComputationParticipant.newBuilder()
+        .apply {
+          name = ComputationParticipantKey(globalId, DUCHY_THREE).toName()
+          requisitionParamsBuilder.apply {
+            duchyCertificate = "duchyCertificate_3"
+            duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_3")
+            liquidLegionsV2Builder.apply {
+              elGamalPublicKey = v2alphaApiElgamalPublicKey3.toByteString()
+              elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_3")
+            }
+          }
+        }
+        .build()
+    val waitingRequisitionsAndKeySet =
+      buildComputationAtKingdom(
+        globalId,
+        Computation.State.PENDING_PARTICIPANT_CONFIRMATION,
+        listOf(systemApiRequisitions1, systemApiRequisitions2),
+        listOf(
+          systemComputationParticipant1,
+          systemComputationParticipant2,
+          systemComputationParticipant3
+        )
+      )
+
+    mockStreamActiveComputationsToReturn(waitingRequisitionsAndKeySet)
+
+    fakeComputationStorage.addComputation(
+      globalId = globalId,
+      stage = WAIT_REQUISITIONS_AND_KEY_SET.toProtocolStage(),
+      computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
+      requisitions =
+        listOf(
+          REQUISITION_1.toRequisitionMetadata(Requisition.State.UNFULFILLED),
+          REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED)
+        )
+    )
+
+    assertThat(aggregatorHerald.syncStatuses(EMPTY_TOKEN))
+      .isEqualTo(waitingRequisitionsAndKeySet.continuationToken())
+
+    val duchyComputationToken = fakeComputationStorage.readComputationToken(globalId)!!
+    assertThat(duchyComputationToken.computationStage)
+      .isEqualTo(CONFIRMATION_PHASE.toProtocolStage())
+    assertThat(duchyComputationToken.computationDetails.liquidLegionsV2.participantList)
+      .isEqualTo(
+        mutableListOf(
+          ComputationParticipant.newBuilder()
+            .apply {
+              duchyId = DUCHY_THREE
+              publicKeyBuilder.apply {
+                generator = ByteString.copyFromUtf8("generator_3")
+                element = ByteString.copyFromUtf8("element_3")
+              }
+              elGamalPublicKey = v2alphaApiElgamalPublicKey3.toByteString()
+              elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_3")
               duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_3")
-              liquidLegionsV2Builder.apply {
-                elGamalPublicKey = v2alphaApiElgamalPublicKey3.toByteString()
-                elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_3")
-              }
             }
-          }
-          .build()
-      val waitingRequisitionsAndKeySet =
-        buildComputationAtKingdom(
-          globalId,
-          Computation.State.PENDING_PARTICIPANT_CONFIRMATION,
-          listOf(systemApiRequisitions1, systemApiRequisitions2),
-          listOf(
-            systemComputationParticipant1,
-            systemComputationParticipant2,
-            systemComputationParticipant3
-          )
+            .build(),
+          ComputationParticipant.newBuilder()
+            .apply {
+              duchyId = DUCHY_TWO
+              publicKeyBuilder.apply {
+                generator = ByteString.copyFromUtf8("generator_2")
+                element = ByteString.copyFromUtf8("element_2")
+              }
+              elGamalPublicKey = v2alphaApiElgamalPublicKey2.toByteString()
+              elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_2")
+              duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_2")
+            }
+            .build(),
+          ComputationParticipant.newBuilder()
+            .apply {
+              duchyId = DUCHY_ONE
+              publicKeyBuilder.apply {
+                generator = ByteString.copyFromUtf8("generator_1")
+                element = ByteString.copyFromUtf8("element_1")
+              }
+              elGamalPublicKey = v2alphaApiElgamalPublicKey1.toByteString()
+              elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_1")
+              duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_1")
+            }
+            .build()
         )
-
-      mockStreamActiveComputationsToReturn(waitingRequisitionsAndKeySet)
-
-      fakeComputationStorage.addComputation(
-        globalId = globalId,
-        stage = WAIT_REQUISITIONS_AND_KEY_SET.toProtocolStage(),
-        computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
-        requisitions =
-          listOf(
-            REQUISITION_1.toRequisitionMetadata(Requisition.State.UNFULFILLED),
-            REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED)
-          )
       )
-
-      assertThat(aggregatorHerald.syncStatuses(EMPTY_TOKEN))
-        .isEqualTo(waitingRequisitionsAndKeySet.continuationToken())
-
-      val duchyComputationToken = fakeComputationStorage.readComputationToken(globalId)!!
-      assertThat(duchyComputationToken.computationStage)
-        .isEqualTo(CONFIRMATION_PHASE.toProtocolStage())
-      assertThat(duchyComputationToken.computationDetails.liquidLegionsV2.participantList)
-        .isEqualTo(
-          mutableListOf(
-            ComputationParticipant.newBuilder()
-              .apply {
-                duchyId = DUCHY_THREE
-                publicKeyBuilder.apply {
-                  generator = ByteString.copyFromUtf8("generator_3")
-                  element = ByteString.copyFromUtf8("element_3")
-                }
-                elGamalPublicKey = v2alphaApiElgamalPublicKey3.toByteString()
-                elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_3")
-                duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_3")
-              }
-              .build(),
-            ComputationParticipant.newBuilder()
-              .apply {
-                duchyId = DUCHY_TWO
-                publicKeyBuilder.apply {
-                  generator = ByteString.copyFromUtf8("generator_2")
-                  element = ByteString.copyFromUtf8("element_2")
-                }
-                elGamalPublicKey = v2alphaApiElgamalPublicKey2.toByteString()
-                elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_2")
-                duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_2")
-              }
-              .build(),
-            ComputationParticipant.newBuilder()
-              .apply {
-                duchyId = DUCHY_ONE
-                publicKeyBuilder.apply {
-                  generator = ByteString.copyFromUtf8("generator_1")
-                  element = ByteString.copyFromUtf8("element_1")
-                }
-                elGamalPublicKey = v2alphaApiElgamalPublicKey1.toByteString()
-                elGamalPublicKeySignature = ByteString.copyFromUtf8("elGamalPublicKeySignature_1")
-                duchyCertificateDer = ByteString.copyFromUtf8("duchyCertificateDer_1")
-              }
-              .build()
-          )
-        )
-      assertThat(duchyComputationToken.requisitionsList)
-        .containsExactly(
-          REQUISITION_1.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_ONE),
-          REQUISITION_2.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_TWO)
-        )
-    }
+    assertThat(duchyComputationToken.requisitionsList)
+      .containsExactly(
+        REQUISITION_1.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_ONE),
+        REQUISITION_2.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_TWO)
+      )
+  }
 
   @Test
-  fun `syncStatuses starts computations in wait_to_start`() =
-    runBlocking<Unit> {
-      val waitingToStart =
-        buildComputationAtKingdom("42314125676756", Computation.State.PENDING_COMPUTATION)
-      val addingNoise = buildComputationAtKingdom("231313", Computation.State.PENDING_COMPUTATION)
-      mockStreamActiveComputationsToReturn(waitingToStart, addingNoise)
+  fun `syncStatuses starts computations in wait_to_start`() = runTest {
+    val waitingToStart =
+      buildComputationAtKingdom("42314125676756", Computation.State.PENDING_COMPUTATION)
+    val addingNoise = buildComputationAtKingdom("231313", Computation.State.PENDING_COMPUTATION)
+    mockStreamActiveComputationsToReturn(waitingToStart, addingNoise)
 
-      fakeComputationStorage.addComputation(
-        globalId = waitingToStart.key.computationId,
-        stage = WAIT_TO_START.toProtocolStage(),
-        computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
-        blobs = listOf(newPassThroughBlobMetadata(0L, "local-copy-of-sketches"))
+    fakeComputationStorage.addComputation(
+      globalId = waitingToStart.key.computationId,
+      stage = WAIT_TO_START.toProtocolStage(),
+      computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
+      blobs = listOf(newPassThroughBlobMetadata(0L, "local-copy-of-sketches"))
+    )
+
+    fakeComputationStorage.addComputation(
+      globalId = addingNoise.key.computationId,
+      stage = SETUP_PHASE.toProtocolStage(),
+      computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
+      blobs =
+        listOf(newInputBlobMetadata(0L, "inputs-to-add-noise"), newEmptyOutputBlobMetadata(1L))
+    )
+
+    assertThat(aggregatorHerald.syncStatuses(EMPTY_TOKEN))
+      .isEqualTo(addingNoise.continuationToken())
+    assertThat(
+        fakeComputationStorage.mapValues { (_, fakeComputation) ->
+          fakeComputation.computationStage
+        }
       )
-
-      fakeComputationStorage.addComputation(
-        globalId = addingNoise.key.computationId,
-        stage = SETUP_PHASE.toProtocolStage(),
-        computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
-        blobs =
-          listOf(newInputBlobMetadata(0L, "inputs-to-add-noise"), newEmptyOutputBlobMetadata(1L))
+      .containsExactly(
+        waitingToStart.key.computationId.toLong(),
+        SETUP_PHASE.toProtocolStage(),
+        addingNoise.key.computationId.toLong(),
+        SETUP_PHASE.toProtocolStage()
       )
-
-      assertThat(aggregatorHerald.syncStatuses(EMPTY_TOKEN))
-        .isEqualTo(addingNoise.continuationToken())
-      assertThat(
-          fakeComputationStorage.mapValues { (_, fakeComputation) ->
-            fakeComputation.computationStage
-          }
-        )
-        .containsExactly(
-          waitingToStart.key.computationId.toLong(),
-          SETUP_PHASE.toProtocolStage(),
-          addingNoise.key.computationId.toLong(),
-          SETUP_PHASE.toProtocolStage()
-        )
-    }
+  }
 
   @Test
-  fun `syncStatuses starts computations with retries`() = runBlocking {
+  fun `syncStatuses starts computations with retries`() = runTest {
     val computation =
       buildComputationAtKingdom("42314125676756", Computation.State.PENDING_COMPUTATION)
-    mockStreamActiveComputationsToReturn(computation)
-
+    val streamActiveComputationsJob = Job()
+    systemComputations.stub {
+      onBlocking { streamActiveComputations(any()) }
+        .thenReturn(
+          flow {
+            emit(
+              streamActiveComputationsResponse {
+                this.computation = computation
+                this.continuationToken = computation.continuationToken()
+              }
+            )
+            streamActiveComputationsJob.complete()
+          }
+        )
+    }
     fakeComputationStorage.addComputation(
       globalId = computation.key.computationId,
       stage = INITIALIZATION_PHASE.toProtocolStage(),
@@ -501,9 +518,11 @@ class HeraldTest {
       blobs = listOf(newInputBlobMetadata(0L, "local-copy-of-sketches"))
     )
 
-    assertThat(nonAggregatorHerald.syncStatuses(EMPTY_TOKEN))
-      .isEqualTo(computation.continuationToken())
+    val syncResult = async { nonAggregatorHerald.syncStatuses(EMPTY_TOKEN) }
 
+    // Verify that after first attempt, computation is still in INITIALIZATION_PHASE.
+    streamActiveComputationsJob.join()
+    runCurrent()
     assertThat(
         fakeComputationStorage.mapValues { (_, fakeComputation) ->
           fakeComputation.computationStage
@@ -523,44 +542,36 @@ class HeraldTest {
       blobs = listOf(newPassThroughBlobMetadata(0L, "local-copy-of-sketches"))
     )
 
-    // Wait for the background retry to fix the state.
+    // Verify that next attempt succeeds.
+    syncResult.await()
     val finalComputation =
-      pollFor(timeoutMillis = 10_000L) {
-        val c = fakeComputationStorage[computation.key.computationId.toLong()]
-        if (c?.computationStage == SETUP_PHASE.toProtocolStage()) {
-          c
-        } else {
-          null
-        }
-      }
-
-    assertThat(finalComputation).isNotNull()
+      assertNotNull(fakeComputationStorage[computation.key.computationId.toLong()])
+    assertThat(finalComputation.computationStage).isEqualTo(SETUP_PHASE.toProtocolStage())
   }
 
   @Test
-  fun `syncStatuses gives up on starting computations`() =
-    runBlocking<Unit> {
-      val heraldWithOneRetry =
-        Herald(
-          internalComputationsStub,
-          systemComputationsStub,
-          NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
-          maxAttempts = 2
-        )
-
-      val computation =
-        buildComputationAtKingdom("42314125676756", Computation.State.PENDING_COMPUTATION)
-      mockStreamActiveComputationsToReturn(computation)
-
-      fakeComputationStorage.addComputation(
-        globalId = computation.key.computationId,
-        stage = INITIALIZATION_PHASE.toProtocolStage(),
-        computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
-        blobs = listOf(newInputBlobMetadata(0L, "local-copy-of-sketches"))
+  fun `syncStatuses gives up on starting computations`() = runTest {
+    val heraldWithOneRetry =
+      Herald(
+        internalComputationsStub,
+        systemComputationsStub,
+        NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
+        maxAttempts = 2
       )
 
-      assertFails { heraldWithOneRetry.continuallySyncStatuses(FakeThrottler()) }
-    }
+    val computation =
+      buildComputationAtKingdom("42314125676756", Computation.State.PENDING_COMPUTATION)
+    mockStreamActiveComputationsToReturn(computation)
+
+    fakeComputationStorage.addComputation(
+      globalId = computation.key.computationId,
+      stage = INITIALIZATION_PHASE.toProtocolStage(),
+      computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
+      blobs = listOf(newInputBlobMetadata(0L, "local-copy-of-sketches"))
+    )
+
+    assertFailsWith<Herald.AttemptsExhaustedException> { heraldWithOneRetry.syncStatuses("") }
+  }
 
   private fun mockStreamActiveComputationsToReturn(vararg computations: Computation) =
     systemComputations.stub {
