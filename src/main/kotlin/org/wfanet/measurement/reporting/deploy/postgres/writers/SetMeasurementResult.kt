@@ -151,8 +151,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
           Metric.Details.MetricTypeCase.FREQUENCY_HISTOGRAM -> {
             histogramTables += metric.toHistogramTable(rowHeaders, measurementResultsMap)
           }
-          Metric.Details.MetricTypeCase.METRICTYPE_NOT_SET ->
-            error("Metric Type should be set.")
+          Metric.Details.MetricTypeCase.METRICTYPE_NOT_SET -> error("Metric Type should be set.")
         }
       }
       if (scalarTableColumnsList.size > 0) {
