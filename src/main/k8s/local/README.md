@@ -82,6 +82,11 @@ Create the file `authority_key_identifier_to_principal_map.textproto` with the
 content below, substituting the appropriate resource names. The AKIDs come from
 the EDP certificates in [secretfiles](../testing/secretfiles).
 
+To create one for the reporting server, create the file 
+`authority_key_identifier_to_mc_principal_map.textproto` with the
+content below, substituting the appropriate resource names. The AKIDs come from
+the MC certificates in [secretfiles](../testing/secretfiles).
+
 ```prototext
 # proto-file: src/main/proto/wfa/measurement/config/authority_key_to_principal_map.proto
 # proto-message: AuthorityKeyToPrincipalMap
@@ -117,6 +122,55 @@ Update the ConfigMap, passing the `--from-file` option for each config file.
 kubectl create configmap config-files --output=yaml --dry-run=client \
   --from-file=authority_key_identifier_to_principal_map.textproto \
   | kubectl replace -f -
+```
+
+If you want to also deploy the Reporting Server, you can add additional files
+to the ConfigMap.
+
+```shell
+kubectl create configmap config-files --output=yaml --dry-run=client \
+  --from-file=authority_key_identifier_to_principal_map.textproto \
+  --from-file=authority_key_identifier_to_mc_principal_map.textproto \
+  --from_file=measurement_consumer_config.textproto \
+  --from_file=encryption_key_pair_config.textproto \
+  | kubectl replace -f -
+```
+
+Create the file `measurement_consumer_config.textproto` with the
+content below, substituting the appropriate resource name and api key.
+
+```prototext
+# proto-file: src/main/proto/wfa/measurement/config/reporting/measurement_consumer_config.proto
+# proto-message: MeasurementConsumerConfigs
+configs {
+  key: "measurementConsumers/OljiQHRz-E4"
+  value: {
+    api_key: "OljiQHRz-E4"
+  }
+}
+configs {
+  key: "measurementConsumers/OljiQHRz-E4"
+  value: {
+    api_key: "OljiQHRz-E4"
+  }
+}
+```
+
+Create the file `encryption_key_pair_config.textproto` with the
+content below, substituting the appropriate file names. The file names come from
+the MC keys in [secretfiles](../testing/secretfiles).
+
+```prototext
+# proto-file: src/main/proto/wfa/measurement/config/reporting/encryption_key_pair_config.proto
+# proto-message: EncryptionKeyPairConfig
+key_pairs {
+  key: "mc_enc_public.tink"
+  value: "mc_enc_private.tink"
+}
+key_pairs {
+  key: "mc_enc_public.tink"
+  value: "mc_enc_private.tink"
+}
 ```
 
 You can then restart the Kingdom deployments that depend on `config-files`. At
@@ -179,4 +233,21 @@ bazel run //src/main/k8s/local:mc_frontend_simulator_kind \
   --define=k8s_secret_name=certs-and-configs-k8888kc6gg \
   --define=mc_name=measurementConsumers/FS1n8aTrck0 \
   --define=mc_api_key=He941S1h2XI
+```
+
+## Deploy Reporting Server Postgres Database
+This deploys the database for the Reporting Server.
+```shell
+bazel run //src/main/k8s/local:reporting_database_kind \
+  --define=k8s_secret_name=certs-and-configs-k8888kc6gg \
+  --define=reporting_db_user=user \
+  --define=reporting_db_password=password
+```
+
+## Deploy Reporting Server
+```shell
+bazel run //src/main/k8s/local:reporting_kind \
+  --define=k8s_secret_name=certs-and-configs-k8888kc6gg \
+  --define=reporting_db_user=user \
+  --define=reporting_db_password=password
 ```
