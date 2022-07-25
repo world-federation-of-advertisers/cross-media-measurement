@@ -39,7 +39,7 @@ class GCloudPostgresReportingDataServer : ReportingDataServer() {
     val clock = Clock.systemUTC()
     val idGenerator = RandomIdGenerator(clock)
 
-    val factory = PostgresConnectionFactories.fromFlags(postgresFlags)
+    val factory = PostgresConnectionFactories.buildConnectionFactory(postgresFlags)
     val client = PostgresDatabaseClient.fromConnectionFactory(factory)
 
     run(PostgresServices.create(idGenerator, client))
