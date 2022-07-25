@@ -1,4 +1,4 @@
-// Copyright 2021 The Cross-Media Measurement Authors
+// Copyright 2022 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,19 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.reporting.deploy.postgres
+package org.wfanet.measurement.reporting.deploy.common.server.postgres
 
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.reporting.deploy.common.service.DataServices
-import org.wfanet.measurement.reporting.deploy.common.service.ReportingServerDataServices
+import org.wfanet.measurement.reporting.deploy.common.server.ReportingDataServer.Companion.Services
+import org.wfanet.measurement.reporting.deploy.postgres.PostgresMeasurementsService
+import org.wfanet.measurement.reporting.deploy.postgres.PostgresReportingSetsService
+import org.wfanet.measurement.reporting.deploy.postgres.PostgresReportsService
 
-class PostgresDataServices(
-  private val idGenerator: IdGenerator,
-  private val client: DatabaseClient
-) : DataServices {
-  override fun buildDataServices(): ReportingServerDataServices {
-    return ReportingServerDataServices(
+object PostgresServices {
+  @JvmStatic
+  fun create(idGenerator: IdGenerator, client: DatabaseClient): Services {
+    return Services(
       PostgresMeasurementsService(idGenerator, client),
       PostgresReportingSetsService(idGenerator, client),
       PostgresReportsService(idGenerator, client)

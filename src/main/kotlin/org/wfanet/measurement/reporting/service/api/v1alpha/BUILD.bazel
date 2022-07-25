@@ -94,6 +94,7 @@ kt_jvm_library(
         ":measurement_consumer_constants",
         "//src/main/kotlin/org/wfanet/measurement/api:principal_constants",
         "//src/main/kotlin/org/wfanet/measurement/common/api:resource_key",
+        "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/io/grpc:context",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
     ],
@@ -105,5 +106,21 @@ kt_jvm_library(
     deps = [
         "//src/main/proto/wfa/measurement/reporting/v1alpha:report_kt_jvm_proto",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
+    name = "textproto_file_measurement_consumer_config_lookup",
+    srcs = [
+        "TextprotoFileMeasurementConsumerConfigLookup.kt",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:principal",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:principal_server_interceptor",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:measurement_consumer_server_interceptor",
+        "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )

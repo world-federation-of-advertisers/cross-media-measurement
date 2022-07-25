@@ -5,13 +5,13 @@ java_image(
     args = [
         "--changelog=reporting/postgres/changelog.yaml",
     ],
-    main_class = "org.wfanet.measurement.postgres.tools.UpdateSchema",
+    main_class = "org.wfanet.measurement.common.db.postgres.tools.UpdateSchema",
     resources = ["//src/main/resources/reporting/postgres"],
     visibility = [
         "//src/main/docker:__pkg__",
         "//src/main/k8s:__subpackages__",
     ],
     runtime_deps = [
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/postgres/tools:update_schema",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/postgres/tools:update_schema",
     ],
 )

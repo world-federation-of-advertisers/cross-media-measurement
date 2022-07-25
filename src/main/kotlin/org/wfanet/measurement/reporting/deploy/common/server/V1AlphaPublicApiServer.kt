@@ -22,15 +22,15 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
-import org.wfanet.measurement.common.identity.TextprotoFileApiKeyLookup
 import org.wfanet.measurement.common.identity.TextprotoFilePrincipalLookup
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.reporting.deploy.common.EncryptionKeyPairMap
 import org.wfanet.measurement.reporting.deploy.common.KingdomApiFlags
 import org.wfanet.measurement.reporting.service.api.v1alpha.ReportingSetsService
+import org.wfanet.measurement.reporting.service.api.v1alpha.TextprotoFileMeasurementConsumerConfigLookup
 import picocli.CommandLine
 
-private const val SERVER_NAME = "V1alphaPublicApiServer"
+private const val SERVER_NAME = "V1AlphaPublicApiServer"
 
 @CommandLine.Command(
   name = SERVER_NAME,
@@ -66,7 +66,8 @@ private fun run(
   val principalLookup =
     TextprotoFilePrincipalLookup(v1alphaFlags.authorityKeyIdentifierToPrincipalMapFile)
 
-  val apiKeyLookup = TextprotoFileApiKeyLookup(v1alphaFlags.measurementConsumerToApiKeyMapFile)
+  val configLookup =
+    TextprotoFileMeasurementConsumerConfigLookup(v1alphaFlags.measurementConsumerConfigFile)
 
   // TODO(): update when services are complete
   val services: List<ServerServiceDefinition> =
@@ -91,7 +92,7 @@ private fun run(
         null
       )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
-        .withMeasurementConsumerServerInterceptor(apiKeyLookup),
+        .withMeasurementConsumerServerInterceptor(configLookup),
        */
       )
   CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
@@ -99,7 +100,7 @@ private fun run(
 
 fun main(args: Array<String>) = commandLineMain(::run, args)
 
-/** Flags specific to the V1alpha API version. */
+/** Flags specific to the V1Alpha API version. */
 private class V1alphaFlags {
   @CommandLine.Option(
     names = ["--authority-key-identifier-to-principal-map-file"],
@@ -110,10 +111,10 @@ private class V1alphaFlags {
     private set
 
   @CommandLine.Option(
-    names = ["--measurement-consumer-to-api-key-map-file"],
-    description = ["File path to a MeasurementConsumerToApiKeyMap textproto"],
+    names = ["--measurement-consumer-config-file"],
+    description = ["File path to a MeasurementConsumerConfig textproto"],
     required = true,
   )
-  lateinit var measurementConsumerToApiKeyMapFile: File
+  lateinit var measurementConsumerConfigFile: File
     private set
 }

@@ -2,14 +2,12 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 
 kt_jvm_library(
     name = "services",
-    srcs = glob(["*Service*.kt"]),
+    srcs = glob(["*Service.kt"]),
     visibility = [
-        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/gcloud/postgres:__subpackages__",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/common/server/postgres:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/reporting/deploy/postgres:__pkg__",
     ],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/common/service:data_services",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/readers",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/writers",
         "//src/main/proto/wfa/measurement/internal/reporting:measurements_service_kt_jvm_grpc_proto",

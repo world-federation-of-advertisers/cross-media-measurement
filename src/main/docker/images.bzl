@@ -107,12 +107,12 @@ GKE_IMAGES = [
         repository = _PREFIX + "/loadtest/edp-simulator",
     ),
     struct(
-        name = "gc_reporting_data_server_image",
+        name = "gcloud_reporting_data_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/gcloud/postgres/server:gcloud_postgres_reporting_data_server_image",
         repository = _PREFIX + "/reporting/data-server",
     ),
     struct(
-        name = "gc_reporting_postgres_update_schema_image",
+        name = "gcloud_reporting_postgres_update_schema_image",
         image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/gcloud/postgres/tools:update_schema_image",
         repository = _PREFIX + "/reporting/postgres-update-schema",
     ),
@@ -147,12 +147,10 @@ LOCAL_IMAGES = [
     struct(
         name = "reporting_data_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/server:postgres_reporting_data_server_image",
-        repository = _PREFIX + "/reporting/data-server",
     ),
     struct(
         name = "reporting_postgres_update_schema_image",
         image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/tools:update_schema_image",
-        repository = _PREFIX + "/reporting/postgres-update-schema",
     ),
 ]
 

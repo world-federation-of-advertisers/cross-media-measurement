@@ -19,29 +19,31 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.gcloud.postgres.PostgresConnectionFactories
 import org.wfanet.measurement.gcloud.postgres.PostgresFlags
 import org.wfanet.measurement.reporting.deploy.common.server.ReportingDataServer
-import org.wfanet.measurement.reporting.deploy.postgres.PostgresDataServices
+import org.wfanet.measurement.reporting.deploy.common.server.postgres.PostgresServices
 import picocli.CommandLine
 
 /** Implementation of [ReportingDataServer] using Google Cloud Postgres. */
 @CommandLine.Command(
-  name = "PostgresReportingDataServer",
+  name = "GCloudPostgresReportingDataServer",
   description = ["Start the internal Reporting data-layer services in a single blocking server."],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-class PostgresReportingDataServer : ReportingDataServer() {
+class GCloudPostgresReportingDataServer : ReportingDataServer() {
   @CommandLine.Mixin private lateinit var postgresFlags: PostgresFlags
 
   override fun run() = runBlocking {
     val clock = Clock.systemUTC()
     val idGenerator = RandomIdGenerator(clock)
 
-    val client = PostgresDatabaseClient.fromFlags(postgresFlags)
+    val factory = PostgresConnectionFactories.fromFlags(postgresFlags)
+    val client = PostgresDatabaseClient.fromConnectionFactory(factory)
 
-    run(PostgresDataServices(idGenerator, client))
+    run(PostgresServices.create(idGenerator, client))
   }
 }
 
-fun main(args: Array<String>) = commandLineMain(PostgresReportingDataServer(), args)
+fun main(args: Array<String>) = commandLineMain(GCloudPostgresReportingDataServer(), args)

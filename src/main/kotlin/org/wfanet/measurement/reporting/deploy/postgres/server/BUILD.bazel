@@ -7,11 +7,11 @@ kt_jvm_library(
     srcs = ["PostgresReportingDataServer.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/common/server:reporting_data_server",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres:services",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/common/server/postgres:services",
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/postgres:flags",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/postgres:flags",
     ],
 )
 

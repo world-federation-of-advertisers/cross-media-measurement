@@ -19,7 +19,6 @@ kt_jvm_library(
 
 kt_jvm_library(
     name = "flags",
-    testonly = False,
     srcs = ["InternalApiFlags.kt"],
     deps = [
         "@wfa_common_jvm//imports/java/picocli",
@@ -28,7 +27,6 @@ kt_jvm_library(
 
 kt_jvm_library(
     name = "kingdom_flags",
-    testonly = False,
     srcs = ["KingdomApiFlags.kt"],
     deps = [
         "@wfa_common_jvm//imports/java/picocli",

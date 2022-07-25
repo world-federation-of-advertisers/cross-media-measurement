@@ -14,19 +14,33 @@
 
 package org.wfanet.measurement.reporting.deploy.common.server
 
+import io.grpc.BindableService
+import kotlin.reflect.full.declaredMemberProperties
 import kotlinx.coroutines.runInterruptible
 import org.wfanet.measurement.common.grpc.CommonServer
-import org.wfanet.measurement.reporting.deploy.common.service.DataServices
-import org.wfanet.measurement.reporting.deploy.common.service.toList
+import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt
+import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt
+import org.wfanet.measurement.internal.reporting.ReportsGrpcKt
 import picocli.CommandLine
 
 abstract class ReportingDataServer : Runnable {
   @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags
 
-  protected suspend fun run(dataServices: DataServices) {
-    val services = dataServices.buildDataServices().toList()
-    val server = CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services)
+  protected suspend fun run(services: Services) {
+    val server = CommonServer.fromFlags(serverFlags, this::class.simpleName!!, services.toList())
 
     runInterruptible { server.start().blockUntilShutdown() }
+  }
+
+  companion object {
+    data class Services(
+      val measurementsService: MeasurementsGrpcKt.MeasurementsCoroutineImplBase,
+      val reportingSetsService: ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase,
+      val reportsService: ReportsGrpcKt.ReportsCoroutineImplBase
+    )
+
+    fun Services.toList(): List<BindableService> {
+      return Services::class.declaredMemberProperties.map { it.get(this) as BindableService }
+    }
   }
 }

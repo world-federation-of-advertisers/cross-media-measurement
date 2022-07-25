@@ -17,11 +17,11 @@ package org.wfanet.measurement.reporting.deploy.postgres.server
 import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.db.postgres.PostgresFlags
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.identity.RandomIdGenerator
-import org.wfanet.measurement.postgres.PostgresFlags
 import org.wfanet.measurement.reporting.deploy.common.server.ReportingDataServer
-import org.wfanet.measurement.reporting.deploy.postgres.PostgresDataServices
+import org.wfanet.measurement.reporting.deploy.common.server.postgres.PostgresServices
 import picocli.CommandLine
 
 /** Implementation of [ReportingDataServer] using Postgres. */
@@ -40,7 +40,7 @@ class PostgresReportingDataServer : ReportingDataServer() {
 
     val client = PostgresDatabaseClient.fromFlags(postgresFlags)
 
-    run(PostgresDataServices(idGenerator, client))
+    run(PostgresServices.create(idGenerator, client))
   }
 }
 

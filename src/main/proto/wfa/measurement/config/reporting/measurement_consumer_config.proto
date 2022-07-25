@@ -16,14 +16,15 @@ syntax = "proto3";
 
 package wfa.measurement.config;
 
-option java_package = "org.wfanet.measurement.config";
+option java_package = "org.wfanet.measurement.config.reporting";
 option java_multiple_files = true;
 
-message MeasurementConsumerToApiKeyMap {
-  repeated Entry entries = 1;
+message MeasurementConsumerConfig {
+  string api_key = 1;
+  // Possibly other per-MC config fields here in the future, such as folding in
+  // the key pair mapping.
+}
 
-  message Entry {
-    string measurement_consumer_name = 1;
-    string api_key = 2;
-  }
+message MeasurementConsumerConfigs {
+  map<string, MeasurementConsumerConfig> configs_map = 1;
 }

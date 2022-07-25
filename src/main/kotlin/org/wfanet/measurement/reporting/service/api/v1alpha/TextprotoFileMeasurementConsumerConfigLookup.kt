@@ -12,27 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.common.identity
+package org.wfanet.measurement.reporting.service.api.v1alpha
 
 import java.io.File
 import org.wfanet.measurement.api.v2alpha.PrincipalServerInterceptor.PrincipalLookup
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.config.MeasurementConsumerToApiKeyMap
-import org.wfanet.measurement.config.measurementConsumerToApiKeyMap
-import org.wfanet.measurement.reporting.service.api.v1alpha.MeasurementConsumerServerInterceptor.ApiKeyLookup
+import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
+import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
+import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
+import org.wfanet.measurement.reporting.service.api.v1alpha.MeasurementConsumerServerInterceptor.ConfigLookup
 
 /**
  * [PrincipalLookup] that reads a mapping from a file.
  *
- * @param textprotoFile contains an [MeasurementConsumerToApiKeyMap] in textproto format.
+ * @param textprotoFile contains an [MeasurementConsumerConfigs] in textproto format.
  */
-class TextprotoFileApiKeyLookup(textprotoFile: File) : ApiKeyLookup {
-  private val map: Map<String, String> =
-    parseTextProto(textprotoFile, measurementConsumerToApiKeyMap {}).entriesList.associate {
-      it.measurementConsumerName to it.apiKey
-    }
+class TextprotoFileMeasurementConsumerConfigLookup(textprotoFile: File) : ConfigLookup {
+  private val map: Map<String, MeasurementConsumerConfig> =
+    parseTextProto(textprotoFile, measurementConsumerConfigs {}).configsMapMap
 
-  override fun get(measurementConsumerName: String): String? {
+  override fun get(measurementConsumerName: String): MeasurementConsumerConfig? {
     return map[measurementConsumerName]
   }
 }

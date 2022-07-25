@@ -26,6 +26,7 @@ import io.grpc.Status
 import org.wfanet.measurement.api.PrincipalConstants
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
 
 /**
  * Returns an API key in the current gRPC context. Requires [MeasurementConsumerServerInterceptor]
@@ -46,12 +47,12 @@ fun Context.withApiKey(apiKey: String): Context {
   return withValue(MeasurementConsumerConstants.API_KEY_CONTEXT_KEY, apiKey)
 }
 
-/** gRPC [ServerInterceptor] to get the API key for a MeasurementConsumer */
-class MeasurementConsumerServerInterceptor(private val apiKeyLookup: ApiKeyLookup) :
+/** gRPC [ServerInterceptor] to get the config values for a MeasurementConsumer */
+class MeasurementConsumerServerInterceptor(private val configLookup: ConfigLookup) :
   ServerInterceptor {
 
-  interface ApiKeyLookup {
-    fun get(measurementConsumerName: String): String?
+  interface ConfigLookup {
+    fun get(measurementConsumerName: String): MeasurementConsumerConfig?
   }
 
   override fun <ReqT, RespT> interceptCall(
@@ -64,7 +65,11 @@ class MeasurementConsumerServerInterceptor(private val apiKeyLookup: ApiKeyLooku
       return unauthenticatedError(call, "MeasurementConsumer not found")
     }
 
-    val apiKey = apiKeyLookup.get(principal.resourceKey.toName())
+    val config =
+      configLookup.get(principal.resourceKey.toName())
+        ?: return unauthenticatedError(call, "Config not found for MeasurementConsumer")
+
+    val apiKey = config.apiKey
     val context =
       Context.current().withValue(MeasurementConsumerConstants.API_KEY_CONTEXT_KEY, apiKey)
     return Contexts.interceptCall(context, call, headers, next)
@@ -81,6 +86,6 @@ class MeasurementConsumerServerInterceptor(private val apiKeyLookup: ApiKeyLooku
 
 /** Convenience helper for [MeasurementConsumerServerInterceptor]. */
 fun ServerServiceDefinition.withMeasurementConsumerServerInterceptor(
-  apiKeyLookup: MeasurementConsumerServerInterceptor.ApiKeyLookup
+  configLookup: MeasurementConsumerServerInterceptor.ConfigLookup
 ): ServerServiceDefinition =
-  ServerInterceptors.interceptForward(this, MeasurementConsumerServerInterceptor(apiKeyLookup))
+  ServerInterceptors.interceptForward(this, MeasurementConsumerServerInterceptor(configLookup))
