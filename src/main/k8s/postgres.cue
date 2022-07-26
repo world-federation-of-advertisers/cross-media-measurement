@@ -15,19 +15,32 @@
 package k8s
 
 #PostgresConfig: {
-  cloudSqlInstance?: string
-	database?:         string
-	host:              string
-	port:              string
-	user:              string
-	password:          string
+    _flags: [_=string]: string
 
-	flags: [
-		"--postgres-host=\(host)",
-		"--postgres-port=\(port)",
-		"--postgres-user=\(user)",
-		"--postgres-password=\(password)",
-		if database != _|_ {"--postgres-database=\(database)"},
-		if cloudSqlInstance != _|_ {"--postgres-cloud-sql-instance=\(database)"},
-	]
+    user: string
+    password: string
+    database?: string
+    flags: [ for name, value in _flags {"\(name)=\(value)"}]
+
+    _flags: {
+        "--postgres-user": user
+        "--postgres-password": password
+        if database != _|_ {"--postgres-database": database}
+    }
+}
+
+#PostgresConfig: {
+    host: string
+    port: string
+
+    _flags: {
+        "--postgres-host": host
+        "--postgres-port": port
+    }
+} | {
+    cloudSqlInstance: string
+
+    _flags: {
+      "--postgres-cloud-sql-instance": cloudSqlInstance
+    }
 }

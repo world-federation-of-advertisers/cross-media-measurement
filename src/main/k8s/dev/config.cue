@@ -19,7 +19,7 @@ import "strings"
 #GCloudProject:      "halo-cmm-dev"
 #ContainerRegistry:  "gcr.io"
 #SpannerInstance:    "dev-instance"
-// TODO(tristanvuong2021): replace with region and instance
+// TODO(@tristanvuong2021): replace with region and instance
 #PostgresCloudSqlInstance:   "(#GCloudProject):region:instance"
 
 #GCloudConfig: {
