@@ -28,7 +28,6 @@ import java.time.Instant
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
-import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -1957,7 +1956,7 @@ class ReportsServiceTest {
       }
 
       val exception =
-        assertThrows(Exception::class.java) {
+        assertFailsWith(Exception::class) {
           withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
             runBlocking { service.createReport(request) }
           }
@@ -1980,7 +1979,7 @@ class ReportsServiceTest {
       }
 
       val exception =
-        assertThrows(Exception::class.java) {
+        assertFailsWith(Exception::class) {
           withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
             runBlocking { service.createReport(request) }
           }
@@ -2002,7 +2001,7 @@ class ReportsServiceTest {
     }
 
     val exception =
-      assertThrows(Exception::class.java) {
+      assertFailsWith(Exception::class) {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking { service.createReport(request) }
         }
@@ -2023,7 +2022,7 @@ class ReportsServiceTest {
       }
 
       val exception =
-        assertThrows(Exception::class.java) {
+        assertFailsWith(Exception::class) {
           withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
             runBlocking { service.createReport(request) }
           }
@@ -2045,7 +2044,7 @@ class ReportsServiceTest {
       }
 
       val exception =
-        assertThrows(Exception::class.java) {
+        assertFailsWith(Exception::class) {
           withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
             runBlocking { service.createReport(request) }
           }
@@ -2066,7 +2065,7 @@ class ReportsServiceTest {
     }
 
     val exception =
-      assertThrows(Exception::class.java) {
+      assertFailsWith(Exception::class) {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking { service.createReport(request) }
         }
@@ -2092,7 +2091,7 @@ class ReportsServiceTest {
       }
 
       val exception =
-        assertThrows(Exception::class.java) {
+        assertFailsWith(Exception::class) {
           withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
             runBlocking { service.createReport(request) }
           }
@@ -2113,7 +2112,7 @@ class ReportsServiceTest {
     }
 
     val exception =
-      assertThrows(Exception::class.java) {
+      assertFailsWith(Exception::class) {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking { service.createReport(request) }
         }
@@ -2134,7 +2133,7 @@ class ReportsServiceTest {
       }
 
       val exception =
-        assertThrows(Exception::class.java) {
+        assertFailsWith(Exception::class) {
           withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
             runBlocking { service.createReport(request) }
           }
@@ -2515,7 +2514,7 @@ class ReportsServiceTest {
       val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAME }
 
       val exception =
-        assertThrows(Exception::class.java) {
+        assertFailsWith(Exception::class) {
           withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
             runBlocking { service.listReports(request) }
           }
@@ -2532,7 +2531,7 @@ class ReportsServiceTest {
     val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAME }
 
     val exception =
-      assertThrows(Exception::class.java) {
+      assertFailsWith(Exception::class) {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking { service.listReports(request) }
         }
@@ -2550,7 +2549,7 @@ class ReportsServiceTest {
     val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAME }
 
     val exception =
-      assertThrows(Exception::class.java) {
+      assertFailsWith(Exception::class) {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking { service.listReports(request) }
         }
@@ -2569,7 +2568,7 @@ class ReportsServiceTest {
       val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAME }
 
       val exception =
-        assertThrows(Exception::class.java) {
+        assertFailsWith(Exception::class) {
           withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
             runBlocking { service.listReports(request) }
           }
@@ -2605,7 +2604,7 @@ class ReportsServiceTest {
       val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAME }
 
       val exception =
-        assertThrows(Exception::class.java) {
+        assertFailsWith(Exception::class) {
           withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
             runBlocking { service.listReports(request) }
           }
@@ -2623,7 +2622,7 @@ class ReportsServiceTest {
     val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAME }
 
     val exception =
-      assertThrows(Exception::class.java) {
+      assertFailsWith(Exception::class) {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking { service.listReports(request) }
         }
@@ -3252,7 +3251,7 @@ class ReportsServiceTest {
     val request = getReportRequest { name = REPORT_NAME_3 }
 
     val exception =
-      assertThrows(Exception::class.java) {
+      assertFailsWith(Exception::class) {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking { service.getReport(request) }
         }
