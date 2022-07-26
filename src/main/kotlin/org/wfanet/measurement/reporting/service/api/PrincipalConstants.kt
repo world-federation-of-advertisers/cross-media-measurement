@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.reporting.service.api.v1alpha
+package org.wfanet.measurement.reporting.service.api
 
 import io.grpc.Context
+import org.wfanet.measurement.reporting.service.api.v1alpha.Principal
 
 object PrincipalConstants {
   /** This is the context key for the authenticated [Principal]. */
