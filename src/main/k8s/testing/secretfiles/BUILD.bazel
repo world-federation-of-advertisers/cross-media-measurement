@@ -114,6 +114,8 @@ SECRET_FILES = [
     "exchange_workflow.textproto",
     "reporting_tls.key",
     "reporting_tls.pem",
+    "reporting_postgres_db_user.txt",
+    "reporting_postgres_db_password.txt",
 ]
 
 filegroup(
