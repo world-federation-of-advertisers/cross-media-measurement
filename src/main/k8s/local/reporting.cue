@@ -14,9 +14,7 @@
 
 package k8s
 
-_secret_name: string @tag("secret_name")
-_reporting_db_user: string @tag("reporting_db_user")
-_reporting_db_password: string @tag("reporting_db_password")
+_reportingSecretName: string @tag("secret_name")
 
 #ReportingServerResourceConfig: #DefaultResourceConfig & {
 }
@@ -24,12 +22,10 @@ _reporting_db_password: string @tag("reporting_db_password")
 objectSets: [ for objectSet in reporting {objectSet}]
 
 reporting: #Reporting & {
-	_secretName: _secret_name
+	_secretName: _reportingSecretName
 	_postgresConfig: {
 	  host: (#Target & {name: "postgres"}).host,
 	  port: (#Target & {name: "postgres"}).port,
-	  user: _reporting_db_user,
-	  password: _reporting_db_password,
 	}
 	_images: {
 		"update-reporting-schema":         "bazel/src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/tools:update_schema_image"

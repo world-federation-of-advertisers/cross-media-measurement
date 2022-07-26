@@ -147,6 +147,17 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	...
 }
 
+#SecretEnvVar: SecretEnvVar={
+  name: string
+  _secretName: string
+  _key: string
+  valueFrom:
+    secretKeyRef: {
+      name: _secretName
+      key: SecretEnvVar._key
+    }
+}
+
 #Container: {
 	_secretMounts: [...#SecretMount]
 	_configMapMounts: [...#ConfigMapMount]
@@ -155,7 +166,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		value?: string
 		...
 	}
-
+	_secretEnvVars: [...#SecretEnvVar]
 	name:   string
 	image?: string
 	args: [...string]
@@ -169,7 +180,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	}]
 	resources?:      #ResourceRequirements
 	readinessProbe?: #Probe
-	env: [ for _, envVar in _envVars {envVar}]
+	env: [ for _, envVar in _envVars {envVar}] + _secretEnvVars
 	...
 }
 
@@ -178,6 +189,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_secretName: string
 	_image:      string
 	_args: [...string]
+	_secretEnvVars: [...#SecretEnvVar]
 	_ports:           [{containerPort: #GrpcServicePort}] | *[]
 	_restartPolicy:   string | *"Always"
 	_imagePullPolicy: string | *"Never"
@@ -197,6 +209,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			_container: _envVars: "JAVA_TOOL_OPTIONS": {
 				value: "-Xms\(_resourceConfig.jvmHeapSize) -Xmx\(_resourceConfig.jvmHeapSize)"
 			}
+			_container: _secretEnvVars: Deployment._secretEnvVars
 		}
 	}
 

@@ -32,7 +32,7 @@ objectSets: [
 _imageSuffixes: [_=string]: string
 _imageSuffixes: {
 	"update-reporting-schema":         "/reporting/postgres-update-schema"
-	"postgres-reporting-data-server":  "reporting/data-server"
+	"postgres-reporting-data-server":  "/reporting/postgres-data-server"
 	"v1alpha-public-api-server":       "/reporting/v1alpha-public-api"
 }
 _imageConfigs: [_=string]: #ImageConfig

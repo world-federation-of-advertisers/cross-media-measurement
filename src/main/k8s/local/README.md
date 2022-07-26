@@ -82,10 +82,9 @@ Create the file `authority_key_identifier_to_principal_map.textproto` with the
 content below, substituting the appropriate resource names. The AKIDs come from
 the EDP certificates in [secretfiles](../testing/secretfiles).
 
-To create one for the reporting server, create the file 
-`authority_key_identifier_to_mc_principal_map.textproto` with the
-content below, substituting the appropriate resource names. The AKIDs come from
-the MC certificates in [secretfiles](../testing/secretfiles).
+To start the reporting server, add an entry to the file with the appropriate MC 
+resource name. The AKID come from the MC certificate in 
+[secretfiles](../testing/secretfiles).
 
 ```prototext
 # proto-file: src/main/proto/wfa/measurement/config/authority_key_to_principal_map.proto
@@ -130,14 +129,13 @@ to the ConfigMap.
 ```shell
 kubectl create configmap config-files --output=yaml --dry-run=client \
   --from-file=authority_key_identifier_to_principal_map.textproto \
-  --from-file=authority_key_identifier_to_mc_principal_map.textproto \
   --from_file=measurement_consumer_config.textproto \
   --from_file=encryption_key_pair_config.textproto \
   | kubectl replace -f -
 ```
 
 Create the file `measurement_consumer_config.textproto` with the
-content below, substituting the appropriate resource name and api key.
+content below, substituting the appropriate resource name and API key.
 
 ```prototext
 # proto-file: src/main/proto/wfa/measurement/config/reporting/measurement_consumer_config.proto
@@ -239,15 +237,12 @@ bazel run //src/main/k8s/local:mc_frontend_simulator_kind \
 This deploys the database for the Reporting Server.
 ```shell
 bazel run //src/main/k8s/local:reporting_database_kind \
-  --define=k8s_secret_name=certs-and-configs-k8888kc6gg \
-  --define=reporting_db_user=user \
-  --define=reporting_db_password=password
+  --define=k8s_secret_name=certs-and-configs-k8888kc6gg
 ```
 
 ## Deploy Reporting Server
+This deploys the API server.
 ```shell
 bazel run //src/main/k8s/local:reporting_kind \
-  --define=k8s_secret_name=certs-and-configs-k8888kc6gg \
-  --define=reporting_db_user=user \
-  --define=reporting_db_password=password
+  --define=k8s_secret_name=certs-and-configs-k8888kc6gg
 ```
