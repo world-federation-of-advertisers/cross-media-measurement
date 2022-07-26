@@ -1445,7 +1445,6 @@ class ReportsServiceTest {
   fun initService() {
     secureRandomMock.stub {
       on { nextInt(any()) } doReturn SECURE_RANDOM_OUTPUT_INT
-      on { nextInt() } doReturn SECURE_RANDOM_OUTPUT_INT
       on { nextLong() } doReturn SECURE_RANDOM_OUTPUT_LONG
     }
 
