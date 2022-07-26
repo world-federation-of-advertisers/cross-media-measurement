@@ -746,12 +746,6 @@ private val DATA_PROVIDER_ENTRY_2 = dataProviderEntry {
 // Measurements
 private val BASE_MEASUREMENT = measurement {
   measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
-
-  val unsignedMeasurementSpec = measurementSpec {
-    measurementPublicKey = MEASUREMENT_PUBLIC_KEY_DATA
-  }
-  measurementSpec =
-    signMeasurementSpec(unsignedMeasurementSpec, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
 }
 
 // Measurement values
@@ -778,7 +772,7 @@ private val BASE_REACH_MEASUREMENT =
 private val PENDING_REACH_MEASUREMENT =
   BASE_REACH_MEASUREMENT.copy { state = Measurement.State.COMPUTING }
 
-private val REACH_ONLY_UNSIGNED_MEASUREMENT_SPEC = measurementSpec {
+private val REACH_ONLY_MEASUREMENT_SPEC = measurementSpec {
   measurementPublicKey = MEASUREMENT_PUBLIC_KEY_DATA
 
   nonceHashes.addAll(
@@ -808,10 +802,7 @@ private val SUCCEEDED_REACH_MEASUREMENT =
     dataProviders += DATA_PROVIDER_ENTRY_2
 
     measurementSpec =
-      signMeasurementSpec(
-        REACH_ONLY_UNSIGNED_MEASUREMENT_SPEC,
-        MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
-      )
+      signMeasurementSpec(REACH_ONLY_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
 
     state = Measurement.State.SUCCEEDED
 
@@ -852,7 +843,7 @@ private val BASE_REACH_FREQUENCY_HISTOGRAM_MEASUREMENT =
 private val PENDING_FREQUENCY_HISTOGRAM_MEASUREMENT =
   BASE_REACH_FREQUENCY_HISTOGRAM_MEASUREMENT.copy { state = Measurement.State.COMPUTING }
 
-private val REACH_FREQUENCY_UNSIGNED_MEASUREMENT_SPEC = measurementSpec {
+private val REACH_FREQUENCY_MEASUREMENT_SPEC = measurementSpec {
   measurementPublicKey = MEASUREMENT_PUBLIC_KEY_DATA
 
   nonceHashes.addAll(
@@ -882,10 +873,7 @@ private val SUCCEEDED_FREQUENCY_HISTOGRAM_MEASUREMENT =
     dataProviders += DATA_PROVIDER_ENTRY_2
 
     measurementSpec =
-      signMeasurementSpec(
-        REACH_FREQUENCY_UNSIGNED_MEASUREMENT_SPEC,
-        MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
-      )
+      signMeasurementSpec(REACH_FREQUENCY_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
 
     state = Measurement.State.SUCCEEDED
     results += resultPair {
@@ -926,7 +914,7 @@ private val BASE_IMPRESSION_MEASUREMENT =
 private val PENDING_IMPRESSION_MEASUREMENT =
   BASE_IMPRESSION_MEASUREMENT.copy { state = Measurement.State.COMPUTING }
 
-private val IMPRESSION_UNSIGNED_MEASUREMENT_SPEC = measurementSpec {
+private val IMPRESSION_MEASUREMENT_SPEC = measurementSpec {
   measurementPublicKey = MEASUREMENT_PUBLIC_KEY_DATA
 
   nonceHashes.addAll(
@@ -952,10 +940,7 @@ private val SUCCEEDED_IMPRESSION_MEASUREMENT =
     dataProviders += DATA_PROVIDER_ENTRY_2
 
     measurementSpec =
-      signMeasurementSpec(
-        IMPRESSION_UNSIGNED_MEASUREMENT_SPEC,
-        MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
-      )
+      signMeasurementSpec(IMPRESSION_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
 
     state = Measurement.State.SUCCEEDED
 
@@ -999,7 +984,7 @@ private val BASE_WATCH_DURATION_MEASUREMENT =
 private val PENDING_WATCH_DURATION_MEASUREMENT =
   BASE_WATCH_DURATION_MEASUREMENT.copy { state = Measurement.State.COMPUTING }
 
-private val WATCH_DURATION_UNSIGNED_MEASUREMENT_SPEC = measurementSpec {
+private val WATCH_DURATION_MEASUREMENT_SPEC = measurementSpec {
   measurementPublicKey = MEASUREMENT_PUBLIC_KEY_DATA
 
   nonceHashes.addAll(
@@ -1026,10 +1011,7 @@ private val SUCCEEDED_WATCH_DURATION_MEASUREMENT =
     dataProviders += DATA_PROVIDER_ENTRY_2
 
     measurementSpec =
-      signMeasurementSpec(
-        WATCH_DURATION_UNSIGNED_MEASUREMENT_SPEC,
-        MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
-      )
+      signMeasurementSpec(WATCH_DURATION_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
 
     state = Measurement.State.SUCCEEDED
 
@@ -1569,14 +1551,13 @@ class ReportsServiceTest {
     assertThat(capturedMeasurement.measurementConsumerCertificate)
       .isEqualTo(MEASUREMENT_CONSUMER_CERTIFICATE_NAME)
 
-    val unsignedMeasurementSpec =
-      MeasurementSpec.parseFrom(capturedMeasurement.measurementSpec.data)
-    val expectedUnsignedMeasurementSpec = REACH_ONLY_UNSIGNED_MEASUREMENT_SPEC
-    assertThat(unsignedMeasurementSpec).isEqualTo(expectedUnsignedMeasurementSpec)
+    val measurementSpec = MeasurementSpec.parseFrom(capturedMeasurement.measurementSpec.data)
+    val expectedmeasurementSpec = REACH_ONLY_MEASUREMENT_SPEC
+    assertThat(measurementSpec).isEqualTo(expectedmeasurementSpec)
     assertThat(
         verifyMeasurementSpec(
           capturedMeasurement.measurementSpec.signature,
-          unsignedMeasurementSpec,
+          measurementSpec,
           MEASUREMENT_CONSUMER_CERTIFICATE
         )
       )
@@ -1607,7 +1588,7 @@ class ReportsServiceTest {
         verifyRequisitionSpec(
           signedRequisitionSpec.signature,
           requisitionSpec,
-          unsignedMeasurementSpec,
+          measurementSpec,
           MEASUREMENT_CONSUMER_CERTIFICATE
         )
       )
@@ -1630,7 +1611,7 @@ class ReportsServiceTest {
         verifyRequisitionSpec(
           signedRequisitionSpec2.signature,
           requisitionSpec2,
-          unsignedMeasurementSpec,
+          measurementSpec,
           MEASUREMENT_CONSUMER_CERTIFICATE
         )
       )
@@ -3219,11 +3200,11 @@ class ReportsServiceTest {
     whenever(measurementsMock.getMeasurement(any()))
       .thenReturn(
         SUCCEEDED_WATCH_DURATION_MEASUREMENT.copy {
-          val unsignedMeasurementSpec = measurementSpec {
+          val measurementSpec = measurementSpec {
             measurementPublicKey = INVALID_MEASUREMENT_PUBLIC_KEY_DATA
           }
-          measurementSpec =
-            signMeasurementSpec(unsignedMeasurementSpec, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
+          this.measurementSpec =
+            signMeasurementSpec(measurementSpec, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
         }
       )
 
