@@ -29,6 +29,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.AuthorityKeyServerInterceptor
 import org.wfanet.measurement.common.identity.authorityKeyIdentifiersFromCurrentContext
+import org.wfanet.measurement.reporting.service.api.PrincipalConstants
 
 /**
  * Returns a [Principal] in the current gRPC context. Requires [PrincipalServerInterceptor] to be
