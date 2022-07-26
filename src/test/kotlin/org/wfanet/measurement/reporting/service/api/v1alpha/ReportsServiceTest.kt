@@ -349,19 +349,11 @@ private val REPORTING_SET_NAME_FOR_MC_2 =
     .toName()
 
 // Report IDs and names
-private const val REPORT_EXTERNAL_ID = 331L
-private const val REPORT_EXTERNAL_ID_2 = 332L
-private const val REPORT_EXTERNAL_ID_3 = 333L
-private const val REPORT_EXTERNAL_ID_4 = 334L
-
-private val REPORT_NAME =
-  ReportKey(MEASUREMENT_CONSUMER_REFERENCE_IDS[0], externalIdToApiId(REPORT_EXTERNAL_ID)).toName()
-private val REPORT_NAME_2 =
-  ReportKey(MEASUREMENT_CONSUMER_REFERENCE_IDS[0], externalIdToApiId(REPORT_EXTERNAL_ID_2)).toName()
-private val REPORT_NAME_3 =
-  ReportKey(MEASUREMENT_CONSUMER_REFERENCE_IDS[0], externalIdToApiId(REPORT_EXTERNAL_ID_3)).toName()
-private val REPORT_NAME_4 =
-  ReportKey(MEASUREMENT_CONSUMER_REFERENCE_IDS[0], externalIdToApiId(REPORT_EXTERNAL_ID_4)).toName()
+private val REPORT_EXTERNAL_IDS = listOf(331L, 332L, 333L, 334L)
+private val REPORT_NAMES =
+  REPORT_EXTERNAL_IDS.map {
+    ReportKey(MEASUREMENT_CONSUMER_REFERENCE_IDS[0], externalIdToApiId(it)).toName()
+  }
 // Typo causes invalid name
 private const val INVALID_REPORT_NAME = "measurementConsumer/AAAAAAAAAG8/report/AAAAAAAAAU0"
 
@@ -1189,7 +1181,7 @@ private val INTERNAL_WATCH_DURATION_METRIC = internalMetric {
 // Internal reports of reach
 private val INTERNAL_PENDING_REACH_REPORT = internalReport {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-  externalReportId = REPORT_EXTERNAL_ID
+  externalReportId = REPORT_EXTERNAL_IDS[0]
   periodicTimeInterval = INTERNAL_PERIODIC_TIME_INTERVAL
   metrics.add(INTERNAL_REACH_METRIC)
   state = InternalReport.State.RUNNING
@@ -1206,7 +1198,7 @@ private val INTERNAL_SUCCEEDED_REACH_REPORT =
 // Internal reports of impression
 private val INTERNAL_PENDING_IMPRESSION_REPORT = internalReport {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-  externalReportId = REPORT_EXTERNAL_ID_2
+  externalReportId = REPORT_EXTERNAL_IDS[1]
   periodicTimeInterval = INTERNAL_PERIODIC_TIME_INTERVAL
   metrics.add(INTERNAL_IMPRESSION_METRIC)
   state = InternalReport.State.RUNNING
@@ -1223,7 +1215,7 @@ private val INTERNAL_SUCCEEDED_IMPRESSION_REPORT =
 // Internal reports of watch duration
 private val INTERNAL_PENDING_WATCH_DURATION_REPORT = internalReport {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-  externalReportId = REPORT_EXTERNAL_ID_3
+  externalReportId = REPORT_EXTERNAL_IDS[2]
   periodicTimeInterval = INTERNAL_PERIODIC_TIME_INTERVAL
   metrics.add(INTERNAL_WATCH_DURATION_METRIC)
   state = InternalReport.State.RUNNING
@@ -1246,7 +1238,7 @@ private val INTERNAL_SUCCEEDED_WATCH_DURATION_REPORT =
 // Internal reports of frequency histogram
 private val INTERNAL_PENDING_FREQUENCY_HISTOGRAM_REPORT = internalReport {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-  externalReportId = REPORT_EXTERNAL_ID_4
+  externalReportId = REPORT_EXTERNAL_IDS[3]
   periodicTimeInterval = INTERNAL_PERIODIC_TIME_INTERVAL
   metrics.add(INTERNAL_FREQUENCY_HISTOGRAM_METRIC)
   state = InternalReport.State.RUNNING
@@ -1290,7 +1282,7 @@ private val EVENT_GROUP_UNIVERSE = eventGroupUniverse {
 // Public reports with running states
 // Reports of reach
 private val PENDING_REACH_REPORT = report {
-  name = REPORT_NAME
+  name = REPORT_NAMES[0]
   reportIdempotencyKey = REACH_REPORT_IDEMPOTENCY_KEY
   measurementConsumer = MEASUREMENT_CONSUMER_NAMES[0]
   eventGroupUniverse = EVENT_GROUP_UNIVERSE
@@ -1301,7 +1293,7 @@ private val PENDING_REACH_REPORT = report {
 private val SUCCEEDED_REACH_REPORT = PENDING_REACH_REPORT.copy { state = Report.State.SUCCEEDED }
 // Reports of impression
 private val PENDING_IMPRESSION_REPORT = report {
-  name = REPORT_NAME_2
+  name = REPORT_NAMES[1]
   reportIdempotencyKey = IMPRESSION_REPORT_IDEMPOTENCY_KEY
   measurementConsumer = MEASUREMENT_CONSUMER_NAMES[0]
   eventGroupUniverse = EVENT_GROUP_UNIVERSE
@@ -1313,7 +1305,7 @@ private val SUCCEEDED_IMPRESSION_REPORT =
   PENDING_IMPRESSION_REPORT.copy { state = Report.State.SUCCEEDED }
 // Reports of watch duration
 private val PENDING_WATCH_DURATION_REPORT = report {
-  name = REPORT_NAME_3
+  name = REPORT_NAMES[2]
   reportIdempotencyKey = WATCH_DURATION_REPORT_IDEMPOTENCY_KEY
   measurementConsumer = MEASUREMENT_CONSUMER_NAMES[0]
   eventGroupUniverse = EVENT_GROUP_UNIVERSE
@@ -1325,7 +1317,7 @@ private val SUCCEEDED_WATCH_DURATION_REPORT =
   PENDING_WATCH_DURATION_REPORT.copy { state = Report.State.SUCCEEDED }
 // Reports of frequency histogram
 private val PENDING_FREQUENCY_HISTOGRAM_REPORT = report {
-  name = REPORT_NAME_4
+  name = REPORT_NAMES[3]
   reportIdempotencyKey = FREQUENCY_HISTOGRAM_REPORT_IDEMPOTENCY_KEY
   measurementConsumer = MEASUREMENT_CONSUMER_NAMES[0]
   eventGroupUniverse = EVENT_GROUP_UNIVERSE
@@ -2152,7 +2144,7 @@ class ReportsServiceTest {
             measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
             lastReport = previousPageEnd {
               measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-              externalReportId = REPORT_EXTERNAL_ID_3
+              externalReportId = REPORT_EXTERNAL_IDS[2]
             }
           }
           .toByteString()
@@ -2183,7 +2175,7 @@ class ReportsServiceTest {
             measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
             lastReport = previousPageEnd {
               measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-              externalReportId = REPORT_EXTERNAL_ID
+              externalReportId = REPORT_EXTERNAL_IDS[0]
             }
           }
           .toByteString()
@@ -2206,7 +2198,7 @@ class ReportsServiceTest {
             measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
             lastReport = previousPageEnd {
               measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-              externalReportId = REPORT_EXTERNAL_ID_3
+              externalReportId = REPORT_EXTERNAL_IDS[2]
             }
           }
           .toByteString()
@@ -2219,7 +2211,7 @@ class ReportsServiceTest {
           limit = PAGE_SIZE + 1
           this.filter = filter {
             measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-            externalReportIdAfter = REPORT_EXTERNAL_ID
+            externalReportIdAfter = REPORT_EXTERNAL_IDS[0]
           }
         }
       )
@@ -2273,7 +2265,7 @@ class ReportsServiceTest {
             measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
             lastReport = previousPageEnd {
               measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-              externalReportId = REPORT_EXTERNAL_ID
+              externalReportId = REPORT_EXTERNAL_IDS[0]
             }
           }
           .toByteString()
@@ -2296,7 +2288,7 @@ class ReportsServiceTest {
             measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
             lastReport = previousPageEnd {
               measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-              externalReportId = REPORT_EXTERNAL_ID_3
+              externalReportId = REPORT_EXTERNAL_IDS[2]
             }
           }
           .toByteString()
@@ -2309,7 +2301,7 @@ class ReportsServiceTest {
           limit = previousPageSize + 1
           this.filter = filter {
             measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-            externalReportIdAfter = REPORT_EXTERNAL_ID
+            externalReportIdAfter = REPORT_EXTERNAL_IDS[0]
           }
         }
       )
@@ -2330,7 +2322,7 @@ class ReportsServiceTest {
             measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
             lastReport = previousPageEnd {
               measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-              externalReportId = REPORT_EXTERNAL_ID
+              externalReportId = REPORT_EXTERNAL_IDS[0]
             }
           }
           .toByteString()
@@ -2353,7 +2345,7 @@ class ReportsServiceTest {
             measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
             lastReport = previousPageEnd {
               measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-              externalReportId = REPORT_EXTERNAL_ID_3
+              externalReportId = REPORT_EXTERNAL_IDS[2]
             }
           }
           .toByteString()
@@ -2366,7 +2358,7 @@ class ReportsServiceTest {
           limit = newPageSize + 1
           this.filter = filter {
             measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-            externalReportIdAfter = REPORT_EXTERNAL_ID
+            externalReportIdAfter = REPORT_EXTERNAL_IDS[0]
           }
         }
       )
@@ -2446,7 +2438,7 @@ class ReportsServiceTest {
             measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[1]
             lastReport = previousPageEnd {
               measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[1]
-              externalReportId = REPORT_EXTERNAL_ID
+              externalReportId = REPORT_EXTERNAL_IDS[0]
             }
           }
           .toByteString()
@@ -2494,7 +2486,7 @@ class ReportsServiceTest {
         }
       }
     val expectedExceptionDescription =
-      "Unable to get the report [$REPORT_NAME] from the reporting database."
+      "Unable to get the report [${REPORT_NAMES[0]}] from the reporting database."
     assertThat(exception.message).isEqualTo(expectedExceptionDescription)
   }
 
@@ -2705,7 +2697,7 @@ class ReportsServiceTest {
         .isEqualTo(
           getInternalReportRequest {
             measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-            externalReportId = REPORT_EXTERNAL_ID
+            externalReportId = REPORT_EXTERNAL_IDS[0]
           }
         )
 
@@ -2772,7 +2764,7 @@ class ReportsServiceTest {
         .isEqualTo(
           getInternalReportRequest {
             measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-            externalReportId = REPORT_EXTERNAL_ID
+            externalReportId = REPORT_EXTERNAL_IDS[0]
           }
         )
 
@@ -2828,7 +2820,7 @@ class ReportsServiceTest {
         .isEqualTo(
           getInternalReportRequest {
             measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-            externalReportId = REPORT_EXTERNAL_ID
+            externalReportId = REPORT_EXTERNAL_IDS[0]
           }
         )
 
@@ -2879,7 +2871,7 @@ class ReportsServiceTest {
       .isEqualTo(
         getInternalReportRequest {
           measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-          externalReportId = REPORT_EXTERNAL_ID_2
+          externalReportId = REPORT_EXTERNAL_IDS[1]
         }
       )
 
@@ -2932,7 +2924,7 @@ class ReportsServiceTest {
       .isEqualTo(
         getInternalReportRequest {
           measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-          externalReportId = REPORT_EXTERNAL_ID_3
+          externalReportId = REPORT_EXTERNAL_IDS[2]
         }
       )
 
@@ -2945,7 +2937,7 @@ class ReportsServiceTest {
       whenever(internalReportsMock.getReport(any()))
         .thenReturn(INTERNAL_SUCCEEDED_WATCH_DURATION_REPORT)
 
-      val request = getReportRequest { name = REPORT_NAME_3 }
+      val request = getReportRequest { name = REPORT_NAMES[2] }
 
       val report =
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0]) {
@@ -2958,7 +2950,7 @@ class ReportsServiceTest {
         .isEqualTo(
           getInternalReportRequest {
             measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-            externalReportId = REPORT_EXTERNAL_ID_3
+            externalReportId = REPORT_EXTERNAL_IDS[2]
           }
         )
     }
@@ -2970,7 +2962,7 @@ class ReportsServiceTest {
         INTERNAL_PENDING_WATCH_DURATION_REPORT.copy { state = InternalReport.State.FAILED }
       )
 
-    val request = getReportRequest { name = REPORT_NAME_3 }
+    val request = getReportRequest { name = REPORT_NAMES[2] }
 
     val report =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0]) {
@@ -2983,7 +2975,7 @@ class ReportsServiceTest {
       .isEqualTo(
         getInternalReportRequest {
           measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-          externalReportId = REPORT_EXTERNAL_ID_3
+          externalReportId = REPORT_EXTERNAL_IDS[2]
         }
       )
   }
@@ -2996,7 +2988,7 @@ class ReportsServiceTest {
       whenever(measurementsMock.getMeasurement(any()))
         .thenReturn(PENDING_WATCH_DURATION_MEASUREMENT)
 
-      val request = getReportRequest { name = REPORT_NAME_3 }
+      val request = getReportRequest { name = REPORT_NAMES[2] }
 
       val report =
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0]) {
@@ -3015,11 +3007,11 @@ class ReportsServiceTest {
         .containsExactly(
           getInternalReportRequest {
             measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-            externalReportId = REPORT_EXTERNAL_ID_3
+            externalReportId = REPORT_EXTERNAL_IDS[2]
           },
           getInternalReportRequest {
             measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-            externalReportId = REPORT_EXTERNAL_ID_3
+            externalReportId = REPORT_EXTERNAL_IDS[2]
           }
         )
     }
@@ -3031,7 +3023,7 @@ class ReportsServiceTest {
       whenever(internalReportsMock.getReport(any()))
         .thenReturn(INTERNAL_PENDING_IMPRESSION_REPORT, INTERNAL_SUCCEEDED_IMPRESSION_REPORT)
 
-      val request = getReportRequest { name = REPORT_NAME_2 }
+      val request = getReportRequest { name = REPORT_NAMES[1] }
 
       val report =
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0]) {
@@ -3062,11 +3054,11 @@ class ReportsServiceTest {
         .containsExactly(
           getInternalReportRequest {
             measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-            externalReportId = REPORT_EXTERNAL_ID_2
+            externalReportId = REPORT_EXTERNAL_IDS[1]
           },
           getInternalReportRequest {
             measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-            externalReportId = REPORT_EXTERNAL_ID_2
+            externalReportId = REPORT_EXTERNAL_IDS[1]
           }
         )
     }
@@ -3090,7 +3082,7 @@ class ReportsServiceTest {
           INTERNAL_PENDING_IMPRESSION_REPORT.copy { state = InternalReport.State.FAILED }
         )
 
-      val request = getReportRequest { name = REPORT_NAME_2 }
+      val request = getReportRequest { name = REPORT_NAMES[1] }
 
       val report =
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0]) {
@@ -3122,11 +3114,11 @@ class ReportsServiceTest {
         .containsExactly(
           getInternalReportRequest {
             measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-            externalReportId = REPORT_EXTERNAL_ID_2
+            externalReportId = REPORT_EXTERNAL_IDS[1]
           },
           getInternalReportRequest {
             measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-            externalReportId = REPORT_EXTERNAL_ID_2
+            externalReportId = REPORT_EXTERNAL_IDS[1]
           }
         )
     }
@@ -3147,7 +3139,7 @@ class ReportsServiceTest {
 
   @Test
   fun `getReport throws PERMISSION_DENIED when MeasurementConsumer's identity does not match`() {
-    val request = getReportRequest { name = REPORT_NAME }
+    val request = getReportRequest { name = REPORT_NAMES[0] }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -3161,7 +3153,7 @@ class ReportsServiceTest {
 
   @Test
   fun `getReport throws PERMISSION_DENIED when the caller is not a MeasurementConsumer`() {
-    val request = getReportRequest { name = REPORT_NAME }
+    val request = getReportRequest { name = REPORT_NAMES[0] }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -3187,7 +3179,7 @@ class ReportsServiceTest {
         }
       )
 
-    val request = getReportRequest { name = REPORT_NAME_3 }
+    val request = getReportRequest { name = REPORT_NAMES[2] }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -3205,7 +3197,7 @@ class ReportsServiceTest {
     whenever(internalReportsMock.getReport(any()))
       .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
 
-    val request = getReportRequest { name = REPORT_NAME_3 }
+    val request = getReportRequest { name = REPORT_NAMES[2] }
 
     val exception =
       assertFailsWith(Exception::class) {
@@ -3254,7 +3246,7 @@ class ReportsServiceTest {
         }
       )
 
-    val request = getReportRequest { name = REPORT_NAME_3 }
+    val request = getReportRequest { name = REPORT_NAMES[2] }
 
     val report =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0]) {
