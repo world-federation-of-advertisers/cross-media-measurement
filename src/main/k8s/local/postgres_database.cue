@@ -14,9 +14,7 @@
 
 package k8s
 
-_secret_name: string @tag("secret_name")
-_reporting_db_user: string @tag("reporting_db_user")
-_reporting_db_password: string @tag("reporting_db_password")
+_secretName: string @tag("secret_name")
 
 objectSets: [
   services,
@@ -35,7 +33,7 @@ services: {
 			}
 		}
 		spec: {
-			selector: app: "postgres-app"
+			selector: app: "postgresql"
 			ports: [{
 				name:       "http"
 				port:       5432
@@ -53,20 +51,28 @@ pods: {
 		metadata: {
 			name: "postgres-pod"
 			labels: {
-				app:                           "postgres-app"
+				app:                           "postgresql"
 				"app.kubernetes.io/part-of":   #AppName
 				"app.kubernetes.io/component": "testing"
 			}
 		}
 		spec: containers: [{
 			name:  "postgres"
-			image: "docker.io/postgres:14.4-bullseye"
+			image: "docker.io/postgres:14.4-alpine"
       env: [{
         name: "POSTGRES_USER"
-        value: _reporting_db_user
+        valueFrom:
+          secretKeyRef: {
+            name: _secretName
+            key:  "reporting_postgres_db_user.txt"
+          }
       }, {
         name: "POSTGRES_PASSWORD"
-        value: _reporting_db_password
+        valueFrom:
+          secretKeyRef: {
+            name: _secretName
+            key:  "reporting_postgres_db_password.txt"
+          }
       }]
 		}]
 	}

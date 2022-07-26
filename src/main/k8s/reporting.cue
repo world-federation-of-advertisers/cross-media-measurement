@@ -30,18 +30,18 @@ package k8s
     "--tls-cert-file=/var/run/secrets/files/reporting_tls.pem",
     "--tls-key-file=/var/run/secrets/files/reporting_tls.key",
   ]
-	_reportingCertCollectionFileFlag:      "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
-	_akidToPrincipalMapFileFlag:        "--authority-key-identifier-to-principal-map-file=/etc/\(#AppName)/config-files/authority_key_identifier_to_mc_principal_map.textproto"
+	_reportingCertCollectionFileFlag:   "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
+	_akidToPrincipalMapFileFlag:        "--authority-key-identifier-to-principal-map-file=/etc/\(#AppName)/config-files/authority_key_identifier_to_principal_map.textproto"
 	_measurementConsumerConfigFileFlag: "--measurement-consumer-config-file=/etc/\(#AppName)/config-files/measurement_consumer_config.textproto"
-	_encryptionKeyPairDirFlag: "--key-pair-dir=/var/run/secrets/files"
-	_encryptionKeyPairConfigFileFlag: "--key-pair-config-file=/etc/\(#AppName)/config-files/encryption_key_pair_config.textproto"
+	_encryptionKeyPairDirFlag:          "--key-pair-dir=/var/run/secrets/files"
+	_encryptionKeyPairConfigFileFlag:   "--key-pair-config-file=/etc/\(#AppName)/config-files/encryption_key_pair_config.textproto"
 	_debugVerboseGrpcClientLoggingFlag: "--debug-verbose-grpc-client-logging=\(_verboseGrpcClientLogging)"
 	_debugVerboseGrpcServerLoggingFlag: "--debug-verbose-grpc-server-logging=\(_verboseGrpcServerLogging)"
 
-	_internalApiTargetFlag:    "--internal-api-target=" + (#Target & {name: "postgres-reporting-data-server"}).target
+	_internalApiTargetFlag:   "--internal-api-target=" + (#Target & {name: "postgres-reporting-data-server"}).target
 	_internalApiCertHostFlag: "--internal-api-cert-host=localhost"
 
-  _kingdomApiTargetFlag:    "--kingdom-api-target=" + (#Target & {name: "v2alpha-public-api-server"}).target
+  _kingdomApiTargetFlag:   "--kingdom-api-target=" + (#Target & {name: "v2alpha-public-api-server"}).target
   _kingdomApiCertHostFlag: "--kingdom-api-cert-host=localhost"
 
 	services: [Name=_]: #GrpcService & {
@@ -63,11 +63,25 @@ package k8s
 		_system:                "reporting"
 		_image:                 _images[_name]
 		_imagePullPolicy:       Reporting._imagePullPolicy
-		_resourceConfig:  _resourceConfigs[_name]
-
+		_resourceConfig:        _resourceConfigs[_name]
 	}
 	deployments: {
 		"postgres-reporting-data-server": Deployment={
+		  _secretEnvVars: [{
+		    name: "POSTGRES_USER"
+		    _key: "reporting_postgres_db_user.txt"
+		    _secretName: Reporting._secretName
+		  }, {
+		    name: "POSTGRES_PASSWORD"
+		    _key: "reporting_postgres_db_password.txt"
+		    _secretName: Reporting._secretName
+		  }]
+
+		  _postgresConfig: Reporting._postgresConfig & {
+        user:     "$(POSTGRES_USER)"
+        password: "$(POSTGRES_PASSWORD)"
+      }
+
 			_args: [
 				_reportingCertCollectionFileFlag,
 				_debugVerboseGrpcServerLoggingFlag,
@@ -79,6 +93,7 @@ package k8s
 					image:           _images[InitContainer.name]
 					imagePullPolicy: Deployment._imagePullPolicy
 		  		args:            _postgresConfig.flags
+		  		_secretEnvVars: Deployment._secretEnvVars
 				}
 			}
 		}
