@@ -1552,8 +1552,8 @@ class ReportsServiceTest {
       .isEqualTo(MEASUREMENT_CONSUMER_CERTIFICATE_NAME)
 
     val measurementSpec = MeasurementSpec.parseFrom(capturedMeasurement.measurementSpec.data)
-    val expectedmeasurementSpec = REACH_ONLY_MEASUREMENT_SPEC
-    assertThat(measurementSpec).isEqualTo(expectedmeasurementSpec)
+    val expectedMeasurementSpec = REACH_ONLY_MEASUREMENT_SPEC
+    assertThat(measurementSpec).isEqualTo(expectedMeasurementSpec)
     assertThat(
         verifyMeasurementSpec(
           capturedMeasurement.measurementSpec.signature,
@@ -1566,7 +1566,7 @@ class ReportsServiceTest {
     val dataProviderEntryKeys = capturedMeasurement.dataProvidersList.map { it.key }
     assertThat(dataProviderEntryKeys).containsExactly(DATA_PROVIDER_NAME, DATA_PROVIDER_NAME_2)
 
-    // Handle the random sequence due to the execution of corourtine.
+    // Handle the random sequence due to the execution of coroutine.
     val dataProvidersList =
       if (capturedMeasurement.dataProvidersList[0].key == DATA_PROVIDER_NAME_2)
         capturedMeasurement.dataProvidersList.asReversed()
@@ -2484,7 +2484,7 @@ class ReportsServiceTest {
   }
 
   @Test
-  fun `listReports throws Exception when the interanl streamReports throws Exception`() =
+  fun `listReports throws Exception when the internal streamReports throws Exception`() =
     runBlocking {
       whenever(internalReportsMock.streamReports(any()))
         .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
@@ -2502,7 +2502,7 @@ class ReportsServiceTest {
     }
 
   @Test
-  fun `listReports throws Exception when the interanl getReport throws Exception`() = runBlocking {
+  fun `listReports throws Exception when the internal getReport throws Exception`() = runBlocking {
     whenever(internalReportsMock.getReport(any()))
       .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
 
