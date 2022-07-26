@@ -22,6 +22,7 @@ import com.google.protobuf.DescriptorProtos.FileDescriptorSet
 import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.Descriptors.FileDescriptor
 import com.google.protobuf.kotlin.toByteString
+import io.grpc.Context
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.nio.file.Path
@@ -34,7 +35,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.stub
-import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKt as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
@@ -70,6 +70,7 @@ import org.wfanet.measurement.reporting.v1alpha.eventGroup
 import org.wfanet.measurement.reporting.v1alpha.listEventGroupsRequest
 import org.wfanet.measurement.reporting.v1alpha.listEventGroupsResponse
 
+private const val API_AUTHENTICATION_KEY = "nR5QPN7ptx"
 private val SECRET_FILES_PATH: Path =
   checkNotNull(
     getRuntimePath(
@@ -195,17 +196,20 @@ class EventGroupsServiceTest {
         ENCRYPTION_KEY_PAIR_STORE
       )
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-        runBlocking {
-          eventGroupsService.listEventGroups(
-            listEventGroupsRequest {
-              parent = DATA_PROVIDER_NAME
-              pageSize = 10
-              pageToken = PAGE_TOKEN
-            }
-          )
+      Context.current()
+        .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
+        .withApiKey(API_AUTHENTICATION_KEY)
+        .call {
+          runBlocking {
+            eventGroupsService.listEventGroups(
+              listEventGroupsRequest {
+                parent = DATA_PROVIDER_NAME
+                pageSize = 10
+                pageToken = PAGE_TOKEN
+              }
+            )
+          }
         }
-      }
 
     assertThat(result)
       .isEqualTo(
@@ -257,17 +261,20 @@ class EventGroupsServiceTest {
         ENCRYPTION_KEY_PAIR_STORE
       )
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-        runBlocking {
-          eventGroupsService.listEventGroups(
-            listEventGroupsRequest {
-              parent = DATA_PROVIDER_NAME
-              filter = "age.value > 10"
-              pageToken = PAGE_TOKEN
-            }
-          )
+      Context.current()
+        .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
+        .withApiKey(API_AUTHENTICATION_KEY)
+        .call {
+          runBlocking {
+            eventGroupsService.listEventGroups(
+              listEventGroupsRequest {
+                parent = DATA_PROVIDER_NAME
+                filter = "age.value > 10"
+                pageToken = PAGE_TOKEN
+              }
+            )
+          }
         }
-      }
 
     assertThat(result)
       .isEqualTo(
@@ -337,16 +344,19 @@ class EventGroupsServiceTest {
       )
     val result =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking {
-            eventGroupsService.listEventGroups(
-              listEventGroupsRequest {
-                parent = DATA_PROVIDER_NAME
-                filter = "age.value > 10"
-              }
-            )
+        Context.current()
+          .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
+          .withApiKey(API_AUTHENTICATION_KEY)
+          .call {
+            runBlocking {
+              eventGroupsService.listEventGroups(
+                listEventGroupsRequest {
+                  parent = DATA_PROVIDER_NAME
+                  filter = "age.value > 10"
+                }
+              )
+            }
           }
-        }
       }
 
     assertThat(result.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
@@ -387,6 +397,57 @@ class EventGroupsServiceTest {
       )
     val result =
       assertFailsWith<StatusRuntimeException> {
+        Context.current()
+          .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
+          .withApiKey(API_AUTHENTICATION_KEY)
+          .call {
+            runBlocking {
+              eventGroupsService.listEventGroups(
+                listEventGroupsRequest {
+                  parent = DATA_PROVIDER_NAME
+                  filter = "age.value > 10"
+                }
+              )
+            }
+          }
+      }
+
+    assertThat(result.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `listEventGroups throws UNAUTHENTICATED if principal not found`() {
+    val eventGroupsService =
+      EventGroupsService(
+        EventGroupsCoroutineStub(grpcTestServerRule.channel),
+        EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
+        ENCRYPTION_KEY_PAIR_STORE
+      )
+    val result =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          eventGroupsService.listEventGroups(
+            listEventGroupsRequest {
+              parent = DATA_PROVIDER_NAME
+              filter = "age.value > 10"
+            }
+          )
+        }
+      }
+
+    assertThat(result.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `listEventGroups throws PERMISSION_DENIED if API key not found`() {
+    val eventGroupsService =
+      EventGroupsService(
+        EventGroupsCoroutineStub(grpcTestServerRule.channel),
+        EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
+        ENCRYPTION_KEY_PAIR_STORE
+      )
+    val result =
+      assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking {
             eventGroupsService.listEventGroups(
@@ -399,7 +460,7 @@ class EventGroupsServiceTest {
         }
       }
 
-    assertThat(result.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(result.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 }
 

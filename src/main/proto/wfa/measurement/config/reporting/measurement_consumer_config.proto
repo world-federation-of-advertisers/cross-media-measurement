@@ -12,14 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.reporting.service.api.v1alpha
+syntax = "proto3";
 
-import io.grpc.Context
+package wfa.measurement.config;
 
-object PrincipalConstants {
-  /** This is the context key for the authenticated [Principal]. */
-  val PRINCIPAL_CONTEXT_KEY: Context.Key<Principal<*>> = Context.key("principal")
+option java_package = "org.wfanet.measurement.config.reporting";
+option java_multiple_files = true;
 
-  /** This is the context key for the API key. */
-  val API_KEY_CONTEXT_KEY: Context.Key<String> = Context.key("api_key")
+message MeasurementConsumerConfig {
+  string api_key = 1;
+  // Possibly other per-MC config fields here in the future, such as folding in
+  // the key pair mapping.
+}
+
+message MeasurementConsumerConfigs {
+  map<string, MeasurementConsumerConfig> configs = 1;
 }

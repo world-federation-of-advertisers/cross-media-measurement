@@ -119,11 +119,11 @@ class ReportsService(
   private val certificateStub: CertificatesCoroutineStub,
   private val encryptionKeyPairStore: EncryptionKeyPairStore,
   private val signingPrivateKey: PrivateKey,
-  private val apiAuthenticationKey: String,
 ) : ReportsCoroutineImplBase() {
 
   override suspend fun listReports(request: ListReportsRequest): ListReportsResponse {
     val principal: Principal<*> = principalFromCurrentContext
+    val apiAuthenticationKey: String = apiKeyFromCurrentContext
     val listReportsPageToken = request.toListReportsPageToken()
 
     // Based on AIP-132#Errors
@@ -162,7 +162,7 @@ class ReportsService(
       reports +=
         results
           .subList(0, min(results.size, listReportsPageToken.pageSize))
-          .map { syncReport(it) }
+          .map { syncReport(it, apiAuthenticationKey) }
           .map(InternalReport::toReport)
 
       if (nextPageToken != null) {
@@ -178,6 +178,7 @@ class ReportsService(
       }
 
     val principal: Principal<*> = principalFromCurrentContext
+    val apiAuthenticationKey = apiKeyFromCurrentContext
 
     when (val resourceKey = principal.resourceKey) {
       is MeasurementConsumerKey -> {
@@ -200,13 +201,16 @@ class ReportsService(
         }
       )
 
-    val syncedInternalReport = syncReport(internalReport)
+    val syncedInternalReport = syncReport(internalReport, apiAuthenticationKey)
 
     return syncedInternalReport.toReport()
   }
 
   /** Syncs the [InternalReport] and all [InternalMeasurement]s used by it. */
-  private suspend fun syncReport(internalReport: InternalReport): InternalReport {
+  private suspend fun syncReport(
+    internalReport: InternalReport,
+    apiAuthenticationKey: String
+  ): InternalReport {
     // Report with SUCCEEDED or FAILED state is already synced.
     if (
       internalReport.state == InternalReport.State.SUCCEEDED ||
@@ -224,7 +228,11 @@ class ReportsService(
     }
 
     // Syncs measurements
-    syncMeasurements(internalReport.measurementsMap, internalReport.measurementConsumerReferenceId)
+    syncMeasurements(
+      internalReport.measurementsMap,
+      internalReport.measurementConsumerReferenceId,
+      apiAuthenticationKey
+    )
 
     return internalReportsStub.getReport(
       getInternalReportRequest {
@@ -238,6 +246,7 @@ class ReportsService(
   private suspend fun syncMeasurements(
     measurementsMap: Map<String, InternalMeasurement>,
     measurementConsumerReferenceId: String,
+    apiAuthenticationKey: String,
   ) = coroutineScope {
     for ((measurementReferenceId, internalMeasurement) in measurementsMap) {
       // Measurement with SUCCEEDED state is already synced
@@ -247,6 +256,7 @@ class ReportsService(
         syncMeasurement(
           measurementReferenceId,
           measurementConsumerReferenceId,
+          apiAuthenticationKey
         )
       }
     }
@@ -256,6 +266,7 @@ class ReportsService(
   private suspend fun syncMeasurement(
     measurementReferenceId: String,
     measurementConsumerReferenceId: String,
+    apiAuthenticationKey: String,
   ) {
     val measurement =
       measurementsStub
@@ -279,7 +290,7 @@ class ReportsService(
             result =
               aggregateResults(
                 measurement.resultsList
-                  .map { it.toMeasurementResult(privateKeyHandle) }
+                  .map { it.toMeasurementResult(privateKeyHandle, apiAuthenticationKey) }
                   .map(Measurement.Result::toInternal)
               )
           }
@@ -304,7 +315,8 @@ class ReportsService(
 
   /** Decrypts a [Measurement.ResultPair] to [Measurement.Result] */
   private suspend fun Measurement.ResultPair.toMeasurementResult(
-    privateKeyHandle: PrivateKeyHandle
+    privateKeyHandle: PrivateKeyHandle,
+    apiAuthenticationKey: String,
   ): Measurement.Result {
     val source = this
     val certificate =

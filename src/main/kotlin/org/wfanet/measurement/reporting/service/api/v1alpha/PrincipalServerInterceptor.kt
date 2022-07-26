@@ -25,10 +25,12 @@ import io.grpc.ServerInterceptor
 import io.grpc.ServerInterceptors
 import io.grpc.ServerServiceDefinition
 import io.grpc.Status
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.AuthorityKeyServerInterceptor
 import org.wfanet.measurement.common.identity.authorityKeyIdentifiersFromCurrentContext
+import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
 
 /**
  * Returns a [Principal] in the current gRPC context. Requires [PrincipalServerInterceptor] to be
@@ -40,6 +42,15 @@ val principalFromCurrentContext: Principal<*>
   get() =
     PrincipalConstants.PRINCIPAL_CONTEXT_KEY.get()
       ?: failGrpc(Status.UNAUTHENTICATED) { "No Principal found" }
+
+/**
+ * Returns an API key in the current gRPC context. Requires [PrincipalServerInterceptor] to be
+ * installed.
+ */
+val apiKeyFromCurrentContext: String
+  get() =
+    PrincipalConstants.API_KEY_CONTEXT_KEY.get()
+      ?: failGrpc(Status.PERMISSION_DENIED) { "No API key found" }
 
 /**
  * Executes [block] with [principal] installed in a new [Context].
@@ -60,6 +71,18 @@ fun <T> withMeasurementConsumerPrincipal(measurementConsumerName: String, block:
     .call(block)
 }
 
+/** Adds [MeasurementConsumer] [Principal] to the receiver and returns the new [Context]. */
+fun Context.withMeasurementConsumerPrincipal(measurementConsumerName: String): Context {
+  return withPrincipal(
+    Principal.MeasurementConsumer(MeasurementConsumerKey.fromName(measurementConsumerName)!!)
+  )
+}
+
+/** Adds API key to the receiver and returns the new [Context]. */
+fun Context.withApiKey(apiKey: String): Context {
+  return withValue(PrincipalConstants.API_KEY_CONTEXT_KEY, apiKey)
+}
+
 /** Adds [principal] to the receiver and returns the new [Context]. */
 fun Context.withPrincipal(principal: Principal<*>): Context {
   return withValue(PrincipalConstants.PRINCIPAL_CONTEXT_KEY, principal)
@@ -71,10 +94,17 @@ fun Context.withPrincipal(principal: Principal<*>): Context {
  * If the [Principal] has already been set in the context, this does nothing. Otherwise, this
  * derives the [Principal] from an X509 cert's authority key identifier.
  */
-class PrincipalServerInterceptor(private val principalLookup: PrincipalLookup) : ServerInterceptor {
+class PrincipalServerInterceptor(
+  private val principalLookup: PrincipalLookup,
+  private val configLookup: ConfigLookup
+) : ServerInterceptor {
 
   interface PrincipalLookup {
     fun get(authorityKeyIdentifier: ByteString): Principal<*>?
+  }
+
+  interface ConfigLookup {
+    fun get(measurementConsumerName: String): MeasurementConsumerConfig?
   }
 
   override fun <ReqT, RespT> interceptCall(
@@ -89,31 +119,47 @@ class PrincipalServerInterceptor(private val principalLookup: PrincipalLookup) :
     val authorityKeyIdentifiers: List<ByteString> = authorityKeyIdentifiersFromCurrentContext
     val principals = authorityKeyIdentifiers.map(principalLookup::get)
     return when (principals.size) {
-      0 -> unauthenticatedError(call, "No principal found")
+      0 -> error(call, "No principal found", Status.UNAUTHENTICATED)
       1 -> {
+        val config =
+          principals.single()?.resourceKey?.let { configLookup.get(it.toName()) }
+            ?: return error(
+              call,
+              "Config not found for MeasurementConsumer",
+              Status.PERMISSION_DENIED
+            )
+
         val context =
-          Context.current().withValue(PrincipalConstants.PRINCIPAL_CONTEXT_KEY, principals.single())
+          Context.current()
+            .withValues(
+              PrincipalConstants.PRINCIPAL_CONTEXT_KEY,
+              principals.single(),
+              PrincipalConstants.API_KEY_CONTEXT_KEY,
+              config.apiKey
+            )
         Contexts.interceptCall(context, call, headers, next)
       }
-      else -> unauthenticatedError(call, "More than one principal found")
+      else -> error(call, "More than one principal found", Status.UNAUTHENTICATED)
     }
   }
 
-  private fun <ReqT> unauthenticatedError(
+  private fun <ReqT> error(
     call: ServerCall<*, *>,
-    message: String
+    message: String,
+    status: Status,
   ): ServerCall.Listener<ReqT> {
-    call.close(Status.UNAUTHENTICATED.withDescription(message), Metadata())
+    call.close(status.withDescription(message), Metadata())
     return object : ServerCall.Listener<ReqT>() {}
   }
 }
 
 /** Convenience helper for [PrincipalServerInterceptor]. */
 fun BindableService.withPrincipalsFromX509AuthorityKeyIdentifiers(
-  principalLookup: PrincipalServerInterceptor.PrincipalLookup
+  principalLookup: PrincipalServerInterceptor.PrincipalLookup,
+  configLookup: PrincipalServerInterceptor.ConfigLookup
 ): ServerServiceDefinition =
   ServerInterceptors.interceptForward(
     this,
     AuthorityKeyServerInterceptor(),
-    PrincipalServerInterceptor(principalLookup)
+    PrincipalServerInterceptor(principalLookup, configLookup)
   )

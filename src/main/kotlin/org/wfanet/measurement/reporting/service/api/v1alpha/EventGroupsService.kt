@@ -27,6 +27,7 @@ import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
+import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
@@ -47,18 +48,21 @@ class EventGroupsService(
 ) : EventGroupsCoroutineImplBase() {
   override suspend fun listEventGroups(request: ListEventGroupsRequest): ListEventGroupsResponse {
     val principal: Principal<*> = principalFromCurrentContext
+    val apiAuthenticationKey: String = apiKeyFromCurrentContext
     val cmmsListEventGroupResponse =
-      cmmsEventGroupsStub.listEventGroups(
-        cmmsListEventGroupsRequest {
-          parent = request.parent
-          pageSize = request.pageSize
-          pageToken = request.pageToken
-          filter = filter {
-            measurementConsumers +=
-              (principal.resourceKey as MeasurementConsumerKey).measurementConsumerId
+      cmmsEventGroupsStub
+        .withAuthenticationKey(apiAuthenticationKey)
+        .listEventGroups(
+          cmmsListEventGroupsRequest {
+            parent = request.parent
+            pageSize = request.pageSize
+            pageToken = request.pageToken
+            filter = filter {
+              measurementConsumers +=
+                (principal.resourceKey as MeasurementConsumerKey).measurementConsumerId
+            }
           }
-        }
-      )
+        )
     val cmmsEventGroups = cmmsListEventGroupResponse.eventGroupsList
     val parsedEventGroupMetadataMap: Map<String, CmmsEventGroup.Metadata> =
       cmmsEventGroups.associate {
@@ -82,6 +86,7 @@ class EventGroupsService(
       }
     val eventGroupMetadataDescriptors: List<EventGroupMetadataDescriptor> =
       eventGroupsMetadataDescriptorsStub
+        .withAuthenticationKey(apiAuthenticationKey)
         .batchGetEventGroupMetadataDescriptors(
           batchGetEventGroupMetadataDescriptorsRequest {
             parent = request.parent
