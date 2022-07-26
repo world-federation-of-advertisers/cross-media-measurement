@@ -198,7 +198,8 @@ private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 private const val PAGE_SIZE = 3
 
-private const val REACH_ONLY_VID_SAMPLING_WIDTH = 3.0f / 300.0f
+private const val NUMBER_VID_BUCKETS = 300
+private const val REACH_ONLY_VID_SAMPLING_WIDTH = 3.0f / NUMBER_VID_BUCKETS
 private const val NUMBER_REACH_ONLY_BUCKETS = 16
 private val REACH_ONLY_VID_SAMPLING_START_LIST =
   (0 until NUMBER_REACH_ONLY_BUCKETS).map { it * REACH_ONLY_VID_SAMPLING_WIDTH }
@@ -206,7 +207,7 @@ private const val REACH_ONLY_REACH_EPSILON = 0.0041
 private const val REACH_ONLY_FREQUENCY_EPSILON = 0.0001
 private const val REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER = 1
 
-private const val REACH_FREQUENCY_VID_SAMPLING_WIDTH = 5.0f / 300.0f
+private const val REACH_FREQUENCY_VID_SAMPLING_WIDTH = 5.0f / NUMBER_VID_BUCKETS
 private const val NUMBER_REACH_FREQUENCY_BUCKETS = 19
 private val REACH_FREQUENCY_VID_SAMPLING_START_LIST =
   (0 until NUMBER_REACH_FREQUENCY_BUCKETS).map {
@@ -217,7 +218,7 @@ private val REACH_FREQUENCY_VID_SAMPLING_START_LIST =
 private const val REACH_FREQUENCY_REACH_EPSILON = 0.0033
 private const val REACH_FREQUENCY_FREQUENCY_EPSILON = 0.115
 
-private const val IMPRESSION_VID_SAMPLING_WIDTH = 62.0f / 300.0f
+private const val IMPRESSION_VID_SAMPLING_WIDTH = 62.0f / NUMBER_VID_BUCKETS
 private const val NUMBER_IMPRESSION_BUCKETS = 1
 private val IMPRESSION_VID_SAMPLING_START_LIST =
   (0 until NUMBER_IMPRESSION_BUCKETS).map {
@@ -227,7 +228,7 @@ private val IMPRESSION_VID_SAMPLING_START_LIST =
   }
 private const val IMPRESSION_EPSILON = 0.0011
 
-private const val WATCH_DURATION_VID_SAMPLING_WIDTH = 95.0f / 300.0f
+private const val WATCH_DURATION_VID_SAMPLING_WIDTH = 95.0f / NUMBER_VID_BUCKETS
 private const val NUMBER_WATCH_DURATION_BUCKETS = 1
 private val WATCH_DURATION_VID_SAMPLING_START_LIST =
   (0 until NUMBER_WATCH_DURATION_BUCKETS).map {
@@ -237,7 +238,7 @@ private val WATCH_DURATION_VID_SAMPLING_START_LIST =
   }
 private const val WATCH_DURATION_EPSILON = 0.001
 
-private const val DIFFERENTIAL_PRIVACY_DETLA = 1e-12
+private const val DIFFERENTIAL_PRIVACY_DELTA = 1e-12
 
 private const val SECURE_RANDOM_OUTPUT_INT = 0
 private const val SECURE_RANDOM_OUTPUT_LONG = 0L
@@ -300,7 +301,7 @@ private val MEASUREMENT_CONSUMER_PRIVATE_KEY_HANDLE: PrivateKeyHandle =
   loadPrivateKey(MEASUREMENT_CONSUMER_PRIVATE_KEY_DATA)
 
 // InMemoryEncryptionKeyPairStore
-val ENCRYPTION_KEY_PAIR_STORE =
+private val ENCRYPTION_KEY_PAIR_STORE =
   InMemoryEncryptionKeyPairStore(
     mapOf(MEASUREMENT_PUBLIC_KEY_DATA to MEASUREMENT_CONSUMER_PRIVATE_KEY_HANDLE)
   )
@@ -787,11 +788,11 @@ private val REACH_ONLY_UNSIGNED_MEASUREMENT_SPEC = measurementSpec {
   reachAndFrequency = measurementSpecReachAndFrequency {
     reachPrivacyParams = differentialPrivacyParams {
       epsilon = REACH_ONLY_REACH_EPSILON
-      delta = DIFFERENTIAL_PRIVACY_DETLA
+      delta = DIFFERENTIAL_PRIVACY_DELTA
     }
     frequencyPrivacyParams = differentialPrivacyParams {
       epsilon = REACH_ONLY_FREQUENCY_EPSILON
-      delta = DIFFERENTIAL_PRIVACY_DETLA
+      delta = DIFFERENTIAL_PRIVACY_DELTA
     }
     maximumFrequencyPerUser = REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER
   }
@@ -861,11 +862,11 @@ private val REACH_FREQUENCY_UNSIGNED_MEASUREMENT_SPEC = measurementSpec {
   reachAndFrequency = measurementSpecReachAndFrequency {
     reachPrivacyParams = differentialPrivacyParams {
       epsilon = REACH_FREQUENCY_REACH_EPSILON
-      delta = DIFFERENTIAL_PRIVACY_DETLA
+      delta = DIFFERENTIAL_PRIVACY_DELTA
     }
     frequencyPrivacyParams = differentialPrivacyParams {
       epsilon = REACH_FREQUENCY_FREQUENCY_EPSILON
-      delta = DIFFERENTIAL_PRIVACY_DETLA
+      delta = DIFFERENTIAL_PRIVACY_DELTA
     }
     maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
   }
@@ -935,7 +936,7 @@ private val IMPRESSION_UNSIGNED_MEASUREMENT_SPEC = measurementSpec {
   impression = measurementSpecImpression {
     privacyParams = differentialPrivacyParams {
       epsilon = IMPRESSION_EPSILON
-      delta = DIFFERENTIAL_PRIVACY_DETLA
+      delta = DIFFERENTIAL_PRIVACY_DELTA
     }
     maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
   }
@@ -1008,7 +1009,7 @@ private val WATCH_DURATION_UNSIGNED_MEASUREMENT_SPEC = measurementSpec {
   duration = measurementSpecDuration {
     privacyParams = differentialPrivacyParams {
       epsilon = WATCH_DURATION_EPSILON
-      delta = DIFFERENTIAL_PRIVACY_DETLA
+      delta = DIFFERENTIAL_PRIVACY_DELTA
     }
     maximumWatchDurationPerUser = MAXIMUM_WATCH_DURATION_PER_USER
     maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
@@ -1419,14 +1420,10 @@ class ReportsServiceTest {
   private val internalMeasurementsMock: InternalMeasurementsCoroutineImplBase =
     mockService() {
       onBlocking { getMeasurement(any()) }.thenThrow(StatusRuntimeException(Status.NOT_FOUND))
-      onBlocking { setMeasurementResult(any()) }.thenReturn(null)
-      onBlocking { setMeasurementFailure(any()) }.thenReturn(null)
-      onBlocking { createMeasurement(any()) }.thenReturn(null)
     }
 
   private val measurementsMock: MeasurementsCoroutineImplBase =
     mockService() {
-      onBlocking { createMeasurement(any()) }.thenReturn(null)
       onBlocking { getMeasurement(any()) }
         .thenReturn(
           SUCCEEDED_REACH_MEASUREMENT,
