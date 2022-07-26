@@ -25,7 +25,6 @@ import java.security.PrivateKey
 import java.security.SecureRandom
 import java.time.Instant
 import kotlin.math.min
-import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
@@ -1227,25 +1226,22 @@ class ReportsService(
       reportingSetKey.measurementConsumerId == reportInfo.measurementConsumerReferenceId
     ) { "No access to the reporting set [$reportingSetName]." }
 
-    val internalReportingSet = coroutineScope {
-      async {
-        try {
-          internalReportingSetsStub.getReportingSet(
-            getReportingSetRequest {
-              this.measurementConsumerReferenceId = reportInfo.measurementConsumerReferenceId
-              externalReportingSetId = apiIdToExternalId(reportingSetKey.reportingSetId)
-            }
-          )
-        } catch (e: StatusException) {
-          throw Exception(
-            "Unable to retrieve the reporting set [$reportingSetName] from the reporting database.",
-            e
-          )
-        }
+    val internalReportingSet =
+      try {
+        internalReportingSetsStub.getReportingSet(
+          getReportingSetRequest {
+            this.measurementConsumerReferenceId = reportInfo.measurementConsumerReferenceId
+            externalReportingSetId = apiIdToExternalId(reportingSetKey.reportingSetId)
+          }
+        )
+      } catch (e: StatusException) {
+        throw Exception(
+          "Unable to retrieve the reporting set [$reportingSetName] from the reporting database.",
+          e
+        )
       }
-    }
 
-    for (eventGroupKey in internalReportingSet.await().eventGroupKeysList) {
+    for (eventGroupKey in internalReportingSet.eventGroupKeysList) {
       val eventGroupName =
         EventGroupKey(
             eventGroupKey.measurementConsumerReferenceId,
@@ -1253,7 +1249,7 @@ class ReportsService(
             eventGroupKey.eventGroupReferenceId
           )
           .toName()
-      val internalReportingSetDisplayName = internalReportingSet.await().displayName
+      val internalReportingSetDisplayName = internalReportingSet.displayName
       grpcRequire(reportInfo.eventGroupFilters.containsKey(eventGroupName)) {
         "The event group [$eventGroupName] in the reporting set " +
           "[$internalReportingSetDisplayName] is not included in the event group universe."
