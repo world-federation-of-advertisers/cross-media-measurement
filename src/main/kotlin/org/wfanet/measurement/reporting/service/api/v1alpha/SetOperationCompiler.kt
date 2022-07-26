@@ -17,7 +17,6 @@ package org.wfanet.measurement.reporting.service.api.v1alpha
 import kotlin.math.pow
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-import org.wfanet.measurement.reporting.v1alpha.Metric.NamedSetOperation
 import org.wfanet.measurement.reporting.v1alpha.Metric.SetOperation
 
 /**
@@ -100,17 +99,16 @@ class SetOperationCompiler {
    * Count(unionSet2) + Count(unionSet3) - Count(unionSet2) = Count(unionSet1) + Count(unionSet3) -
    * 2 * Count(unionSet2).
    */
-  suspend fun compileSetOperation(namedSetOperation: NamedSetOperation): List<WeightedMeasurement> {
+  suspend fun compileSetOperation(setOperation: SetOperation): List<WeightedMeasurement> {
     val reportingSetNames = mutableSetOf<String>()
-    namedSetOperation.setOperation.storeReportingSetNames(reportingSetNames)
+    setOperation.storeReportingSetNames(reportingSetNames)
 
     // Sorts the list in alphabetical order to make sure the IDs are consistent for the same run.
     val sortedReportingSetNames = reportingSetNames.sortedBy { it }
     val reportingSetsMap = createReportingSetsMap(sortedReportingSetNames)
     val numReportingSets = reportingSetsMap.size
 
-    val setOperationExpression =
-      namedSetOperation.setOperation.toSetOperationExpression(reportingSetsMap)
+    val setOperationExpression = setOperation.toSetOperationExpression(reportingSetsMap)
 
     // Step 1 - Gets the primitive regions that form the set operation
     val primitiveRegions =

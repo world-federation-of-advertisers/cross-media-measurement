@@ -128,7 +128,7 @@ class SetOperationCompilerTest {
   @Test
   fun `compileSetOperation returns a list of weightedMeasurements and store it in the cache`() {
     val resultAllUnionButOne = runBlocking {
-      reportResultCompiler.compileSetOperation(NAMED_SET_OPERATION_ALL_UNION_BUT_ONE)
+      reportResultCompiler.compileSetOperation(SET_OPERATION_ALL_UNION_BUT_ONE)
     }
     val primitiveRegionCacheAllUnionButOne = reportResultCompiler.getPrimitiveRegionCache()
 
@@ -138,7 +138,7 @@ class SetOperationCompilerTest {
       .isEqualTo(EXPECTED_CACHE_FOR_ALL_UNION_BUT_ONE_SET_OPERATION)
 
     val resultAllUnion = runBlocking {
-      reportResultCompiler.compileSetOperation(NAMED_SET_OPERATION_ALL_UNION)
+      reportResultCompiler.compileSetOperation(SET_OPERATION_ALL_UNION)
     }
     val primitiveRegionCacheAllUnion = reportResultCompiler.getPrimitiveRegionCache()
 
@@ -149,10 +149,10 @@ class SetOperationCompilerTest {
 
   @Test
   fun `compileSetOperation reuses the computation in the cache when there exists one`() {
-    runBlocking { reportResultCompiler.compileSetOperation(NAMED_SET_OPERATION_ALL_UNION) }
+    runBlocking { reportResultCompiler.compileSetOperation(SET_OPERATION_ALL_UNION) }
     val firstRoundPrimitiveRegionCache = reportResultCompiler.getPrimitiveRegionCache()
 
-    runBlocking { reportResultCompiler.compileSetOperation(NAMED_SET_OPERATION_ALL_UNION) }
+    runBlocking { reportResultCompiler.compileSetOperation(SET_OPERATION_ALL_UNION) }
     val secondRoundPrimitiveRegionCache = reportResultCompiler.getPrimitiveRegionCache()
 
     assertThat(firstRoundPrimitiveRegionCache).isEqualTo(secondRoundPrimitiveRegionCache)
@@ -160,29 +160,23 @@ class SetOperationCompilerTest {
 
   @Test
   fun `compileSetOperation throws IllegalArgumentException when lhs in SetOperation is not set`() {
-    val namedSetOperationWithLhsNotSet =
-      NAMED_SET_OPERATION_ALL_UNION.copy {
-        setOperation = SET_OPERATION_ALL_UNION.copy { clearLhs() }
-      }
+    val setOperationWithLhsNotSet = SET_OPERATION_ALL_UNION.copy { clearLhs() }
 
     val exception =
       assertThrows(IllegalArgumentException::class.java) {
-        runBlocking { reportResultCompiler.compileSetOperation(namedSetOperationWithLhsNotSet) }
+        runBlocking { reportResultCompiler.compileSetOperation(setOperationWithLhsNotSet) }
       }
     assertThat(exception.message).isEqualTo("lhs in SetOperation must be set.")
   }
 
   @Test
   fun `compileSetOperation throws IllegalArgumentException when lhs operand type is not set`() {
-    val namedSetOperationWithLhsOperandTypeNotSet =
-      NAMED_SET_OPERATION_ALL_UNION.copy {
-        setOperation = SET_OPERATION_ALL_UNION.copy { lhs = operand {} }
-      }
+    val setOperationWithLhsOperandTypeNotSet = SET_OPERATION_ALL_UNION.copy { lhs = operand {} }
 
     val exception =
       assertThrows(IllegalArgumentException::class.java) {
         runBlocking {
-          reportResultCompiler.compileSetOperation(namedSetOperationWithLhsOperandTypeNotSet)
+          reportResultCompiler.compileSetOperation(setOperationWithLhsOperandTypeNotSet)
         }
       }
     assertThat(exception.message).isEqualTo("Operand type of lhs in SetOperation must be set.")
@@ -190,15 +184,12 @@ class SetOperationCompilerTest {
 
   @Test
   fun `compileSetOperation throws IllegalArgumentException when a set operator type is not set`() {
-    val namedSetOperationWithSetOperatorTypeNotSet =
-      NAMED_SET_OPERATION_ALL_UNION.copy {
-        setOperation = SET_OPERATION_ALL_UNION.copy { clearType() }
-      }
+    val setOperationWithSetOperatorTypeNotSet = SET_OPERATION_ALL_UNION.copy { clearType() }
 
     val exception =
       assertThrows(IllegalArgumentException::class.java) {
         runBlocking {
-          reportResultCompiler.compileSetOperation(namedSetOperationWithSetOperatorTypeNotSet)
+          reportResultCompiler.compileSetOperation(setOperationWithSetOperatorTypeNotSet)
         }
       }
     assertThat(exception.message).isEqualTo("Set operator type is not specified.")
