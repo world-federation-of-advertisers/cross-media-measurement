@@ -17,11 +17,7 @@ package org.wfanet.measurement.reporting.service.api.v1alpha
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.api.ResourceKey
 
-/**
- * Identifies the sender of an inbound gRPC request.
- *
- * TODO: once using Kotlin 1.5, switch to a sealed interface.
- */
+/** Identifies the sender of an inbound gRPC request. */
 sealed class Principal<T : ResourceKey> {
   abstract val resourceKey: T
 
