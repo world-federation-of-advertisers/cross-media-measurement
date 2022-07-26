@@ -1255,8 +1255,8 @@ class ReportsService(
           .toName()
       val internalReportingSetDisplayName = internalReportingSet.await().displayName
       grpcRequire(reportInfo.eventGroupFilters.containsKey(eventGroupName)) {
-        "The event group [$eventGroupName] in the reporting set [$internalReportingSetDisplayName]" +
-          " is not included in the event group universe."
+        "The event group [$eventGroupName] in the reporting set " +
+          "[$internalReportingSetDisplayName] is not included in the event group universe."
       }
     }
   }
