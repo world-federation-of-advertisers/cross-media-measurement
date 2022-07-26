@@ -105,22 +105,12 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "principal_constants",
-    srcs = ["PrincipalConstants.kt"],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:principal",
-        "@wfa_common_jvm//imports/java/io/grpc:api",
-        "@wfa_common_jvm//imports/java/io/grpc:context",
-    ],
-)
-
-kt_jvm_library(
     name = "principal_server_interceptor",
     srcs = ["PrincipalServerInterceptor.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:principal_constants",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:principal",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:principal_constants",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/io/grpc:context",
