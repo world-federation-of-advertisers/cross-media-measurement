@@ -56,16 +56,12 @@ package k8s
 	}
 
 	deployments: [Name=_]: #ServerDeployment & {
-		_name:                  Name
-		_secretName:            _kingdom_secret_name
-		_system:                "kingdom"
-		_image:                 _images[_name]
-		_imagePullPolicy:       _kingdom_image_pull_policy
-		_replicas:              _resource_configs[_name].replicas
-		_resourceRequestMemory: _resource_configs[_name].resourceRequestMemory
-		_resourceLimitMemory:   _resource_configs[_name].resourceLimitMemory
-		_resourceRequestCpu:    _resource_configs[_name].resourceRequestCpu
-		_resourceLimitCpu:      _resource_configs[_name].resourceLimitCpu
+		_name:            Name
+		_secretName:      _kingdom_secret_name
+		_system:          "kingdom"
+		_image:           _images[_name]
+		_imagePullPolicy: _kingdom_image_pull_policy
+		_resourceConfig:  _resource_configs[_name]
 	}
 	deployments: {
 		"gcp-kingdom-data-server": Deployment={
