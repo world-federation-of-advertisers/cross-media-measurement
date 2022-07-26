@@ -40,6 +40,7 @@ import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCorou
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Measurement.DataProviderEntry
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
@@ -319,11 +320,24 @@ class ReportsService(
         reportInfo,
       )
 
-    createMeasurements(
-      request,
-      namedSetOperationResults,
-      reportInfo,
-    )
+    val measurementConsumer =
+      try {
+        measurementConsumersStub
+          .withAuthenticationKey(apiAuthenticationKey)
+          .getMeasurementConsumer(
+            getMeasurementConsumerRequest {
+              name = MeasurementConsumerKey(resourceKey.measurementConsumerId).toName()
+            }
+          )
+      } catch (e: StatusException) {
+        throw Exception(
+          "Unable to retrieve the measurement consumer " +
+            "[${MeasurementConsumerKey(resourceKey.measurementConsumerId).toName()}].",
+          e
+        )
+      }
+
+    createMeasurements(request, namedSetOperationResults, reportInfo, measurementConsumer)
 
     val internalCreateReportRequest: InternalCreateReportRequest =
       buildInternalCreateReportRequest(
@@ -362,6 +376,7 @@ class ReportsService(
     request: CreateReportRequest,
     namedSetOperationResults: Map<String, SetOperationResult>,
     reportInfo: ReportInfo,
+    measurementConsumer: MeasurementConsumer,
   ) = coroutineScope {
     for (metric in request.report.metricsList) {
       val internalMetricDetails = buildInternalMetricDetails(metric)
@@ -381,6 +396,7 @@ class ReportsService(
                 weightedMeasurementInfo,
                 reportInfo,
                 setOperationResult.internalMetricDetails,
+                measurementConsumer,
               )
             }
           }
@@ -394,6 +410,7 @@ class ReportsService(
     weightedMeasurementInfo: WeightedMeasurementInfo,
     reportInfo: ReportInfo,
     internalMetricDetails: InternalMetricDetails,
+    measurementConsumer: MeasurementConsumer,
   ) {
     val existingInternalMeasurement: InternalMeasurement? =
       getInternalMeasurement(
@@ -412,7 +429,7 @@ class ReportsService(
 
     val createMeasurementRequest: CreateMeasurementRequest =
       buildCreateMeasurementRequest(
-        reportInfo.measurementConsumerReferenceId,
+        measurementConsumer,
         dataProviderNameToInternalEventGroupEntriesList,
         internalMetricDetails,
         weightedMeasurementInfo.measurementReferenceId,
@@ -1035,27 +1052,16 @@ class ReportsService(
 
   /** Builds a [CreateMeasurementRequest]. */
   private suspend fun buildCreateMeasurementRequest(
-    measurementConsumerReferenceId: String,
+    measurementConsumer: MeasurementConsumer,
     dataProviderNameToInternalEventGroupEntriesList: Map<String, List<EventGroupEntry>>,
     internalMetricDetails: InternalMetricDetails,
     measurementReferenceId: String,
   ): CreateMeasurementRequest {
-    val measurementConsumer =
-      try {
-        measurementConsumersStub
-          .withAuthenticationKey(apiAuthenticationKey)
-          .getMeasurementConsumer(
-            getMeasurementConsumerRequest {
-              name = MeasurementConsumerKey(measurementConsumerReferenceId).toName()
-            }
-          )
-      } catch (e: StatusException) {
-        throw Exception(
-          "Unable to retrieve the measurement consumer " +
-            "[${MeasurementConsumerKey(measurementConsumerReferenceId).toName()}].",
-          e
-        )
-      }
+    val measurementConsumerReferenceId =
+      grpcRequireNotNull(MeasurementConsumerKey.fromName(measurementConsumer.name)) {
+          "Invalid measurement consumer name [${measurementConsumer.name}]"
+        }
+        .measurementConsumerId
 
     val measurementConsumerCertificate = readCertificate(measurementConsumer.certificateDer)
     val measurementConsumerSigningKey =
