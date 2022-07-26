@@ -14,9 +14,23 @@
 
 package org.wfanet.measurement.reporting.deploy.common.server
 
+// import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as
+// KingdomCertificatesCoroutineStub
+// import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as
+// KingdomMeasurementsCoroutineStub
+// import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt.MeasurementsCoroutineStub as
+// InternalMeasurementsCoroutineStub
+// import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as
+// InternalReportsCoroutineStub
+// import org.wfanet.measurement.reporting.service.api.v1alpha.EncryptionKeyPairStore
+// import org.wfanet.measurement.reporting.service.api.v1alpha.ReportsService
+// import
+// org.wfanet.measurement.reporting.service.api.v1alpha.withMeasurementConsumerServerInterceptor
 import io.grpc.Channel
 import io.grpc.ServerServiceDefinition
 import java.io.File
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub as KingdomEventGroupMetadataDescriptorsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as KingdomEventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -27,6 +41,8 @@ import org.wfanet.measurement.common.identity.TextprotoFilePrincipalLookup
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.reporting.deploy.common.EncryptionKeyPairMap
 import org.wfanet.measurement.reporting.deploy.common.KingdomApiFlags
+import org.wfanet.measurement.reporting.service.api.v1alpha.EventGroupsService
+import org.wfanet.measurement.reporting.service.api.v1alpha.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v1alpha.ReportingSetsService
 import org.wfanet.measurement.reporting.service.api.v1alpha.TextprotoFileMeasurementConsumerConfigLookup
 import picocli.CommandLine
@@ -70,16 +86,15 @@ private fun run(
   val configLookup =
     TextprotoFileMeasurementConsumerConfigLookup(v1alphaFlags.measurementConsumerConfigFile)
 
-  // TODO(): update when services are complete
+  // TODO(@tristanvuong2021): update when #639 and #640 are merged in
   val services: List<ServerServiceDefinition> =
     listOf(
-      /*
       EventGroupsService(
-        KingdomEventGroupsCoroutineStub(kingdomChannel),
-        KingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomChannel),
-        null
-      ).withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-       */
+          KingdomEventGroupsCoroutineStub(kingdomChannel),
+          KingdomEventGroupMetadataDescriptorsCoroutineStub(kingdomChannel),
+          InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs)
+        )
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       ReportingSetsService(InternalReportingSetsCoroutineStub(channel))
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       /*

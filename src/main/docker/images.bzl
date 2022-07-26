@@ -109,7 +109,7 @@ GKE_IMAGES = [
     struct(
         name = "gcloud_reporting_data_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/gcloud/postgres/server:gcloud_postgres_reporting_data_server_image",
-        repository = _PREFIX + "/reporting/data-server",
+        repository = _PREFIX + "/reporting/postgres-data-server",
     ),
     struct(
         name = "gcloud_reporting_postgres_update_schema_image",
