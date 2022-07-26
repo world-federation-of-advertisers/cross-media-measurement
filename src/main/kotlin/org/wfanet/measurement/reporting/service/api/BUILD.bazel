@@ -6,8 +6,8 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "principal_constants",
-    srcs = ["PrincipalConstants.kt"],
+    name = "context_keys",
+    srcs = ["ContextKeys.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:principal",
         "@wfa_common_jvm//imports/java/io/grpc:api",
