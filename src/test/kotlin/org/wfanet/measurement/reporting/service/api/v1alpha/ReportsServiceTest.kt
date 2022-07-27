@@ -192,7 +192,6 @@ import org.wfanet.measurement.reporting.v1alpha.listReportsResponse
 import org.wfanet.measurement.reporting.v1alpha.metric
 import org.wfanet.measurement.reporting.v1alpha.periodicTimeInterval
 import org.wfanet.measurement.reporting.v1alpha.report
-import org.wfanet.measurement.reporting.v1alpha.reportingSet
 
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
@@ -1762,7 +1761,8 @@ class ReportsServiceTest {
         }
       val expectedExceptionDescription =
         "The event group [$UNCOVERED_EVENT_GROUP_NAME] in the reporting set" +
-          " [${UNCOVERED_INTERNAL_REPORTING_SET.displayName}] is not included in the event group universe."
+          " [${UNCOVERED_INTERNAL_REPORTING_SET.displayName}] is not included in the event group " +
+          "universe."
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.status.description).isEqualTo(expectedExceptionDescription)
     }
@@ -1920,7 +1920,8 @@ class ReportsServiceTest {
           }
         }
       val expectedExceptionDescription =
-        "Unable to retrieve the reporting set [${REPORTING_SET_NAMES[0]}] from the reporting database."
+        "Unable to retrieve the reporting set [${REPORTING_SET_NAMES[0]}] from the reporting " +
+          "database."
       assertThat(exception.message).isEqualTo(expectedExceptionDescription)
     }
 
@@ -1963,7 +1964,8 @@ class ReportsServiceTest {
           }
         }
       val expectedExceptionDescription =
-        "Unable to retrieve the reporting set [${REPORTING_SET_NAMES[0]}] from the reporting database."
+        "Unable to retrieve the reporting set [${REPORTING_SET_NAMES[0]}] from the reporting " +
+          "database."
       assertThat(exception.message).isEqualTo(expectedExceptionDescription)
     }
 
