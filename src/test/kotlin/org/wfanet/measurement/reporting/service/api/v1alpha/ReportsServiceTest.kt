@@ -623,18 +623,13 @@ private val BASE_MEASUREMENT = measurement {
 // Measurement values
 private const val REACH_VALUE = 100_000L
 private val FREQUENCY_DISTRIBUTION = mapOf(1L to 1.0 / 6, 2L to 2.0 / 6, 3L to 3.0 / 6)
-private const val IMPRESSION_VALUE = 100L
-private const val IMPRESSION_VALUE_2 = 150L
-private const val TOTAL_IMPRESSION_VALUE = IMPRESSION_VALUE + IMPRESSION_VALUE_2
-private const val WATCH_DURATION_SECOND = 100L
-private const val WATCH_DURATION_SECOND_2 = 200L
-private val WATCH_DURATION = duration { seconds = WATCH_DURATION_SECOND }
-private val WATCH_DURATION_2 = duration { seconds = WATCH_DURATION_SECOND_2 }
-private val TOTAL_WATCH_DURATION = duration {
-  seconds = WATCH_DURATION_SECOND + WATCH_DURATION_SECOND_2
-}
+private val IMPRESSION_VALUES = listOf(100L, 150L)
+private val TOTAL_IMPRESSION_VALUE = IMPRESSION_VALUES.sum()
+private val WATCH_DURATION_SECOND_LIST = listOf(100L, 200L)
+private val WATCH_DURATION_LIST = WATCH_DURATION_SECOND_LIST.map { duration { seconds = it } }
+private val TOTAL_WATCH_DURATION = duration { seconds = WATCH_DURATION_SECOND_LIST.sum() }
 
-// Reach
+// Reach measurement
 private val BASE_REACH_MEASUREMENT =
   BASE_MEASUREMENT.copy {
     name = REACH_MEASUREMENT_NAME
@@ -704,7 +699,7 @@ private val INTERNAL_SUCCEEDED_REACH_MEASUREMENT =
     }
   }
 
-// Frequency histogram
+// Frequency histogram measurement
 private val BASE_REACH_FREQUENCY_HISTOGRAM_MEASUREMENT =
   BASE_MEASUREMENT.copy {
     name = FREQUENCY_HISTOGRAM_MEASUREMENT_NAME
@@ -774,7 +769,7 @@ private val INTERNAL_SUCCEEDED_FREQUENCY_HISTOGRAM_MEASUREMENT =
     }
   }
 
-// Impression
+// Impression measurement
 private val BASE_IMPRESSION_MEASUREMENT =
   BASE_MEASUREMENT.copy {
     name = IMPRESSION_MEASUREMENT_NAME
@@ -815,14 +810,14 @@ private val SUCCEEDED_IMPRESSION_MEASUREMENT =
 
     results += resultPair {
       val result = result {
-        impression = MeasurementKt.ResultKt.impression { value = IMPRESSION_VALUE }
+        impression = MeasurementKt.ResultKt.impression { value = IMPRESSION_VALUES[0] }
       }
       encryptedResult = getEncryptedResult(result)
       certificate = DATA_PROVIDER_CERTIFICATE_NAMES[0]
     }
     results += resultPair {
       val result = result {
-        impression = MeasurementKt.ResultKt.impression { value = IMPRESSION_VALUE_2 }
+        impression = MeasurementKt.ResultKt.impression { value = IMPRESSION_VALUES[1] }
       }
       encryptedResult = getEncryptedResult(result)
       certificate = DATA_PROVIDER_CERTIFICATE_NAMES[1]
@@ -843,7 +838,7 @@ private val INTERNAL_SUCCEEDED_IMPRESSION_MEASUREMENT =
     }
   }
 
-// Watch Duration
+// Watch Duration measurement
 private val BASE_WATCH_DURATION_MEASUREMENT =
   BASE_MEASUREMENT.copy {
     name = WATCH_DURATION_MEASUREMENT_NAME
@@ -885,14 +880,14 @@ private val SUCCEEDED_WATCH_DURATION_MEASUREMENT =
 
     results += resultPair {
       val result = result {
-        watchDuration = MeasurementKt.ResultKt.watchDuration { value = WATCH_DURATION }
+        watchDuration = MeasurementKt.ResultKt.watchDuration { value = WATCH_DURATION_LIST[0] }
       }
       encryptedResult = getEncryptedResult(result)
       certificate = DATA_PROVIDER_CERTIFICATE_NAMES[0]
     }
     results += resultPair {
       val result = result {
-        watchDuration = MeasurementKt.ResultKt.watchDuration { value = WATCH_DURATION_2 }
+        watchDuration = MeasurementKt.ResultKt.watchDuration { value = WATCH_DURATION_LIST[1] }
       }
       encryptedResult = getEncryptedResult(result)
       certificate = DATA_PROVIDER_CERTIFICATE_NAMES[1]
@@ -1156,23 +1151,16 @@ private val INTERNAL_SUCCEEDED_FREQUENCY_HISTOGRAM_REPORT =
   }
 
 // Event Group Universe
-private val EVENT_GROUP_UNIVERSE_ENTRY = eventGroupUniverseEntry {
-  key = COVERED_EVENT_GROUP_NAMES[0]
-  value = EVENT_GROUP_FILTER
-}
-private val EVENT_GROUP_UNIVERSE_ENTRY_2 = eventGroupUniverseEntry {
-  key = COVERED_EVENT_GROUP_NAMES[1]
-  value = EVENT_GROUP_FILTER
-}
-private val EVENT_GROUP_UNIVERSE_ENTRY_3 = eventGroupUniverseEntry {
-  key = COVERED_EVENT_GROUP_NAMES[2]
-  value = EVENT_GROUP_FILTER
-}
+private val EVENT_GROUP_UNIVERSE_ENTRIES =
+  COVERED_EVENT_GROUP_NAMES.map {
+    eventGroupUniverseEntry {
+      key = it
+      value = EVENT_GROUP_FILTER
+    }
+  }
 
 private val EVENT_GROUP_UNIVERSE = eventGroupUniverse {
-  eventGroupEntries.addAll(
-    listOf(EVENT_GROUP_UNIVERSE_ENTRY, EVENT_GROUP_UNIVERSE_ENTRY_2, EVENT_GROUP_UNIVERSE_ENTRY_3)
-  )
+  eventGroupEntries += EVENT_GROUP_UNIVERSE_ENTRIES
 }
 
 // Public reports with running states
