@@ -24,7 +24,7 @@ import io.grpc.ServerInterceptor
 import io.grpc.ServerInterceptors
 import io.grpc.ServerServiceDefinition
 import io.grpc.Status
-import org.wfanet.measurement.api.PrincipalConstants
+import org.wfanet.measurement.api.v2alpha.ContextKeys
 import org.wfanet.measurement.api.v2alpha.Principal
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.withPrincipal
@@ -54,7 +54,7 @@ class MetadataPrincipalServerInterceptor : ServerInterceptor {
     headers: Metadata,
     next: ServerCallHandler<ReqT, RespT>
   ): ServerCall.Listener<ReqT> {
-    if (PrincipalConstants.PRINCIPAL_CONTEXT_KEY.get() != null) {
+    if (ContextKeys.PRINCIPAL_CONTEXT_KEY.get() != null) {
       return Contexts.interceptCall(Context.current(), call, headers, next)
     }
 

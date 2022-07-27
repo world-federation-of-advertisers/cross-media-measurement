@@ -59,11 +59,21 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "context_keys",
+    srcs = ["ContextKeys.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:principal",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/io/grpc:context",
+    ],
+)
+
+kt_jvm_library(
     name = "principal_server_interceptor",
     srcs = ["PrincipalServerInterceptor.kt"],
     deps = [
-        ":principal",
-        "//src/main/kotlin/org/wfanet/measurement/api:principal_constants",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:context_keys",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:principal",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/proto/wfa/measurement/api/v2alpha:duchy_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:model_provider_kt_jvm_proto",

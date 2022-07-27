@@ -27,16 +27,6 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "principal_constants",
-    srcs = ["PrincipalConstants.kt"],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:principal",
-        "@wfa_common_jvm//imports/java/io/grpc:api",
-        "@wfa_common_jvm//imports/java/io/grpc:context",
-    ],
-)
-
-kt_jvm_library(
     name = "public_api_version",
     srcs = ["Version.kt"],
     deps = [],
