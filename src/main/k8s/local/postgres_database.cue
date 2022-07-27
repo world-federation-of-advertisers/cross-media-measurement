@@ -33,9 +33,9 @@ services: {
 			}
 		}
 		spec: {
-			selector: app: "postgresql"
+			selector: app: "postgres-app"
 			ports: [{
-				name:       "http"
+				name:       "postgresql"
 				port:       5432
 				protocol:   "TCP"
 				targetPort: 5432
@@ -51,7 +51,7 @@ pods: {
 		metadata: {
 			name: "postgres-pod"
 			labels: {
-				app:                           "postgresql"
+				app:                           "postgres-app"
 				"app.kubernetes.io/part-of":   #AppName
 				"app.kubernetes.io/component": "testing"
 			}
