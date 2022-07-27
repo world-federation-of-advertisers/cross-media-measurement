@@ -54,6 +54,7 @@ import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCorou
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
+import org.wfanet.measurement.api.v2alpha.Measurement.DataProviderEntry.Value.ENCRYPTED_REQUISITION_SPEC_FIELD_NUMBER
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
@@ -544,6 +545,7 @@ private val SET_OPERATION = setOperation {
   lhs = setOperationOperand { reportingSet = REPORTING_SET_NAMES[0] }
   rhs = setOperationOperand { reportingSet = REPORTING_SET_NAMES[1] }
 }
+private val DATA_PROVIDER_INDICES_IN_SET_OPERATION = listOf(0, 1)
 
 private val SET_OPERATION_WITH_INVALID_REPORTING_SET = setOperation {
   type = Metric.SetOperation.Type.UNION
@@ -653,7 +655,8 @@ private val REACH_ONLY_MEASUREMENT_SPEC = measurementSpec {
 
 private val SUCCEEDED_REACH_MEASUREMENT =
   BASE_REACH_MEASUREMENT.copy {
-    dataProviders += DATA_PROVIDER_ENTRIES
+    dataProviders +=
+      DATA_PROVIDER_INDICES_IN_SET_OPERATION.map { index -> DATA_PROVIDER_ENTRIES[index] }
 
     measurementSpec =
       signMeasurementSpec(REACH_ONLY_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
@@ -723,7 +726,8 @@ private val REACH_FREQUENCY_MEASUREMENT_SPEC = measurementSpec {
 
 private val SUCCEEDED_FREQUENCY_HISTOGRAM_MEASUREMENT =
   BASE_REACH_FREQUENCY_HISTOGRAM_MEASUREMENT.copy {
-    dataProviders += DATA_PROVIDER_ENTRIES
+    dataProviders +=
+      DATA_PROVIDER_INDICES_IN_SET_OPERATION.map { index -> DATA_PROVIDER_ENTRIES[index] }
 
     measurementSpec =
       signMeasurementSpec(REACH_FREQUENCY_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
@@ -789,7 +793,8 @@ private val IMPRESSION_MEASUREMENT_SPEC = measurementSpec {
 
 private val SUCCEEDED_IMPRESSION_MEASUREMENT =
   BASE_IMPRESSION_MEASUREMENT.copy {
-    dataProviders += DATA_PROVIDER_ENTRIES
+    dataProviders +=
+      DATA_PROVIDER_INDICES_IN_SET_OPERATION.map { index -> DATA_PROVIDER_ENTRIES[index] }
 
     measurementSpec =
       signMeasurementSpec(IMPRESSION_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
@@ -859,7 +864,8 @@ private val WATCH_DURATION_MEASUREMENT_SPEC = measurementSpec {
 
 private val SUCCEEDED_WATCH_DURATION_MEASUREMENT =
   BASE_WATCH_DURATION_MEASUREMENT.copy {
-    dataProviders += DATA_PROVIDER_ENTRIES
+    dataProviders +=
+      DATA_PROVIDER_INDICES_IN_SET_OPERATION.map { index -> DATA_PROVIDER_ENTRIES[index] }
 
     measurementSpec =
       signMeasurementSpec(WATCH_DURATION_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
@@ -1390,9 +1396,22 @@ class ReportsServiceTest {
         runBlocking { verify(measurementsMock).createMeasurement(capture()) }
       }
     val capturedMeasurement = capturedMeasurementRequest.measurement
-    assertThat(capturedMeasurement.name).isEqualTo(REACH_MEASUREMENT_NAME)
-    assertThat(capturedMeasurement.measurementConsumerCertificate)
-      .isEqualTo(MEASUREMENT_CONSUMER_CERTIFICATE_NAME)
+    val expectedMeasurement =
+      BASE_REACH_MEASUREMENT.copy {
+        dataProviders +=
+          DATA_PROVIDER_INDICES_IN_SET_OPERATION.map { index -> DATA_PROVIDER_ENTRIES[index] }
+        measurementSpec =
+          signMeasurementSpec(REACH_ONLY_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
+      }
+
+    assertThat(capturedMeasurement)
+      .ignoringRepeatedFieldOrder()
+      .ignoringFieldDescriptors(
+        Measurement.getDescriptor().findFieldByNumber(Measurement.MEASUREMENT_SPEC_FIELD_NUMBER),
+        Measurement.DataProviderEntry.Value.getDescriptor()
+          .findFieldByNumber(ENCRYPTED_REQUISITION_SPEC_FIELD_NUMBER),
+      )
+      .isEqualTo(expectedMeasurement)
 
     val measurementSpec = MeasurementSpec.parseFrom(capturedMeasurement.measurementSpec.data)
     val expectedMeasurementSpec = REACH_ONLY_MEASUREMENT_SPEC
@@ -1406,61 +1425,26 @@ class ReportsServiceTest {
       )
       .isTrue()
 
-    val dataProviderEntryKeys = capturedMeasurement.dataProvidersList.map { it.key }
-    assertThat(dataProviderEntryKeys)
-      .containsExactly(DATA_PROVIDERS[0].name, DATA_PROVIDERS[1].name)
-
     // Handle the random sequence due to the execution of coroutine.
-    val dataProvidersList =
-      if (capturedMeasurement.dataProvidersList[0].key == DATA_PROVIDERS[1].name)
-        capturedMeasurement.dataProvidersList.asReversed()
-      else capturedMeasurement.dataProvidersList
+    val dataProvidersList = capturedMeasurement.dataProvidersList.sortedBy { it.key }
 
-    val dataProviderEntry = dataProvidersList[0]
-    val expectedDataProviderEntry = DATA_PROVIDER_ENTRIES[0]
-    assertThat(dataProviderEntry.value)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(expectedDataProviderEntry.value.copy { clearEncryptedRequisitionSpec() })
-
-    val signedRequisitionSpec =
-      decryptRequisitionSpec(
-        dataProviderEntry.value.encryptedRequisitionSpec,
-        DATA_PROVIDER_PRIVATE_KEY_HANDLE
-      )
-    val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
-    assertThat(
-        verifyRequisitionSpec(
-          signedRequisitionSpec.signature,
-          requisitionSpec,
-          measurementSpec,
-          MEASUREMENT_CONSUMER_CERTIFICATE
+    dataProvidersList.map { dataProviderEntry ->
+      val signedRequisitionSpec =
+        decryptRequisitionSpec(
+          dataProviderEntry.value.encryptedRequisitionSpec,
+          DATA_PROVIDER_PRIVATE_KEY_HANDLE
         )
-      )
-      .isTrue()
-    assertThat(requisitionSpec).isEqualTo(REQUISITION_SPECS[0])
-
-    val dataProviderEntry2 = dataProvidersList[1]
-    val expectedDataProviderEntry2 = DATA_PROVIDER_ENTRIES[1]
-    assertThat(dataProviderEntry2.value)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(expectedDataProviderEntry2.value.copy { clearEncryptedRequisitionSpec() })
-
-    val signedRequisitionSpec2 =
-      decryptRequisitionSpec(
-        dataProviderEntry2.value.encryptedRequisitionSpec,
-        DATA_PROVIDER_PRIVATE_KEY_HANDLE
-      )
-    val requisitionSpec2 = RequisitionSpec.parseFrom(signedRequisitionSpec2.data)
-    assertThat(
-        verifyRequisitionSpec(
-          signedRequisitionSpec2.signature,
-          requisitionSpec2,
-          measurementSpec,
-          MEASUREMENT_CONSUMER_CERTIFICATE
+      val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
+      assertThat(
+          verifyRequisitionSpec(
+            signedRequisitionSpec.signature,
+            requisitionSpec,
+            measurementSpec,
+            MEASUREMENT_CONSUMER_CERTIFICATE
+          )
         )
-      )
-      .isTrue()
-    assertThat(requisitionSpec2).isEqualTo(REQUISITION_SPECS[1])
+        .isTrue()
+    }
 
     // Verify proto argument of InternalMeasurementsCoroutineImplBase::createMeasurement
     verifyProtoArgument(
