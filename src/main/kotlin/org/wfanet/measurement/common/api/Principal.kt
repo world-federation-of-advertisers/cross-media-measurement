@@ -12,12 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.reporting.service.api
+package org.wfanet.measurement.common.api
 
-import io.grpc.Context
-import org.wfanet.measurement.reporting.service.api.v1alpha.ReportingPrincipal
+interface Principal
 
-object ContextKeys {
-  /** This is the context key for the authenticated [ReportingPrincipal]. */
-  val PRINCIPAL_CONTEXT_KEY: Context.Key<ReportingPrincipal> = Context.key("principal")
+interface ResourcePrincipal : Principal {
+  val resourceKey: ResourceKey
 }
