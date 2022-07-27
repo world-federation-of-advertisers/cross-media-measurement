@@ -486,7 +486,6 @@ private val INTERNAL_PERIODIC_TIME_INTERVAL = internalPeriodicTimeInterval {
   increment = TIME_INTERVAL_INCREMENT
   intervalCount = INTERVAL_COUNT
 }
-
 private val PERIODIC_TIME_INTERVAL = periodicTimeInterval {
   startTime = START_TIME
   increment = TIME_INTERVAL_INCREMENT
@@ -572,36 +571,32 @@ private val SET_OPERATION_WITH_INACCESSIBLE_REPORTING_SET = setOperation {
 
 // Event group filters
 private const val EVENT_GROUP_FILTER = "AGE>20"
-private val EVENT_GROUP_FILTERS_MAP =
-  mapOf(
-    COVERED_EVENT_GROUP_NAMES[0] to EVENT_GROUP_FILTER,
-    COVERED_EVENT_GROUP_NAMES[1] to EVENT_GROUP_FILTER,
-    COVERED_EVENT_GROUP_NAMES[2] to EVENT_GROUP_FILTER,
-  )
+private val EVENT_GROUP_FILTERS_MAP = COVERED_EVENT_GROUP_NAMES.associateWith { EVENT_GROUP_FILTER }
 
 // Event group entries
-private val EVENT_GROUP_ENTRY = eventGroupEntry {
-  key = COVERED_EVENT_GROUP_NAMES[0]
-  value = eventGroupEntryValue {
-    collectionInterval = MEASUREMENT_TIME_INTERVAL
-    filter = requisitionSpecEventFilter {
-      expression = "($REPORTING_SET_FILTER) AND ($EVENT_GROUP_FILTER)"
+private val EVENT_GROUP_ENTRIES =
+  COVERED_EVENT_GROUP_NAMES.map {
+    eventGroupEntry {
+      key = it
+      value = eventGroupEntryValue {
+        collectionInterval = MEASUREMENT_TIME_INTERVAL
+        filter = requisitionSpecEventFilter {
+          expression = "($REPORTING_SET_FILTER) AND ($EVENT_GROUP_FILTER)"
+        }
+      }
     }
   }
-}
-private val EVENT_GROUP_ENTRY_2 = EVENT_GROUP_ENTRY.copy { key = COVERED_EVENT_GROUP_NAMES[1] }
-private val EVENT_GROUP_ENTRY_3 = EVENT_GROUP_ENTRY.copy { key = COVERED_EVENT_GROUP_NAMES[2] }
 
 // Requisition specs
 private val REQUISITION_SPEC = requisitionSpec {
-  eventGroups.add(EVENT_GROUP_ENTRY)
+  eventGroups.add(EVENT_GROUP_ENTRIES[0])
   measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.data
   nonce = SECURE_RANDOM_OUTPUT_LONG
 }
 private val REQUISITION_SPEC_2 =
   REQUISITION_SPEC.copy {
     eventGroups.clear()
-    eventGroups.add(EVENT_GROUP_ENTRY_2)
+    eventGroups.add(EVENT_GROUP_ENTRIES[1])
   }
 
 // Data provider entries
