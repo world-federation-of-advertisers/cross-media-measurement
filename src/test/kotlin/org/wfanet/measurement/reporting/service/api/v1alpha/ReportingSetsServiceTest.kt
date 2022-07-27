@@ -255,7 +255,7 @@ class ReportingSetsServiceTest {
   }
 
   @Test
-  fun `createReportingSet throws PERMISSION_DENIED when caller is not MeasurementConsumer`() {
+  fun `createReportingSet throws UNAUTHENTICATED when caller is not MeasurementConsumer`() {
     val request = createReportingSetRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       reportingSet = REPORTING_SET
@@ -268,7 +268,7 @@ class ReportingSetsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("No Principal found")
+    assertThat(exception.status.description).isEqualTo("No ReportingPrincipal found")
   }
 
   @Test
@@ -678,7 +678,7 @@ class ReportingSetsServiceTest {
   }
 
   @Test
-  fun `listReportingSets throws PERMISSION_DENIED when the caller is not MeasurementConsumer`() {
+  fun `listReportingSets throws UNAUTHENTICATED when the caller is not MeasurementConsumer`() {
     val request = listReportingSetsRequest { parent = MEASUREMENT_CONSUMER_NAME }
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -687,7 +687,7 @@ class ReportingSetsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("No Principal found")
+    assertThat(exception.status.description).isEqualTo("No ReportingPrincipal found")
   }
 
   @Test

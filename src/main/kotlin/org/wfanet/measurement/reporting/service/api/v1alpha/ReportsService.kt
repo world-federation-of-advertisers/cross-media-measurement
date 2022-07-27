@@ -595,20 +595,16 @@ class ReportsService(
   }
 
   override suspend fun listReports(request: ListReportsRequest): ListReportsResponse {
-    val principal: Principal<*> = principalFromCurrentContext
     val listReportsPageToken = request.toListReportsPageToken()
 
     // Based on AIP-132#Errors
-    when (val resourceKey = principal.resourceKey) {
-      is MeasurementConsumerKey -> {
-        if (request.parent != resourceKey.toName()) {
+    when (val principal: ReportingPrincipal = principalFromCurrentContext) {
+      is MeasurementConsumerPrincipal -> {
+        if (request.parent != principal.resourceKey.toName()) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot list Reports belonging to other MeasurementConsumers."
           }
         }
-      }
-      else -> {
-        failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to list Reports." }
       }
     }
 
@@ -655,18 +651,13 @@ class ReportsService(
         "Report name is either unspecified or invalid"
       }
 
-    val principal: Principal<*> = principalFromCurrentContext
-
-    when (val resourceKey = principal.resourceKey) {
-      is MeasurementConsumerKey -> {
-        if (reportKey.measurementConsumerId != resourceKey.measurementConsumerId) {
+    when (val principal: ReportingPrincipal = principalFromCurrentContext) {
+      is MeasurementConsumerPrincipal -> {
+        if (reportKey.measurementConsumerId != principal.resourceKey.measurementConsumerId) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot get Report belonging to other MeasurementConsumers."
           }
         }
-      }
-      else -> {
-        failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to get Report." }
       }
     }
 
