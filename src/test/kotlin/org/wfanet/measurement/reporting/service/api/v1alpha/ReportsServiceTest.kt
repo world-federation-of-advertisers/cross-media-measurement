@@ -360,7 +360,6 @@ private const val INVALID_REPORT_NAME = "measurementConsumer/AAAAAAAAAG8/report/
 // Data provider IDs and names
 private val DATA_PROVIDER_EXTERNAL_IDS = listOf(551L, 552L, 553L)
 private val DATA_PROVIDER_REFERENCE_IDS = DATA_PROVIDER_EXTERNAL_IDS.map { externalIdToApiId(it) }
-private val DATA_PROVIDER_NAMES = DATA_PROVIDER_REFERENCE_IDS.map { DataProviderKey(it).toName() }
 
 private val DATA_PROVIDER_PUBLIC_KEY =
   loadPublicKey(SECRETS_DIR.resolve("edp1_enc_public.tink")).toEncryptionPublicKey()
@@ -378,9 +377,9 @@ private val DATA_PROVIDER_CERTIFICATE_NAMES =
 
 // Data providers
 private val DATA_PROVIDERS =
-  DATA_PROVIDER_NAMES.mapIndexed { index, dataProviderName ->
+  DATA_PROVIDER_REFERENCE_IDS.mapIndexed { index, dataProviderReferenceId ->
     dataProvider {
-      name = dataProviderName
+      name = DataProviderKey(dataProviderReferenceId).toName()
       certificate = DATA_PROVIDER_CERTIFICATE_NAMES[index]
       publicKey = signedData { data = DATA_PROVIDER_PUBLIC_KEY.toByteString() }
     }
@@ -446,16 +445,6 @@ private val UNCOVERED_INTERNAL_REPORTING_SET = internalReportingSet {
   filter = REPORTING_SET_FILTER
   displayName = REPORTING_SET_DISPLAY_NAMES[3]
 }
-
-private val REPORTING_SETS =
-  (0 until NUMBER_COVERED_EVENT_GROUPS).map { index ->
-    reportingSet {
-      name = REPORTING_SET_NAMES[index]
-      eventGroups.add(COVERED_EVENT_GROUP_NAMES[index])
-      filter = REPORTING_SET_FILTER
-      displayName = REPORTING_SET_DISPLAY_NAMES[index]
-    }
-  }
 
 // Time intervals
 private val START_INSTANT = Instant.now()
@@ -599,9 +588,9 @@ private val REQUISITION_SPECS =
 
 // Data provider entries
 private val DATA_PROVIDER_ENTRIES =
-  (0 until REQUISITION_SPECS.size).map { index ->
+  (REQUISITION_SPECS.indices).map { index ->
     dataProviderEntry {
-      key = DATA_PROVIDER_NAMES[index]
+      key = DATA_PROVIDERS[index].name
       value = dataProviderEntryValue {
         dataProviderCertificate = DATA_PROVIDERS[index].certificate
         dataProviderPublicKey = DATA_PROVIDERS[index].publicKey
@@ -1392,8 +1381,8 @@ class ReportsServiceTest {
     val capturedDataProviderRequests = dataProvidersCaptor.allValues
     assertThat(capturedDataProviderRequests)
       .containsExactly(
-        getDataProviderRequest { name = DATA_PROVIDER_NAMES[0] },
-        getDataProviderRequest { name = DATA_PROVIDER_NAMES[1] }
+        getDataProviderRequest { name = DATA_PROVIDERS[0].name },
+        getDataProviderRequest { name = DATA_PROVIDERS[1].name }
       )
 
     // Verify proto argument of MeasurementsCoroutineImplBase::createMeasurement
@@ -1420,11 +1409,11 @@ class ReportsServiceTest {
 
     val dataProviderEntryKeys = capturedMeasurement.dataProvidersList.map { it.key }
     assertThat(dataProviderEntryKeys)
-      .containsExactly(DATA_PROVIDER_NAMES[0], DATA_PROVIDER_NAMES[1])
+      .containsExactly(DATA_PROVIDERS[0].name, DATA_PROVIDERS[1].name)
 
     // Handle the random sequence due to the execution of coroutine.
     val dataProvidersList =
-      if (capturedMeasurement.dataProvidersList[0].key == DATA_PROVIDER_NAMES[1])
+      if (capturedMeasurement.dataProvidersList[0].key == DATA_PROVIDERS[1].name)
         capturedMeasurement.dataProvidersList.asReversed()
       else capturedMeasurement.dataProvidersList
 
@@ -1543,7 +1532,7 @@ class ReportsServiceTest {
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_NAMES[0]) {
+        withDataProviderPrincipal(DATA_PROVIDERS[0].name) {
           runBlocking { service.createReport(request) }
         }
       }
@@ -1952,7 +1941,7 @@ class ReportsServiceTest {
         }
       }
     val expectedExceptionDescription =
-      "Unable to retrieve the data provider [${DATA_PROVIDER_NAMES[0]}]."
+      "Unable to retrieve the data provider [${DATA_PROVIDERS[0].name}]."
     assertThat(exception.message).isEqualTo(expectedExceptionDescription)
   }
 
@@ -2279,7 +2268,7 @@ class ReportsServiceTest {
     val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAMES[0] }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_NAMES[0]) {
+        withDataProviderPrincipal(DATA_PROVIDERS[0].name) {
           runBlocking { service.listReports(request) }
         }
       }
@@ -3043,7 +3032,7 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_NAMES[0]) {
+        withDataProviderPrincipal(DATA_PROVIDERS[0].name) {
           runBlocking { service.getReport(request) }
         }
       }
