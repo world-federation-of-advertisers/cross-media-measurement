@@ -387,11 +387,12 @@ private val DATA_PROVIDERS =
   }
 
 // Event group IDs and names
+private const val NUMBER_COVERED_EVENT_GROUPS = 3
 private val EVENT_GROUP_EXTERNAL_IDS = listOf(661L, 662L, 663L, 664L)
 private val EVENT_GROUP_REFERENCE_IDS = EVENT_GROUP_EXTERNAL_IDS.map { externalIdToApiId(it) }
 
 private val COVERED_EVENT_GROUP_NAMES =
-  (0..2).map { index ->
+  (0 until NUMBER_COVERED_EVENT_GROUPS).map { index ->
     EventGroupKey(
         MEASUREMENT_CONSUMER_REFERENCE_IDS[0],
         DATA_PROVIDER_REFERENCE_IDS[index],
@@ -409,28 +410,19 @@ private val UNCOVERED_EVENT_GROUP_NAME =
     .toName()
 
 // Event group keys
-private val INTERNAL_EVENT_GROUP_KEY = internalReportingSetEventGroupKey {
-  measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-  dataProviderReferenceId = DATA_PROVIDER_REFERENCE_IDS[0]
-  eventGroupReferenceId = EVENT_GROUP_REFERENCE_IDS[0]
-}
-private val INTERNAL_EVENT_GROUP_KEY_2 = internalReportingSetEventGroupKey {
-  measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-  dataProviderReferenceId = DATA_PROVIDER_REFERENCE_IDS[1]
-  eventGroupReferenceId = EVENT_GROUP_REFERENCE_IDS[1]
-}
-private val INTERNAL_EVENT_GROUP_KEY_3 = internalReportingSetEventGroupKey {
-  measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-  dataProviderReferenceId = DATA_PROVIDER_REFERENCE_IDS[2]
-  eventGroupReferenceId = EVENT_GROUP_REFERENCE_IDS[2]
-}
-private val INTERNAL_EVENT_GROUP_KEY_4 = internalReportingSetEventGroupKey {
+private val COVERED_INTERNAL_EVENT_GROUP_KEYS =
+  (0 until NUMBER_COVERED_EVENT_GROUPS).map { index ->
+    internalReportingSetEventGroupKey {
+      measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+      dataProviderReferenceId = DATA_PROVIDER_REFERENCE_IDS[index]
+      eventGroupReferenceId = EVENT_GROUP_REFERENCE_IDS[index]
+    }
+  }
+private val UNCOVERED_INTERNAL_EVENT_GROUP_KEY = internalReportingSetEventGroupKey {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
   dataProviderReferenceId = DATA_PROVIDER_REFERENCE_IDS[2]
   eventGroupReferenceId = EVENT_GROUP_REFERENCE_IDS[3]
 }
-private val INTERNAL_EVENT_GROUP_KEYS =
-  listOf(INTERNAL_EVENT_GROUP_KEY, INTERNAL_EVENT_GROUP_KEY_2, INTERNAL_EVENT_GROUP_KEY_3)
 
 // Reporting sets
 private const val REPORTING_SET_FILTER = "AGE>18"
@@ -443,7 +435,7 @@ private val REPORTING_SET_DISPLAY_NAME_4 = REPORTING_SET_NAMES[3] + REPORTING_SE
 private val INTERNAL_REPORTING_SET = internalReportingSet {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
   externalReportingSetId = REPORTING_SET_EXTERNAL_IDS[0]
-  eventGroupKeys.add(INTERNAL_EVENT_GROUP_KEY)
+  eventGroupKeys.add(COVERED_INTERNAL_EVENT_GROUP_KEYS[0])
   filter = REPORTING_SET_FILTER
   displayName = REPORTING_SET_DISPLAY_NAME
 }
@@ -451,21 +443,21 @@ private val INTERNAL_REPORTING_SET_2 =
   INTERNAL_REPORTING_SET.copy {
     externalReportingSetId = REPORTING_SET_EXTERNAL_IDS[1]
     eventGroupKeys.clear()
-    eventGroupKeys.add(INTERNAL_EVENT_GROUP_KEY_2)
+    eventGroupKeys.add(COVERED_INTERNAL_EVENT_GROUP_KEYS[1])
     displayName = REPORTING_SET_DISPLAY_NAME_2
   }
 private val INTERNAL_REPORTING_SET_3 =
   INTERNAL_REPORTING_SET.copy {
     externalReportingSetId = REPORTING_SET_EXTERNAL_IDS[2]
     eventGroupKeys.clear()
-    eventGroupKeys.add(INTERNAL_EVENT_GROUP_KEY_3)
+    eventGroupKeys.add(COVERED_INTERNAL_EVENT_GROUP_KEYS[2])
     displayName = REPORTING_SET_DISPLAY_NAME_3
   }
 private val INTERNAL_REPORTING_SET_4 =
   INTERNAL_REPORTING_SET.copy {
     externalReportingSetId = REPORTING_SET_EXTERNAL_IDS[3]
     eventGroupKeys.clear()
-    eventGroupKeys.add(INTERNAL_EVENT_GROUP_KEY_4)
+    eventGroupKeys.add(UNCOVERED_INTERNAL_EVENT_GROUP_KEY)
     displayName = REPORTING_SET_DISPLAY_NAME_4
   }
 
