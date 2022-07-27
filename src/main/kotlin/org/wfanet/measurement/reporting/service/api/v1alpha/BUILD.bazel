@@ -99,6 +99,21 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "textproto_file_principal_lookup",
+    srcs = [
+        "TextprotoFilePrincipalLookup.kt",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:principal",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:principal_server_interceptor",
+        "//src/main/proto/wfa/measurement/config:authority_key_to_principal_map_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
     name = "set_operation_compiler",
     srcs = ["SetOperationCompiler.kt"],
     deps = [
@@ -112,6 +127,7 @@ kt_jvm_library(
     srcs = ["Principal.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",
     ],
 )
 

@@ -19,7 +19,4 @@ import io.grpc.Context
 object PrincipalConstants {
   /** This is the context key for the authenticated [Principal]. */
   val PRINCIPAL_CONTEXT_KEY: Context.Key<Principal<*>> = Context.key("principal")
-
-  /** This is the context key for the API key. */
-  val API_KEY_CONTEXT_KEY: Context.Key<String> = Context.key("api_key")
 }

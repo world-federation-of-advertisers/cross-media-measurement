@@ -21,7 +21,6 @@ import com.google.protobuf.duration
 import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.protobuf.timestamp
 import com.google.protobuf.util.Durations
-import io.grpc.Context
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.nio.file.Path
@@ -75,6 +74,8 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.testing.verifyProtoArgument
+import org.wfanet.measurement.config.reporting.copy
+import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.consent.client.duchy.encryptResult
 import org.wfanet.measurement.consent.client.duchy.signResult
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
@@ -163,6 +164,7 @@ private val SECRETS_DIR: Path =
 
 // Authentication key
 private const val API_AUTHENTICATION_KEY = "nR5QPN7ptx"
+private val CONFIG = measurementConsumerConfig { apiKey = API_AUTHENTICATION_KEY }
 
 // Certificate
 private val AGGREGATOR_CERTIFICATE_DER =
@@ -933,22 +935,20 @@ class ReportsServiceTest {
         )
     }
 
-  private val internalMeasurementsMock: InternalMeasurementsCoroutineImplBase =
-    mockService() {
-      onBlocking { setMeasurementResult(any()) }.thenReturn(null)
-      onBlocking { setMeasurementFailure(any()) }.thenReturn(null)
-    }
+  private val internalMeasurementsMock: InternalMeasurementsCoroutineImplBase = mockService {
+    onBlocking { setMeasurementResult(any()) }.thenReturn(null)
+    onBlocking { setMeasurementFailure(any()) }.thenReturn(null)
+  }
 
-  private val measurementsMock: MeasurementsCoroutineImplBase =
-    mockService() {
-      onBlocking { getMeasurement(any()) }
-        .thenReturn(
-          SUCCEEDED_REACH_MEASUREMENT,
-          SUCCEEDED_IMPRESSION_MEASUREMENT,
-          SUCCEEDED_WATCH_DURATION_MEASUREMENT,
-          SUCCEEDED_FREQUENCY_HISTOGRAM_MEASUREMENT,
-        )
-    }
+  private val measurementsMock: MeasurementsCoroutineImplBase = mockService {
+    onBlocking { getMeasurement(any()) }
+      .thenReturn(
+        SUCCEEDED_REACH_MEASUREMENT,
+        SUCCEEDED_IMPRESSION_MEASUREMENT,
+        SUCCEEDED_WATCH_DURATION_MEASUREMENT,
+        SUCCEEDED_FREQUENCY_HISTOGRAM_MEASUREMENT,
+      )
+  }
 
   private val certificateMock: CertificatesCoroutineImplBase = mockService {
     onBlocking { getCertificate(any()) }.thenReturn(AGGREGATOR_CERTIFICATE)
@@ -982,10 +982,9 @@ class ReportsServiceTest {
     val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAME }
 
     val result =
-      Context.current()
-        .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
-        .withApiKey(API_AUTHENTICATION_KEY)
-        .call { runBlocking { service.listReports(request) } }
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        runBlocking { service.listReports(request) }
+      }
 
     val expected = listReportsResponse {
       reports.add(SUCCEEDED_REACH_REPORT)
@@ -1015,10 +1014,9 @@ class ReportsServiceTest {
     }
 
     val result =
-      Context.current()
-        .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
-        .withApiKey(API_AUTHENTICATION_KEY)
-        .call { runBlocking { service.listReports(request) } }
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        runBlocking { service.listReports(request) }
+      }
 
     val expected = listReportsResponse {
       reports.add(SUCCEEDED_REACH_REPORT)
@@ -1070,10 +1068,9 @@ class ReportsServiceTest {
     }
 
     val result =
-      Context.current()
-        .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
-        .withApiKey(API_AUTHENTICATION_KEY)
-        .call { runBlocking { service.listReports(request) } }
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        runBlocking { service.listReports(request) }
+      }
 
     val expected = listReportsResponse {
       reports.add(SUCCEEDED_REACH_REPORT)
@@ -1116,10 +1113,9 @@ class ReportsServiceTest {
     }
 
     val result =
-      Context.current()
-        .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
-        .withApiKey(API_AUTHENTICATION_KEY)
-        .call { runBlocking { service.listReports(request) } }
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        runBlocking { service.listReports(request) }
+      }
 
     val expected = listReportsResponse {
       reports.add(SUCCEEDED_REACH_REPORT)
@@ -1162,10 +1158,9 @@ class ReportsServiceTest {
     }
 
     val result =
-      Context.current()
-        .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
-        .withApiKey(API_AUTHENTICATION_KEY)
-        .call { runBlocking { service.listReports(request) } }
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        runBlocking { service.listReports(request) }
+      }
 
     val expected = listReportsResponse {
       reports.add(SUCCEEDED_REACH_REPORT)
@@ -1220,10 +1215,9 @@ class ReportsServiceTest {
     }
 
     val result =
-      Context.current()
-        .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
-        .withApiKey(API_AUTHENTICATION_KEY)
-        .call { runBlocking { service.listReports(request) } }
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        runBlocking { service.listReports(request) }
+      }
 
     val expected = listReportsResponse {
       reports.add(SUCCEEDED_REACH_REPORT)
@@ -1270,10 +1264,9 @@ class ReportsServiceTest {
     val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAME }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        Context.current()
-          .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME_2)
-          .withApiKey(API_AUTHENTICATION_KEY)
-          .call { runBlocking { service.listReports(request) } }
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME_2, CONFIG) {
+          runBlocking { service.listReports(request) }
+        }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
     assertThat(exception.status.description)
@@ -1281,15 +1274,15 @@ class ReportsServiceTest {
   }
 
   @Test
-  fun `listReports throws PERMISSION_DENIED when api key not found`() {
+  fun `listReports throws FAILED_PRECONDITION when api key not found`() {
     val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAME }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG.copy { clearApiKey() }) {
           runBlocking { service.listReports(request) }
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
   }
 
   @Test
@@ -1313,10 +1306,9 @@ class ReportsServiceTest {
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        Context.current()
-          .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
-          .withApiKey(API_AUTHENTICATION_KEY)
-          .call { runBlocking { service.listReports(request) } }
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking { service.listReports(request) }
+        }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description).isEqualTo("Page size cannot be less than 0")
@@ -1326,10 +1318,9 @@ class ReportsServiceTest {
   fun `listReports throws INVALID_ARGUMENT when parent is unspecified`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        Context.current()
-          .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
-          .withApiKey(API_AUTHENTICATION_KEY)
-          .call { runBlocking { service.listReports(ListReportsRequest.getDefaultInstance()) } }
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking { service.listReports(ListReportsRequest.getDefaultInstance()) }
+        }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
@@ -1352,10 +1343,9 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        Context.current()
-          .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
-          .withApiKey(API_AUTHENTICATION_KEY)
-          .call { runBlocking { service.listReports(request) } }
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking { service.listReports(request) }
+        }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
@@ -1375,10 +1365,9 @@ class ReportsServiceTest {
     val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAME }
 
     val result =
-      Context.current()
-        .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
-        .withApiKey(API_AUTHENTICATION_KEY)
-        .call { runBlocking { service.listReports(request) } }
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        runBlocking { service.listReports(request) }
+      }
 
     val expected = listReportsResponse {
       reports.add(SUCCEEDED_REACH_REPORT)
@@ -1415,10 +1404,9 @@ class ReportsServiceTest {
     val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAME }
 
     val result =
-      Context.current()
-        .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
-        .withApiKey(API_AUTHENTICATION_KEY)
-        .call { runBlocking { service.listReports(request) } }
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        runBlocking { service.listReports(request) }
+      }
 
     val expected = listReportsResponse {
       reports.add(PENDING_REACH_REPORT.copy { state = Report.State.FAILED })
@@ -1457,10 +1445,9 @@ class ReportsServiceTest {
       val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAME }
 
       val result =
-        Context.current()
-          .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
-          .withApiKey(API_AUTHENTICATION_KEY)
-          .call { runBlocking { service.listReports(request) } }
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking { service.listReports(request) }
+        }
 
       val expected = listReportsResponse { reports.add(PENDING_REACH_REPORT) }
 
@@ -1509,10 +1496,9 @@ class ReportsServiceTest {
       val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAME }
 
       val result =
-        Context.current()
-          .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
-          .withApiKey(API_AUTHENTICATION_KEY)
-          .call { runBlocking { service.listReports(request) } }
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking { service.listReports(request) }
+        }
 
       val expected = listReportsResponse {
         reports.add(PENDING_REACH_REPORT.copy { state = Report.State.FAILED })
@@ -1565,10 +1551,9 @@ class ReportsServiceTest {
       val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAME }
 
       val result =
-        Context.current()
-          .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
-          .withApiKey(API_AUTHENTICATION_KEY)
-          .call { runBlocking { service.listReports(request) } }
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking { service.listReports(request) }
+        }
 
       val expected = listReportsResponse { reports.add(SUCCEEDED_REACH_REPORT) }
 
@@ -1621,10 +1606,9 @@ class ReportsServiceTest {
     val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAME }
 
     val result =
-      Context.current()
-        .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
-        .withApiKey(API_AUTHENTICATION_KEY)
-        .call { runBlocking { service.listReports(request) } }
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        runBlocking { service.listReports(request) }
+      }
 
     val expected = listReportsResponse { reports.add(SUCCEEDED_IMPRESSION_REPORT) }
 
@@ -1677,10 +1661,9 @@ class ReportsServiceTest {
     val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAME }
 
     val result =
-      Context.current()
-        .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
-        .withApiKey(API_AUTHENTICATION_KEY)
-        .call { runBlocking { service.listReports(request) } }
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        runBlocking { service.listReports(request) }
+      }
 
     val expected = listReportsResponse { reports.add(SUCCEEDED_WATCH_DURATION_REPORT) }
 
@@ -1731,10 +1714,9 @@ class ReportsServiceTest {
       val request = getReportRequest { name = REPORT_NAME_3 }
 
       val report =
-        Context.current()
-          .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
-          .withApiKey(API_AUTHENTICATION_KEY)
-          .call { runBlocking { service.getReport(request) } }
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking { service.getReport(request) }
+        }
 
       assertThat(report).isEqualTo(SUCCEEDED_WATCH_DURATION_REPORT)
 
@@ -1757,10 +1739,9 @@ class ReportsServiceTest {
     val request = getReportRequest { name = REPORT_NAME_3 }
 
     val report =
-      Context.current()
-        .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
-        .withApiKey(API_AUTHENTICATION_KEY)
-        .call { runBlocking { service.getReport(request) } }
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        runBlocking { service.getReport(request) }
+      }
 
     assertThat(report).isEqualTo(PENDING_WATCH_DURATION_REPORT.copy { state = Report.State.FAILED })
 
@@ -1784,10 +1765,9 @@ class ReportsServiceTest {
       val request = getReportRequest { name = REPORT_NAME_3 }
 
       val report =
-        Context.current()
-          .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
-          .withApiKey(API_AUTHENTICATION_KEY)
-          .call { runBlocking { service.getReport(request) } }
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking { service.getReport(request) }
+        }
 
       assertThat(report).isEqualTo(PENDING_WATCH_DURATION_REPORT)
 
@@ -1820,10 +1800,9 @@ class ReportsServiceTest {
       val request = getReportRequest { name = REPORT_NAME_2 }
 
       val report =
-        Context.current()
-          .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
-          .withApiKey(API_AUTHENTICATION_KEY)
-          .call { runBlocking { service.getReport(request) } }
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking { service.getReport(request) }
+        }
 
       assertThat(report).isEqualTo(SUCCEEDED_IMPRESSION_REPORT)
 
@@ -1882,10 +1861,9 @@ class ReportsServiceTest {
       val request = getReportRequest { name = REPORT_NAME_2 }
 
       val report =
-        Context.current()
-          .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
-          .withApiKey(API_AUTHENTICATION_KEY)
-          .call { runBlocking { service.getReport(request) } }
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking { service.getReport(request) }
+        }
 
       assertThat(report).isEqualTo(PENDING_IMPRESSION_REPORT.copy { state = Report.State.FAILED })
 
@@ -1927,10 +1905,9 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        Context.current()
-          .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
-          .withApiKey(API_AUTHENTICATION_KEY)
-          .call { runBlocking { service.getReport(request) } }
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking { service.getReport(request) }
+        }
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -1942,27 +1919,26 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        Context.current()
-          .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME_2)
-          .withApiKey(API_AUTHENTICATION_KEY)
-          .call { runBlocking { service.getReport(request) } }
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME_2, CONFIG) {
+          runBlocking { service.getReport(request) }
+        }
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
-  fun `getReport throws PERMISSION_DENIED when api key not found`() {
+  fun `getReport throws FAILED_PRECONDITION when api key not found`() {
     val request = getReportRequest { name = REPORT_NAME }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG.copy { clearApiKey() }) {
           runBlocking { service.getReport(request) }
         }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
   }
 
   @Test
@@ -1997,10 +1973,9 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        Context.current()
-          .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
-          .withApiKey(API_AUTHENTICATION_KEY)
-          .call { runBlocking { service.getReport(request) } }
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking { service.getReport(request) }
+        }
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
@@ -2047,10 +2022,9 @@ class ReportsServiceTest {
     val request = getReportRequest { name = REPORT_NAME_3 }
 
     val report =
-      Context.current()
-        .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
-        .withApiKey(API_AUTHENTICATION_KEY)
-        .call { runBlocking { service.getReport(request) } }
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        runBlocking { service.getReport(request) }
+      }
 
     assertThat(report.result)
       .isEqualTo(

@@ -22,7 +22,6 @@ import com.google.protobuf.DescriptorProtos.FileDescriptorSet
 import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.Descriptors.FileDescriptor
 import com.google.protobuf.kotlin.toByteString
-import io.grpc.Context
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.nio.file.Path
@@ -64,6 +63,8 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
+import org.wfanet.measurement.config.reporting.copy
+import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.consent.client.common.signMessage
 import org.wfanet.measurement.reporting.v1alpha.EventGroupKt.metadata
 import org.wfanet.measurement.reporting.v1alpha.eventGroup
@@ -71,6 +72,7 @@ import org.wfanet.measurement.reporting.v1alpha.listEventGroupsRequest
 import org.wfanet.measurement.reporting.v1alpha.listEventGroupsResponse
 
 private const val API_AUTHENTICATION_KEY = "nR5QPN7ptx"
+private val CONFIG = measurementConsumerConfig { apiKey = API_AUTHENTICATION_KEY }
 private val SECRET_FILES_PATH: Path =
   checkNotNull(
     getRuntimePath(
@@ -196,20 +198,17 @@ class EventGroupsServiceTest {
         ENCRYPTION_KEY_PAIR_STORE
       )
     val result =
-      Context.current()
-        .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
-        .withApiKey(API_AUTHENTICATION_KEY)
-        .call {
-          runBlocking {
-            eventGroupsService.listEventGroups(
-              listEventGroupsRequest {
-                parent = DATA_PROVIDER_NAME
-                pageSize = 10
-                pageToken = PAGE_TOKEN
-              }
-            )
-          }
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        runBlocking {
+          eventGroupsService.listEventGroups(
+            listEventGroupsRequest {
+              parent = DATA_PROVIDER_NAME
+              pageSize = 10
+              pageToken = PAGE_TOKEN
+            }
+          )
         }
+      }
 
     assertThat(result)
       .isEqualTo(
@@ -261,20 +260,17 @@ class EventGroupsServiceTest {
         ENCRYPTION_KEY_PAIR_STORE
       )
     val result =
-      Context.current()
-        .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
-        .withApiKey(API_AUTHENTICATION_KEY)
-        .call {
-          runBlocking {
-            eventGroupsService.listEventGroups(
-              listEventGroupsRequest {
-                parent = DATA_PROVIDER_NAME
-                filter = "age.value > 10"
-                pageToken = PAGE_TOKEN
-              }
-            )
-          }
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        runBlocking {
+          eventGroupsService.listEventGroups(
+            listEventGroupsRequest {
+              parent = DATA_PROVIDER_NAME
+              filter = "age.value > 10"
+              pageToken = PAGE_TOKEN
+            }
+          )
         }
+      }
 
     assertThat(result)
       .isEqualTo(
@@ -344,19 +340,16 @@ class EventGroupsServiceTest {
       )
     val result =
       assertFailsWith<StatusRuntimeException> {
-        Context.current()
-          .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
-          .withApiKey(API_AUTHENTICATION_KEY)
-          .call {
-            runBlocking {
-              eventGroupsService.listEventGroups(
-                listEventGroupsRequest {
-                  parent = DATA_PROVIDER_NAME
-                  filter = "age.value > 10"
-                }
-              )
-            }
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking {
+            eventGroupsService.listEventGroups(
+              listEventGroupsRequest {
+                parent = DATA_PROVIDER_NAME
+                filter = "age.value > 10"
+              }
+            )
           }
+        }
       }
 
     assertThat(result.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
@@ -397,19 +390,16 @@ class EventGroupsServiceTest {
       )
     val result =
       assertFailsWith<StatusRuntimeException> {
-        Context.current()
-          .withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME)
-          .withApiKey(API_AUTHENTICATION_KEY)
-          .call {
-            runBlocking {
-              eventGroupsService.listEventGroups(
-                listEventGroupsRequest {
-                  parent = DATA_PROVIDER_NAME
-                  filter = "age.value > 10"
-                }
-              )
-            }
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking {
+            eventGroupsService.listEventGroups(
+              listEventGroupsRequest {
+                parent = DATA_PROVIDER_NAME
+                filter = "age.value > 10"
+              }
+            )
           }
+        }
       }
 
     assertThat(result.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
@@ -439,7 +429,7 @@ class EventGroupsServiceTest {
   }
 
   @Test
-  fun `listEventGroups throws PERMISSION_DENIED if API key not found`() {
+  fun `listEventGroups throws FAILED_PRECONDITION if API key not found`() {
     val eventGroupsService =
       EventGroupsService(
         EventGroupsCoroutineStub(grpcTestServerRule.channel),
@@ -448,7 +438,7 @@ class EventGroupsServiceTest {
       )
     val result =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG.copy { clearApiKey() }) {
           runBlocking {
             eventGroupsService.listEventGroups(
               listEventGroupsRequest {
@@ -460,7 +450,7 @@ class EventGroupsServiceTest {
         }
       }
 
-    assertThat(result.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(result.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
   }
 }
 

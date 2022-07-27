@@ -48,7 +48,12 @@ class EventGroupsService(
 ) : EventGroupsCoroutineImplBase() {
   override suspend fun listEventGroups(request: ListEventGroupsRequest): ListEventGroupsResponse {
     val principal: Principal<*> = principalFromCurrentContext
-    val apiAuthenticationKey: String = apiKeyFromCurrentContext
+    val apiAuthenticationKey: String = principal.config.apiKey
+
+    if (apiAuthenticationKey.isBlank()) {
+      failGrpc(Status.FAILED_PRECONDITION) { "No API key found for principal" }
+    }
+
     val cmmsListEventGroupResponse =
       cmmsEventGroupsStub
         .withAuthenticationKey(apiAuthenticationKey)

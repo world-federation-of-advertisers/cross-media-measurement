@@ -123,8 +123,12 @@ class ReportsService(
 
   override suspend fun listReports(request: ListReportsRequest): ListReportsResponse {
     val principal: Principal<*> = principalFromCurrentContext
-    val apiAuthenticationKey: String = apiKeyFromCurrentContext
+    val apiAuthenticationKey: String = principal.config.apiKey
     val listReportsPageToken = request.toListReportsPageToken()
+
+    if (apiAuthenticationKey.isBlank()) {
+      failGrpc(Status.FAILED_PRECONDITION) { "No API key found for principal" }
+    }
 
     // Based on AIP-132#Errors
     when (val resourceKey = principal.resourceKey) {
@@ -178,7 +182,11 @@ class ReportsService(
       }
 
     val principal: Principal<*> = principalFromCurrentContext
-    val apiAuthenticationKey = apiKeyFromCurrentContext
+    val apiAuthenticationKey = principal.config.apiKey
+
+    if (apiAuthenticationKey.isBlank()) {
+      failGrpc(Status.FAILED_PRECONDITION) { "No API key found for principal" }
+    }
 
     when (val resourceKey = principal.resourceKey) {
       is MeasurementConsumerKey -> {

@@ -16,23 +16,23 @@ package org.wfanet.measurement.reporting.service.api.v1alpha
 
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.api.ResourceKey
+import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
 
-/**
- * Identifies the sender of an inbound gRPC request.
- *
- * TODO: once using Kotlin 1.5, switch to a sealed interface.
- */
-sealed class Principal<T : ResourceKey> {
-  abstract val resourceKey: T
+/** Identifies the sender of an inbound gRPC request. */
+sealed interface Principal<T : ResourceKey> {
+  val resourceKey: T
+  val config: MeasurementConsumerConfig
 
-  class MeasurementConsumer(override val resourceKey: MeasurementConsumerKey) :
-    Principal<MeasurementConsumerKey>()
+  data class MeasurementConsumer(
+    override val resourceKey: MeasurementConsumerKey,
+    override val config: MeasurementConsumerConfig
+  ) : Principal<MeasurementConsumerKey>
 
   companion object {
-    fun fromName(name: String): Principal<*>? {
+    fun fromConfigs(name: String, config: MeasurementConsumerConfig): Principal<*>? {
       return when (name.substringBefore('/')) {
         MeasurementConsumerKey.COLLECTION_NAME ->
-          MeasurementConsumerKey.fromName(name)?.let(::MeasurementConsumer)
+          MeasurementConsumerKey.fromName(name)?.let { MeasurementConsumer(it, config) }
         else -> null
       }
     }
