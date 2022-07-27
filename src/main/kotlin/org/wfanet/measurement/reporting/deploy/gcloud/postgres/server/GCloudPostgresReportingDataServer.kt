@@ -20,7 +20,7 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.gcloud.postgres.PostgresConnectionFactories
-import org.wfanet.measurement.gcloud.postgres.PostgresFlags
+import org.wfanet.measurement.gcloud.postgres.PostgresFlags as GCloudPostgresFlags
 import org.wfanet.measurement.reporting.deploy.common.server.ReportingDataServer
 import org.wfanet.measurement.reporting.deploy.common.server.postgres.PostgresServices
 import picocli.CommandLine
@@ -33,13 +33,13 @@ import picocli.CommandLine
   showDefaultValues = true
 )
 class GCloudPostgresReportingDataServer : ReportingDataServer() {
-  @CommandLine.Mixin private lateinit var postgresFlags: PostgresFlags
+  @CommandLine.Mixin private lateinit var gCloudPostgresFlags: GCloudPostgresFlags
 
   override fun run() = runBlocking {
     val clock = Clock.systemUTC()
     val idGenerator = RandomIdGenerator(clock)
 
-    val factory = PostgresConnectionFactories.buildConnectionFactory(postgresFlags)
+    val factory = PostgresConnectionFactories.buildConnectionFactory(gCloudPostgresFlags)
     val client = PostgresDatabaseClient.fromConnectionFactory(factory)
 
     run(PostgresServices.create(idGenerator, client))

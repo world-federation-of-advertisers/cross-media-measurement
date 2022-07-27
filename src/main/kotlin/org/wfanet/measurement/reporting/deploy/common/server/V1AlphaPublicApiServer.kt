@@ -14,18 +14,6 @@
 
 package org.wfanet.measurement.reporting.deploy.common.server
 
-// import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as
-// KingdomCertificatesCoroutineStub
-// import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as
-// KingdomMeasurementsCoroutineStub
-// import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt.MeasurementsCoroutineStub as
-// InternalMeasurementsCoroutineStub
-// import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as
-// InternalReportsCoroutineStub
-// import org.wfanet.measurement.reporting.service.api.v1alpha.EncryptionKeyPairStore
-// import org.wfanet.measurement.reporting.service.api.v1alpha.ReportsService
-// import
-// org.wfanet.measurement.reporting.service.api.v1alpha.withMeasurementConsumerServerInterceptor
 import io.grpc.Channel
 import io.grpc.ServerServiceDefinition
 import java.io.File
@@ -44,7 +32,6 @@ import org.wfanet.measurement.reporting.deploy.common.KingdomApiFlags
 import org.wfanet.measurement.reporting.service.api.v1alpha.EventGroupsService
 import org.wfanet.measurement.reporting.service.api.v1alpha.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v1alpha.ReportingSetsService
-import org.wfanet.measurement.reporting.service.api.v1alpha.TextprotoFileMeasurementConsumerConfigLookup
 import picocli.CommandLine
 
 private const val SERVER_NAME = "V1AlphaPublicApiServer"
@@ -59,7 +46,7 @@ private fun run(
   @CommandLine.Mixin reportingApiServerFlags: ReportingApiServerFlags,
   @CommandLine.Mixin kingdomApiFlags: KingdomApiFlags,
   @CommandLine.Mixin commonServerFlags: CommonServer.Flags,
-  @CommandLine.Mixin v1alphaFlags: V1alphaFlags,
+  @CommandLine.Mixin v1AlphaFlags: V1AlphaFlags,
   @CommandLine.Mixin encryptionKeyPairMap: EncryptionKeyPairMap,
 ) {
   val clientCerts =
@@ -81,10 +68,7 @@ private fun run(
       .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
 
   val principalLookup =
-    TextprotoFilePrincipalLookup(v1alphaFlags.authorityKeyIdentifierToPrincipalMapFile)
-
-  val configLookup =
-    TextprotoFileMeasurementConsumerConfigLookup(v1alphaFlags.measurementConsumerConfigFile)
+    TextprotoFilePrincipalLookup(v1AlphaFlags.authorityKeyIdentifierToPrincipalMapFile)
 
   // TODO(@tristanvuong2021): update when #639 and #640 are merged in
   val services: List<ServerServiceDefinition> =
@@ -97,27 +81,14 @@ private fun run(
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       ReportingSetsService(InternalReportingSetsCoroutineStub(channel))
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-      /*
-      ReportsService(
-        InternalReportsCoroutineStub(channel),
-        InternalMeasurementsCoroutineStub(channel),
-        KingdomMeasurementsCoroutineStub(kingdomChannel),
-        KingdomCertificatesCoroutineStub(kingdomChannel),
-        InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
-        null,
-        null
-      )
-        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
-        .withMeasurementConsumerServerInterceptor(configLookup),
-       */
-      )
+    )
   CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)
 
 /** Flags specific to the V1Alpha API version. */
-private class V1alphaFlags {
+private class V1AlphaFlags {
   @CommandLine.Option(
     names = ["--authority-key-identifier-to-principal-map-file"],
     description = ["File path to a AuthorityKeyToPrincipalMap textproto"],
