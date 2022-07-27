@@ -25,7 +25,6 @@ import io.grpc.ServerInterceptor
 import io.grpc.ServerInterceptors
 import io.grpc.ServerServiceDefinition
 import io.grpc.Status
-import org.wfanet.measurement.api.PrincipalConstants
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.AuthorityKeyServerInterceptor
 import org.wfanet.measurement.common.identity.DuchyInfo
@@ -39,7 +38,7 @@ import org.wfanet.measurement.common.identity.authorityKeyIdentifiersFromCurrent
  */
 val principalFromCurrentContext: Principal<*>
   get() =
-    PrincipalConstants.PRINCIPAL_CONTEXT_KEY.get()
+    ContextKeys.PRINCIPAL_CONTEXT_KEY.get()
       ?: failGrpc(Status.UNAUTHENTICATED) { "No Principal found" }
 
 /**
@@ -84,7 +83,7 @@ fun <T> withMeasurementConsumerPrincipal(measurementConsumerName: String, block:
 
 /** Adds [principal] to the receiver and returns the new [Context]. */
 fun Context.withPrincipal(principal: Principal<*>): Context {
-  return withValue(PrincipalConstants.PRINCIPAL_CONTEXT_KEY, principal)
+  return withValue(ContextKeys.PRINCIPAL_CONTEXT_KEY, principal)
 }
 
 /**
@@ -105,7 +104,7 @@ class PrincipalServerInterceptor(private val principalLookup: PrincipalLookup) :
     headers: Metadata,
     next: ServerCallHandler<ReqT, RespT>
   ): ServerCall.Listener<ReqT> {
-    if (PrincipalConstants.PRINCIPAL_CONTEXT_KEY.get() != null) {
+    if (ContextKeys.PRINCIPAL_CONTEXT_KEY.get() != null) {
       return Contexts.interceptCall(Context.current(), call, headers, next)
     }
 
@@ -119,7 +118,7 @@ class PrincipalServerInterceptor(private val principalLookup: PrincipalLookup) :
           val context =
             Context.current()
               .withValue(
-                PrincipalConstants.PRINCIPAL_CONTEXT_KEY,
+                ContextKeys.PRINCIPAL_CONTEXT_KEY,
                 Principal.Duchy(DuchyKey(duchyInfo.duchyId))
               )
           return Contexts.interceptCall(context, call, headers, next)
@@ -128,7 +127,7 @@ class PrincipalServerInterceptor(private val principalLookup: PrincipalLookup) :
       }
       1 -> {
         val context =
-          Context.current().withValue(PrincipalConstants.PRINCIPAL_CONTEXT_KEY, principals.single())
+          Context.current().withValue(ContextKeys.PRINCIPAL_CONTEXT_KEY, principals.single())
         Contexts.interceptCall(context, call, headers, next)
       }
       else -> unauthenticatedError(call, "More than one principal found")
