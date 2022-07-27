@@ -358,60 +358,33 @@ private val REPORT_NAMES =
 private const val INVALID_REPORT_NAME = "measurementConsumer/AAAAAAAAAG8/report/AAAAAAAAAU0"
 
 // Data provider IDs and names
-private const val DATA_PROVIDER_EXTERNAL_ID = 551L
-private const val DATA_PROVIDER_EXTERNAL_ID_2 = 552L
-private const val DATA_PROVIDER_EXTERNAL_ID_3 = 553L
-private val DATA_PROVIDER_REFERENCE_ID = externalIdToApiId(DATA_PROVIDER_EXTERNAL_ID)
-private val DATA_PROVIDER_REFERENCE_ID_2 = externalIdToApiId(DATA_PROVIDER_EXTERNAL_ID_2)
-private val DATA_PROVIDER_REFERENCE_ID_3 = externalIdToApiId(DATA_PROVIDER_EXTERNAL_ID_3)
-
-private val DATA_PROVIDER_NAME = DataProviderKey(DATA_PROVIDER_REFERENCE_ID).toName()
-private val DATA_PROVIDER_NAME_2 = DataProviderKey(DATA_PROVIDER_REFERENCE_ID_2).toName()
-private val DATA_PROVIDER_NAME_3 = DataProviderKey(DATA_PROVIDER_REFERENCE_ID_3).toName()
+private val DATA_PROVIDER_EXTERNAL_IDS = listOf(551L, 552L, 553L)
+private val DATA_PROVIDER_REFERENCE_IDS = DATA_PROVIDER_EXTERNAL_IDS.map { externalIdToApiId(it) }
+private val DATA_PROVIDER_NAMES = DATA_PROVIDER_REFERENCE_IDS.map { DataProviderKey(it).toName() }
 
 private val DATA_PROVIDER_PUBLIC_KEY =
   loadPublicKey(SECRETS_DIR.resolve("edp1_enc_public.tink")).toEncryptionPublicKey()
 private val DATA_PROVIDER_PRIVATE_KEY_HANDLE =
   loadPrivateKey(SECRETS_DIR.resolve("edp1_enc_private.tink"))
 
-private const val DATA_PROVIDER_CERTIFICATE_EXTERNAL_ID = 561L
-private const val DATA_PROVIDER_CERTIFICATE_EXTERNAL_ID_2 = 562L
-private const val DATA_PROVIDER_CERTIFICATE_EXTERNAL_ID_3 = 563L
-private val DATA_PROVIDER_CERTIFICATE_REFERENCE_ID =
-  externalIdToApiId(DATA_PROVIDER_CERTIFICATE_EXTERNAL_ID)
-private val DATA_PROVIDER_CERTIFICATE_REFERENCE_ID_2 =
-  externalIdToApiId(DATA_PROVIDER_CERTIFICATE_EXTERNAL_ID_2)
-private val DATA_PROVIDER_CERTIFICATE_REFERENCE_ID_3 =
-  externalIdToApiId(DATA_PROVIDER_CERTIFICATE_EXTERNAL_ID_3)
-
-private val DATA_PROVIDER_CERTIFICATE_NAME =
-  makeDataProviderCertificateName(
-    DATA_PROVIDER_REFERENCE_ID,
-    DATA_PROVIDER_CERTIFICATE_REFERENCE_ID
-  )
-private val DATA_PROVIDER_CERTIFICATE_NAME_2 =
-  makeDataProviderCertificateName(
-    DATA_PROVIDER_REFERENCE_ID_2,
-    DATA_PROVIDER_CERTIFICATE_REFERENCE_ID_2
-  )
-private val DATA_PROVIDER_CERTIFICATE_NAME_3 =
-  makeDataProviderCertificateName(
-    DATA_PROVIDER_REFERENCE_ID_3,
-    DATA_PROVIDER_CERTIFICATE_REFERENCE_ID_3
-  )
+// Data provider certificates
+private val DATA_PROVIDER_CERTIFICATE_EXTERNAL_IDS = listOf(561L, 562L, 563L)
+private val DATA_PROVIDER_CERTIFICATE_REFERENCE_IDS =
+  DATA_PROVIDER_CERTIFICATE_EXTERNAL_IDS.map { externalIdToApiId(it) }
+private val DATA_PROVIDER_CERTIFICATE_NAMES =
+  DATA_PROVIDER_CERTIFICATE_REFERENCE_IDS.mapIndexed { index, referenceId ->
+    makeDataProviderCertificateName(DATA_PROVIDER_REFERENCE_IDS[index], referenceId)
+  }
 
 // Data providers
-private val DATA_PROVIDER = dataProvider {
-  name = DATA_PROVIDER_NAME
-  certificate = DATA_PROVIDER_CERTIFICATE_NAME
-  publicKey = signedData { data = DATA_PROVIDER_PUBLIC_KEY.toByteString() }
-}
-
-private val DATA_PROVIDER_2 = dataProvider {
-  name = DATA_PROVIDER_NAME_2
-  certificate = DATA_PROVIDER_CERTIFICATE_NAME_2
-  publicKey = signedData { data = DATA_PROVIDER_PUBLIC_KEY.toByteString() }
-}
+private val DATA_PROVIDERS =
+  DATA_PROVIDER_NAMES.mapIndexed { index, dataProviderName ->
+    dataProvider {
+      name = dataProviderName
+      certificate = DATA_PROVIDER_CERTIFICATE_NAMES[index]
+      publicKey = signedData { data = DATA_PROVIDER_PUBLIC_KEY.toByteString() }
+    }
+  }
 
 // Event group IDs and names
 private const val EVENT_GROUP_EXTERNAL_ID = 661L
@@ -426,28 +399,28 @@ private val EVENT_GROUP_REFERENCE_ID_4 = externalIdToApiId(EVENT_GROUP_EXTERNAL_
 private val EVENT_GROUP_NAME =
   EventGroupKey(
       MEASUREMENT_CONSUMER_REFERENCE_IDS[0],
-      DATA_PROVIDER_REFERENCE_ID,
+      DATA_PROVIDER_REFERENCE_IDS[0],
       EVENT_GROUP_REFERENCE_ID
     )
     .toName()
 private val EVENT_GROUP_NAME_2 =
   EventGroupKey(
       MEASUREMENT_CONSUMER_REFERENCE_IDS[0],
-      DATA_PROVIDER_REFERENCE_ID_2,
+      DATA_PROVIDER_REFERENCE_IDS[1],
       EVENT_GROUP_REFERENCE_ID_2
     )
     .toName()
 private val EVENT_GROUP_NAME_3 =
   EventGroupKey(
       MEASUREMENT_CONSUMER_REFERENCE_IDS[0],
-      DATA_PROVIDER_REFERENCE_ID_3,
+      DATA_PROVIDER_REFERENCE_IDS[2],
       EVENT_GROUP_REFERENCE_ID_3
     )
     .toName()
 private val EVENT_GROUP_NAME_4 =
   EventGroupKey(
       MEASUREMENT_CONSUMER_REFERENCE_IDS[0],
-      DATA_PROVIDER_REFERENCE_ID_3,
+      DATA_PROVIDER_REFERENCE_IDS[2],
       EVENT_GROUP_REFERENCE_ID_4
     )
     .toName()
@@ -457,22 +430,22 @@ private val EVENT_GROUP_NAMES = listOf(EVENT_GROUP_NAME, EVENT_GROUP_NAME_2, EVE
 // Event group keys
 private val INTERNAL_EVENT_GROUP_KEY = internalReportingSetEventGroupKey {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-  dataProviderReferenceId = DATA_PROVIDER_REFERENCE_ID
+  dataProviderReferenceId = DATA_PROVIDER_REFERENCE_IDS[0]
   eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
 }
 private val INTERNAL_EVENT_GROUP_KEY_2 = internalReportingSetEventGroupKey {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-  dataProviderReferenceId = DATA_PROVIDER_REFERENCE_ID_2
+  dataProviderReferenceId = DATA_PROVIDER_REFERENCE_IDS[1]
   eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID_2
 }
 private val INTERNAL_EVENT_GROUP_KEY_3 = internalReportingSetEventGroupKey {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-  dataProviderReferenceId = DATA_PROVIDER_REFERENCE_ID_3
+  dataProviderReferenceId = DATA_PROVIDER_REFERENCE_IDS[2]
   eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID_3
 }
 private val INTERNAL_EVENT_GROUP_KEY_4 = internalReportingSetEventGroupKey {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-  dataProviderReferenceId = DATA_PROVIDER_REFERENCE_ID_3
+  dataProviderReferenceId = DATA_PROVIDER_REFERENCE_IDS[2]
   eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID_4
 }
 private val INTERNAL_EVENT_GROUP_KEYS =
@@ -689,27 +662,27 @@ private val REQUISITION_SPEC_2 =
 
 // Data provider entries
 private val DATA_PROVIDER_ENTRY = dataProviderEntry {
-  key = DATA_PROVIDER_NAME
+  key = DATA_PROVIDER_NAMES[0]
   value = dataProviderEntryValue {
-    dataProviderCertificate = DATA_PROVIDER.certificate
-    dataProviderPublicKey = DATA_PROVIDER.publicKey
+    dataProviderCertificate = DATA_PROVIDERS[0].certificate
+    dataProviderPublicKey = DATA_PROVIDERS[0].publicKey
     encryptedRequisitionSpec =
       encryptRequisitionSpec(
         signRequisitionSpec(REQUISITION_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE),
-        EncryptionPublicKey.parseFrom(DATA_PROVIDER.publicKey.data)
+        EncryptionPublicKey.parseFrom(DATA_PROVIDERS[0].publicKey.data)
       )
     nonceHash = hashSha256(REQUISITION_SPEC.nonce)
   }
 }
 private val DATA_PROVIDER_ENTRY_2 = dataProviderEntry {
-  key = DATA_PROVIDER_NAME_2
+  key = DATA_PROVIDER_NAMES[1]
   value = dataProviderEntryValue {
-    dataProviderCertificate = DATA_PROVIDER_2.certificate
-    dataProviderPublicKey = DATA_PROVIDER_2.publicKey
+    dataProviderCertificate = DATA_PROVIDERS[1].certificate
+    dataProviderPublicKey = DATA_PROVIDERS[1].publicKey
     encryptedRequisitionSpec =
       encryptRequisitionSpec(
         signRequisitionSpec(REQUISITION_SPEC_2, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE),
-        EncryptionPublicKey.parseFrom(DATA_PROVIDER_2.publicKey.data)
+        EncryptionPublicKey.parseFrom(DATA_PROVIDERS[1].publicKey.data)
       )
     nonceHash = hashSha256(REQUISITION_SPEC_2.nonce)
   }
@@ -787,7 +760,7 @@ private val SUCCEEDED_REACH_MEASUREMENT =
           }
       }
       encryptedResult = getEncryptedResult(result)
-      certificate = DATA_PROVIDER_CERTIFICATE_NAME
+      certificate = DATA_PROVIDER_CERTIFICATE_NAMES[0]
     }
   }
 
@@ -857,7 +830,7 @@ private val SUCCEEDED_FREQUENCY_HISTOGRAM_MEASUREMENT =
           }
       }
       encryptedResult = getEncryptedResult(result)
-      certificate = DATA_PROVIDER_CERTIFICATE_NAME
+      certificate = DATA_PROVIDER_CERTIFICATE_NAMES[0]
     }
   }
 
@@ -921,14 +894,14 @@ private val SUCCEEDED_IMPRESSION_MEASUREMENT =
         impression = MeasurementKt.ResultKt.impression { value = IMPRESSION_VALUE }
       }
       encryptedResult = getEncryptedResult(result)
-      certificate = DATA_PROVIDER_CERTIFICATE_NAME
+      certificate = DATA_PROVIDER_CERTIFICATE_NAMES[0]
     }
     results += resultPair {
       val result = result {
         impression = MeasurementKt.ResultKt.impression { value = IMPRESSION_VALUE_2 }
       }
       encryptedResult = getEncryptedResult(result)
-      certificate = DATA_PROVIDER_CERTIFICATE_NAME_2
+      certificate = DATA_PROVIDER_CERTIFICATE_NAMES[1]
     }
   }
 
@@ -992,14 +965,14 @@ private val SUCCEEDED_WATCH_DURATION_MEASUREMENT =
         watchDuration = MeasurementKt.ResultKt.watchDuration { value = WATCH_DURATION }
       }
       encryptedResult = getEncryptedResult(result)
-      certificate = DATA_PROVIDER_CERTIFICATE_NAME
+      certificate = DATA_PROVIDER_CERTIFICATE_NAMES[0]
     }
     results += resultPair {
       val result = result {
         watchDuration = MeasurementKt.ResultKt.watchDuration { value = WATCH_DURATION_2 }
       }
       encryptedResult = getEncryptedResult(result)
-      certificate = DATA_PROVIDER_CERTIFICATE_NAME_2
+      certificate = DATA_PROVIDER_CERTIFICATE_NAMES[1]
     }
   }
 
@@ -1392,7 +1365,7 @@ class ReportsServiceTest {
   }
 
   private val dataProvidersMock: DataProvidersCoroutineImplBase = mockService {
-    onBlocking { getDataProvider(any()) }.thenReturn(DATA_PROVIDER, DATA_PROVIDER_2)
+    onBlocking { getDataProvider(any()) }.thenReturn(DATA_PROVIDERS[0], DATA_PROVIDERS[1])
   }
 
   private val certificateMock: CertificatesCoroutineImplBase =
@@ -1508,8 +1481,8 @@ class ReportsServiceTest {
     val capturedDataProviderRequests = dataProvidersCaptor.allValues
     assertThat(capturedDataProviderRequests)
       .containsExactly(
-        getDataProviderRequest { name = DATA_PROVIDER_NAME },
-        getDataProviderRequest { name = DATA_PROVIDER_NAME_2 }
+        getDataProviderRequest { name = DATA_PROVIDER_NAMES[0] },
+        getDataProviderRequest { name = DATA_PROVIDER_NAMES[1] }
       )
 
     // Verify proto argument of MeasurementsCoroutineImplBase::createMeasurement
@@ -1535,11 +1508,12 @@ class ReportsServiceTest {
       .isTrue()
 
     val dataProviderEntryKeys = capturedMeasurement.dataProvidersList.map { it.key }
-    assertThat(dataProviderEntryKeys).containsExactly(DATA_PROVIDER_NAME, DATA_PROVIDER_NAME_2)
+    assertThat(dataProviderEntryKeys)
+      .containsExactly(DATA_PROVIDER_NAMES[0], DATA_PROVIDER_NAMES[1])
 
     // Handle the random sequence due to the execution of coroutine.
     val dataProvidersList =
-      if (capturedMeasurement.dataProvidersList[0].key == DATA_PROVIDER_NAME_2)
+      if (capturedMeasurement.dataProvidersList[0].key == DATA_PROVIDER_NAMES[1])
         capturedMeasurement.dataProvidersList.asReversed()
       else capturedMeasurement.dataProvidersList
 
@@ -1658,7 +1632,7 @@ class ReportsServiceTest {
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        withDataProviderPrincipal(DATA_PROVIDER_NAMES[0]) {
           runBlocking { service.createReport(request) }
         }
       }
@@ -2066,7 +2040,8 @@ class ReportsServiceTest {
           runBlocking { service.createReport(request) }
         }
       }
-    val expectedExceptionDescription = "Unable to retrieve the data provider [$DATA_PROVIDER_NAME]."
+    val expectedExceptionDescription =
+      "Unable to retrieve the data provider [${DATA_PROVIDER_NAMES[0]}]."
     assertThat(exception.message).isEqualTo(expectedExceptionDescription)
   }
 
@@ -2393,7 +2368,7 @@ class ReportsServiceTest {
     val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAMES[0] }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        withDataProviderPrincipal(DATA_PROVIDER_NAMES[0]) {
           runBlocking { service.listReports(request) }
         }
       }
@@ -2577,7 +2552,7 @@ class ReportsServiceTest {
         }
       }
     val expectedExceptionDescription =
-      "Unable to retrieve the certificate [$DATA_PROVIDER_CERTIFICATE_NAME]."
+      "Unable to retrieve the certificate [${DATA_PROVIDER_CERTIFICATE_NAMES[0]}]."
     assertThat(exception.message).isEqualTo(expectedExceptionDescription)
   }
 
@@ -3157,7 +3132,9 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDER_NAME) { runBlocking { service.getReport(request) } }
+        withDataProviderPrincipal(DATA_PROVIDER_NAMES[0]) {
+          runBlocking { service.getReport(request) }
+        }
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
