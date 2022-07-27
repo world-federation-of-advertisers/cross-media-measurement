@@ -32,50 +32,51 @@ import org.wfanet.measurement.common.identity.authorityKeyIdentifiersFromCurrent
 import org.wfanet.measurement.reporting.service.api.ContextKeys
 
 /**
- * Returns a [Principal] in the current gRPC context. Requires [PrincipalServerInterceptor] to be
- * installed.
+ * Returns a [ReportingPrincipal] in the current gRPC context. Requires [PrincipalServerInterceptor]
+ * to be installed.
  *
- * Callers can trust that the [Principal] is authenticated (but not necessarily authorized).
+ * Callers can trust that the [ReportingPrincipal] is authenticated (but not necessarily
+ * authorized).
  */
-val principalFromCurrentContext: Principal<*>
+val principalFromCurrentContext: ReportingPrincipal
   get() =
     ContextKeys.PRINCIPAL_CONTEXT_KEY.get()
-      ?: failGrpc(Status.UNAUTHENTICATED) { "No Principal found" }
+      ?: failGrpc(Status.UNAUTHENTICATED) { "No ReportingPrincipal found" }
 
 /**
- * Executes [block] with [principal] installed in a new [Context].
+ * Executes [block] with [ReportingPrincipal] installed in a new [Context].
  *
- * The caller of [withPrincipal] is responsible for guaranteeing that [block] can act as [Principal]
- * -- in other words, [principal] is treated as already authenticated.
+ * The caller of [withPrincipal] is responsible for guaranteeing that [block] can act as
+ * [ReportingPrincipal] -- in other words, [ReportingPrincipal] is treated as already authenticated.
  */
-fun <T> withPrincipal(principal: Principal<*>, block: () -> T): T {
+fun <T> withPrincipal(principal: ReportingPrincipal, block: () -> T): T {
   return Context.current().withPrincipal(principal).call(block)
 }
 
-/** Executes [block] with a [MeasurementConsumer] [Principal] installed in a new [Context]. */
+/** Executes [block] with a [MeasurementConsumerPrincipal] installed in a new [Context]. */
 fun <T> withMeasurementConsumerPrincipal(measurementConsumerName: String, block: () -> T): T {
   return Context.current()
     .withPrincipal(
-      Principal.MeasurementConsumer(MeasurementConsumerKey.fromName(measurementConsumerName)!!)
+      MeasurementConsumerPrincipal(MeasurementConsumerKey.fromName(measurementConsumerName)!!)
     )
     .call(block)
 }
 
 /** Adds [principal] to the receiver and returns the new [Context]. */
-fun Context.withPrincipal(principal: Principal<*>): Context {
+fun Context.withPrincipal(principal: ReportingPrincipal): Context {
   return withValue(ContextKeys.PRINCIPAL_CONTEXT_KEY, principal)
 }
 
 /**
- * gRPC [ServerInterceptor] to extract a [Principal] from a request.
+ * gRPC [ServerInterceptor] to extract a [ReportingPrincipal] from a request.
  *
- * If the [Principal] has already been set in the context, this does nothing. Otherwise, this
- * derives the [Principal] from an X509 cert's authority key identifier.
+ * If the [ReportingPrincipal] has already been set in the context, this does nothing. Otherwise,
+ * this derives the [ReportingPrincipal] from an X509 cert's authority key identifier.
  */
 class PrincipalServerInterceptor(private val principalLookup: PrincipalLookup) : ServerInterceptor {
 
   interface PrincipalLookup {
-    fun get(authorityKeyIdentifier: ByteString): Principal<*>?
+    fun get(authorityKeyIdentifier: ByteString): ReportingPrincipal?
   }
 
   override fun <ReqT, RespT> interceptCall(

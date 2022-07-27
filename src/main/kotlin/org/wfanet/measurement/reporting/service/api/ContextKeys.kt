@@ -15,9 +15,9 @@
 package org.wfanet.measurement.reporting.service.api
 
 import io.grpc.Context
-import org.wfanet.measurement.reporting.service.api.v1alpha.Principal
+import org.wfanet.measurement.reporting.service.api.v1alpha.ReportingPrincipal
 
 object ContextKeys {
-  /** This is the context key for the authenticated [Principal]. */
-  val PRINCIPAL_CONTEXT_KEY: Context.Key<Principal<*>> = Context.key("principal")
+  /** This is the context key for the authenticated [ReportingPrincipal]. */
+  val PRINCIPAL_CONTEXT_KEY: Context.Key<ReportingPrincipal> = Context.key("principal")
 }

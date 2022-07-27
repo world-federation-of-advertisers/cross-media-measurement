@@ -17,20 +17,24 @@ package org.wfanet.measurement.reporting.service.api.v1alpha
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.api.ResourceKey
 
+interface Principal
+
+interface ResourcePrincipal : Principal {
+  val resourceKey: ResourceKey
+}
+
 /** Identifies the sender of an inbound gRPC request. */
-sealed class Principal<T : ResourceKey> {
-  abstract val resourceKey: T
-
-  class MeasurementConsumer(override val resourceKey: MeasurementConsumerKey) :
-    Principal<MeasurementConsumerKey>()
-
+sealed interface ReportingPrincipal : Principal {
   companion object {
-    fun fromName(name: String): Principal<*>? {
+    fun fromName(name: String): ReportingPrincipal? {
       return when (name.substringBefore('/')) {
         MeasurementConsumerKey.COLLECTION_NAME ->
-          MeasurementConsumerKey.fromName(name)?.let(::MeasurementConsumer)
+          MeasurementConsumerKey.fromName(name)?.let(::MeasurementConsumerPrincipal)
         else -> null
       }
     }
   }
 }
+
+data class MeasurementConsumerPrincipal(override val resourceKey: MeasurementConsumerKey) :
+  ReportingPrincipal, ResourcePrincipal
