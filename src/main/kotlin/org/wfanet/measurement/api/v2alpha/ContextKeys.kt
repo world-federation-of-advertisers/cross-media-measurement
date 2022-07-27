@@ -12,12 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.api
+package org.wfanet.measurement.api.v2alpha
 
 import io.grpc.Context
-import org.wfanet.measurement.api.v2alpha.Principal
 
-object PrincipalConstants {
+object ContextKeys {
   /** This is the context key for the authenticated Principal. */
   val PRINCIPAL_CONTEXT_KEY: Context.Key<Principal<*>> = Context.key("principal")
 }
