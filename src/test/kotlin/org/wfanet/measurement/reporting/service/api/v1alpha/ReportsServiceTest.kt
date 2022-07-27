@@ -25,6 +25,7 @@ import io.grpc.StatusRuntimeException
 import java.nio.file.Paths
 import java.security.SecureRandom
 import java.time.Instant
+import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -1406,6 +1407,7 @@ class ReportsServiceTest {
 
     assertThat(capturedMeasurement)
       .ignoringRepeatedFieldOrder()
+      .ignoringRepeatedFieldOrderOfFields(Measurement.DATA_PROVIDERS_FIELD_NUMBER)
       .ignoringFieldDescriptors(
         Measurement.getDescriptor().findFieldByNumber(Measurement.MEASUREMENT_SPEC_FIELD_NUMBER),
         Measurement.DataProviderEntry.Value.getDescriptor()
@@ -1425,7 +1427,6 @@ class ReportsServiceTest {
       )
       .isTrue()
 
-    // Handle the random sequence due to the execution of coroutine.
     val dataProvidersList = capturedMeasurement.dataProvidersList.sortedBy { it.key }
 
     dataProvidersList.map { dataProviderEntry ->
@@ -1883,7 +1884,7 @@ class ReportsServiceTest {
   }
 
   @Test
-  fun `createReport throws exception when the internal getReportingSet throws exception`() =
+  fun `createReport throws exception when the internal getReportingSet throws exception`(): Unit =
     runBlocking {
       whenever(internalReportingSetsMock.getReportingSet(any()))
         .thenReturn(
@@ -1897,16 +1898,11 @@ class ReportsServiceTest {
         report = PENDING_REACH_REPORT.copy { clearState() }
       }
 
-      val exception =
-        assertFailsWith(Exception::class) {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0]) {
-            runBlocking { service.createReport(request) }
-          }
+      assertFails {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0]) {
+          runBlocking { service.createReport(request) }
         }
-      val expectedExceptionDescription =
-        "Unable to retrieve the reporting set [${REPORTING_SET_NAMES[0]}] from the reporting " +
-          "database."
-      assertThat(exception.message).isEqualTo(expectedExceptionDescription)
+      }
     }
 
   @Test
