@@ -588,15 +588,13 @@ private val EVENT_GROUP_ENTRIES =
   }
 
 // Requisition specs
-private val REQUISITION_SPEC = requisitionSpec {
-  eventGroups.add(EVENT_GROUP_ENTRIES[0])
-  measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.data
-  nonce = SECURE_RANDOM_OUTPUT_LONG
-}
-private val REQUISITION_SPEC_2 =
-  REQUISITION_SPEC.copy {
-    eventGroups.clear()
-    eventGroups.add(EVENT_GROUP_ENTRIES[1])
+private val REQUISITION_SPECS =
+  EVENT_GROUP_ENTRIES.map {
+    requisitionSpec {
+      eventGroups.add(it)
+      measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.data
+      nonce = SECURE_RANDOM_OUTPUT_LONG
+    }
   }
 
 // Data provider entries
@@ -607,10 +605,10 @@ private val DATA_PROVIDER_ENTRY = dataProviderEntry {
     dataProviderPublicKey = DATA_PROVIDERS[0].publicKey
     encryptedRequisitionSpec =
       encryptRequisitionSpec(
-        signRequisitionSpec(REQUISITION_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE),
+        signRequisitionSpec(REQUISITION_SPECS[0], MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE),
         EncryptionPublicKey.parseFrom(DATA_PROVIDERS[0].publicKey.data)
       )
-    nonceHash = hashSha256(REQUISITION_SPEC.nonce)
+    nonceHash = hashSha256(REQUISITION_SPECS[0].nonce)
   }
 }
 private val DATA_PROVIDER_ENTRY_2 = dataProviderEntry {
@@ -620,10 +618,10 @@ private val DATA_PROVIDER_ENTRY_2 = dataProviderEntry {
     dataProviderPublicKey = DATA_PROVIDERS[1].publicKey
     encryptedRequisitionSpec =
       encryptRequisitionSpec(
-        signRequisitionSpec(REQUISITION_SPEC_2, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE),
+        signRequisitionSpec(REQUISITION_SPECS[1], MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE),
         EncryptionPublicKey.parseFrom(DATA_PROVIDERS[1].publicKey.data)
       )
-    nonceHash = hashSha256(REQUISITION_SPEC_2.nonce)
+    nonceHash = hashSha256(REQUISITION_SPECS[1].nonce)
   }
 }
 
@@ -1477,7 +1475,7 @@ class ReportsServiceTest {
         )
       )
       .isTrue()
-    assertThat(requisitionSpec).isEqualTo(REQUISITION_SPEC)
+    assertThat(requisitionSpec).isEqualTo(REQUISITION_SPECS[0])
 
     val dataProviderEntry2 = dataProvidersList[1]
     val expectedDataProviderEntry2 = DATA_PROVIDER_ENTRY_2
@@ -1500,7 +1498,7 @@ class ReportsServiceTest {
         )
       )
       .isTrue()
-    assertThat(requisitionSpec2).isEqualTo(REQUISITION_SPEC_2)
+    assertThat(requisitionSpec2).isEqualTo(REQUISITION_SPECS[1])
 
     // Verify proto argument of InternalMeasurementsCoroutineImplBase::createMeasurement
     verifyProtoArgument(
