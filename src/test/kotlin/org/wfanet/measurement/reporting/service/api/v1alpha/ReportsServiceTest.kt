@@ -2253,7 +2253,7 @@ class ReportsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception.status.description).isEqualTo("No Principal found")
+    assertThat(exception.status.description).isEqualTo("No ReportingPrincipal found")
   }
 
   @Test

@@ -46,17 +46,16 @@ class EventGroupsService(
   private val encryptionKeyPairStore: EncryptionKeyPairStore
 ) : EventGroupsCoroutineImplBase() {
   override suspend fun listEventGroups(request: ListEventGroupsRequest): ListEventGroupsResponse {
-    val principal: Principal<*> = principalFromCurrentContext
+    val principal: MeasurementConsumerPrincipal =
+      principalFromCurrentContext as MeasurementConsumerPrincipal
+
     val cmmsListEventGroupResponse =
       cmmsEventGroupsStub.listEventGroups(
         cmmsListEventGroupsRequest {
           parent = request.parent
           pageSize = request.pageSize
           pageToken = request.pageToken
-          filter = filter {
-            measurementConsumers +=
-              (principal.resourceKey as MeasurementConsumerKey).measurementConsumerId
-          }
+          filter = filter { measurementConsumers += principal.resourceKey.measurementConsumerId }
         }
       )
     val cmmsEventGroups = cmmsListEventGroupResponse.eventGroupsList

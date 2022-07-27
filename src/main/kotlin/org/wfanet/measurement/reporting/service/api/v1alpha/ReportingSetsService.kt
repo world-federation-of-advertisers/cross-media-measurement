@@ -56,19 +56,12 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
         "Parent is either unspecified or invalid."
       }
 
-    val principal: Principal<*> = principalFromCurrentContext
-
-    when (val resourceKey = principal.resourceKey) {
-      is MeasurementConsumerKey -> {
-        if (request.parent != resourceKey.toName()) {
+    when (val principal: ReportingPrincipal = principalFromCurrentContext) {
+      is MeasurementConsumerPrincipal -> {
+        if (request.parent != principal.resourceKey.toName()) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot create a ReportingSet for another MeasurementConsumer."
           }
-        }
-      }
-      else -> {
-        failGrpc(Status.PERMISSION_DENIED) {
-          "Caller does not have permission to create a ReportingSet."
         }
       }
     }
@@ -87,21 +80,15 @@ class ReportingSetsService(private val internalReportingSetsStub: ReportingSetsC
   override suspend fun listReportingSets(
     request: ListReportingSetsRequest
   ): ListReportingSetsResponse {
-    val principal: Principal<*> = principalFromCurrentContext
     val listReportingSetsPageToken = request.toListReportingSetsPageToken()
 
     // Based on AIP-132#Errors
-    when (val resourceKey = principal.resourceKey) {
-      is MeasurementConsumerKey -> {
-        if (request.parent != resourceKey.toName()) {
+    when (val principal: ReportingPrincipal = principalFromCurrentContext) {
+      is MeasurementConsumerPrincipal -> {
+        if (request.parent != principal.resourceKey.toName()) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot list ReportingSets belonging to other MeasurementConsumers."
           }
-        }
-      }
-      else -> {
-        failGrpc(Status.PERMISSION_DENIED) {
-          "Caller does not have permission to list ReportingSets."
         }
       }
     }
