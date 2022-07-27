@@ -67,14 +67,20 @@ package k8s
 	}
 	deployments: {
 		"postgres-reporting-data-server": Deployment={
-		  _secretEnvVars: [{
+		  _envVars: [{
 		    name: "POSTGRES_USER"
-		    _key: "reporting_postgres_db_user.txt"
-		    _secretName: Reporting._secretName
+		    valueFrom:
+          secretKeyRef: {
+            name: Reporting._secretName
+            key:  "reporting_postgres_db_user.txt"
+          }
 		  }, {
 		    name: "POSTGRES_PASSWORD"
-		    _key: "reporting_postgres_db_password.txt"
-		    _secretName: Reporting._secretName
+		    valueFrom:
+          secretKeyRef: {
+            name: Reporting._secretName
+            key:  "reporting_postgres_db_password.txt"
+          }
 		  }]
 
 		  _postgresConfig: Reporting._postgresConfig & {
@@ -93,7 +99,7 @@ package k8s
 					image:           _images[InitContainer.name]
 					imagePullPolicy: Deployment._imagePullPolicy
 		  		args:            _postgresConfig.flags
-		  		_secretEnvVars: Deployment._secretEnvVars
+		  		env: Deployment._envVars
 				}
 			}
 		}
