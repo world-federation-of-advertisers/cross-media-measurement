@@ -1407,7 +1407,6 @@ class ReportsServiceTest {
 
     assertThat(capturedMeasurement)
       .ignoringRepeatedFieldOrder()
-      .ignoringRepeatedFieldOrderOfFields(Measurement.DATA_PROVIDERS_FIELD_NUMBER)
       .ignoringFieldDescriptors(
         Measurement.getDescriptor().findFieldByNumber(Measurement.MEASUREMENT_SPEC_FIELD_NUMBER),
         Measurement.DataProviderEntry.Value.getDescriptor()
