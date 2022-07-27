@@ -427,64 +427,35 @@ private val UNCOVERED_INTERNAL_EVENT_GROUP_KEY = internalReportingSetEventGroupK
 // Reporting sets
 private const val REPORTING_SET_FILTER = "AGE>18"
 
-private val REPORTING_SET_DISPLAY_NAME = REPORTING_SET_NAMES[0] + REPORTING_SET_FILTER
-private val REPORTING_SET_DISPLAY_NAME_2 = REPORTING_SET_NAMES[1] + REPORTING_SET_FILTER
-private val REPORTING_SET_DISPLAY_NAME_3 = REPORTING_SET_NAMES[2] + REPORTING_SET_FILTER
-private val REPORTING_SET_DISPLAY_NAME_4 = REPORTING_SET_NAMES[3] + REPORTING_SET_FILTER
+private val REPORTING_SET_DISPLAY_NAMES = REPORTING_SET_NAMES.map { it + REPORTING_SET_FILTER }
 
-private val INTERNAL_REPORTING_SET = internalReportingSet {
+private val INTERNAL_REPORTING_SETS =
+  (0 until NUMBER_COVERED_EVENT_GROUPS).map { index ->
+    internalReportingSet {
+      measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+      externalReportingSetId = REPORTING_SET_EXTERNAL_IDS[index]
+      eventGroupKeys.add(COVERED_INTERNAL_EVENT_GROUP_KEYS[index])
+      filter = REPORTING_SET_FILTER
+      displayName = REPORTING_SET_DISPLAY_NAMES[index]
+    }
+  }
+private val UNCOVERED_INTERNAL_REPORTING_SET = internalReportingSet {
   measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-  externalReportingSetId = REPORTING_SET_EXTERNAL_IDS[0]
-  eventGroupKeys.add(COVERED_INTERNAL_EVENT_GROUP_KEYS[0])
+  externalReportingSetId = REPORTING_SET_EXTERNAL_IDS[3]
+  eventGroupKeys.add(UNCOVERED_INTERNAL_EVENT_GROUP_KEY)
   filter = REPORTING_SET_FILTER
-  displayName = REPORTING_SET_DISPLAY_NAME
+  displayName = REPORTING_SET_DISPLAY_NAMES[3]
 }
-private val INTERNAL_REPORTING_SET_2 =
-  INTERNAL_REPORTING_SET.copy {
-    externalReportingSetId = REPORTING_SET_EXTERNAL_IDS[1]
-    eventGroupKeys.clear()
-    eventGroupKeys.add(COVERED_INTERNAL_EVENT_GROUP_KEYS[1])
-    displayName = REPORTING_SET_DISPLAY_NAME_2
-  }
-private val INTERNAL_REPORTING_SET_3 =
-  INTERNAL_REPORTING_SET.copy {
-    externalReportingSetId = REPORTING_SET_EXTERNAL_IDS[2]
-    eventGroupKeys.clear()
-    eventGroupKeys.add(COVERED_INTERNAL_EVENT_GROUP_KEYS[2])
-    displayName = REPORTING_SET_DISPLAY_NAME_3
-  }
-private val INTERNAL_REPORTING_SET_4 =
-  INTERNAL_REPORTING_SET.copy {
-    externalReportingSetId = REPORTING_SET_EXTERNAL_IDS[3]
-    eventGroupKeys.clear()
-    eventGroupKeys.add(UNCOVERED_INTERNAL_EVENT_GROUP_KEY)
-    displayName = REPORTING_SET_DISPLAY_NAME_4
-  }
 
-private val REPORTING_SET = reportingSet {
-  name = REPORTING_SET_NAMES[0]
-  eventGroups.add(COVERED_EVENT_GROUP_NAMES[0])
-  filter = REPORTING_SET_FILTER
-  displayName = REPORTING_SET_DISPLAY_NAME
-}
-private val REPORTING_SET_2 = reportingSet {
-  name = REPORTING_SET_NAMES[1]
-  eventGroups.add(COVERED_EVENT_GROUP_NAMES[1])
-  filter = REPORTING_SET_FILTER
-  displayName = REPORTING_SET_DISPLAY_NAME_2
-}
-private val REPORTING_SET_3 = reportingSet {
-  name = REPORTING_SET_NAMES[2]
-  eventGroups.add(COVERED_EVENT_GROUP_NAMES[2])
-  filter = REPORTING_SET_FILTER
-  displayName = REPORTING_SET_DISPLAY_NAME_3
-}
-private val REPORTING_SET_4 = reportingSet {
-  name = REPORTING_SET_NAMES[3]
-  eventGroups.add(UNCOVERED_EVENT_GROUP_NAME)
-  filter = REPORTING_SET_FILTER
-  displayName = REPORTING_SET_DISPLAY_NAME_4
-}
+private val REPORTING_SETS =
+  (0 until NUMBER_COVERED_EVENT_GROUPS).map { index ->
+    reportingSet {
+      name = REPORTING_SET_NAMES[index]
+      eventGroups.add(COVERED_EVENT_GROUP_NAMES[index])
+      filter = REPORTING_SET_FILTER
+      displayName = REPORTING_SET_DISPLAY_NAMES[index]
+    }
+  }
 
 // Time intervals
 private val START_INSTANT = Instant.now()
@@ -1310,10 +1281,10 @@ class ReportsServiceTest {
     mockService() {
       onBlocking { getReportingSet(any()) }
         .thenReturn(
-          INTERNAL_REPORTING_SET,
-          INTERNAL_REPORTING_SET_2,
-          INTERNAL_REPORTING_SET,
-          INTERNAL_REPORTING_SET_2
+          INTERNAL_REPORTING_SETS[0],
+          INTERNAL_REPORTING_SETS[1],
+          INTERNAL_REPORTING_SETS[0],
+          INTERNAL_REPORTING_SETS[1]
         )
     }
 
@@ -1819,8 +1790,8 @@ class ReportsServiceTest {
     runBlocking {
       whenever(internalReportingSetsMock.getReportingSet(any()))
         .thenReturn(
-          INTERNAL_REPORTING_SET,
-          INTERNAL_REPORTING_SET_4,
+          INTERNAL_REPORTING_SETS[0],
+          UNCOVERED_INTERNAL_REPORTING_SET,
         )
       val request = createReportRequest {
         parent = MEASUREMENT_CONSUMER_NAMES[0]
@@ -1835,7 +1806,7 @@ class ReportsServiceTest {
         }
       val expectedExceptionDescription =
         "The event group [$UNCOVERED_EVENT_GROUP_NAME] in the reporting set" +
-          " [${INTERNAL_REPORTING_SET_4.displayName}] is not included in the event group universe."
+          " [${UNCOVERED_INTERNAL_REPORTING_SET.displayName}] is not included in the event group universe."
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.status.description).isEqualTo(expectedExceptionDescription)
     }
@@ -1976,8 +1947,8 @@ class ReportsServiceTest {
     runBlocking {
       whenever(internalReportingSetsMock.getReportingSet(any()))
         .thenReturn(
-          INTERNAL_REPORTING_SET,
-          INTERNAL_REPORTING_SET_2,
+          INTERNAL_REPORTING_SETS[0],
+          INTERNAL_REPORTING_SETS[1],
         )
         .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
 
