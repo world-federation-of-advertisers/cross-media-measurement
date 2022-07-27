@@ -598,32 +598,22 @@ private val REQUISITION_SPECS =
   }
 
 // Data provider entries
-private val DATA_PROVIDER_ENTRY = dataProviderEntry {
-  key = DATA_PROVIDER_NAMES[0]
-  value = dataProviderEntryValue {
-    dataProviderCertificate = DATA_PROVIDERS[0].certificate
-    dataProviderPublicKey = DATA_PROVIDERS[0].publicKey
-    encryptedRequisitionSpec =
-      encryptRequisitionSpec(
-        signRequisitionSpec(REQUISITION_SPECS[0], MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE),
-        EncryptionPublicKey.parseFrom(DATA_PROVIDERS[0].publicKey.data)
-      )
-    nonceHash = hashSha256(REQUISITION_SPECS[0].nonce)
+private val DATA_PROVIDER_ENTRIES =
+  (0 until REQUISITION_SPECS.size).map { index ->
+    dataProviderEntry {
+      key = DATA_PROVIDER_NAMES[index]
+      value = dataProviderEntryValue {
+        dataProviderCertificate = DATA_PROVIDERS[index].certificate
+        dataProviderPublicKey = DATA_PROVIDERS[index].publicKey
+        encryptedRequisitionSpec =
+          encryptRequisitionSpec(
+            signRequisitionSpec(REQUISITION_SPECS[index], MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE),
+            EncryptionPublicKey.parseFrom(DATA_PROVIDERS[index].publicKey.data)
+          )
+        nonceHash = hashSha256(REQUISITION_SPECS[index].nonce)
+      }
+    }
   }
-}
-private val DATA_PROVIDER_ENTRY_2 = dataProviderEntry {
-  key = DATA_PROVIDER_NAMES[1]
-  value = dataProviderEntryValue {
-    dataProviderCertificate = DATA_PROVIDERS[1].certificate
-    dataProviderPublicKey = DATA_PROVIDERS[1].publicKey
-    encryptedRequisitionSpec =
-      encryptRequisitionSpec(
-        signRequisitionSpec(REQUISITION_SPECS[1], MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE),
-        EncryptionPublicKey.parseFrom(DATA_PROVIDERS[1].publicKey.data)
-      )
-    nonceHash = hashSha256(REQUISITION_SPECS[1].nonce)
-  }
-}
 
 // Measurements
 private val BASE_MEASUREMENT = measurement {
@@ -680,8 +670,7 @@ private val REACH_ONLY_MEASUREMENT_SPEC = measurementSpec {
 
 private val SUCCEEDED_REACH_MEASUREMENT =
   BASE_REACH_MEASUREMENT.copy {
-    dataProviders += DATA_PROVIDER_ENTRY
-    dataProviders += DATA_PROVIDER_ENTRY_2
+    dataProviders += DATA_PROVIDER_ENTRIES
 
     measurementSpec =
       signMeasurementSpec(REACH_ONLY_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
@@ -751,8 +740,7 @@ private val REACH_FREQUENCY_MEASUREMENT_SPEC = measurementSpec {
 
 private val SUCCEEDED_FREQUENCY_HISTOGRAM_MEASUREMENT =
   BASE_REACH_FREQUENCY_HISTOGRAM_MEASUREMENT.copy {
-    dataProviders += DATA_PROVIDER_ENTRY
-    dataProviders += DATA_PROVIDER_ENTRY_2
+    dataProviders += DATA_PROVIDER_ENTRIES
 
     measurementSpec =
       signMeasurementSpec(REACH_FREQUENCY_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
@@ -818,8 +806,7 @@ private val IMPRESSION_MEASUREMENT_SPEC = measurementSpec {
 
 private val SUCCEEDED_IMPRESSION_MEASUREMENT =
   BASE_IMPRESSION_MEASUREMENT.copy {
-    dataProviders += DATA_PROVIDER_ENTRY
-    dataProviders += DATA_PROVIDER_ENTRY_2
+    dataProviders += DATA_PROVIDER_ENTRIES
 
     measurementSpec =
       signMeasurementSpec(IMPRESSION_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
@@ -889,8 +876,7 @@ private val WATCH_DURATION_MEASUREMENT_SPEC = measurementSpec {
 
 private val SUCCEEDED_WATCH_DURATION_MEASUREMENT =
   BASE_WATCH_DURATION_MEASUREMENT.copy {
-    dataProviders += DATA_PROVIDER_ENTRY
-    dataProviders += DATA_PROVIDER_ENTRY_2
+    dataProviders += DATA_PROVIDER_ENTRIES
 
     measurementSpec =
       signMeasurementSpec(WATCH_DURATION_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
@@ -1455,7 +1441,7 @@ class ReportsServiceTest {
       else capturedMeasurement.dataProvidersList
 
     val dataProviderEntry = dataProvidersList[0]
-    val expectedDataProviderEntry = DATA_PROVIDER_ENTRY
+    val expectedDataProviderEntry = DATA_PROVIDER_ENTRIES[0]
     assertThat(dataProviderEntry.value)
       .comparingExpectedFieldsOnly()
       .isEqualTo(expectedDataProviderEntry.value.copy { clearEncryptedRequisitionSpec() })
@@ -1478,7 +1464,7 @@ class ReportsServiceTest {
     assertThat(requisitionSpec).isEqualTo(REQUISITION_SPECS[0])
 
     val dataProviderEntry2 = dataProvidersList[1]
-    val expectedDataProviderEntry2 = DATA_PROVIDER_ENTRY_2
+    val expectedDataProviderEntry2 = DATA_PROVIDER_ENTRIES[1]
     assertThat(dataProviderEntry2.value)
       .comparingExpectedFieldsOnly()
       .isEqualTo(expectedDataProviderEntry2.value.copy { clearEncryptedRequisitionSpec() })
