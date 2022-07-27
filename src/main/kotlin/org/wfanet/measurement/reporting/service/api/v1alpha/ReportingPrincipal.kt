@@ -15,13 +15,8 @@
 package org.wfanet.measurement.reporting.service.api.v1alpha
 
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
-import org.wfanet.measurement.common.api.ResourceKey
-
-interface Principal
-
-interface ResourcePrincipal : Principal {
-  val resourceKey: ResourceKey
-}
+import org.wfanet.measurement.common.api.Principal
+import org.wfanet.measurement.common.api.ResourcePrincipal
 
 /** Identifies the sender of an inbound gRPC request. */
 sealed interface ReportingPrincipal : Principal {
