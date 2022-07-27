@@ -66,7 +66,6 @@ import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
-import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.timeInterval as measurementTimeInterval
 import org.wfanet.measurement.api.withAuthenticationKey
@@ -275,17 +274,15 @@ class ReportsService(
   )
 
   override suspend fun createReport(request: CreateReportRequest): Report {
-    // TODO(@riemanli) Use the Principal from the reporting API.
-    val principal: Principal<*> = principalFromCurrentContext
-    val resourceKey = principal.resourceKey
+    val principal: ReportingPrincipal = principalFromCurrentContext
 
     grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
       "Parent is either unspecified or invalid."
     }
 
-    when (resourceKey) {
-      is MeasurementConsumerKey -> {
-        if (request.parent != resourceKey.toName()) {
+    when (principal) {
+      is MeasurementConsumerPrincipal -> {
+        if (request.parent != principal.resourceKey.toName()) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot create a Report for another MeasurementConsumer."
           }
@@ -295,6 +292,9 @@ class ReportsService(
         failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to create a Report." }
       }
     }
+
+    val resourceKey = principal.resourceKey
+
     grpcRequire(request.hasReport()) { "Report is not specified." }
 
     // TODO(@riemanli) Put the check here as the reportIdempotencyKey will be moved to the request

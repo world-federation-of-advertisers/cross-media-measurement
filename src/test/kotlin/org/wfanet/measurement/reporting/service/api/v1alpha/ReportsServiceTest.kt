@@ -1507,7 +1507,7 @@ class ReportsServiceTest {
   }
 
   @Test
-  fun `createReport throws PERMISSION_DENIED when the caller is not MeasurementConsumer`() {
+  fun `createReport throws UNAUTHENTICATED when the caller is not MeasurementConsumer`() {
     val request = createReportRequest {
       parent = MEASUREMENT_CONSUMER_NAMES[0]
       report = PENDING_REACH_REPORT.copy { clearState() }
@@ -1518,9 +1518,8 @@ class ReportsServiceTest {
           runBlocking { service.createReport(request) }
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-    assertThat(exception.status.description)
-      .isEqualTo("Caller does not have permission to create a Report.")
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(exception.status.description).isEqualTo("No ReportingPrincipal found")
   }
 
   @Test
