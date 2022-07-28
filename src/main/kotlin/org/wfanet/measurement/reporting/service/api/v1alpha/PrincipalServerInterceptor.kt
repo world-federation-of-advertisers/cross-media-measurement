@@ -29,6 +29,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.AuthorityKeyServerInterceptor
 import org.wfanet.measurement.common.identity.authorityKeyIdentifiersFromCurrentContext
+import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
 
 /**
  * Returns a [ReportingPrincipal] in the current gRPC context. Requires [PrincipalServerInterceptor]
@@ -53,10 +54,17 @@ fun <T> withPrincipal(principal: ReportingPrincipal, block: () -> T): T {
 }
 
 /** Executes [block] with a [MeasurementConsumerPrincipal] installed in a new [Context]. */
-fun <T> withMeasurementConsumerPrincipal(measurementConsumerName: String, block: () -> T): T {
+fun <T> withMeasurementConsumerPrincipal(
+  measurementConsumerName: String,
+  config: MeasurementConsumerConfig,
+  block: () -> T
+): T {
   return Context.current()
     .withPrincipal(
-      MeasurementConsumerPrincipal(MeasurementConsumerKey.fromName(measurementConsumerName)!!)
+      MeasurementConsumerPrincipal(
+        MeasurementConsumerKey.fromName(measurementConsumerName)!!,
+        config
+      )
     )
     .call(block)
 }
@@ -76,6 +84,10 @@ class PrincipalServerInterceptor(private val principalLookup: PrincipalLookup) :
 
   interface PrincipalLookup {
     fun get(authorityKeyIdentifier: ByteString): ReportingPrincipal?
+  }
+
+  interface ConfigLookup {
+    fun get(measurementConsumerName: String): MeasurementConsumerConfig?
   }
 
   override fun <ReqT, RespT> interceptCall(
