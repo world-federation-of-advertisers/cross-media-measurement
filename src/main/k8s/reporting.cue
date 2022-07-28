@@ -18,14 +18,11 @@ package k8s
 	_verboseGrpcServerLogging: bool | *false
 	_verboseGrpcClientLogging: bool | *false
 
-	_postgresConfig: #PostgresConfig & {
-    user: "$(POSTGRES_USER)"
-  }
+	_postgresConfig: #PostgresConfig
 
 	_images: [Name=_]:   string
 	_imagePullPolicy:    string
 	_secretName:         string
-	_dbSecretName:       string
   _mcConfigSecretName: string
 
 	_resourceConfigs: [Name=_]: #ResourceConfig
@@ -36,7 +33,7 @@ package k8s
   ]
 	_reportingCertCollectionFileFlag:   "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
 	_akidToPrincipalMapFileFlag:        "--authority-key-identifier-to-principal-map-file=/etc/\(#AppName)/config-files/authority_key_identifier_to_principal_map.textproto"
-	_measurementConsumerConfigFileFlag: "--measurement-consumer-config-file=$(MC_CONFIG_FILE)"
+	_measurementConsumerConfigFileFlag: "--measurement-consumer-config-file=/var/run/secrets/files/measurement_consumer_config.textproto"
 	_encryptionKeyPairDirFlag:          "--key-pair-dir=/var/run/secrets/files"
 	_encryptionKeyPairConfigFileFlag:   "--key-pair-config-file=/etc/\(#AppName)/config-files/encryption_key_pair_config.textproto"
 	_debugVerboseGrpcClientLoggingFlag: "--debug-verbose-grpc-client-logging=\(_verboseGrpcClientLogging)"
@@ -71,14 +68,6 @@ package k8s
 	}
 	deployments: {
 		"postgres-reporting-data-server": Deployment={
-		  _envVars: "POSTGRES_USER": {
-		    valueFrom:
-          secretKeyRef: {
-            name: _dbSecretName
-            key:  "username"
-          }
-		  }
-
 			_args: [
 				_reportingCertCollectionFileFlag,
 				_debugVerboseGrpcServerLoggingFlag,
@@ -96,17 +85,14 @@ package k8s
 		}
 
 		"v1alpha-public-api-server": {
+		  _secretMounts: [{
+    		name:       "mc-config"
+    		secretName: Reporting._mcConfigSecretName
+      }]
+
 			_configMapMounts: [{
 				name: "config-files"
 			}]
-
-			_envVars: "MC_CONFIG_FILE": {
-        valueFrom:
-          secretKeyRef: {
-            name: _mcConfigSecretName
-            key:  "config"
-          }
-      }
 
 			_args: [
 				_debugVerboseGrpcClientLoggingFlag,

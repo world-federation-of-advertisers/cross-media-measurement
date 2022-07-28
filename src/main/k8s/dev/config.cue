@@ -65,4 +65,6 @@ import "strings"
 
 #PostgresConfig: {
 	cloudSqlInstance:  #PostgresCloudSqlInstance
+	// Replace with actual user email
+	user:              "user@email.com"
 }
