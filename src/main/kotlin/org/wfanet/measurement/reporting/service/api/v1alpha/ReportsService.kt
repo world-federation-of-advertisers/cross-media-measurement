@@ -383,16 +383,17 @@ class ReportsService(
             namedSetOperation.uniqueName,
           )
 
-        namedSetOperationResults[setOperationId]?.let { setOperationResult ->
-          setOperationResult.weightedMeasurementInfoList.map { weightedMeasurementInfo ->
-            launch {
-              createMeasurement(
-                weightedMeasurementInfo,
-                reportInfo,
-                setOperationResult.internalMetricDetails,
-                measurementConsumer,
-              )
-            }
+        val setOperationResult: SetOperationResult =
+          namedSetOperationResults[setOperationId] ?: continue
+
+        setOperationResult.weightedMeasurementInfoList.forEach { weightedMeasurementInfo ->
+          launch {
+            createMeasurement(
+              weightedMeasurementInfo,
+              reportInfo,
+              setOperationResult.internalMetricDetails,
+              measurementConsumer,
+            )
           }
         }
       }
