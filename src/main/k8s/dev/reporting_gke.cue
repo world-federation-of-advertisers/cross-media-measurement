@@ -14,7 +14,9 @@
 
 package k8s
 
-_secret_name: string @tag("secret_name")
+_reportingSecretName:   string @tag("secret_name")
+_reportingDbSecretName: string @tag("db_secret_name")
+_reportingMcConfigSecretName: string @tag("mc_config_secret_name")
 
 #ReportingServerResourceConfig: #DefaultResourceConfig & {
 }
@@ -43,7 +45,10 @@ _imageConfigs: {
 }
 
 reporting: #Reporting & {
-	_secretName: _secret_name
+	_secretName:         _reportingSecretName
+	_dbSecretName:       _reportingDbSecretName
+	_mcConfigSecretName: _reportingMcConfigSecretName
+
 	_postgresConfig: database: "reporting"
 
 	_images: {
@@ -54,7 +59,7 @@ reporting: #Reporting & {
 
 	_resource_configs: {
 		"postgres-reporting-data-server": #ReportingServerResourceConfig
-		"v1alpha-public-api-server":             #ReportingServerResourceConfig
+		"v1alpha-public-api-server":      #ReportingServerResourceConfig
 	}
 	_imagePullPolicy: "Always"
 	_verboseGrpcServerLogging:  true

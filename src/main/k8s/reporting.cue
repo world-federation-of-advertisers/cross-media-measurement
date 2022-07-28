@@ -18,11 +18,15 @@ package k8s
 	_verboseGrpcServerLogging: bool | *false
 	_verboseGrpcClientLogging: bool | *false
 
-	_postgresConfig: #PostgresConfig
+	_postgresConfig: #PostgresConfig & {
+    user: "$(POSTGRES_USER)"
+  }
 
-	_images: [Name=_]: string
-	_imagePullPolicy:  string
-	_secretName:       string
+	_images: [Name=_]:   string
+	_imagePullPolicy:    string
+	_secretName:         string
+	_dbSecretName:       string
+  _mcConfigSecretName: string
 
 	_resourceConfigs: [Name=_]: #ResourceConfig
 
@@ -32,7 +36,7 @@ package k8s
   ]
 	_reportingCertCollectionFileFlag:   "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
 	_akidToPrincipalMapFileFlag:        "--authority-key-identifier-to-principal-map-file=/etc/\(#AppName)/config-files/authority_key_identifier_to_principal_map.textproto"
-	_measurementConsumerConfigFileFlag: "--measurement-consumer-config-file=/etc/\(#AppName)/config-files/measurement_consumer_config.textproto"
+	_measurementConsumerConfigFileFlag: "--measurement-consumer-config-file=$(MC_CONFIG_FILE)"
 	_encryptionKeyPairDirFlag:          "--key-pair-dir=/var/run/secrets/files"
 	_encryptionKeyPairConfigFileFlag:   "--key-pair-config-file=/etc/\(#AppName)/config-files/encryption_key_pair_config.textproto"
 	_debugVerboseGrpcClientLoggingFlag: "--debug-verbose-grpc-client-logging=\(_verboseGrpcClientLogging)"
@@ -67,26 +71,13 @@ package k8s
 	}
 	deployments: {
 		"postgres-reporting-data-server": Deployment={
-		  _envVars: [{
-		    name: "POSTGRES_USER"
+		  _envVars: "POSTGRES_USER": {
 		    valueFrom:
           secretKeyRef: {
-            name: Reporting._secretName
-            key:  "reporting_postgres_db_user.txt"
+            name: _dbSecretName
+            key:  "username"
           }
-		  }, {
-		    name: "POSTGRES_PASSWORD"
-		    valueFrom:
-          secretKeyRef: {
-            name: Reporting._secretName
-            key:  "reporting_postgres_db_password.txt"
-          }
-		  }]
-
-		  _postgresConfig: Reporting._postgresConfig & {
-        user:     "$(POSTGRES_USER)"
-        password: "$(POSTGRES_PASSWORD)"
-      }
+		  }
 
 			_args: [
 				_reportingCertCollectionFileFlag,
@@ -99,7 +90,7 @@ package k8s
 					image:           _images[InitContainer.name]
 					imagePullPolicy: Deployment._imagePullPolicy
 		  		args:            _postgresConfig.flags
-		  		env: Deployment._envVars
+		  		_envVars: Deployment._envVars
 				}
 			}
 		}
@@ -108,6 +99,15 @@ package k8s
 			_configMapMounts: [{
 				name: "config-files"
 			}]
+
+			_envVars: "MC_CONFIG_FILE": {
+        valueFrom:
+          secretKeyRef: {
+            name: _mcConfigSecretName
+            key:  "config"
+          }
+      }
+
 			_args: [
 				_debugVerboseGrpcClientLoggingFlag,
 				_debugVerboseGrpcServerLoggingFlag,

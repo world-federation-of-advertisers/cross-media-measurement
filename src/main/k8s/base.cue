@@ -161,9 +161,15 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
     }
 }
 
+#EnvVarMap: [Name=string]: #EnvVar & {
+    name: Name
+}
+
 #Container: {
 	_secretMounts: [...#SecretMount]
 	_configMapMounts: [...#ConfigMapMount]
+	_envVars: #EnvVarMap
+
 	name:   string
 	image?: string
 	args: [...string]
@@ -177,7 +183,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	}]
 	resources?:      #ResourceRequirements
 	readinessProbe?: #Probe
-	env: [...#EnvVar]
+	env: [ for _, envVar in _envVars {envVar}]
 	...
 }
 
@@ -186,7 +192,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_secretName: string
 	_image:      string
 	_args: [...string]
-	_envVars: [...#EnvVar]
+	_envVars: #EnvVarMap
 	_ports:           [{containerPort: #GrpcServicePort}] | *[]
 	_restartPolicy:   string | *"Always"
 	_imagePullPolicy: string | *"Never"
@@ -202,14 +208,12 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		_configMapMounts: Deployment._configMapMounts
 		_dependencies:    Deployment._dependencies
 
-    _tempEnvVars: [...#EnvVar]
+		_container: _envVars: Deployment._envVars
 		if _resourceConfig.jvmHeapSize != _|_ {
-			_tempEnvVars: [{
-			  name: "JAVA_TOOL_OPTIONS"
-			  value: "-Xms\(_resourceConfig.jvmHeapSize) -Xmx\(_resourceConfig.jvmHeapSize)"
-			}]
+			_container: _envVars: "JAVA_TOOL_OPTIONS": {
+				value: "-Xms\(_resourceConfig.jvmHeapSize) -Xmx\(_resourceConfig.jvmHeapSize)"
+			}
 		}
-		_container: env: _tempEnvVars + Deployment._envVars
 	}
 
 	apiVersion: "apps/v1"
@@ -282,10 +286,9 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		}
 		_dependencies: Job._dependencies
 		if _jvmHeapSize != _|_ {
-			_container: env: [{
-			  name: "JAVA_TOOL_OPTIONS"
-			  value: "-Xms\(_jvmHeapSize) -Xmx\(_jvmHeapSize)"
-			}]
+			_container: _envVars: "JAVA_TOOL_OPTIONS": {
+				value: "-Xms\(_jvmHeapSize) -Xmx\(_jvmHeapSize)"
+			}
 		}
 
 		restartPolicy: string | *"OnFailure"

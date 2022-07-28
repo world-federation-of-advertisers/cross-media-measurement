@@ -107,7 +107,7 @@ cue_dump(
     name = "postgres_database",
     srcs = ["postgres_database.cue"],
     cue_tags = {
-        "secret_name": TEST_K8S_SETTINGS.secret_name,
+        "db_secret_name": TEST_K8S_SETTINGS.db_secret_name,
     },
     tags = ["manual"],
     deps = [
@@ -120,6 +120,8 @@ cue_dump(
     srcs = ["reporting.cue"],
     cue_tags = {
         "secret_name": TEST_K8S_SETTINGS.secret_name,
+        "db_secret_name": TEST_K8S_SETTINGS.db_secret_name,
+        "mc_config_secret_name": TEST_K8S_SETTINGS.mc_config_secret_name,
     },
     tags = ["manual"],
     deps = [
