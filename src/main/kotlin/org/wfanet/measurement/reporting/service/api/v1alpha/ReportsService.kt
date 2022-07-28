@@ -21,8 +21,10 @@ import com.google.protobuf.util.Durations
 import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
+import java.nio.file.Paths
 import java.security.PrivateKey
 import java.security.SecureRandom
+import java.security.cert.X509Certificate
 import java.time.Instant
 import kotlin.math.min
 import kotlinx.coroutines.coroutineScope
@@ -74,11 +76,14 @@ import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.crypto.readCertificate
+import org.wfanet.measurement.common.crypto.readPrivateKey
+import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
@@ -249,7 +254,6 @@ class ReportsService(
   private val measurementsStub: MeasurementsCoroutineStub,
   private val certificateStub: CertificatesCoroutineStub,
   private val encryptionKeyPairStore: EncryptionKeyPairStore,
-  private val signingPrivateKey: PrivateKey,
   private val secureRandom: SecureRandom,
 ) : ReportsCoroutineImplBase() {
   private val setOperationCompiler = SetOperationCompiler()
@@ -331,12 +335,38 @@ class ReportsService(
         )
       }
 
+    val signingPrivateKeyDer: ByteString =
+      getRuntimePath(Paths.get(principal.config.signingPrivateKeyDir))!!
+        .toFile()
+        .resolve(principal.config.signingPrivateKeyFile)
+        .readByteString()
+
+    val signingCertificateDer: ByteString =
+      try {
+        certificateStub
+          .withAuthenticationKey(apiAuthenticationKey)
+          .getCertificate(getCertificateRequest { name = principal.config.signingCertificateName })
+          .x509Der
+      } catch (e: StatusException) {
+        throw Exception(
+          "Unable to retrieve the signing certificate for the measurement consumer " +
+            "[${principal.config.signingCertificateName}].",
+          e
+        )
+      }
+
+    val signingCertificate: X509Certificate = readCertificate(signingCertificateDer)
+    val signingPrivateKey: PrivateKey =
+      readPrivateKey(signingPrivateKeyDer, signingCertificate.publicKey.algorithm)
+
     createMeasurements(
       request,
       namedSetOperationResults,
       reportInfo,
       measurementConsumer,
-      apiAuthenticationKey
+      apiAuthenticationKey,
+      signingCertificateDer,
+      signingPrivateKey,
     )
 
     val internalCreateReportRequest: InternalCreateReportRequest =
@@ -378,6 +408,8 @@ class ReportsService(
     reportInfo: ReportInfo,
     measurementConsumer: MeasurementConsumer,
     apiAuthenticationKey: String,
+    signingCertificateDer: ByteString,
+    signingPrivateKey: PrivateKey,
   ) = coroutineScope {
     for (metric in request.report.metricsList) {
       val internalMetricDetails = buildInternalMetricDetails(metric)
@@ -401,6 +433,8 @@ class ReportsService(
               setOperationResult.internalMetricDetails,
               measurementConsumer,
               apiAuthenticationKey,
+              signingCertificateDer,
+              signingPrivateKey,
             )
           }
         }
@@ -415,6 +449,8 @@ class ReportsService(
     internalMetricDetails: InternalMetricDetails,
     measurementConsumer: MeasurementConsumer,
     apiAuthenticationKey: String,
+    signingCertificateDer: ByteString,
+    signingPrivateKey: PrivateKey,
   ) {
     val existingInternalMeasurement: InternalMeasurement? =
       getInternalMeasurement(
@@ -438,6 +474,8 @@ class ReportsService(
         internalMetricDetails,
         weightedMeasurementInfo.measurementReferenceId,
         apiAuthenticationKey,
+        signingCertificateDer,
+        signingPrivateKey,
       )
 
     try {
@@ -1070,6 +1108,8 @@ class ReportsService(
     internalMetricDetails: InternalMetricDetails,
     measurementReferenceId: String,
     apiAuthenticationKey: String,
+    signingCertificateDer: ByteString,
+    signingPrivateKey: PrivateKey,
   ): CreateMeasurementRequest {
     val measurementConsumerReferenceId =
       grpcRequireNotNull(MeasurementConsumerKey.fromName(measurementConsumer.name)) {
@@ -1077,7 +1117,7 @@ class ReportsService(
         }
         .measurementConsumerId
 
-    val measurementConsumerCertificate = readCertificate(measurementConsumer.certificateDer)
+    val measurementConsumerCertificate = readCertificate(signingCertificateDer)
     val measurementConsumerSigningKey =
       SigningKeyHandle(measurementConsumerCertificate, signingPrivateKey)
     val measurementEncryptionPublicKey = measurementConsumer.publicKey.data

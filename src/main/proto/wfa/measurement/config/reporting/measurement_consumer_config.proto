@@ -21,6 +21,12 @@ option java_multiple_files = true;
 
 message MeasurementConsumerConfig {
   string api_key = 1;
+  // Resource name of the `Certificate` from the CMMS public api.
+  string signing_certificate_name = 2;
+  // Directory where private key is located.
+  string signing_private_key_dir = 3;
+  // Filename of the private key.
+  string signing_private_key_file = 4;
   // Possibly other per-MC config fields here in the future, such as folding in
   // the key pair mapping.
 }
