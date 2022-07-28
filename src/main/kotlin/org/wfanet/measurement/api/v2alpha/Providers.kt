@@ -16,7 +16,6 @@ package org.wfanet.measurement.api.v2alpha
 
 import io.grpc.Status
 import org.wfanet.measurement.common.api.ResourceKey
-import org.wfanet.measurement.common.api.ResourcePrincipal
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -43,16 +42,13 @@ fun ResourceKey.toProvider(): Provider? {
 }
 
 fun getProviderFromContext(): Provider {
-  val principal = requireNotNull(principalFromCurrentContext as? ResourcePrincipal)
-  return requireNotNull(principal.resourceKey.toProvider())
+  return checkNotNull(principalFromCurrentContext.resourceKey.toProvider())
 }
 
 fun validateRequestProvider(requestParent: String): Provider {
   val contextProvider = getProviderFromContext()
-  val resourcePrincipal =
-    requireNotNull(MeasurementPrincipal.fromName(requestParent) as? ResourcePrincipal)
-  grpcRequire(contextProvider == resourcePrincipal.resourceKey.toProvider()) {
-    "Principal from authentication does not match request"
-  }
+  grpcRequire(
+    contextProvider == MeasurementPrincipal.fromName(requestParent)?.resourceKey?.toProvider()
+  ) { "Principal from authentication does not match request" }
   return contextProvider
 }
