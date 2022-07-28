@@ -45,8 +45,8 @@ val principalFromCurrentContext: ReportingPrincipal
 /**
  * Executes [block] with [principal] installed in a new [Context].
  *
- * The caller of [withPrincipal] is responsible for guaranteeing that [block] can act as
- * [ReportingPrincipal] -- in other words, [principal] is treated as already authenticated.
+ * The caller of [withPrincipal] is responsible for guaranteeing that [block] can act as [principal]
+ * -- in other words, [principal] is treated as already authenticated.
  */
 fun <T> withPrincipal(principal: ReportingPrincipal, block: () -> T): T {
   return Context.current().withPrincipal(principal).call(block)
