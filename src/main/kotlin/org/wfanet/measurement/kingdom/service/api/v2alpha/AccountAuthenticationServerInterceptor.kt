@@ -31,7 +31,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.wfanet.measurement.api.AccountConstants
 import org.wfanet.measurement.api.v2alpha.AccountKey
-import org.wfanet.measurement.api.v2alpha.Principal
+import org.wfanet.measurement.api.v2alpha.AccountPrincipal
 import org.wfanet.measurement.api.v2alpha.withPrincipal
 import org.wfanet.measurement.common.grpc.DeferredForwardingListener
 import org.wfanet.measurement.common.identity.externalIdToApiId
@@ -68,7 +68,7 @@ class AccountAuthenticationServerInterceptor(
           context =
             context
               .withPrincipal(
-                Principal.Account(AccountKey(externalIdToApiId(account.externalAccountId)))
+                AccountPrincipal(AccountKey(externalIdToApiId(account.externalAccountId)))
               )
               .withValue(AccountConstants.CONTEXT_ACCOUNT_KEY, account)
         } catch (e: Exception) {

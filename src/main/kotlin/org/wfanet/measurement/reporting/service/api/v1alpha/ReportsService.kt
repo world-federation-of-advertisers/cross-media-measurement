@@ -273,11 +273,10 @@ class ReportsService(
   )
 
   override suspend fun createReport(request: CreateReportRequest): Report {
-    val principal: ReportingPrincipal = principalFromCurrentContext
-
     grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
       "Parent is either unspecified or invalid."
     }
+    val principal: ReportingPrincipal = principalFromCurrentContext
 
     when (principal) {
       is MeasurementConsumerPrincipal -> {
@@ -286,9 +285,6 @@ class ReportsService(
             "Cannot create a Report for another MeasurementConsumer."
           }
         }
-      }
-      else -> {
-        failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to create a Report." }
       }
     }
 
