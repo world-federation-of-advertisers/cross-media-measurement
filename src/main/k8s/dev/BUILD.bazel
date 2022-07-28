@@ -166,7 +166,6 @@ cue_dump(
     srcs = ["reporting_gke.cue"],
     cue_tags = {
         "secret_name": REPORTING_K8S_SETTINGS.secret_name,
-        "db_secret_name": REPORTING_K8S_SETTINGS.db_secret_name,
         "mc_config_secret_name": REPORTING_K8S_SETTINGS.mc_config_secret_name,
     },
     tags = ["manual"],

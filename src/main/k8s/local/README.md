@@ -213,18 +213,19 @@ bazel run //src/main/k8s/local:mc_frontend_simulator_kind \
 ```
 
 ## Create Secret for Reporting Server Postgres Database
-Create a file with a password called `/tmp/db-pw` by using
-```shell
-echo -n *password* > /tmp/db-pw
-```
-then use it to create a secret.
+You can use `kubectl` to create the `db-auth` secret. To reduce the likelihood 
+of leaking your password, we read it in from STDIN.
+
+Tip: Ctrl+D is the usual key combination for closing the input stream.
+
+Assuming the database username is `db-user`, run:
 ```shell
 kubectl create secret generic db-auth --type='kubernetes.io/basic/auth' \
   --append-hash \
-  --from-file=password=/tmp/db-pw \
+  --from-file=password=/dev/stdin \
   --from-literal=username=db-user
 ```
-Get the secret name and use it for the reporting server.
+Record the secret name for later steps.
 
 ## Deploy Reporting Server Postgres Database
 This deploys the database for the Reporting Server.
@@ -261,7 +262,7 @@ kubectl create secret generic mc-config \
   --append-hash \
   --from-literal=config=/tmp/measurement_consumer_config.textproto
 ```
-Get the secret name and use it for the reporting server.
+Record the secret name for later steps.
 
 
 ## Deploy Reporting Server
