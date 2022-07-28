@@ -14,11 +14,10 @@
 
 package org.wfanet.measurement.api.v2alpha
 
-import org.wfanet.measurement.common.api.Principal
 import org.wfanet.measurement.common.api.ResourcePrincipal
 
 /** Identifies the sender of an inbound gRPC request. */
-sealed interface MeasurementPrincipal : Principal {
+sealed interface MeasurementPrincipal : ResourcePrincipal {
   companion object {
     fun fromName(name: String): MeasurementPrincipal? {
       return when (name.substringBefore('/')) {
@@ -36,17 +35,14 @@ sealed interface MeasurementPrincipal : Principal {
   }
 }
 
-data class DataProviderPrincipal(override val resourceKey: DataProviderKey) :
-  MeasurementPrincipal, ResourcePrincipal
+data class DataProviderPrincipal(override val resourceKey: DataProviderKey) : MeasurementPrincipal
 
 data class ModelProviderPrincipal(override val resourceKey: ModelProviderKey) :
-  MeasurementPrincipal, ResourcePrincipal
+  MeasurementPrincipal
 
 data class MeasurementConsumerPrincipal(override val resourceKey: MeasurementConsumerKey) :
-  MeasurementPrincipal, ResourcePrincipal
+  MeasurementPrincipal
 
-data class AccountPrincipal(override val resourceKey: AccountKey) :
-  MeasurementPrincipal, ResourcePrincipal
+data class AccountPrincipal(override val resourceKey: AccountKey) : MeasurementPrincipal
 
-data class DuchyPrincipal(override val resourceKey: DuchyKey) :
-  MeasurementPrincipal, ResourcePrincipal
+data class DuchyPrincipal(override val resourceKey: DuchyKey) : MeasurementPrincipal
