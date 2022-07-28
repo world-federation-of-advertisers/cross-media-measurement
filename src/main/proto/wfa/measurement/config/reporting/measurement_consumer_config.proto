@@ -26,5 +26,6 @@ message MeasurementConsumerConfig {
 }
 
 message MeasurementConsumerConfigs {
+  // Map key is `MeasurementConsumer` resource name from the CMMS public api.
   map<string, MeasurementConsumerConfig> configs = 1;
 }
