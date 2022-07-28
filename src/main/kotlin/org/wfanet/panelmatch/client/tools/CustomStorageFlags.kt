@@ -14,6 +14,7 @@
 
 package org.wfanet.panelmatch.client.tools
 
+import com.google.crypto.tink.integration.awskms.AwsKmsClient
 import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import java.io.File
 import java.util.Optional
@@ -72,6 +73,9 @@ class CustomStorageFlags {
     if (storageType == StorageDetails.PlatformCase.GCS) {
       // Register GcpKmsClient before setting storage folders.
       GcpKmsClient.register(Optional.of(tinkKeyUri), Optional.empty())
+    } else if (storageType == StorageDetails.PlatformCase.AWS) {
+      // Register AwsKmsClient before setting storage folders.
+      AwsKmsClient.register(Optional.of(tinkKeyUri), Optional.empty())
     }
     DaemonStorageClientDefaults(rootStorageClient, tinkKeyUri, TinkKeyStorageProvider())
   }
