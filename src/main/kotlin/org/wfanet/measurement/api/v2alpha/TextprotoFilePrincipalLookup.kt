@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.common.identity
+package org.wfanet.measurement.api.v2alpha
 
 import com.google.protobuf.ByteString
 import java.io.File
-import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.PrincipalServerInterceptor.PrincipalLookup
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.AuthorityKeyToPrincipalMap
