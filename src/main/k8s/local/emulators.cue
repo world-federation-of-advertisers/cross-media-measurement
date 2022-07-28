@@ -87,6 +87,13 @@ deployments: {
 			"--tls-key-file=/var/run/secrets/files/kingdom_tls.key",
 			"--cert-collection-file=/var/run/secrets/files/all_root_certs.pem",
 		]
-		_resourceConfig: #DefaultResourceConfig
+		_resourceConfig: #DefaultResourceConfig & {
+			resources: {
+				limits: {
+					cpu:    cpu | *"400m"
+					memory: "1Gi"
+				}
+			}
+		}
 	}
 }

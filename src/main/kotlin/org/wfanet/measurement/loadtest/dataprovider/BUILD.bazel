@@ -17,6 +17,7 @@ kt_jvm_library(
     name = "edp_simulator",
     srcs = [
         "BigQueryEventQuery.kt",
+        "CsvEventQuery.kt",
         "EdpSimulator.kt",
         "EdpSimulatorFlags.kt",
         "EdpSimulatorRunner.kt",
@@ -24,6 +25,7 @@ kt_jvm_library(
         "FilterEventQuery.kt",
         "RandomEventQuery.kt",
     ],
+    data = ["//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider/data:synthetic-labelled-events.csv"],
     deps = [
         "//imports/java/com/google:cel-generated-pb",
         "//imports/java/org/projectnessie/cel:core",
@@ -54,6 +56,7 @@ kt_jvm_library(
         "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
         "@any_sketch_java//src/main/java/org/wfanet/sampling:vid_sampler",
         "@wfa_common_jvm//imports/java/com/google/cloud/bigquery",
+        "@wfa_common_jvm//imports/java/com/opencsv",
         "@wfa_common_jvm//imports/java/org/apache/commons:math3",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",

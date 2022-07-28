@@ -17,6 +17,12 @@ package k8s
 _secret_name: string @tag("secret_name")
 
 #KingdomServerResourceConfig: #DefaultResourceConfig & {
+	resources: {
+		limits: {
+			cpu:    cpu | *"400m"
+			memory: "1Gi"
+		}
+	}
 }
 
 objectSets: [ for objectSet in kingdom {objectSet}]
