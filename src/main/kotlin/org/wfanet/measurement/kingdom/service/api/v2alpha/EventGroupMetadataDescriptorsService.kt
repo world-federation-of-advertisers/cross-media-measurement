@@ -21,11 +21,13 @@ import org.wfanet.measurement.api.v2alpha.BatchGetEventGroupMetadataDescriptorsR
 import org.wfanet.measurement.api.v2alpha.BatchGetEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.GetEventGroupMetadataDescriptorRequest
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
+import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.UpdateEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
@@ -57,17 +59,15 @@ class EventGroupMetadataDescriptorsService(
         "Resource name is either unspecified or invalid"
       }
 
-    val principal = principalFromCurrentContext
-
-    when (val resourceKey = principal.resourceKey) {
-      is DataProviderKey -> {
-        if (resourceKey.dataProviderId != key.dataProviderId) {
+    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
+      is DataProviderPrincipal -> {
+        if (principal.resourceKey.dataProviderId != key.dataProviderId) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot get EventGroupMetadataDescriptors belonging to other DataProviders"
           }
         }
       }
-      is MeasurementConsumerKey -> {}
+      is MeasurementConsumerPrincipal -> {}
       else -> {
         failGrpc(Status.PERMISSION_DENIED) {
           "Caller does not have permission to get EventGroupMetadataDescriptors"
@@ -93,11 +93,9 @@ class EventGroupMetadataDescriptorsService(
         "Parent is either unspecified or invalid"
       }
 
-    val principal = principalFromCurrentContext
-
-    when (val resourceKey = principal.resourceKey) {
-      is DataProviderKey -> {
-        if (resourceKey.toName() != request.parent) {
+    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
+      is DataProviderPrincipal -> {
+        if (principal.resourceKey.toName() != request.parent) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot create EventGroupMetadataDescriptors for another DataProvider"
           }
@@ -125,11 +123,11 @@ class EventGroupMetadataDescriptorsService(
         EventGroupMetadataDescriptorKey.fromName(request.eventGroupMetadataDescriptor.name)
       ) { "EventGroupMetadataDescriptor name is either unspecified or invalid" }
 
-    val principal = principalFromCurrentContext
-
-    when (val resourceKey = principal.resourceKey) {
-      is DataProviderKey -> {
-        if (resourceKey.dataProviderId != eventGroupMetadataDescriptorKey.dataProviderId) {
+    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
+      is DataProviderPrincipal -> {
+        if (
+          principal.resourceKey.dataProviderId != eventGroupMetadataDescriptorKey.dataProviderId
+        ) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot update EventGroupMetadataDescriptors for another DataProvider"
           }
@@ -163,17 +161,17 @@ class EventGroupMetadataDescriptorsService(
         "Parent is either unspecified or invalid"
       }
 
-    val principal = principalFromCurrentContext
+    val principal: MeasurementPrincipal = principalFromCurrentContext
 
-    when (val resourceKey = principal.resourceKey) {
-      is DataProviderKey -> {
-        if (resourceKey.dataProviderId != parentKey.dataProviderId) {
+    when (principal) {
+      is DataProviderPrincipal -> {
+        if (principal.resourceKey.dataProviderId != parentKey.dataProviderId) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot get EventGroupMetadataDescriptors belonging to other DataProviders"
           }
         }
       }
-      is MeasurementConsumerKey -> {}
+      is MeasurementConsumerPrincipal -> {}
       else -> {
         failGrpc(Status.PERMISSION_DENIED) {
           "Caller does not have permission to get EventGroupMetadataDescriptors"

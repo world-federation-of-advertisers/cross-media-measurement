@@ -25,7 +25,7 @@ import io.grpc.ServerInterceptors
 import io.grpc.ServerServiceDefinition
 import io.grpc.Status
 import org.wfanet.measurement.api.v2alpha.ContextKeys
-import org.wfanet.measurement.api.v2alpha.Principal
+import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.withPrincipal
 import org.wfanet.measurement.common.identity.withPrincipalName
@@ -35,7 +35,7 @@ private val PRINCIPAL_METADATA_KEY: Metadata.Key<String> =
   Metadata.Key.of(KEY_NAME, Metadata.ASCII_STRING_MARSHALLER)
 
 /**
- * Extracts a [Principal] from the gRPC [Metadata] and adds it to the gRPC [Context].
+ * Extracts a [MeasurementPrincipal] from the gRPC [Metadata] and adds it to the gRPC [Context].
  *
  * To install, wrap a service with:
  * ```
@@ -66,7 +66,7 @@ class MetadataPrincipalServerInterceptor : ServerInterceptor {
       )
       return object : ServerCall.Listener<ReqT>() {}
     }
-    val principal = Principal.fromName(principalName)
+    val principal = MeasurementPrincipal.fromName(principalName)
     if (principal == null) {
       call.close(Status.UNAUTHENTICATED.withDescription("No valid Principal found"), Metadata())
       return object : ServerCall.Listener<ReqT>() {}

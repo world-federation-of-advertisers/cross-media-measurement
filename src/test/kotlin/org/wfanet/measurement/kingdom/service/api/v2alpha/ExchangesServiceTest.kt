@@ -30,11 +30,11 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.Exchange
 import org.wfanet.measurement.api.v2alpha.ExchangeKey
 import org.wfanet.measurement.api.v2alpha.GetExchangeRequestKt
 import org.wfanet.measurement.api.v2alpha.ListExchangesRequest
-import org.wfanet.measurement.api.v2alpha.Principal
 import org.wfanet.measurement.api.v2alpha.exchange
 import org.wfanet.measurement.api.v2alpha.getExchangeRequest
 import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
@@ -101,7 +101,7 @@ class ExchangesServiceTest {
 
   @Test
   fun `getExchange for DataProvider`() = runBlocking {
-    val principal = Principal.DataProvider(DataProviderKey(externalIdToApiId(12345L)))
+    val principal = DataProviderPrincipal(DataProviderKey(externalIdToApiId(12345L)))
     val provider = provider {
       type = Provider.Type.DATA_PROVIDER
       externalId = 12345L
@@ -138,7 +138,7 @@ class ExchangesServiceTest {
 
   @Test
   fun `getExchange for DataProvider with wrong parent in Request`() {
-    val principal = Principal.DataProvider(DataProviderKey(externalIdToApiId(12345L)))
+    val principal = DataProviderPrincipal(DataProviderKey(externalIdToApiId(12345L)))
 
     withPrincipal(principal) { assertFails { getExchange { modelProvider = MODEL_PROVIDER } } }
   }

@@ -32,9 +32,9 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.stub
 import org.wfanet.measurement.api.v2alpha.AppendLogEntryRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttemptKey
-import org.wfanet.measurement.api.v2alpha.Principal
 import org.wfanet.measurement.api.v2alpha.finishExchangeStepAttemptRequest
 import org.wfanet.measurement.api.v2alpha.withPrincipal
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -196,7 +196,7 @@ class ExchangeStepAttemptsServiceTest {
     }
 
     val dataProviderKey = DataProviderKey(externalIdToApiId(12345))
-    val principal = Principal.DataProvider(dataProviderKey)
+    val principal = DataProviderPrincipal(dataProviderKey)
     val e =
       withPrincipal(principal) {
         assertFailsWith<StatusRuntimeException> {
@@ -212,7 +212,7 @@ class ExchangeStepAttemptsServiceTest {
   fun `finishExchangeStepAttempt unauthorized to write`() {
     val externalDataProviderId = 12345L
     val dataProviderKey = DataProviderKey(externalIdToApiId(externalDataProviderId))
-    val principal = Principal.DataProvider(dataProviderKey)
+    val principal = DataProviderPrincipal(dataProviderKey)
 
     val provider = provider {
       type = Provider.Type.DATA_PROVIDER
@@ -247,7 +247,7 @@ class ExchangeStepAttemptsServiceTest {
   fun finishExchangeStepAttempt() {
     val externalDataProviderId = 12345L
     val dataProviderKey = DataProviderKey(externalIdToApiId(externalDataProviderId))
-    val principal = Principal.DataProvider(dataProviderKey)
+    val principal = DataProviderPrincipal(dataProviderKey)
     val provider = provider {
       type = Provider.Type.DATA_PROVIDER
       externalId = externalDataProviderId

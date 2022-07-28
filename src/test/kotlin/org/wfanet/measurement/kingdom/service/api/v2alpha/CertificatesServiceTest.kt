@@ -32,13 +32,17 @@ import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyKey
+import org.wfanet.measurement.api.v2alpha.DuchyPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
+import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.ModelProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
-import org.wfanet.measurement.api.v2alpha.Principal
+import org.wfanet.measurement.api.v2alpha.ModelProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createCertificateRequest
@@ -129,7 +133,7 @@ class CertificatesServiceTest {
   }
 
   private fun assertGetCertificateRequestSucceeds(
-    caller: Principal<*>,
+    caller: MeasurementPrincipal,
     certificateName: String,
     expectedInternalRequest: InternalGetCertificateRequest,
   ) {
@@ -147,7 +151,7 @@ class CertificatesServiceTest {
 
   private fun assertCreateCertificateRequestSucceeds(
     mockedInternalResponse: InternalCertificate,
-    caller: Principal<*>,
+    caller: MeasurementPrincipal,
     parentName: String,
     certificate: Certificate,
     expectedInternalCertificate: InternalCertificate
@@ -171,7 +175,7 @@ class CertificatesServiceTest {
 
   private fun assertRevokeCertificateRequestSucceeds(
     mockedInternalResponse: InternalCertificate,
-    caller: Principal<*>,
+    caller: MeasurementPrincipal,
     certificateName: String,
     expectedInternalRequest: InternalRevokeCertificateRequest,
     expectedCertificate: Certificate
@@ -196,7 +200,7 @@ class CertificatesServiceTest {
 
   private fun assertReleaseCertificateHoldRequestSucceeds(
     mockedInternalResponse: InternalCertificate,
-    caller: Principal<*>,
+    caller: MeasurementPrincipal,
     certificateName: String,
     expectedInternalRequest: InternalReleaseCertificateHoldRequest,
     expectedCertificate: Certificate
@@ -223,7 +227,7 @@ class CertificatesServiceTest {
   @Test
   fun `getCertificate succeeds for EDP caller when getting EDP certificate`() {
     assertGetCertificateRequestSucceeds(
-      Principal.DataProvider(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!),
+      DataProviderPrincipal(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!),
       DATA_PROVIDER_CERTIFICATE_NAME,
       internalGetCertificateRequest {
         val key = DataProviderCertificateKey.fromName(DATA_PROVIDER_CERTIFICATE_NAME)!!
@@ -236,7 +240,7 @@ class CertificatesServiceTest {
   @Test
   fun `getCertificate succeeds for EDP caller when getting MC certificate`() {
     assertGetCertificateRequestSucceeds(
-      Principal.DataProvider(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!),
+      DataProviderPrincipal(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!),
       MEASUREMENT_CONSUMER_CERTIFICATE_NAME,
       internalGetCertificateRequest {
         val key =
@@ -250,7 +254,7 @@ class CertificatesServiceTest {
   @Test
   fun `getCertificate succeeds for EDP caller when getting Duchy certificate`() {
     assertGetCertificateRequestSucceeds(
-      Principal.DataProvider(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!),
+      DataProviderPrincipal(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!),
       DUCHY_CERTIFICATE_NAME,
       internalGetCertificateRequest {
         val key = DuchyCertificateKey.fromName(DUCHY_CERTIFICATE_NAME)!!
@@ -263,7 +267,7 @@ class CertificatesServiceTest {
   @Test
   fun `getCertificate succeeds for MC caller when getting MC certificate`() {
     assertGetCertificateRequestSucceeds(
-      Principal.MeasurementConsumer(MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!),
+      MeasurementConsumerPrincipal(MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!),
       MEASUREMENT_CONSUMER_CERTIFICATE_NAME,
       internalGetCertificateRequest {
         val key =
@@ -277,7 +281,7 @@ class CertificatesServiceTest {
   @Test
   fun `getCertificate succeeds for MC caller when getting EDP certificate`() {
     assertGetCertificateRequestSucceeds(
-      Principal.MeasurementConsumer(MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!),
+      MeasurementConsumerPrincipal(MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!),
       DATA_PROVIDER_CERTIFICATE_NAME,
       internalGetCertificateRequest {
         val key = DataProviderCertificateKey.fromName(DATA_PROVIDER_CERTIFICATE_NAME)!!
@@ -290,7 +294,7 @@ class CertificatesServiceTest {
   @Test
   fun `getCertificate succeeds for MC caller when getting Duchy certificate`() {
     assertGetCertificateRequestSucceeds(
-      Principal.MeasurementConsumer(MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!),
+      MeasurementConsumerPrincipal(MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!),
       DUCHY_CERTIFICATE_NAME,
       internalGetCertificateRequest {
         val key = DuchyCertificateKey.fromName(DUCHY_CERTIFICATE_NAME)!!
@@ -303,7 +307,7 @@ class CertificatesServiceTest {
   @Test
   fun `getCertificate succeeds for Duchy caller when getting Duchy certificate`() {
     assertGetCertificateRequestSucceeds(
-      Principal.Duchy(DuchyKey.fromName(DUCHY_NAME)!!),
+      DuchyPrincipal(DuchyKey.fromName(DUCHY_NAME)!!),
       DUCHY_CERTIFICATE_NAME,
       internalGetCertificateRequest {
         val key = DuchyCertificateKey.fromName(DUCHY_CERTIFICATE_NAME)!!
@@ -316,7 +320,7 @@ class CertificatesServiceTest {
   @Test
   fun `getCertificate succeeds for MP caller when getting MP certificate`() {
     assertGetCertificateRequestSucceeds(
-      Principal.ModelProvider(ModelProviderKey.fromName(MODEL_PROVIDER_NAME)!!),
+      ModelProviderPrincipal(ModelProviderKey.fromName(MODEL_PROVIDER_NAME)!!),
       MODEL_PROVIDER_CERTIFICATE_NAME,
       internalGetCertificateRequest {
         val key = ModelProviderCertificateKey.fromName(MODEL_PROVIDER_CERTIFICATE_NAME)!!
@@ -329,7 +333,7 @@ class CertificatesServiceTest {
   @Test
   fun `getCertificate succeeds for MP caller when getting Duchy certificate`() {
     assertGetCertificateRequestSucceeds(
-      Principal.ModelProvider(ModelProviderKey.fromName(MODEL_PROVIDER_NAME)!!),
+      ModelProviderPrincipal(ModelProviderKey.fromName(MODEL_PROVIDER_NAME)!!),
       DUCHY_CERTIFICATE_NAME,
       internalGetCertificateRequest {
         val key = DuchyCertificateKey.fromName(DUCHY_CERTIFICATE_NAME)!!
@@ -388,7 +392,7 @@ class CertificatesServiceTest {
   fun `createCertificate returns certificate when EDP caller is found`() {
     assertCreateCertificateRequestSucceeds(
       INTERNAL_CERTIFICATE,
-      Principal.DataProvider(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!),
+      DataProviderPrincipal(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!),
       DATA_PROVIDER_NAME,
       CERTIFICATE,
       INTERNAL_CERTIFICATE.copy { clearExternalCertificateId() }
@@ -407,7 +411,7 @@ class CertificatesServiceTest {
         this.externalMeasurementConsumerId = externalMeasurementConsumerId
         this.externalCertificateId = externalCertificateId
       },
-      Principal.MeasurementConsumer(MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!),
+      MeasurementConsumerPrincipal(MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!),
       MEASUREMENT_CONSUMER_NAME,
       CERTIFICATE.copy { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME },
       INTERNAL_CERTIFICATE.copy {
@@ -429,7 +433,7 @@ class CertificatesServiceTest {
         externalDuchyId = key.duchyId
         this.externalCertificateId = externalCertificateId
       },
-      Principal.Duchy(DuchyKey.fromName(DUCHY_NAME)!!),
+      DuchyPrincipal(DuchyKey.fromName(DUCHY_NAME)!!),
       DUCHY_NAME,
       CERTIFICATE.copy { name = DUCHY_CERTIFICATE_NAME },
       INTERNAL_CERTIFICATE.copy {
@@ -452,7 +456,7 @@ class CertificatesServiceTest {
         this.externalModelProviderId = externalModelProviderId
         this.externalCertificateId = externalCertificateId
       },
-      Principal.ModelProvider(ModelProviderKey.fromName(MODEL_PROVIDER_NAME)!!),
+      ModelProviderPrincipal(ModelProviderKey.fromName(MODEL_PROVIDER_NAME)!!),
       MODEL_PROVIDER_NAME,
       CERTIFICATE.copy { name = MODEL_PROVIDER_CERTIFICATE_NAME },
       INTERNAL_CERTIFICATE.copy {
@@ -631,7 +635,7 @@ class CertificatesServiceTest {
   fun `revokeCertificate returns certificate with RevocationState set when EDP caller`() {
     assertRevokeCertificateRequestSucceeds(
       INTERNAL_CERTIFICATE.copy { revocationState = InternalCertificate.RevocationState.REVOKED },
-      Principal.DataProvider(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!),
+      DataProviderPrincipal(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!),
       DATA_PROVIDER_CERTIFICATE_NAME,
       internalRevokeCertificateRequest {
         val key = DataProviderCertificateKey.fromName(CERTIFICATE.name)!!
@@ -656,7 +660,7 @@ class CertificatesServiceTest {
         this.externalMeasurementConsumerId = externalMeasurementConsumerId
         this.externalCertificateId = externalCertificateId
       },
-      Principal.MeasurementConsumer(MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!),
+      MeasurementConsumerPrincipal(MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!),
       MEASUREMENT_CONSUMER_CERTIFICATE_NAME,
       internalRevokeCertificateRequest {
         this.externalMeasurementConsumerId = externalMeasurementConsumerId
@@ -682,7 +686,7 @@ class CertificatesServiceTest {
         externalDuchyId = key.duchyId
         this.externalCertificateId = externalCertificateId
       },
-      Principal.Duchy(DuchyKey.fromName(DUCHY_NAME)!!),
+      DuchyPrincipal(DuchyKey.fromName(DUCHY_NAME)!!),
       DUCHY_CERTIFICATE_NAME,
       internalRevokeCertificateRequest {
         externalDuchyId = key.duchyId
@@ -709,7 +713,7 @@ class CertificatesServiceTest {
         this.externalModelProviderId = externalModelProviderId
         this.externalCertificateId = externalCertificateId
       },
-      Principal.ModelProvider(ModelProviderKey.fromName(MODEL_PROVIDER_NAME)!!),
+      ModelProviderPrincipal(ModelProviderKey.fromName(MODEL_PROVIDER_NAME)!!),
       MODEL_PROVIDER_CERTIFICATE_NAME,
       internalRevokeCertificateRequest {
         this.externalModelProviderId = externalModelProviderId
@@ -891,7 +895,7 @@ class CertificatesServiceTest {
   fun `releaseCertificateHold returns EDP certificate when EDP caller`() {
     assertReleaseCertificateHoldRequestSucceeds(
       INTERNAL_CERTIFICATE,
-      Principal.DataProvider(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!),
+      DataProviderPrincipal(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!),
       DATA_PROVIDER_CERTIFICATE_NAME,
       internalReleaseCertificateHoldRequest {
         val key = DataProviderCertificateKey.fromName(CERTIFICATE.name)!!
@@ -914,7 +918,7 @@ class CertificatesServiceTest {
         this.externalMeasurementConsumerId = externalMeasurementConsumerId
         this.externalCertificateId = externalCertificateId
       },
-      Principal.MeasurementConsumer(MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!),
+      MeasurementConsumerPrincipal(MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!),
       MEASUREMENT_CONSUMER_CERTIFICATE_NAME,
       internalReleaseCertificateHoldRequest {
         this.externalMeasurementConsumerId = externalMeasurementConsumerId
@@ -936,7 +940,7 @@ class CertificatesServiceTest {
         this.externalModelProviderId = externalModelProviderId
         this.externalCertificateId = externalCertificateId
       },
-      Principal.ModelProvider(ModelProviderKey.fromName(MODEL_PROVIDER_NAME)!!),
+      ModelProviderPrincipal(ModelProviderKey.fromName(MODEL_PROVIDER_NAME)!!),
       MODEL_PROVIDER_CERTIFICATE_NAME,
       internalReleaseCertificateHoldRequest {
         this.externalModelProviderId = externalModelProviderId
@@ -957,7 +961,7 @@ class CertificatesServiceTest {
         externalDuchyId = key.duchyId
         this.externalCertificateId = externalCertificateId
       },
-      Principal.Duchy(DuchyKey.fromName(DUCHY_NAME)!!),
+      DuchyPrincipal(DuchyKey.fromName(DUCHY_NAME)!!),
       DUCHY_CERTIFICATE_NAME,
       internalReleaseCertificateHoldRequest {
         externalDuchyId = key.duchyId

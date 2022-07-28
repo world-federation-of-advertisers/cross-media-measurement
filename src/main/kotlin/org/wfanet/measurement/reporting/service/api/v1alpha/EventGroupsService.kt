@@ -46,8 +46,13 @@ class EventGroupsService(
   private val encryptionKeyPairStore: EncryptionKeyPairStore
 ) : EventGroupsCoroutineImplBase() {
   override suspend fun listEventGroups(request: ListEventGroupsRequest): ListEventGroupsResponse {
-    val principal: MeasurementConsumerPrincipal =
-      principalFromCurrentContext as MeasurementConsumerPrincipal
+    val principal: ReportingPrincipal = principalFromCurrentContext
+
+    if (principal !is MeasurementConsumerPrincipal) {
+      failGrpc(Status.PERMISSION_DENIED) {
+        "Cannot list event groups with entities other than measurement consumer."
+      }
+    }
 
     val cmmsListEventGroupResponse =
       cmmsEventGroupsStub.listEventGroups(

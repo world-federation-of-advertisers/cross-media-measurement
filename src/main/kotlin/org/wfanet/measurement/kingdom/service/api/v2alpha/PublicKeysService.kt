@@ -17,11 +17,12 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import io.grpc.Status
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.DataProviderPublicKeyKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPublicKeyKey
+import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.PublicKey
 import org.wfanet.measurement.api.v2alpha.PublicKeysGrpcKt.PublicKeysCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.UpdatePublicKeyRequest
@@ -38,7 +39,7 @@ class PublicKeysService(private val internalPublicKeysStub: PublicKeysCoroutineS
   PublicKeysCoroutineImplBase() {
 
   override suspend fun updatePublicKey(request: UpdatePublicKeyRequest): PublicKey {
-    val principal = principalFromCurrentContext
+    val principal: MeasurementPrincipal = principalFromCurrentContext
 
     val publicKeyKey =
       grpcRequireNotNull(createPublicKeyResourceKey(request.publicKey.name)) {
@@ -50,12 +51,12 @@ class PublicKeysService(private val internalPublicKeysStub: PublicKeysCoroutineS
         "Certificate name is either unspecified or invalid"
       }
 
-    when (val resourceKey = principal.resourceKey) {
-      is DataProviderKey -> {
+    when (principal) {
+      is DataProviderPrincipal -> {
         when (publicKeyKey) {
           is DataProviderPublicKeyKey -> {
             if (
-              apiIdToExternalId(resourceKey.dataProviderId) !=
+              apiIdToExternalId(principal.resourceKey.dataProviderId) !=
                 apiIdToExternalId(publicKeyKey.dataProviderId)
             ) {
               failGrpc(Status.PERMISSION_DENIED) {
@@ -68,11 +69,11 @@ class PublicKeysService(private val internalPublicKeysStub: PublicKeysCoroutineS
           }
         }
       }
-      is MeasurementConsumerKey -> {
+      is MeasurementConsumerPrincipal -> {
         when (publicKeyKey) {
           is MeasurementConsumerPublicKeyKey -> {
             if (
-              apiIdToExternalId(resourceKey.measurementConsumerId) !=
+              apiIdToExternalId(principal.resourceKey.measurementConsumerId) !=
                 apiIdToExternalId(publicKeyKey.measurementConsumerId)
             ) {
               failGrpc(Status.PERMISSION_DENIED) {

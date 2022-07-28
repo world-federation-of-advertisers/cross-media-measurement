@@ -43,10 +43,10 @@ val principalFromCurrentContext: ReportingPrincipal
       ?: failGrpc(Status.UNAUTHENTICATED) { "No ReportingPrincipal found" }
 
 /**
- * Executes [block] with [ReportingPrincipal] installed in a new [Context].
+ * Executes [block] with [principal] installed in a new [Context].
  *
  * The caller of [withPrincipal] is responsible for guaranteeing that [block] can act as
- * [ReportingPrincipal] -- in other words, [ReportingPrincipal] is treated as already authenticated.
+ * [ReportingPrincipal] -- in other words, [principal] is treated as already authenticated.
  */
 fun <T> withPrincipal(principal: ReportingPrincipal, block: () -> T): T {
   return Context.current().withPrincipal(principal).call(block)

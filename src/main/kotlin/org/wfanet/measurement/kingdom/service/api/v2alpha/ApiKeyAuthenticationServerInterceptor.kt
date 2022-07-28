@@ -30,7 +30,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.wfanet.measurement.api.ApiKeyConstants
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
-import org.wfanet.measurement.api.v2alpha.Principal
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.withPrincipal
 import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.grpc.DeferredForwardingListener
@@ -63,7 +63,7 @@ class ApiKeyAuthenticationServerInterceptor(
         val measurementConsumer = authenticateAuthenticationKey(authenticationKey)
         context =
           context.withPrincipal(
-            Principal.MeasurementConsumer(
+            MeasurementConsumerPrincipal(
               MeasurementConsumerKey(
                 externalIdToApiId(measurementConsumer.externalMeasurementConsumerId)
               )
