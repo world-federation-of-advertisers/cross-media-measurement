@@ -92,6 +92,8 @@ fun Context.withPrincipal(principal: MeasurementPrincipal): Context {
  * this derives the [MeasurementPrincipal] from an X509 cert's authority key identifier. A
  * [MeasurementPrincipal] derived from the authority key identifier is one of [DataProvider],
  * [ModelProvider], or [Duchy].
+ *
+ * TODO: Extract a base class as there's common code between this and the reporting version.
  */
 class PrincipalServerInterceptor(private val principalLookup: PrincipalLookup) : ServerInterceptor {
 
