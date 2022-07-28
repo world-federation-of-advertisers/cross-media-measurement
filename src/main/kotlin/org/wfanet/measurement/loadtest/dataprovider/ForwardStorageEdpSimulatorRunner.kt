@@ -46,13 +46,15 @@ class ForwardStorageEdpSimulatorRunner : EdpSimulatorRunner() {
     private set
 
   override fun run() {
-    val randomEventQuery =
-      RandomEventQuery(
-        SketchGenerationParams(reach = edpSketchReach, universeSize = edpUniverseSize)
-      )
+    // val randomEventQuery =
+    //   RandomEventQuery(
+    //     SketchGenerationParams(reach = edpSketchReach, universeSize = edpUniverseSize)
+    //   )
+    val csvEventQuery = CsvEventQuery()
+
     run(
       ForwardedStorageFromFlags(forwardedStorageFlags, flags.tlsFlags).storageClient,
-      randomEventQuery
+      csvEventQuery
     )
   }
 }
