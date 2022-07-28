@@ -45,8 +45,8 @@ val principalFromCurrentContext: MeasurementPrincipal
 /**
  * Executes [block] with [principal] installed in a new [Context].
  *
- * The caller of [withPrincipal] is responsible for guaranteeing that [block] can act as
- * [MeasurementPrincipal] -- in other words, [principal] is treated as already authenticated.
+ * The caller of [withPrincipal] is responsible for guaranteeing that [block] can act as [principal]
+ * -- in other words, [principal] is treated as already authenticated.
  */
 fun <T> withPrincipal(principal: MeasurementPrincipal, block: () -> T): T {
   return Context.current().withPrincipal(principal).call(block)
