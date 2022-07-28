@@ -14,7 +14,7 @@
 
 package k8s
 
-_secretName: string @tag("secret_name")
+_dbSecretName: string @tag("db_secret_name")
 
 objectSets: [
   services,
@@ -63,15 +63,15 @@ pods: {
         name: "POSTGRES_USER"
         valueFrom:
           secretKeyRef: {
-            name: _secretName
-            key:  "reporting_postgres_db_user.txt"
+            name: _dbSecretName
+            key:  "username"
           }
       }, {
         name: "POSTGRES_PASSWORD"
         valueFrom:
           secretKeyRef: {
-            name: _secretName
-            key:  "reporting_postgres_db_password.txt"
+            name: _dbSecretName
+            key:  "password"
           }
       }]
 		}]

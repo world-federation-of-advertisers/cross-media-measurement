@@ -18,29 +18,31 @@ package k8s
   _flags: [_=string]: string
 
   user: string
-  password: string
   database?: string
   flags: [ for name, value in _flags {"\(name)=\(value)"}]
 
   _flags: {
       "--postgres-user": user
-      "--postgres-password": password
       if database != _|_ {"--postgres-database": database}
   }
 }
 
 #PostgresConfig: {
-  host: string
-  port: uint32 | string
+  host:     string
+  port:     uint32 | string
+  password: string
 
   _flags: {
       "--postgres-host": host
-      "--postgres-port": port
+      "--postgres-port": "\(port)"
+      "--postgres-password": password
   }
 } | {
   cloudSqlInstance: string
 
+  // TODO(@tristanvuong2021): remove requirement for password flag
   _flags: {
     "--postgres-cloud-sql-instance": cloudSqlInstance
+    "--postgres-password": "password"
   }
 }
