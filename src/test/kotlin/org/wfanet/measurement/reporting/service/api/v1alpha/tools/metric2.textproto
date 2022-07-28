@@ -3,7 +3,7 @@
 reach { }
 cumulative: true
 set_operations {
-  display_name: "operation1"
+  unique_name: "operation1"
   set_operation {
     type: 1
     lhs {
@@ -15,7 +15,7 @@ set_operations {
   }
 }
 set_operations {
-  display_name: "operation2"
+  unique_name: "operation2"
   set_operation {
     type: 2
     lhs {
