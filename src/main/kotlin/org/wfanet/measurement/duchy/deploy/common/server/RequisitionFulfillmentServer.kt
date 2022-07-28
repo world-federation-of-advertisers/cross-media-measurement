@@ -19,7 +19,7 @@ import org.wfanet.measurement.api.v2alpha.withPrincipalsFromX509AuthorityKeyIden
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
-import org.wfanet.measurement.common.identity.TextprotoFilePrincipalLookup
+import org.wfanet.measurement.api.v2alpha.TextprotoFilePrincipalLookup
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.deploy.common.ComputationsServiceFlags
