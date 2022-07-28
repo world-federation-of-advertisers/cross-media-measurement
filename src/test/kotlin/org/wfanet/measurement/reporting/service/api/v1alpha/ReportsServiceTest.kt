@@ -1310,6 +1310,7 @@ class ReportsServiceTest {
         CertificatesCoroutineStub(grpcTestServerRule.channel),
         ENCRYPTION_KEY_PAIR_STORE,
         MEASUREMENT_CONSUMER_SIGNING_PRIVATE_KEY,
+        MEASUREMENT_CONSUMER_CERTIFICATE,
         API_AUTHENTICATION_KEY,
         secureRandomMock
       )

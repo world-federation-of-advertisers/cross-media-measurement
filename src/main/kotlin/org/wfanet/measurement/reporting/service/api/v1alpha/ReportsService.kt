@@ -23,6 +23,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import java.security.PrivateKey
 import java.security.SecureRandom
+import java.security.cert.X509Certificate
 import java.time.Instant
 import kotlin.math.min
 import kotlinx.coroutines.coroutineScope
@@ -252,6 +253,7 @@ class ReportsService(
   private val certificateStub: CertificatesCoroutineStub,
   private val encryptionKeyPairStore: EncryptionKeyPairStore,
   private val signingPrivateKey: PrivateKey,
+  private val signingCertificate: X509Certificate,
   private val apiAuthenticationKey: String,
   private val secureRandom: SecureRandom,
 ) : ReportsCoroutineImplBase() {
@@ -1062,9 +1064,7 @@ class ReportsService(
         }
         .measurementConsumerId
 
-    val measurementConsumerCertificate = readCertificate(measurementConsumer.certificateDer)
-    val measurementConsumerSigningKey =
-      SigningKeyHandle(measurementConsumerCertificate, signingPrivateKey)
+    val measurementConsumerSigningKey = SigningKeyHandle(signingCertificate, signingPrivateKey)
     val measurementEncryptionPublicKey = measurementConsumer.publicKey.data
 
     val measurementResourceName =
