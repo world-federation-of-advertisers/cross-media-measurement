@@ -129,29 +129,8 @@ to the ConfigMap.
 ```shell
 kubectl create configmap config-files --output=yaml --dry-run=client \
   --from-file=authority_key_identifier_to_principal_map.textproto \
-  --from_file=measurement_consumer_config.textproto \
   --from_file=encryption_key_pair_config.textproto \
   | kubectl replace -f -
-```
-
-Create the file `measurement_consumer_config.textproto` with the
-content below, substituting the appropriate resource name and API key.
-
-```prototext
-# proto-file: src/main/proto/wfa/measurement/config/reporting/measurement_consumer_config.proto
-# proto-message: MeasurementConsumerConfigs
-configs {
-  key: "measurementConsumers/OljiQHRz-E4"
-  value: {
-    api_key: "OljiQHRz-E4"
-  }
-}
-configs {
-  key: "measurementConsumers/OljiQHRz-E4"
-  value: {
-    api_key: "OljiQHRz-E4"
-  }
-}
 ```
 
 Create the file `encryption_key_pair_config.textproto` with the
@@ -233,16 +212,60 @@ bazel run //src/main/k8s/local:mc_frontend_simulator_kind \
   --define=mc_api_key=He941S1h2XI
 ```
 
+## Create Secret for Reporting Server Postgres Database
+Create a file with a password called `/tmp/db-pw`
+then use it to create a secret.
+```shell
+kubectl create secret generic db-auth --type='kubernetes.io/basic/auth' \
+  --append-hash \
+  --from-file=password=/tmp/db-pw \
+  --from-literal=username=db-user
+```
+Get the secret name and use it for the reporting server.
+
 ## Deploy Reporting Server Postgres Database
 This deploys the database for the Reporting Server.
 ```shell
 bazel run //src/main/k8s/local:reporting_database_kind \
-  --define=k8s_secret_name=certs-and-configs-k8888kc6gg
+  --define=k8s_secret_name=certs-and-configs-k8888kc6gg \
+  --define=k8s_db_secret_name=db-auth-b286t5fcmt
 ```
+
+## Create Secret for Reporting API Server
+Create the file `/tmp/measurement_consumer_config.textproto` with the
+content below, substituting the appropriate resource name and API key.
+
+```prototext
+# proto-file: src/main/proto/wfa/measurement/config/reporting/measurement_consumer_config.proto
+# proto-message: MeasurementConsumerConfigs
+configs {
+  key: "measurementConsumers/OljiQHRz-E4"
+  value: {
+    api_key: "OljiQHRz-E4"
+  }
+}
+configs {
+  key: "measurementConsumers/OljiQHRz-E4"
+  value: {
+    api_key: "OljiQHRz-E4"
+  }
+}
+```
+
+then use it to create a secret.
+```shell
+kubectl create secret generic mc-config \
+  --append-hash \
+  --from-literal=config=/tmp/measurement_consumer_config.textproto
+```
+Get the secret name and use it for the reporting server.
+
 
 ## Deploy Reporting Server
 This deploys the API server.
 ```shell
 bazel run //src/main/k8s/local:reporting_kind \
-  --define=k8s_secret_name=certs-and-configs-k8888kc6gg
+  --define=k8s_secret_name=certs-and-configs-k8888kc6gg \
+  --define=k8s_db_secret_name=db-auth-b286t5fcmt \
+  --define=k8s_mc_config_secret_name=mc-config-975k88gktk
 ```

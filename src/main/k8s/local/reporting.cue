@@ -14,7 +14,9 @@
 
 package k8s
 
-_reportingSecretName: string @tag("secret_name")
+_reportingSecretName:         string @tag("secret_name")
+_reportingDbSecretName:       string @tag("db_secret_name")
+_reportingMcConfigSecretName: string @tag("mc_config_secret_name")
 
 #ReportingServerResourceConfig: #DefaultResourceConfig & {
 }
@@ -22,10 +24,14 @@ _reportingSecretName: string @tag("secret_name")
 objectSets: [ for objectSet in reporting {objectSet}]
 
 reporting: #Reporting & {
-	_secretName: _reportingSecretName
+	_secretName:         _reportingSecretName
+	_dbSecretName:       _reportingDbSecretName
+	_mcConfigSecretName: _reportingMcConfigSecretName
+
 	_postgresConfig: {
-	  host: (#Target & {name: "postgres"}).host,
-	  port: (#Target & {name: "postgres"}).port,
+	  host:     (#Target & {name: "postgres"}).host,
+	  port:     (#Target & {name: "postgres"}).port,
+	  password: "$(POSTGRES_PASSWORD)"
 	}
 	_images: {
 		"update-reporting-schema":         "bazel/src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/tools:update_schema_image"
@@ -39,4 +45,16 @@ reporting: #Reporting & {
 	_imagePullPolicy: "Never"
 	_verboseGrpcServerLogging:  true
 	_verboseGrpcClientLogging:  true
+
+	deployments: {
+    "postgres-reporting-data-server": {
+      _envVars: "POSTGRES_PASSWORD": {
+        valueFrom:
+          secretKeyRef: {
+            name: _reportingDbSecretName
+            key:  "password"
+          }
+      }
+    }
+  }
 }
