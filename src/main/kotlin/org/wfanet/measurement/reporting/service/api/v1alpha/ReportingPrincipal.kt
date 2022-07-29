@@ -27,7 +27,6 @@ sealed interface ReportingPrincipal : Principal {
     fun fromConfigs(name: String, config: MeasurementConsumerConfig): ReportingPrincipal? {
       return when (name.substringBefore('/')) {
         MeasurementConsumerKey.COLLECTION_NAME -> {
-          require(config.apiKey.isNotBlank())
           MeasurementConsumerKey.fromName(name)?.let { MeasurementConsumerPrincipal(it, config) }
         }
         else -> null

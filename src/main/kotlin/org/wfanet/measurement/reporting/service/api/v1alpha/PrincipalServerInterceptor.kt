@@ -102,21 +102,36 @@ class PrincipalServerInterceptor(private val principalLookup: PrincipalLookup) :
     val authorityKeyIdentifiers: List<ByteString> = authorityKeyIdentifiersFromCurrentContext
     val principals = authorityKeyIdentifiers.map(principalLookup::get)
     return when (principals.size) {
-      0 -> unauthenticatedError(call, "No principal found")
+      0 -> error(call, "No principal found", Status.UNAUTHENTICATED)
       1 -> {
-        val context =
-          Context.current().withValue(ContextKeys.PRINCIPAL_CONTEXT_KEY, principals.single())
+        val principal = principals.single()
+        if (principal != null) {
+          if (
+            principal.config.apiKey.isBlank() ||
+              principal.config.signingCertificateName.isBlank() ||
+              principal.config.signingPrivateKeyDir.isBlank() ||
+              principal.config.signingPrivateKeyFile.isBlank()
+          ) {
+            return error(
+              call,
+              "Missing configuration fields for principal",
+              Status.FAILED_PRECONDITION
+            )
+          }
+        }
+        val context = Context.current().withValue(ContextKeys.PRINCIPAL_CONTEXT_KEY, principal)
         Contexts.interceptCall(context, call, headers, next)
       }
-      else -> unauthenticatedError(call, "More than one principal found")
+      else -> error(call, "More than one principal found", Status.UNAUTHENTICATED)
     }
   }
 
-  private fun <ReqT> unauthenticatedError(
+  private fun <ReqT> error(
     call: ServerCall<*, *>,
-    message: String
+    message: String,
+    status: Status,
   ): ServerCall.Listener<ReqT> {
-    call.close(Status.UNAUTHENTICATED.withDescription(message), Metadata())
+    call.close(status.withDescription(message), Metadata())
     return object : ServerCall.Listener<ReqT>() {}
   }
 }
