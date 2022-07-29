@@ -21,7 +21,7 @@ import com.google.protobuf.util.Durations
 import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
-import java.nio.file.Paths
+import java.io.File
 import java.security.PrivateKey
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
@@ -77,7 +77,6 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
-import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -255,6 +254,7 @@ class ReportsService(
   private val certificateStub: CertificatesCoroutineStub,
   private val encryptionKeyPairStore: EncryptionKeyPairStore,
   private val secureRandom: SecureRandom,
+  private val signingPrivateKeyDir: File,
 ) : ReportsCoroutineImplBase() {
   private val setOperationCompiler = SetOperationCompiler()
 
@@ -336,10 +336,7 @@ class ReportsService(
       }
 
     val signingPrivateKeyDer: ByteString =
-      getRuntimePath(Paths.get(principal.config.signingPrivateKeyDir))!!
-        .toFile()
-        .resolve(principal.config.signingPrivateKeyFile)
-        .readByteString()
+      signingPrivateKeyDir.resolve(principal.config.signingPrivateKeyPath).readByteString()
 
     val signingCertificateDer: ByteString =
       try {

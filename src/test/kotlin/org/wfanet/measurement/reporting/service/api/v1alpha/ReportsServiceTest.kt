@@ -330,8 +330,7 @@ private val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
 private val CONFIG = measurementConsumerConfig {
   apiKey = API_AUTHENTICATION_KEY
   signingCertificateName = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
-  signingPrivateKeyDir = "wfa_measurement_system/src/main/k8s/testing/secretfiles"
-  signingPrivateKeyFile = "mc_cs_private.der"
+  signingPrivateKeyPath = "mc_cs_private.der"
 }
 
 // Measurement consumers
@@ -1326,7 +1325,8 @@ class ReportsServiceTest {
         MeasurementsCoroutineStub(grpcTestServerRule.channel),
         CertificatesCoroutineStub(grpcTestServerRule.channel),
         ENCRYPTION_KEY_PAIR_STORE,
-        secureRandomMock
+        secureRandomMock,
+        SECRETS_DIR
       )
   }
 
