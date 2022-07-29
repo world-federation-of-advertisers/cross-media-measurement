@@ -13,7 +13,7 @@ kt_jvm_library(
         "DuchyInfo.kt",
     ],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/api:principal_constants",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:context_keys",
         "//src/main/proto/wfa/measurement/config:duchy_cert_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/io/grpc/stub",
@@ -32,20 +32,5 @@ kt_jvm_library(
     deps = [
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/io/grpc/stub",
-    ],
-)
-
-kt_jvm_library(
-    name = "textproto_file_principal_lookup",
-    srcs = [
-        "TextprotoFilePrincipalLookup.kt",
-    ],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:principal",
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:principal_server_interceptor",
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
-        "//src/main/proto/wfa/measurement/config:authority_key_to_principal_map_kt_jvm_proto",
-        "@wfa_common_jvm//imports/java/com/google/protobuf",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )

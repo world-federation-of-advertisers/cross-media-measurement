@@ -1,4 +1,4 @@
-// Copyright 2021 The Cross-Media Measurement Authors
+// Copyright 2022 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.api.v2alpha
+package org.wfanet.measurement.reporting.service.api.v1alpha
 
 import com.google.protobuf.ByteString
 import io.grpc.BindableService
@@ -25,22 +25,23 @@ import io.grpc.ServerInterceptor
 import io.grpc.ServerInterceptors
 import io.grpc.ServerServiceDefinition
 import io.grpc.Status
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.AuthorityKeyServerInterceptor
-import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.authorityKeyIdentifiersFromCurrentContext
+import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
 
 /**
- * Returns a [MeasurementPrincipal] in the current gRPC context. Requires
- * [PrincipalServerInterceptor] to be installed.
+ * Returns a [ReportingPrincipal] in the current gRPC context. Requires [PrincipalServerInterceptor]
+ * to be installed.
  *
- * Callers can trust that the [MeasurementPrincipal] is authenticated (but not necessarily
+ * Callers can trust that the [ReportingPrincipal] is authenticated (but not necessarily
  * authorized).
  */
-val principalFromCurrentContext: MeasurementPrincipal
+val principalFromCurrentContext: ReportingPrincipal
   get() =
     ContextKeys.PRINCIPAL_CONTEXT_KEY.get()
-      ?: failGrpc(Status.UNAUTHENTICATED) { "No MeasurementPrincipal found" }
+      ?: failGrpc(Status.UNAUTHENTICATED) { "No ReportingPrincipal found" }
 
 /**
  * Executes [block] with [principal] installed in a new [Context].
@@ -48,57 +49,45 @@ val principalFromCurrentContext: MeasurementPrincipal
  * The caller of [withPrincipal] is responsible for guaranteeing that [block] can act as [principal]
  * -- in other words, [principal] is treated as already authenticated.
  */
-fun <T> withPrincipal(principal: MeasurementPrincipal, block: () -> T): T {
+fun <T> withPrincipal(principal: ReportingPrincipal, block: () -> T): T {
   return Context.current().withPrincipal(principal).call(block)
 }
 
-/** Executes [block] with a [DataProviderPrincipal] installed in a new [Context]. */
-fun <T> withDataProviderPrincipal(dataProviderName: String, block: () -> T): T {
-  return Context.current()
-    .withPrincipal(DataProviderPrincipal(DataProviderKey.fromName(dataProviderName)!!))
-    .call(block)
-}
-
-/** Executes [block] with a [ModelProviderPrincipal] installed in a new [Context]. */
-fun <T> withModelProviderPrincipal(modelProviderName: String, block: () -> T): T {
-  return Context.current()
-    .withPrincipal(ModelProviderPrincipal(ModelProviderKey.fromName(modelProviderName)!!))
-    .call(block)
-}
-
-/** Executes [block] with a [DuchyPrincipal] installed in a new [Context]. */
-fun <T> withDuchyPrincipal(duchyName: String, block: () -> T): T {
-  return Context.current().withPrincipal(DuchyPrincipal(DuchyKey.fromName(duchyName)!!)).call(block)
-}
-
 /** Executes [block] with a [MeasurementConsumerPrincipal] installed in a new [Context]. */
-fun <T> withMeasurementConsumerPrincipal(measurementConsumerName: String, block: () -> T): T {
+fun <T> withMeasurementConsumerPrincipal(
+  measurementConsumerName: String,
+  config: MeasurementConsumerConfig,
+  block: () -> T
+): T {
   return Context.current()
     .withPrincipal(
-      MeasurementConsumerPrincipal(MeasurementConsumerKey.fromName(measurementConsumerName)!!)
+      MeasurementConsumerPrincipal(
+        MeasurementConsumerKey.fromName(measurementConsumerName)!!,
+        config
+      )
     )
     .call(block)
 }
 
 /** Adds [principal] to the receiver and returns the new [Context]. */
-fun Context.withPrincipal(principal: MeasurementPrincipal): Context {
+fun Context.withPrincipal(principal: ReportingPrincipal): Context {
   return withValue(ContextKeys.PRINCIPAL_CONTEXT_KEY, principal)
 }
 
 /**
- * gRPC [ServerInterceptor] to extract a [MeasurementPrincipal] from a request.
+ * gRPC [ServerInterceptor] to extract a [ReportingPrincipal] from a request.
  *
- * If the [MeasurementPrincipal] has already been set in the context, this does nothing. Otherwise,
- * this derives the [MeasurementPrincipal] from an X509 cert's authority key identifier. A
- * [MeasurementPrincipal] derived from the authority key identifier is one of [DataProvider],
- * [ModelProvider], or [Duchy].
- *
- * TODO: Extract a base class as there's common code between this and the reporting version.
+ * If the [ReportingPrincipal] has already been set in the context, this does nothing. Otherwise,
+ * this derives the [ReportingPrincipal] from an X509 cert's authority key identifier.
  */
 class PrincipalServerInterceptor(private val principalLookup: PrincipalLookup) : ServerInterceptor {
 
   interface PrincipalLookup {
-    fun get(authorityKeyIdentifier: ByteString): MeasurementPrincipal?
+    fun get(authorityKeyIdentifier: ByteString): ReportingPrincipal?
+  }
+
+  interface ConfigLookup {
+    fun get(measurementConsumerName: String): MeasurementConsumerConfig?
   }
 
   override fun <ReqT, RespT> interceptCall(
@@ -113,20 +102,7 @@ class PrincipalServerInterceptor(private val principalLookup: PrincipalLookup) :
     val authorityKeyIdentifiers: List<ByteString> = authorityKeyIdentifiersFromCurrentContext
     val principals = authorityKeyIdentifiers.map(principalLookup::get)
     return when (principals.size) {
-      0 -> {
-        for (authorityKeyIdentifier in authorityKeyIdentifiers) {
-          val duchyInfo = DuchyInfo.getByRootCertificateSkid(authorityKeyIdentifier) ?: continue
-
-          val context =
-            Context.current()
-              .withValue(
-                ContextKeys.PRINCIPAL_CONTEXT_KEY,
-                DuchyPrincipal(DuchyKey(duchyInfo.duchyId))
-              )
-          return Contexts.interceptCall(context, call, headers, next)
-        }
-        unauthenticatedError(call, "No MeasurementPrincipal found")
-      }
+      0 -> unauthenticatedError(call, "No principal found")
       1 -> {
         val context =
           Context.current().withValue(ContextKeys.PRINCIPAL_CONTEXT_KEY, principals.single())

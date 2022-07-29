@@ -15,12 +15,11 @@
 package org.wfanet.measurement.reporting.service.api.v1alpha
 
 import java.io.File
-import org.wfanet.measurement.api.v2alpha.PrincipalServerInterceptor.PrincipalLookup
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
-import org.wfanet.measurement.reporting.service.api.v1alpha.MeasurementConsumerServerInterceptor.ConfigLookup
+import org.wfanet.measurement.reporting.service.api.v1alpha.PrincipalServerInterceptor.ConfigLookup
 
 /**
  * [PrincipalLookup] that reads a mapping from a file.
