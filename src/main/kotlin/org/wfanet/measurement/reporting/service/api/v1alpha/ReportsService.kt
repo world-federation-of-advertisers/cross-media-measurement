@@ -52,7 +52,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression as measur
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency as measurementSpecReachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.Principal
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt.value as eventGroupEntryValue
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter as requisitionSpecEventFilter
@@ -66,7 +65,6 @@ import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
-import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.timeInterval as measurementTimeInterval
 import org.wfanet.measurement.api.withAuthenticationKey
@@ -275,26 +273,23 @@ class ReportsService(
   )
 
   override suspend fun createReport(request: CreateReportRequest): Report {
-    // TODO(@riemanli) Use the Principal from the reporting API.
-    val principal: Principal<*> = principalFromCurrentContext
-    val resourceKey = principal.resourceKey
-
     grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
       "Parent is either unspecified or invalid."
     }
+    val principal: ReportingPrincipal = principalFromCurrentContext
 
-    when (resourceKey) {
-      is MeasurementConsumerKey -> {
-        if (request.parent != resourceKey.toName()) {
+    when (principal) {
+      is MeasurementConsumerPrincipal -> {
+        if (request.parent != principal.resourceKey.toName()) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot create a Report for another MeasurementConsumer."
           }
         }
       }
-      else -> {
-        failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to create a Report." }
-      }
     }
+
+    val resourceKey = principal.resourceKey
+
     grpcRequire(request.hasReport()) { "Report is not specified." }
 
     // TODO(@riemanli) Put the check here as the reportIdempotencyKey will be moved to the request
@@ -388,16 +383,17 @@ class ReportsService(
             namedSetOperation.uniqueName,
           )
 
-        namedSetOperationResults[setOperationId]?.let { setOperationResult ->
-          setOperationResult.weightedMeasurementInfoList.map { weightedMeasurementInfo ->
-            launch {
-              createMeasurement(
-                weightedMeasurementInfo,
-                reportInfo,
-                setOperationResult.internalMetricDetails,
-                measurementConsumer,
-              )
-            }
+        val setOperationResult: SetOperationResult =
+          namedSetOperationResults[setOperationId] ?: continue
+
+        setOperationResult.weightedMeasurementInfoList.forEach { weightedMeasurementInfo ->
+          launch {
+            createMeasurement(
+              weightedMeasurementInfo,
+              reportInfo,
+              setOperationResult.internalMetricDetails,
+              measurementConsumer,
+            )
           }
         }
       }
@@ -595,21 +591,16 @@ class ReportsService(
   }
 
   override suspend fun listReports(request: ListReportsRequest): ListReportsResponse {
-    // TODO(@riemanli) Use the Principal from the reporting API.
-    val principal: Principal<*> = principalFromCurrentContext
     val listReportsPageToken = request.toListReportsPageToken()
 
     // Based on AIP-132#Errors
-    when (val resourceKey = principal.resourceKey) {
-      is MeasurementConsumerKey -> {
-        if (request.parent != resourceKey.toName()) {
+    when (val principal: ReportingPrincipal = principalFromCurrentContext) {
+      is MeasurementConsumerPrincipal -> {
+        if (request.parent != principal.resourceKey.toName()) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot list Reports belonging to other MeasurementConsumers."
           }
         }
-      }
-      else -> {
-        failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to list Reports." }
       }
     }
 
@@ -656,19 +647,13 @@ class ReportsService(
         "Report name is either unspecified or invalid"
       }
 
-    // TODO(@riemanli) Use the Principal from the reporting API.
-    val principal: Principal<*> = principalFromCurrentContext
-
-    when (val resourceKey = principal.resourceKey) {
-      is MeasurementConsumerKey -> {
-        if (reportKey.measurementConsumerId != resourceKey.measurementConsumerId) {
+    when (val principal: ReportingPrincipal = principalFromCurrentContext) {
+      is MeasurementConsumerPrincipal -> {
+        if (reportKey.measurementConsumerId != principal.resourceKey.measurementConsumerId) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot get Report belonging to other MeasurementConsumers."
           }
         }
-      }
-      else -> {
-        failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to get Report." }
       }
     }
 

@@ -25,10 +25,8 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadataParser
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
-import org.wfanet.measurement.api.v2alpha.Principal
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
-import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
@@ -48,17 +46,21 @@ class EventGroupsService(
   private val encryptionKeyPairStore: EncryptionKeyPairStore
 ) : EventGroupsCoroutineImplBase() {
   override suspend fun listEventGroups(request: ListEventGroupsRequest): ListEventGroupsResponse {
-    val principal: Principal<*> = principalFromCurrentContext
+    val principal: ReportingPrincipal = principalFromCurrentContext
+
+    if (principal !is MeasurementConsumerPrincipal) {
+      failGrpc(Status.PERMISSION_DENIED) {
+        "Cannot list event groups with entities other than measurement consumer."
+      }
+    }
+
     val cmmsListEventGroupResponse =
       cmmsEventGroupsStub.listEventGroups(
         cmmsListEventGroupsRequest {
           parent = request.parent
           pageSize = request.pageSize
           pageToken = request.pageToken
-          filter = filter {
-            measurementConsumers +=
-              (principal.resourceKey as MeasurementConsumerKey).measurementConsumerId
-          }
+          filter = filter { measurementConsumers += principal.resourceKey.measurementConsumerId }
         }
       )
     val cmmsEventGroups = cmmsListEventGroupResponse.eventGroupsList
