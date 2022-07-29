@@ -17,19 +17,30 @@ package org.wfanet.measurement.reporting.service.api.v1alpha
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.api.Principal
 import org.wfanet.measurement.common.api.ResourcePrincipal
+import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
 
 /** Identifies the sender of an inbound gRPC request. */
 sealed interface ReportingPrincipal : Principal {
+  val config: MeasurementConsumerConfig
+
   companion object {
-    fun fromName(name: String): ReportingPrincipal? {
+    fun fromConfigs(name: String, config: MeasurementConsumerConfig): ReportingPrincipal? {
       return when (name.substringBefore('/')) {
-        MeasurementConsumerKey.COLLECTION_NAME ->
-          MeasurementConsumerKey.fromName(name)?.let(::MeasurementConsumerPrincipal)
+        MeasurementConsumerKey.COLLECTION_NAME -> {
+          require(
+            config.apiKey.isNotBlank() &&
+              config.signingCertificateName.isNotBlank() &&
+              config.signingPrivateKeyPath.isNotBlank()
+          )
+          MeasurementConsumerKey.fromName(name)?.let { MeasurementConsumerPrincipal(it, config) }
+        }
         else -> null
       }
     }
   }
 }
 
-data class MeasurementConsumerPrincipal(override val resourceKey: MeasurementConsumerKey) :
-  ReportingPrincipal, ResourcePrincipal
+data class MeasurementConsumerPrincipal(
+  override val resourceKey: MeasurementConsumerKey,
+  override val config: MeasurementConsumerConfig
+) : ReportingPrincipal, ResourcePrincipal

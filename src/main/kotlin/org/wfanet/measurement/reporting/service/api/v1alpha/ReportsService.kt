@@ -21,8 +21,10 @@ import com.google.protobuf.util.Durations
 import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
+import java.io.File
 import java.security.PrivateKey
 import java.security.SecureRandom
+import java.security.cert.X509Certificate
 import java.time.Instant
 import kotlin.math.min
 import kotlinx.coroutines.coroutineScope
@@ -74,11 +76,13 @@ import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.crypto.readCertificate
+import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
@@ -249,9 +253,8 @@ class ReportsService(
   private val measurementsStub: MeasurementsCoroutineStub,
   private val certificateStub: CertificatesCoroutineStub,
   private val encryptionKeyPairStore: EncryptionKeyPairStore,
-  private val signingPrivateKey: PrivateKey,
-  private val apiAuthenticationKey: String,
   private val secureRandom: SecureRandom,
+  private val signingPrivateKeyDir: File,
 ) : ReportsCoroutineImplBase() {
   private val setOperationCompiler = SetOperationCompiler()
 
@@ -289,6 +292,7 @@ class ReportsService(
     }
 
     val resourceKey = principal.resourceKey
+    val apiAuthenticationKey: String = principal.config.apiKey
 
     grpcRequire(request.hasReport()) { "Report is not specified." }
 
@@ -331,7 +335,36 @@ class ReportsService(
         )
       }
 
-    createMeasurements(request, namedSetOperationResults, reportInfo, measurementConsumer)
+    val signingPrivateKeyDer: ByteString =
+      signingPrivateKeyDir.resolve(principal.config.signingPrivateKeyPath).readByteString()
+
+    val signingCertificateDer: ByteString =
+      try {
+        certificateStub
+          .withAuthenticationKey(apiAuthenticationKey)
+          .getCertificate(getCertificateRequest { name = principal.config.signingCertificateName })
+          .x509Der
+      } catch (e: StatusException) {
+        throw Exception(
+          "Unable to retrieve the signing certificate for the measurement consumer " +
+            "[${principal.config.signingCertificateName}].",
+          e
+        )
+      }
+
+    val signingCertificate: X509Certificate = readCertificate(signingCertificateDer)
+    val signingPrivateKey: PrivateKey =
+      readPrivateKey(signingPrivateKeyDer, signingCertificate.publicKey.algorithm)
+
+    createMeasurements(
+      request,
+      namedSetOperationResults,
+      reportInfo,
+      measurementConsumer,
+      apiAuthenticationKey,
+      signingCertificateDer,
+      signingPrivateKey,
+    )
 
     val internalCreateReportRequest: InternalCreateReportRequest =
       buildInternalCreateReportRequest(
@@ -371,6 +404,9 @@ class ReportsService(
     namedSetOperationResults: Map<String, SetOperationResult>,
     reportInfo: ReportInfo,
     measurementConsumer: MeasurementConsumer,
+    apiAuthenticationKey: String,
+    signingCertificateDer: ByteString,
+    signingPrivateKey: PrivateKey,
   ) = coroutineScope {
     for (metric in request.report.metricsList) {
       val internalMetricDetails = buildInternalMetricDetails(metric)
@@ -393,6 +429,9 @@ class ReportsService(
               reportInfo,
               setOperationResult.internalMetricDetails,
               measurementConsumer,
+              apiAuthenticationKey,
+              signingCertificateDer,
+              signingPrivateKey,
             )
           }
         }
@@ -406,6 +445,9 @@ class ReportsService(
     reportInfo: ReportInfo,
     internalMetricDetails: InternalMetricDetails,
     measurementConsumer: MeasurementConsumer,
+    apiAuthenticationKey: String,
+    signingCertificateDer: ByteString,
+    signingPrivateKey: PrivateKey,
   ) {
     val existingInternalMeasurement: InternalMeasurement? =
       getInternalMeasurement(
@@ -428,6 +470,9 @@ class ReportsService(
         dataProviderNameToInternalEventGroupEntriesList,
         internalMetricDetails,
         weightedMeasurementInfo.measurementReferenceId,
+        apiAuthenticationKey,
+        signingCertificateDer,
+        signingPrivateKey,
       )
 
     try {
@@ -594,7 +639,8 @@ class ReportsService(
     val listReportsPageToken = request.toListReportsPageToken()
 
     // Based on AIP-132#Errors
-    when (val principal: ReportingPrincipal = principalFromCurrentContext) {
+    val principal: ReportingPrincipal = principalFromCurrentContext
+    when (principal) {
       is MeasurementConsumerPrincipal -> {
         if (request.parent != principal.resourceKey.toName()) {
           failGrpc(Status.PERMISSION_DENIED) {
@@ -603,6 +649,8 @@ class ReportsService(
         }
       }
     }
+
+    val apiAuthenticationKey: String = principal.config.apiKey
 
     val streamInternalReportsRequest: StreamInternalReportsRequest =
       listReportsPageToken.toStreamReportsRequest()
@@ -632,7 +680,7 @@ class ReportsService(
       reports +=
         results
           .subList(0, min(results.size, listReportsPageToken.pageSize))
-          .map { syncReport(it) }
+          .map { syncReport(it, apiAuthenticationKey) }
           .map(InternalReport::toReport)
 
       if (nextPageToken != null) {
@@ -647,7 +695,8 @@ class ReportsService(
         "Report name is either unspecified or invalid"
       }
 
-    when (val principal: ReportingPrincipal = principalFromCurrentContext) {
+    val principal: ReportingPrincipal = principalFromCurrentContext
+    when (principal) {
       is MeasurementConsumerPrincipal -> {
         if (reportKey.measurementConsumerId != principal.resourceKey.measurementConsumerId) {
           failGrpc(Status.PERMISSION_DENIED) {
@@ -656,6 +705,8 @@ class ReportsService(
         }
       }
     }
+
+    val apiAuthenticationKey: String = principal.config.apiKey
 
     val internalReport =
       try {
@@ -669,13 +720,16 @@ class ReportsService(
         throw Exception("Unable to get the report from the reporting database.", e)
       }
 
-    val syncedInternalReport = syncReport(internalReport)
+    val syncedInternalReport = syncReport(internalReport, apiAuthenticationKey)
 
     return syncedInternalReport.toReport()
   }
 
   /** Syncs the [InternalReport] and all [InternalMeasurement]s used by it. */
-  private suspend fun syncReport(internalReport: InternalReport): InternalReport {
+  private suspend fun syncReport(
+    internalReport: InternalReport,
+    apiAuthenticationKey: String
+  ): InternalReport {
     // Report with SUCCEEDED or FAILED state is already synced.
     if (
       internalReport.state == InternalReport.State.SUCCEEDED ||
@@ -693,7 +747,11 @@ class ReportsService(
     }
 
     // Syncs measurements
-    syncMeasurements(internalReport.measurementsMap, internalReport.measurementConsumerReferenceId)
+    syncMeasurements(
+      internalReport.measurementsMap,
+      internalReport.measurementConsumerReferenceId,
+      apiAuthenticationKey
+    )
 
     return try {
       internalReportsStub.getReport(
@@ -717,6 +775,7 @@ class ReportsService(
   private suspend fun syncMeasurements(
     measurementsMap: Map<String, InternalMeasurement>,
     measurementConsumerReferenceId: String,
+    apiAuthenticationKey: String,
   ) = coroutineScope {
     for ((measurementReferenceId, internalMeasurement) in measurementsMap) {
       // Measurement with SUCCEEDED state is already synced
@@ -726,6 +785,7 @@ class ReportsService(
         syncMeasurement(
           measurementReferenceId,
           measurementConsumerReferenceId,
+          apiAuthenticationKey,
         )
       }
     }
@@ -735,6 +795,7 @@ class ReportsService(
   private suspend fun syncMeasurement(
     measurementReferenceId: String,
     measurementConsumerReferenceId: String,
+    apiAuthenticationKey: String
   ) {
     val measurementResourceName =
       MeasurementKey(measurementConsumerReferenceId, measurementReferenceId).toName()
@@ -762,7 +823,8 @@ class ReportsService(
             measurementConsumerReferenceId,
             measurementReferenceId,
             measurement.resultsList,
-            encryptionPrivateKeyHandle
+            encryptionPrivateKeyHandle,
+            apiAuthenticationKey,
           )
 
         try {
@@ -805,7 +867,8 @@ class ReportsService(
     measurementConsumerReferenceId: String,
     measurementReferenceId: String,
     resultsList: List<Measurement.ResultPair>,
-    privateKeyHandle: PrivateKeyHandle
+    privateKeyHandle: PrivateKeyHandle,
+    apiAuthenticationKey: String,
   ): SetInternalMeasurementResultRequest {
 
     return setInternalMeasurementResultRequest {
@@ -814,7 +877,7 @@ class ReportsService(
       result =
         aggregateResults(
           resultsList
-            .map { decryptMeasurementResultPair(it, privateKeyHandle) }
+            .map { decryptMeasurementResultPair(it, privateKeyHandle, apiAuthenticationKey) }
             .map(Measurement.Result::toInternal)
         )
     }
@@ -823,7 +886,8 @@ class ReportsService(
   /** Decrypts a [Measurement.ResultPair] to [Measurement.Result] */
   private suspend fun decryptMeasurementResultPair(
     measurementResultPair: Measurement.ResultPair,
-    encryptionPrivateKeyHandle: PrivateKeyHandle
+    encryptionPrivateKeyHandle: PrivateKeyHandle,
+    apiAuthenticationKey: String
   ): Measurement.Result {
     // TODO: Cache the certificate
     val certificate =
@@ -1040,6 +1104,9 @@ class ReportsService(
     dataProviderNameToInternalEventGroupEntriesList: Map<String, List<EventGroupEntry>>,
     internalMetricDetails: InternalMetricDetails,
     measurementReferenceId: String,
+    apiAuthenticationKey: String,
+    signingCertificateDer: ByteString,
+    signingPrivateKey: PrivateKey,
   ): CreateMeasurementRequest {
     val measurementConsumerReferenceId =
       grpcRequireNotNull(MeasurementConsumerKey.fromName(measurementConsumer.name)) {
@@ -1047,7 +1114,7 @@ class ReportsService(
         }
         .measurementConsumerId
 
-    val measurementConsumerCertificate = readCertificate(measurementConsumer.certificateDer)
+    val measurementConsumerCertificate = readCertificate(signingCertificateDer)
     val measurementConsumerSigningKey =
       SigningKeyHandle(measurementConsumerCertificate, signingPrivateKey)
     val measurementEncryptionPublicKey = measurementConsumer.publicKey.data
@@ -1064,6 +1131,7 @@ class ReportsService(
           dataProviderNameToInternalEventGroupEntriesList,
           measurementEncryptionPublicKey,
           measurementConsumerSigningKey,
+          apiAuthenticationKey,
         )
 
       val unsignedMeasurementSpec: MeasurementSpec =
@@ -1161,6 +1229,7 @@ class ReportsService(
     dataProviderNameToInternalEventGroupEntriesList: Map<String, List<EventGroupEntry>>,
     measurementEncryptionPublicKey: ByteString,
     measurementConsumerSigningKey: SigningKeyHandle,
+    apiAuthenticationKey: String,
   ): List<DataProviderEntry> {
     return dataProviderNameToInternalEventGroupEntriesList.map {
       (dataProviderName, eventGroupEntriesList) ->
