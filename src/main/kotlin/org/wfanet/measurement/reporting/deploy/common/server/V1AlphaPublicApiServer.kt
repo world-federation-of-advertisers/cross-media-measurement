@@ -17,21 +17,30 @@ package org.wfanet.measurement.reporting.deploy.common.server
 import io.grpc.Channel
 import io.grpc.ServerServiceDefinition
 import java.io.File
+import java.security.SecureRandom
+import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as KingdomCertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub as KingdomDataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub as KingdomEventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as KingdomEventGroupsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as KingdomMeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as KingdomMeasurementsCoroutineStub
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withVerboseLogging
-import org.wfanet.measurement.common.identity.TextprotoFilePrincipalLookup
+import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
+import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
 import org.wfanet.measurement.reporting.deploy.common.EncryptionKeyPairMap
 import org.wfanet.measurement.reporting.deploy.common.KingdomApiFlags
 import org.wfanet.measurement.reporting.service.api.v1alpha.EventGroupsService
 import org.wfanet.measurement.reporting.service.api.v1alpha.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.service.api.v1alpha.ReportingSetsService
+import org.wfanet.measurement.reporting.service.api.v1alpha.ReportsService
+import org.wfanet.measurement.reporting.service.api.v1alpha.TextprotoFileMeasurementConsumerConfigLookup
+import org.wfanet.measurement.reporting.service.api.v1alpha.TextprotoFilePrincipalLookup
+import org.wfanet.measurement.reporting.service.api.v1alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
 import picocli.CommandLine
 
 private const val SERVER_NAME = "V1AlphaPublicApiServer"
@@ -67,10 +76,15 @@ private fun run(
     buildMutualTlsChannel(kingdomApiFlags.target, clientCerts, kingdomApiFlags.target)
       .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
 
-  val principalLookup =
-    TextprotoFilePrincipalLookup(v1AlphaFlags.authorityKeyIdentifierToPrincipalMapFile)
+  val configLookup =
+    TextprotoFileMeasurementConsumerConfigLookup(v1AlphaFlags.measurementConsumerConfigFile)
 
-  // TODO(@tristanvuong2021): update when #639 and #640 are merged in
+  val principalLookup =
+    TextprotoFilePrincipalLookup(
+      v1AlphaFlags.authorityKeyIdentifierToPrincipalMapFile,
+      configLookup
+    )
+
   val services: List<ServerServiceDefinition> =
     listOf(
       EventGroupsService(
@@ -81,6 +95,19 @@ private fun run(
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       ReportingSetsService(InternalReportingSetsCoroutineStub(channel))
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
+      ReportsService(
+          InternalReportsCoroutineStub(channel),
+          InternalReportingSetsCoroutineStub(channel),
+          InternalMeasurementsCoroutineStub(channel),
+          KingdomDataProvidersCoroutineStub(kingdomChannel),
+          KingdomMeasurementConsumersCoroutineStub(kingdomChannel),
+          KingdomMeasurementsCoroutineStub(kingdomChannel),
+          KingdomCertificatesCoroutineStub(kingdomChannel),
+          InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
+          SecureRandom(),
+          v1AlphaFlags.signingPrivateKeyStoreDir
+        )
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
     )
   CommonServer.fromFlags(commonServerFlags, SERVER_NAME, services).start().blockUntilShutdown()
 }
@@ -103,5 +130,13 @@ private class V1AlphaFlags {
     required = true,
   )
   lateinit var measurementConsumerConfigFile: File
+    private set
+
+  @CommandLine.Option(
+    names = ["--signing-private-key-store-dir"],
+    description = ["File path to the signing private key store directory"],
+    required = true,
+  )
+  lateinit var signingPrivateKeyStoreDir: File
     private set
 }
