@@ -302,7 +302,7 @@ class EdpSimulatorTest {
       }
 
       val nonMatchingTestPrivacyTemplate = testPrivacyBudgetTemplate {
-        age = privacyAgeRange { value = PrivacyAgeRange.Value.AGE_18_TO_24 }
+        age = privacyAgeRange { value = PrivacyAgeRange.Value.AGE_18_TO_34 }
       }
       val nonMatchingTestBannerTemplate = testBannerTemplate {
         gender = gender { value = Gender.Value.GENDER_MALE }
