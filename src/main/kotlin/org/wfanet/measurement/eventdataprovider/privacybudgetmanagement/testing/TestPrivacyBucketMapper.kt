@@ -49,7 +49,7 @@ class TestPrivacyBucketMapper : PrivacyBucketMapper {
     return testEvent {
       privacyBudget = testPrivacyBudgetTemplate {
         when (privacyBucketGroup.ageGroup) {
-          AgeGroup.RANGE_18_34 -> age = ageRange { value = AgeRange.Value.AGE_18_TO_24 }
+          AgeGroup.RANGE_18_34 -> age = ageRange { value = AgeRange.Value.AGE_18_TO_34 }
           AgeGroup.RANGE_35_54 -> age = ageRange { value = AgeRange.Value.AGE_35_TO_54 }
           AgeGroup.ABOVE_54 -> age = ageRange { value = AgeRange.Value.AGE_OVER_54 }
         }
