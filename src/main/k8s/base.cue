@@ -52,7 +52,9 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 #Target: {
 	name:   string
 	_caps:  strings.Replace(strings.ToUpper(name), "-", "_", -1)
-	target: "$(" + _caps + "_SERVICE_HOST):$(" + _caps + "_SERVICE_PORT)"
+	host: "$(" + _caps + "_SERVICE_HOST)"
+	port: "$(" + _caps + "_SERVICE_PORT)"
+	target: host + ":" + port
 }
 
 #SecretMount: {
@@ -145,14 +147,28 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	...
 }
 
+#EnvVar: {
+  name: string
+}
+
+#EnvVar: {
+  value: string
+} | {
+  valueFrom:
+    secretKeyRef: {
+      name: string
+      key:  string
+    }
+}
+
+#EnvVarMap: [Name=string]: #EnvVar & {
+    name: Name
+}
+
 #Container: {
 	_secretMounts: [...#SecretMount]
 	_configMapMounts: [...#ConfigMapMount]
-	_envVars: [Name=string]: {
-		name:   Name
-		value?: string
-		...
-	}
+	_envVars: #EnvVarMap
 
 	name:   string
 	image?: string
@@ -176,6 +192,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_secretName: string
 	_image:      string
 	_args: [...string]
+	_envVars: #EnvVarMap
 	_ports:           [{containerPort: #GrpcServicePort}] | *[]
 	_restartPolicy:   string | *"Always"
 	_imagePullPolicy: string | *"Never"
@@ -183,14 +200,16 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_resourceConfig:  #ResourceConfig
 	_dependencies: [...string]
 	_configMapMounts: [...#ConfigMapMount]
+	_secretMounts: [...#SecretMount]
 	_podSpec: #PodSpec & {
 		_secretMounts: [{
 			name:       _name + "-files"
 			secretName: _secretName
-		}]
+		}] + Deployment._secretMounts
 		_configMapMounts: Deployment._configMapMounts
 		_dependencies:    Deployment._dependencies
 
+		_container: _envVars: Deployment._envVars
 		if _resourceConfig.jvmHeapSize != _|_ {
 			_container: _envVars: "JAVA_TOOL_OPTIONS": {
 				value: "-Xms\(_resourceConfig.jvmHeapSize) -Xmx\(_resourceConfig.jvmHeapSize)"
