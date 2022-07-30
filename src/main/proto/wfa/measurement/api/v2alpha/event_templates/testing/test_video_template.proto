@@ -36,7 +36,7 @@ message TestVideoTemplate {
 
     enum Value {
       AGE_RANGE_UNSPECIFIED = 0;
-      AGE_18_TO_24 = 1;
+      AGE_18_TO_34 = 1;
     }
     Value value = 1;
   }
