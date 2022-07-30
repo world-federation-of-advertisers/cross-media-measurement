@@ -24,13 +24,15 @@ import org.wfanet.measurement.api.v2.alpha.copy
 import org.wfanet.measurement.api.v2.alpha.listRequisitionsPageToken
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
+import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.Requisition.DuchyEntry
@@ -84,15 +86,15 @@ class RequisitionsService(
   override suspend fun listRequisitions(
     request: ListRequisitionsRequest
   ): ListRequisitionsResponse {
-    val principal = principalFromCurrentContext
+    val principal: MeasurementPrincipal = principalFromCurrentContext
 
     val listRequisitionsPageToken = request.toListRequisitionsPageToken()
 
     var externalMeasurementConsumerId = 0L
-    when (val resourceKey = principal.resourceKey) {
-      is DataProviderKey -> {
+    when (principal) {
+      is DataProviderPrincipal -> {
         if (
-          apiIdToExternalId(resourceKey.dataProviderId) !=
+          apiIdToExternalId(principal.resourceKey.dataProviderId) !=
             listRequisitionsPageToken.externalDataProviderId
         ) {
           failGrpc(Status.PERMISSION_DENIED) {
@@ -100,8 +102,9 @@ class RequisitionsService(
           }
         }
       }
-      is MeasurementConsumerKey -> {
-        externalMeasurementConsumerId = apiIdToExternalId(resourceKey.measurementConsumerId)
+      is MeasurementConsumerPrincipal -> {
+        externalMeasurementConsumerId =
+          apiIdToExternalId(principal.resourceKey.measurementConsumerId)
         if (
           listRequisitionsPageToken.externalMeasurementConsumerId != 0L &&
             listRequisitionsPageToken.externalMeasurementConsumerId != externalMeasurementConsumerId
@@ -168,11 +171,9 @@ class RequisitionsService(
         "Resource name unspecified or invalid"
       }
 
-    val principal = principalFromCurrentContext
-
-    when (val resourceKey = principal.resourceKey) {
-      is DataProviderKey -> {
-        if (resourceKey.dataProviderId != key.dataProviderId) {
+    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
+      is DataProviderPrincipal -> {
+        if (principal.resourceKey.dataProviderId != key.dataProviderId) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot refuse Requisitions belonging to other DataProviders"
           }

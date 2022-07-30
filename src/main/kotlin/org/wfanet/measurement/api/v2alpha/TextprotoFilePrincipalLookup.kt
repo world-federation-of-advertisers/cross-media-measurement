@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.common.identity
+package org.wfanet.measurement.api.v2alpha
 
 import com.google.protobuf.ByteString
 import java.io.File
-import org.wfanet.measurement.api.v2alpha.Principal
 import org.wfanet.measurement.api.v2alpha.PrincipalServerInterceptor.PrincipalLookup
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.AuthorityKeyToPrincipalMap
@@ -28,15 +27,17 @@ import org.wfanet.measurement.config.authorityKeyToPrincipalMap
  * @param textprotoFile contains an [AuthorityKeyToPrincipalMap] in textproto format.
  */
 class TextprotoFilePrincipalLookup(textprotoFile: File) : PrincipalLookup {
-  private val map: Map<ByteString, Principal<*>> =
+  private val map: Map<ByteString, MeasurementPrincipal> =
     parseTextProto(textprotoFile, authorityKeyToPrincipalMap {})
       .entriesList
       .associate { it.authorityKeyIdentifier to it.principalResourceName }
       .mapValues {
-        requireNotNull(Principal.fromName(it.value)) { "Invalid Principal name: ${it.value}" }
+        requireNotNull(MeasurementPrincipal.fromName(it.value)) {
+          "Invalid Principal name: ${it.value}"
+        }
       }
 
-  override fun get(authorityKeyIdentifier: ByteString): Principal<*>? {
+  override fun get(authorityKeyIdentifier: ByteString): MeasurementPrincipal? {
     return map[authorityKeyIdentifier]
   }
 }

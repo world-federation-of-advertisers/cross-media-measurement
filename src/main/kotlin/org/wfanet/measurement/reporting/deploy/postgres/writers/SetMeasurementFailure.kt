@@ -65,7 +65,7 @@ class SetMeasurementFailure(private val request: SetMeasurementFailureRequest) :
 
     transactionContext.run {
       val numRowsUpdated = executeStatement(updateMeasurementStatement).numRowsUpdated
-      if (numRowsUpdated == 0) {
+      if (numRowsUpdated == 0L) {
         throw MeasurementNotFoundException()
       }
       executeStatement(updateReportStatement)

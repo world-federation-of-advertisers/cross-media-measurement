@@ -102,6 +102,10 @@ class ResourceSetup(
       createMeasurementConsumer(measurementConsumerContent, internalAccount)
     logger.info("Successfully created measurement consumer: ${measurementConsumer.name}")
     logger.info(
+      "Successfully created measurement consumer signing certificate: " +
+        measurementConsumer.certificate
+    )
+    logger.info(
       "API key for measurement consumer ${measurementConsumer.name}: $apiAuthenticationKey"
     )
 
