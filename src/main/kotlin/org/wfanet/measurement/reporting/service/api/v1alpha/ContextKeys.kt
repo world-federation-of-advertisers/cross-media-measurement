@@ -14,22 +14,9 @@
 
 package org.wfanet.measurement.reporting.service.api.v1alpha
 
-import java.util.Locale
-import org.wfanet.measurement.common.ResourceNameParser
+import io.grpc.Context
 
-internal enum class IdVariable {
-  DATA_PROVIDER,
-  EVENT_GROUP,
-  MEASUREMENT_CONSUMER,
-  REPORTING_SET,
-}
-
-internal fun ResourceNameParser.assembleName(idMap: Map<IdVariable, String>): String {
-  return assembleName(idMap.mapKeys { it.key.name.lowercase(Locale.getDefault()) })
-}
-
-internal fun ResourceNameParser.parseIdVars(resourceName: String): Map<IdVariable, String>? {
-  return parseIdSegments(resourceName)?.mapKeys {
-    IdVariable.valueOf(it.key.uppercase(Locale.getDefault()))
-  }
+object ContextKeys {
+  /** This is the context key for the authenticated [ReportingPrincipal]. */
+  val PRINCIPAL_CONTEXT_KEY: Context.Key<ReportingPrincipal> = Context.key("principal")
 }

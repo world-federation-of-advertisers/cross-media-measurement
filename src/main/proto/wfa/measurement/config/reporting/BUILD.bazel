@@ -1,0 +1,41 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@rules_java//java:defs.bzl", "java_proto_library")
+load("@wfa_common_jvm//build/kt_jvm_proto:defs.bzl", "kt_jvm_proto_library")
+
+package(default_visibility = ["//visibility:public"])
+
+IMPORT_PREFIX = "/src/main/proto"
+
+proto_library(
+    name = "encryption_key_pair_config_proto",
+    srcs = ["encryption_key_pair_config.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+java_proto_library(
+    name = "encryption_key_pair_config_java_proto",
+    deps = [":encryption_key_pair_config_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "encryption_key_pair_config_kt_jvm_proto",
+    srcs = [":encryption_key_pair_config_proto"],
+    deps = [":encryption_key_pair_config_java_proto"],
+)
+
+proto_library(
+    name = "measurement_consumer_config_proto",
+    srcs = ["measurement_consumer_config.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+java_proto_library(
+    name = "measurement_consumer_config_java_proto",
+    deps = [":measurement_consumer_config_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "measurement_consumer_config_kt_jvm_proto",
+    srcs = [":measurement_consumer_config_proto"],
+    deps = [":measurement_consumer_config_java_proto"],
+)

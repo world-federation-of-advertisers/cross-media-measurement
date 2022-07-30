@@ -180,6 +180,101 @@ class PrivacyBucketFilterTest {
   }
 
   @Test
+  fun `Mapper succeeds with left out privacy budget Fields`() {
+
+    val privacyLandscapeMask =
+      LandscapeMask(
+        listOf(
+          EventGroupSpec(
+            "privacy_budget.age.value in [0] ",
+            LocalDate.now(ZoneId.of("UTC")).minusDays(1).atStartOfDay().toLocalDate(),
+            LocalDate.now(ZoneId.of("UTC")).atStartOfDay().toLocalDate()
+          )
+        ),
+        0.0f,
+        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+      )
+
+    assertThat(
+        privacyBucketFilter.getPrivacyBucketGroups(MEASUREMENT_CONSUMER_ID, privacyLandscapeMask)
+      )
+      .containsExactly(
+        PrivacyBucketGroup(
+          MEASUREMENT_CONSUMER_ID,
+          LocalDate.now(),
+          LocalDate.now(),
+          AgeGroup.RANGE_18_34,
+          Gender.FEMALE,
+          0.0f,
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          MEASUREMENT_CONSUMER_ID,
+          LocalDate.now().minusDays(1),
+          LocalDate.now().minusDays(1),
+          AgeGroup.RANGE_18_34,
+          Gender.FEMALE,
+          0.0f,
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          MEASUREMENT_CONSUMER_ID,
+          LocalDate.now(),
+          LocalDate.now(),
+          AgeGroup.RANGE_18_34,
+          Gender.FEMALE,
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          MEASUREMENT_CONSUMER_ID,
+          LocalDate.now().minusDays(1),
+          LocalDate.now().minusDays(1),
+          AgeGroup.RANGE_18_34,
+          Gender.FEMALE,
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          MEASUREMENT_CONSUMER_ID,
+          LocalDate.now(),
+          LocalDate.now(),
+          AgeGroup.RANGE_18_34,
+          Gender.MALE,
+          0.0f,
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          MEASUREMENT_CONSUMER_ID,
+          LocalDate.now().minusDays(1),
+          LocalDate.now().minusDays(1),
+          AgeGroup.RANGE_18_34,
+          Gender.MALE,
+          0.0f,
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          MEASUREMENT_CONSUMER_ID,
+          LocalDate.now(),
+          LocalDate.now(),
+          AgeGroup.RANGE_18_34,
+          Gender.MALE,
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+        PrivacyBucketGroup(
+          MEASUREMENT_CONSUMER_ID,
+          LocalDate.now().minusDays(1),
+          LocalDate.now().minusDays(1),
+          AgeGroup.RANGE_18_34,
+          Gender.MALE,
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        ),
+      )
+  }
+
+  @Test
   fun `Non Privacy Budget Fields may charge more bucgkets than necessary`() {
 
     val privacyLandscapeMask =

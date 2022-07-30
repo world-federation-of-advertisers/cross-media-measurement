@@ -1,4 +1,4 @@
-// Copyright 2021 The Cross-Media Measurement Authors
+// Copyright 2022 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,12 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.api
+package org.wfanet.measurement.common.api
 
-import io.grpc.Context
-import org.wfanet.measurement.api.v2alpha.Principal
+interface Principal
 
-object PrincipalConstants {
-  /** This is the context key for the authenticated Principal. */
-  val PRINCIPAL_CONTEXT_KEY: Context.Key<Principal<*>> = Context.key("principal")
+interface ResourcePrincipal : Principal {
+  val resourceKey: ResourceKey
 }
