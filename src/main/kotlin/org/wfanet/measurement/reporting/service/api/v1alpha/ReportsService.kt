@@ -24,7 +24,6 @@ import io.grpc.StatusException
 import java.io.File
 import java.security.PrivateKey
 import java.security.SecureRandom
-import java.security.cert.X509Certificate
 import java.time.Instant
 import kotlin.math.min
 import kotlinx.coroutines.coroutineScope
@@ -264,6 +263,12 @@ class ReportsService(
     val eventGroupFilters: Map<String, String>,
   )
 
+  private data class SigningConfig(
+    val signingCertificateName: String,
+    val signingCertificateDer: ByteString,
+    val signingPrivateKey: PrivateKey,
+  )
+
   private data class WeightedMeasurementInfo(
     val measurementReferenceId: String,
     val weightedMeasurement: WeightedMeasurement,
@@ -352,9 +357,15 @@ class ReportsService(
         )
       }
 
-    val signingCertificate: X509Certificate = readCertificate(signingCertificateDer)
-    val signingPrivateKey: PrivateKey =
-      readPrivateKey(signingPrivateKeyDer, signingCertificate.publicKey.algorithm)
+    val signingConfig =
+      SigningConfig(
+        principal.config.signingCertificateName,
+        signingCertificateDer,
+        readPrivateKey(
+          signingPrivateKeyDer,
+          readCertificate(signingCertificateDer).publicKey.algorithm
+        )
+      )
 
     createMeasurements(
       request,
@@ -362,8 +373,7 @@ class ReportsService(
       reportInfo,
       measurementConsumer,
       apiAuthenticationKey,
-      signingCertificateDer,
-      signingPrivateKey,
+      signingConfig,
     )
 
     val internalCreateReportRequest: InternalCreateReportRequest =
@@ -405,8 +415,7 @@ class ReportsService(
     reportInfo: ReportInfo,
     measurementConsumer: MeasurementConsumer,
     apiAuthenticationKey: String,
-    signingCertificateDer: ByteString,
-    signingPrivateKey: PrivateKey,
+    signingConfig: SigningConfig,
   ) = coroutineScope {
     for (metric in request.report.metricsList) {
       val internalMetricDetails = buildInternalMetricDetails(metric)
@@ -430,8 +439,7 @@ class ReportsService(
               setOperationResult.internalMetricDetails,
               measurementConsumer,
               apiAuthenticationKey,
-              signingCertificateDer,
-              signingPrivateKey,
+              signingConfig,
             )
           }
         }
@@ -446,8 +454,7 @@ class ReportsService(
     internalMetricDetails: InternalMetricDetails,
     measurementConsumer: MeasurementConsumer,
     apiAuthenticationKey: String,
-    signingCertificateDer: ByteString,
-    signingPrivateKey: PrivateKey,
+    signingConfig: SigningConfig,
   ) {
     val existingInternalMeasurement: InternalMeasurement? =
       getInternalMeasurement(
@@ -471,8 +478,7 @@ class ReportsService(
         internalMetricDetails,
         weightedMeasurementInfo.measurementReferenceId,
         apiAuthenticationKey,
-        signingCertificateDer,
-        signingPrivateKey,
+        signingConfig,
       )
 
     try {
@@ -1105,8 +1111,7 @@ class ReportsService(
     internalMetricDetails: InternalMetricDetails,
     measurementReferenceId: String,
     apiAuthenticationKey: String,
-    signingCertificateDer: ByteString,
-    signingPrivateKey: PrivateKey,
+    signingConfig: SigningConfig,
   ): CreateMeasurementRequest {
     val measurementConsumerReferenceId =
       grpcRequireNotNull(MeasurementConsumerKey.fromName(measurementConsumer.name)) {
@@ -1114,9 +1119,9 @@ class ReportsService(
         }
         .measurementConsumerId
 
-    val measurementConsumerCertificate = readCertificate(signingCertificateDer)
+    val measurementConsumerCertificate = readCertificate(signingConfig.signingCertificateDer)
     val measurementConsumerSigningKey =
-      SigningKeyHandle(measurementConsumerCertificate, signingPrivateKey)
+      SigningKeyHandle(measurementConsumerCertificate, signingConfig.signingPrivateKey)
     val measurementEncryptionPublicKey = measurementConsumer.publicKey.data
 
     val measurementResourceName =
@@ -1124,7 +1129,7 @@ class ReportsService(
 
     val measurement = measurement {
       name = measurementResourceName
-      this.measurementConsumerCertificate = measurementConsumer.certificate
+      this.measurementConsumerCertificate = signingConfig.signingCertificateName
 
       dataProviders +=
         buildDataProviderEntries(
