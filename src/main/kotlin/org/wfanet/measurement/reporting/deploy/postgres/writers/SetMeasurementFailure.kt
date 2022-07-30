@@ -16,12 +16,13 @@ package org.wfanet.measurement.reporting.deploy.postgres.writers
 
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.internal.reporting.Measurement
+import org.wfanet.measurement.internal.reporting.Report
 import org.wfanet.measurement.internal.reporting.SetMeasurementFailureRequest
 import org.wfanet.measurement.internal.reporting.measurement
 import org.wfanet.measurement.reporting.service.internal.MeasurementNotFoundException
 
 /**
- * Updates the Failure column for a Measurement
+ * Update a [Measurement] to be in a failure state along with any dependent [Report].
  *
  * Throws the following on [execute]:
  * * [MeasurementNotFoundException] Measurement not found.
@@ -29,7 +30,7 @@ import org.wfanet.measurement.reporting.service.internal.MeasurementNotFoundExce
 class SetMeasurementFailure(private val request: SetMeasurementFailureRequest) :
   PostgresWriter<Measurement>() {
   override suspend fun TransactionScope.runTransaction(): Measurement {
-    val builder =
+    val updateMeasurementStatement =
       boundStatement(
         """
       UPDATE Measurements
@@ -43,11 +44,31 @@ class SetMeasurementFailure(private val request: SetMeasurementFailureRequest) :
         bind("$4", request.measurementReferenceId)
       }
 
+    val updateReportStatement =
+      boundStatement(
+        """
+      UPDATE Reports
+      SET State = $1
+      FROM (
+        SELECT
+          ReportId
+        FROM ReportMeasurements
+        WHERE MeasurementConsumerReferenceId = $2 AND MeasurementReferenceId = $3
+      ) AS ReportMeasurements
+      WHERE Reports.ReportId = ReportMeasurements.ReportId
+      """
+      ) {
+        bind("$1", Report.State.FAILED_VALUE)
+        bind("$2", request.measurementConsumerReferenceId)
+        bind("$3", request.measurementReferenceId)
+      }
+
     transactionContext.run {
-      val numRowsUpdated = executeStatement(builder).numRowsUpdated
-      if (numRowsUpdated == 0) {
+      val numRowsUpdated = executeStatement(updateMeasurementStatement).numRowsUpdated
+      if (numRowsUpdated == 0L) {
         throw MeasurementNotFoundException()
       }
+      executeStatement(updateReportStatement)
     }
 
     return measurement {

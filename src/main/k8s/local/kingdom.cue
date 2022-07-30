@@ -16,6 +16,9 @@ package k8s
 
 _secret_name: string @tag("secret_name")
 
+#KingdomServerResourceConfig: #DefaultResourceConfig & {
+}
+
 objectSets: [ for objectSet in kingdom {objectSet}]
 
 kingdom: #Kingdom & {
@@ -28,9 +31,9 @@ kingdom: #Kingdom & {
 		"v2alpha-public-api-server": "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:v2alpha_public_api_server_image"
 	}
 	_resource_configs: {
-		"gcp-kingdom-data-server":   #DefaultResourceConfig
-		"system-api-server":         #DefaultResourceConfig
-		"v2alpha-public-api-server": #DefaultResourceConfig
+		"gcp-kingdom-data-server":   #KingdomServerResourceConfig
+		"system-api-server":         #KingdomServerResourceConfig
+		"v2alpha-public-api-server": #KingdomServerResourceConfig
 	}
 	_kingdom_image_pull_policy: "Never"
 	_verboseGrpcServerLogging:  true

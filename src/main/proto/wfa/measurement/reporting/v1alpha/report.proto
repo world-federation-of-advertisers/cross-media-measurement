@@ -37,6 +37,7 @@ message Report {
 
   // Used as the prefix of the idempotency keys of internal measurements. This
   // value must be unique among `Report`s for the parent `MeasurementConsumer`.
+  // TODO(@riemanli) Moved the idempotency key to request messages.
   string report_idempotency_key = 2 [(google.api.field_behavior) = REQUIRED];
 
   // Representation of a Measurement Consumer entity.
@@ -100,6 +101,46 @@ message Report {
   // Report state.
   State state = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
 
-  // Results in CSV format. Each result can be seen as one table.
-  repeated string results = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Set operation calculations are done for each set operation for a given
+  // `Metric`, which is column by column.
+  message Result {
+    // A column with a header and values.
+    message Column {
+      // The header of the column.
+      string column_header = 1;
+      // Must be in the same order as `row_headers`.
+      repeated double set_operations = 2;
+    }
+    // The measurement result of Reach, ImpressionCount, or WatchDuration
+    message ScalarTable {
+      // Must be in the same order as column's set_operations.
+      repeated string row_headers = 1;
+      // Must be in the same order as `row_headers`.
+      repeated Column columns = 2;
+    }
+    // For Reach, ImpressionCount, or WatchDuration
+    ScalarTable scalar_table = 1;
+
+    // HistogramTable has an additional field frequency for each row, thus
+    // different from ScalarTable.
+    message HistogramTable {
+      // Combine header and frequency as Row.
+      message Row {
+        // Must be in the same order as column's set_operations.
+        string row_header = 1;
+        // frequency of the row
+        int32 frequency = 2;
+      }
+      // Must be in the same order as column's set_operations.
+      repeated Row rows = 1;
+      // Must be in the same order as row's `row_headers`.
+      repeated Column columns = 2;
+    }
+    // Each HistogramTable contains the result of one frequency histogram
+    // metric.
+    repeated HistogramTable histogram_tables = 2;
+  }
+
+  // Set only when `state` is `SUCCEEDED`.
+  Result result = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
 }

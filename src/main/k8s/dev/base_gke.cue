@@ -36,15 +36,15 @@ package k8s
 }
 
 #DefaultResourceConfig: #ResourceConfig & {
-	replicas: 1
+	replicas: replicas | *1
 	resources: {
 		requests: {
-			cpu: "100m"
+			cpu: cpu | *"100m"
 		}
 		limits: {
-			cpu:    "400m"
-			memory: "512Mi"
+			cpu:    cpu | *"400m"
+			memory: memory | *"512Mi"
 		}
 	}
-	jvmHeapSize: "400m"
+	jvmHeapSize: jvmHeapSize | *"400m"
 }

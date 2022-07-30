@@ -18,6 +18,7 @@ package wfa.measurement.reporting.v1alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
+import "google/protobuf/any.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v1alpha";
 option java_multiple_files = true;
@@ -51,11 +52,21 @@ message EventGroup {
   message EventTemplate {
     // The type of the Event Template. A fully-qualified protobuf message type.
     string type = 1 [(google.api.field_behavior) = REQUIRED];
-
-    // TODO(@chipingyeh) Add metadata
   }
-
   // The `EventTemplate`s that events associated with this `EventGroup` conform
   // to.
   repeated EventTemplate event_templates = 4;
+
+  // Wrapper for per-EDP Event Group metadata.
+  message Metadata {
+    // The resource name of the metadata descriptor.
+    string event_group_metadata_descriptor = 1
+        [(google.api.resource_reference).type =
+             "halo.wfanet.org/EventGroupMetadataDescriptor"];
+
+    // The serialized value of the metadata message.
+    google.protobuf.Any metadata = 2;
+  }
+
+  Metadata metadata = 5;
 }

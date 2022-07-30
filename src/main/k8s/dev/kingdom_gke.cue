@@ -16,7 +16,7 @@ package k8s
 
 _secret_name: string @tag("secret_name")
 
-#KingdomResourceConfig: {
+#KingdomServerResourceConfig: {
 	replicas: 1
 	resources: {
 		requests: {
@@ -65,9 +65,9 @@ kingdom: #Kingdom & {
 	}
 
 	_resource_configs: {
-		"gcp-kingdom-data-server":   #KingdomResourceConfig
-		"system-api-server":         #KingdomResourceConfig
-		"v2alpha-public-api-server": #KingdomResourceConfig
+		"gcp-kingdom-data-server":   #KingdomServerResourceConfig
+		"system-api-server":         #KingdomServerResourceConfig
+		"v2alpha-public-api-server": #KingdomServerResourceConfig
 	}
 	_kingdom_image_pull_policy: "Always"
 	_verboseGrpcServerLogging:  true

@@ -4,7 +4,7 @@ kt_jvm_library(
     name = "services",
     srcs = glob(["*Service.kt"]),
     visibility = [
-        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres:__pkg__",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/common/server/postgres:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/reporting/deploy/postgres:__pkg__",
     ],
     deps = [
@@ -12,6 +12,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/writers",
         "//src/main/proto/wfa/measurement/internal/reporting:measurements_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/reporting:reporting_sets_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting:reports_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",

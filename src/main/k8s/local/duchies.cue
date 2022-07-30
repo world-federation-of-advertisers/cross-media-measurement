@@ -19,9 +19,11 @@ _aggregator_cert_name: string @tag("aggregator_cert_name")
 _worker1_cert_name:    string @tag("worker1_cert_name")
 _worker2_cert_name:    string @tag("worker2_cert_name")
 
-#KingdomSystemApiTarget: (#Target & {name: "system-api-server"}).target
-#SpannerEmulatorHost:    (#Target & {name: "spanner-emulator"}).target
-#MillResourceConfig: {
+#KingdomSystemApiTarget:    (#Target & {name: "system-api-server"}).target
+#SpannerEmulatorHost:       (#Target & {name: "spanner-emulator"}).target
+#DuchyServerResourceConfig: #DefaultResourceConfig & {
+}
+#MillResourceConfig: #DefaultResourceConfig & {
 	replicas: 1
 	resources: {
 		requests: {
@@ -34,18 +36,8 @@ _worker2_cert_name:    string @tag("worker2_cert_name")
 	}
 	jvmHeapSize: "3584m"
 }
-#HeraldResourceConfig: {
+#HeraldResourceConfig: #DefaultResourceConfig & {
 	replicas: 1 // We should have 1 and only 1 herald.
-	resources: {
-		requests: {
-			cpu: "100m"
-		}
-		limits: {
-			cpu:    "400m"
-			memory: "512Mi"
-		}
-	}
-	jvmHeapSize: "400m"
 }
 
 #DuchyConfig: {
@@ -105,12 +97,12 @@ duchies: [ for duchyConfig in _duchyConfigs {
 			"update-duchy-schema":              "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/tools:update_schema_image"
 		}
 		_resource_configs: {
-			"async-computation-control-server": #DefaultResourceConfig
-			"computation-control-server":       #DefaultResourceConfig
+			"async-computation-control-server": #DuchyServerResourceConfig
+			"computation-control-server":       #DuchyServerResourceConfig
 			"herald-daemon":                    #HeraldResourceConfig
 			"liquid-legions-v2-mill-daemon":    #MillResourceConfig
-			"requisition-fulfillment-server":   #DefaultResourceConfig
-			"spanner-computations-server":      #DefaultResourceConfig
+			"requisition-fulfillment-server":   #DuchyServerResourceConfig
+			"spanner-computations-server":      #DuchyServerResourceConfig
 		}
 		_duchy_image_pull_policy: "Never"
 		_verbose_grpc_logging:    "true"
