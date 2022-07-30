@@ -3,8 +3,8 @@ load(
     "//build:variables.bzl",
     "DUCHY_K8S_SETTINGS",
     "KINGDOM_K8S_SETTINGS",
-    "SIMULATOR_K8S_SETTINGS",
     "REPORTING_K8S_SETTINGS",
+    "SIMULATOR_K8S_SETTINGS",
 )
 load("//src/main/k8s:macros.bzl", "cue_dump")
 
