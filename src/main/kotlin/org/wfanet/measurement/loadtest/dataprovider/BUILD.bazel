@@ -17,6 +17,7 @@ kt_jvm_library(
     name = "edp_simulator",
     srcs = [
         "BigQueryEventQuery.kt",
+        "CsvEventQuery.kt",
         "EdpSimulator.kt",
         "EdpSimulatorFlags.kt",
         "EdpSimulatorRunner.kt",
