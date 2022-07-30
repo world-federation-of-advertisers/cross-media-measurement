@@ -32,8 +32,9 @@ package k8s
     "--tls-key-file=/var/run/secrets/files/reporting_tls.key",
   ]
 	_reportingCertCollectionFileFlag:   "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
-	_akidToPrincipalMapFileFlag:        "--authority-key-identifier-to-principal-map-file=/etc/\(#AppName)/config-files/authority_key_identifier_to_principal_map.textproto"
-	_measurementConsumerConfigFileFlag: "--measurement-consumer-config-file=/var/run/secrets/files/measurement_consumer_config.textproto"
+	_akidToPrincipalMapFileFlag:        "--authority-key-identifier-to-principal-map-file=/etc/\(#AppName)/config-files/authority_key_identifier_to_mc_principal_map.textproto"
+	_measurementConsumerConfigFileFlag: "--measurement-consumer-config-file=/var/run/secrets/files/config/mc/measurement_consumer_config.textproto"
+	_signingPrivateKeyStoreDirFlag:     "--signing-private-key-store-dir=/var/run/secrets/files"
 	_encryptionKeyPairDirFlag:          "--key-pair-dir=/var/run/secrets/files"
 	_encryptionKeyPairConfigFileFlag:   "--key-pair-config-file=/etc/\(#AppName)/config-files/encryption_key_pair_config.textproto"
 	_debugVerboseGrpcClientLoggingFlag: "--debug-verbose-grpc-client-logging=\(_verboseGrpcClientLogging)"
@@ -88,6 +89,7 @@ package k8s
 		  _secretMounts: [{
     		name:       "mc-config"
     		secretName: Reporting._mcConfigSecretName
+    		mountPath:  "/var/run/secrets/files/config/mc/"
       }]
 
 			_configMapMounts: [{
@@ -104,6 +106,7 @@ package k8s
 				_kingdomApiCertHostFlag,
 				_akidToPrincipalMapFileFlag,
 				_measurementConsumerConfigFileFlag,
+				_signingPrivateKeyStoreDirFlag,
 				_encryptionKeyPairDirFlag,
 				_encryptionKeyPairConfigFileFlag,
 				"--port=8443",

@@ -200,11 +200,12 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_resourceConfig:  #ResourceConfig
 	_dependencies: [...string]
 	_configMapMounts: [...#ConfigMapMount]
+	_secretMounts: [...#SecretMount]
 	_podSpec: #PodSpec & {
 		_secretMounts: [{
 			name:       _name + "-files"
 			secretName: _secretName
-		}]
+		}] + Deployment._secretMounts
 		_configMapMounts: Deployment._configMapMounts
 		_dependencies:    Deployment._dependencies
 

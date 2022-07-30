@@ -82,10 +82,6 @@ Create the file `authority_key_identifier_to_principal_map.textproto` with the
 content below, substituting the appropriate resource names. The AKIDs come from
 the EDP certificates in [secretfiles](../testing/secretfiles).
 
-To start the reporting server, add an entry to the file with the appropriate MC 
-resource name. The AKID come from the MC certificate in 
-[secretfiles](../testing/secretfiles).
-
 ```prototext
 # proto-file: src/main/proto/wfa/measurement/config/authority_key_to_principal_map.proto
 # proto-message: AuthorityKeyToPrincipalMap
@@ -129,8 +125,23 @@ to the ConfigMap.
 ```shell
 kubectl create configmap config-files --output=yaml --dry-run=client \
   --from-file=authority_key_identifier_to_principal_map.textproto \
+  --from-file=authority_key_identifier_to_mc_principal_map.textproto \
   --from_file=encryption_key_pair_config.textproto \
   | kubectl replace -f -
+```
+
+Create the file
+`authority_key_identifier_to_mc_principal_map.textproto` with the appropriate MC
+resource name. The AKID come from the MC certificate in
+[secretfiles](../testing/secretfiles).
+
+```prototext
+# proto-file: src/main/proto/wfa/measurement/config/authority_key_to_principal_map.proto
+# proto-message: AuthorityKeyToPrincipalMap
+entries {
+  authority_key_identifier: "\xE6\x3F\xEA\x65\xED\x71\x3D\x9E\x59\x79\xA0\xC8\x08\xC9\x57\xAA\xC6\xB1\x6A"
+  principal_resource_name: "measurementConsumers/G7laM7LMIAA"
+}
 ```
 
 Create the file `encryption_key_pair_config.textproto` with the
@@ -237,7 +248,8 @@ bazel run //src/main/k8s/local:reporting_database_kind \
 
 ## Create Secret for Reporting API Server
 Create the file `/tmp/measurement_consumer_config.textproto` with the
-content below, substituting the appropriate resource name and API key.
+content below, substituting the appropriate MC and certificate resource names, 
+and the API key.
 
 ```prototext
 # proto-file: src/main/proto/wfa/measurement/config/reporting/measurement_consumer_config.proto
@@ -246,12 +258,8 @@ configs {
   key: "measurementConsumers/OljiQHRz-E4"
   value: {
     api_key: "OljiQHRz-E4"
-  }
-}
-configs {
-  key: "measurementConsumers/OljiQHRz-E4"
-  value: {
-    api_key: "OljiQHRz-E4"
+    signing_certificate_name: "certificates/OljiQHRz-E4"
+    signing_private_key_path: "mc_cs_private.der"
   }
 }
 ```
