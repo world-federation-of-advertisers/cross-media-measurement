@@ -626,6 +626,9 @@ class BenchmarkCommand : Runnable {
 
   private val secureRandom = SecureRandom.getInstance("SHA1PRNG")
 
+	/** The following data structure is used to track the status
+	 *  of each request and to store the results that were received.
+	 */
   class MeasurementTask (val replicaId: Int, val requestTime: Instant){
 		// Time at which we received an acknowledgment of the request.
 		lateinit var ackTime: Instant
@@ -644,6 +647,9 @@ class BenchmarkCommand : Runnable {
 
 		// Status of the response -- did an error occur?
 		lateinit var status: String
+
+		// Error message, if any
+		lateinit var errorMessage: String
 
 		// The measurement result that was obtained.
 		lateinit var result: Measurement.Result
