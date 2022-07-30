@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.reporting.service.api.v1alpha
 
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.api.Principal
 import org.wfanet.measurement.common.api.ResourcePrincipal
@@ -29,7 +30,7 @@ sealed interface ReportingPrincipal : Principal {
         MeasurementConsumerKey.COLLECTION_NAME -> {
           require(
             config.apiKey.isNotBlank() &&
-              config.signingCertificateName.isNotBlank() &&
+              MeasurementConsumerCertificateKey.fromName(config.signingCertificateName) != null &&
               config.signingPrivateKeyPath.isNotBlank()
           )
           MeasurementConsumerKey.fromName(name)?.let { MeasurementConsumerPrincipal(it, config) }
