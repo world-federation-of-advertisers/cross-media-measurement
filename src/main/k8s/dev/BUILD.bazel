@@ -4,6 +4,7 @@ load(
     "DUCHY_K8S_SETTINGS",
     "KINGDOM_K8S_SETTINGS",
     "SIMULATOR_K8S_SETTINGS",
+    "REPORTING_K8S_SETTINGS",
 )
 load("//src/main/k8s:macros.bzl", "cue_dump")
 
@@ -16,7 +17,10 @@ cue_library(
 cue_library(
     name = "config",
     srcs = ["config.cue"],
-    deps = ["//src/main/k8s:spanner"],
+    deps = [
+        "//src/main/k8s:postgres",
+        "//src/main/k8s:spanner",
+    ],
 )
 
 cue_dump(
@@ -154,5 +158,20 @@ cue_dump(
         ":config",
         "//src/main/k8s:base",
         "//src/main/k8s:frontend_simulator",
+    ],
+)
+
+cue_dump(
+    name = "reporting_gke",
+    srcs = ["reporting_gke.cue"],
+    cue_tags = {
+        "secret_name": REPORTING_K8S_SETTINGS.secret_name,
+        "mc_config_secret_name": REPORTING_K8S_SETTINGS.mc_config_secret_name,
+    },
+    tags = ["manual"],
+    deps = [
+        ":base_gke",
+        ":config",
+        "//src/main/k8s:reporting",
     ],
 )
