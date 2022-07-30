@@ -35,7 +35,7 @@ message TestPrivacyBudgetTemplate {
     };
 
     enum Value {
-      AGE_18_TO_24 = 0;
+      AGE_18_TO_34 = 0;
       AGE_35_TO_54 = 1;
       AGE_OVER_54 = 2;
     }
