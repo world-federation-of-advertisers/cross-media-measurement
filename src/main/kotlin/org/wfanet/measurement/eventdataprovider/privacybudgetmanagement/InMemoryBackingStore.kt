@@ -68,7 +68,7 @@ class InMemoryBackingStoreTransactionContext(
     )
   }
 
-  override fun hasLedgerEntry(reference: Reference): Boolean {
+  override suspend fun hasLedgerEntry(reference: Reference): Boolean {
     val lastEntry =
       transactionReferenceLedger
         .get(reference.measurementConsumerId)
@@ -82,13 +82,13 @@ class InMemoryBackingStoreTransactionContext(
     return lastEntry.isRefund == reference.isRefund
   }
 
-  override fun findIntersectingBalanceEntries(
+  override suspend fun findIntersectingBalanceEntries(
     privacyBucketGroup: PrivacyBucketGroup,
   ): List<PrivacyBudgetBalanceEntry> {
     return transactionBalances.getOrDefault(privacyBucketGroup, mapOf()).values.toList()
   }
 
-  override fun addLedgerEntries(
+  override suspend fun addLedgerEntries(
     privacyBucketGroups: Set<PrivacyBucketGroup>,
     charges: Set<Charge>,
     reference: Reference
@@ -116,7 +116,7 @@ class InMemoryBackingStoreTransactionContext(
     addReferenceEntry(reference)
   }
 
-  override fun commit() {
+  override suspend fun commit() {
     referenceLedger.clear()
     referenceLedger.putAll(transactionReferenceLedger)
 

@@ -28,7 +28,6 @@ data class PrivacyBudgetBalanceEntry(
   val charge: Charge,
   val repetitionCount: Int
 )
-
 /**
  * Representation of a single query that resulted in multiple charges in the privacy budget ledger
  * backing store. These entries only exists for replays, and is a list of timestamped transactions.
@@ -39,7 +38,6 @@ data class PrivacyBudgetLedgerEntry(
   val isRefund: Boolean,
   val createTime: Instant
 )
-
 /** Manages the persistence of privacy budget data. */
 interface PrivacyBudgetLedgerBackingStore : AutoCloseable {
   /**
@@ -71,7 +69,7 @@ interface PrivacyBudgetLedgerTransactionContext : AutoCloseable {
    * Returns a list of all rows within the privacy budget ledger where the PrivacyBucket of the row
    * intersects with the given privacyBucket.
    */
-  fun findIntersectingBalanceEntries(
+  suspend fun findIntersectingBalanceEntries(
     privacyBucketGroup: PrivacyBucketGroup
   ): List<PrivacyBudgetBalanceEntry>
 
@@ -79,7 +77,7 @@ interface PrivacyBudgetLedgerTransactionContext : AutoCloseable {
    * Adds new entries to the PrivacyBudgetLedger specifying a charge to a privacy budget, adds the
    * [reference] that created these charges
    */
-  fun addLedgerEntries(
+  suspend fun addLedgerEntries(
     privacyBucketGroups: Set<PrivacyBucketGroup>,
     charges: Set<Charge>,
     reference: Reference
@@ -95,7 +93,7 @@ interface PrivacyBudgetLedgerTransactionContext : AutoCloseable {
    * (MC ID, reference ID). This is because we only check that isRefund is the opposite of the most
    * recent recorded ledger entry for that tuple.
    */
-  fun hasLedgerEntry(reference: Reference): Boolean
+  suspend fun hasLedgerEntry(reference: Reference): Boolean
 
   // TODO(@uakyol) : expose reference entries for replayability purposes.
 
@@ -106,5 +104,5 @@ interface PrivacyBudgetLedgerTransactionContext : AutoCloseable {
    *
    * @throws PrivacyBudgetManager exception if the commit operation was unsuccessful.
    */
-  fun commit()
+  suspend fun commit()
 }
