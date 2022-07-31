@@ -26,7 +26,7 @@ message BaseDemographicsTemplate {
   option (.wfa.measurement.api.v2alpha.event_template) = {
     name: "test_privacy_budget_template"
     display_name: "Base Demographics"
-    description: "An Event Template that specifies age ranges and gender."
+    description: "An Event Template that specifies age range and gender."
   };
 
   message AgeRange {
@@ -36,8 +36,10 @@ message BaseDemographicsTemplate {
 
     enum Value {
       AGE_18_TO_24 = 0;
-      AGE_35_TO_54 = 1;
-      AGE_OVER_54 = 2;
+      AGE_25_TO_34 = 1;
+      AGE_45_TO_54 = 3;
+      AGE_55_TO_64 = 4;
+      AGE_OVER_64 = 5;
     }
     Value value = 1;
   }
