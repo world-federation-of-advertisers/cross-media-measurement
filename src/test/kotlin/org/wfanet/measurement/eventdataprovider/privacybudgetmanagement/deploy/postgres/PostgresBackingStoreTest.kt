@@ -53,17 +53,18 @@ class PostgresBackingStoreTest : AbstractPrivacyBudgetLedgerStoreTest() {
 
   private fun createConnection(): Connection =
     embeddedPostgres.getDatabase(PG_USER_NAME, TEST_DB).connection
-
+  // override fun recreateSchema() {}
   override fun recreateSchema() {
     createConnection().use { connection ->
+      connection.setAutoCommit(true)
       connection.createStatement().use { statement: Statement ->
         // clear database schema before re-creating
         statement.executeUpdate(
           """
-          DROP TABLE IF EXISTS LedgerEntries CASCADE;
-          DROP TABLE IF EXISTS PrivacyBucketCharges CASCADE;
-          DROP TYPE IF EXISTS Gender CASCADE;
-          DROP TYPE IF EXISTS AgeGroup CASCADE;
+          DROP TABLE IF EXISTS LedgerEntries;
+          DROP TABLE IF EXISTS PrivacyBucketCharges;
+          DROP TYPE IF EXISTS Gender;
+          DROP TYPE IF EXISTS AgeGroup;
         """.trimIndent()
         )
         statement.executeUpdate(schema)

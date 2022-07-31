@@ -86,7 +86,7 @@ class PostgresBackingStoreTransactionContext(
     }
   }
 
-  private fun getLastReference(measurementConsumerId: String, referenceId: String): Boolean? {
+  private suspend fun getLastReference(measurementConsumerId: String, referenceId: String): Boolean? {
     val selectSql =
       """
         SELECT
@@ -184,7 +184,7 @@ class PostgresBackingStoreTransactionContext(
     }
   }
 
-  private fun addBalanceEntries(
+  private suspend fun addBalanceEntries(
     privacyBudgetBalanceEntries: List<PrivacyBudgetBalanceEntry>,
     refundCharge: Boolean = false
   ) {
