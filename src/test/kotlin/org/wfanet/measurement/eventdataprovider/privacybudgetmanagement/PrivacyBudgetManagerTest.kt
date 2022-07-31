@@ -16,6 +16,7 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 import com.google.common.truth.Truth.assertThat
 import java.time.LocalDate
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -42,7 +43,7 @@ class PrivacyBudgetManagerTest {
       Charge(0.6f, 0.02f)
     )
 
-  private fun PrivacyBudgetManager.assertChargeExceedsPrivacyBudget(
+  private suspend fun PrivacyBudgetManager.assertChargeExceedsPrivacyBudget(
     query: Query,
   ) {
     val exception = assertFailsWith<PrivacyBudgetManagerException> { chargePrivacyBudget(query) }
@@ -51,88 +52,95 @@ class PrivacyBudgetManagerTest {
   }
 
   @Test
-  fun `charge throws PRIVACY_BUDGET_EXCEEDED when given a large single charge`() {
-    val backingStore = InMemoryBackingStore()
-    val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 1.0f, 0.01f)
-    val exception =
-      assertFailsWith<PrivacyBudgetManagerException> {
-        pbm.chargePrivacyBudget(createQuery("referenceId1"))
-      }
-    assertThat(exception.errorType)
-      .isEqualTo(PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED)
-  }
+  fun `charge throws PRIVACY_BUDGET_EXCEEDED when given a large single charge`() =
+    runBlocking<Unit> {
+      val backingStore = InMemoryBackingStore()
+      val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 1.0f, 0.01f)
+      val exception =
+        assertFailsWith<PrivacyBudgetManagerException> {
+          pbm.chargePrivacyBudget(createQuery("referenceId1"))
+        }
+      assertThat(exception.errorType)
+        .isEqualTo(PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED)
+    }
 
   @Test
-  fun `charge throws INVALID_PRIVACY_BUCKET_FILTER when given wrong event filter`() {
-    val backingStore = InMemoryBackingStore()
-    val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
+  fun `charge throws INVALID_PRIVACY_BUCKET_FILTER when given wrong event filter`() =
+    runBlocking<Unit> {
+      val backingStore = InMemoryBackingStore()
+      val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
 
-    val exception =
-      assertFailsWith<PrivacyBudgetManagerException> {
-        pbm.chargePrivacyBudget(createQuery("referenceId", "privacy_budget.age.value"))
-      }
-    assertThat(exception.errorType)
-      .isEqualTo(PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER)
-  }
-
-  @Test
-  fun `charges privacy budget for measurement`() {
-    val backingStore = InMemoryBackingStore()
-    val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
-
-    // The charge succeeds and fills the Privacy Budget.
-    pbm.chargePrivacyBudget(createQuery("referenceId1"))
-
-    // Second charge should exceed the budget.
-    pbm.assertChargeExceedsPrivacyBudget(createQuery("referenceId2"))
-  }
+      val exception =
+        assertFailsWith<PrivacyBudgetManagerException> {
+          pbm.chargePrivacyBudget(createQuery("referenceId", "privacy_budget.age.value"))
+        }
+      assertThat(exception.errorType)
+        .isEqualTo(PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER)
+    }
 
   @Test
-  fun `checks empty privacy budget manager and returns budget wont be exceeded`() {
-    val backingStore = InMemoryBackingStore()
-    val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
-    // Check returns false because charges would not have exceeded the budget.
-    assertThat(pbm.chargingWillExceedPrivacyBudget(createQuery("referenceId1"))).isFalse()
-  }
+  fun `charges privacy budget for measurement`() =
+    runBlocking<Unit> {
+      val backingStore = InMemoryBackingStore()
+      val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
+
+      // The charge succeeds and fills the Privacy Budget.
+      pbm.chargePrivacyBudget(createQuery("referenceId1"))
+
+      // Second charge should exceed the budget.
+      pbm.assertChargeExceedsPrivacyBudget(createQuery("referenceId2"))
+    }
 
   @Test
-  fun `checks exceeded privacy budget for measurement`() {
-    val backingStore = InMemoryBackingStore()
-    val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
-
-    // The charge succeeds and fills the Privacy Budget.
-    pbm.chargePrivacyBudget(createQuery("referenceId1"))
-
-    // Check returns true because charges would have exceeded the budget.
-    assertThat(pbm.chargingWillExceedPrivacyBudget(createQuery("referenceId2"))).isTrue()
-  }
+  fun `checks empty privacy budget manager and returns budget wont be exceeded`() =
+    runBlocking<Unit> {
+      val backingStore = InMemoryBackingStore()
+      val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
+      // Check returns false because charges would not have exceeded the budget.
+      assertThat(pbm.chargingWillExceedPrivacyBudget(createQuery("referenceId1"))).isFalse()
+    }
 
   @Test
-  fun `returns true for different reference that will be processed`() {
-    val backingStore = InMemoryBackingStore()
-    val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
+  fun `checks exceeded privacy budget for measurement`() =
+    runBlocking<Unit> {
+      val backingStore = InMemoryBackingStore()
+      val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
 
-    // The charge succeeds and fills the Privacy Budget.
-    pbm.chargePrivacyBudget(createQuery("referenceId1"))
+      // The charge succeeds and fills the Privacy Budget.
+      pbm.chargePrivacyBudget(createQuery("referenceId1"))
 
-    // Check returns true because this reference was not processed before.
-    assertThat(
-        pbm.referenceWillBeProcessed(Reference(MEASUREMENT_CONSUMER_ID, "referenceId2", false))
-      )
-      .isTrue()
-  }
+      // Check returns true because charges would have exceeded the budget.
+      assertThat(pbm.chargingWillExceedPrivacyBudget(createQuery("referenceId2"))).isTrue()
+    }
+
   @Test
-  fun `returns false for same reference that will not be processed`() {
-    val backingStore = InMemoryBackingStore()
-    val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
+  fun `returns true for different reference that will be processed`() =
+    runBlocking<Unit> {
+      val backingStore = InMemoryBackingStore()
+      val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
 
-    // The charge succeeds and fills the Privacy Budget.
-    pbm.chargePrivacyBudget(createQuery("referenceId1"))
+      // The charge succeeds and fills the Privacy Budget.
+      pbm.chargePrivacyBudget(createQuery("referenceId1"))
 
-    // Check returns false because this reference was processed before.
-    assertThat(
-        pbm.referenceWillBeProcessed(Reference(MEASUREMENT_CONSUMER_ID, "referenceId1", false))
-      )
-      .isFalse()
-  }
+      // Check returns true because this reference was not processed before.
+      assertThat(
+          pbm.referenceWillBeProcessed(Reference(MEASUREMENT_CONSUMER_ID, "referenceId2", false))
+        )
+        .isTrue()
+    }
+  @Test
+  fun `returns false for same reference that will not be processed`() =
+    runBlocking<Unit> {
+      val backingStore = InMemoryBackingStore()
+      val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
+
+      // The charge succeeds and fills the Privacy Budget.
+      pbm.chargePrivacyBudget(createQuery("referenceId1"))
+
+      // Check returns false because this reference was processed before.
+      assertThat(
+          pbm.referenceWillBeProcessed(Reference(MEASUREMENT_CONSUMER_ID, "referenceId1", false))
+        )
+        .isFalse()
+    }
 }
