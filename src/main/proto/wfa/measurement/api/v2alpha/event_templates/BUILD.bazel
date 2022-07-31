@@ -33,7 +33,7 @@ kt_jvm_proto_library(
 
 proto_library(
     name = "event_proto",
-    srcs = ["test_event.proto"],
+    srcs = ["event.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [":event_templates_proto"],
 )
