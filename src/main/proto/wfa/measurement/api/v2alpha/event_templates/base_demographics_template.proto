@@ -23,7 +23,7 @@ option java_multiple_files = true;
 
 message BaseDemographicsTemplate {
   option (.wfa.measurement.api.v2alpha.event_template) = {
-    name: "test_privacy_budget_template"
+    name: "base_demographics_template"
     display_name: "Base Demographics"
     description: "An Event Template that specifies age range and gender."
   };
