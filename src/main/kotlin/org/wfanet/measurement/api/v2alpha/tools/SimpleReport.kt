@@ -654,13 +654,10 @@ class BenchmarkCommand : Runnable {
 		// The measurement result that was obtained.
 		lateinit var result: Measurement.Result
 	}
+	val taskList: MutableList<MeasurementTask> = mutableListOf()
 
-  override fun run() {
-    val measurementConsumerStub = MeasurementConsumersCoroutineStub(parent.channel)
-    val measurementStub = MeasurementsCoroutineStub(parent.channel)
-    val certificateStub = CertificatesCoroutineStub(parent.channel)
-    val dataProviderStub = DataProvidersCoroutineStub(parent.channel)
-
+	/** Creates list of requests and sends them to the Kingdom. */
+	private fun generateRequests(measurementStub: String, certificateStub:String, dataProviderStub: String) {
     val measurementConsumer =
       runBlocking(Dispatchers.IO) {
         measurementConsumerStub
@@ -676,8 +673,6 @@ class BenchmarkCommand : Runnable {
     val measurementConsumerSigningKey =
       SigningKeyHandle(measurementConsumerCertificate, measurementConsumerPrivateKey)
     val measurementEncryptionPublicKey = measurementConsumer.publicKey.data
-		val taskList: MutableList<MeasurementTask> = mutableListOf()
-
 		val charPool = ('a'..'z').toList()
 		val referenceIdBase = (1..10)
 			.map { _ -> kotlin.random.Random.nextInt(0, charPool.size) }
@@ -736,6 +731,16 @@ class BenchmarkCommand : Runnable {
 			task.measurementName = response.name
 			taskList.add(task)
 		}
+	}
+
+  override fun run() {
+    val measurementConsumerStub = MeasurementConsumersCoroutineStub(parent.channel)
+    val measurementStub = MeasurementsCoroutineStub(parent.channel)
+    val certificateStub = CertificatesCoroutineStub(parent.channel)
+    val dataProviderStub = DataProvidersCoroutineStub(parent.channel)
+
+
+		generateRequests(measurementStub, certificateStube, dataProviderStub)
 
 		val completedTasks: MutableList<MeasurementTask> = mutableListOf()
 		// TODO: Handle timeouts
