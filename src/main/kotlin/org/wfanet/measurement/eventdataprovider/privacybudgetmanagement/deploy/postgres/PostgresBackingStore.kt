@@ -86,7 +86,10 @@ class PostgresBackingStoreTransactionContext(
     }
   }
 
-  private suspend fun getLastReference(measurementConsumerId: String, referenceId: String): Boolean? {
+  private suspend fun getLastReference(
+    measurementConsumerId: String,
+    referenceId: String
+  ): Boolean? {
     val selectSql =
       """
         SELECT
