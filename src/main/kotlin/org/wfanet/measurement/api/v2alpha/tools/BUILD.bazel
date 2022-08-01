@@ -2,6 +2,7 @@ load("@rules_java//java:defs.bzl", "java_binary")
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 
 package(
+    default_testonly = True,
     default_visibility = ["//src/test/kotlin/org/wfanet/measurement/api/v2alpha/tools:__subpackages__"],
 )
 
@@ -52,8 +53,8 @@ java_binary(
 )
 
 kt_jvm_library(
-    name = "simple_report",
-    srcs = ["SimpleReport.kt"],
+    name = "benchmark_library",
+    srcs = ["Benchmark.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
@@ -70,14 +71,17 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
     ],
 )
- 
+
 java_binary(
-    name = "SimpleReport",
-    main_class = "org.wfanet.measurement.api.v2alpha.tools.SimpleReportKt",
+    name = "Benchmark",
+    main_class = "org.wfanet.measurement.api.v2alpha.tools.BenchmarkKt",
     tags = ["manual"],
-    runtime_deps = [":simple_report"],
+    runtime_deps = [":benchmark_library"],
 )

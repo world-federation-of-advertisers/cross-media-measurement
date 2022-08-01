@@ -17,9 +17,7 @@ package org.wfanet.measurement.api.v2alpha.tools
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
-import com.google.protobuf.Timestamp
 import com.google.protobuf.duration as protoDuration
-import com.google.protobuf.timestamp
 import io.grpc.Metadata
 import io.grpc.ServerCall
 import io.grpc.ServerCallHandler
@@ -27,9 +25,12 @@ import io.grpc.ServerInterceptor
 import io.grpc.ServerInterceptors
 import io.grpc.ServerServiceDefinition
 import io.netty.handler.ssl.ClientAuth
+import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
-import java.time.OffsetDateTime
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneId
 import java.util.concurrent.TimeUnit.SECONDS
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -39,18 +40,14 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.verify
-import org.wfanet.measurement.api.ApiKeyConstants
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
-import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
-import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt
-import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.result
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -59,38 +56,26 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
-import org.wfanet.measurement.api.v2alpha.RequisitionSpec
-import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt.value as eventGroupEntryValue
-import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
-import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
-import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
-import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
-import org.wfanet.measurement.api.v2alpha.listMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
-import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.signedData
-import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
-import org.wfanet.measurement.common.crypto.tink.testing.loadPrivateKey
-import org.wfanet.measurement.common.crypto.tink.testing.loadPublicKey
+import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
+import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
-import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
-import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
-import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
 import org.wfanet.measurement.consent.client.duchy.encryptResult
 import org.wfanet.measurement.consent.client.duchy.signResult
 import picocli.CommandLine
@@ -141,10 +126,6 @@ private val DATA_PROVIDER = dataProvider {
 
 private const val TIME_STRING_1 = "2022-05-22T01:00:00.000Z"
 private const val TIME_STRING_2 = "2022-05-24T05:00:00.000Z"
-private const val TIME_STRING_3 = "2022-05-22T01:22:32.122Z"
-private const val TIME_STRING_4 = "2022-05-23T03:14:55.876Z"
-private const val TIME_STRING_5 = "2022-04-22T01:19:42.567Z"
-private const val TIME_STRING_6 = "2022-05-22T01:56:12.483Z"
 
 private val AGGREGATOR_CERTIFICATE_DER =
   SECRETS_DIR.resolve("aggregator_cs_cert.der").toFile().readByteString()
@@ -206,25 +187,6 @@ private val SUCCEEDED_MEASUREMENT = measurement {
   }
 }
 
-private val LIST_MEASUREMENT_RESPONSE = listMeasurementsResponse {
-  measurement += measurement {
-    name = "$MEASUREMENT_CONSUMER_NAME/measurements/101"
-    state = Measurement.State.AWAITING_REQUISITION_FULFILLMENT
-  }
-  measurement += measurement {
-    name = "$MEASUREMENT_CONSUMER_NAME/measurements/102"
-    state = Measurement.State.SUCCEEDED
-  }
-  measurement += measurement {
-    name = "$MEASUREMENT_CONSUMER_NAME/measurements/102"
-    state = Measurement.State.FAILED
-    failure = failure {
-      reason = Measurement.Failure.Reason.REQUISITION_REFUSED
-      message = "Privacy budget exceeded."
-    }
-  }
-}
-
 private fun getEncryptedResult(
   result: Measurement.Result,
   publicKey: EncryptionPublicKey
@@ -249,7 +211,7 @@ private class HeaderCapturingInterceptor : ServerInterceptor {
 }
 
 @RunWith(JUnit4::class)
-class SimpleReportTest {
+class BenchmarkTest {
   private val measurementConsumersServiceMock: MeasurementConsumersCoroutineImplBase =
     mockService() { onBlocking { getMeasurementConsumer(any()) }.thenReturn(MEASUREMENT_CONSUMER) }
   private val dataProvidersServiceMock: DataProvidersCoroutineImplBase =
@@ -257,7 +219,6 @@ class SimpleReportTest {
   private val measurementsServiceMock: MeasurementsCoroutineImplBase =
     mockService() {
       onBlocking { createMeasurement(any()) }.thenReturn(MEASUREMENT)
-      onBlocking { listMeasurements(any()) }.thenReturn(LIST_MEASUREMENT_RESPONSE)
       onBlocking { getMeasurement(any()) }.thenReturn(SUCCEEDED_MEASUREMENT)
     }
   private val certificatesServiceMock: CertificatesGrpcKt.CertificatesCoroutineImplBase =
@@ -301,16 +262,11 @@ class SimpleReportTest {
     server.server.awaitTermination(1, SECONDS)
   }
 
-  private fun String.toTimestamp(): Timestamp {
-    val instant = OffsetDateTime.parse(this).toInstant()
-    return timestamp {
-      seconds = instant.epochSecond
-      nanos = instant.nano
-    }
-  }
-
   @Test
-  fun `Create command call public api with valid Measurement`() {
+  fun `Benchmark reach and frequency`() {
+    val clock = Clock.fixed(Instant.parse(TIME_STRING_1), ZoneId.of("UTC"))
+    val tempFile = Files.createTempFile("benchmarks-reach", ".csv")
+
     val args =
       arrayOf(
         "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
@@ -318,156 +274,6 @@ class SimpleReportTest {
         "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
         "--kingdom-public-api-target=$HOST:$PORT",
         "--api-key=$API_KEY",
-        "create",
-        "--impression",
-        "--impression-privacy-epsilon=0.015",
-        "--impression-privacy-delta=0.0",
-        "--max-frequency=1000",
-        "--vid-sampling-start=0.1",
-        "--vid-sampling-width=0.2",
-        "--measurement-consumer=measurementConsumers/777",
-        "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
-        "--measurement-ref-id=9999",
-        "--data-provider=dataProviders/1",
-        "--event-group=dataProviders/1/eventGroups/1",
-        "--event-filter=abcd",
-        "--event-start-time=$TIME_STRING_1",
-        "--event-end-time=$TIME_STRING_2",
-        "--event-group=dataProviders/1/eventGroups/2",
-        "--event-start-time=$TIME_STRING_3",
-        "--event-end-time=$TIME_STRING_4",
-        "--data-provider=dataProviders/2",
-        "--event-group=dataProviders/2/eventGroups/1",
-        "--event-filter=ijk",
-        "--event-start-time=$TIME_STRING_5",
-        "--event-end-time=$TIME_STRING_6",
-      )
-    CommandLine(SimpleReport()).execute(*args)
-
-    // verify api key
-    assertThat(
-        headerInterceptor.capturedHeaders
-          .single()
-          .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
-      )
-      .isEqualTo(API_KEY)
-
-    val request =
-      captureFirst<CreateMeasurementRequest> {
-        runBlocking { verify(measurementsServiceMock).createMeasurement(capture()) }
-      }
-    val measurement = request.measurement
-    // measurementSpec matches
-    val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
-    assertThat(
-        verifyMeasurementSpec(
-          measurement.measurementSpec.signature,
-          measurementSpec,
-          MEASUREMENT_CONSUMER_CERTIFICATE
-        )
-      )
-      .isTrue()
-    val nonceHashes = measurement.dataProvidersList.map { it.value.nonceHash }
-    assertThat(measurementSpec)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(
-        measurementSpec {
-          measurementPublicKey = MEASUREMENT_PUBLIC_KEY
-          this.nonceHashes += nonceHashes
-        }
-      )
-    assertThat(measurement.measurementReferenceId).isEqualTo("9999")
-    // dataProvider1 matches
-    val dataProviderEntry1 = measurement.dataProvidersList[0]
-    assertThat(dataProviderEntry1.key).isEqualTo("dataProviders/1")
-    val signedRequisitionSpec1 =
-      decryptRequisitionSpec(
-        dataProviderEntry1.value.encryptedRequisitionSpec,
-        DATA_PROVIDER_PRIVATE_KEY_HANDLE
-      )
-    val requisitionSpec1 = RequisitionSpec.parseFrom(signedRequisitionSpec1.data)
-    assertThat(
-        verifyRequisitionSpec(
-          signedRequisitionSpec1.signature,
-          requisitionSpec1,
-          measurementSpec,
-          MEASUREMENT_CONSUMER_CERTIFICATE
-        )
-      )
-      .isTrue()
-    assertThat(requisitionSpec1)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(
-        requisitionSpec {
-          measurementPublicKey = MEASUREMENT_PUBLIC_KEY
-          eventGroups += eventGroupEntry {
-            key = "dataProviders/1/eventGroups/1"
-            value = eventGroupEntryValue {
-              collectionInterval = timeInterval {
-                startTime = TIME_STRING_1.toTimestamp()
-                endTime = TIME_STRING_2.toTimestamp()
-              }
-              filter = eventFilter { expression = "abcd" }
-            }
-          }
-          eventGroups += eventGroupEntry {
-            key = "dataProviders/1/eventGroups/2"
-            value = eventGroupEntryValue {
-              collectionInterval = timeInterval {
-                startTime = TIME_STRING_3.toTimestamp()
-                endTime = TIME_STRING_4.toTimestamp()
-              }
-            }
-          }
-        }
-      )
-    // dataProvider2 matches
-    val dataProviderEntry2 = measurement.dataProvidersList[1]
-    assertThat(dataProviderEntry2.key).isEqualTo("dataProviders/2")
-    val signedRequisitionSpec2 =
-      decryptRequisitionSpec(
-        dataProviderEntry2.value.encryptedRequisitionSpec,
-        DATA_PROVIDER_PRIVATE_KEY_HANDLE
-      )
-    val requisitionSpec2 = RequisitionSpec.parseFrom(signedRequisitionSpec2.data)
-    assertThat(
-        verifyRequisitionSpec(
-          signedRequisitionSpec2.signature,
-          requisitionSpec2,
-          measurementSpec,
-          MEASUREMENT_CONSUMER_CERTIFICATE
-        )
-      )
-      .isTrue()
-    assertThat(requisitionSpec2)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(
-        requisitionSpec {
-          measurementPublicKey = MEASUREMENT_PUBLIC_KEY
-          eventGroups += eventGroupEntry {
-            key = "dataProviders/2/eventGroups/1"
-            value = eventGroupEntryValue {
-              collectionInterval = timeInterval {
-                startTime = TIME_STRING_5.toTimestamp()
-                endTime = TIME_STRING_6.toTimestamp()
-              }
-              filter = eventFilter { expression = "ijk" }
-            }
-          }
-        }
-      )
-  }
-
-  @Test
-  fun `Create command call public api with correct REACH_AND_FREQUENCY params`() {
-    val args =
-      arrayOf(
-        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
-        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
-        "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
-        "--kingdom-public-api-target=$HOST:$PORT",
-        "--api-key=$API_KEY",
-        "create",
         "--measurement-consumer=measurementConsumers/777",
         "--reach-and-frequency",
         "--reach-privacy-epsilon=0.015",
@@ -477,13 +283,16 @@ class SimpleReportTest {
         "--vid-sampling-start=0.1",
         "--vid-sampling-width=0.2",
         "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
+        "--encryption-private-key-file=$SECRETS_DIR/mc_enc_private.tink",
         "--data-provider=dataProviders/1",
         "--event-group=dataProviders/1/eventGroups/1",
         "--event-filter=abcd",
         "--event-start-time=$TIME_STRING_1",
         "--event-end-time=$TIME_STRING_2",
+        "--output-file=$tempFile",
       )
-    CommandLine(SimpleReport()).execute(*args)
+
+    CommandLine(BenchmarkReport(clock)).execute(*args)
 
     val request =
       captureFirst<CreateMeasurementRequest> {
@@ -513,10 +322,20 @@ class SimpleReportTest {
             }
         }
       )
+
+    val result = Files.readAllLines(tempFile)
+
+    assertThat(result.size).isEqualTo(2)
+    assertThat(result[0])
+      .isEqualTo("replica,startTime,ackTime,endTime,status,msg,reach,freq1,freq2,freq3,freq4,freq5")
+    assertThat(result[1]).isEqualTo("1,0.0,0.0,0.0,success,,4096,0.0,0.0,0.0,0.0,0.0")
   }
 
   @Test
-  fun `Create command call public api with correct IMPRESSION params`() {
+  fun `Benchmark impressions`() {
+    val clock = Clock.fixed(Instant.parse(TIME_STRING_1), ZoneId.of("UTC"))
+    val tempFile = Files.createTempFile("benchmarks-impressions", ".csv")
+
     val args =
       arrayOf(
         "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
@@ -524,7 +343,6 @@ class SimpleReportTest {
         "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
         "--kingdom-public-api-target=$HOST:$PORT",
         "--api-key=$API_KEY",
-        "create",
         "--measurement-consumer=measurementConsumers/777",
         "--impression",
         "--impression-privacy-epsilon=0.015",
@@ -533,13 +351,15 @@ class SimpleReportTest {
         "--vid-sampling-start=0.1",
         "--vid-sampling-width=0.2",
         "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
+        "--encryption-private-key-file=$SECRETS_DIR/mc_enc_private.tink",
         "--data-provider=dataProviders/1",
         "--event-group=dataProviders/1/eventGroups/1",
         "--event-filter=abcd",
         "--event-start-time=$TIME_STRING_1",
-        "--event-end-time=$TIME_STRING_2"
+        "--event-end-time=$TIME_STRING_2",
+        "--output-file=$tempFile",
       )
-    CommandLine(SimpleReport()).execute(*args)
+    CommandLine(BenchmarkReport(clock)).execute(*args)
 
     val request =
       captureFirst<CreateMeasurementRequest> {
@@ -566,10 +386,19 @@ class SimpleReportTest {
             }
         }
       )
+
+    val result = Files.readAllLines(tempFile)
+
+    assertThat(result.size).isEqualTo(2)
+    assertThat(result[0]).isEqualTo("replica,startTime,ackTime,endTime,status,msg,impressions")
+    assertThat(result[1]).isEqualTo("1,0.0,0.0,0.0,success,,0")
   }
 
   @Test
-  fun `Create command call public api with correct DURATION params`() {
+  fun `Benchmark duration`() {
+    val clock = Clock.fixed(Instant.parse(TIME_STRING_1), ZoneId.of("UTC"))
+    val tempFile = Files.createTempFile("benchmarks-duration", ".csv")
+
     val args =
       arrayOf(
         "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
@@ -577,7 +406,6 @@ class SimpleReportTest {
         "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
         "--kingdom-public-api-target=$HOST:$PORT",
         "--api-key=$API_KEY",
-        "create",
         "--measurement-consumer=measurementConsumers/777",
         "--duration",
         "--duration-privacy-epsilon=0.015",
@@ -586,13 +414,15 @@ class SimpleReportTest {
         "--vid-sampling-start=0.1",
         "--vid-sampling-width=0.2",
         "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
+        "--encryption-private-key-file=$SECRETS_DIR/mc_enc_private.tink",
         "--data-provider=dataProviders/1",
         "--event-group=dataProviders/1/eventGroups/1",
         "--event-filter=abcd",
         "--event-start-time=$TIME_STRING_1",
         "--event-end-time=$TIME_STRING_2",
+        "--output-file=$tempFile",
       )
-    CommandLine(SimpleReport()).execute(*args)
+    CommandLine(BenchmarkReport(clock)).execute(*args)
 
     val request =
       captureFirst<CreateMeasurementRequest> {
@@ -619,74 +449,11 @@ class SimpleReportTest {
             }
         }
       )
-  }
 
-  @Test
-  fun `List command call public api with correct request`() {
-    val args =
-      arrayOf(
-        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
-        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
-        "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
-        "--kingdom-public-api-target=$HOST:$PORT",
-        "--api-key=$API_KEY",
-        "list",
-        "--measurement-consumer=$MEASUREMENT_CONSUMER_NAME",
-        "--page-size=50"
-      )
-    CommandLine(SimpleReport()).execute(*args)
+    val result = Files.readAllLines(tempFile)
 
-    // verify api key
-    assertThat(
-        headerInterceptor.capturedHeaders
-          .single()
-          .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
-      )
-      .isEqualTo(API_KEY)
-
-    val request =
-      captureFirst<ListMeasurementsRequest> {
-        runBlocking { verify(measurementsServiceMock).listMeasurements(capture()) }
-      }
-    assertThat(request)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(
-        listMeasurementsRequest {
-          parent = MEASUREMENT_CONSUMER_NAME
-          pageSize = 50
-        }
-      )
-  }
-
-  @Test
-  fun `Get command call public api with correct request`() {
-    val args =
-      arrayOf(
-        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
-        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
-        "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
-        "--kingdom-public-api-target=$HOST:$PORT",
-        "--api-key=$API_KEY",
-        "get",
-        "--measurement=$MEASUREMENT_NAME",
-        "--encryption-private-key-file=$SECRETS_DIR/mc_enc_private.tink",
-      )
-    CommandLine(SimpleReport()).execute(*args)
-
-    // verify api key
-    assertThat(
-        headerInterceptor.capturedHeaders
-          .single()
-          .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
-      )
-      .isEqualTo(API_KEY)
-
-    val request =
-      captureFirst<GetMeasurementRequest> {
-        runBlocking { verify(measurementsServiceMock).getMeasurement(capture()) }
-      }
-    assertThat(request)
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(getMeasurementRequest { name = MEASUREMENT_NAME })
+    assertThat(result.size).isEqualTo(2)
+    assertThat(result[0]).isEqualTo("replica,startTime,ackTime,endTime,status,msg,duration")
+    assertThat(result[1]).isEqualTo("1,0.0,0.0,0.0,success,,0")
   }
 }
