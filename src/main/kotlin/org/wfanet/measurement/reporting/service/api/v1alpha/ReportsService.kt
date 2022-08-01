@@ -340,22 +340,12 @@ class ReportsService(
         )
       }
 
+    // TODO: Factor this out to a separate class similar to EncryptionKeyPairStore.
     val signingPrivateKeyDer: ByteString =
       signingPrivateKeyDir.resolve(principal.config.signingPrivateKeyPath).readByteString()
 
     val signingCertificateDer: ByteString =
-      try {
-        certificateStub
-          .withAuthenticationKey(apiAuthenticationKey)
-          .getCertificate(getCertificateRequest { name = principal.config.signingCertificateName })
-          .x509Der
-      } catch (e: StatusException) {
-        throw Exception(
-          "Unable to retrieve the signing certificate for the measurement consumer " +
-            "[${principal.config.signingCertificateName}].",
-          e
-        )
-      }
+      getSigningCertificateDer(apiAuthenticationKey, principal.config.signingCertificateName)
 
     val signingConfig =
       SigningConfig(
@@ -386,6 +376,26 @@ class ReportsService(
       return internalReportsStub.createReport(internalCreateReportRequest).toReport()
     } catch (e: StatusException) {
       throw Exception("Unable to create a report in the reporting database.", e)
+    }
+  }
+
+  /** Gets a signing certificate x509Der in ByteString. */
+  private suspend fun getSigningCertificateDer(
+    apiAuthenticationKey: String,
+    signingCertificateName: String
+  ): ByteString {
+    // TODO: Replace this with caching certificates or having them stored alongside the private key.
+    return try {
+      certificateStub
+        .withAuthenticationKey(apiAuthenticationKey)
+        .getCertificate(getCertificateRequest { name = signingCertificateName })
+        .x509Der
+    } catch (e: StatusException) {
+      throw Exception(
+        "Unable to retrieve the signing certificate for the measurement consumer " +
+          "[$signingCertificateName].",
+        e
+      )
     }
   }
 
