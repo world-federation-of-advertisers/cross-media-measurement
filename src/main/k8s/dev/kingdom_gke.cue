@@ -16,18 +16,7 @@ package k8s
 
 _secret_name: string @tag("secret_name")
 
-#KingdomServerResourceConfig: {
-	replicas: 1
-	resources: {
-		requests: {
-			cpu: "100m"
-		}
-		limits: {
-			cpu:    "400m"
-			memory: "1024Mi"
-		}
-	}
-	jvmHeapSize: "800m"
+#KingdomServerResourceConfig: #DefaultResourceConfig & {
 }
 
 // Name of K8s service account for the internal API server.
