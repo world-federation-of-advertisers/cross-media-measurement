@@ -577,7 +577,7 @@ class Benchmark(
         .joinToString("")
 
     for (replica in 1..flags.repetitionCount) {
-      val referenceId = "${referenceIdBase}-${replica}"
+      val referenceId = "$referenceIdBase-$replica"
       val vidSamplingStartForMeasurement =
         flags.vidSamplingStart +
           kotlin.random.Random.nextInt(0, flags.vidBucketCount).toFloat() * flags.vidSamplingWidth
@@ -640,7 +640,7 @@ class Benchmark(
     while (taskList.size > 0) {
       val task = taskList.get(0)
 
-      print("${(Instant.now(clock).toEpochMilli() - firstInstant.toEpochMilli())/1000.0} ")
+      print("${(Instant.now(clock).toEpochMilli() - firstInstant.toEpochMilli()) / 1000.0} ")
       println("Trying to retrieve ${task.referenceId} ${task.measurementName}...")
       val measurement =
         runBlocking(Dispatchers.IO) {
@@ -697,9 +697,9 @@ class Benchmark(
       }
       for (task in completedTasks) {
         out.print("${task.replicaId}")
-        out.print(",${(task.requestTime.toEpochMilli() - firstInstant.toEpochMilli())/1000.0}")
-        out.print(",${(task.ackTime.toEpochMilli() - firstInstant.toEpochMilli())/1000.0}")
-        out.print(",${task.elapsedTimeMillis/1000.0},")
+        out.print(",${(task.requestTime.toEpochMilli() - firstInstant.toEpochMilli()) / 1000.0}")
+        out.print(",${(task.ackTime.toEpochMilli() - firstInstant.toEpochMilli()) / 1000.0}")
+        out.print(",${task.elapsedTimeMillis / 1000.0},")
         out.print("${task.status},${task.errorMessage},")
         if (flags.measurementTypeParams.reachAndFrequency.selected) {
           var reach = 0L
@@ -716,7 +716,7 @@ class Benchmark(
             }
           }
           for (i in 1..frequencies.size) {
-            out.print(",${frequencies[i-1]}")
+            out.print(",${frequencies[i - 1]}")
           }
           out.println()
         } else if (flags.measurementTypeParams.impression.selected) {
