@@ -3,12 +3,13 @@
 How to deploy system components to a local Kubernetes cluster running in
 [KiND](https://kind.sigs.k8s.io/).
 
-This assumes that you have `kubectl` installed and configured to point to a local KiND cluster. You should have some
-familiarity with Kubernetes and
+This assumes that you have `kubectl` installed and configured to point to a
+local KiND cluster. You should have some familiarity with Kubernetes and
 `kubectl`.
 
-Note that some of the targets listed below -- namely, the Duchies and simulators -- have requirements regarding the
-version of glibc in the build environment. See [Building](../../../../docs/building.md).
+Note that some of the targets listed below -- namely, the Duchies and
+simulators -- have requirements regarding the version of glibc in the build
+environment. See [Building](../../../../docs/building.md).
 
 ## Initial Setup
 
@@ -18,7 +19,8 @@ version of glibc in the build environment. See [Building](../../../../docs/build
 bazel run //src/main/k8s/testing/secretfiles:apply_kustomization
 ```
 
-The secret name will be printed on creation, but it can also be obtained later by running
+The secret name will be printed on creation, but it can also be obtained later
+by running
 
 ```shell
 kubectl get secrets
@@ -28,9 +30,11 @@ You will need to substitute the correct secret name in later commands.
 
 ### Create Empty `config-files` ConfigMap
 
-The `config-files` ConfigMap contains configuration files that depend on API resource names. These cannot be properly
-filled in until after resource-setup-job has completed, but the files are required to start some of the Kingdom and
-Duchy services. Therefore, we initially create the ConfigMap with empty files.
+The `config-files` ConfigMap contains configuration files that depend on API
+resource names. These cannot be properly filled in until after
+resource-setup-job has completed, but the files are required to start some of
+the Kingdom and Duchy services. Therefore, we initially create the ConfigMap
+with empty files.
 
 ```shell
 touch /tmp/authority_key_identifier_to_principal_map.textproto
@@ -40,8 +44,8 @@ kubectl create configmap config-files \
 
 ## Deploy Emulators
 
-The local test environment uses emulators for Google Cloud infrastructure. This includes an in-memory Spanner emulator
-as well as ephemeral blob storage.
+The local test environment uses emulators for Google Cloud infrastructure. This
+includes an in-memory Spanner emulator as well as ephemeral blob storage.
 
 ```shell
 bazel run //src/main/k8s/local:emulators_kind \
@@ -50,8 +54,9 @@ bazel run //src/main/k8s/local:emulators_kind \
 
 ## Resource Setup
 
-There is a chicken-and-egg problem with setting up initial resources, in that resource setup is done by calling Kingdom
-services but some Kingdom services depend on resource configuration. Therefore, we have to deploy the Kingdom for
+There is a chicken-and-egg problem with setting up initial resources, in that
+resource setup is done by calling Kingdom services but some Kingdom services
+depend on resource configuration. Therefore, we have to deploy the Kingdom for
 resource setup and then update configurations and restart some Kingdom services.
 
 ```shell
@@ -61,7 +66,8 @@ bazel run //src/main/k8s/local:resource_setup_kind \
   --define=k8s_secret_name=certs-and-configs-k8888kc6gg
 ```
 
-After the resource setup job has completed, you can obtain the created resource names from its logs.
+After the resource setup job has completed, you can obtain the created resource
+names from its logs.
 
 ```shell
 kubectl logs jobs/resource-setup-job
@@ -69,12 +75,15 @@ kubectl logs jobs/resource-setup-job
 
 ### Update `config-files` ConfigMap
 
-After resource-setup-job has completed, we can fill in the config files and update the `config-files` ConfigMap.
+After resource-setup-job has completed, we can fill in the config files and
+update the `config-files` ConfigMap.
 
-Create the file `authority_key_identifier_to_principal_map.textproto` with the content below, substituting the
-appropriate resource names. The AKIDs come from the EDP certificates in [secretfiles](../testing/secretfiles). The order
-of the entries follows the order of the EDP certificates in the secretfiles folder. For example, the first entry is
-for `edp1_root.pem`
+Create the file `authority_key_identifier_to_principal_map.textproto` with the
+content below, substituting the appropriate resource names. The Authority Key
+Identifier(AKID) comes from the EDP certificates in
+[secretfiles](../testing/secretfiles). The order of the entries follows the
+lexicographic order of the testing EDP root certificates in the secretfiles
+folder(edp1 through edp6). For example, the first entry is for `edp1_root.pem`
 
 ```prototext
 # proto-file: src/main/proto/wfa/measurement/config/authority_key_to_principal_map.proto
@@ -105,10 +114,11 @@ entries {
 }
 ```
 
-If needed, you can use the following command to inspect the AKID of each certificate. The byte literals in protobuf text
-format are two hex digits of the Authority Key Identifier output from this command preceded by `\x`
+If needed, you can use the following OpenSSL CLI command to inspect the AKID of
+each certificate. As a reminder, the byte literals in protobuf text format are
+two hex digits of the AKID output from this command escaping with `\x`
 
-```
+```shell
 openssl x509 -noout -text -in src/main/k8s/testing/secretfiles/edp1_root.pem
 ```
 
@@ -120,7 +130,8 @@ kubectl create configmap config-files --output=yaml --dry-run=client \
   | kubectl replace -f -
 ```
 
-If you want to also deploy the Reporting Server, you can add additional files to the ConfigMap.
+If you want to also deploy the Reporting Server, you can add additional files to
+the ConfigMap.
 
 ```shell
 kubectl create configmap config-files --output=yaml --dry-run=client \
@@ -130,9 +141,8 @@ kubectl create configmap config-files --output=yaml --dry-run=client \
   | kubectl replace -f -
 ```
 
-Create the file
-`authority_key_identifier_to_mc_principal_map.textproto` with the appropriate MC resource name. The AKID come from the
-MC certificate in
+Create the file `authority_key_identifier_to_mc_principal_map.textproto` with
+the appropriate MC resource name. The AKID come from the MC certificate in
 [secretfiles](../testing/secretfiles).
 
 ```prototext
@@ -144,8 +154,9 @@ entries {
 }
 ```
 
-Create the file `encryption_key_pair_config.textproto` with the content below, substituting the appropriate file names.
-The file names come from the MC keys in [secretfiles](../testing/secretfiles).
+Create the file `encryption_key_pair_config.textproto` with the content below,
+substituting the appropriate file names. The file names come from the MC keys in
+[secretfiles](../testing/secretfiles).
 
 ```prototext
 # proto-file: src/main/proto/wfa/measurement/config/reporting/encryption_key_pair_config.proto
@@ -160,8 +171,8 @@ key_pairs {
 }
 ```
 
-You can then restart the Kingdom deployments that depend on `config-files`. At the moment, this is just the public API
-server.
+You can then restart the Kingdom deployments that depend on `config-files`. At
+the moment, this is just the public API server.
 
 ```shell
 kubectl rollout restart deployments/v2alpha-public-api-server-deployment
@@ -169,8 +180,8 @@ kubectl rollout restart deployments/v2alpha-public-api-server-deployment
 
 ## Re-deploy Kingdom
 
-You now have a fully-deployed Kingdom. If you wish to redeploy the Kingdom, for example to pick up new changes, you can
-do so with the following command:
+You now have a fully-deployed Kingdom. If you wish to redeploy the Kingdom, for
+example to pick up new changes, you can do so with the following command:
 
 ```shell
 bazel run //src/main/k8s/local:kingdom_kind \
@@ -180,8 +191,8 @@ bazel run //src/main/k8s/local:kingdom_kind \
 ## Deploy Duchies
 
 The testing environment uses three Duchies: an aggregator and two workers, named
-`aggregator`, `worker1`, and `worker2` respectively. Substitute the appropriate secret name and Certificate resource
-names in the command below.
+`aggregator`, `worker1`, and `worker2` respectively. Substitute the appropriate
+secret name and Certificate resource names in the command below.
 
 ```shell
 bazel run //src/main/k8s/local:duchies_kind \
@@ -194,8 +205,8 @@ bazel run //src/main/k8s/local:duchies_kind \
 ## Deploy EDP Simulators
 
 The testing environment simulates six DataProviders, named `edp1` through
-`edp6`. Substitute the appropriate secret name and resource names in the command below. These should match the resource
-names specified in
+`edp6`. Substitute the appropriate secret name and resource names in the command
+below. These should match the resource names specified in
 `authority_key_identifier_to_principal_map.textproto` above.
 
 ```shell
@@ -212,7 +223,8 @@ bazel run //src/main/k8s/local:edp_simulators_kind \
 
 ## Deploy MC Frontend Simulator
 
-This is a job that tests correctness by creating a Measurement and validating the result.
+This is a job that tests correctness by creating a Measurement and validating
+the result.
 
 ```shell
 bazel run //src/main/k8s/local:mc_frontend_simulator_kind \
@@ -223,8 +235,8 @@ bazel run //src/main/k8s/local:mc_frontend_simulator_kind \
 
 ## Create Secret for Reporting Server Postgres Database
 
-You can use `kubectl` to create the `db-auth` secret. To reduce the likelihood of leaking your password, we read it in
-from STDIN.
+You can use `kubectl` to create the `db-auth` secret. To reduce the likelihood
+of leaking your password, we read it in from STDIN.
 
 Tip: Ctrl+D is the usual key combination for closing the input stream.
 
@@ -251,8 +263,9 @@ bazel run //src/main/k8s/local:reporting_database_kind \
 
 ## Create Secret for Reporting API Server
 
-Create the file `/tmp/measurement_consumer_config.textproto` with the content below, substituting the appropriate MC and
-certificate resource names, and the API key.
+Create the file `/tmp/measurement_consumer_config.textproto` with the content
+below, substituting the appropriate MC and certificate resource names, and the
+API key.
 
 ```prototext
 # proto-file: src/main/proto/wfa/measurement/config/reporting/measurement_consumer_config.proto
