@@ -408,7 +408,7 @@ class ListEventGroups : Runnable {
     description = ["API resource name of the Data Provider"],
     required = true,
   )
-  private lateinit var measurementConsumerName: String
+  private lateinit var dataProviderName: String
 
   @CommandLine.Option(
     names = ["--filter"],
@@ -421,7 +421,7 @@ class ListEventGroups : Runnable {
 
   override fun run() {
     val request = listEventGroupsRequest {
-      parent = measurementConsumerName
+      parent = dataProviderName
       pageSize = pageParams.pageSize
       pageToken = pageParams.pageToken
       this.filter = celFilter
