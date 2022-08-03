@@ -10,8 +10,8 @@ kt_jvm_test(
     ],
     test_class = "org.wfanet.measurement.integration.postgres.PrivacyBudgetPostgresSchemaTest",
     deps = [
-        "//imports/java/com/opentable/db/postgres:otj_pg_embedded",
         "//src/main/kotlin/org/wfanet/measurement/integration/deploy/postgres:schemata",
+        "@wfa_common_jvm//imports/java/com/opentable/db/postgres:pg_embedded",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
