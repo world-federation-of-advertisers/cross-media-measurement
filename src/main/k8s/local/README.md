@@ -268,7 +268,7 @@ then use it to create a secret.
 ```shell
 kubectl create secret generic mc-config \
   --append-hash \
-  --from-literal=config=/tmp/measurement_consumer_config.textproto
+  --from-file=/tmp/measurement_consumer_config.textproto
 ```
 Record the secret name for later steps.
 
