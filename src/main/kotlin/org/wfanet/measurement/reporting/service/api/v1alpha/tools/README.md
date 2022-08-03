@@ -1,79 +1,65 @@
 # Reporting CLI Tools
 
-Command-line tools for Reporting API.
+Command-line tools for Reporting API. Use the `help` subcommand for help with
+any of the subcommands.
 
-## ReportingSet Operations
+Note that instead of specifying arguments on the command-line, you can specify
+an arguments file using `@` followed by the path. For example,
 
-A ReportingSet is a collection of EventGroups. It allows users to reuse the same 
-set of EventGroups for different report without specify EventGroups over again.
-
-### TLS flags
-
-You'll need to specify the reporting server's API target using the
-`--reporting-server-api-target` option.
-
-You'll also need to specify a TLS client certificate and key using the
-`--tls-cert-file` and `--tls-key-file` options, respectively. The issuer of this
-certificate must be trusted by the reporting server, i.e. the issuer
-certificate must be in that server's trusted certificate collection file.
-
-### Create
-
-Example:
 ```shell
-reporting \
---tls-cert-file=secretfiles/mc_tls.pem \
---tls-key-file=secretfiles/mc_tls.key \
---cert-collection-file=secretfiles/reporting_root.pem \
---reporting-server-api-target=reporting.dev.halo-cmm.org:8443 \
-create-reporting-set \
---measurement-consumer=measurementConsumers/777 \
---event-groups \
-dataProviders/1/eventGroups/1 \
-dataProviders/1/eventGroups/2 \
-dataProviders/2/eventGroups/1 \
---filter="video_ad.age.value == 1" \
---display-name=test-reporting-set
+Reporting @/home/foo/args.txt
 ```
 
-### List
+## Certificate Host
 
-To retrieve the next page of reports, add the argument "--page-token", which is
-provided from the previews ListReportingSets response.
+In the event that the host you specify to the `--reporting-server-api-target`
+option doesn't match what's in the Subject Alternative Name (SAN) extension of
+the server's certificate, you'll need to specify a host that does match using
+the `--reporting-server-api-cert-host` option.
 
-Example:
+## Examples
+
+### reporting-sets
+
+#### create
+
+```shell
+Reporting \
+  --tls-cert-file=src/main/k8s/testing/secretfiles/mc_tls.pem \
+  --tls-key-file=src/main/k8s/testing/secretfiles/mc_tls.key \
+  --cert-collection-file src/main/k8s/testing/secretfiles/reporting_root.pem \
+  --reporting-server-api-target v1alpha.reporting.dev.halo-cmm.org:8443 \
+  reporting-sets create --parent=measurementConsumers/VCTqwV_vFXw \
+  --event-group=measurementConsumers/VCTqwV_vFXw/dataProviders/1/eventGroups/1 \
+  --event-group=measurementConsumers/VCTqwV_vFXw/dataProviders/1/eventGroups/2 \
+  --event-group=measurementConsumers/VCTqwV_vFXw/dataProviders/2/eventGroups/1 \
+  --filter='video_ad.age.value == 1' --display-name='test-reporting-set'
+```
+
+#### list
+
+```shell
+Reporting \
+  --tls-cert-file=src/main/k8s/testing/secretfiles/mc_tls.pem \
+  --tls-key-file=src/main/k8s/testing/secretfiles/mc_tls.key \
+  --cert-collection-file src/main/k8s/testing/secretfiles/reporting_root.pem \
+  --reporting-server-api-target v1alpha.reporting.dev.halo-cmm.org:8443 \
+  reporting-sets list --parent=measurementConsumers/VCTqwV_vFXw
+```
+
+To retrieve the next page of reports, use the `--page-token` option to specify
+the token returned from the previous response.
+
+### reports
+
+#### create
+
 ```shell
 reporting \
 --tls-cert-file=secretfiles/mc_tls.pem \
 --tls-key-file=secretfiles/mc_tls.key \
 --cert-collection-file=secretfiles/kingdom_root.pem \
---reporting-server-api-target=reporting.dev.halo-cmm.org:8443 \
-list-reporting-sets \
---measurement-consumer=measurementConsumers/777
-```
-
-## Reports Operations
-
-### Create
-
-User specifies the type of time args by using either repeated interval params(
-`--interval-start-time`, `--interval-end-time`) or periodic time args(
-`--periodic-interval-start-time`, `--periodic-interval-increment` and
-`--periodic-interval-count`)
-
-The input of metric is in format of `.textproto`. See 
-[metric.textproto](../../../../../../../../../../test/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha/tools/metric1.textproto) 
-for a complicated example. Use single quotes to wrap the content in terminal 
-to input multiple lines as arg. Or write the content into a file 
-(eg. metric1.textproto) and use `--metrics="$(cat metric1.textproto)"`.
-
-Example:
-```shell
-reporting \
---tls-cert-file=secretfiles/mc_tls.pem \
---tls-key-file=secretfiles/mc_tls.key \
---cert-collection-file=secretfiles/kingdom_root.pem \
---reporting-server-api-target=reporting.dev.halo-cmm.org:8443 \
+--reporting-server-api-target=v1alpha.reporting.dev.halo-cmm.org:8443 \
 reports \
 create \
 --parent=measurementConsumers/777 \
@@ -88,7 +74,7 @@ create \
 --metric='
 reach { }
     set_operations {
-      display_name: "operation1"
+      unique_name: "operation1"
       set_operation {
         type: 1
         lhs {
@@ -102,9 +88,21 @@ reach { }
 '
 ```
 
-### List
+User specifies the type of time args by using either repeated interval params(
+`--interval-start-time`, `--interval-end-time`) or periodic time args(
+`--periodic-interval-start-time`, `--periodic-interval-increment` and
+`--periodic-interval-count`)
 
-Example:
+The `--metric` option expects a
+[`Metric`](../../../../../../../../../proto/wfa/measurement/reporting/v1alpha/metric.proto)
+protobuf message in text format. See
+[`metric1.textproto`](../../../../../../../../../../test/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha/tools/metric1.textproto)
+for a complicated example. You can use shell quoting for a multiline string, or
+use command substitution to read the message from a file e.g. `--metric=$(cat
+metric1.textproto)`.
+
+#### list
+
 ```shell
 reporting \
 --tls-cert-file=secretfiles/mc_tls.pem \
@@ -116,17 +114,13 @@ list \
 --parent=measurementConsumers/777
 ```
 
-### Get
+#### get
 
-Example:
 ```shell
 reporting \
 --tls-cert-file=secretfiles/mc_tls.pem \
 --tls-key-file=secretfiles/mc_tls.key \
 --cert-collection-file=secretfiles/kingdom_root.pem \
 --reporting-server-api-target=reporting.dev.halo-cmm.org:8443 \
-reports \
-get \
---parent=measurementConsumers/777
---name=measurementConsumers/777/reports/5
+reports get measurementConsumers/777/reports/5
 ```

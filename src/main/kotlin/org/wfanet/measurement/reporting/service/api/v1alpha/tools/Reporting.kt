@@ -365,10 +365,8 @@ class ListReportsCommand : Runnable {
 class GetReportCommand : Runnable {
   @CommandLine.ParentCommand private lateinit var parent: ReportsCommand
 
-  @CommandLine.Option(
-    names = ["--name"],
+  @CommandLine.Parameters(
     description = ["API resource name of the Report"],
-    required = true,
   )
   private lateinit var reportName: String
 
