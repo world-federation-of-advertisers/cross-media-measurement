@@ -59,6 +59,7 @@ import java.security.SecureRandom
 import java.time.Clock
 import java.time.Duration as JavaDuration
 import java.time.Instant
+import java.util.Collections
 import kotlin.properties.Delegates
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -105,6 +106,7 @@ import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
@@ -409,8 +411,8 @@ private fun getDataProviderEntry(
             key = it.name
             value = eventGroupEntryValue {
               collectionInterval = timeInterval {
-                startTime = convertToTimestamp(it.eventStartTime)
-                endTime = convertToTimestamp(it.eventEndTime)
+                startTime = it.eventStartTime.toProtoTime()
+                endTime = it.eventEndTime.toProtoTime()
               }
               if (it.eventFilter.isNotEmpty()) filter = eventFilter { expression = it.eventFilter }
             }
@@ -541,7 +543,7 @@ class Benchmark(
     lateinit var result: Measurement.Result
   }
   /** List of tasks that have been submitted to the Kingdom. */
-  val taskList: MutableList<MeasurementTask> = mutableListOf()
+  val taskList: MutableList<MeasurementTask> = Collections.synchronizedList(mutableListOf())
 
   /** List of tasks for which responses have been received or which have timed out. */
   val completedTasks: MutableList<MeasurementTask> = mutableListOf()
@@ -637,8 +639,9 @@ class Benchmark(
     certificateStub: CertificatesCoroutineStub,
     firstInstant: Instant
   ) {
-    while (taskList.size > 0) {
-      val task = taskList.get(0)
+		var iTask = 0
+    while (iTask < taskList.size) {
+      val task = taskList.get(iTask)
 
       print("${(Instant.now(clock).toEpochMilli() - firstInstant.toEpochMilli()) / 1000.0} ")
       println("Trying to retrieve ${task.referenceId} ${task.measurementName}...")
@@ -676,10 +679,10 @@ class Benchmark(
 
         task.responseTime = Instant.now(clock)
         task.elapsedTimeMillis = task.responseTime.toEpochMilli() - firstInstant.toEpochMilli()
-        taskList.removeAt(0)
+        taskList.removeAt(iTask)
         completedTasks.add(task)
       } else {
-        break
+				iTask += 1
       }
     }
   }
