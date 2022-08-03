@@ -639,7 +639,7 @@ class Benchmark(
     certificateStub: CertificatesCoroutineStub,
     firstInstant: Instant
   ) {
-		var iTask = 0
+    var iTask = 0
     while (iTask < taskList.size) {
       val task = taskList.get(iTask)
 
@@ -682,7 +682,7 @@ class Benchmark(
         taskList.removeAt(iTask)
         completedTasks.add(task)
       } else {
-				iTask += 1
+        iTask += 1
       }
     }
   }
