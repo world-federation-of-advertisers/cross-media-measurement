@@ -210,8 +210,8 @@ class ResourceSetup(
             measurementConsumerContent.signingKey
           )
         displayName = measurementConsumerContent.displayName
+        measurementConsumerCreationToken = mcCreationToken
       }
-      measurementConsumerCreationToken = mcCreationToken
     }
     val measurementConsumer =
       measurementConsumersClient.withIdToken(idToken).createMeasurementConsumer(request)
