@@ -28,6 +28,7 @@ import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.reporting.v1alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.reporting.v1alpha.Metric
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.EventGroupUniverseKt.eventGroupEntry
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.eventGroupUniverse
@@ -36,6 +37,7 @@ import org.wfanet.measurement.reporting.v1alpha.ReportsGrpcKt.ReportsCoroutineSt
 import org.wfanet.measurement.reporting.v1alpha.createReportRequest
 import org.wfanet.measurement.reporting.v1alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v1alpha.getReportRequest
+import org.wfanet.measurement.reporting.v1alpha.listEventGroupsRequest
 import org.wfanet.measurement.reporting.v1alpha.listReportingSetsRequest
 import org.wfanet.measurement.reporting.v1alpha.listReportsRequest
 import org.wfanet.measurement.reporting.v1alpha.periodicTimeInterval
@@ -353,6 +355,9 @@ class ListReportsCommand : Runnable {
     val response = runBlocking(Dispatchers.IO) { parent.reportsStub.listReports(request) }
 
     response.reportsList.forEach { println(it.name + " " + it.state.toString()) }
+    if (response.nextPageToken.isNotEmpty()) {
+      println("nextPageToken: ${response.nextPageToken}")
+    }
   }
 }
 
@@ -394,6 +399,57 @@ class ReportsCommand : Runnable {
   override fun run() {}
 }
 
+@CommandLine.Command(name = "list", description = ["List event groups"])
+class ListEventGroups : Runnable {
+  @CommandLine.ParentCommand private lateinit var parent: EventGroupsCommand
+
+  @CommandLine.Option(
+    names = ["--parent"],
+    description = ["API resource name of the Data Provider"],
+    required = true,
+  )
+  private lateinit var dataProviderName: String
+
+  @CommandLine.Option(
+    names = ["--filter"],
+    description = ["Result filter in format of raw CEL expression"],
+    required = false,
+  )
+  private lateinit var celFilter: String
+
+  @CommandLine.Mixin private lateinit var pageParams: PageParams
+
+  override fun run() {
+    val request = listEventGroupsRequest {
+      parent = dataProviderName
+      pageSize = pageParams.pageSize
+      pageToken = pageParams.pageToken
+      this.filter = celFilter
+    }
+
+    val response = runBlocking(Dispatchers.IO) { parent.eventGroupStub.listEventGroups(request) }
+
+    println(response)
+  }
+}
+
+@CommandLine.Command(
+  name = "event-groups",
+  sortOptions = false,
+  subcommands =
+    [
+      CommandLine.HelpCommand::class,
+      ListEventGroups::class,
+    ]
+)
+class EventGroupsCommand : Runnable {
+  @CommandLine.ParentCommand lateinit var parent: Reporting
+
+  val eventGroupStub: EventGroupsCoroutineStub by lazy { EventGroupsCoroutineStub(parent.channel) }
+
+  override fun run() {}
+}
+
 @CommandLine.Command(
   name = "reporting",
   description = ["Reporting CLI tool"],
@@ -403,6 +459,7 @@ class ReportsCommand : Runnable {
       CommandLine.HelpCommand::class,
       ReportingSetsCommand::class,
       ReportsCommand::class,
+      EventGroupsCommand::class,
     ]
 )
 class Reporting : Runnable {
