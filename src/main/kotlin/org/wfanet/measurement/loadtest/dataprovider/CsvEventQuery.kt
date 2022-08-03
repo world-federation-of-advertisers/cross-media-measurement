@@ -17,12 +17,15 @@ package org.wfanet.measurement.loadtest.dataprovider
 import com.opencsv.CSVReaderBuilder
 import java.io.FileReader
 import java.nio.file.Paths
+import java.util.logging.Logger
 import kotlin.random.Random
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
 import org.wfanet.measurement.common.getRuntimePath
 
 /** Fulfill the query with VIDs imported from CSV file. */
-class CsvEventQuery : EventQuery() {
+class CsvEventQuery(
+  private val edpDisplayName: String,
+) : EventQuery() {
 
   /** Import VIDs from CSV file. */
   override fun getUserVirtualIds(eventFilter: EventFilter): Sequence<Long> {
@@ -42,16 +45,19 @@ class CsvEventQuery : EventQuery() {
         "dataprovider",
         "data",
       )
-    val fileName = "synthetic-labelled-events.csv"
+    val fileName = "benchmark_data_small.csv"
     val filePath = getRuntimePath(directoryPath.resolve(fileName)).toString()
+    logger.info("Reading data from CSV file...")
     val fileReader = FileReader(filePath)
 
     fileReader.use {
       val csvReader = CSVReaderBuilder(fileReader).withSkipLines(1).build()
       csvReader.use {
-        var allLines = csvReader.readAll()
-        allLines = allLines.subList(0, 5000)
-        return sequence { allLines.forEach { line -> yield(line[line.size - 1].toLong()) } }
+        var allRows = csvReader.readAll()
+        // allRows = allRows.subList(0, 1000)
+        allRows = allRows.filter { row -> row[0] == edpDisplayName.last().toString() }
+
+        return sequence { allRows.forEach { row -> yield(row[row.size - 1].toLong()) } }
       }
     }
   }
@@ -62,5 +68,9 @@ class CsvEventQuery : EventQuery() {
         yield(Random.nextInt(1, 10000 + 1).toLong())
       }
     }
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
