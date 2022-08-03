@@ -25,7 +25,10 @@ kt_jvm_library(
         "FilterEventQuery.kt",
         "RandomEventQuery.kt",
     ],
-    data = ["//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider/data:synthetic-labelled-events.csv"],
+    data = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider/data:benchmark_data_small.csv",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider/data:synthetic-labelled-events-small.csv",
+    ],
     deps = [
         "//imports/java/com/google:cel-generated-pb",
         "//imports/java/org/projectnessie/cel:core",
