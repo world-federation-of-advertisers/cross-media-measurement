@@ -31,7 +31,7 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.testVideoTempl
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 /** Fulfill the query with data pulled in from csv source. */
-// TODO replace csvEvents input with implementation of object from CSV reader
+// TODO(@jcorilla): replace csvEvents input with implementation of object from CSV reader
 class CsvEventQuery(csvEvents: List<Map<String, Any>>) : EventQuery() {
 
   private val events =
