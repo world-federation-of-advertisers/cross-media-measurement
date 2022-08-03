@@ -237,7 +237,7 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
       setOf(charge),
       Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", false)
     )
-    assertThat(txContext.findIntersectingBalanceEntries(bucket1).size).isEqualTo(1)
+
     val newBackingStore = createBackingStore()
     newBackingStore.startTransaction().use { newTxContext ->
       assertThat(newTxContext.findIntersectingBalanceEntries(bucket1).size).isEqualTo(0)
