@@ -16,11 +16,9 @@ package k8s
 
 import "strings"
 
-#GCloudProject:      "halo-cmm-dev"
-#ContainerRegistry:  "gcr.io"
-#SpannerInstance:    "dev-instance"
-// TODO(@tristanvuong2021): replace with region and instance
-#PostgresCloudSqlInstance:   "(#GCloudProject):region:instance"
+#GCloudProject:     "halo-cmm-dev"
+#ContainerRegistry: "gcr.io"
+#SpannerInstance:   "dev-instance"
 
 #GCloudConfig: {
 	project: #GCloudProject
@@ -64,6 +62,7 @@ import "strings"
 }
 
 #PostgresConfig: {
-	cloudSqlInstance:  #PostgresCloudSqlInstance
-	user:              "reporting-internal@\(#GCloudProject).iam"
+	project:  #GCloudProject
+	instance: "dev-postgres"
+	region:   "us-central1"
 }

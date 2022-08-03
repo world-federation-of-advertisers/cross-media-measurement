@@ -14,35 +14,46 @@
 
 package k8s
 
-#PostgresConfig: {
-  _flags: [_=string]: string
+#CommonPostgresConfig: {
+	_flags: [_=string]: string
 
-  user: string
-  database?: string
-  flags: [ for name, value in _flags {"\(name)=\(value)"}]
+	user:      string
+	database?: string
+	flags: [ for name, value in _flags {"\(name)=\(value)"}]
 
-  _flags: {
-      "--postgres-user": user
-      if database != _|_ {"--postgres-database": database}
-  }
+	_flags: {
+		"--postgres-user": user
+		if database != _|_ {"--postgres-database": database}
+	}
 }
 
-#PostgresConfig: {
-  host:     string
-  port:     uint32 | string
-  password: string
+#CloudSqlPostgresConfig: {
+	#CommonPostgresConfig
 
-  _flags: {
-      "--postgres-host": host
-      "--postgres-port": "\(port)"
-      "--postgres-password": password
-  }
-} | {
-  cloudSqlInstance: string
+	project:  string
+	region:   string
+	instance: string
+	// Local part of IAM user address.
+	iamUserLocal: string
 
-  // TODO(@tristanvuong2021): remove requirement for password flag
-  _flags: {
-    "--postgres-cloud-sql-instance": cloudSqlInstance
-    "--postgres-password": "password"
-  }
+	user:           "\(iamUserLocal)@\(project).iam"
+	connectionName: "\(project):\(region):\(instance)"
+
+	_flags: {
+		// TODO(@tristanvuong2021): Rename option to --postgres-cloud-sql-connection-name.
+		"--postgres-cloud-sql-instance": connectionName
+	}
+}
+
+#PostgresConfig: PostgresConfig=#CloudSqlPostgresConfig | *{
+	#CommonPostgresConfig
+	*#CommonTarget | #ServiceTarget
+
+	password: string
+
+	_flags: {
+		"--postgres-host":     PostgresConfig.host
+		"--postgres-port":     "\(PostgresConfig.port)"
+		"--postgres-password": password
+	}
 }
