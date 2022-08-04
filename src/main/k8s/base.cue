@@ -31,8 +31,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 #GrpcServicePort: 8443
 
 #ResourceConfig: {
-	replicas?:    int32
-	resources?:   #ResourceRequirements
+	replicas?:  int32
+	resources?: #ResourceRequirements
 
 	// TODO(world-federation-of-advertisers/cross-media-measurement#623): Set heap
 	// size as a percentage instead.
@@ -49,12 +49,41 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	requests?: #ResourceQuantity
 }
 
-#Target: {
-	name:   string
-	_caps:  strings.Replace(strings.ToUpper(name), "-", "_", -1)
-	host: "$(" + _caps + "_SERVICE_HOST)"
-	port: "$(" + _caps + "_SERVICE_PORT)"
-	target: host + ":" + port
+#CommonTarget: {
+	host:   string
+	port:   uint32 | string
+	target: "\(host):\(port)"
+}
+
+#ServiceTarget: {
+	#CommonTarget
+
+	serviceName:     string
+	_serviceNameVar: strings.Replace(strings.ToUpper(serviceName), "-", "_", -1)
+
+	host: "$(" + _serviceNameVar + "_SERVICE_HOST)"
+	port: "$(" + _serviceNameVar + "_SERVICE_PORT)"
+}
+
+#Target: #CommonTarget | *#ServiceTarget | {
+	#ServiceTarget
+
+	name:        string
+	serviceName: name
+}
+
+#GrpcTarget: GrpcTarget={
+	*#CommonTarget | #ServiceTarget
+
+	certificateHost?: string
+
+	targetOption:          string
+	certificateHostOption: string
+
+	args: [
+		"\(targetOption)=\(GrpcTarget.target)",
+		if (certificateHost != _|_) {"\(certificateHostOption)=\(certificateHost)"},
+	]
 }
 
 #SecretMount: {
@@ -148,21 +177,21 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 }
 
 #EnvVar: {
-  name: string
+	name: string
 }
 
 #EnvVar: {
-  value: string
+	value: string
 } | {
-  valueFrom:
-    secretKeyRef: {
-      name: string
-      key:  string
-    }
+	valueFrom:
+		secretKeyRef: {
+			name: string
+			key:  string
+		}
 }
 
 #EnvVarMap: [Name=string]: #EnvVar & {
-    name: Name
+	name: Name
 }
 
 #Container: {
@@ -192,7 +221,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_secretName: string
 	_image:      string
 	_args: [...string]
-	_envVars: #EnvVarMap
+	_envVars:         #EnvVarMap
 	_ports:           [{containerPort: #GrpcServicePort}] | *[]
 	_restartPolicy:   string | *"Always"
 	_imagePullPolicy: string | *"Never"
