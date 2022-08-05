@@ -13,7 +13,7 @@
 // limitations under the License.
 
 package k8s
-
+ 
 _mc_name:            string @tag("mc_name")
 _mc_api_key:         string @tag("mc_api_key")
 _secret_name:        string @tag("secret_name")
