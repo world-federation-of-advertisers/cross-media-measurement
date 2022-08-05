@@ -136,7 +136,7 @@ k8s_apply = rule(
             doc = "kind_load targets of images to import",
             providers = [DefaultInfo, ImageImportInfo],
             cfg = "target",
-            allow_empty = False,
+            allow_empty = True,
         ),
         # TODO(b/168034831): Consider splitting out separate k8s_delete rule
         # with attribute to specify resources.

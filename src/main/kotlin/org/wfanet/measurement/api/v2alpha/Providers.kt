@@ -42,13 +42,13 @@ fun ResourceKey.toProvider(): Provider? {
 }
 
 fun getProviderFromContext(): Provider {
-  return requireNotNull(principalFromCurrentContext.resourceKey.toProvider())
+  return checkNotNull(principalFromCurrentContext.resourceKey.toProvider())
 }
 
 fun validateRequestProvider(requestParent: String): Provider {
   val contextProvider = getProviderFromContext()
-  grpcRequire(contextProvider == Principal.fromName(requestParent)?.resourceKey?.toProvider()) {
-    "Principal from authentication does not match request"
-  }
+  grpcRequire(
+    contextProvider == MeasurementPrincipal.fromName(requestParent)?.resourceKey?.toProvider()
+  ) { "Principal from authentication does not match request" }
   return contextProvider
 }

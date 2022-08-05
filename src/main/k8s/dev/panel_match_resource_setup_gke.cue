@@ -19,13 +19,6 @@ _secret_name: string @tag("secret_name")
 #GloudProject:            "halo-cmm-dev"
 #ContainerRegistry:       "gcr.io"
 #ContainerRegistryPrefix: #ContainerRegistry + "/" + #GloudProject
-#DefaultResourceConfig: {
-	replicas:              1
-	resourceRequestCpu:    "100m"
-	resourceLimitCpu:      "200m"
-	resourceRequestMemory: "256Mi"
-	resourceLimitMemory:   "512Mi"
-}
 
 objectSets: [
 	panel_match_resource_setup_job,
@@ -35,6 +28,6 @@ panel_match_resource_setup_job: #PanelMatchResourceSetup & {
 	_edp_display_name:           "edp1"
 	_mp_display_name:            "mp1"
 	_job_image:                  #ContainerRegistryPrefix + "/loadtest/panel-match-resource-setup"
-	_resource_configs:           #DefaultResourceConfig
+	_resourceConfig:             #DefaultResourceConfig
 	_resource_setup_secret_name: _secret_name
 }
