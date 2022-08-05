@@ -72,7 +72,9 @@ def wfa_measurement_system_repositories():
 
     wfa_repo_archive(
         name = "wfa_rules_cue",
+        # DO_NOT_SUBMIT(world-federation-of-advertisers/rules_cue#5): Use version once merged/released.
+        commit = "3898097d5d35398acafc713c41cc517685c6be15",
         repo = "rules_cue",
-        sha256 = "62def6a4dc401fd1549e44e2a4e2ae73cf75e6870025329bc78a0150d9a2594a",
-        version = "0.1.0",
+        sha256 = "167deec7534feb51a3c384e74fc4400cadde4da0345dd76cb6eaee6c003488ec",
+        #version = "0.1.0",
     )

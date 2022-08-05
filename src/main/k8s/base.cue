@@ -132,14 +132,15 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 #PodSpec: PodSpec={
 	_secretMounts: [...#SecretMount]
 	_configMapMounts: [...#ConfigMapMount]
-	_container: #Container & {
+	_containers: [Name=string]: #Container & {
+		name:             Name
 		_secretMounts:    PodSpec._secretMounts
 		_configMapMounts: PodSpec._configMapMounts
 	}
-	_dependencies: [...string]
-	_initContainers: [Name=_]: #Container & {
+	_initContainers: [Name=string]: #Container & {
 		name: Name
 	}
+	_dependencies: [...string]
 
 	_initContainers: {
 		for dep in _dependencies {
@@ -153,7 +154,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	}
 
 	restartPolicy: "Always" | "Never" | "OnFailure"
-	containers: [_container]
+	containers: [ for _, container in _containers {container}]
 	volumes: [ for secretVolume in _secretMounts {
 		name: secretVolume.name
 		secret: secretName: secretVolume.secretName
@@ -197,7 +198,14 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 #Container: {
 	_secretMounts: [...#SecretMount]
 	_configMapMounts: [...#ConfigMapMount]
-	_envVars: #EnvVarMap
+	_envVars:      #EnvVarMap
+	_jvmHeapSize?: string
+
+	if _jvmHeapSize != _|_ {
+		_envVars: "JAVA_TOOL_OPTIONS": {
+			value: "-Xms\(_jvmHeapSize) -Xmx\(_jvmHeapSize)"
+		}
+	}
 
 	name:   string
 	image?: string
@@ -237,13 +245,21 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		}] + Deployment._secretMounts
 		_configMapMounts: Deployment._configMapMounts
 		_dependencies:    Deployment._dependencies
-
-		_container: _envVars: Deployment._envVars
-		if _resourceConfig.jvmHeapSize != _|_ {
-			_container: _envVars: "JAVA_TOOL_OPTIONS": {
-				value: "-Xms\(_resourceConfig.jvmHeapSize) -Xmx\(_resourceConfig.jvmHeapSize)"
-			}
+		_initContainers: [_=string]: {
+			_envVars:     Deployment._envVars
+			_jvmHeapSize: _resourceConfig.jvmHeapSize
+			resources:    _resourceConfig.resources
 		}
+		_containers: "\(_name)-container": {
+			image:           _image
+			imagePullPolicy: _imagePullPolicy
+			args:            _args
+			ports:           _ports
+			resources:       _resourceConfig.resources
+			_envVars:        Deployment._envVars
+			_jvmHeapSize:    _resourceConfig.jvmHeapSize
+		}
+		restartPolicy: _restartPolicy
 	}
 
 	apiVersion: "apps/v1"
@@ -263,24 +279,14 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		replicas?: _resourceConfig.replicas
 		template: {
 			metadata: labels: app: _name + "-app"
-			spec: _podSpec & {
-				containers: [{
-					name:            _name + "-container"
-					image:           _image
-					imagePullPolicy: _imagePullPolicy
-					args:            _args
-					ports:           _ports
-					resources:       _resourceConfig.resources
-				}]
-				restartPolicy: _restartPolicy
-			}
+			spec: _podSpec
 		}
 	}
 }
 
-#ServerDeployment: #Deployment & {
+#ServerDeployment: ServerDeployment=#Deployment & {
 	_ports: [{containerPort: #GrpcServicePort}]
-	spec: template: spec: containers: [{
+	_podSpec: _containers: "\(ServerDeployment._name)-container": {
 		readinessProbe: {
 			exec: command: [
 				"/app/grpc_health_probe/file/grpc-health-probe",
@@ -292,7 +298,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			]
 			initialDelaySeconds: 30
 			failureThreshold:    10
-		}}]
+		}
+	}
 }
 
 #Job: Job={
@@ -315,10 +322,12 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			}]
 		}
 		_dependencies: Job._dependencies
-		if _jvmHeapSize != _|_ {
-			_container: _envVars: "JAVA_TOOL_OPTIONS": {
-				value: "-Xms\(_jvmHeapSize) -Xmx\(_jvmHeapSize)"
-			}
+		_containers: "\(_name)-container": {
+			image:           _image
+			imagePullPolicy: _imagePullPolicy
+			args:            _args
+			resources?:      _resources
+			_jvmHeapSize:    Job._jvmHeapSize
 		}
 
 		restartPolicy: string | *"OnFailure"
@@ -336,15 +345,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	spec: _jobSpec & {
 		template: {
 			metadata: labels: app: _name + "-app"
-			spec: _podSpec & {
-				containers: [{
-					name:            _name + "-container"
-					image:           _image
-					imagePullPolicy: _imagePullPolicy
-					args:            _args
-					resources?:      _resources
-				}]
-			}
+			spec: _podSpec
 		}
 	}
 }
@@ -369,7 +370,6 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 //
 // This structure allows configuring a NetworkPolicy that selects on a pod name and it
 // will allow all traffic from pods matching _sourceMatchLabels to pods matching _destinationMatchLabels
-//
 #NetworkPolicy: {
 	_name:      string
 	_app_label: string
