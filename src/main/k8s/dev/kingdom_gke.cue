@@ -13,7 +13,7 @@
 // limitations under the License.
 
 package k8s
-
+ 
 _secret_name: string @tag("secret_name")
 
 #KingdomServerResourceConfig: #DefaultResourceConfig & {
