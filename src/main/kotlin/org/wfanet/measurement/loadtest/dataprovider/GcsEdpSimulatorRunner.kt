@@ -53,7 +53,7 @@ class GcsEdpSimulatorRunner : EdpSimulatorRunner() {
 
     run(
       GcsStorageClient.fromFlags(gcs),
-      BiqQueryEventQuery(flags.dataProviderDisplayName, bigQuery, bigQueryTableName)
+      BigQueryEventQuery(flags.dataProviderDisplayName, bigQuery, bigQueryTableName)
     )
   }
 }

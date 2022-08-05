@@ -8,10 +8,10 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
     ],
     deps = [
-        "//imports/java/com/opentable/db/postgres:otj_pg_embedded",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres:services",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/testing",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal/testing",
+        "@wfa_common_jvm//imports/java/com/opentable/db/postgres:pg_embedded",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:embedded_postgres",
     ],
 )
@@ -24,10 +24,10 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
     ],
     deps = [
-        "//imports/java/com/opentable/db/postgres:otj_pg_embedded",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres:services",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/testing",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal/testing",
+        "@wfa_common_jvm//imports/java/com/opentable/db/postgres:pg_embedded",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:embedded_postgres",
     ],
 )
@@ -40,10 +40,10 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
     ],
     deps = [
-        "//imports/java/com/opentable/db/postgres:otj_pg_embedded",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres:services",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/testing",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal/testing",
+        "@wfa_common_jvm//imports/java/com/opentable/db/postgres:pg_embedded",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:embedded_postgres",
     ],
 )
