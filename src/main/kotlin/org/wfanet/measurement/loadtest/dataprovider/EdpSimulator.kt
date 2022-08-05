@@ -170,14 +170,12 @@ class EdpSimulator(
         certificatesStub.getCertificate(
           getCertificateRequest { name = requisition.measurementConsumerCertificate }
         )
-
-      val measurementSpec = MeasurementSpec.parseFrom(requisition.measurementSpec.data)
       val measurementConsumerCertificateX509 =
         readCertificate(measurementConsumerCertificate.x509Der)
+
       if (
         !verifyMeasurementSpec(
-          measurementSpecSignature = requisition.measurementSpec.signature,
-          measurementSpec = measurementSpec,
+          signedMeasurementSpec = requisition.measurementSpec,
           measurementConsumerCertificate = measurementConsumerCertificateX509,
         )
       ) {
@@ -188,13 +186,15 @@ class EdpSimulator(
           "Invalid measurementSpec"
         )
       }
+      val measurementSpec = MeasurementSpec.parseFrom(requisition.measurementSpec.data)
+
       val requisitionFingerprint = computeRequisitionFingerprint(requisition)
       val signedRequisitionSpec: SignedData =
         decryptRequisitionSpec(requisition.encryptedRequisitionSpec, edpData.encryptionKey)
       val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
       if (
         !verifyRequisitionSpec(
-          requisitionSpecSignature = signedRequisitionSpec.signature,
+          signedRequisitionSpec = signedRequisitionSpec,
           requisitionSpec = requisitionSpec,
           measurementConsumerCertificate = measurementConsumerCertificateX509,
           measurementSpec = measurementSpec,

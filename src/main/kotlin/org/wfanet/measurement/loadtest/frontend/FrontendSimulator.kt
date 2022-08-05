@@ -367,13 +367,10 @@ class FrontendSimulator(
 
     val signedResult =
       decryptResult(resultPair.encryptedResult, measurementConsumerData.encryptionKey)
-    @Suppress("BlockingMethodInNonBlockingContext") // Not blocking I/O.
-    val result = Result.parseFrom(signedResult.data)
-
-    if (!verifyResult(signedResult.signature, result, readCertificate(certificate.x509Der))) {
+    if (!verifyResult(signedResult, readCertificate(certificate.x509Der))) {
       error("Signature of the result is invalid.")
     }
-    return result
+    return Result.parseFrom(signedResult.data)
   }
 
   /** Gets the expected result of a [Measurement] using raw sketches. */

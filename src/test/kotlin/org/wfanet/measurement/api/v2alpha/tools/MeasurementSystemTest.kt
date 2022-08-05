@@ -416,15 +416,9 @@ class MeasurementSystemTest {
       }
     val measurement = request.measurement
     // measurementSpec matches
-    val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
-    assertThat(
-        verifyMeasurementSpec(
-          measurement.measurementSpec.signature,
-          measurementSpec,
-          MEASUREMENT_CONSUMER_CERTIFICATE
-        )
-      )
+    assertThat(verifyMeasurementSpec(measurement.measurementSpec, MEASUREMENT_CONSUMER_CERTIFICATE))
       .isTrue()
+    val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
     val nonceHashes = measurement.dataProvidersList.map { it.value.nonceHash }
     assertThat(measurementSpec)
       .comparingExpectedFieldsOnly()
@@ -446,7 +440,7 @@ class MeasurementSystemTest {
     val requisitionSpec1 = RequisitionSpec.parseFrom(signedRequisitionSpec1.data)
     assertThat(
         verifyRequisitionSpec(
-          signedRequisitionSpec1.signature,
+          signedRequisitionSpec1,
           requisitionSpec1,
           measurementSpec,
           MEASUREMENT_CONSUMER_CERTIFICATE
@@ -494,7 +488,7 @@ class MeasurementSystemTest {
     val requisitionSpec2 = RequisitionSpec.parseFrom(signedRequisitionSpec2.data)
     assertThat(
         verifyRequisitionSpec(
-          signedRequisitionSpec2.signature,
+          signedRequisitionSpec2,
           requisitionSpec2,
           measurementSpec,
           MEASUREMENT_CONSUMER_CERTIFICATE
