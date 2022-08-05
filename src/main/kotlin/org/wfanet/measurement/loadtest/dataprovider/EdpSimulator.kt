@@ -140,7 +140,7 @@ class EdpSimulator(
   }
 
   /** Creates an eventGroup for the MC. */
-  private suspend fun createEventGroup() {
+  suspend fun createEventGroup() {
     val eventGroup =
       eventGroupsStub.createEventGroup(
         createEventGroupRequest {
@@ -156,7 +156,7 @@ class EdpSimulator(
   }
 
   /** Executes the requisition fulfillment workflow. */
-  private suspend fun executeRequisitionFulfillingWorkflow() {
+  suspend fun executeRequisitionFulfillingWorkflow() {
     logger.info("Executing requisitionFulfillingWorkflow...")
     val requisitions = getRequisitions()
     if (requisitions.isEmpty()) {
@@ -165,7 +165,6 @@ class EdpSimulator(
 
     for (requisition in requisitions) {
       logger.info("Processing requisition ${requisition.name}...")
-
       val measurementConsumerCertificate =
         certificatesStub.getCertificate(
           getCertificateRequest { name = requisition.measurementConsumerCertificate }
@@ -188,7 +187,6 @@ class EdpSimulator(
           "Invalid measurementSpec"
         )
       }
-
       val requisitionFingerprint = computeRequisitionFingerprint(requisition)
       val signedRequisitionSpec: SignedData =
         decryptRequisitionSpec(requisition.encryptedRequisitionSpec, edpData.encryptionKey)
@@ -290,7 +288,7 @@ class EdpSimulator(
       )
     }
 
-  suspend fun generateSketch(
+  private suspend fun generateSketch(
     requisitionName: String,
     sketchConfig: SketchConfig,
     measurementSpec: MeasurementSpec,
@@ -303,15 +301,15 @@ class EdpSimulator(
     val anySketch: AnySketch = SketchProtos.toAnySketch(sketchConfig)
     logger.info("Generating Sketch...")
 
-    // TODO(@uakyol): Populate sketch based on all event groups not just the first one.
-    populateAnySketch(
-      requisitionSpec.eventGroupsList[0].value.filter,
-      VidSampler(VID_SAMPLER_HASH_FUNCTION),
-      vidSamplingIntervalStart,
-      vidSamplingIntervalWidth,
-      anySketch
-    )
-
+    requisitionSpec.eventGroupsList.forEach {
+      populateAnySketch(
+        it.value.filter,
+        VidSampler(VID_SAMPLER_HASH_FUNCTION),
+        vidSamplingIntervalStart,
+        vidSamplingIntervalWidth,
+        anySketch
+      )
+    }
     return SketchProtos.fromAnySketch(anySketch, sketchConfig)
   }
 

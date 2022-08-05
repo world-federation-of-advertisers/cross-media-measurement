@@ -13,9 +13,9 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlin:stdlib_jdk7",
     ],
     deps = [
-        "//imports/java/com/opentable/db/postgres:otj_pg_embedded",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/deploy/postgres",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/testing",
         "//src/main/kotlin/org/wfanet/measurement/integration/deploy/postgres:schemata",
+        "@wfa_common_jvm//imports/java/com/opentable/db/postgres:pg_embedded",
     ],
 )

@@ -34,7 +34,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.stub
-import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKt as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
@@ -54,7 +53,6 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testParen
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse as cmmsListEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.signedData
-import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
@@ -65,12 +63,15 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
+import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.consent.client.common.signMessage
 import org.wfanet.measurement.reporting.v1alpha.EventGroupKt.metadata
 import org.wfanet.measurement.reporting.v1alpha.eventGroup
 import org.wfanet.measurement.reporting.v1alpha.listEventGroupsRequest
 import org.wfanet.measurement.reporting.v1alpha.listEventGroupsResponse
 
+private const val API_AUTHENTICATION_KEY = "nR5QPN7ptx"
+private val CONFIG = measurementConsumerConfig { apiKey = API_AUTHENTICATION_KEY }
 private val SECRET_FILES_PATH: Path =
   checkNotNull(
     getRuntimePath(
@@ -196,7 +197,7 @@ class EventGroupsServiceTest {
         ENCRYPTION_KEY_PAIR_STORE
       )
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
         runBlocking {
           eventGroupsService.listEventGroups(
             listEventGroupsRequest {
@@ -258,7 +259,7 @@ class EventGroupsServiceTest {
         ENCRYPTION_KEY_PAIR_STORE
       )
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
         runBlocking {
           eventGroupsService.listEventGroups(
             listEventGroupsRequest {
@@ -338,7 +339,7 @@ class EventGroupsServiceTest {
       )
     val result =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
           runBlocking {
             eventGroupsService.listEventGroups(
               listEventGroupsRequest {
@@ -388,7 +389,7 @@ class EventGroupsServiceTest {
       )
     val result =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
           runBlocking {
             eventGroupsService.listEventGroups(
               listEventGroupsRequest {
@@ -401,6 +402,29 @@ class EventGroupsServiceTest {
       }
 
     assertThat(result.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `listEventGroups throws UNAUTHENTICATED if principal not found`() {
+    val eventGroupsService =
+      EventGroupsService(
+        EventGroupsCoroutineStub(grpcTestServerRule.channel),
+        EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
+        ENCRYPTION_KEY_PAIR_STORE
+      )
+    val result =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          eventGroupsService.listEventGroups(
+            listEventGroupsRequest {
+              parent = DATA_PROVIDER_NAME
+              filter = "age.value > 10"
+            }
+          )
+        }
+      }
+
+    assertThat(result.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 }
 

@@ -35,7 +35,9 @@ import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Measurement.DataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
+import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.listMeasurementsResponse
@@ -359,7 +361,11 @@ private fun ListMeasurementsPageToken.toStreamMeasurementsRequest(): StreamMeasu
 }
 
 private fun getAuthenticatedMeasurementConsumerKey(): MeasurementConsumerKey {
-  val principal = principalFromCurrentContext
-  return principal.resourceKey as? MeasurementConsumerKey
-    ?: failGrpc(Status.PERMISSION_DENIED) { "Caller cannot get a Measurement" }
+  val principal: MeasurementPrincipal = principalFromCurrentContext
+
+  if (principal !is MeasurementConsumerPrincipal) {
+    failGrpc(Status.PERMISSION_DENIED) { "Caller cannot get a Measurement" }
+  }
+
+  return principal.resourceKey
 }
