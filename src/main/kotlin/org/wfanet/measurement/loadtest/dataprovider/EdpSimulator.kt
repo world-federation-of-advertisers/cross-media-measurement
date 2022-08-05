@@ -160,6 +160,7 @@ class EdpSimulator(
     logger.info("Executing requisitionFulfillingWorkflow...")
     val requisitions = getRequisitions()
     if (requisitions.isEmpty()) {
+      logger.fine("No unfulfilled requisition. Polling again later...")
       return
     }
 
