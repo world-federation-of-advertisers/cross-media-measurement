@@ -644,7 +644,7 @@ class Benchmark(
       val task = taskList.get(iTask)
 
       print("${(Instant.now(clock).toEpochMilli() - firstInstant.toEpochMilli()) / 1000.0} ")
-      println("Trying to retrieve ${task.referenceId} ${task.measurementName}...")
+      print("Trying to retrieve ${task.referenceId} ${task.measurementName}...")
       val measurement =
         runBlocking(Dispatchers.IO) {
           measurementStub
@@ -653,13 +653,12 @@ class Benchmark(
         }
 
       val timeoutOccurred = task.requestTime.plusSeconds(flags.timeout).isBefore(Instant.now(clock))
-
+			println("${measurement.state}")
       if (
         (measurement.state == Measurement.State.SUCCEEDED) ||
           (measurement.state == Measurement.State.FAILED) ||
           timeoutOccurred
       ) {
-
         if (measurement.state == Measurement.State.SUCCEEDED) {
           val result =
             getMeasurementResult(
@@ -669,6 +668,7 @@ class Benchmark(
               flags.privateKeyHandle
             )
           task.result = result
+					println ("Got result for task $iTask\n$measurement\n-----\n$result")
           task.status = "success"
         } else if (measurement.state == Measurement.State.FAILED) {
           task.status = "failed"
@@ -706,12 +706,12 @@ class Benchmark(
         out.print("${task.status},${task.errorMessage},")
         if (flags.measurementTypeParams.reachAndFrequency.selected) {
           var reach = 0L
-          if (task.result.hasReach()) {
+          if (task.status == "success" && task.result.hasReach()) {
             reach = task.result.reach.value
           }
           out.print(reach)
           var frequencies = arrayOf(0.0, 0.0, 0.0, 0.0, 0.0)
-          if (task.result.hasFrequency()) {
+          if (task.status == "success" && task.result.hasFrequency()) {
             task.result.frequency.relativeFrequencyDistributionMap.forEach {
               if (it.key <= frequencies.size) {
                 frequencies[(it.key - 1).toInt()] = it.value * reach.toDouble()
@@ -744,9 +744,9 @@ class Benchmark(
       launch {
         generateRequests(measurementConsumerStub, measurementStub, dataProviderStub)
         allRequestsSent = true
-      }
+			}
 
-      launch {
+			launch {
         while (taskList.size > 0 || !allRequestsSent) {
           collectCompletedTasks(measurementStub, certificateStub, programStartTime)
           delay(1000L)
