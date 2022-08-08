@@ -114,44 +114,45 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
 
   @Test(timeout = 15000)
   fun `addLedgerEntries as a refund decresases repetitionCount`() = runBlocking {
-    val backingStore = createBackingStore()
-    val bucket1 =
-      PrivacyBucketGroup(
-        MEASUREMENT_CONSUMER_ID,
-        LocalDate.parse("2021-07-01"),
-        LocalDate.parse("2021-07-01"),
-        AgeGroup.RANGE_35_54,
-        Gender.MALE,
-        0.3f,
-        PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-      )
-    val charge = Charge(0.01f, 0.0001f)
-    backingStore.startTransaction().use { txContext: PrivacyBudgetLedgerTransactionContext ->
-      txContext.addLedgerEntries(
-        setOf(bucket1),
-        setOf(charge),
-        Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", false)
-      )
-      txContext.commit()
-    }
+    createBackingStore().use { backingStore: PrivacyBudgetLedgerBackingStore ->
+      val bucket1 =
+        PrivacyBucketGroup(
+          MEASUREMENT_CONSUMER_ID,
+          LocalDate.parse("2021-07-01"),
+          LocalDate.parse("2021-07-01"),
+          AgeGroup.RANGE_35_54,
+          Gender.MALE,
+          0.3f,
+          PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+        )
+      val charge = Charge(0.01f, 0.0001f)
+      backingStore.startTransaction().use { txContext: PrivacyBudgetLedgerTransactionContext ->
+        txContext.addLedgerEntries(
+          setOf(bucket1),
+          setOf(charge),
+          Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", false)
+        )
+        txContext.commit()
+      }
 
-    backingStore.startTransaction().use { txContext: PrivacyBudgetLedgerTransactionContext ->
-      val matchingBalanceEntries = txContext.findIntersectingBalanceEntries(bucket1)
-      assertThat(matchingBalanceEntries.size).isEqualTo(1)
+      backingStore.startTransaction().use { txContext: PrivacyBudgetLedgerTransactionContext ->
+        val matchingBalanceEntries = txContext.findIntersectingBalanceEntries(bucket1)
+        assertThat(matchingBalanceEntries.size).isEqualTo(1)
 
-      assertThat(matchingBalanceEntries[0].repetitionCount).isEqualTo(1)
-      txContext.addLedgerEntries(
-        setOf(bucket1),
-        setOf(charge),
-        Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", true)
-      )
-      txContext.commit()
-    }
+        assertThat(matchingBalanceEntries[0].repetitionCount).isEqualTo(1)
+        txContext.addLedgerEntries(
+          setOf(bucket1),
+          setOf(charge),
+          Reference(MEASUREMENT_CONSUMER_ID, "RequisitioId1", true)
+        )
+        txContext.commit()
+      }
 
-    backingStore.startTransaction().use { txContext: PrivacyBudgetLedgerTransactionContext ->
-      val newmatchingBalanceEntries = txContext.findIntersectingBalanceEntries(bucket1)
-      assertThat(newmatchingBalanceEntries.size).isEqualTo(1)
-      assertThat(newmatchingBalanceEntries[0].repetitionCount).isEqualTo(0)
+      backingStore.startTransaction().use { txContext: PrivacyBudgetLedgerTransactionContext ->
+        val newmatchingBalanceEntries = txContext.findIntersectingBalanceEntries(bucket1)
+        assertThat(newmatchingBalanceEntries.size).isEqualTo(1)
+        assertThat(newmatchingBalanceEntries[0].repetitionCount).isEqualTo(0)
+      }
     }
   }
 
@@ -160,7 +161,6 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
     runBlocking {
       val requisitionId = "RequisitioId1"
       val otherMeasurementConsumerId = "otherMeasurementConsumerId"
-      val backingStore = createBackingStore()
       val bucket =
         PrivacyBucketGroup(
           MEASUREMENT_CONSUMER_ID,
@@ -173,32 +173,33 @@ abstract class AbstractPrivacyBudgetLedgerStoreTest {
         )
       val bucketForOtherMC = bucket.copy(measurementConsumerId = otherMeasurementConsumerId)
       val charge = Charge(0.01f, 0.0001f)
+      createBackingStore().use { backingStore: PrivacyBudgetLedgerBackingStore ->
+        backingStore.startTransaction().use { txContext: PrivacyBudgetLedgerTransactionContext ->
+          txContext.addLedgerEntries(
+            setOf(bucket),
+            setOf(charge),
+            Reference(MEASUREMENT_CONSUMER_ID, requisitionId, false)
+          )
 
-      backingStore.startTransaction().use { txContext: PrivacyBudgetLedgerTransactionContext ->
-        txContext.addLedgerEntries(
-          setOf(bucket),
-          setOf(charge),
-          Reference(MEASUREMENT_CONSUMER_ID, requisitionId, false)
-        )
+          txContext.addLedgerEntries(
+            setOf(bucketForOtherMC),
+            setOf(charge),
+            Reference(otherMeasurementConsumerId, requisitionId, false)
+          )
+          txContext.commit()
+        }
 
-        txContext.addLedgerEntries(
-          setOf(bucketForOtherMC),
-          setOf(charge),
-          Reference(otherMeasurementConsumerId, requisitionId, false)
-        )
-        txContext.commit()
-      }
+        backingStore.startTransaction().use { txContext: PrivacyBudgetLedgerTransactionContext ->
+          val matchingBalanceEntries = txContext.findIntersectingBalanceEntries(bucket)
+          val otherMcMatchingBalanceEntries =
+            txContext.findIntersectingBalanceEntries(bucketForOtherMC)
 
-      backingStore.startTransaction().use { txContext: PrivacyBudgetLedgerTransactionContext ->
-        val matchingBalanceEntries = txContext.findIntersectingBalanceEntries(bucket)
-        val otherMcMatchingBalanceEntries =
-          txContext.findIntersectingBalanceEntries(bucketForOtherMC)
+          assertThat(matchingBalanceEntries.size).isEqualTo(1)
+          assertThat(matchingBalanceEntries[0].repetitionCount).isEqualTo(1)
 
-        assertThat(matchingBalanceEntries.size).isEqualTo(1)
-        assertThat(matchingBalanceEntries[0].repetitionCount).isEqualTo(1)
-
-        assertThat(otherMcMatchingBalanceEntries.size).isEqualTo(1)
-        assertThat(otherMcMatchingBalanceEntries[0].repetitionCount).isEqualTo(1)
+          assertThat(otherMcMatchingBalanceEntries.size).isEqualTo(1)
+          assertThat(otherMcMatchingBalanceEntries[0].repetitionCount).isEqualTo(1)
+        }
       }
     }
 
