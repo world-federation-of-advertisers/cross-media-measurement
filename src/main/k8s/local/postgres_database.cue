@@ -17,8 +17,8 @@ package k8s
 _dbSecretName: string @tag("db_secret_name")
 
 objectSets: [
-  services,
-  pods,
+	services,
+	pods,
 ]
 
 services: {
@@ -59,21 +59,21 @@ pods: {
 		spec: containers: [{
 			name:  "postgres"
 			image: "docker.io/postgres:14.4-alpine"
-      env: [{
-        name: "POSTGRES_USER"
-        valueFrom:
-          secretKeyRef: {
-            name: _dbSecretName
-            key:  "username"
-          }
-      }, {
-        name: "POSTGRES_PASSWORD"
-        valueFrom:
-          secretKeyRef: {
-            name: _dbSecretName
-            key:  "password"
-          }
-      }]
-		}]
-	}
+			env: [{
+				name: "POSTGRES_USER"
+				valueFrom:
+					secretKeyRef: {
+						name: _dbSecretName
+						key:  "username"
+					}
+			}, {
+				name: "POSTGRES_PASSWORD"
+				valueFrom:
+					secretKeyRef: {
+						name: _dbSecretName
+						key:  "password"
+					}
+			}]
+	}]
+}
 }
