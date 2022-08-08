@@ -64,8 +64,7 @@ class MeasurementConsumersService(
     grpcRequire(!measurementConsumer.publicKey.signature.isEmpty) {
       "public_key.signature is missing"
     }
-
-    grpcRequire(request.measurementConsumerCreationToken.isNotBlank()) {
+    grpcRequire(measurementConsumer.measurementConsumerCreationToken.isNotBlank()) {
       "Measurement Consumer creation token is unspecified"
     }
 
@@ -82,7 +81,7 @@ class MeasurementConsumersService(
           }
           externalAccountId = account.externalAccountId
           measurementConsumerCreationTokenHash =
-            hashSha256(apiIdToExternalId(request.measurementConsumerCreationToken))
+            hashSha256(apiIdToExternalId(measurementConsumer.measurementConsumerCreationToken))
         }
       )
     return internalResponse.toMeasurementConsumer()
