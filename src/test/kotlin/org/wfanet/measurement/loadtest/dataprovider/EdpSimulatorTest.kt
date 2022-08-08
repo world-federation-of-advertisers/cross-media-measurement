@@ -16,7 +16,6 @@ package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.common.truth.Correspondence
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.Message
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.Clock
@@ -61,7 +60,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.Requisiti
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
-import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
@@ -107,7 +105,6 @@ import org.wfanet.measurement.consent.client.common.signMessage
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
-import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup as PrivacyLandscapeAge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Charge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Gender as PrivacyLandscapeGender
@@ -210,20 +207,6 @@ private val REQUISITION_ONE_SPEC = requisitionSpec {
 private const val DUCHIES_MAP_KEY = "1"
 private const val DUCHY_NAME = "worker1"
 
-class FilterTestEventQuery(val events: Map<Int, TestEvent>) : EventQuery() {
-
-  override fun getUserVirtualIds(eventFilter: EventFilter): Sequence<Long> {
-    val program = EventFilters.compileProgram(eventFilter.expression, testEvent {})
-    return sequence {
-      for (vid in events.keys.toList()) {
-        if (EventFilters.matches(events.get(vid) as Message, program)) {
-          yield(vid.toLong())
-        }
-      }
-    }
-  }
-}
-
 @RunWith(JUnit4::class)
 class EdpSimulatorTest {
   private val certificatesServiceMock: CertificatesCoroutineImplBase = mockService {
@@ -287,15 +270,17 @@ class EdpSimulatorTest {
   private fun getEvents(
     bannerAd: TestBannerTemplate,
     privacyBudget: TestPrivacyBudgetTemplate,
-    vidRange: IntRange
-  ): Map<Int, TestEvent> {
+    vidRange: IntRange,
+  ): Map<Int, List<TestEvent>> {
     return vidRange
       .map {
         it to
-          testEvent {
-            this.bannerAd = bannerAd
-            this.privacyBudget = privacyBudget
-          }
+          listOf(
+            testEvent {
+              this.bannerAd = bannerAd
+              this.privacyBudget = privacyBudget
+            }
+          )
       }
       .toMap()
   }
@@ -365,7 +350,7 @@ class EdpSimulatorTest {
           requisitionsStub,
           requisitionFulfillmentStub,
           sketchStore,
-          FilterTestEventQuery(allEvents),
+          FilterEventQuery(allEvents),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           EVENT_TEMPLATES,
           privacyBudgetManager

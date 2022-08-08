@@ -30,7 +30,6 @@ load("@rules_jvm_external//:defs.bzl", "maven_install")
 load("@wfa_common_jvm//build/maven:artifacts.bzl", "artifacts")
 
 ADDITIONAL_MAVEN_ARTIFACTS = artifacts.dict_to_list({
-    "com.opentable.components:otj-pg-embedded": "1.0.0",
     "software.aws.rds:aws-postgresql-jdbc": "0.1.0",
     "org.projectnessie.cel:cel-core": "0.2.4",
     "org.projectnessie.cel:cel-tools": "0.2.4",

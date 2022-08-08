@@ -412,13 +412,7 @@ duchies. As you can see from the result in the previous step. Only these two
 services have external IPs. However, these external IPs are ephemeral. We need
 to reserve them such that they are stable.
 
-Go to the Gcloud [Console](https://console.cloud.google.com/networking), under
-VPC network -> External IP address, find the above two external IPs, and click
-RESERVE on the right.
-
-Follow this
-[link](https://cloud.google.com/compute/docs/ip-addresses/reserve-static-external-ip-address#gcloud)
-if you want to reserve the IPs using Cloud CLI.
+See [Reserving External IPs](cluster-config.md#reserving-external-ips)
 
 ### Setup subdomain DNS A record
 

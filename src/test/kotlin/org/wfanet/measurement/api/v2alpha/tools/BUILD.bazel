@@ -5,6 +5,7 @@ kt_jvm_test(
     srcs = ["MeasurementSystemTest.kt"],
     data = [
         "//src/main/k8s/testing/secretfiles:all_tink_keysets",
+        "//src/main/k8s/testing/secretfiles:encryption_public_keys",
         "//src/main/k8s/testing/secretfiles:root_certs",
         "//src/main/k8s/testing/secretfiles:secret_files",
     ],
