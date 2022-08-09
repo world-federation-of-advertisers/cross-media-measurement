@@ -101,8 +101,22 @@ duchies: [ for duchyConfig in _duchyConfigs {
 			"computation-control-server":       #DuchyServerResourceConfig
 			"herald-daemon":                    #HeraldResourceConfig
 			"liquid-legions-v2-mill-daemon":    #MillResourceConfig
-			"requisition-fulfillment-server":   #DuchyServerResourceConfig
-			"spanner-computations-server":      #DuchyServerResourceConfig
+			"requisition-fulfillment-server":   #DuchyServerResourceConfig & {
+				resources: {
+					limits: {
+						cpu:    cpu | *"400m"
+						memory: "1Gi"
+					}
+				}
+			}
+			"spanner-computations-server": #DuchyServerResourceConfig & {
+				resources: {
+					limits: {
+						cpu:    cpu | *"400m"
+						memory: "1Gi"
+					}
+				}
+			}
 		}
 		_duchy_image_pull_policy: "Never"
 		_verbose_grpc_logging:    "true"

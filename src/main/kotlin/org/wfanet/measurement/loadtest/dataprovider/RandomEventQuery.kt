@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import java.util.logging.Logger
 import kotlin.random.Random
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
 
@@ -27,10 +28,16 @@ class RandomEventQuery(private val sketchGenerationParams: SketchGenerationParam
 
   /** Generate Ids using random values. The parameter is ignored. */
   override fun getUserVirtualIds(eventFilter: EventFilter): Sequence<Long> {
+    logger.info("Generating random VIDs...")
+
     return sequence {
       for (i in 1..sketchGenerationParams.reach) {
         yield(Random.nextInt(1, sketchGenerationParams.universeSize + 1).toLong())
       }
     }
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
