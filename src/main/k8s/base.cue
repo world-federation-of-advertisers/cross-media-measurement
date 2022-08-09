@@ -30,7 +30,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 #GrpcServicePort: 8443
 
-#ProbePort: 8442
+#HealthPort: 8080
 
 #ResourceConfig: {
 	replicas?:  int32
@@ -287,7 +287,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	spec: template: spec: containers: [{
 		readinessProbe: {
 			grpc:
-				port: #ProbePort
+				port: #HealthPort
 			initialDelaySeconds: 30
 			failureThreshold:    10
 		}}]
