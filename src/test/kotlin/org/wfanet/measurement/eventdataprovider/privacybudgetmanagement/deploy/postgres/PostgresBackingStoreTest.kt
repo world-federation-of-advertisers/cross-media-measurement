@@ -1,5 +1,3 @@
-
-
 /**
  * Copyright 2022 The Cross-Media Measurement Authors
  *
