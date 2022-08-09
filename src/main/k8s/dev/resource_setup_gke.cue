@@ -16,9 +16,6 @@ package k8s
 
 _secret_name: string @tag("secret_name")
 
-#GloudProject:            "halo-cmm-dev"
-#ContainerRegistry:       "gcr.io"
-#ContainerRegistryPrefix: #ContainerRegistry + "/" + #GloudProject
 #DefaultResourceConfig: {
 	replicas:              1
 	resourceRequestCpu:    "100m"
@@ -31,10 +28,14 @@ objectSets: [
 	resource_setup_job,
 ]
 
+_imageConfig: #ImageConfig & {
+	repoSuffix: "loadtest/resource-setup"
+}
+
 resource_setup_job: #ResourceSetup & {
 	_edp_display_names: ["edp1", "edp2", "edp3", "edp4", "edp5", "edp6"]
 	_duchy_ids: ["aggregator", "worker1", "worker2"]
-	_job_image:                  #ContainerRegistryPrefix + "/loadtest/resource-setup"
+	_job_image:                  _imageConfig.image
 	_resource_configs:           #DefaultResourceConfig
 	_resource_setup_secret_name: _secret_name
 	_dependencies: ["gcp-kingdom-data-server"]

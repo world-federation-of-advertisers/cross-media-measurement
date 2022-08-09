@@ -1,0 +1,21 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
+
+package(default_visibility = [
+    "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
+])
+
+kt_jvm_test(
+    name = "PrivacyQueryMapperTest",
+    srcs = ["PrivacyQueryMapperTest.kt"],
+    test_class = "org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapperTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/api/v2alpha:privacy_query_mapper",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler/testing",
+    ],
+)

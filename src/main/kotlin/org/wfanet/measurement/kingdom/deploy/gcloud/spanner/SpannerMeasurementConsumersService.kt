@@ -22,12 +22,15 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.AddMeasurementConsumerOwnerRequest
 import org.wfanet.measurement.internal.kingdom.CreateMeasurementConsumerRequest
-import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.GetMeasurementConsumerRequest
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.RemoveMeasurementConsumerOwnerRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountActivationStateIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.AccountNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.PermissionDeniedException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.AddMeasurementConsumerOwner
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateMeasurementConsumer
@@ -53,35 +56,18 @@ class SpannerMeasurementConsumersService(
           request.measurementConsumerCreationTokenHash
         )
         .execute(client, idGenerator)
-    } catch (e: KingdomInternalException) {
-      when (e.code) {
-        ErrorCode.PERMISSION_DENIED ->
-          failGrpc(Status.PERMISSION_DENIED) { "Measurement Consumer creation token is not valid" }
-        ErrorCode.ACCOUNT_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "Account not found" }
-        ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL ->
-          failGrpc(Status.FAILED_PRECONDITION) { "Account has not been activated yet" }
-        ErrorCode.API_KEY_NOT_FOUND,
-        ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
-        ErrorCode.REQUISITION_NOT_FOUND,
-        ErrorCode.REQUISITION_STATE_ILLEGAL,
-        ErrorCode.MEASUREMENT_STATE_ILLEGAL,
-        ErrorCode.DUCHY_NOT_FOUND,
-        ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
-        ErrorCode.MODEL_PROVIDER_NOT_FOUND,
-        ErrorCode.MEASUREMENT_NOT_FOUND,
-        ErrorCode.DATA_PROVIDER_NOT_FOUND,
-        ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-        ErrorCode.CERTIFICATE_NOT_FOUND,
-        ErrorCode.CERTIFICATE_IS_INVALID,
-        ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
-        ErrorCode.EVENT_GROUP_INVALID_ARGS,
-        ErrorCode.EVENT_GROUP_NOT_FOUND,
-        ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,
-        ErrorCode.UNKNOWN_ERROR,
-        ErrorCode.UNRECOGNIZED -> throw e
+    } catch (e: PermissionDeniedException) {
+      e.throwStatusRuntimeException(Status.PERMISSION_DENIED) {
+        "Measurement Consumer creation token is not valid."
       }
+    } catch (e: AccountNotFoundException) {
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Account not found." }
+    } catch (e: AccountActivationStateIllegalException) {
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+        "Account has not been activated yet."
+      }
+    } catch (e: KingdomInternalException) {
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
   }
 
@@ -106,34 +92,12 @@ class SpannerMeasurementConsumersService(
           externalMeasurementConsumerId = ExternalId(request.externalMeasurementConsumerId)
         )
         .execute(client, idGenerator)
+    } catch (e: AccountNotFoundException) {
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Account not found." }
+    } catch (e: MeasurementConsumerNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "MeasurementConsumer not found." }
     } catch (e: KingdomInternalException) {
-      when (e.code) {
-        ErrorCode.ACCOUNT_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "Account not found" }
-        ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND ->
-          failGrpc(Status.NOT_FOUND) { "MeasurementConsumer not found" }
-        ErrorCode.API_KEY_NOT_FOUND,
-        ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
-        ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
-        ErrorCode.DATA_PROVIDER_NOT_FOUND,
-        ErrorCode.MODEL_PROVIDER_NOT_FOUND,
-        ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-        ErrorCode.DUCHY_NOT_FOUND,
-        ErrorCode.PERMISSION_DENIED,
-        ErrorCode.CERTIFICATE_NOT_FOUND,
-        ErrorCode.CERTIFICATE_IS_INVALID,
-        ErrorCode.MEASUREMENT_NOT_FOUND,
-        ErrorCode.MEASUREMENT_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
-        ErrorCode.REQUISITION_NOT_FOUND,
-        ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-        ErrorCode.REQUISITION_STATE_ILLEGAL,
-        ErrorCode.EVENT_GROUP_INVALID_ARGS,
-        ErrorCode.EVENT_GROUP_NOT_FOUND,
-        ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,
-        ErrorCode.UNKNOWN_ERROR,
-        ErrorCode.UNRECOGNIZED -> throw e
-      }
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
   }
 
@@ -146,35 +110,16 @@ class SpannerMeasurementConsumersService(
           externalMeasurementConsumerId = ExternalId(request.externalMeasurementConsumerId)
         )
         .execute(client, idGenerator)
-    } catch (e: KingdomInternalException) {
-      when (e.code) {
-        ErrorCode.ACCOUNT_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "Account not found" }
-        ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND ->
-          failGrpc(Status.NOT_FOUND) { "MeasurementConsumer not found" }
-        ErrorCode.PERMISSION_DENIED ->
-          failGrpc(Status.FAILED_PRECONDITION) { "Account doesn't own MeasurementConsumer" }
-        ErrorCode.API_KEY_NOT_FOUND,
-        ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
-        ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
-        ErrorCode.DATA_PROVIDER_NOT_FOUND,
-        ErrorCode.MODEL_PROVIDER_NOT_FOUND,
-        ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-        ErrorCode.DUCHY_NOT_FOUND,
-        ErrorCode.CERTIFICATE_NOT_FOUND,
-        ErrorCode.CERTIFICATE_IS_INVALID,
-        ErrorCode.MEASUREMENT_NOT_FOUND,
-        ErrorCode.MEASUREMENT_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
-        ErrorCode.REQUISITION_NOT_FOUND,
-        ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-        ErrorCode.REQUISITION_STATE_ILLEGAL,
-        ErrorCode.EVENT_GROUP_INVALID_ARGS,
-        ErrorCode.EVENT_GROUP_NOT_FOUND,
-        ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,
-        ErrorCode.UNKNOWN_ERROR,
-        ErrorCode.UNRECOGNIZED -> throw e
+    } catch (e: AccountNotFoundException) {
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Account not found." }
+    } catch (e: MeasurementConsumerNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "MeasurementConsumer not found." }
+    } catch (e: PermissionDeniedException) {
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+        "Account doesn't own MeasurementConsumer."
       }
+    } catch (e: KingdomInternalException) {
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
   }
 }

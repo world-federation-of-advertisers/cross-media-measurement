@@ -75,6 +75,7 @@ import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.timeInterval
+import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.hashSha256
@@ -88,7 +89,6 @@ import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisit
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
-import org.wfanet.measurement.kingdom.service.api.v2alpha.withAuthenticationKey
 import org.wfanet.measurement.loadtest.storage.SketchStore
 
 private const val DATA_PROVIDER_WILDCARD = "dataProviders/-"
@@ -391,10 +391,10 @@ class FrontendSimulator(
       reachAndFrequency = reachAndFrequency {
         reachPrivacyParams = outputDpParams
         frequencyPrivacyParams = outputDpParams
-        vidSamplingInterval = vidSamplingInterval {
-          start = 0.0f
-          width = 1.0f
-        }
+      }
+      vidSamplingInterval = vidSamplingInterval {
+        start = 0.0f
+        width = 1.0f
       }
       this.nonceHashes += nonceHashes
     }

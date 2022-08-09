@@ -19,14 +19,14 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.KINGDOM_SCHEMA
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.kingdom.service.internal.testing.MeasurementConsumersServiceTest
 
 @RunWith(JUnit4::class)
 class SpannerMeasurementConsumersServiceTest :
   MeasurementConsumersServiceTest<SpannerMeasurementConsumersService>() {
 
-  @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(KINGDOM_SCHEMA)
+  @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(Schemata.KINGDOM_CHANGELOG_PATH)
 
   override fun newServices(idGenerator: IdGenerator): Services<SpannerMeasurementConsumersService> {
     val spannerServices =

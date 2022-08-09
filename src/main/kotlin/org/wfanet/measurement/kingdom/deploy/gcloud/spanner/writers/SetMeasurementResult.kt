@@ -21,7 +21,6 @@ import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
-import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.SetMeasurementResultRequest
@@ -39,10 +38,10 @@ private val NEXT_MEASUREMENT_STATE = Measurement.State.SUCCEEDED
 /**
  * Sets participant details for a computationParticipant in the database.
  *
- * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [ErrorCode.MEASUREMENT_NOT_FOUND]
- * * [ErrorCode.DUCHY_NOT_FOUND]
- * * [ErrorCode.CERTIFICATE_NOT_FOUND]
+ * Throws a subclass of [KingdomInternalException] on [execute].
+ * @throws [MeasurementNotFoundByComputationException] Measurement not found
+ * @throws [DuchyNotFoundException] Duchy not found
+ * @throws [DuchyCertificateNotFoundException] Duchy's Certificate not found
  */
 class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
   SpannerWriter<Measurement, Measurement>() {

@@ -211,7 +211,7 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
 }
 
 private fun DifferentialPrivacyParams.hasEpsilonAndDeltaSet(): Boolean {
-  return this.epsilon > 0 && this.delta > 0
+  return this.epsilon > 0 && this.delta >= 0
 }
 
 /** Validates a [MeasurementSpec] for a request. */
@@ -233,7 +233,7 @@ private fun MeasurementSpec.validate() {
         "Frequency privacy params are unspecified"
       }
 
-      val vidSamplingInterval = reachAndFrequency.vidSamplingInterval
+      val vidSamplingInterval = vidSamplingInterval
       grpcRequire(vidSamplingInterval.width > 0) { "Vid sampling interval is unspecified" }
     }
     MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {

@@ -274,7 +274,7 @@ class MeasurementsServiceTest {
                   impression = impression {
                     privacyParams = differentialPrivacyParams {
                       epsilon = 1.0
-                      delta = 1.0
+                      delta = 0.0
                     }
                     maximumFrequencyPerUser = 1
                   }
@@ -332,7 +332,7 @@ class MeasurementsServiceTest {
                   duration = duration {
                     privacyParams = differentialPrivacyParams {
                       epsilon = 1.0
-                      delta = 1.0
+                      delta = 0.0
                     }
                     maximumWatchDurationPerUser = 1
                   }
@@ -371,7 +371,6 @@ class MeasurementsServiceTest {
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
-
   @Test
   fun `createMeasurement throws INVALID_ARGUMENT when certificate resource name is missing`() {
     val exception =
@@ -484,8 +483,8 @@ class MeasurementsServiceTest {
                                 epsilon = 1.0
                                 delta = 1.0
                               }
-                              vidSamplingInterval = vidSamplingInterval { width = 1.0F }
                             }
+                            vidSamplingInterval = vidSamplingInterval { width = 1.0F }
                           }
                           .toByteString()
                       signature = UPDATE_TIME.toByteString()
@@ -519,8 +518,8 @@ class MeasurementsServiceTest {
                                 epsilon = 1.0
                                 delta = 1.0
                               }
-                              vidSamplingInterval = vidSamplingInterval { width = 1.0F }
                             }
+                            vidSamplingInterval = vidSamplingInterval { width = 1.0F }
                           }
                           .toByteString()
                       signature = UPDATE_TIME.toByteString()
@@ -549,6 +548,7 @@ class MeasurementsServiceTest {
                         MEASUREMENT_SPEC
                           .copy {
                             clearReachAndFrequency()
+                            clearVidSamplingInterval()
                             reachAndFrequency = reachAndFrequency {
                               reachPrivacyParams = differentialPrivacyParams {
                                 epsilon = 1.0
@@ -559,6 +559,46 @@ class MeasurementsServiceTest {
                                 delta = 1.0
                               }
                             }
+                          }
+                          .toByteString()
+                      signature = UPDATE_TIME.toByteString()
+                    }
+                  }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createMeasurement throws INVALID_ARGUMENT when RF epsilon privacy param is 0`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest {
+                measurement =
+                  MEASUREMENT.copy {
+                    measurementSpec = signedData {
+                      data =
+                        MEASUREMENT_SPEC
+                          .copy {
+                            clearReachAndFrequency()
+                            clearVidSamplingInterval()
+                            reachAndFrequency = reachAndFrequency {
+                              reachPrivacyParams = differentialPrivacyParams {
+                                epsilon = 0.0
+                                delta = 0.0
+                              }
+                              frequencyPrivacyParams = differentialPrivacyParams {
+                                epsilon = 0.0
+                                delta = 0.0
+                              }
+                            }
+                            vidSamplingInterval = vidSamplingInterval { width = 1.0F }
                           }
                           .toByteString()
                       signature = UPDATE_TIME.toByteString()
@@ -1296,8 +1336,8 @@ class MeasurementsServiceTest {
           epsilon = 1.0
           delta = 1.0
         }
-        vidSamplingInterval = vidSamplingInterval { width = 1.0f }
       }
+      vidSamplingInterval = vidSamplingInterval { width = 1.0f }
       nonceHashes += ByteString.copyFromUtf8("foo")
     }
 

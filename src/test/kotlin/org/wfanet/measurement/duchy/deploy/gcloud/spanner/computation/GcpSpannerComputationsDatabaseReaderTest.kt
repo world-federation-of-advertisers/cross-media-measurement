@@ -26,7 +26,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStageDetails
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
 import org.wfanet.measurement.duchy.db.computation.ComputationTypes
-import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.COMPUTATIONS_SCHEMA
+import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.duchy.service.internal.computations.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computations.newInputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computations.newOutputBlobMetadata
@@ -44,7 +44,8 @@ import org.wfanet.measurement.internal.duchy.externalRequisitionKey
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 
 @RunWith(JUnit4::class)
-class GcpSpannerComputationsDatabaseReaderTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
+class GcpSpannerComputationsDatabaseReaderTest :
+  UsingSpannerEmulator(Schemata.DUCHY_CHANGELOG_PATH) {
 
   companion object {
     val DETAILS_WHEN_NON_AGGREGATOR: ComputationDetails =

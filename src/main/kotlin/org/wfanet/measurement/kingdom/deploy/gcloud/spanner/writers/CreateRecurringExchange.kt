@@ -38,7 +38,7 @@ class CreateRecurringExchange(private val recurringExchange: RecurringExchange) 
           ExternalId(recurringExchange.externalDataProviderId)
         )
         ?.dataProviderId
-        ?: failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
+        ?: failGrpc(Status.FAILED_PRECONDITION) { "DataProvider not found" }
 
     val modelProviderId =
       ModelProviderReader()
@@ -47,7 +47,7 @@ class CreateRecurringExchange(private val recurringExchange: RecurringExchange) 
           ExternalId(recurringExchange.externalModelProviderId)
         )
         ?.modelProviderId
-        ?: failGrpc(Status.NOT_FOUND) { "ModelProvider not found" }
+        ?: failGrpc(Status.FAILED_PRECONDITION) { "ModelProvider not found" }
 
     val externalId = idGenerator.generateExternalId()
     transactionContext.bufferInsertMutation("RecurringExchanges") {

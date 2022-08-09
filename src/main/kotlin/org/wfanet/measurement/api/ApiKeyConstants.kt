@@ -15,10 +15,20 @@
 package org.wfanet.measurement.api
 
 import io.grpc.Metadata
+import io.grpc.stub.AbstractStub
+import io.grpc.stub.MetadataUtils
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 
 object ApiKeyConstants {
   /** Metadata key for the api authentication key for a [MeasurementConsumer]. */
   val API_AUTHENTICATION_KEY_METADATA_KEY: Metadata.Key<String> =
     Metadata.Key.of("x-api-key", Metadata.ASCII_STRING_MARSHALLER)
+}
+
+fun <T : AbstractStub<T>> T.withAuthenticationKey(authenticationKey: String? = null): T {
+  val extraHeaders = Metadata()
+  authenticationKey?.let {
+    extraHeaders.put(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY, it)
+  }
+  return withInterceptors(MetadataUtils.newAttachHeadersInterceptor(extraHeaders))
 }
