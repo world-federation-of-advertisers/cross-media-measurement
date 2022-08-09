@@ -150,7 +150,7 @@ gcloud container clusters create worker1-duchy \
   --service-account="gke-cluster@halo-worker1-demo.iam.gserviceaccount.com" \
   --database-encryption-key=projects/halo-worker1-demo/locations/us-central1/keyRings/test-key-ring/cryptoKeys/k8s-secret \
   --num-nodes=3 --enable-autoscaling --min-nodes=2 --max-nodes=5 \
-  --machine-type=e2-medium
+  --machine-type=e2-medium --cluster-version=1.24.2-gke.1900
 ```
 
 Note: The Duchy contains 4 API services and 2 daemon jobs. Those API services
@@ -162,6 +162,9 @@ your budget. For demo purposes, we choose `e2-medium`. In production, you may
 want to choose from the
 [compute-optimized](https://cloud.google.com/compute/docs/compute-optimized-machines)
 machine family (e.g. `c2-standard-4`) which are more expensive.
+
+The GKE version should be no older than `1.24.0` in order to support build-in gRPC
+health prob.
 
 To configure `kubectl` to access this cluster, run
 
