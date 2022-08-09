@@ -31,16 +31,10 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.testVideoTempl
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 /** Fulfill the query with data pulled in from csv source. */
-// TODO(@jcorilla): replace csvEvents input with implementation of object from CSV reader
-class CsvEventQuery(csvEvents: List<Map<String, Any>>) : EventQuery() {
+class CsvEventQuery : EventQuery() {
 
-  private val events =
-    mutableMapOf<Int, MutableList<TestEvent>>().apply {
-      csvEvents.forEach {
-        val vid = it["VID"] ?: error("Missing CSV data for label 'VID'")
-        getOrPut(vid as Int) { mutableListOf() }.add(csvEntryToTestEvent(it))
-      }
-    }
+  private val eventsList: MutableList<TestEvent> = mutableListOf()
+  private val vidsList: MutableList<Int> = mutableListOf()
 
   /** Generates Ids by applying filter on events */
   override fun getUserVirtualIds(eventFilter: EventFilter): Sequence<Long> {
@@ -49,12 +43,11 @@ class CsvEventQuery(csvEvents: List<Map<String, Any>>) : EventQuery() {
         eventFilter.expression,
         testEvent {},
       )
+
     return sequence {
-      events.forEach { (vid, testEvents) ->
-        testEvents.forEach {
-          if (EventFilters.matches(it as Message, program)) {
-            yield(vid.toLong())
-          }
+      this@CsvEventQuery.eventsList.zip(this@CsvEventQuery.vidsList) { event, vid ->
+        if (EventFilters.matches(event as Message, program)) {
+          yield(vid.toLong())
         }
       }
     }
@@ -87,6 +80,16 @@ class CsvEventQuery(csvEvents: List<Map<String, Any>>) : EventQuery() {
           else -> gender = bannerGender { value = BannerGender.Value.GENDER_UNKOWN }
         }
       }
+    }
+  }
+
+  // TODO(@jcorilla): Update method with real implementation reading from csv file
+  fun readCSVData(csvEvents: List<Map<String, Any>>) {
+    this.eventsList.clear()
+    this.vidsList.clear()
+    csvEvents.forEach {
+      this.vidsList.add(it["VID"] as Int)
+      this.eventsList.add(csvEntryToTestEvent(it))
     }
   }
 }
