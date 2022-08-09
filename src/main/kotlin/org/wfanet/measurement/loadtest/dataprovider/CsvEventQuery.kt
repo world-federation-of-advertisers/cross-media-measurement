@@ -18,7 +18,6 @@ import com.opencsv.CSVReaderBuilder
 import java.io.FileReader
 import java.nio.file.Paths
 import java.util.logging.Logger
-import kotlin.random.Random
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
 import org.wfanet.measurement.common.getRuntimePath
 
@@ -26,12 +25,12 @@ import org.wfanet.measurement.common.getRuntimePath
 class CsvEventQuery(
   private val edpDisplayName: String,
 ) : EventQuery() {
+  private val edpIdIndex = 0
+  private val vidIndex = 7
+  private var allFilteredByEdpVids: MutableList<Long> = mutableListOf()
 
   /** Import VIDs from CSV file. */
-  override fun getUserVirtualIds(eventFilter: EventFilter): Sequence<Long> {
-    // val filePath =
-    // "src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider/data/synthetic-labelled-events.csv"
-
+  init {
     val directoryPath =
       Paths.get(
         "wfa_measurement_system",
@@ -45,29 +44,32 @@ class CsvEventQuery(
         "dataprovider",
         "data",
       )
-    val fileName = "benchmark_data_small.csv"
-    val filePath = getRuntimePath(directoryPath.resolve(fileName)).toString()
+
+    // Need to add the file path in data attribute in the BUILD file
+    val fileName = "synthetic-labelled-events-small.csv"
+    // val fileName = "benchmark_data_large.csv"
+    val fileRuntimePath = getRuntimePath(directoryPath.resolve(fileName)).toString()
     logger.info("Reading data from CSV file...")
-    val fileReader = FileReader(filePath)
+    val fileReader = FileReader(fileRuntimePath)
 
     fileReader.use {
       val csvReader = CSVReaderBuilder(fileReader).withSkipLines(1).build()
-      csvReader.use {
-        var allRows = csvReader.readAll()
-        // allRows = allRows.subList(0, 1000)
-        allRows = allRows.filter { row -> row[0] == edpDisplayName.last().toString() }
+      csvReader.use { reader ->
+        var row = reader.readNext()
+        while (row != null) {
+          if (row[edpIdIndex] == edpDisplayName.last().toString()) {
+            allFilteredByEdpVids.add(row[vidIndex].toLong())
+          }
 
-        return sequence { allRows.forEach { row -> yield(row[row.size - 1].toLong()) } }
+          row = reader.readNext()
+        }
       }
     }
+    logger.info("Finished reading data from CSV file")
   }
 
-  fun getUserEvents(eventFilter: EventFilter): Sequence<Long> {
-    return sequence {
-      for (i in 1..1000) {
-        yield(Random.nextInt(1, 10000 + 1).toLong())
-      }
-    }
+  override fun getUserVirtualIds(eventFilter: EventFilter): Sequence<Long> {
+    return allFilteredByEdpVids.asSequence()
   }
 
   companion object {
