@@ -73,7 +73,15 @@ edpSimulators: {
 			]
 			_edp_simulator_image:         "bazel/src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:forwarded_storage_edp_simulator_runner_image"
 			_simulator_image_pull_policy: "Never"
-			_resourceConfig:              #DefaultResourceConfig
+			_resourceConfig:              #DefaultResourceConfig & {
+				resources: {
+					limits: {
+						cpu:    cpu | *"400m"
+						memory: "2Gi"
+					}
+				}
+				jvmHeapSize: "1584m"
+			}
 		}
 	}
 }

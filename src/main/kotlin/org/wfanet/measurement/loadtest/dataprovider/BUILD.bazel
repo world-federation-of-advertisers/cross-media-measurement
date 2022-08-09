@@ -26,7 +26,7 @@ kt_jvm_library(
         "RandomEventQuery.kt",
     ],
     data = [
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider/data:benchmark_data_small.csv",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider/data:benchmark_data_large.csv",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider/data:synthetic-labelled-events-small.csv",
     ],
     deps = [

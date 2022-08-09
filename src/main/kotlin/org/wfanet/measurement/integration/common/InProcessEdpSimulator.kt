@@ -73,7 +73,7 @@ class InProcessEdpSimulator(
             requisitionFulfillmentStub = requisitionFulfillmentClient,
             sketchStore = SketchStore(storageClient),
             // eventQuery =
-            // RandomEventQuery(SketchGenerationParams(reach = 1000, universeSize = 10_000)),
+            //   RandomEventQuery(SketchGenerationParams(reach = 1000, universeSize = 10_000)),
             eventQuery = CsvEventQuery(displayName),
             throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
             eventTemplateNames = eventTemplateNames,
