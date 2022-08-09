@@ -160,7 +160,7 @@ class EdpSimulator(
     logger.info("Executing requisitionFulfillingWorkflow...")
     val requisitions = getRequisitions()
     if (requisitions.isEmpty()) {
-      logger.info("No unfulfilled requisition. Polling again later...")
+      logger.fine("No unfulfilled requisition. Polling again later...")
       return
     }
 
@@ -302,15 +302,15 @@ class EdpSimulator(
     val anySketch: AnySketch = SketchProtos.toAnySketch(sketchConfig)
     logger.info("Generating Sketch...")
 
-    // TODO(@uakyol): Populate sketch based on all event groups not just the first one.
-    populateAnySketch(
-      requisitionSpec.eventGroupsList[0].value.filter,
-      VidSampler(VID_SAMPLER_HASH_FUNCTION),
-      vidSamplingIntervalStart,
-      vidSamplingIntervalWidth,
-      anySketch
-    )
-
+    requisitionSpec.eventGroupsList.forEach {
+      populateAnySketch(
+        it.value.filter,
+        VidSampler(VID_SAMPLER_HASH_FUNCTION),
+        vidSamplingIntervalStart,
+        vidSamplingIntervalWidth,
+        anySketch
+      )
+    }
     return SketchProtos.fromAnySketch(anySketch, sketchConfig)
   }
 
