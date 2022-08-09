@@ -158,7 +158,7 @@ vs. memory requirements for each pod, it may be more efficient to have multiple
 node pools with different machine types and/or to use GKE's auto-scaling and
 provisioning features.
 
-The GKE version should be no older than `1.24.0` in order to support build-in gRPC
+The GKE version should be no older than `1.24.0` in order to support built-in gRPC
 health prob.
 
 To configure `kubectl` to access this cluster, run

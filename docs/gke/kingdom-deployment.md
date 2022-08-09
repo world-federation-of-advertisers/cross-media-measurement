@@ -172,7 +172,7 @@ gcloud container clusters create halo-cmm-kingdom-demo-cluster \
 Note: ~3 nodes with the `e2-small` machine type should be enough to run the
 Kingdom servers initially, but should be adjusted depending on expected load.
 
-The GKE version should be no older than `1.24.0` in order to support build-in gRPC 
+The GKE version should be no older than `1.24.0` in order to support built-in gRPC 
 health prob.
 
 After creating the cluster, we can configure `kubectl` to be able to access it
