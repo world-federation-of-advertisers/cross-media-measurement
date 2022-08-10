@@ -12,13 +12,11 @@
  * the License.
  */
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
-
 /**
  * This is the default value for the total amount that can be charged to a single privacy bucket.
  */
 private const val MAXIMUM_PRIVACY_USAGE_PER_BUCKET = 1.0f
 private const val MAXIMUM_DELTA_PER_BUCKET = 1.0e-9f
-
 /**
  * Instantiates a privacy budget manager.
  *
@@ -39,8 +37,7 @@ class PrivacyBudgetManager(
   val ledger = PrivacyBudgetLedger(backingStore, maximumPrivacyBudget, maximumTotalDelta)
 
   /** Checks if calling charge with this [reference] will result in an update in the ledger. */
-  fun referenceWillBeProcessed(reference: Reference) = !ledger.hasLedgerEntry(reference)
-
+  suspend fun referenceWillBeProcessed(reference: Reference) = !ledger.hasLedgerEntry(reference)
   /**
    * Checks if charging all of the privacy buckets identified by the given measurementSpec and
    * requisitionSpec would not exceed privacy budget.
@@ -50,7 +47,7 @@ class PrivacyBudgetManager(
    * exceptions could include running out of privacy budget or a failure to commit the transaction
    * to the database.
    */
-  fun chargingWillExceedPrivacyBudget(query: Query) =
+  suspend fun chargingWillExceedPrivacyBudget(query: Query) =
     ledger.chargingWillExceedPrivacyBudget(
       filter.getPrivacyBucketGroups(query.reference.measurementConsumerId, query.landscapeMask),
       setOf(query.charge)
@@ -69,7 +66,7 @@ class PrivacyBudgetManager(
    * @throws PrivacyBudgetManagerException if an error occurs in handling this request. Possible
    * exceptions could include a failure to commit the transaction to the database.
    */
-  fun chargePrivacyBudget(query: Query) =
+  suspend fun chargePrivacyBudget(query: Query) =
     ledger.charge(
       query.reference,
       filter.getPrivacyBucketGroups(query.reference.measurementConsumerId, query.landscapeMask),

@@ -27,7 +27,6 @@ java_binary(
 
 java_image(
     name = "async_computation_control_server_image",
-    data = ["@grpc_health_probe//file"],
     main_class = "org.wfanet.measurement.duchy.deploy.common.server.AsyncComputationControlServerKt",
     visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":async_computation_control_server"],
@@ -70,7 +69,6 @@ java_binary(
 
 java_image(
     name = "forwarded_storage_computation_control_server_image",
-    data = ["@grpc_health_probe//file"],
     main_class = "org.wfanet.measurement.duchy.deploy.common.server.ForwardedStorageComputationControlServerKt",
     visibility = [
         "//src:docker_image_deployment",
@@ -130,7 +128,6 @@ java_binary(
 
 java_image(
     name = "forwarded_storage_requisition_fulfillment_server_image",
-    data = ["@grpc_health_probe//file"],
     main_class = "org.wfanet.measurement.duchy.deploy.common.server.ForwardedStorageRequisitionFulfillmentServerKt",
     visibility = [
         "//src:docker_image_deployment",

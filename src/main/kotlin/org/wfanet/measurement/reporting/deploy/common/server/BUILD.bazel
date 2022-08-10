@@ -62,7 +62,6 @@ java_binary(
 
 java_image(
     name = "v1alpha_public_api_server_image",
-    data = ["@grpc_health_probe//file"],
     main_class = "org.wfanet.measurement.reporting.deploy.common.server.V1AlphaPublicApiServerKt",
     visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":v1alpha_public_api_server"],
