@@ -77,9 +77,9 @@ class MeasurementReader {
       if (failure != null) {
         this.failure = Measurement.Failure.parseFrom(failure)
       }
-      val result: ByteString? = row["Result"]
+      val result: Measurement.Result? = row.getProtoMessage("Result", Measurement.Result.parser())
       if (result != null) {
-        this.result = Measurement.Result.parseFrom(result)
+        this.result = result
       }
     }
   }

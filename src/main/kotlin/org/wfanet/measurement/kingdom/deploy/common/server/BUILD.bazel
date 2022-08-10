@@ -35,7 +35,7 @@ kt_jvm_library(
     runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [
         ":utils",
-        "//src/main/kotlin/org/wfanet/measurement/common/identity:textproto_file_principal_lookup",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:textproto_file_principal_lookup",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:accounts_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:api_key_authentication_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:api_keys_service",

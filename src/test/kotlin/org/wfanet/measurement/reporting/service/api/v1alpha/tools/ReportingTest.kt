@@ -37,6 +37,7 @@ import org.wfanet.measurement.common.grpc.toServerTlsContext
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.reporting.v1alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.reporting.v1alpha.Metric
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.SetOperationKt.operand
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.namedSetOperation
@@ -49,7 +50,10 @@ import org.wfanet.measurement.reporting.v1alpha.ReportingSetsGrpcKt.ReportingSet
 import org.wfanet.measurement.reporting.v1alpha.ReportsGrpcKt.ReportsCoroutineImplBase
 import org.wfanet.measurement.reporting.v1alpha.createReportRequest
 import org.wfanet.measurement.reporting.v1alpha.createReportingSetRequest
+import org.wfanet.measurement.reporting.v1alpha.eventGroup
 import org.wfanet.measurement.reporting.v1alpha.getReportRequest
+import org.wfanet.measurement.reporting.v1alpha.listEventGroupsRequest
+import org.wfanet.measurement.reporting.v1alpha.listEventGroupsResponse
 import org.wfanet.measurement.reporting.v1alpha.listReportingSetsRequest
 import org.wfanet.measurement.reporting.v1alpha.listReportingSetsResponse
 import org.wfanet.measurement.reporting.v1alpha.listReportsRequest
@@ -152,6 +156,10 @@ private val LIST_REPORTS_RESPONSE = listReportsResponse {
     )
 }
 
+private const val DATA_PROVIDER_NAME = "dataProviders/1"
+
+private val LIST_EVENT_GROUPS_RESPONSE = listEventGroupsResponse { eventGroups += eventGroup {} }
+
 @RunWith(JUnit4::class)
 class ReportingTest {
   private val reportingSetsServiceMock: ReportingSetsCoroutineImplBase =
@@ -165,19 +173,21 @@ class ReportingTest {
       onBlocking { listReports(any()) }.thenReturn(LIST_REPORTS_RESPONSE)
       onBlocking { getReport(any()) }.thenReturn(REPORT)
     }
+  private val eventGroupsServiceMock: EventGroupsCoroutineImplBase =
+    mockService() { onBlocking { listEventGroups(any()) }.thenReturn(LIST_EVENT_GROUPS_RESPONSE) }
 
-  // TODO(@renjiez): Use reporting server's credential
   private val serverCerts =
     SigningCerts.fromPemFiles(
-      certificateFile = SECRETS_DIR.resolve("kingdom_tls.pem").toFile(),
-      privateKeyFile = SECRETS_DIR.resolve("kingdom_tls.key").toFile(),
-      trustedCertCollectionFile = SECRETS_DIR.resolve("mc_root.pem").toFile(),
+      certificateFile = SECRETS_DIR.resolve("reporting_tls.pem").toFile(),
+      privateKeyFile = SECRETS_DIR.resolve("reporting_tls.key").toFile(),
+      trustedCertCollectionFile = SECRETS_DIR.resolve("reporting_root.pem").toFile(),
     )
 
   private val services: List<ServerServiceDefinition> =
     listOf(
       reportingSetsServiceMock.bindService(),
       reportsServiceMock.bindService(),
+      eventGroupsServiceMock.bindService(),
     )
 
   private val server: Server =
@@ -203,7 +213,7 @@ class ReportingTest {
       arrayOf(
         "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
         "--tls-key-file=$SECRETS_DIR/mc_tls.key",
-        "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
         "--reporting-server-api-target=$HOST:${server.port}",
         "reporting-sets",
         "create",
@@ -239,7 +249,7 @@ class ReportingTest {
       arrayOf(
         "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
         "--tls-key-file=$SECRETS_DIR/mc_tls.key",
-        "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
         "--reporting-server-api-target=$HOST:${server.port}",
         "reporting-sets",
         "list",
@@ -263,7 +273,7 @@ class ReportingTest {
       """
     reach { }
     set_operations {
-      display_name: "operation1"
+      unique_name: "operation1"
       set_operation {
         type: 1
         lhs {
@@ -280,7 +290,7 @@ class ReportingTest {
       arrayOf(
         "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
         "--tls-key-file=$SECRETS_DIR/mc_tls.key",
-        "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
         "--reporting-server-api-target=$HOST:${server.port}",
         "reports",
         "create",
@@ -317,7 +327,7 @@ class ReportingTest {
             metrics += metric {
               reach = reachParams {}
               setOperations += namedSetOperation {
-                displayName = "operation1"
+                uniqueName = "operation1"
                 setOperation = setOperation {
                   type = Metric.SetOperation.Type.UNION
                   lhs = operand { reportingSet = "measurementConsumers/1/reportingSets/1" }
@@ -336,7 +346,7 @@ class ReportingTest {
       """
     reach { }
     set_operations {
-      display_name: "operation1"
+      unique_name: "operation1"
       set_operation {
         type: 1
         lhs {
@@ -353,7 +363,7 @@ class ReportingTest {
       arrayOf(
         "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
         "--tls-key-file=$SECRETS_DIR/mc_tls.key",
-        "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
         "--reporting-server-api-target=$HOST:${server.port}",
         "reports",
         "create",
@@ -396,7 +406,7 @@ class ReportingTest {
       arrayOf(
         "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
         "--tls-key-file=$SECRETS_DIR/mc_tls.key",
-        "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
         "--reporting-server-api-target=$HOST:${server.port}",
         "reports",
         "create",
@@ -419,7 +429,7 @@ class ReportingTest {
               reach = reachParams {}
               cumulative = true
               setOperations += namedSetOperation {
-                displayName = "operation1"
+                uniqueName = "operation1"
                 setOperation = setOperation {
                   type = Metric.SetOperation.Type.UNION
                   lhs = operand { reportingSet = "measurementConsumers/1/reportingSets/1" }
@@ -427,7 +437,7 @@ class ReportingTest {
                 }
               }
               setOperations += namedSetOperation {
-                displayName = "operation2"
+                uniqueName = "operation2"
                 setOperation = setOperation {
                   type = Metric.SetOperation.Type.DIFFERENCE
                   lhs = operand { reportingSet = "measurementConsumers/1/reportingSets/3" }
@@ -452,7 +462,7 @@ class ReportingTest {
       arrayOf(
         "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
         "--tls-key-file=$SECRETS_DIR/mc_tls.key",
-        "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
         "--reporting-server-api-target=$HOST:${server.port}",
         "reports",
         "list",
@@ -475,7 +485,7 @@ class ReportingTest {
       arrayOf(
         "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
         "--tls-key-file=$SECRETS_DIR/mc_tls.key",
-        "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
         "--reporting-server-api-target=$HOST:${server.port}",
         "reports",
         "get",
@@ -485,5 +495,30 @@ class ReportingTest {
 
     verifyProtoArgument(reportsServiceMock, ReportsCoroutineImplBase::getReport)
       .isEqualTo(getReportRequest { name = REPORT_NAME })
+  }
+
+  @Test
+  fun `EventGroups list callls api with valid request`() {
+    val args =
+      arrayOf(
+        "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
+        "--tls-key-file=$SECRETS_DIR/mc_tls.key",
+        "--cert-collection-file=$SECRETS_DIR/reporting_root.pem",
+        "--reporting-server-api-target=$HOST:${server.port}",
+        "event-groups",
+        "list",
+        "--parent=$DATA_PROVIDER_NAME",
+        "--filter=abcd",
+      )
+    CommandLine(Reporting()).execute(*args)
+
+    verifyProtoArgument(eventGroupsServiceMock, EventGroupsCoroutineImplBase::listEventGroups)
+      .isEqualTo(
+        listEventGroupsRequest {
+          parent = DATA_PROVIDER_NAME
+          filter = "abcd"
+          pageSize = 1000
+        }
+      )
   }
 }

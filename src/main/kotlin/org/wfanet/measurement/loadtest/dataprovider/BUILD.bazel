@@ -21,6 +21,7 @@ kt_jvm_library(
         "EdpSimulatorFlags.kt",
         "EdpSimulatorRunner.kt",
         "EventQuery.kt",
+        "FilterEventQuery.kt",
         "RandomEventQuery.kt",
     ],
     deps = [

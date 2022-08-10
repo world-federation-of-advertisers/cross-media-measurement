@@ -10,6 +10,8 @@ kt_jvm_library(
     srcs = ["Reporting.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:flags",
+        "//src/main/proto/wfa/measurement/reporting/v1alpha:event_group_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v1alpha:event_groups_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/reporting/v1alpha:report_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v1alpha:reporting_set_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v1alpha:reporting_sets_service_kt_jvm_grpc_proto",

@@ -16,3 +16,19 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
     ],
 )
+
+kt_jvm_library(
+    name = "flags",
+    srcs = ["InternalApiFlags.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/picocli",
+    ],
+)
+
+kt_jvm_library(
+    name = "kingdom_flags",
+    srcs = ["KingdomApiFlags.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/picocli",
+    ],
+)

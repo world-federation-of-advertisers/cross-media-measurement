@@ -50,3 +50,17 @@ cue_library(
     srcs = ["edp_simulator.cue"],
     deps = [":base"],
 )
+
+cue_library(
+    name = "postgres",
+    srcs = ["postgres.cue"],
+)
+
+cue_library(
+    name = "reporting",
+    srcs = ["reporting.cue"],
+    deps = [
+        ":base",
+        ":postgres",
+    ],
+)

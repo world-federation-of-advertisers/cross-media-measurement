@@ -76,6 +76,11 @@ COMMON_IMAGES = [
         image = "//src/main/kotlin/org/wfanet/measurement/loadtest/panelmatchresourcesetup:panel_match_resource_setup_runner_image",
         repository = _PREFIX + "/loadtest/panel-match-resource-setup",
     ),
+    struct(
+        name = "reporting_v1alpha_public_api_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/common/server:v1alpha_public_api_server_image",
+        repository = _PREFIX + "/reporting/v1alpha-public-api",
+    ),
 ]
 
 # List of specs for all Docker containers to push to a container registry.
@@ -100,6 +105,16 @@ GKE_IMAGES = [
         name = "gcs_edp_simulator_runner_image",
         image = "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:gcs_edp_simulator_runner_image",
         repository = _PREFIX + "/loadtest/edp-simulator",
+    ),
+    struct(
+        name = "gcloud_reporting_data_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/gcloud/postgres/server:gcloud_postgres_reporting_data_server_image",
+        repository = _PREFIX + "/reporting/postgres-data-server",
+    ),
+    struct(
+        name = "gcloud_reporting_postgres_update_schema_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/gcloud/postgres/tools:update_schema_image",
+        repository = _PREFIX + "/reporting/postgres-update-schema",
     ),
 ]
 
@@ -128,6 +143,14 @@ LOCAL_IMAGES = [
     struct(
         name = "fake_storage_server_image",
         image = "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:server_image",
+    ),
+    struct(
+        name = "reporting_data_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/server:postgres_reporting_data_server_image",
+    ),
+    struct(
+        name = "reporting_postgres_update_schema_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/tools:update_schema_image",
     ),
 ]
 

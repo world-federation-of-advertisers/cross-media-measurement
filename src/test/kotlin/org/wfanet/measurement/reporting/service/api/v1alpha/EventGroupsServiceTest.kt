@@ -17,6 +17,7 @@ package org.wfanet.measurement.reporting.service.api.v1alpha
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any
+import com.google.protobuf.ByteString
 import com.google.protobuf.DescriptorProtos.FileDescriptorSet
 import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.Descriptors.FileDescriptor
@@ -33,7 +34,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.stub
-import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKt as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
@@ -52,7 +52,7 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testMetad
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testParentMetadataMessage
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse as cmmsListEventGroupsResponse
-import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
+import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
@@ -63,12 +63,15 @@ import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
+import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.consent.client.common.signMessage
 import org.wfanet.measurement.reporting.v1alpha.EventGroupKt.metadata
 import org.wfanet.measurement.reporting.v1alpha.eventGroup
 import org.wfanet.measurement.reporting.v1alpha.listEventGroupsRequest
 import org.wfanet.measurement.reporting.v1alpha.listEventGroupsResponse
 
+private const val API_AUTHENTICATION_KEY = "nR5QPN7ptx"
+private val CONFIG = measurementConsumerConfig { apiKey = API_AUTHENTICATION_KEY }
 private val SECRET_FILES_PATH: Path =
   checkNotNull(
     getRuntimePath(
@@ -77,6 +80,10 @@ private val SECRET_FILES_PATH: Path =
   )
 private val ENCRYPTION_PRIVATE_KEY = loadEncryptionPrivateKey("mc_enc_private.tink")
 private val ENCRYPTION_PUBLIC_KEY = loadEncryptionPublicKey("mc_enc_public.tink")
+private val ENCRYPTION_KEY_PAIR_STORE =
+  InMemoryEncryptionKeyPairStore(
+    mapOf(ENCRYPTION_PUBLIC_KEY.toByteString() to ENCRYPTION_PRIVATE_KEY)
+  )
 private val EDP_SIGNING_KEY = loadSigningKey("edp1_cs_cert.der", "edp1_cs_private.der")
 private const val MEASUREMENT_CONSUMER_REFERENCE_ID = "measurementConsumerRefId"
 private val MEASUREMENT_CONSUMER_NAME =
@@ -91,6 +98,7 @@ private val CMMS_EVENT_GROUP = cmmsEventGroup {
   name = "$DATA_PROVIDER_NAME/eventGroups/$CMMS_EVENT_GROUP_ID"
   measurementConsumer = MEASUREMENT_CONSUMER_NAME
   eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
+  measurementConsumerPublicKey = signedData { data = ENCRYPTION_PUBLIC_KEY.toByteString() }
   encryptedMetadata =
     ENCRYPTION_PUBLIC_KEY.hybridEncrypt(
       signMessage(
@@ -113,6 +121,7 @@ private val CMMS_EVENT_GROUP_2 = cmmsEventGroup {
   name = "$DATA_PROVIDER_NAME/eventGroups/$CMMS_EVENT_GROUP_ID_2"
   measurementConsumer = MEASUREMENT_CONSUMER_NAME
   eventGroupReferenceId = "id2"
+  measurementConsumerPublicKey = signedData { data = ENCRYPTION_PUBLIC_KEY.toByteString() }
   encryptedMetadata =
     ENCRYPTION_PUBLIC_KEY.hybridEncrypt(
       signMessage(
@@ -188,10 +197,10 @@ class EventGroupsServiceTest {
       EventGroupsService(
         EventGroupsCoroutineStub(grpcTestServerRule.channel),
         EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
-        ENCRYPTION_PRIVATE_KEY
+        ENCRYPTION_KEY_PAIR_STORE
       )
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
         runBlocking {
           eventGroupsService.listEventGroups(
             listEventGroupsRequest {
@@ -250,10 +259,10 @@ class EventGroupsServiceTest {
       EventGroupsService(
         EventGroupsCoroutineStub(grpcTestServerRule.channel),
         EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
-        ENCRYPTION_PRIVATE_KEY
+        ENCRYPTION_KEY_PAIR_STORE
       )
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
         runBlocking {
           eventGroupsService.listEventGroups(
             listEventGroupsRequest {
@@ -304,6 +313,7 @@ class EventGroupsServiceTest {
       name = "$DATA_PROVIDER_NAME/eventGroups/$CMMS_EVENT_GROUP_ID"
       measurementConsumer = MEASUREMENT_CONSUMER_NAME
       eventGroupReferenceId = "id1"
+      measurementConsumerPublicKey = signedData { data = ENCRYPTION_PUBLIC_KEY.toByteString() }
       encryptedMetadata =
         ENCRYPTION_PUBLIC_KEY.hybridEncrypt(
           signMessage(
@@ -328,15 +338,66 @@ class EventGroupsServiceTest {
       EventGroupsService(
         EventGroupsCoroutineStub(grpcTestServerRule.channel),
         EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
-        ENCRYPTION_PRIVATE_KEY
+        ENCRYPTION_KEY_PAIR_STORE
       )
     val result =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
           runBlocking {
             eventGroupsService.listEventGroups(
               listEventGroupsRequest {
                 parent = EVENT_GROUP_PARENT
+                filter = "age.value > 10"
+              }
+            )
+          }
+        }
+      }
+
+    assertThat(result.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `listEventGroups throws FAILED_PRECONDITION if private key not found`() {
+    val eventGroupInvalidPublicKey = cmmsEventGroup {
+      name = "$DATA_PROVIDER_NAME/eventGroups/$CMMS_EVENT_GROUP_ID"
+      measurementConsumer = MEASUREMENT_CONSUMER_NAME
+      eventGroupReferenceId = "id1"
+      measurementConsumerPublicKey = signedData { data = ByteString.copyFromUtf8("consumerkey") }
+      encryptedMetadata =
+        ENCRYPTION_PUBLIC_KEY.hybridEncrypt(
+          signMessage(
+              CmmsEventGroup.metadata {
+                eventGroupMetadataDescriptor = METADATA_NAME
+                metadata = Any.pack(testParentMetadataMessage { name = "name" })
+              },
+              EDP_SIGNING_KEY
+            )
+            .toByteString()
+        )
+    }
+    cmmsEventGroupsServiceMock.stub {
+      onBlocking { listEventGroups(any()) }
+        .thenReturn(
+          cmmsListEventGroupsResponse {
+            eventGroups += listOf(CMMS_EVENT_GROUP, CMMS_EVENT_GROUP_2, eventGroupInvalidPublicKey)
+          }
+        )
+    }
+    val eventGroupsService =
+      EventGroupsService(
+        EventGroupsCoroutineStub(grpcTestServerRule.channel),
+        EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
+        ENCRYPTION_KEY_PAIR_STORE
+      )
+
+    val result =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking {
+            eventGroupsService.listEventGroups(
+              listEventGroupsRequest {
+                parent = DATA_PROVIDER_NAME
                 filter = "age.value > 10"
               }
             )
@@ -353,16 +414,17 @@ class EventGroupsServiceTest {
       EventGroupsService(
         EventGroupsCoroutineStub(grpcTestServerRule.channel),
         EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
-        ENCRYPTION_PRIVATE_KEY
+        ENCRYPTION_KEY_PAIR_STORE
       )
     val result =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
           runBlocking {
             eventGroupsService.listEventGroups(
               listEventGroupsRequest {
                 filter = "age.value > 10"
                 pageToken = PAGE_TOKEN
+                ENCRYPTION_KEY_PAIR_STORE
               }
             )
           }
@@ -370,6 +432,29 @@ class EventGroupsServiceTest {
       }
 
     assertThat(result.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `listEventGroups throws UNAUTHENTICATED if principal not found`() {
+    val eventGroupsService =
+      EventGroupsService(
+        EventGroupsCoroutineStub(grpcTestServerRule.channel),
+        EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
+        ENCRYPTION_KEY_PAIR_STORE
+      )
+    val result =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          eventGroupsService.listEventGroups(
+            listEventGroupsRequest {
+              parent = DATA_PROVIDER_NAME
+              filter = "age.value > 10"
+            }
+          )
+        }
+      }
+
+    assertThat(result.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 }
 

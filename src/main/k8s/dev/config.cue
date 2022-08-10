@@ -19,6 +19,8 @@ import "strings"
 #GCloudProject:      "halo-cmm-dev"
 #ContainerRegistry:  "gcr.io"
 #SpannerInstance:    "dev-instance"
+// TODO(@tristanvuong2021): replace with region and instance
+#PostgresCloudSqlInstance:   "(#GCloudProject):region:instance"
 
 #GCloudConfig: {
 	project: #GCloudProject
@@ -59,4 +61,9 @@ import "strings"
 
 	repoSuffix: string
 	image:      strings.Join([Config.registry, Config.repoPrefix, repoSuffix], "/")
+}
+
+#PostgresConfig: {
+	cloudSqlInstance:  #PostgresCloudSqlInstance
+	user:              "reporting-internal@\(#GCloudProject).iam"
 }

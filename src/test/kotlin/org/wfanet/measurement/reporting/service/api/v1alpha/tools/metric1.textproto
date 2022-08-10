@@ -2,7 +2,7 @@
 # proto-message: Metric
 reach { }
 set_operations {
-  display_name: "operation1"
+  unique_name: "operation1"
   set_operation {
     type: 1
     lhs {
