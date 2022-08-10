@@ -30,6 +30,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 #GrpcServicePort: 8443
 
+#HealthPort: 8080
+
 #ResourceConfig: {
 	replicas?:  int32
 	resources?: #ResourceRequirements
@@ -168,7 +170,9 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 }
 
 #Probe: {
-	exec: command: [...string]
+	grpc: {
+		port: uint32
+	}
 	initialDelaySeconds?: uint32
 	periodSeconds?:       uint32
 	timeoutSeconds?:      uint32
@@ -282,14 +286,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_ports: [{containerPort: #GrpcServicePort}]
 	spec: template: spec: containers: [{
 		readinessProbe: {
-			exec: command: [
-				"/app/grpc_health_probe/file/grpc-health-probe",
-				"--addr=:\(#GrpcServicePort)",
-				"--tls=true",
-				"--tls-ca-cert=/var/run/secrets/files/all_root_certs.pem",
-				"--tls-client-cert=/var/run/secrets/files/health_probe_tls.pem",
-				"--tls-client-key=/var/run/secrets/files/health_probe_tls.key",
-			]
+			grpc:
+				port: #HealthPort
 			initialDelaySeconds: 30
 			failureThreshold:    10
 		}}]
