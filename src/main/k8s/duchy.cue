@@ -131,7 +131,7 @@ import ("strings")
 				_duchy_cert_collection_file_flag,
 				_debug_verbose_grpc_server_logging_flag,
 				"--port=8443",
-				"--probe-port=8080",
+				"--health-port=8080",
 			]
 		}
 		"computation-control-server-deployment": #ServerDeployment & {
@@ -145,7 +145,7 @@ import ("strings")
 				_duchy_cert_collection_file_flag,
 				_debug_verbose_grpc_server_logging_flag,
 				"--port=8443",
-				"--probe-port=8080",
+				"--health-port=8080",
 			] + _blob_storage_flags
 		}
 		"spanner-computations-server-deployment": Deployment=#ServerDeployment & {
@@ -160,7 +160,7 @@ import ("strings")
 				_kingdom_system_api_cert_host_flag,
 				"--channel-shutdown-timeout=3s",
 				"--port=8443",
-				"--probe-port=8080",
+				"--health-port=8080",
 			] + _spannerConfig.flags
 
 			_podSpec: _initContainers: {
@@ -187,7 +187,7 @@ import ("strings")
 				_kingdom_system_api_target_flag,
 				_kingdom_system_api_cert_host_flag,
 				"--port=8443",
-				"--probe-port=8080",
+				"--health-port=8080",
 			] + _blob_storage_flags
 			_dependencies: ["\(_name)-spanner-computations-server"]
 		}

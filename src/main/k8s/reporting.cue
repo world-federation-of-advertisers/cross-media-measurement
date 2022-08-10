@@ -77,7 +77,7 @@ package k8s
 				_reportingCertCollectionFileFlag,
 				_debugVerboseGrpcServerLoggingFlag,
 				"--port=8443",
-				"--probe-port=8080",
+				"--health-port=8080",
 			] + _postgresConfig.flags + _tlsArgs
 
 			_podSpec: _initContainers: {
@@ -111,7 +111,7 @@ package k8s
 				_encryptionKeyPairDirFlag,
 				_encryptionKeyPairConfigFileFlag,
 				"--port=8443",
-				"--probe-port=8080",
+				"--health-port=8080",
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args
 			_dependencies: ["postgres-reporting-data-server"]
 		}
