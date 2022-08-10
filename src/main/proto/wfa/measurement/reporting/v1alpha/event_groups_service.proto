@@ -41,7 +41,7 @@ service EventGroups {
 
 // Request message for `ListEventGroups` method.
 message ListEventGroupsRequest {
-  // Resource key of the parent `DataProvider`. The wildcard ID (`-`) may be
+  // Resource key of the parent `MeasurementConsumer`. The wildcard ID (`-`) may be
   // used in place of the `DataProvider` ID to list across `DataProvider`s, in
   // which case a filter should be specified.
   string parent = 1 [

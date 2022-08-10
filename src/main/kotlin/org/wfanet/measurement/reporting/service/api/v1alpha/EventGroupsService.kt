@@ -51,10 +51,17 @@ class EventGroupsService(
 ) : EventGroupsCoroutineImplBase() {
   override suspend fun listEventGroups(request: ListEventGroupsRequest): ListEventGroupsResponse {
     val principal: Principal<*> = principalFromCurrentContext
+    val dataProviderId =
+      DataProviderKey(
+          (EventGroupKey.fromName(request.parent)
+              ?: failGrpc(Status.FAILED_PRECONDITION) { "Event group parent unable to be parsed" })
+            .dataProviderReferenceId
+        )
+        .toName()
     val cmmsListEventGroupResponse =
       cmmsEventGroupsStub.listEventGroups(
         cmmsListEventGroupsRequest {
-          parent = request.parent
+          parent = dataProviderId
           pageSize = request.pageSize
           pageToken = request.pageToken
           filter = filter {
@@ -81,7 +88,7 @@ class EventGroupsService(
       eventGroupsMetadataDescriptorsStub
         .batchGetEventGroupMetadataDescriptors(
           batchGetEventGroupMetadataDescriptorsRequest {
-            parent = request.parent
+            parent = dataProviderId
             names +=
               parsedEventGroupMetadataMap.values.map { it.eventGroupMetadataDescriptor }.toSet()
           }
