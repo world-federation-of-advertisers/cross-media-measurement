@@ -24,7 +24,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.common.crypto.testing.SigningCertsTesting
+import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.testing.loadPrivateKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
@@ -41,7 +41,7 @@ abstract class FrontendSimulatorRunner : Runnable {
 
   protected fun run(storageClient: StorageClient) {
     val clientCerts =
-      SigningCertsTesting.fromPemFiles(
+      SigningCerts.fromPemFiles(
         certificateFile = flags.tlsFlags.certFile,
         privateKeyFile = flags.tlsFlags.privateKeyFile,
         trustedCertCollectionFile = flags.tlsFlags.certCollectionFile

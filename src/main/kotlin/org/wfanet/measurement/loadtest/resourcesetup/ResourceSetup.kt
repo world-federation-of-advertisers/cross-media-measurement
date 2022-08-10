@@ -35,6 +35,7 @@ import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.createApiKeyRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
+import org.wfanet.measurement.api.withIdToken
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens.generateIdToken
 import org.wfanet.measurement.common.identity.externalIdToApiId
@@ -49,7 +50,6 @@ import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreation
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
 import org.wfanet.measurement.kingdom.service.api.v2alpha.fillCertificateFromDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.parseCertificateDer
-import org.wfanet.measurement.kingdom.service.api.v2alpha.withIdToken
 
 private val API_VERSION = Version.V2_ALPHA
 
@@ -127,9 +127,8 @@ class ResourceSetup(
     val accountActivationToken = externalIdToApiId(internalAccount.activationToken)
     val mcCreationToken =
       externalIdToApiId(
-        internalAccountsClient.createMeasurementConsumerCreationToken(
-            createMeasurementConsumerCreationTokenRequest {}
-          )
+        internalAccountsClient
+          .createMeasurementConsumerCreationToken(createMeasurementConsumerCreationTokenRequest {})
           .measurementConsumerCreationToken
       )
 

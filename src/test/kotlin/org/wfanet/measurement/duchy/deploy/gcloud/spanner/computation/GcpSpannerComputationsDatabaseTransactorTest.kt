@@ -46,7 +46,7 @@ import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.FakeProtoc
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.FakeProtocolStages.X
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.FakeProtocolStages.Y
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.FakeProtocolStages.Z
-import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.COMPUTATIONS_SCHEMA
+import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.struct
@@ -216,7 +216,8 @@ class ProtocolStageDetailsHelper :
 }
 
 @RunWith(JUnit4::class)
-class GcpSpannerComputationsDatabaseTransactorTest : UsingSpannerEmulator(COMPUTATIONS_SCHEMA) {
+class GcpSpannerComputationsDatabaseTransactorTest :
+  UsingSpannerEmulator(Schemata.DUCHY_CHANGELOG_PATH) {
 
   companion object {
     val FAKE_COMPUTATION_DETAILS: FakeComputationDetails =

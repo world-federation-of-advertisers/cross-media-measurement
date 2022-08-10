@@ -15,61 +15,70 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.exp
+import kotlin.math.ln
 import kotlin.math.pow
 
 data class AdvancedCompositionKey(
-  val charge: PrivacyCharge,
+  val charge: Charge,
   val repetitionCount: Int,
   val totalDelta: Float
 )
 
-/** Memoized computation of binomial coefficients. */
-object AdvancedComposition {
-  private val memoizedCoeffs = ConcurrentHashMap<Pair<Int, Int>, Float>()
-  private val memoizedResults = HashMap<AdvancedCompositionKey, Float?>()
+object Composition {
+  /** Memoized computation of log-factorials. */
+  private val logFactorials = ConcurrentHashMap<Int, Double>()
+
+  init {
+    logFactorials.put(0, 0.0)
+  }
+
+  /** Memoized computation of advanced composition results. */
+  private val advancedCompositionResults = ConcurrentHashMap<AdvancedCompositionKey, Float>()
 
   /**
-   * Computes the number of distinct ways to choose k items from a set of n.
+   * Log of factorial.
+   *
+   * @param k Value whose factorial is to be computed.
+   * @return log(1 * 2 * ... * k)
+   */
+  private fun logFactorial(k: Int): Double {
+    return logFactorials.getOrPut(k) { ln(k.toDouble()) + logFactorial(k - 1) }
+  }
+
+  /**
+   * Computes log of the number of distinct ways to choose k items from a set of n.
    *
    * @param n The size of the set.
    * @param k The size of the subset that is drawn.
-   * @return The number of distinct ways to draw k items from a set of size n. Alternatively, the
-   * coefficient of x^k in the expansion of (1 + x)^n.
+   * @return The log of the number of distinct ways to draw k items from a set of size n.
+   * Alternatively, the log of the coefficient of x^k in the expansion of (1 + x)^n.
    */
-  private fun coeff(n: Int, k: Int): Float {
-    return if ((n < 0) || (k < 0) || (n < k)) {
-      0.0f
-    } else if ((k == 0) || (n == k)) {
-      1.0f
-    } else if (n - k < k) {
-      coeff(n, n - k)
-    } else {
-      memoizedCoeffs.getOrPut(n to k) { coeff(n - 1, k - 1) + coeff(n - 1, k) }
-    }
+  private fun logBinomial(n: Int, k: Int): Double {
+    return logFactorial(n) - logFactorial(k) - logFactorial(n - k)
   }
 
   private fun calculateAdvancedComposition(
-    charge: PrivacyCharge,
+    charge: Charge,
     repetitionCount: Int,
     totalDelta: Float
-  ): Float? {
-    val epsilon = charge.epsilon
-    val delta = charge.delta
+  ): Float {
+    val epsilon = charge.epsilon.toDouble()
+    val delta = charge.delta.toDouble()
     val k = repetitionCount
+    val logDeltaIDivisor = -k.toDouble() * ln(1.0 + exp(epsilon))
     // The calculation follows Theorem 3.3 of https://arxiv.org/pdf/1311.0776.pdf
     for (i in k / 2 downTo 0) {
-      var deltaI = 0.0f
+      var deltaI = 0.0
       for (l in 0..i - 1) {
         deltaI +=
-          coeff(k, l) *
-            (exp(epsilon * (k - l).toFloat()) - exp(epsilon * (k - 2 * i + l).toFloat()))
+          exp(logBinomial(k, l) + logDeltaIDivisor + (epsilon * (k - l).toDouble())) -
+            exp(logBinomial(k, l) + logDeltaIDivisor + epsilon * (k - 2 * i + l).toDouble())
       }
-      deltaI /= (1.0f + exp(epsilon)).pow(k)
-      if (1.0f - (1 - delta).pow(k) * (1.0f - deltaI) <= totalDelta) {
-        return epsilon * (k - 2 * i).toFloat()
+      if (1.0 - (1 - delta).pow(k) * (1.0 - deltaI) <= totalDelta) {
+        return (epsilon * (k - 2 * i)).toFloat()
       }
     }
-    return null
+    return Float.MAX_VALUE
   }
 
   /**
@@ -96,11 +105,11 @@ object AdvancedComposition {
    * any value of totalEpsilon.
    */
   fun totalPrivacyBudgetUsageUnderAdvancedComposition(
-    charge: PrivacyCharge,
+    charge: Charge,
     repetitionCount: Int,
     totalDelta: Float
-  ): Float? =
-    memoizedResults.getOrPut(AdvancedCompositionKey(charge, repetitionCount, totalDelta)) {
-      calculateAdvancedComposition(charge, repetitionCount, totalDelta)
-    }
+  ): Float =
+    advancedCompositionResults.getOrPut(
+      AdvancedCompositionKey(charge, repetitionCount, totalDelta)
+    ) { calculateAdvancedComposition(charge, repetitionCount, totalDelta) }
 }

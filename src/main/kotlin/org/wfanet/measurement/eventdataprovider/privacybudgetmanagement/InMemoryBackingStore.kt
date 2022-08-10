@@ -13,6 +13,8 @@
  */
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
+import java.time.Instant
+
 /**
  * A simple implementation of a privacy budget ledger backing store.
  *
@@ -30,83 +32,96 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
  *
  * 3) Where multiple tasks are not expected to update it.
  */
-class InMemoryBackingStore : PrivacyBudgetLedgerBackingStore {
-  val ledger: MutableList<PrivacyBudgetLedgerEntry> = mutableListOf()
-  private var transactionCount = 0L
+open class InMemoryBackingStore : PrivacyBudgetLedgerBackingStore {
+  protected val balances:
+    MutableMap<PrivacyBucketGroup, MutableMap<Charge, PrivacyBudgetBalanceEntry>> =
+    mutableMapOf()
+  private val referenceLedger: MutableMap<String, MutableList<PrivacyBudgetLedgerEntry>> =
+    mutableMapOf()
 
-  override fun startTransaction(): InMemoryBackingStoreTransactionContext {
-    transactionCount += 1
-    return InMemoryBackingStoreTransactionContext(ledger, transactionCount)
-  }
+  override fun startTransaction(): InMemoryBackingStoreTransactionContext =
+    InMemoryBackingStoreTransactionContext(balances, referenceLedger)
 
   override fun close() {}
 }
 
 class InMemoryBackingStoreTransactionContext(
-  val ledger: MutableList<PrivacyBudgetLedgerEntry>,
-  override val transactionId: Long,
+  val balances: MutableMap<PrivacyBucketGroup, MutableMap<Charge, PrivacyBudgetBalanceEntry>>,
+  val referenceLedger: MutableMap<String, MutableList<PrivacyBudgetLedgerEntry>>,
 ) : PrivacyBudgetLedgerTransactionContext {
 
-  private var transactionLedger = ledger.toMutableList()
+  private var transactionBalances = balances.toMutableMap()
+  private var transactionReferenceLedger = referenceLedger.toMutableMap()
 
-  override fun findIntersectingLedgerEntries(
-    privacyBucketGroup: PrivacyBucketGroup,
-  ): List<PrivacyBudgetLedgerEntry> {
-    return transactionLedger.filter { privacyBucketGroup.overlapsWith(it.privacyBucketGroup) }
-  }
-
-  override fun addLedgerEntry(
-    privacyBucketGroup: PrivacyBucketGroup,
-    privacyCharge: PrivacyCharge,
-  ) {
-    val ledgerEntry =
+  // Adds a new row to the ledger referencing an element that caused charges to the store this key
+  // is usually the requisitionId.
+  private fun addReferenceEntry(reference: Reference) {
+    val measurementConsumerLedger =
+      transactionReferenceLedger.getOrPut(reference.measurementConsumerId) { mutableListOf() }
+    measurementConsumerLedger.add(
       PrivacyBudgetLedgerEntry(
-        transactionLedger.size.toLong(),
-        transactionId,
-        privacyBucketGroup,
-        privacyCharge,
-        1
+        reference.measurementConsumerId,
+        reference.referenceId,
+        reference.isRefund,
+        Instant.now()
       )
-    transactionLedger.add(ledgerEntry)
+    )
   }
 
-  override fun updateLedgerEntry(privacyBudgetLedgerEntry: PrivacyBudgetLedgerEntry) {
-    transactionLedger[privacyBudgetLedgerEntry.rowId.toInt()] = privacyBudgetLedgerEntry
+  override fun hasLedgerEntry(reference: Reference): Boolean {
+    val lastEntry =
+      transactionReferenceLedger
+        .get(reference.measurementConsumerId)
+        ?.filter { it.referenceId == reference.referenceId }
+        ?.sortedByDescending { it.createTime }
+        ?.firstOrNull()
+
+    if (lastEntry == null) {
+      return false
+    }
+    return lastEntry.isRefund == reference.isRefund
   }
 
-  override fun mergePreviousTransaction(previousTransactionId: Long) {
-    for (i in transactionLedger.indices) {
-      if (transactionLedger[i].transactionId == previousTransactionId) {
-        transactionLedger[i] =
-          PrivacyBudgetLedgerEntry(
-            transactionLedger[i].rowId,
-            0L,
-            transactionLedger[i].privacyBucketGroup,
-            transactionLedger[i].privacyCharge,
-            transactionLedger[i].repetitionCount
+  override fun findIntersectingBalanceEntries(
+    privacyBucketGroup: PrivacyBucketGroup,
+  ): List<PrivacyBudgetBalanceEntry> {
+    return transactionBalances.getOrDefault(privacyBucketGroup, mapOf()).values.toList()
+  }
+
+  override fun addLedgerEntries(
+    privacyBucketGroups: Set<PrivacyBucketGroup>,
+    charges: Set<Charge>,
+    reference: Reference
+  ) {
+    // Update the balance for all the charges.
+    for (queryBucketGroup in privacyBucketGroups) {
+      for (charge in charges) {
+        val balanceEntries = transactionBalances.getOrPut(queryBucketGroup) { mutableMapOf() }
+
+        val balanceEntry =
+          balanceEntries.getOrPut(charge) { PrivacyBudgetBalanceEntry(queryBucketGroup, charge, 0) }
+        balanceEntries.put(
+          charge,
+          PrivacyBudgetBalanceEntry(
+            queryBucketGroup,
+            charge,
+            if (reference.isRefund) balanceEntry.repetitionCount - 1
+            else balanceEntry.repetitionCount + 1
           )
+        )
       }
     }
-  }
 
-  override fun undoPreviousTransaction(previousTransactionId: Long) {
-    transactionLedger =
-      transactionLedger.filter { it.transactionId != previousTransactionId }.toMutableList()
-    for (i in transactionLedger.indices) {
-      transactionLedger[i] =
-        PrivacyBudgetLedgerEntry(
-          i.toLong(),
-          transactionLedger[i].transactionId,
-          transactionLedger[i].privacyBucketGroup,
-          transactionLedger[i].privacyCharge,
-          transactionLedger[i].repetitionCount
-        )
-    }
+    // Record the reference for these charges.
+    addReferenceEntry(reference)
   }
 
   override fun commit() {
-    ledger.clear()
-    ledger.addAll(transactionLedger)
+    referenceLedger.clear()
+    referenceLedger.putAll(transactionReferenceLedger)
+
+    balances.clear()
+    balances.putAll(transactionBalances)
   }
 
   override fun close() {}

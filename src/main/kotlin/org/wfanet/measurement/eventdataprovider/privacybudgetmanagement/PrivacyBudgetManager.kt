@@ -13,10 +13,6 @@
  */
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec.MeasurementTypeCase
-import org.wfanet.measurement.api.v2alpha.RequisitionSpec
-
 /**
  * This is the default value for the total amount that can be charged to a single privacy bucket.
  */
@@ -42,69 +38,41 @@ class PrivacyBudgetManager(
 
   val ledger = PrivacyBudgetLedger(backingStore, maximumPrivacyBudget, maximumTotalDelta)
 
+  /** Checks if calling charge with this [reference] will result in an update in the ledger. */
+  fun referenceWillBeProcessed(reference: Reference) = !ledger.hasLedgerEntry(reference)
+
   /**
-   * Charges all of the privacy buckets identified by the given measurementSpec and requisitionSpec,
-   * if possible.
+   * Checks if charging all of the privacy buckets identified by the given measurementSpec and
+   * requisitionSpec would not exceed privacy budget.
    *
+   * @param query represents the [Query] that specifies charges and buckets to be charged.
+   * @throws PrivacyBudgetManagerException if an error occurs in handling this request. Possible
+   * exceptions could include running out of privacy budget or a failure to commit the transaction
+   * to the database.
+   */
+  fun chargingWillExceedPrivacyBudget(query: Query) =
+    ledger.chargingWillExceedPrivacyBudget(
+      filter.getPrivacyBucketGroups(query.reference.measurementConsumerId, query.landscapeMask),
+      setOf(query.charge)
+    )
+
+  /**
+   * Checks if charging all of the privacy buckets identified by the given measurementSpec and
+   * requisitionSpec would not exceed privacy budget.
+   *
+   * @param Reference representing the reference key and if the charge is a refund.
+   * @param measurementConsumerId that the charges are for.
    * @param requisitionSpec The requisitionSpec protobuf that is associated with the query. The date
    * range and demo groups are obtained from this.
    * @param measurementSpec The measurementSpec protobuf that is associated with the query. The VID
    * sampling interval is obtained from from this.
    * @throws PrivacyBudgetManagerException if an error occurs in handling this request. Possible
-   * exceptions could include running out of privacy budget or a failure to commit the transaction
-   * to the database.
+   * exceptions could include a failure to commit the transaction to the database.
    */
-  fun chargePrivacyBudget(
-    measurementConsumerId: String,
-    requisitionSpec: RequisitionSpec,
-    measurementSpec: MeasurementSpec
-  ) {
-    val affectedPrivacyBuckets =
-      filter.getPrivacyBucketGroups(measurementConsumerId, measurementSpec, requisitionSpec)
-    val chargeList = mutableListOf<PrivacyCharge>()
-
-    when (measurementSpec.measurementTypeCase) {
-      MeasurementTypeCase.REACH_AND_FREQUENCY ->
-        chargeList.add(
-          PrivacyCharge(
-            measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon.toFloat() +
-              measurementSpec.reachAndFrequency.frequencyPrivacyParams.epsilon.toFloat(),
-            measurementSpec.reachAndFrequency.reachPrivacyParams.delta.toFloat() +
-              measurementSpec.reachAndFrequency.frequencyPrivacyParams.delta.toFloat()
-          )
-        )
-      // TODO(@uakyol): After the privacy budget accounting is switched to using the Gaussian
-      // mechanism, replace the above lines with the following.  This will further improve the
-      // efficiency of privacy budget usage for reach and frequency queries.
-      //
-      // {
-      //
-      // chargeList.add(PrivacyCharge(
-      //   measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon.toFloat(),
-      //  measurementSpec.reachAndFrequency.reachPrivacyParams.delta.toFloat()))
-      //
-      // chargeList.add(PrivacyCharge(
-      //   measurementSpec.reachAndFrequency.frequencyPrivacyParams.epsilon.toFloat(),
-      //  measurementSpec.reachAndFrequency.frequencyPrivacyParams.delta.toFloat()))
-      // }
-
-      MeasurementTypeCase.IMPRESSION ->
-        chargeList.add(
-          PrivacyCharge(
-            measurementSpec.impression.privacyParams.epsilon.toFloat(),
-            measurementSpec.impression.privacyParams.delta.toFloat()
-          )
-        )
-      MeasurementTypeCase.DURATION ->
-        chargeList.add(
-          PrivacyCharge(
-            measurementSpec.duration.privacyParams.epsilon.toFloat(),
-            measurementSpec.duration.privacyParams.delta.toFloat()
-          )
-        )
-      else -> throw IllegalArgumentException("Measurement type not supported")
-    }
-
-    ledger.chargePrivacyBucketGroups(affectedPrivacyBuckets, chargeList)
-  }
+  fun chargePrivacyBudget(query: Query) =
+    ledger.charge(
+      query.reference,
+      filter.getPrivacyBucketGroups(query.reference.measurementConsumerId, query.landscapeMask),
+      setOf(query.charge)
+    )
 }

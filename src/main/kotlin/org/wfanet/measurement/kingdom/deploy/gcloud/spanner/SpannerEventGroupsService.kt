@@ -21,13 +21,18 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
-import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.UpdateEventGroupRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupInvalidArgsException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamEventGroups
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateEventGroup
@@ -41,36 +46,20 @@ class SpannerEventGroupsService(
   override suspend fun createEventGroup(request: EventGroup): EventGroup {
     try {
       return CreateEventGroup(request).execute(client, idGenerator)
-    } catch (e: KingdomInternalException) {
-      when (e.code) {
-        ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND ->
-          failGrpc(Status.INVALID_ARGUMENT) { "MeasurementConsumer not found" }
-        ErrorCode.DATA_PROVIDER_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
-        ErrorCode.CERTIFICATE_IS_INVALID ->
-          failGrpc(Status.FAILED_PRECONDITION) { "MeasurementConsumer certificate is invalid" }
-        ErrorCode.CERTIFICATE_NOT_FOUND ->
-          failGrpc(Status.NOT_FOUND) { "MeasurementConsumer certificate not found" }
-        ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
-        ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
-        ErrorCode.ACCOUNT_NOT_FOUND,
-        ErrorCode.API_KEY_NOT_FOUND,
-        ErrorCode.PERMISSION_DENIED,
-        ErrorCode.MODEL_PROVIDER_NOT_FOUND,
-        ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-        ErrorCode.DUCHY_NOT_FOUND,
-        ErrorCode.MEASUREMENT_NOT_FOUND,
-        ErrorCode.MEASUREMENT_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
-        ErrorCode.REQUISITION_NOT_FOUND,
-        ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-        ErrorCode.REQUISITION_STATE_ILLEGAL,
-        ErrorCode.EVENT_GROUP_INVALID_ARGS,
-        ErrorCode.EVENT_GROUP_NOT_FOUND,
-        ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,
-        ErrorCode.UNKNOWN_ERROR,
-        ErrorCode.UNRECOGNIZED -> throw e
+    } catch (e: MeasurementConsumerNotFoundException) {
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "MeasurementConsumer not found." }
+    } catch (e: DataProviderNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "DataProvider not found." }
+    } catch (e: CertificateIsInvalidException) {
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+        "MeasurementConsumer's Certificate is invalid."
       }
+    } catch (e: MeasurementConsumerCertificateNotFoundException) {
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+        "MeasurementConsumer's Certificate not found."
+      }
+    } catch (e: KingdomInternalException) {
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
   }
 
@@ -81,36 +70,22 @@ class SpannerEventGroupsService(
     grpcRequire(request.eventGroup.externalEventGroupId > 0L) { "ExternalEventGroupId unspecified" }
     try {
       return UpdateEventGroup(request.eventGroup).execute(client, idGenerator)
-    } catch (e: KingdomInternalException) {
-      when (e.code) {
-        ErrorCode.EVENT_GROUP_INVALID_ARGS ->
-          failGrpc(Status.INVALID_ARGUMENT) { "EventGroup modification param is invalid" }
-        ErrorCode.CERTIFICATE_IS_INVALID ->
-          failGrpc(Status.FAILED_PRECONDITION) { "MeasurementConsumer certificate is invalid" }
-        ErrorCode.CERTIFICATE_NOT_FOUND ->
-          failGrpc(Status.NOT_FOUND) { "MeasurementConsumer certificate not found" }
-        ErrorCode.EVENT_GROUP_NOT_FOUND -> failGrpc(Status.NOT_FOUND) { "EventGroup not found" }
-        ErrorCode.EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND,
-        ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND,
-        ErrorCode.DATA_PROVIDER_NOT_FOUND,
-        ErrorCode.ACCOUNT_ACTIVATION_STATE_ILLEGAL,
-        ErrorCode.DUPLICATE_ACCOUNT_IDENTITY,
-        ErrorCode.ACCOUNT_NOT_FOUND,
-        ErrorCode.API_KEY_NOT_FOUND,
-        ErrorCode.PERMISSION_DENIED,
-        ErrorCode.MODEL_PROVIDER_NOT_FOUND,
-        ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS,
-        ErrorCode.DUCHY_NOT_FOUND,
-        ErrorCode.MEASUREMENT_NOT_FOUND,
-        ErrorCode.MEASUREMENT_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_STATE_ILLEGAL,
-        ErrorCode.COMPUTATION_PARTICIPANT_NOT_FOUND,
-        ErrorCode.REQUISITION_NOT_FOUND,
-        ErrorCode.CERTIFICATE_REVOCATION_STATE_ILLEGAL,
-        ErrorCode.REQUISITION_STATE_ILLEGAL,
-        ErrorCode.UNKNOWN_ERROR,
-        ErrorCode.UNRECOGNIZED -> throw e
+    } catch (e: EventGroupInvalidArgsException) {
+      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT) {
+        "EventGroup modification param is invalid."
       }
+    } catch (e: CertificateIsInvalidException) {
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+        "MeasurementConsumer's Certificate is invalid."
+      }
+    } catch (e: MeasurementConsumerCertificateNotFoundException) {
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+        "MeasurementConsumer's Certificate not found."
+      }
+    } catch (e: EventGroupNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "EventGroup not found." }
+    } catch (e: KingdomInternalException) {
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
   }
 

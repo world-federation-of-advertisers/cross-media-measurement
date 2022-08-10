@@ -1,5 +1,11 @@
 # How to deploy a Halo Kingdom on GKE
 
+## Background
+
+The configuration for the [`dev` environment](../../src/main/k8s/dev) can be
+used as the basis for deploying CMMS components using Google Kubernetes Engine
+(GKE) on another Google Cloud project.
+
 ***Disclaimer***:
 
 -   This guide is just one way of achieving the goal, not necessarily the best
@@ -74,60 +80,45 @@ following:
 
 ## Step 1. Create the database
 
-The Kingdom expects its own database within your Spanner instance.
-
-You can use the
-`//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:kingdom.sdl`
-Bazel target to generate a file with the necessary Data Definition Language
-(DDL) to create the database.
+The Kingdom expects its own database within your Spanner instance. You can
+create one with the `gcloud` CLI. For example, a database named `kingdom` in the
+`dev-instance` instance.
 
 ```shell
-bazel build //src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner:kingdom.sdl
-```
-
-You can then create the `kingdom` database using the `gloud` CLI:
-
-```shell
-gcloud spanner databases create kingdom --instance=dev-instance \
-  --ddl-file=bazel-bin/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/kingdom.sdl
+gcloud spanner databases create kingdom --instance=dev-instance
 ```
 
 ## Step 2. Build and push the container images
 
-In this example, we use Google Cloud
-[container-registry](https://cloud.google.com/container-registry) to store our
-container images within our project. Enable the Google Container Registry API in
-the console if you haven't done it. If you use other repositories, you'll need
-to adjust the commands accordingly.
+The `dev` configuration uses the
+[Container Registry](https://cloud.google.com/container-registry) to store our
+docker images. Enable the Google Container Registry API in the console if you
+haven't done it. If you use other repositories, adjust the commands accordingly.
 
-If you haven't already registered the `gcloud` tool as your Docker credential
-helper, run
-
-```shell
-gcloud auth configure-docker
-```
-
-Assuming a project named `halo-kingdom-demo`, run
+Assuming a project named `halo-kingdom-demo`, run the following to build the
+images:
 
 ```shell
-bazel run src/main/docker/push_kingdom_data_server_image \
-  -c opt --define container_registry=gcr.io \
-  --define image_repo_prefix=halo-kingdom-demo
-
-bazel run src/main/docker/push_kingdom_v2alpha_public_api_server_image \
-  -c opt --define container_registry=gcr.io \
-  --define image_repo_prefix=halo-kingdom-demo
-
-bazel run src/main/docker/push_kingdom_system_api_server_image \
-  -c opt --define container_registry=gcr.io \
+bazel query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
+  xargs bazel build -c opt --define container_registry=gcr.io \
   --define image_repo_prefix=halo-kingdom-demo
 ```
 
-You should see log like "Successfully pushed Docker image to
-gcr.io/halo-kingdom-demo/setup/push-spanner-schema:latest"
+and then push them:
+
+```shell
+bazel query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
+  xargs -n 1 bazel run -c opt --define container_registry=gcr.io \
+  --define image_repo_prefix=halo-kingdom-demo
+```
+
+You should see output like "Successfully pushed Docker image to
+gcr.io/halo-kingdom-demo/kingdom/data-server:latest"
 
 Tip: If you're using [Hybrid Development](../building.md#hybrid-development) for
-containerized builds, replace `bazel run` with `tools/bazel-container-run`.
+containerized builds, replace `bazel build` with `tools/bazel-container build`
+and `bazel run` with `tools/bazel-container-run`. You'll also want to pass the
+`-o` option to `xargs`.
 
 Note: You may want to add a specific tag for the images in your container
 registry.
@@ -164,11 +155,6 @@ Tip: For convenience, there is a "Copy resource name" action on the key in the
 Cloud console.
 
 ## Step 4. Create the cluster
-
-The
-[Before you begin](https://cloud.google.com/kubernetes-engine/docs/how-to/creating-a-regional-cluster#before_you_begin)
-section in the *Creating a regional cluster* guide is helpful to set up some
-default configuration for the `gcloud` tool.
 
 Supposing you want to create a cluster named `halo-cmm-kingdom-demo-cluster` for
 the Kingdom, running under the `gke-cluster` service account in the
@@ -209,7 +195,7 @@ Supposing the IAM service account you created in a previous step is named
 the K8s service account to impersonate it
 
 ```shell
-gcloud iam service-accounts add-iam-policy-binding
+gcloud iam service-accounts add-iam-policy-binding \
   kingdom-internal@halo-kingdom-demo.iam.gserviceaccount.com \
   --role roles/iam.workloadIdentityUser \
   --member "serviceAccount:halo-kingdom-demo.svc.id.goog[default/internal-server]"
@@ -347,9 +333,10 @@ manifest. You can use the `dev` configuration as a base to get started. The
 [CUE](https://cuelang.org/) using Bazel rules.
 
 The main file for the `dev` Kingdom is
-[`kingdom_gke.cue`](../../src/main/k8s/dev/kingdom_gke.cue). You can modify this
-file to specify your own values for your Google Cloud project and Spanner
-instance. **Do not** push your modifications to the repository.
+[`kingdom_gke.cue`](../../src/main/k8s/dev/kingdom_gke.cue). Some configuration
+is in [`config.cue`](../../src/main/k8s/dev/config.cue) You can modify these
+file to specify your own values for your Spanner instance. **Do not** push your
+modifications to the repository.
 
 For example,
 
@@ -385,7 +372,7 @@ kubectl apply -f bazel-bin/src/main/k8s/dev/kingdom_gke.yaml
 
 Substitute that path if you're using a different K8s manifest.
 
-Now all kingdom components should be successfully deployed to your GKE cluster.
+Now all Kingdom components should be successfully deployed to your GKE cluster.
 You can verify by running
 
 ```shell

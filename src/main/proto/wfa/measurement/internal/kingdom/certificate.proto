@@ -26,17 +26,18 @@ message Certificate {
     fixed64 external_data_provider_id = 1;
     fixed64 external_measurement_consumer_id = 2;
     string external_duchy_id = 3;
+    fixed64 external_model_provider_id = 4;
   }
-  fixed64 external_certificate_id = 4;
+  fixed64 external_certificate_id = 5;
 
   // X.509 v3 subject key identifier.
-  bytes subject_key_identifier = 5;
+  bytes subject_key_identifier = 6;
 
   // The beginning of the X.509 validity period, inclusive.
-  google.protobuf.Timestamp not_valid_before = 6;
+  google.protobuf.Timestamp not_valid_before = 7;
 
   // The end of the X.509 validity period, inclusive.
-  google.protobuf.Timestamp not_valid_after = 7;
+  google.protobuf.Timestamp not_valid_after = 8;
 
   // RFC 5280 revocation state.
   enum RevocationState {
@@ -52,11 +53,11 @@ message Certificate {
   //
   // Note that this is not guaranteed to reflect the actual revocation state
   // determined by the issuing certificate authority.
-  RevocationState revocation_state = 8;
+  RevocationState revocation_state = 9;
 
   message Details {
     // X.509 certificate in DER format.
     bytes x509_der = 1;
   }
-  Details details = 9;
+  Details details = 10;
 }

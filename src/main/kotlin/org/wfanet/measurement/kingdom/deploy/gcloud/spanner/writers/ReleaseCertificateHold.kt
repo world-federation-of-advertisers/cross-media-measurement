@@ -22,7 +22,6 @@ import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.Certificate.RevocationState
-import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.ReleaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
@@ -32,13 +31,19 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyCertific
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelProviderCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 
 /**
  * Revokes a certificate in the database.
  *
- * Throws a [KingdomInternalException] on [execute] with the following codes/conditions:
- * * [ErrorCode.CERTIFICATE_NOT_FOUND]
+ * Throws a subclass of [KingdomInternalException] on [execute].
+ * @throws [MeasurementConsumerCertificateNotFoundException] Certificate not found
+ * @throws [DataProviderCertificateNotFoundException] Certificate not found
+ * @throws [DuchyCertificateNotFoundException] Certificate not found
+ * @throws [DuchyNotFoundException] Duchy not found
+ * @throws [CertificateRevocationStateIllegalException] CertificateRevocation state is REVOKED or
+ * not specified
  *
  * TODO(world-federation-of-advertisers/cross-media-measurement#305) : Consider cancelling all
  * associated active measurements if a certificate is revoked
@@ -52,25 +57,35 @@ class ReleaseCertificateHold(private val request: ReleaseCertificateHoldRequest)
     val certificateResult =
       when (request.parentCase) {
         ReleaseCertificateHoldRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> {
+          val externalDataProviderId = ExternalId(request.externalDataProviderId)
           val reader =
             CertificateReader(CertificateReader.ParentType.DATA_PROVIDER)
-              .bindWhereClause(ExternalId(request.externalDataProviderId), externalCertificateId)
+              .bindWhereClause(externalDataProviderId, externalCertificateId)
           reader.execute(transactionContext).singleOrNull()
             ?: throw DataProviderCertificateNotFoundException(
-              ExternalId(request.externalDataProviderId),
+              externalDataProviderId,
               externalCertificateId
             )
         }
         ReleaseCertificateHoldRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> {
+          val externalMeasurementConsumerId = ExternalId(request.externalMeasurementConsumerId)
           val reader =
             CertificateReader(CertificateReader.ParentType.MEASUREMENT_CONSUMER)
-              .bindWhereClause(
-                ExternalId(request.externalMeasurementConsumerId),
-                externalCertificateId
-              )
+              .bindWhereClause(externalMeasurementConsumerId, externalCertificateId)
           reader.execute(transactionContext).singleOrNull()
             ?: throw MeasurementConsumerCertificateNotFoundException(
-              ExternalId(request.externalMeasurementConsumerId),
+              externalMeasurementConsumerId,
+              externalCertificateId
+            ) { "Certificate not found." }
+        }
+        ReleaseCertificateHoldRequest.ParentCase.EXTERNAL_MODEL_PROVIDER_ID -> {
+          val externalModelProviderId = ExternalId(request.externalModelProviderId)
+          val reader =
+            CertificateReader(CertificateReader.ParentType.MODEL_PROVIDER)
+              .bindWhereClause(externalModelProviderId, externalCertificateId)
+          reader.execute(transactionContext).singleOrNull()
+            ?: throw ModelProviderCertificateNotFoundException(
+              externalModelProviderId,
               externalCertificateId
             ) { "Certificate not found." }
         }

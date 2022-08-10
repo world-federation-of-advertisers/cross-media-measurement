@@ -126,10 +126,10 @@ the moment, this is just the public API server.
 kubectl rollout restart deployments/v2alpha-public-api-server-deployment
 ```
 
-## Deploy Kingdom
+## Re-deploy Kingdom
 
-Once the `config-files` map has been updated with the current resource names,
-the Kingdom can be redeployed as necessary.
+You now have a fully-deployed Kingdom. If you wish to redeploy the Kingdom, for
+example to pick up new changes, you can do so with the following command:
 
 ```shell
 bazel run //src/main/k8s/local:kingdom_kind \

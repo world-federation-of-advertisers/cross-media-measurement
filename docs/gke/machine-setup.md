@@ -20,6 +20,13 @@ Ensure the following additional software is installed on your machine.
 If you are doing a GKE deployment, it is assumed that you have some familiarity
 with using these.
 
+### Configure the Google Cloud CLI
+
+See the
+[Before you begin](https://cloud.google.com/kubernetes-engine/docs/how-to/creating-a-regional-cluster#before_you_begin)
+section for basic configuration. You'll also want to configure the
+[gcloud credential helper](https://cloud.google.com/container-registry/docs/advanced-authentication?hl=en#gcloud-helper).
+
 ## Clone the Repository
 
 ```shell
