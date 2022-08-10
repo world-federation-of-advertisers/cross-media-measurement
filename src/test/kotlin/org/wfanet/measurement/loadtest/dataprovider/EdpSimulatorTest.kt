@@ -101,9 +101,10 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.consent.client.common.signMessage
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
+import org.wfanet.measurement.consent.client.duchy.signElgamalPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
+import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup as PrivacyLandscapeAge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Charge
@@ -633,7 +634,7 @@ class EdpSimulatorTest {
             externalIdToApiId(8L)
           )
           .toName()
-      measurementSpec = signMessage(MEASUREMENT_SPEC, MC_SIGNING_KEY)
+      measurementSpec = signMeasurementSpec(MEASUREMENT_SPEC, MC_SIGNING_KEY)
       encryptedRequisitionSpec = ENCRYPTED_REQUISITION_ONE_SPEC
       protocolConfig = protocolConfig {
         liquidLegionsV2 =
@@ -652,7 +653,8 @@ class EdpSimulatorTest {
         value = value {
           duchyCertificate = externalIdToApiId(6L)
           liquidLegionsV2 = liquidLegionsV2 {
-            elGamalPublicKey = signMessage(CONSENT_SIGNALING_ELGAMAL_PUBLIC_KEY, DUCHY_SIGNING_KEY)
+            elGamalPublicKey =
+              signElgamalPublicKey(CONSENT_SIGNALING_ELGAMAL_PUBLIC_KEY, DUCHY_SIGNING_KEY)
           }
         }
       }

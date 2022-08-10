@@ -766,13 +766,10 @@ class GetMeasurement : Runnable {
     }
 
     val signedResult = decryptResult(resultPair.encryptedResult, privateKeyHandle)
-
-    val result = Measurement.Result.parseFrom(signedResult.data)
-
-    if (!verifyResult(signedResult.signature, result, readCertificate(certificate.x509Der))) {
+    if (!verifyResult(signedResult, readCertificate(certificate.x509Der))) {
       error("Signature of the result is invalid.")
     }
-    return result
+    return Measurement.Result.parseFrom(signedResult.data)
   }
 
   private fun printMeasurementResult(result: Measurement.Result) {
