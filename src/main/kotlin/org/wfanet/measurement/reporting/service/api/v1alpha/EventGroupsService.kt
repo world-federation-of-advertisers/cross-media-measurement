@@ -57,10 +57,10 @@ class EventGroupsService(
     val apiAuthenticationKey: String = principal.config.apiKey
     val dataProviderId =
       DataProviderKey(
-        (EventGroupKey.fromName(request.parent)
-          ?: failGrpc(Status.FAILED_PRECONDITION) { "Event group parent unable to be parsed" })
-          .dataProviderReferenceId
-      )
+          (EventGroupKey.fromName(request.parent)
+              ?: failGrpc(Status.FAILED_PRECONDITION) { "Event group parent unable to be parsed" })
+            .dataProviderReferenceId
+        )
         .toName()
 
     val cmmsListEventGroupResponse =
