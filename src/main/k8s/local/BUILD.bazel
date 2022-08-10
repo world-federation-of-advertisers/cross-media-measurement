@@ -80,6 +80,7 @@ cue_dump(
         "edp4_name": TEST_K8S_SETTINGS.edp4_name,
         "edp5_name": TEST_K8S_SETTINGS.edp5_name,
         "edp6_name": TEST_K8S_SETTINGS.edp6_name,
+        "event_query": TEST_K8S_SETTINGS.event_query,
     },
     tags = ["manual"],
     deps = [
