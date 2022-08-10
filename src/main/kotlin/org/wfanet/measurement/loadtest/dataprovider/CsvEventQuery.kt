@@ -31,6 +31,7 @@ class CsvEventQuery(
 
   /** Import VIDs from CSV file. */
   init {
+    // Place CSV files in //src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider/data
     val directoryPath =
       Paths.get(
         "wfa_measurement_system",
@@ -45,7 +46,6 @@ class CsvEventQuery(
         "data",
       )
 
-    // Need to add the file path in data attribute in the BUILD file
     val fileName = "synthetic-labelled-events-small.csv"
     // val fileName = "benchmark_data_large.csv"
     val fileRuntimePath = getRuntimePath(directoryPath.resolve(fileName)).toString()
@@ -69,6 +69,8 @@ class CsvEventQuery(
   }
 
   override fun getUserVirtualIds(eventFilter: EventFilter): Sequence<Long> {
+    logger.info("Querying VIDs from CsvEventQuery...")
+
     return allFilteredByEdpVids.asSequence()
   }
 
