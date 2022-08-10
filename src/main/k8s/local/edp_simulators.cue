@@ -22,6 +22,7 @@ _edp4_name:   string @tag("edp4_name")
 _edp5_name:   string @tag("edp5_name")
 _edp6_name:   string @tag("edp6_name")
 _secret_name: string @tag("secret_name")
+_event_query: string @tag("event_query")
 
 #KingdomPublicApiTarget: (#Target & {name: "v2alpha-public-api-server"}).target
 #Worker1PublicApiTarget: (#Target & {name: "worker1-requisition-fulfillment-server"}).target
@@ -65,6 +66,7 @@ edpSimulators: {
 			}
 			_edp_secret_name:           _secret_name
 			_mc_resource_name:          _mc_name
+			_event_query_flag:          _event_query
 			_duchy_public_api_target:   #Worker1PublicApiTarget
 			_kingdom_public_api_target: #KingdomPublicApiTarget
 			_blob_storage_flags: [
@@ -77,10 +79,10 @@ edpSimulators: {
 				resources: {
 					limits: {
 						cpu:    cpu | *"400m"
-						memory: "2Gi"
+						memory: "1Gi"
 					}
 				}
-				jvmHeapSize: "1584m"
+				jvmHeapSize: "584m"
 			}
 		}
 	}

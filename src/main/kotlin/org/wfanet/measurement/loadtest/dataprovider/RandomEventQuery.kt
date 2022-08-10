@@ -33,7 +33,7 @@ class RandomEventQuery(private val sketchGenerationParams: SketchGenerationParam
 
     val random = Random(1)
 
-    logger.info("Generating random VIDs...")
+    logger.info("Generating random VIDs from RandomEventQuery...")
 
     return sequence {
       for (i in 1..sketchGenerationParams.reach) {
