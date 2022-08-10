@@ -16,13 +16,13 @@ package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.common.truth.Correspondence
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.Message
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.Clock
 import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneOffset
+import kotlin.random.Random
 import kotlinx.coroutines.runBlocking
 import org.junit.BeforeClass
 import org.junit.ClassRule
@@ -31,8 +31,10 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.kotlin.any
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.AnySketch.Register
+import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig.ValueSpec.Aggregator
 import org.wfanet.anysketch.SketchConfigKt.indexSpec
 import org.wfanet.anysketch.SketchConfigKt.valueSpec
@@ -47,16 +49,24 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCorouti
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
+import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
+import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
-import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
+import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.liquidLegionsV2
+import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
+import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.certificate
+import org.wfanet.measurement.api.v2alpha.elGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplate
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplate.Gender
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplateKt.gender
@@ -67,21 +77,34 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBud
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testBannerTemplate
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testPrivacyBudgetTemplate
+import org.wfanet.measurement.api.v2alpha.liquidLegionsSketchParams
+import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.protocolConfig
+import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.timeInterval
+import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.crypto.tink.TinkPublicKeyHandle
-import org.wfanet.measurement.common.crypto.tink.testing.loadPrivateKey
-import org.wfanet.measurement.common.crypto.tink.testing.loadPublicKey
+import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
+import org.wfanet.measurement.common.crypto.tink.loadPublicKey
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
+import org.wfanet.measurement.consent.client.common.signMessage
+import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
+import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
+import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup as PrivacyLandscapeAge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Charge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Gender as PrivacyLandscapeGender
@@ -142,26 +165,59 @@ private val SKETCH_CONFIG = sketchConfig {
     distribution = distribution { oracle = oracleDistribution { key = "frequency" } }
   }
 }
+private val MEASUREMENT_CONSUMER_CERTIFICATE_DER =
+  SECRET_FILES_PATH.resolve("mc_cs_cert.der").toFile().readByteString()
+private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
+private val EXTERNAL_MEASUREMENT_CONSUMER_ID =
+  apiIdToExternalId(
+    MeasurementConsumerKey.fromName(MEASUREMENT_CONSUMER_NAME)!!.measurementConsumerId
+  )
+private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
+  "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
+private val MEASUREMENT_CONSUMER_CERTIFICATE = certificate {
+  name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
+  x509Der = MEASUREMENT_CONSUMER_CERTIFICATE_DER
+}
+private val MEASUREMENT_PUBLIC_KEY =
+  SECRET_FILES_PATH.resolve("${MC_NAME}_enc_public.tink").toFile().readByteString()
+private val CONSENT_SIGNALING_ELGAMAL_PUBLIC_KEY = elGamalPublicKey {
+  ellipticCurveId = 415
+  generator = HexString("036B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C296").bytes
+  element = HexString("0277BF406C5AA4376413E480E0AB8B0EFCA999D362204E6D1686E0BE567811604D").bytes
+}
 
-class FilterTestEventQuery(val events: Map<Int, TestEvent>) : EventQuery() {
-
-  override fun getUserVirtualIds(eventFilter: EventFilter): Sequence<Long> {
-    val program = EventFilters.compileProgram(eventFilter.expression, testEvent {})
-    return sequence {
-      for (vid in events.keys.toList()) {
-        if (EventFilters.matches(events.get(vid) as Message, program)) {
-          yield(vid.toLong())
+private val REQUISITION_ONE_SPEC = requisitionSpec {
+  eventGroups += eventGroupEntry {
+    key = "eventGroup/name"
+    value =
+      RequisitionSpecKt.EventGroupEntryKt.value {
+        collectionInterval = timeInterval {
+          startTime =
+            LocalDate.now().minusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+          endTime = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+        }
+        filter = eventFilter {
+          expression = "privacy_budget.age.value == 1 || banner_ad.gender.value == 2"
         }
       }
-    }
   }
+  measurementPublicKey = MEASUREMENT_PUBLIC_KEY
+  nonce = Random.Default.nextLong()
 }
+private const val DUCHIES_MAP_KEY = "1"
+private const val DUCHY_NAME = "worker1"
 
 @RunWith(JUnit4::class)
 class EdpSimulatorTest {
-  private val certificatesServiceMock: CertificatesCoroutineImplBase = mockService()
+  private val certificatesServiceMock: CertificatesCoroutineImplBase = mockService {
+    onBlocking { getCertificate(any()) }.thenReturn(MEASUREMENT_CONSUMER_CERTIFICATE)
+  }
   private val eventGroupsServiceMock: EventGroupsCoroutineImplBase = mockService()
-  private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {}
+  private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
+    onBlocking { listRequisitions(any()) }
+      .thenReturn(listRequisitionsResponse { requisitions += REQUISITION_ONE })
+      .thenReturn(listRequisitionsResponse {})
+  }
   private val requisitionFulfillmentServiceMock: RequisitionFulfillmentCoroutineImplBase =
     mockService()
 
@@ -198,7 +254,8 @@ class EdpSimulatorTest {
     val expectedResult: AnySketch = SketchProtos.toAnySketch(SKETCH_CONFIG)
 
     matchingVids.forEach {
-      if (vidSampler.vidIsInSamplingBucket(
+      if (
+        vidSampler.vidIsInSamplingBucket(
           it.toLong(),
           vidSamplingIntervalStart,
           vidSamplingIntervalWidth
@@ -213,15 +270,17 @@ class EdpSimulatorTest {
   private fun getEvents(
     bannerAd: TestBannerTemplate,
     privacyBudget: TestPrivacyBudgetTemplate,
-    vidRange: IntRange
-  ): Map<Int, TestEvent> {
+    vidRange: IntRange,
+  ): Map<Int, List<TestEvent>> {
     return vidRange
       .map {
         it to
-          testEvent {
-            this.bannerAd = bannerAd
-            this.privacyBudget = privacyBudget
-          }
+          listOf(
+            testEvent {
+              this.bannerAd = bannerAd
+              this.privacyBudget = privacyBudget
+            }
+          )
       }
       .toMap()
   }
@@ -291,55 +350,23 @@ class EdpSimulatorTest {
           requisitionsStub,
           requisitionFulfillmentStub,
           sketchStore,
-          FilterTestEventQuery(allEvents),
+          FilterEventQuery(allEvents),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           EVENT_TEMPLATES,
           privacyBudgetManager
         )
+      edpSimulator.createEventGroup()
+      edpSimulator.executeRequisitionFulfillingWorkflow()
+      val storedSketch = sketchStore.get(REQUISITION_ONE)?.read()?.flatten()
+      assertThat(storedSketch).isNotNull()
+
+      val anySketchResult = SketchProtos.toAnySketch(Sketch.parseFrom(storedSketch))
 
       val vidSamplingIntervalStart = 0.0f
       val vidSamplingIntervalWidth = PRIVACY_BUCKET_VID_SAMPLE_WIDTH
 
-      val requisitionSpec = requisitionSpec {
-        eventGroups += eventGroupEntry {
-          key = "eventGroup/name"
-          value =
-            RequisitionSpecKt.EventGroupEntryKt.value {
-              collectionInterval = timeInterval {
-                startTime =
-                  LocalDate.now()
-                    .minusDays(1)
-                    .atStartOfDay()
-                    .toInstant(ZoneOffset.UTC)
-                    .toProtoTime()
-                endTime = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
-              }
-              filter = eventFilter {
-                expression = "privacy_budget.age.value == 1 || banner_ad.gender.value == 2"
-              }
-            }
-        }
-      }
-
-      val measurementSpec = measurementSpec {
-        reachAndFrequency = reachAndFrequency {}
-        vidSamplingInterval = vidSamplingInterval {
-          start = vidSamplingIntervalStart
-          width = vidSamplingIntervalWidth
-        }
-      }
-      val result: AnySketch =
-        SketchProtos.toAnySketch(
-          edpSimulator.generateSketch(
-            "requisition/name",
-            SKETCH_CONFIG,
-            measurementSpec,
-            requisitionSpec
-          )
-        )
-
       assertAnySketchEquals(
-        result,
+        anySketchResult,
         getExpectedResult(matchingVids, vidSamplingIntervalStart, vidSamplingIntervalWidth)
       )
 
@@ -347,9 +374,9 @@ class EdpSimulatorTest {
         backingStore.getBalancesMap()
 
       // All the Buckets are only charged once, so all entries should have a repetition count of 1.
-      balanceLedger.values.flatMap { it.values }.forEach {
-        assertThat(it.repetitionCount).isEqualTo(1)
-      }
+      balanceLedger.values
+        .flatMap { it.values }
+        .forEach { assertThat(it.repetitionCount).isEqualTo(1) }
 
       // The list of all the charged privacy bucket groups should be correct based on the filter.
       assertThat(balanceLedger.keys)
@@ -575,6 +602,61 @@ class EdpSimulatorTest {
   }
 
   companion object {
+    private val MC_SIGNING_KEY =
+      loadSigningKey("${MC_NAME}_cs_cert.der", "${MC_NAME}_cs_private.der")
+    private val DUCHY_SIGNING_KEY =
+      loadSigningKey("${DUCHY_NAME}_cs_cert.der", "${DUCHY_NAME}_cs_private.der")
+
+    private val MEASUREMENT_SPEC = measurementSpec {
+      measurementPublicKey = MEASUREMENT_PUBLIC_KEY
+      reachAndFrequency = reachAndFrequency {}
+      vidSamplingInterval = vidSamplingInterval {
+        start = 0.0f
+        width = PRIVACY_BUCKET_VID_SAMPLE_WIDTH
+      }
+      nonceHashes += hashSha256(REQUISITION_ONE_SPEC.nonce)
+    }
+
+    private val ENCRYPTED_REQUISITION_ONE_SPEC =
+      encryptRequisitionSpec(
+        signedRequisitionSpec = signRequisitionSpec(REQUISITION_ONE_SPEC, MC_SIGNING_KEY),
+        measurementPublicKey =
+          loadEncryptionPublicKey("${EDP_DISPLAY_NAME}_enc_public.tink").toEncryptionPublicKey()
+      )
+
+    private val REQUISITION_ONE = requisition {
+      name = "requisition_one"
+      state = Requisition.State.UNFULFILLED
+      measurementConsumerCertificate =
+        MeasurementConsumerCertificateKey(
+            externalIdToApiId(EXTERNAL_MEASUREMENT_CONSUMER_ID),
+            externalIdToApiId(8L)
+          )
+          .toName()
+      measurementSpec = signMessage(MEASUREMENT_SPEC, MC_SIGNING_KEY)
+      encryptedRequisitionSpec = ENCRYPTED_REQUISITION_ONE_SPEC
+      protocolConfig = protocolConfig {
+        liquidLegionsV2 =
+          ProtocolConfigKt.liquidLegionsV2 {
+            sketchParams = liquidLegionsSketchParams {
+              decayRate = LLV2_DECAY_RATE
+              maxSize = LLV2_MAX_SIZE
+              samplingIndicatorSize = 10_000_000
+            }
+            ellipticCurveId = 415
+            maximumFrequency = 12
+          }
+      }
+      duchies += duchyEntry {
+        key = DUCHIES_MAP_KEY
+        value = value {
+          duchyCertificate = externalIdToApiId(6L)
+          liquidLegionsV2 = liquidLegionsV2 {
+            elGamalPublicKey = signMessage(CONSENT_SIGNALING_ELGAMAL_PUBLIC_KEY, DUCHY_SIGNING_KEY)
+          }
+        }
+      }
+    }
 
     @JvmField @ClassRule val temporaryFolder: TemporaryFolder = TemporaryFolder()
     fun loadSigningKey(certDerFileName: String, privateKeyDerFileName: String): SigningKeyHandle {

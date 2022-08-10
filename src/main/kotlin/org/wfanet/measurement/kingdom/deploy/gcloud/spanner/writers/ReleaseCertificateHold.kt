@@ -120,7 +120,8 @@ class ReleaseCertificateHold(private val request: ReleaseCertificateHoldRequest)
           revocationState = RevocationState.REVOCATION_STATE_UNSPECIFIED
         }
       }
-      RevocationState.REVOKED, RevocationState.REVOCATION_STATE_UNSPECIFIED ->
+      RevocationState.REVOKED,
+      RevocationState.REVOCATION_STATE_UNSPECIFIED ->
         throw CertificateRevocationStateIllegalException(
           ExternalId(externalCertificateId.value),
           certificateRevocationState

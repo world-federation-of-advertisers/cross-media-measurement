@@ -69,17 +69,19 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
       )
 
     val computationControlClientMap =
-      DuchyInfo.entries.filterKeys { it != duchyName }.mapValues { (duchyId, entry) ->
-        ComputationControlCoroutineStub(
-            buildMutualTlsChannel(
-                flags.computationControlServiceTargets.getValue(duchyId),
-                clientCerts,
-                entry.computationControlServiceCertHost
-              )
-              .withShutdownTimeout(flags.channelShutdownTimeout)
-          )
-          .withDuchyId(duchyName)
-      }
+      DuchyInfo.entries
+        .filterKeys { it != duchyName }
+        .mapValues { (duchyId, entry) ->
+          ComputationControlCoroutineStub(
+              buildMutualTlsChannel(
+                  flags.computationControlServiceTargets.getValue(duchyId),
+                  clientCerts,
+                  entry.computationControlServiceCertHost
+                )
+                .withShutdownTimeout(flags.channelShutdownTimeout)
+            )
+            .withDuchyId(duchyName)
+        }
 
     val systemApiChannel =
       buildMutualTlsChannel(flags.systemApiFlags.target, clientCerts, flags.systemApiFlags.certHost)

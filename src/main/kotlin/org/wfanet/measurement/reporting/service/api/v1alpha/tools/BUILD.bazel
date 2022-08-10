@@ -1,0 +1,32 @@
+load("@rules_java//java:defs.bzl", "java_binary")
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+
+package(
+    default_visibility = ["//src/test/kotlin/org/wfanet/measurement/reporting:__subpackages__"],
+)
+
+kt_jvm_library(
+    name = "reporting",
+    srcs = ["Reporting.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:flags",
+        "//src/main/proto/wfa/measurement/reporting/v1alpha:event_group_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v1alpha:event_groups_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/reporting/v1alpha:report_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v1alpha:reporting_set_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v1alpha:reporting_sets_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/reporting/v1alpha:reports_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)
+
+java_binary(
+    name = "Reporting",
+    main_class = "org.wfanet.measurement.reporting.service.api.v1alpha.tools.ReportingKt",
+    tags = ["manual"],
+    runtime_deps = [":reporting"],
+)

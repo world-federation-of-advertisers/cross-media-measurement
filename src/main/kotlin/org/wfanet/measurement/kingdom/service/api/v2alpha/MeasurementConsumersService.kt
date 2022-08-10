@@ -20,12 +20,14 @@ import org.wfanet.measurement.api.accountFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.AddMeasurementConsumerOwnerRequest
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementConsumerRequest
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.GetMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase as MeasurementConsumersCoroutineService
+import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.RemoveMeasurementConsumerOwnerRequest
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
@@ -62,8 +64,7 @@ class MeasurementConsumersService(
     grpcRequire(!measurementConsumer.publicKey.signature.isEmpty) {
       "public_key.signature is missing"
     }
-
-    grpcRequire(request.measurementConsumerCreationToken.isNotBlank()) {
+    grpcRequire(measurementConsumer.measurementConsumerCreationToken.isNotBlank()) {
       "Measurement Consumer creation token is unspecified"
     }
 
@@ -80,7 +81,7 @@ class MeasurementConsumersService(
           }
           externalAccountId = account.externalAccountId
           measurementConsumerCreationTokenHash =
-            hashSha256(apiIdToExternalId(request.measurementConsumerCreationToken))
+            hashSha256(apiIdToExternalId(measurementConsumer.measurementConsumerCreationToken))
         }
       )
     return internalResponse.toMeasurementConsumer()
@@ -89,7 +90,7 @@ class MeasurementConsumersService(
   override suspend fun getMeasurementConsumer(
     request: GetMeasurementConsumerRequest
   ): MeasurementConsumer {
-    val principal = principalFromCurrentContext
+    val principal: MeasurementPrincipal = principalFromCurrentContext
 
     val key: MeasurementConsumerKey =
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.name)) {
@@ -97,10 +98,13 @@ class MeasurementConsumersService(
       }
 
     val externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
-    when (val resourceKey = principal.resourceKey) {
-      is DataProviderKey -> {}
-      is MeasurementConsumerKey -> {
-        if (apiIdToExternalId(resourceKey.measurementConsumerId) != externalMeasurementConsumerId) {
+    when (principal) {
+      is DataProviderPrincipal -> {}
+      is MeasurementConsumerPrincipal -> {
+        if (
+          apiIdToExternalId(principal.resourceKey.measurementConsumerId) !=
+            externalMeasurementConsumerId
+        ) {
           failGrpc(Status.PERMISSION_DENIED) { "Cannot get another MeasurementConsumer" }
         }
       }

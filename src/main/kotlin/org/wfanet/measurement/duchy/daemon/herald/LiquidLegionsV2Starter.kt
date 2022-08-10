@@ -101,15 +101,13 @@ object LiquidLegionsV2Starter {
     aggregatorId: String
   ) {
     val updatedDetails =
-      token
-        .computationDetails
+      token.computationDetails
         .toBuilder()
         .apply {
           liquidLegionsV2Builder
             .clearParticipant()
             .addAllParticipant(
-              systemComputation
-                .computationParticipantsList
+              systemComputation.computationParticipantsList
                 .map { it.toDuchyComputationParticipant(systemComputation.publicApiVersion) }
                 .orderByRoles(token.globalComputationId, aggregatorId)
             )
@@ -299,6 +297,12 @@ object LiquidLegionsV2Starter {
                 "Missing ReachAndFrequency in the measurementSpec."
               }
               val reachAndFrequency = measurementSpec.reachAndFrequency
+              require(reachAndFrequency.reachPrivacyParams.delta > 0) {
+                "LLv2 requires that reach_privacy_params.delta be greater than 0"
+              }
+              require(reachAndFrequency.frequencyPrivacyParams.delta > 0) {
+                "LLv2 requires that frequency_privacy_params.delta be greater than 0"
+              }
               reachNoiseConfigBuilder.globalReachDpNoise =
                 reachAndFrequency.reachPrivacyParams.toDuchyDifferentialPrivacyParams()
               frequencyNoiseConfig =

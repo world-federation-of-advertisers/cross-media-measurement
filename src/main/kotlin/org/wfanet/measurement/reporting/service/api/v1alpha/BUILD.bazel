@@ -1,0 +1,165 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+
+package(default_visibility = ["//visibility:public"])
+
+kt_jvm_library(
+    name = "resource_key",
+    srcs = glob(["*Key.kt"]) + ["IdVariable.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/api:resource_key",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
+    name = "reporting_sets_service",
+    srcs = ["ReportingSetsService.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:principal_server_interceptor",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:reporting_principal",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:resource_key",
+        "//src/main/proto/wfa/measurement/api/v2alpha:page_token_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting:reporting_sets_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/reporting/v1alpha:reporting_sets_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+    ],
+)
+
+kt_jvm_library(
+    name = "event_groups_service",
+    srcs = ["EventGroupsService.kt"],
+    deps = [
+        ":encryption_key_pair_store",
+        ":resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_group_metadata_parser",
+        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:principal_server_interceptor",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:reporting_principal",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_metadata_descriptors_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/reporting/v1alpha:event_group_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v1alpha:event_groups_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
+    ],
+)
+
+kt_jvm_library(
+    name = "reports_service",
+    srcs = ["ReportsService.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
+        "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:encryption_key_pair_store",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:principal_server_interceptor",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:reporting_principal",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:set_operation_compiler",
+        "//src/main/proto/wfa/measurement/api/v2alpha:certificate_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:data_providers_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_consumers_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:page_token_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting:measurements_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting:reporting_sets_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting:reports_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/reporting/v1alpha:reports_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:security_provider",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
+    ],
+)
+
+kt_jvm_library(
+    name = "encryption_key_pair_store",
+    srcs = ["EncryptionKeyPairStore.kt"],
+    deps = [
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+    ],
+)
+
+kt_jvm_library(
+    name = "textproto_file_measurement_consumer_config_lookup",
+    srcs = [
+        "TextprotoFileMeasurementConsumerConfigLookup.kt",
+    ],
+    deps = [
+        ":principal_server_interceptor",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
+    name = "textproto_file_principal_lookup",
+    srcs = [
+        "TextprotoFilePrincipalLookup.kt",
+    ],
+    deps = [
+        ":principal_server_interceptor",
+        ":reporting_principal",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/proto/wfa/measurement/config:authority_key_to_principal_map_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
+    name = "set_operation_compiler",
+    srcs = ["SetOperationCompiler.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/reporting/v1alpha:report_kt_jvm_proto",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
+    name = "context_keys",
+    srcs = ["ContextKeys.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/api:principal",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:reporting_principal",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/io/grpc:context",
+    ],
+)
+
+kt_jvm_library(
+    name = "reporting_principal",
+    srcs = ["ReportingPrincipal.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/common/api:principal",
+        "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "principal_server_interceptor",
+    srcs = ["PrincipalServerInterceptor.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:context_keys",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:reporting_principal",
+        "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/io/grpc:context",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+    ],
+)

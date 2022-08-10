@@ -15,6 +15,7 @@
 package org.wfanet.measurement.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
+import org.wfanet.measurement.common.api.ResourceKey
 
 private val parser = ResourceNameParser("dataProviders/{data_provider}/publicKey")
 
@@ -24,10 +25,10 @@ data class DataProviderPublicKeyKey(val dataProviderId: String) : ResourceKey {
     return parser.assembleName(mapOf(IdVariable.DATA_PROVIDER to dataProviderId))
   }
 
-  companion object {
+  companion object FACTORY : ResourceKey.Factory<DataProviderPublicKeyKey> {
     val defaultValue = DataProviderPublicKeyKey("")
 
-    fun fromName(resourceName: String): DataProviderPublicKeyKey? {
+    override fun fromName(resourceName: String): DataProviderPublicKeyKey? {
       return parser.parseIdVars(resourceName)?.let {
         DataProviderPublicKeyKey(it.getValue(IdVariable.DATA_PROVIDER))
       }

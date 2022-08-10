@@ -37,8 +37,6 @@ rules_jvm_external_deps()
 
 load("@rules_jvm_external//:setup.bzl", "rules_jvm_external_setup")
 
-rules_jvm_external_setup()
-
 load("@wfa_common_jvm//build/maven:artifacts.bzl", "artifacts")
 load("@rules_jvm_external//:defs.bzl", "maven_install")
 

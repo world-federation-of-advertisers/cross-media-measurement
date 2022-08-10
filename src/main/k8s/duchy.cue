@@ -75,17 +75,13 @@ import ("strings")
 	}
 
 	deployments: [Name=_]: #Deployment & {
-		_unprefixed_name:       strings.TrimSuffix(Name, "-deployment")
-		_name:                  _object_prefix + _unprefixed_name
-		_secretName:            _duchy_secret_name
-		_system:                "duchy"
-		_image:                 _images[_unprefixed_name]
-		_imagePullPolicy:       _duchy_image_pull_policy
-		_replicas:              _resource_configs[_unprefixed_name].replicas
-		_resourceRequestMemory: _resource_configs[_unprefixed_name].resourceRequestMemory
-		_resourceLimitMemory:   _resource_configs[_unprefixed_name].resourceLimitMemory
-		_resourceRequestCpu:    _resource_configs[_unprefixed_name].resourceRequestCpu
-		_resourceLimitCpu:      _resource_configs[_unprefixed_name].resourceLimitCpu
+		_unprefixed_name: strings.TrimSuffix(Name, "-deployment")
+		_name:            _object_prefix + _unprefixed_name
+		_secretName:      _duchy_secret_name
+		_system:          "duchy"
+		_image:           _images[_unprefixed_name]
+		_imagePullPolicy: _duchy_image_pull_policy
+		_resourceConfig:  _resource_configs[_unprefixed_name]
 	}
 
 	deployments: {

@@ -16,9 +16,9 @@ package k8s
 
 import "strings"
 
-#GCloudProject:      "halo-cmm-dev"
-#ContainerRegistry:  "gcr.io"
-#SpannerInstance:    "dev-instance"
+#GCloudProject:     "halo-cmm-dev"
+#ContainerRegistry: "gcr.io"
+#SpannerInstance:   "dev-instance"
 
 #GCloudConfig: {
 	project: #GCloudProject
@@ -59,4 +59,10 @@ import "strings"
 
 	repoSuffix: string
 	image:      strings.Join([Config.registry, Config.repoPrefix, repoSuffix], "/")
+}
+
+#PostgresConfig: {
+	project:  #GCloudProject
+	instance: "dev-postgres"
+	region:   "us-central1"
 }

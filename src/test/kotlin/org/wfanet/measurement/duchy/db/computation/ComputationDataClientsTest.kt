@@ -218,7 +218,8 @@ class SingleLiquidLegionsV2Computation(
 ) {
 
   private var token: ComputationToken = runBlocking {
-    dataClients.computationsClient.createComputation(
+    dataClients.computationsClient
+      .createComputation(
         CreateComputationRequest.newBuilder()
           .apply {
             globalComputationId = globalId
@@ -242,17 +243,20 @@ class SingleLiquidLegionsV2Computation(
     testClock.tickSeconds(
       "${token.computationStage.liquidLegionsSketchAggregationV2}_$token.attempt_outputs"
     )
-    token.blobsList.filter { it.dependencyType == ComputationBlobDependency.OUTPUT }.forEach {
-      token =
-        dataClients.computationsClient.recordOutputBlobPath(
-            RecordOutputBlobPathRequest.newBuilder()
-              .setToken(token)
-              .setOutputBlobId(it.blobId)
-              .setBlobPath("unused_output_${it.blobId}")
-              .build()
-          )
-          .token
-    }
+    token.blobsList
+      .filter { it.dependencyType == ComputationBlobDependency.OUTPUT }
+      .forEach {
+        token =
+          dataClients.computationsClient
+            .recordOutputBlobPath(
+              RecordOutputBlobPathRequest.newBuilder()
+                .setToken(token)
+                .setOutputBlobId(it.blobId)
+                .setBlobPath("unused_output_${it.blobId}")
+                .build()
+            )
+            .token
+      }
   }
 
   /** Runs an operation and checks the returned token from the operation matches the expected. */
@@ -279,9 +283,8 @@ class SingleLiquidLegionsV2Computation(
       dataClients.computationsClient.enqueueComputation(
         EnqueueComputationRequest.newBuilder().setToken(token).build()
       )
-      dataClients.computationsClient.getComputationToken(
-          token.globalComputationId.toGetTokenRequest()
-        )
+      dataClients.computationsClient
+        .getComputationToken(token.globalComputationId.toGetTokenRequest())
         .token
     }
   }
@@ -312,7 +315,8 @@ class SingleLiquidLegionsV2Computation(
       val blobId = checkNotNull(stageDetails.externalDuchyLocalBlobIdMap[sender])
       val path = "unused_${sender}_$blobId"
       token =
-        dataClients.computationsClient.recordOutputBlobPath(
+        dataClients.computationsClient
+          .recordOutputBlobPath(
             RecordOutputBlobPathRequest.newBuilder()
               .setToken(token)
               .setOutputBlobId(blobId)
@@ -438,7 +442,8 @@ class SingleLiquidLegionsV2Computation(
 
   suspend fun end(reason: CompletedReason) {
     token =
-      dataClients.computationsClient.finishComputation(
+      dataClients.computationsClient
+        .finishComputation(
           FinishComputationRequest.newBuilder()
             .setToken(token)
             .setEndingComputationStage(Stage.COMPLETE.toProtocolStage())

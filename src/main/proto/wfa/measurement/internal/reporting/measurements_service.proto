@@ -22,12 +22,21 @@ option java_package = "org.wfanet.measurement.internal.reporting";
 option java_multiple_files = true;
 
 // Internal service for persistence of Measurement entities.
-service Reports {
+service Measurements {
   rpc CreateMeasurement(Measurement) returns (Measurement);
+
+  rpc GetMeasurement(GetMeasurementRequest) returns (Measurement);
 
   rpc SetMeasurementResult(SetMeasurementResultRequest) returns (Measurement);
 
   rpc SetMeasurementFailure(SetMeasurementFailureRequest) returns (Measurement);
+}
+
+message GetMeasurementRequest {
+  // `MeasurementConsumer` ID from the CMMS public API.
+  string measurement_consumer_reference_id = 1;
+  // `Measurement` ID from the CMMS public API.
+  string measurement_reference_id = 2;
 }
 
 message SetMeasurementResultRequest {
@@ -35,7 +44,6 @@ message SetMeasurementResultRequest {
   string measurement_consumer_reference_id = 1;
   // `Measurement` ID from the CMMS public API.
   string measurement_reference_id = 2;
-
   Measurement.Result result = 3;
 }
 

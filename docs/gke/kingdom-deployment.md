@@ -412,13 +412,7 @@ duchies. As you can see from the result in the previous step. Only these two
 services have external IPs. However, these external IPs are ephemeral. We need
 to reserve them such that they are stable.
 
-Go to the Gcloud [Console](https://console.cloud.google.com/networking), under
-VPC network -> External IP address, find the above two external IPs, and click
-RESERVE on the right.
-
-Follow this
-[link](https://cloud.google.com/compute/docs/ip-addresses/reserve-static-external-ip-address#gcloud)
-if you want to reserve the IPs using Cloud CLI.
+See [Reserving External IPs](cluster-config.md#reserving-external-ips)
 
 ### Setup subdomain DNS A record
 
@@ -494,71 +488,24 @@ if you want to set it up.
 
 ## Q/A
 
-### Q1. How to generate the Kingdom TLS Certificate?
+### Q1. How to generate certificates/key pairs?
 
-A: You are free to use any certificate authority you wish, for example the
-Certificate Authority Service within your Google Cloud project. For testing, you
-can create a CA on your own machine using OpenSSL.
+You can use any certificate authority (CA) you wish, but the simplest if you're
+deploying on GKE is the
+[Cloud Certificate Authority Service](https://console.cloud.google.com/security/cas/caPools).
 
-1.  install the latest openssl. for example, 3.0.1 on MAC or 1.1.1l on linux.
-2.  run the following commands
+Certificate requirements:
 
-    ```shell
-    openssl req -out test_root.pem -new \
-    -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -keyout test_root.key \
-    -x509 -days 3650 -subj '/O=Some Organization/CN=Some CA' -extensions v3_ca \
-    -addext subjectAltName=DNS:ca.someorg.example.com
-    ```
+*   Support both client and server TLS.
+*   Include the following DNS hostnames in the subject alternative name (SAN)
+    extension:
+    *   The hostnames for any external IPs. For example, our dev Kingdom
+        certificates have`*.kingdom.dev.halo-cmm.org` to cover both
+        `public.kingdom.dev.halo-cmm.org` and `system.kingdom.dev.halo-cmm.org`
+    *   `localhost` (some of our configurations assume this)
 
-    The above command will create two files.
-
-    -   test_root.key: the private key of the root certificate
-    -   test_root.pem: the public key of the root certificate
-        -   You can run `openssl x509 -in test_root.pem -text -noout` to check
-            the information within the certificate.
-
-3.  Then create a file named `test_user.cnf` with the following content
-
-    ```
-    [usr_cert]
-    basicConstraints=CA:FALSE
-    authorityKeyIdentifier=keyid:always,issuer
-    subjectKeyIdentifier=hash
-    keyUsage=nonRepudiation,digitalSignature,keyEncipherment
-    subjectAltName=DNS:server.someorg.example.com
-    ```
-
-4.  Then run two commands:
-
-    ```shell
-    openssl req -out test_user.csr -new -newkey ec -pkeyopt \
-    ec_paramgen_curve:prime256v1 -nodes -keyout test_user.key -subj '/O=Some \
-    Organization/CN=Some Server'
-
-    openssl x509 -in test_user.csr -out test_user.pem \
-    -days 365 -req -CA test_root.pem -CAkey test_root.key -CAcreateserial -extfile \
-    test_user.cnf -extensions usr_cert
-    ```
-
-5.  The first command will generate a user key `test_user.key`, the second
-    command will generate a user certificate with the above root certificate and
-    user key `test_user.pem`. This test_user certificate can be either used in
-    TLS connection or consent signature signing.
-
-Or you can use the bazel tools the halo team created following these steps.
-
-1.  checkout the
-    [common-jvm](https://github.com/world-federation-of-advertisers/common-jvm)
-    repo.
-2.  open the
-    [build/openssl/BUILD.bazel](https://github.com/world-federation-of-advertisers/common-jvm/blob/main/build/openssl/BUILD.bazel)
-    file
-3.  modify the attributes in the generate_root_certificate and
-    generate_user_certificate targets accordingly.
-4.  run `bazel build build/openssl/...`
-5.  The cert files will be exported to the bazel-out directory, e.g.
-    `bazel-out/k8-fastbuild/bin/build/openssl` or `bazel-bin/build/openssl`
-    depending on your OS.
+Encryption keys can be generated using the
+[Tinkey tool](https://github.com/google/tink/blob/master/docs/TINKEY.md).
 
 ### Q2. What if the secret files need to be updated?
 

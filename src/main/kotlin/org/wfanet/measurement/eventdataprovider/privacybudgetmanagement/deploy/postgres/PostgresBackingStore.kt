@@ -26,6 +26,8 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
 
+private const val MAX_BATCH_INSERT = 1000
+
 /**
  * A [PrivacyBudgetLedgerBackingStore] implemented in Postgres compatible SQL.
  *
@@ -84,7 +86,10 @@ class PostgresBackingStoreTransactionContext(
     }
   }
 
-  private fun getLastReference(measurementConsumerId: String, referenceId: String): Boolean? {
+  private suspend fun getLastReference(
+    measurementConsumerId: String,
+    referenceId: String
+  ): Boolean? {
     val selectSql =
       """
         SELECT
@@ -109,7 +114,7 @@ class PostgresBackingStoreTransactionContext(
     return null
   }
 
-  override fun hasLedgerEntry(reference: Reference): Boolean {
+  override suspend fun hasLedgerEntry(reference: Reference): Boolean {
     val lastReference = getLastReference(reference.measurementConsumerId, reference.referenceId)
     if (lastReference == null) {
       return false
@@ -117,7 +122,7 @@ class PostgresBackingStoreTransactionContext(
     return reference.isRefund == lastReference
   }
 
-  override fun findIntersectingBalanceEntries(
+  override suspend fun findIntersectingBalanceEntries(
     privacyBucketGroup: PrivacyBucketGroup
   ): List<PrivacyBudgetBalanceEntry> {
     throwIfTransactionHasEnded(listOf(privacyBucketGroup))
@@ -159,12 +164,34 @@ class PostgresBackingStoreTransactionContext(
     }
   }
 
-  private fun addBalanceEntry(
-    privacyBucketGroup: PrivacyBucketGroup,
-    privacyCharge: Charge,
+  private suspend fun addLedgerEntry(privacyReference: Reference) {
+    val insertEntrySql =
+      """
+        INSERT into LedgerEntries (
+          MeasurementConsumerId,
+          ReferenceId,
+          IsRefund,
+          CreateTime
+        ) VALUES (
+          ?,
+          ?,
+          ?,
+          NOW())
+      """.trimIndent()
+    connection.prepareStatement(insertEntrySql).use { statement: PreparedStatement ->
+      statement.setString(1, privacyReference.measurementConsumerId)
+      statement.setString(2, privacyReference.referenceId)
+      statement.setObject(3, privacyReference.isRefund)
+      // TODO(@duliomatos) Make the blocking IO run within a dispatcher using coroutines
+      statement.executeUpdate()
+    }
+  }
+
+  private suspend fun addBalanceEntries(
+    privacyBudgetBalanceEntries: List<PrivacyBudgetBalanceEntry>,
     refundCharge: Boolean = false
   ) {
-    throwIfTransactionHasEnded(listOf(privacyBucketGroup))
+    throwIfTransactionHasEnded(privacyBudgetBalanceEntries.map { it.privacyBucketGroup })
     val insertEntrySql =
       """
         INSERT into PrivacyBucketCharges (
@@ -195,57 +222,41 @@ class PostgresBackingStoreTransactionContext(
       DO
          UPDATE SET RepetitionCount = ? + PrivacyBucketCharges.RepetitionCount;
       """.trimIndent()
-    connection.prepareStatement(insertEntrySql).use { statement: PreparedStatement ->
-      statement.setString(1, privacyBucketGroup.measurementConsumerId)
-      statement.setObject(2, privacyBucketGroup.startingDate)
-      statement.setString(3, privacyBucketGroup.ageGroup.string)
-      statement.setString(4, privacyBucketGroup.gender.string)
-      statement.setFloat(5, privacyBucketGroup.vidSampleStart)
-      statement.setFloat(6, privacyCharge.delta)
-      statement.setFloat(7, privacyCharge.epsilon)
+
+    val statement: PreparedStatement = connection.prepareStatement(insertEntrySql)
+
+    privacyBudgetBalanceEntries.forEachIndexed { index, privacyBudgetBalanceEntry ->
+      statement.setString(1, privacyBudgetBalanceEntry.privacyBucketGroup.measurementConsumerId)
+      statement.setObject(2, privacyBudgetBalanceEntry.privacyBucketGroup.startingDate)
+      statement.setString(3, privacyBudgetBalanceEntry.privacyBucketGroup.ageGroup.string)
+      statement.setString(4, privacyBudgetBalanceEntry.privacyBucketGroup.gender.string)
+      statement.setFloat(5, privacyBudgetBalanceEntry.privacyBucketGroup.vidSampleStart)
+      statement.setFloat(6, privacyBudgetBalanceEntry.charge.delta)
+      statement.setFloat(7, privacyBudgetBalanceEntry.charge.epsilon)
       statement.setInt(8, if (refundCharge) -1 else 1) // update RepetitionCount
-      // TODO(@duliomatos) Make the blocking IO run within a dispatcher using coroutines
-      statement.executeUpdate()
+      statement.addBatch()
+      // execute every 1000 rows or less
+      if (index % MAX_BATCH_INSERT == 0 || index == privacyBudgetBalanceEntries.size - 1) {
+        statement.executeBatch()
+      }
     }
   }
 
-  private fun addLedgerEntry(privacyReference: Reference) {
-    val insertEntrySql =
-      """
-        INSERT into LedgerEntries (
-          MeasurementConsumerId,
-          ReferenceId,
-          IsRefund,
-          CreateTime
-        ) VALUES (
-          ?,
-          ?,
-          ?,
-          NOW())
-      """.trimIndent()
-    connection.prepareStatement(insertEntrySql).use { statement: PreparedStatement ->
-      statement.setString(1, privacyReference.measurementConsumerId)
-      statement.setString(2, privacyReference.referenceId)
-      statement.setObject(3, privacyReference.isRefund)
-      // TODO(@duliomatos) Make the blocking IO run within a dispatcher using coroutines
-      statement.executeUpdate()
-    }
-  }
-
-  override fun addLedgerEntries(
+  override suspend fun addLedgerEntries(
     privacyBucketGroups: Set<PrivacyBucketGroup>,
     charges: Set<Charge>,
     reference: Reference
   ) {
-    for (privacyBucketGroup in privacyBucketGroups) {
-      for (charge in charges) {
-        addBalanceEntry(privacyBucketGroup, charge, reference.isRefund)
-      }
-    }
+    addBalanceEntries(
+      privacyBucketGroups.flatMap { privacyBucketGroup ->
+        charges.map { charge -> PrivacyBudgetBalanceEntry(privacyBucketGroup, charge, 1) }
+      },
+      reference.isRefund
+    )
     addLedgerEntry(reference)
   }
 
-  override fun commit() {
+  override suspend fun commit() {
     connection.commit()
     transactionHasEnded = true
   }
