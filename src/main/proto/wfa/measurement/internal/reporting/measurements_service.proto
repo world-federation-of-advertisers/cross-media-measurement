@@ -39,6 +39,7 @@ message GetMeasurementRequest {
   string measurement_reference_id = 2;
 }
 
+// TODO(tristanvuong2021): Modify to take a list of measurement results
 message SetMeasurementResultRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
   string measurement_consumer_reference_id = 1;
