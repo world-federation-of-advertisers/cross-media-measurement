@@ -7,13 +7,11 @@ This assumes that you have `kubectl` installed and configured to point to a
 local KiND cluster. You should have some familiarity with Kubernetes and
 `kubectl`.
 
-Minimum Version Required:
-- KiND: v0.13.0
-- kubernetes server: v1.24.0
-- kubectl: compatible with kubernetes server
+Minimum Version Required: - KiND: v0.13.0 - kubernetes server: v1.24.0 -
+kubectl: compatible with kubernetes server
 
-Use the default `kind` as the KiND cluster name. The corresponding k8s cluster name is 
-`kind-kind`.
+Use the default `kind` as the KiND cluster name. The corresponding k8s cluster
+name is `kind-kind`.
 
 Note that some of the targets listed below -- namely, the Duchies and
 simulators -- have requirements regarding the version of glibc in the build
@@ -189,8 +187,23 @@ bazel run //src/main/k8s/local:edp_simulators_kind \
   --define=edp3_name=dataProviders/aeULv4uMBDg \
   --define=edp4_name=dataProviders/d2QIG4uMA8s \
   --define=edp5_name=dataProviders/IjDOL3Rz_PY \
-  --define=edp6_name=dataProviders/U8rTiHRz_b4
+  --define=edp6_name=dataProviders/U8rTiHRz_b4 \
+  --define=event_query=<TypeOfEventQuery>
 ```
+
+In the command, you can specify the type of `event_query` you want to use. The
+default is `randomEventQuery` which will generate random VIDs for each edp. You
+can use `csvEventQuery` to query VIDs from a CSV file for each edp.
+
+To use `csvEventQuery`, place the labelled-events CSV file under
+`//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider/data`, and
+update `fileName` in
+`//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider/CsvEventQuery.kt`
+
+If the CSV data is large, each edp_simulator will need time to import the CSV
+data. In the logs of each `edp-simulator-deployment`, wait for the log `INFO: Executing
+requisitionFulfillingWorkflow...` to show up which indicates it's ready to
+accept requests
 
 ## Deploy MC Frontend Simulator
 

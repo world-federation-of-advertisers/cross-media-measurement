@@ -45,7 +45,7 @@ class CsvEventQuery(
         "dataprovider",
         "data",
       )
-
+    // Update fileName to match the CSV file you want to use
     val fileName = "synthetic-labelled-events-small.csv"
     // val fileName = "benchmark_data_large.csv"
     val fileRuntimePath = getRuntimePath(directoryPath.resolve(fileName)).toString()
