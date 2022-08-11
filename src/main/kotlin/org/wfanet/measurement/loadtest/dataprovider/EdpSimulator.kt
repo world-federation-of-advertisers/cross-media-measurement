@@ -157,10 +157,10 @@ class EdpSimulator(
 
   /** Executes the requisition fulfillment workflow. */
   suspend fun executeRequisitionFulfillingWorkflow() {
-    logger.info("Executing requisitionFulfillingWorkflow...")
+    logger.fine("Executing requisitionFulfillingWorkflow...")
     val requisitions = getRequisitions()
     if (requisitions.isEmpty()) {
-      logger.info("No unfulfilled requisition. Polling again later...")
+      logger.fine("No unfulfilled requisition. Polling again later...")
       return
     }
 
@@ -255,12 +255,18 @@ class EdpSimulator(
     vidSamplingIntervalWidth: Float,
     anySketch: AnySketch
   ) {
+		val events = mutableSetOf<Long>()
     eventQuery
       .getUserVirtualIds(eventFilter)
       .filter {
         vidSampler.vidIsInSamplingBucket(it, vidSamplingIntervalStart, vidSamplingIntervalWidth)
       }
-      .forEach { anySketch.insert(it, mapOf("frequency" to 1L)) }
+      .forEach {
+				anySketch.insert(it, mapOf("frequency" to 1L))
+				events.add(it)
+			}
+
+		logger.info("Inserted ${events.size} events")
   }
 
   suspend fun chargePrivacyBudget(

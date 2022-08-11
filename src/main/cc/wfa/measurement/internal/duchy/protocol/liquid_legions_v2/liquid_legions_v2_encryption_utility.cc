@@ -14,6 +14,8 @@
 
 #include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/liquid_legions_v2_encryption_utility.h"
 
+#include "glog/logging.h"
+
 #include <algorithm>
 #include <memory>
 #include <string>
@@ -291,6 +293,7 @@ absl::StatusOr<int64_t> AddBlindedHistogramNoise(
       }
     }
   }
+  LOG(INFO) << "AddBlindedHistogramNoise added " << noise_register_added << " tuples.";
   return noise_register_added;
 }
 
@@ -321,6 +324,7 @@ absl::StatusOr<int64_t> AddNoiseForPublisherNoise(
     RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
         protocol_cryptor, CompositeType::kFull, random_key_ec, data));
   }
+  LOG(INFO) << "AddNoiseForPublisherNoise added " << noise_registers_count << " noise tuples.";
   return noise_registers_count;
 }
 
@@ -354,6 +358,7 @@ absl::StatusOr<int64_t> AddGlobalReachDpNoise(
         protocol_cryptor, CompositeType::kFull, destroyed_register_key_ec,
         data));
   }
+  LOG(INFO) << "AddGlobalReachDpNoise added " << noise_registers_count << " noise registers.";
   return noise_registers_count;
 }
 
@@ -382,6 +387,7 @@ absl::Status AddPaddingReachNoise(ProtocolCryptor& protocol_cryptor,
     RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
         protocol_cryptor, CompositeType::kFull, random_key_ec, data));
   }
+  LOG(INFO) << "AddPaddingReachNoise added " << count << " noise registers.";
   return absl::OkStatus();
 }
 
@@ -423,6 +429,7 @@ absl::StatusOr<int64_t> AddFrequencyDpNoise(
     }
     total_noise_tuples_added += noise_tuples_count;
   }
+  LOG(INFO) << "AddFrequencyDpNoise added " << total_noise_tuples_added << " noise registers.";
   return total_noise_tuples_added;
 }
 
@@ -451,6 +458,7 @@ absl::StatusOr<int64_t> AddDestroyedFrequencyNoise(
     RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
         protocol_cryptor, CompositeType::kFull, random_values, data));
   }
+  LOG(INFO) << "AddDestroyedFrequencyNoise added " << noise_tuples_count << " noise tuples.";
   return noise_tuples_count;
 }
 
@@ -484,6 +492,7 @@ absl::Status AddPaddingFrequencyNoise(ProtocolCryptor& protocol_cryptor,
     RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
         protocol_cryptor, CompositeType::kFull, random_values, data));
   }
+  LOG(INFO) << "AddPaddingFrequencyNoise added " << noise_tuples_count << " noise tuples.";
   return absl::OkStatus();
 }
 
@@ -541,6 +550,7 @@ absl::Status AddAllFrequencyNoise(
     std::string& data) {
   RETURN_IF_ERROR(ValidateFrequencyNoiseParameters(noise_parameters));
 
+  LOG(INFO) << "liquid_legions_v2_encryption_utility:AddAllFrequencyNoise start";
   auto options = GetFrequencyNoiseOptions(
       noise_parameters.dp_params(), noise_parameters.contributors_count());
   int64_t total_noise_tuples_count =
@@ -548,6 +558,8 @@ absl::Status AddAllFrequencyNoise(
   // Reserve extra space for noise tuples in data.
   data.reserve(data.size() +
                total_noise_tuples_count * kBytesPerFlagsCountTuple);
+  LOG(INFO) << "liquid_legions_v2_encryption_utility:AddAllFrequencyNoise 4 tuple count " << total_noise_tuples_count;
+  LOG(INFO) << "liquid_legions_v2_encryption_utility:AddAllFrequencyNoise 4 maximum_frequency " << noise_parameters.maximum_frequency();
   ASSIGN_OR_RETURN(int frequency_dp_noise_tuples_count,
                    AddFrequencyDpNoise(protocol_cryptor,
                                        noise_parameters.maximum_frequency(),
@@ -559,6 +571,7 @@ absl::Status AddAllFrequencyNoise(
                                        destroyed_noise_tuples_count;
   RETURN_IF_ERROR(AddPaddingFrequencyNoise(protocol_cryptor,
                                            padding_noise_tuples_count, data));
+  LOG(INFO) << "liquid_legions_v2_encryption_utility:AddAllFrequencyNoise finish";
   return absl::OkStatus();
 }
 
@@ -668,6 +681,7 @@ absl::StatusOr<CompleteExecutionPhaseOneResponse> CompleteExecutionPhaseOne(
   ASSIGN_OR_RETURN(size_t register_count,
                    GetNumberOfBlocks(request.combined_register_vector(),
                                      kBytesPerCipherRegister));
+  LOG(INFO) << "Total register count = " << register_count;
   ASSIGN_OR_RETURN_ERROR(
       auto protocol_cryptor,
       CreateProtocolCryptorWithKeys(
@@ -711,6 +725,10 @@ CompleteExecutionPhaseOneAtAggregator(
   ASSIGN_OR_RETURN(size_t register_count,
                    GetNumberOfBlocks(request.combined_register_vector(),
                                      kBytesPerCipherRegister));
+
+  LOG(INFO) << "liquid_legions_v2_encryption_utility:CompleteExecutionPhaseOneAtAggregator register count " <<
+      register_count;
+
   ASSIGN_OR_RETURN_ERROR(
       auto protocol_cryptor,
       CreateProtocolCryptorWithKeys(
@@ -745,8 +763,8 @@ CompleteExecutionPhaseOneAtAggregator(
       *protocol_cryptor, request.combined_register_vector(),
       blinded_register_indexes, permutation, request.total_sketches_count(),
       *response_data));
+  LOG(INFO) << "liquid_legions_v2_encryption_utility:CompleteExecutionPhaseOneAtAggregator 6";
 
-  // Add noise (flag_a, flag_b, flag_c, count) tuples if configured to.
   if (request.has_noise_parameters()) {
     RETURN_IF_ERROR(AddAllFrequencyNoise(*protocol_cryptor, request.curve_id(),
                                          request.noise_parameters(),
@@ -766,6 +784,8 @@ absl::StatusOr<CompleteExecutionPhaseTwoResponse> CompleteExecutionPhaseTwo(
   ASSIGN_OR_RETURN(
       size_t tuple_counts,
       GetNumberOfBlocks(request.flag_count_tuples(), kBytesPerFlagsCountTuple));
+  LOG(INFO) << "liquid_legions_v2_encryption_utility:CompleteExecutionPhaseTwo register count " <<
+      tuple_counts;
   ASSIGN_OR_RETURN_ERROR(
       auto protocol_cryptor,
       CreateProtocolCryptorWithKeys(
@@ -820,6 +840,8 @@ CompleteExecutionPhaseTwoAtAggregator(
   ASSIGN_OR_RETURN(
       size_t tuple_counts,
       GetNumberOfBlocks(request.flag_count_tuples(), kBytesPerFlagsCountTuple));
+  LOG(INFO) << "liquid_legions_v2_encryption_utility:CompleteExecutionPhaseTwoAtAggregator register count " <<
+      tuple_counts;
 
   ASSIGN_OR_RETURN_ERROR(
       auto protocol_cryptor,
@@ -924,6 +946,8 @@ absl::StatusOr<CompleteExecutionPhaseThreeResponse> CompleteExecutionPhaseThree(
   ASSIGN_OR_RETURN(size_t ciphertext_counts,
                    GetNumberOfBlocks(request.same_key_aggregator_matrix(),
                                      kBytesPerCipherText));
+  LOG(INFO) << "liquid_legions_v2_encryption_utility:CompleteExecutionPhaseThree register count " <<
+      ciphertext_counts;
   ASSIGN_OR_RETURN_ERROR(
       auto protocol_cryptor,
       CreateProtocolCryptorWithKeys(
@@ -962,6 +986,8 @@ CompleteExecutionPhaseThreeAtAggregator(
                    GetNumberOfBlocks(request.same_key_aggregator_matrix(),
                                      kBytesPerCipherText));
 
+  LOG(INFO) << "liquid_legions_v2_encryption_utility:CompleteExecutionPhaseThreeAtAggregator register count " <<
+      ciphertext_counts;
   int maximum_frequency = request.maximum_frequency();
   if (maximum_frequency < 2) {
     return absl::InvalidArgumentError(

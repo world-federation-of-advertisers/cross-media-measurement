@@ -17,6 +17,7 @@ package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2
 import com.google.protobuf.ByteString
 import java.nio.file.Paths
 import java.time.Clock
+import java.util.logging.Logger
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey as V2alphaElGamalPublicKey
@@ -443,6 +444,8 @@ class LiquidLegionsV2Mill(
       stub = nextDuchyStub(llv2Details.participantList)
     )
 
+		logger.info("completeSetupPhaseAtAggregator in LiquidLegionsV2Mill")
+
     return dataClients.transitionComputationToStage(
       nextToken,
       inputsToNextStage = nextToken.outputPathList(),
@@ -474,6 +477,8 @@ class LiquidLegionsV2Mill(
       stub = aggregatorDuchyStub(llv2Details.participantList.last().duchyId)
     )
 
+		logger.info("completeSetupPhaseAtNonAggregator in LiquidLegionsV2Mill")
+
     return dataClients.transitionComputationToStage(
       nextToken,
       inputsToNextStage = nextToken.outputPathList(),
@@ -487,8 +492,11 @@ class LiquidLegionsV2Mill(
     val llv2Details = token.computationDetails.liquidLegionsV2
     val llv2Parameters = llv2Details.parameters
     require(AGGREGATOR == llv2Details.role) { "invalid role for this function." }
+		logger.info("completeExecutionPhaseOneAtAggregator in LiquidLegionsV2Mill start")
+		logger.info("$llv2Parameters")
     val (bytes, nextToken) =
       existingOutputOr(token) {
+				logger.info("completeExecutionPhaseOneAtAggregator in LiquidLegionsV2Mill step 1")
         val requestBuilder =
           CompleteExecutionPhaseOneAtAggregatorRequest.newBuilder().apply {
             localElGamalKeyPair = llv2Details.localElgamalKey
@@ -497,16 +505,20 @@ class LiquidLegionsV2Mill(
             combinedRegisterVector = readAndCombineAllInputBlobs(token, 1)
             totalSketchesCount = token.requisitionsCount
           }
+				logger.info("completeExecutionPhaseOneAtAggregator in LiquidLegionsV2Mill step 2")
         if (llv2Parameters.noise.hasFrequencyNoiseConfig()) {
           requestBuilder.noiseParameters = getFrequencyNoiseParams(llv2Parameters)
         }
+				logger.info("completeExecutionPhaseOneAtAggregator in LiquidLegionsV2Mill step 3")
         val cryptoResult: CompleteExecutionPhaseOneAtAggregatorResponse =
           cryptoWorker.completeExecutionPhaseOneAtAggregator(requestBuilder.build())
         logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
+				logger.info("completeExecutionPhaseOneAtAggregator in LiquidLegionsV2Mill step 4")
         cryptoResult.flagCountTuples
       }
 
     // Passes the computation to the next duchy.
+		logger.info("completeExecutionPhaseOneAtAggregator in LiquidLegionsV2Mill step 5")
     sendAdvanceComputationRequest(
       header =
         advanceComputationHeader(
@@ -517,6 +529,7 @@ class LiquidLegionsV2Mill(
       stub = nextDuchyStub(llv2Details.participantList)
     )
 
+		logger.info("completeExecutionPhaseOneAtAggregator in LiquidLegionsV2Mill end")
     return dataClients.transitionComputationToStage(
       nextToken,
       inputsToNextStage = nextToken.outputPathList(),
@@ -529,6 +542,8 @@ class LiquidLegionsV2Mill(
   ): ComputationToken {
     val llv2Details = token.computationDetails.liquidLegionsV2
     require(NON_AGGREGATOR == llv2Details.role) { "invalid role for this function." }
+		logger.info("completeExecutionPhaseOneAtNonAggregator in LiquidLegionsV2Mill start")
+		logger.info("$llv2Details")
     val (bytes, nextToken) =
       existingOutputOr(token) {
         val cryptoResult: CompleteExecutionPhaseOneResponse =
@@ -556,6 +571,8 @@ class LiquidLegionsV2Mill(
       content = addLoggingHook(token, bytes),
       stub = nextDuchyStub(llv2Details.participantList)
     )
+
+		logger.info("completeExecutionPhaseOneAtNonAggregator in LiquidLegionsV2Mill end")
 
     return dataClients.transitionComputationToStage(
       nextToken,
@@ -852,6 +869,7 @@ class LiquidLegionsV2Mill(
   }
 
   companion object {
+    val logger: Logger = Logger.getLogger(this::class.java.name)
     init {
       loadLibrary(
         name = "estimators",
@@ -863,4 +881,5 @@ class LiquidLegionsV2Mill(
       )
     }
   }
+
 }

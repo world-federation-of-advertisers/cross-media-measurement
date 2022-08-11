@@ -122,7 +122,7 @@ abstract class MillBase(
 
   /** Poll and work on the next available computations. */
   suspend fun pollAndProcessNextComputation() {
-    logger.info("@Mill $millId: Polling available computations...")
+		//    logger.fine("@Mill $millId: Polling available computations...")
     val claimWorkRequest =
       ClaimWorkRequest.newBuilder().setComputationType(computationType).setOwner(millId).build()
     val claimWorkResponse: ClaimWorkResponse =
@@ -135,7 +135,7 @@ abstract class MillBase(
       wallDurationLogger.logStageDurationMetric(token, STAGE_WALL_CLOCK_DURATION)
       cpuDurationLogger.logStageDurationMetric(token, STAGE_CPU_DURATION)
     } else {
-      logger.info("@Mill $millId: No computation available, waiting for the next poll...")
+      // logger.fine("@Mill $millId: No computation available, waiting for the next poll...")
     }
   }
 
