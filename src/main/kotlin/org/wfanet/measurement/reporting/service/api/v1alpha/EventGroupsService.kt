@@ -16,7 +16,7 @@ package org.wfanet.measurement.reporting.service.api.v1alpha
 
 import io.grpc.Status
 import org.projectnessie.cel.Program
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DataProviderKey as CmmsDataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor
@@ -55,8 +55,8 @@ class EventGroupsService(
       }
     }
     val apiAuthenticationKey: String = principal.config.apiKey
-    val dataProviderId =
-      DataProviderKey(
+    val dataProviderName =
+      CmmsDataProviderKey(
           (EventGroupKey.fromName(request.parent)
               ?: failGrpc(Status.FAILED_PRECONDITION) { "Event group parent unable to be parsed" })
             .dataProviderReferenceId
@@ -68,7 +68,7 @@ class EventGroupsService(
         .withAuthenticationKey(apiAuthenticationKey)
         .listEventGroups(
           cmmsListEventGroupsRequest {
-            parent = dataProviderId
+            parent = dataProviderName
             pageSize = request.pageSize
             pageToken = request.pageToken
             filter = filter { measurementConsumers += principal.resourceKey.measurementConsumerId }
@@ -100,7 +100,7 @@ class EventGroupsService(
         .withAuthenticationKey(apiAuthenticationKey)
         .batchGetEventGroupMetadataDescriptors(
           batchGetEventGroupMetadataDescriptorsRequest {
-            parent = dataProviderId
+            parent = dataProviderName
             names +=
               parsedEventGroupMetadataMap.values.map { it.eventGroupMetadataDescriptor }.toSet()
           }
@@ -149,7 +149,7 @@ private fun CmmsEventGroup.toEventGroup(
           cmmsEventGroupKey.eventGroupId
         )
         .toName()
-    dataProvider = DataProviderKey(cmmsEventGroupKey.dataProviderId).toName()
+    dataProvider = CmmsDataProviderKey(cmmsEventGroupKey.dataProviderId).toName()
     eventGroupReferenceId = source.eventGroupReferenceId
     eventTemplates += source.eventTemplatesList.map { eventTemplate { type = it.type } }
     metadata = metadata {
