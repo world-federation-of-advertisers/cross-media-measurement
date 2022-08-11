@@ -259,6 +259,16 @@ class ReachAndFrequencyParams {
   )
   var frequencyPrivacyDelta by Delegates.notNull<Double>()
     private set
+
+	@set:CommandLine.Option(
+    names = ["--max-frequency-for-reach"],
+    description = ["Maximum frequency per user when estimating reach"],
+    required = false,
+		defaultValue = "10",
+  )
+  var maximumFrequencyPerUser by Delegates.notNull<Int>()
+    private set
+
 }
 
 class ImpressionParams {
@@ -459,6 +469,7 @@ private fun getReachAndFrequency(measurementTypeParams: MeasurementTypeParams): 
       epsilon = measurementTypeParams.reachAndFrequency.frequencyPrivacyEpsilon
       delta = measurementTypeParams.reachAndFrequency.frequencyPrivacyDelta
     }
+		maximumFrequencyPerUser=measurementTypeParams.reachAndFrequency.maximumFrequencyPerUser
   }
 }
 
@@ -668,7 +679,7 @@ class Benchmark(
               flags.privateKeyHandle
             )
           task.result = result
-					println ("Got result for task $iTask\n$measurement\n-----\n$result")
+					// println ("Got result for task $iTask\n$measurement\n-----\n$result")
           task.status = "success"
         } else if (measurement.state == Measurement.State.FAILED) {
           task.status = "failed"
