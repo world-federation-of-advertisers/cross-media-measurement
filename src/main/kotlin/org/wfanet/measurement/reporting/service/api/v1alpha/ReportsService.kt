@@ -796,14 +796,11 @@ class ReportsService(
     for ((measurementReferenceId, internalMeasurement) in measurementsMap) {
       // Measurement with SUCCEEDED state is already synced
       if (internalMeasurement.state == InternalMeasurement.State.SUCCEEDED) continue
-
-      launch {
-        syncMeasurement(
-          measurementReferenceId,
-          measurementConsumerReferenceId,
-          apiAuthenticationKey,
-        )
-      }
+      syncMeasurement(
+        measurementReferenceId,
+        measurementConsumerReferenceId,
+        apiAuthenticationKey,
+      )
     }
   }
 
