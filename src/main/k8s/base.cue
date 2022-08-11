@@ -28,18 +28,31 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 #AppName: "halo-cmms"
 
-#GrpcServicePort: 8443
+#PortNumber: int32 & >0 & <65536
+#IpProtocol: "UDP" | "TCP" | "SCTP"
+
+#ContainerPort: {
+	containerPort: #PortNumber
+	name?:         string
+	protocol?:     #IpProtocol
+}
+#ServicePort: {
+	port:        #PortNumber
+	targetPort?: #PortNumber | string
+	protocol?:   #IpProtocol
+	name?:       string
+}
+
+#GrpcPort:          8443
+#GrpcContainerPort: #ContainerPort & {
+	containerPort: #GrpcPort
+}
+#GrpcServicePort: #ServicePort & {
+	name: "grpc-port"
+	port: #GrpcPort
+}
 
 #HealthPort: 8080
-
-#ResourceConfig: {
-	replicas?:  int32
-	resources?: #ResourceRequirements
-
-	// TODO(world-federation-of-advertisers/cross-media-measurement#623): Set heap
-	// size as a percentage instead.
-	jvmHeapSize?: string
-}
 
 #ResourceQuantity: {
 	cpu?:    string
@@ -51,6 +64,21 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	requests?: #ResourceQuantity
 }
 
+#JavaOptions: {
+	maxRamPercentage?: float
+
+	_ramOptions: [...string]
+	if maxRamPercentage != _|_ {
+		_ramOptions: [
+			"-XX:MaxRAMPercentage=\(maxRamPercentage)",
+			"-XX:MinRAMPercentage=\(maxRamPercentage)",
+			"-XX:InitialRAMPercentage=\(maxRamPercentage)",
+		]
+	}
+
+	options: [...string] & [ for item in _ramOptions {item}]
+}
+
 #CommonTarget: {
 	host:   string
 	port:   uint32 | string
@@ -60,11 +88,11 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 #ServiceTarget: {
 	#CommonTarget
 
-	serviceName:     string
-	_serviceNameVar: strings.Replace(strings.ToUpper(serviceName), "-", "_", -1)
+	serviceName: string
 
-	host: "$(" + _serviceNameVar + "_SERVICE_HOST)"
-	port: "$(" + _serviceNameVar + "_SERVICE_PORT)"
+	let ServiceNameVar = strings.Replace(strings.ToUpper(serviceName), "-", "_", -1)
+	host: "$(" + ServiceNameVar + "_SERVICE_HOST)"
+	port: "$(" + ServiceNameVar + "_SERVICE_PORT)"
 }
 
 #Target: #CommonTarget | *#ServiceTarget | {
@@ -100,48 +128,65 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	mountPath:     string | *"/etc/\(#AppName)/\(name)"
 }
 
-#GrpcService: {
-	_name:      string
-	_system:    string
-	_type:      *"ClusterIP" | "LoadBalancer"
+#ObjectMeta: {
+	_component: string
+
+	name: string
+	labels: [_=string]:      string
+	annotations: [_=string]: string
+
+	labels: {
+		"app.kubernetes.io/name":      name
+		"app.kubernetes.io/part-of":   #AppName
+		"app.kubernetes.io/component": _component
+	}
+}
+
+#Service: {
 	apiVersion: "v1"
 	kind:       "Service"
+	metadata:   Metadata=#ObjectMeta & {
+		annotations: "system": Metadata._component
+	}
+	spec: {
+		selector: app: "\(metadata.name)-app"
+		ports: [...#ServicePort]
+		type?: "ClusterIP" | "LoadBalancer"
+	}
+}
+
+#GrpcService: #Service & {
+	_name:   string
+	_system: string
+	_type:   *"ClusterIP" | "LoadBalancer"
+
 	metadata: {
+		_component: _system
+
 		name: _name
 		annotations: {
-			system:                             _system
-			"cloud.google.com/app-protocols":   '{"grpc-port":"HTTP2"}'
+			"cloud.google.com/app-protocols":   "{\"\(#GrpcServicePort.name)\": \"HTTP2\"}"
 			"kubernetes.io/ingress.allow-http": "false"
-		}
-		labels: {
-			"app.kubernetes.io/name":      _name
-			"app.kubernetes.io/part-of":   #AppName
-			"app.kubernetes.io/component": _system
 		}
 	}
 	spec: {
-		selector: app: _name + "-app"
 		type: _type
-		ports: [{
-			name:       "grpc-port"
-			port:       #GrpcServicePort
-			protocol:   "TCP"
-			targetPort: #GrpcServicePort
-		}]
+		ports: [#GrpcServicePort]
 	}
 }
 
 #PodSpec: PodSpec={
-	_secretMounts: [...#SecretMount]
-	_configMapMounts: [...#ConfigMapMount]
-	_container: #Container & {
+	_secretMounts: [Name=string]:    #SecretMount & {name:    Name}
+	_configMapMounts: [Name=string]: #ConfigMapMount & {name: Name}
+	_containers: [Name=string]:      #Container & {
+		name:             Name
 		_secretMounts:    PodSpec._secretMounts
 		_configMapMounts: PodSpec._configMapMounts
 	}
-	_dependencies: [...string]
-	_initContainers: [Name=_]: #Container & {
+	_initContainers: [Name=string]: #Container & {
 		name: Name
 	}
+	_dependencies: [...string]
 
 	_initContainers: {
 		for dep in _dependencies {
@@ -154,19 +199,29 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		}
 	}
 
-	restartPolicy: "Always" | "Never" | "OnFailure"
-	containers: [_container]
-	volumes: [ for secretVolume in _secretMounts {
+	restartPolicy?: "Always" | "Never" | "OnFailure"
+	containers: [ for _, container in _containers {container}]
+	volumes: [ for _, secretVolume in _secretMounts {
 		name: secretVolume.name
 		secret: secretName: secretVolume.secretName
-	}] + [ for configVolume in _configMapMounts {
+	}] + [ for _, configVolume in _configMapMounts {
 		name: configVolume.name
 		configMap: name: configVolume.configMapName
 	}]
 	serviceAccountName?: string
 	nodeSelector?: [_=string]: string
 	initContainers: [ for _, initContainer in _initContainers {initContainer}]
-	...
+}
+
+#Pod: {
+	apiVersion: "v1"
+	kind:       "Pod"
+	metadata:   Metadata=#ObjectMeta & {
+		labels: {
+			"app": "\(Metadata.name)-app"
+		}
+	}
+	spec: #PodSpec
 }
 
 #Probe: {
@@ -177,7 +232,6 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	periodSeconds?:       uint32
 	timeoutSeconds?:      uint32
 	failureThreshold?:    uint32
-	...
 }
 
 #EnvVar: {
@@ -199,17 +253,23 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 }
 
 #Container: {
-	_secretMounts: [...#SecretMount]
-	_configMapMounts: [...#ConfigMapMount]
-	_envVars: #EnvVarMap
+	_secretMounts: [Name=string]:    #SecretMount & {name:    Name}
+	_configMapMounts: [Name=string]: #ConfigMapMount & {name: Name}
+	_envVars:     #EnvVarMap
+	_javaOptions: #JavaOptions
+
+	if len(_javaOptions.options) > 0 {
+		_envVars: "JAVA_TOOL_OPTIONS": value: strings.Join(_javaOptions.options, " ")
+	}
 
 	name:   string
 	image?: string
 	args: [...string]
-	ports: [...{...}]
+	ports: [...#ContainerPort]
 	imagePullPolicy?: "IfNotPresent" | "Never" | "Always"
 	command?: [...string]
-	volumeMounts: [ for mount in _configMapMounts + _secretMounts {
+	let Mounts = [ for _, mount in _configMapMounts {mount}] + [ for _, mount in _secretMounts {mount}]
+	volumeMounts: [ for mount in Mounts {
 		name:      mount.name
 		mountPath: mount.mountPath
 		readOnly:  true
@@ -217,109 +277,58 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	resources?:      #ResourceRequirements
 	readinessProbe?: #Probe
 	env: [ for _, envVar in _envVars {envVar}]
-	...
 }
 
-#Deployment: Deployment={
+#Deployment: {
 	_name:       string
 	_secretName: string
-	_image:      string
-	_args: [...string]
-	_envVars:         #EnvVarMap
-	_ports:           [{containerPort: #GrpcServicePort}] | *[]
-	_restartPolicy:   string | *"Always"
-	_imagePullPolicy: string | *"Never"
-	_system:          string
-	_resourceConfig:  #ResourceConfig
-	_dependencies: [...string]
-	_configMapMounts: [...#ConfigMapMount]
-	_secretMounts: [...#SecretMount]
-	_podSpec: #PodSpec & {
-		_secretMounts: [{
-			name:       _name + "-files"
-			secretName: _secretName
-		}] + Deployment._secretMounts
-		_configMapMounts: Deployment._configMapMounts
-		_dependencies:    Deployment._dependencies
-
-		_container: _envVars: Deployment._envVars
-		if _resourceConfig.jvmHeapSize != _|_ {
-			_container: _envVars: "JAVA_TOOL_OPTIONS": {
-				value: "-Xms\(_resourceConfig.jvmHeapSize) -Xmx\(_resourceConfig.jvmHeapSize)"
-			}
-		}
+	_system:     string
+	_container:  #Container & {
+		imagePullPolicy: _ | *"Never"
 	}
 
 	apiVersion: "apps/v1"
 	kind:       "Deployment"
-	metadata: {
-		name: _name + "-deployment"
+	metadata:   #ObjectMeta & {
+		_component: _system
+		name:       _name + "-deployment"
 		labels: {
-			app:                           _name + "-app"
-			"app.kubernetes.io/name":      _name
-			"app.kubernetes.io/part-of":   #AppName
-			"app.kubernetes.io/component": _system
+			app: _name + "-app"
 		}
 		annotations: system: _system
 	}
 	spec: {
 		selector: matchLabels: app: _name + "-app"
-		replicas?: _resourceConfig.replicas
 		template: {
 			metadata: labels: app: _name + "-app"
-			spec: _podSpec & {
-				containers: [{
-					name:            _name + "-container"
-					image:           _image
-					imagePullPolicy: _imagePullPolicy
-					args:            _args
-					ports:           _ports
-					resources:       _resourceConfig.resources
-				}]
-				restartPolicy: _restartPolicy
+			spec: #PodSpec & {
+				_secretMounts: "\(_name)-files": {
+					secretName: _secretName
+				}
+				_containers: "\(_name)-container": _container
+				restartPolicy: restartPolicy | *"Always"
 			}
 		}
 	}
 }
 
 #ServerDeployment: #Deployment & {
-	_ports: [{containerPort: #GrpcServicePort}]
-	spec: template: spec: containers: [{
+	_container: {
+		ports: [#GrpcContainerPort]
 		readinessProbe: {
 			grpc:
 				port: #HealthPort
 			initialDelaySeconds: 30
 			failureThreshold:    10
-		}}]
+		}
+	}
 }
 
-#Job: Job={
-	_name:            string
-	_secretName?:     string
-	_image:           string
-	_imagePullPolicy: string | *"Always"
-	_args: [...string]
-	_dependencies: [...string]
-	_resources?:   #ResourceRequirements
-	_jvmHeapSize?: string
-	_jobSpec: {
-		backoffLimit?: uint
-	}
-	_podSpec: #PodSpec & {
-		if _secretName != _|_ {
-			_secretMounts: [{
-				name:       _name + "-files"
-				secretName: _secretName
-			}]
-		}
-		_dependencies: Job._dependencies
-		if _jvmHeapSize != _|_ {
-			_container: _envVars: "JAVA_TOOL_OPTIONS": {
-				value: "-Xms\(_jvmHeapSize) -Xmx\(_jvmHeapSize)"
-			}
-		}
-
-		restartPolicy: string | *"OnFailure"
+#Job: {
+	_name:        string
+	_secretName?: string
+	_container:   #Container & {
+		imagePullPolicy: imagePullPolicy | *"Always"
 	}
 
 	apiVersion: "batch/v1"
@@ -331,25 +340,25 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			"app.kubernetes.io/part-of": #AppName
 		}
 	}
-	spec: _jobSpec & {
+	spec: {
+		backoffLimit?: uint
 		template: {
 			metadata: labels: app: _name + "-app"
-			spec: _podSpec & {
-				containers: [{
-					name:            _name + "-container"
-					image:           _image
-					imagePullPolicy: _imagePullPolicy
-					args:            _args
-					resources?:      _resources
-				}]
+			spec: #PodSpec & {
+				if _secretName != _|_ {
+					_secretMounts: "\(_name)-files": {secretName: _secretName}
+				}
+				_containers: "\(_name)-container": _container
+
+				restartPolicy: restartPolicy | *"OnFailure"
 			}
 		}
 	}
 }
 
 #NetworkPolicyPort: {
-	port?:     uint32 | string
-	protocol?: "TCP" | "UDP" | "SCTP"
+	port?:     #PortNumber
+	protocol?: #IpProtocol
 }
 
 #EgressRule: {
@@ -367,7 +376,6 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 //
 // This structure allows configuring a NetworkPolicy that selects on a pod name and it
 // will allow all traffic from pods matching _sourceMatchLabels to pods matching _destinationMatchLabels
-//
 #NetworkPolicy: {
 	_name:      string
 	_app_label: string
@@ -393,7 +401,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 				}]
 				ports: [{
 					protocol: "TCP"
-					port:     #GrpcServicePort
+					port:     #GrpcPort
 				}]
 			}
 		}

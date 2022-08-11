@@ -16,19 +16,6 @@ package k8s
 
 _secret_name: string @tag("secret_name")
 
-_resourceConfig: #ResourceConfig: {
-	resources: {
-		requests: {
-			cpu: "100m"
-		}
-		limits: {
-			cpu:    "400m"
-			memory: "512Mi"
-		}
-	}
-	jvmHeapSize: "400m"
-}
-
 objectSets: [resourceSetup]
 
 _imageConfig: #ImageConfig & {
@@ -41,5 +28,4 @@ resourceSetup: #ResourceSetup & {
 	_job_image:                  _imageConfig.image
 	_resource_setup_secret_name: _secret_name
 	_dependencies: ["gcp-kingdom-data-server"]
-	_resourceConfig: #DefaultResourceConfig
 }
