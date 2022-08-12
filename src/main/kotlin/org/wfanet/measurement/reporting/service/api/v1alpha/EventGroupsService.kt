@@ -30,7 +30,7 @@ import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEven
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
-import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
+import org.wfanet.measurement.consent.client.measurementconsumer.decryptMetadata
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 import org.wfanet.measurement.reporting.v1alpha.EventGroup
 import org.wfanet.measurement.reporting.v1alpha.EventGroupKt.eventTemplate
@@ -77,17 +77,12 @@ class EventGroupsService(
     val cmmsEventGroups = cmmsListEventGroupResponse.eventGroupsList
     val parsedEventGroupMetadataMap: Map<String, CmmsEventGroup.Metadata> =
       cmmsEventGroups.associate {
-        it.name to
-          CmmsEventGroup.Metadata.parseFrom(
-            decryptResult(
-                it.encryptedMetadata,
-                encryptionKeyPairStore.getPrivateKeyHandle(it.measurementConsumerPublicKey.data)
-                  ?: failGrpc(Status.FAILED_PRECONDITION) {
-                    "Public key does not have corresponding private key"
-                  }
-              )
-              .data
-          )
+        val measurementConsumerPrivateKey =
+          encryptionKeyPairStore.getPrivateKeyHandle(it.measurementConsumerPublicKey.data)
+            ?: failGrpc(Status.FAILED_PRECONDITION) {
+              "Public key does not have corresponding private key"
+            }
+        it.name to decryptMetadata(it.encryptedMetadata, measurementConsumerPrivateKey)
       }
 
     if (request.filter.isEmpty())

@@ -86,7 +86,10 @@ class PostgresBackingStoreTransactionContext(
     }
   }
 
-  private fun getLastReference(measurementConsumerId: String, referenceId: String): Boolean? {
+  private suspend fun getLastReference(
+    measurementConsumerId: String,
+    referenceId: String
+  ): Boolean? {
     val selectSql =
       """
         SELECT
@@ -111,7 +114,7 @@ class PostgresBackingStoreTransactionContext(
     return null
   }
 
-  override fun hasLedgerEntry(reference: Reference): Boolean {
+  override suspend fun hasLedgerEntry(reference: Reference): Boolean {
     val lastReference = getLastReference(reference.measurementConsumerId, reference.referenceId)
     if (lastReference == null) {
       return false
@@ -119,7 +122,7 @@ class PostgresBackingStoreTransactionContext(
     return reference.isRefund == lastReference
   }
 
-  override fun findIntersectingBalanceEntries(
+  override suspend fun findIntersectingBalanceEntries(
     privacyBucketGroup: PrivacyBucketGroup
   ): List<PrivacyBudgetBalanceEntry> {
     throwIfTransactionHasEnded(listOf(privacyBucketGroup))
@@ -161,7 +164,7 @@ class PostgresBackingStoreTransactionContext(
     }
   }
 
-  private fun addLedgerEntry(privacyReference: Reference) {
+  private suspend fun addLedgerEntry(privacyReference: Reference) {
     val insertEntrySql =
       """
         INSERT into LedgerEntries (
@@ -184,7 +187,7 @@ class PostgresBackingStoreTransactionContext(
     }
   }
 
-  private fun addBalanceEntries(
+  private suspend fun addBalanceEntries(
     privacyBudgetBalanceEntries: List<PrivacyBudgetBalanceEntry>,
     refundCharge: Boolean = false
   ) {
@@ -239,7 +242,7 @@ class PostgresBackingStoreTransactionContext(
     }
   }
 
-  override fun addLedgerEntries(
+  override suspend fun addLedgerEntries(
     privacyBucketGroups: Set<PrivacyBucketGroup>,
     charges: Set<Charge>,
     reference: Reference
@@ -253,7 +256,7 @@ class PostgresBackingStoreTransactionContext(
     addLedgerEntry(reference)
   }
 
-  override fun commit() {
+  override suspend fun commit() {
     connection.commit()
     transactionHasEnded = true
   }

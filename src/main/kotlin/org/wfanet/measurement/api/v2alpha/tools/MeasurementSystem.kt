@@ -19,9 +19,11 @@ package org.wfanet.measurement.api.v2alpha.tools
 import com.google.crypto.tink.BinaryKeysetReader
 import com.google.crypto.tink.CleartextKeysetHandle
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteString
 import io.grpc.ManagedChannel
 import java.io.File
 import java.security.SecureRandom
+import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration as systemDuration
 import java.time.Instant
@@ -35,6 +37,7 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCorouti
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.Measurement
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt.value as dataProviderEntryValue
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
@@ -51,6 +54,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.activateAccountRequest
 import org.wfanet.measurement.api.v2alpha.authenticateRequest
+import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
@@ -59,8 +63,10 @@ import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.measurement
+import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
+import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.api.withIdToken
@@ -100,6 +106,7 @@ private val CHANNEL_SHUTDOWN_TIMEOUT = systemDuration.ofSeconds(30)
     [
       CommandLine.HelpCommand::class,
       Accounts::class,
+      MeasurementConsumers::class,
       Measurements::class,
     ]
 )
@@ -196,10 +203,13 @@ private class Accounts {
 
   @Command
   fun activate(
-    @Option(names = ["--id-token"]) idToken: String,
+    @Option(names = ["--id-token"]) idTokenOption: String? = null,
     @Parameters(index = "0", description = ["Resource name of the Account"]) name: String,
-    @Option(names = ["--activation-token"]) activationToken: String,
+    @Option(names = ["--activation-token"], required = true) activationToken: String,
   ) {
+    // TODO(remkop/picocli#882): Use built-in Picocli functionality once available.
+    val idToken: String = idTokenOption ?: String(System.console().readPassword("ID Token: "))
+
     val response: Account =
       runBlocking(parentCommand.rpcDispatcher) {
         accountsClient
@@ -210,6 +220,88 @@ private class Accounts {
               this.activationToken = activationToken
             }
           )
+      }
+    println(response)
+  }
+}
+
+@Command(
+  name = "measurement-consumers",
+)
+private class MeasurementConsumers {
+  @ParentCommand
+  lateinit var parentCommand: MeasurementSystem
+    private set
+
+  private val measurementConsumersClient: MeasurementConsumersCoroutineStub by lazy {
+    MeasurementConsumersCoroutineStub(parentCommand.kingdomChannel)
+  }
+
+  @Command(
+    description =
+      [
+        "Creates a MeasurementConsumer resource.",
+        "Use the EncryptionPublicKeys tool to serialize/sign the encryption public key.",
+      ],
+  )
+  fun create(
+    @Option(
+      names = ["--creation-token"],
+      paramLabel = "<creationToken>",
+      required = true,
+    )
+    creationToken: String,
+    @Option(
+      names = ["--certificate"],
+      paramLabel = "<certPath>",
+      description = ["Path to X.509 certificate in PEM or DER format"],
+      required = true,
+    )
+    certificateFile: File,
+    @Option(
+      names = ["--public-key"],
+      paramLabel = "<pubKeyPath>",
+      description = ["Path to serialized EncryptionPublicKey message"],
+      required = true,
+    )
+    publicKeyFile: File,
+    @Option(
+      names = ["--public-key-signature"],
+      paramLabel = "<pubKeySigPath>",
+      description = ["Path to public key signature"],
+      required = true,
+    )
+    publicKeySignatureFile: File,
+    @Option(
+      names = ["--display-name"],
+      paramLabel = "<displayName>",
+      defaultValue = "",
+    )
+    displayName: String,
+    @Option(
+      names = ["--id-token"],
+      paramLabel = "<idToken>",
+    )
+    idTokenOption: String? = null,
+  ) {
+    // TODO(remkop/picocli#882): Use built-in Picocli functionality once available.
+    val idToken: String = idTokenOption ?: String(System.console().readPassword("ID Token: "))
+
+    val certificate: X509Certificate = certificateFile.inputStream().use { readCertificate(it) }
+    val request = createMeasurementConsumerRequest {
+      measurementConsumer = measurementConsumer {
+        measurementConsumerCreationToken = creationToken
+        certificateDer = certificate.encoded.toByteString()
+        publicKey = signedData {
+          data = publicKeyFile.readByteString()
+          signature = publicKeySignatureFile.readByteString()
+        }
+        this.displayName = displayName
+      }
+    }
+    val response: MeasurementConsumer =
+      runBlocking(parentCommand.rpcDispatcher) {
+        measurementConsumersClient.withIdToken(idToken).createMeasurementConsumer(request)
       }
     println(response)
   }
@@ -538,7 +630,7 @@ class CreateMeasurement : Runnable {
 
       key = dataProviderInput.name
       val dataProvider =
-        runBlocking(Dispatchers.IO) {
+        runBlocking(parentCommand.parentCommand.rpcDispatcher) {
           parentCommand.dataProviderStub
             .withAuthenticationKey(parentCommand.apiAuthenticationKey)
             .getDataProvider(getDataProviderRequest { name = dataProviderInput.name })
@@ -558,7 +650,7 @@ class CreateMeasurement : Runnable {
 
   override fun run() {
     val measurementConsumer =
-      runBlocking(Dispatchers.IO) {
+      runBlocking(parentCommand.parentCommand.rpcDispatcher) {
         parentCommand.measurementConsumerStub
           .withAuthenticationKey(parentCommand.apiAuthenticationKey)
           .getMeasurementConsumer(getMeasurementConsumerRequest { name = measurementConsumer })
@@ -599,7 +691,7 @@ class CreateMeasurement : Runnable {
     }
 
     val response =
-      runBlocking(Dispatchers.IO) {
+      runBlocking(parentCommand.parentCommand.rpcDispatcher) {
         parentCommand.measurementStub
           .withAuthenticationKey(parentCommand.apiAuthenticationKey)
           .createMeasurement(createMeasurementRequest { this.measurement = measurement })
@@ -621,7 +713,7 @@ class ListMeasurements : Runnable {
 
   override fun run() {
     val response =
-      runBlocking(Dispatchers.IO) {
+      runBlocking(parentCommand.parentCommand.rpcDispatcher) {
         parentCommand.measurementStub
           .withAuthenticationKey(parentCommand.apiAuthenticationKey)
           .listMeasurements(listMeasurementsRequest { parent = measurementConsumerName })
@@ -674,13 +766,10 @@ class GetMeasurement : Runnable {
     }
 
     val signedResult = decryptResult(resultPair.encryptedResult, privateKeyHandle)
-
-    val result = Measurement.Result.parseFrom(signedResult.data)
-
-    if (!verifyResult(signedResult.signature, result, readCertificate(certificate.x509Der))) {
+    if (!verifyResult(signedResult, readCertificate(certificate.x509Der))) {
       error("Signature of the result is invalid.")
     }
-    return result
+    return Measurement.Result.parseFrom(signedResult.data)
   }
 
   private fun printMeasurementResult(result: Measurement.Result) {
@@ -704,7 +793,7 @@ class GetMeasurement : Runnable {
 
   override fun run() {
     val measurement =
-      runBlocking(Dispatchers.IO) {
+      runBlocking(parentCommand.parentCommand.rpcDispatcher) {
         parentCommand.measurementStub
           .withAuthenticationKey(parentCommand.apiAuthenticationKey)
           .getMeasurement(getMeasurementRequest { name = measurementName })

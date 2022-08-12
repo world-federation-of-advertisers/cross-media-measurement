@@ -7,6 +7,14 @@ This assumes that you have `kubectl` installed and configured to point to a
 local KiND cluster. You should have some familiarity with Kubernetes and
 `kubectl`.
 
+Minimum Version Required:
+- KiND: v0.13.0
+- kubernetes server: v1.24.0
+- kubectl: compatible with kubernetes server
+
+Use the default `kind` as the KiND cluster name. The corresponding k8s cluster name is 
+`kind-kind`.
+
 Note that some of the targets listed below -- namely, the Duchies and
 simulators -- have requirements regarding the version of glibc in the build
 environment. See [Building](../../../../docs/building.md).
@@ -86,7 +94,7 @@ lexicographic order of the testing EDP root certificates in the secretfiles
 folder(edp1 through edp6). For example, the first entry is for `edp1_root.pem`
 
 ```prototext
-# proto-file: src/main/proto/wfa/measurement/config/authority_key_to_principal_map.proto
+# proto-file: wfa/measurement/config/authority_key_to_principal_map.proto
 # proto-message: AuthorityKeyToPrincipalMap
 entries {
   authority_key_identifier: "\x90\xC1\xD3\xBD\xE6\x74\x01\x55\xA7\xEF\xE6\x64\x72\xA6\x68\x9C\x41\x5B\x77\x04"
@@ -130,46 +138,9 @@ kubectl create configmap config-files --output=yaml --dry-run=client \
   | kubectl replace -f -
 ```
 
-If you want to also deploy the Reporting Server, you can add additional files to
-the ConfigMap.
-
-```shell
-kubectl create configmap config-files --output=yaml --dry-run=client \
-  --from-file=authority_key_identifier_to_principal_map.textproto \
-  --from-file=authority_key_identifier_to_mc_principal_map.textproto \
-  --from_file=encryption_key_pair_config.textproto \
-  | kubectl replace -f -
-```
-
-Create the file `authority_key_identifier_to_mc_principal_map.textproto` with
-the appropriate MC resource name. The AKID come from the MC certificate in
-[secretfiles](../testing/secretfiles).
-
-```prototext
-# proto-file: src/main/proto/wfa/measurement/config/authority_key_to_principal_map.proto
-# proto-message: AuthorityKeyToPrincipalMap
-entries {
-  authority_key_identifier: "\xE6\x3F\xEA\x65\xED\x71\x3D\x9E\x59\x79\xA0\xC8\x08\xC9\x57\xAA\xC6\xB1\x6A"
-  principal_resource_name: "measurementConsumers/G7laM7LMIAA"
-}
-```
-
-Create the file `encryption_key_pair_config.textproto` with the content below,
-substituting the appropriate file names. The file names come from the MC keys in
-[secretfiles](../testing/secretfiles).
-
-```prototext
-# proto-file: src/main/proto/wfa/measurement/config/reporting/encryption_key_pair_config.proto
-# proto-message: EncryptionKeyPairConfig
-key_pairs {
-  key: "mc_enc_public.tink"
-  value: "mc_enc_private.tink"
-}
-key_pairs {
-  key: "mc_enc_public.tink"
-  value: "mc_enc_private.tink"
-}
-```
+Note: If also want to deploy the Reporting Server in the same cluster, you will
+need more entries in this ConfigMap. See the
+[Reporting Server](#reporting-server) section below.
 
 You can then restart the Kingdom deployments that depend on `config-files`. At
 the moment, this is just the public API server.
@@ -233,7 +204,45 @@ bazel run //src/main/k8s/local:mc_frontend_simulator_kind \
   --define=mc_api_key=He941S1h2XI
 ```
 
-## Create Secret for Reporting Server Postgres Database
+## Reporting Server
+
+### Additional Configuration in `config-files`
+
+This is a modification to the [above section](#update-config-files-configmap) on
+updating `config-files`.
+
+The `authority_key_identifier_to_principal_map.textproto` needs an additional
+entry for the `MeasurementConsumer` (substitute your own resource name):
+
+```prototext
+entries {
+  authority_key_identifier: "\x7C\xE6\x3F\xEA\x65\xED\x71\x3D\x9E\x59\x79\xA0\xC8\x08\xC9\x57\xAA\xC6\xB1\x6A"
+  principal_resource_name: "measurementConsumers/G7laM7LMIAA"
+}
+```
+
+The ConfigMap also needs an additional file named
+`encryption_key_pair_config.textproto`:
+
+```prototext
+# proto-file: wfa/measurement/config/reporting/encryption_key_pair_config.proto
+# proto-message: EncryptionKeyPairConfig
+key_pairs {
+  key: "mc_enc_public.tink"
+  value: "mc_enc_private.tink"
+}
+```
+
+The command to update the ConfigMap then becomes:
+
+```shell
+kubectl create configmap config-files --output=yaml --dry-run=client \
+  --from-file=authority_key_identifier_to_principal_map.textproto \
+  --from_file=encryption_key_pair_config.textproto \
+  | kubectl replace -f -
+```
+
+### Create Secret for Reporting Server Postgres Database
 
 You can use `kubectl` to create the `db-auth` secret. To reduce the likelihood
 of leaking your password, we read it in from STDIN.
@@ -244,16 +253,12 @@ Assuming the database username is `db-user`, run:
 
 ```shell
 kubectl create secret generic db-auth --type='kubernetes.io/basic/auth' \
-  --append-hash \
-  --from-file=password=/dev/stdin \
-  --from-literal=username=db-user
+  --append-hash --from-file=password=/dev/stdin --from-literal=username=db-user
 ```
 
 Record the secret name for later steps.
 
-## Deploy Reporting Server Postgres Database
-
-This deploys the database for the Reporting Server.
+### Deploy Reporting Server Postgres Database
 
 ```shell
 bazel run //src/main/k8s/local:reporting_database_kind \
@@ -261,38 +266,35 @@ bazel run //src/main/k8s/local:reporting_database_kind \
   --define=k8s_db_secret_name=db-auth-b286t5fcmt
 ```
 
-## Create Secret for Reporting API Server
+### Create Secret for Reporting API Server
 
 Create the file `/tmp/measurement_consumer_config.textproto` with the content
 below, substituting the appropriate MC and certificate resource names, and the
 API key.
 
 ```prototext
-# proto-file: src/main/proto/wfa/measurement/config/reporting/measurement_consumer_config.proto
+# proto-file: wfa/measurement/config/reporting/measurement_consumer_config.proto
 # proto-message: MeasurementConsumerConfigs
 configs {
-  key: "measurementConsumers/OljiQHRz-E4"
+  key: "measurementConsumers/VCTqwV_vFXw"
   value: {
     api_key: "OljiQHRz-E4"
-    signing_certificate_name: "certificates/OljiQHRz-E4"
+    signing_certificate_name: "measurementConsumers/VCTqwV_vFXw/certificates/YCIa5l_vFdo"
     signing_private_key_path: "mc_cs_private.der"
   }
 }
 ```
 
-then use it to create a secret.
+Use this file to create a secret:
 
 ```shell
-kubectl create secret generic mc-config \
-  --append-hash \
-  --from-literal=config=/tmp/measurement_consumer_config.textproto
+kubectl create secret generic mc-config --append-hash \
+  --from-file=/tmp/measurement_consumer_config.textproto
 ```
 
 Record the secret name for later steps.
 
-## Deploy Reporting Server
-
-This deploys the API server.
+### Deploy Reporting Server
 
 ```shell
 bazel run //src/main/k8s/local:reporting_kind \

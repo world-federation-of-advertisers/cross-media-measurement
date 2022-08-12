@@ -28,40 +28,46 @@ reporting: #Reporting & {
 	_mcConfigSecretName: _reportingMcConfigSecretName
 
 	_postgresConfig: {
-	  host:     (#Target & {name: "postgres"}).host,
-	  port:     (#Target & {name: "postgres"}).port,
-	  password: "$(POSTGRES_PASSWORD)"
-	  user:     "$(POSTGRES_USER)"
+		serviceName: "postgres"
+		password:    "$(POSTGRES_PASSWORD)"
+		user:        "$(POSTGRES_USER)"
+	}
+	_kingdomApiTarget: {
+		serviceName:     "v2alpha-public-api-server"
+		certificateHost: "localhost"
+	}
+	_internalApiTarget: {
+		certificateHost: "localhost"
 	}
 	_images: {
-		"update-reporting-schema":         "bazel/src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/tools:update_schema_image"
-		"postgres-reporting-data-server":  "bazel/src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/server:postgres_reporting_data_server_image"
-		"v1alpha-public-api-server":       "bazel/src/main/kotlin/org/wfanet/measurement/reporting/deploy/common/server:v1alpha_public_api_server_image"
+		"update-reporting-schema":        "bazel/src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/tools:update_schema_image"
+		"postgres-reporting-data-server": "bazel/src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/server:postgres_reporting_data_server_image"
+		"v1alpha-public-api-server":      "bazel/src/main/kotlin/org/wfanet/measurement/reporting/deploy/common/server:v1alpha_public_api_server_image"
 	}
 	_resourceConfigs: {
-		"postgres-reporting-data-server":   #ReportingServerResourceConfig
-		"v1alpha-public-api-server":        #ReportingServerResourceConfig
+		"postgres-reporting-data-server": #ReportingServerResourceConfig
+		"v1alpha-public-api-server":      #ReportingServerResourceConfig
 	}
-	_imagePullPolicy: "Never"
-	_verboseGrpcServerLogging:  true
-	_verboseGrpcClientLogging:  true
+	_imagePullPolicy:          "Never"
+	_verboseGrpcServerLogging: true
+	_verboseGrpcClientLogging: true
 
 	deployments: {
-    "postgres-reporting-data-server": {
-      _envVars: "POSTGRES_USER": {
-        valueFrom:
-          secretKeyRef: {
-            name: _reportingDbSecretName
-            key:  "username"
-          }
-      }
-      _envVars: "POSTGRES_PASSWORD": {
-        valueFrom:
-          secretKeyRef: {
-            name: _reportingDbSecretName
-            key:  "password"
-          }
-      }
-    }
-  }
+		"postgres-reporting-data-server": {
+			_envVars: "POSTGRES_USER": {
+				valueFrom:
+					secretKeyRef: {
+						name: _reportingDbSecretName
+						key:  "username"
+					}
+			}
+			_envVars: "POSTGRES_PASSWORD": {
+				valueFrom:
+					secretKeyRef: {
+						name: _reportingDbSecretName
+						key:  "password"
+					}
+			}
+		}
+	}
 }

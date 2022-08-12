@@ -20,31 +20,35 @@ package k8s
 
 	_postgresConfig: #PostgresConfig
 
-	_images: [Name=_]:   string
+	_internalApiTarget: #GrpcTarget & {
+		serviceName:           "postgres-reporting-data-server"
+		targetOption:          "--internal-api-target"
+		certificateHostOption: "--internal-api-cert-host"
+	}
+	_kingdomApiTarget: #GrpcTarget & {
+		targetOption:          "--kingdom-api-target"
+		certificateHostOption: "--kingdom-api-cert-host"
+	}
+
+	_images: [Name=_]: string
 	_imagePullPolicy:    string
 	_secretName:         string
-  _mcConfigSecretName: string
+	_mcConfigSecretName: string
 
 	_resourceConfigs: [Name=_]: #ResourceConfig
 
-  _tlsArgs: [
-    "--tls-cert-file=/var/run/secrets/files/reporting_tls.pem",
-    "--tls-key-file=/var/run/secrets/files/reporting_tls.key",
-  ]
+	_tlsArgs: [
+		"--tls-cert-file=/var/run/secrets/files/reporting_tls.pem",
+		"--tls-key-file=/var/run/secrets/files/reporting_tls.key",
+	]
 	_reportingCertCollectionFileFlag:   "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
-	_akidToPrincipalMapFileFlag:        "--authority-key-identifier-to-principal-map-file=/etc/\(#AppName)/config-files/authority_key_identifier_to_mc_principal_map.textproto"
+	_akidToPrincipalMapFileFlag:        "--authority-key-identifier-to-principal-map-file=/etc/\(#AppName)/config-files/authority_key_identifier_to_principal_map.textproto"
 	_measurementConsumerConfigFileFlag: "--measurement-consumer-config-file=/var/run/secrets/files/config/mc/measurement_consumer_config.textproto"
 	_signingPrivateKeyStoreDirFlag:     "--signing-private-key-store-dir=/var/run/secrets/files"
 	_encryptionKeyPairDirFlag:          "--key-pair-dir=/var/run/secrets/files"
 	_encryptionKeyPairConfigFileFlag:   "--key-pair-config-file=/etc/\(#AppName)/config-files/encryption_key_pair_config.textproto"
 	_debugVerboseGrpcClientLoggingFlag: "--debug-verbose-grpc-client-logging=\(_verboseGrpcClientLogging)"
 	_debugVerboseGrpcServerLoggingFlag: "--debug-verbose-grpc-server-logging=\(_verboseGrpcServerLogging)"
-
-	_internalApiTargetFlag:   "--internal-api-target=" + (#Target & {name: "postgres-reporting-data-server"}).target
-	_internalApiCertHostFlag: "--internal-api-cert-host=localhost"
-
-  _kingdomApiTargetFlag:   "--kingdom-api-target=" + (#Target & {name: "v2alpha-public-api-server"}).target
-  _kingdomApiCertHostFlag: "--kingdom-api-cert-host=localhost"
 
 	services: [Name=_]: #GrpcService & {
 		_name:   Name
@@ -60,12 +64,12 @@ package k8s
 	}
 
 	deployments: [Name=_]: #ServerDeployment & {
-		_name:                  Name
-		_secretName:            Reporting._secretName
-		_system:                "reporting"
-		_image:                 _images[_name]
-		_imagePullPolicy:       Reporting._imagePullPolicy
-		_resourceConfig:        _resourceConfigs[_name]
+		_name:            Name
+		_secretName:      Reporting._secretName
+		_system:          "reporting"
+		_image:           _images[_name]
+		_imagePullPolicy: Reporting._imagePullPolicy
+		_resourceConfig:  _resourceConfigs[_name]
 	}
 	deployments: {
 		"postgres-reporting-data-server": Deployment={
@@ -73,24 +77,25 @@ package k8s
 				_reportingCertCollectionFileFlag,
 				_debugVerboseGrpcServerLoggingFlag,
 				"--port=8443",
+				"--health-port=8080",
 			] + _postgresConfig.flags + _tlsArgs
 
 			_podSpec: _initContainers: {
 				"update-reporting-schema": InitContainer={
 					image:           _images[InitContainer.name]
 					imagePullPolicy: Deployment._imagePullPolicy
-		  		args:            _postgresConfig.flags
-		  		_envVars: Deployment._envVars
+					args:            _postgresConfig.flags
+					_envVars:        Deployment._envVars
 				}
 			}
 		}
 
 		"v1alpha-public-api-server": {
-		  _secretMounts: [{
-    		name:       "mc-config"
-    		secretName: Reporting._mcConfigSecretName
-    		mountPath:  "/var/run/secrets/files/config/mc/"
-      }]
+			_secretMounts: [{
+				name:       "mc-config"
+				secretName: Reporting._mcConfigSecretName
+				mountPath:  "/var/run/secrets/files/config/mc/"
+			}]
 
 			_configMapMounts: [{
 				name: "config-files"
@@ -100,17 +105,14 @@ package k8s
 				_debugVerboseGrpcClientLoggingFlag,
 				_debugVerboseGrpcServerLoggingFlag,
 				_reportingCertCollectionFileFlag,
-				_internalApiTargetFlag,
-				_internalApiCertHostFlag,
-				_kingdomApiTargetFlag,
-				_kingdomApiCertHostFlag,
 				_akidToPrincipalMapFileFlag,
 				_measurementConsumerConfigFileFlag,
 				_signingPrivateKeyStoreDirFlag,
 				_encryptionKeyPairDirFlag,
 				_encryptionKeyPairConfigFileFlag,
 				"--port=8443",
-			] + _tlsArgs
+				"--health-port=8080",
+			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args
 			_dependencies: ["postgres-reporting-data-server"]
 		}
 	}

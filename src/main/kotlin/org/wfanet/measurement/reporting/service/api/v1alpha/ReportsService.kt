@@ -920,13 +920,10 @@ class ReportsService(
 
     val signedResult =
       decryptResult(measurementResultPair.encryptedResult, encryptionPrivateKeyHandle)
-
-    val result = Measurement.Result.parseFrom(signedResult.data)
-
-    if (!verifyResult(signedResult.signature, result, readCertificate(certificate.x509Der))) {
+    if (!verifyResult(signedResult, readCertificate(certificate.x509Der))) {
       error("Signature of the result is invalid.")
     }
-    return result
+    return Measurement.Result.parseFrom(signedResult.data)
   }
 
   /** Builds an [InternalCreateReportRequest] from a public [CreateReportRequest]. */

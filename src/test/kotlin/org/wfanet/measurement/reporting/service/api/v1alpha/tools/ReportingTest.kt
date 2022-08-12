@@ -489,7 +489,7 @@ class ReportingTest {
         "--reporting-server-api-target=$HOST:${server.port}",
         "reports",
         "get",
-        "--name=$REPORT_NAME",
+        REPORT_NAME,
       )
     CommandLine(Reporting()).execute(*args)
 

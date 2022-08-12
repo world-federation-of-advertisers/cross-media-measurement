@@ -64,7 +64,8 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
-import org.wfanet.measurement.consent.client.common.signMessage
+import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
+import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
 import org.wfanet.measurement.reporting.v1alpha.EventGroupKt.metadata
 import org.wfanet.measurement.reporting.v1alpha.eventGroup
 import org.wfanet.measurement.reporting.v1alpha.listEventGroupsRequest
@@ -100,15 +101,12 @@ private val CMMS_EVENT_GROUP = cmmsEventGroup {
   eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
   measurementConsumerPublicKey = signedData { data = ENCRYPTION_PUBLIC_KEY.toByteString() }
   encryptedMetadata =
-    ENCRYPTION_PUBLIC_KEY.hybridEncrypt(
-      signMessage(
-          CmmsEventGroup.metadata {
-            eventGroupMetadataDescriptor = METADATA_NAME
-            metadata = Any.pack(TEST_MESSAGE)
-          },
-          EDP_SIGNING_KEY
-        )
-        .toByteString()
+    encryptMetadata(
+      CmmsEventGroup.metadata {
+        eventGroupMetadataDescriptor = METADATA_NAME
+        metadata = Any.pack(TEST_MESSAGE)
+      },
+      ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey()
     )
 }
 private val TEST_MESSAGE_2 = testMetadataMessage {
@@ -123,15 +121,12 @@ private val CMMS_EVENT_GROUP_2 = cmmsEventGroup {
   eventGroupReferenceId = "id2"
   measurementConsumerPublicKey = signedData { data = ENCRYPTION_PUBLIC_KEY.toByteString() }
   encryptedMetadata =
-    ENCRYPTION_PUBLIC_KEY.hybridEncrypt(
-      signMessage(
-          CmmsEventGroup.metadata {
-            eventGroupMetadataDescriptor = METADATA_NAME
-            metadata = Any.pack(TEST_MESSAGE_2)
-          },
-          EDP_SIGNING_KEY
-        )
-        .toByteString()
+    encryptMetadata(
+      CmmsEventGroup.metadata {
+        eventGroupMetadataDescriptor = METADATA_NAME
+        metadata = Any.pack(TEST_MESSAGE_2)
+      },
+      ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey()
     )
 }
 private val EVENT_GROUP = eventGroup {
@@ -315,15 +310,12 @@ class EventGroupsServiceTest {
       eventGroupReferenceId = "id1"
       measurementConsumerPublicKey = signedData { data = ENCRYPTION_PUBLIC_KEY.toByteString() }
       encryptedMetadata =
-        ENCRYPTION_PUBLIC_KEY.hybridEncrypt(
-          signMessage(
-              CmmsEventGroup.metadata {
-                eventGroupMetadataDescriptor = METADATA_NAME
-                metadata = Any.pack(testParentMetadataMessage { name = "name" })
-              },
-              EDP_SIGNING_KEY
-            )
-            .toByteString()
+        encryptMetadata(
+          CmmsEventGroup.metadata {
+            eventGroupMetadataDescriptor = METADATA_NAME
+            metadata = Any.pack(testParentMetadataMessage { name = "name" })
+          },
+          ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey()
         )
     }
     cmmsEventGroupsServiceMock.stub {
@@ -365,15 +357,12 @@ class EventGroupsServiceTest {
       eventGroupReferenceId = "id1"
       measurementConsumerPublicKey = signedData { data = ByteString.copyFromUtf8("consumerkey") }
       encryptedMetadata =
-        ENCRYPTION_PUBLIC_KEY.hybridEncrypt(
-          signMessage(
-              CmmsEventGroup.metadata {
-                eventGroupMetadataDescriptor = METADATA_NAME
-                metadata = Any.pack(testParentMetadataMessage { name = "name" })
-              },
-              EDP_SIGNING_KEY
-            )
-            .toByteString()
+        encryptMetadata(
+          CmmsEventGroup.metadata {
+            eventGroupMetadataDescriptor = METADATA_NAME
+            metadata = Any.pack(testParentMetadataMessage { name = "name" })
+          },
+          ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey()
         )
     }
     cmmsEventGroupsServiceMock.stub {

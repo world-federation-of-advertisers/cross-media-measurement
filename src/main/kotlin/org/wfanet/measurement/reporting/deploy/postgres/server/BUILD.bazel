@@ -23,7 +23,6 @@ java_binary(
 
 java_image(
     name = "postgres_reporting_data_server_image",
-    data = ["@grpc_health_probe//file"],
     main_class = "org.wfanet.measurement.reporting.deploy.postgres.server.PostgresReportingDataServerKt",
     visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":postgres_reporting_data_server"],

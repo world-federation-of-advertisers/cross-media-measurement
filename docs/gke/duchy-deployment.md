@@ -150,18 +150,16 @@ gcloud container clusters create worker1-duchy \
   --service-account="gke-cluster@halo-worker1-demo.iam.gserviceaccount.com" \
   --database-encryption-key=projects/halo-worker1-demo/locations/us-central1/keyRings/test-key-ring/cryptoKeys/k8s-secret \
   --num-nodes=3 --enable-autoscaling --min-nodes=2 --max-nodes=5 \
-  --machine-type=e2-medium
+  --machine-type=e2-standard-2 -cluster-version=1.24.2-gke.1900
 ```
 
-Note: The Duchy contains 4 API services and 2 daemon jobs. Those API services
-and the Herald daemon don't require too many resources. However, the Mill daemon
-performs CPU intensive computations, and may need plenty of replicas depending
-on how many active computations the system is expected to process per day.
-Select the appropriate machine type and number of nodes based on the traffic and
-your budget. For demo purposes, we choose `e2-medium`. In production, you may
-want to choose from the
-[compute-optimized](https://cloud.google.com/compute/docs/compute-optimized-machines)
-machine family (e.g. `c2-standard-4`) which are more expensive.
+Adjust the node pool based on your expected usage. Due to the differences in CPU
+vs. memory requirements for each pod, it may be more efficient to have multiple
+node pools with different machine types and/or to use GKE's auto-scaling and
+provisioning features.
+
+The GKE version should be no older than `1.24.0` in order to support built-in gRPC
+health probe.
 
 To configure `kubectl` to access this cluster, run
 
@@ -443,16 +441,6 @@ related data. As you can see from the result in the previous step. Only these
 two services have external IPs. However, these external IPs are ephemeral. We
 need to reserve them such that they are stable.
 
-Go to the Gcloud [Console](https://console.cloud.google.com/networking), under
-VPC network -> External IP address, find the above two external IPs, and click
-RESERVE on the right.
-
-Follow this
-[link](https://cloud.google.com/compute/docs/ip-addresses/reserve-static-external-ip-address#gcloud)
-if you want to reserve the IPs using Cloud CLI. Setup subdomain DNS A record
-Update your domains or subdomains, one for the system API and one for the public
-API, to point to the two corresponding external IPs.
-
 For example, in the halo dev instance, we have subdomains:
 
 -   `public.worker1.dev.halo-cmm.org`
@@ -461,64 +449,7 @@ For example, in the halo dev instance, we have subdomains:
 The domains/subdomains are what the EDPs and other duchies use to communicate
 with the duchy.
 
-## Additional setting you may want to make
-
-After finishing the above steps, we have
-
--   1 system API, 1 public API and 2 internal API running.
--   Only gRPC requests are allowed and connections are via mTLS.
--   All communications between pods within the cluster are also encrypted via
-    mTLS.
--   Network policy is set such that
-    -   only the system API and public API are accessible via the external IP
-    -   only the Internal API is allowed to send requests outside (We plan to
-        restrict the target to only Cloud Spanner, not down yet).
-
-In this section, we list some additional settings/configurations you may want to
-consider. They are mostly for enhancing security.
-
-### 1. Application-layer secrets
-
-encryption Those certifications and configurations we stored in Kubernetes
-secret are encrypted on the storage layer, but not on the application layer. In
-other works, whoever has access to the cluster resource can just call
-
-```shell
-kubectl get secrets secret_name -o json
-```
-
-to see the content of the files in the secret.
-
-This may not be an issue if there are only a small number of people that have
-access to the cluster resources. These people should already have access to
-those secret files if they need to be able to create them.
-
-However, if we want, we can enable Application-layer secrets encryption in the
-cluster.
-
--   Go to Console -> Kubernetes Engine ->
-    [Clusters](https://console.cloud.google.com/kubernetes/list)
--   Open the cluster you want to config Under Security,
--   edit the "Application-layer secrets encryption"
-
-Note that you need to enable
-[Cloud KMS](https://console.cloud.google.com/security/kms) in your GCP project
-and create a private key for encrypting the secret. You also need to grant the
-service account "cloudkms.cryptoKeyEncrypterDecrypter" role in the Console ->
-[IAM & Admin](https://console.cloud.google.com/iam-admin) page. Check the
-"include Google-provided role grants" to see the service account you are looking
-for.
-
-(Note: Whether this part works or not is not confirmed yet.)
-
-### 2. Role Based Access Control
-
-You can use both IAM and Kubernetes
-[RBAC](https://kubernetes.io/docs/reference/access-authn-authz/rbac/) to control
-access to your GKE cluster. GCloud provides the "Google Groups for RBAC"
-feature. Follow this
-[instruction](https://cloud.google.com/kubernetes-engine/docs/how-to/role-based-access-control)
-if you want to set it up.
+See [Reserving External IPs](cluster-config.md#reserving-external-ips)
 
 ## Q/A
 

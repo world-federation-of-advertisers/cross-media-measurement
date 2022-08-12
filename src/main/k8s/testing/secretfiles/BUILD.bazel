@@ -33,11 +33,39 @@ filegroup(
     srcs = glob(["*_root.pem"]),
 )
 
+filegroup(
+    name = "encryption_public_keys",
+    srcs = [
+        ":mc_enc_public.pb",
+        ":mc_enc_public.pb.sig",
+    ],
+)
+
 genrule(
     name = "gen_trusted_certs",
     srcs = [":root_certs"],
     outs = ["all_root_certs.pem"],
     cmd = "cat $(SRCS) > $@",
+)
+
+genrule(
+    name = "gen_serialized_mc_public_key",
+    srcs = ["mc_enc_public.tink"],
+    outs = ["mc_enc_public.pb"],
+    cmd = "$(location //src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:EncryptionPublicKeys) serialize --data $< --out $@",
+    tools = ["//src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:EncryptionPublicKeys"],
+)
+
+genrule(
+    name = "gen_mc_public_key_sig",
+    srcs = [
+        ":mc_enc_public.pb",
+        "mc_cs_cert.der",
+        "mc_cs_private.der",
+    ],
+    outs = ["mc_enc_public.pb.sig"],
+    cmd = "$(location //src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:EncryptionPublicKeys) sign --certificate $(location mc_cs_cert.der) --signing-key $(location mc_cs_private.der) --in $(location :mc_enc_public.pb) --out $@",
+    tools = ["//src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:EncryptionPublicKeys"],
 )
 
 SECRET_FILES = [
