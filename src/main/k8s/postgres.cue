@@ -40,8 +40,7 @@ package k8s
 	connectionName: "\(project):\(region):\(instance)"
 
 	_flags: {
-		// TODO(@tristanvuong2021): Rename option to --postgres-cloud-sql-connection-name.
-		"--postgres-cloud-sql-instance": connectionName
+		"--postgres-cloud-sql-connection-name": connectionName
 	}
 }
 
