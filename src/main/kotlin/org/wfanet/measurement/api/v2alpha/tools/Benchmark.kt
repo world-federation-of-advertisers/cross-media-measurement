@@ -65,7 +65,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.Measurement
@@ -85,7 +84,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
-import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
@@ -111,7 +109,6 @@ import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
-import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
 import picocli.CommandLine
 
 private class ApiFlags {
@@ -258,6 +255,15 @@ class ReachAndFrequencyParams {
     required = true,
   )
   var frequencyPrivacyDelta by Delegates.notNull<Double>()
+    private set
+
+  @set:CommandLine.Option(
+    names = ["--max-frequency-for-reach"],
+    description = ["Maximum frequency per user when estimating reach"],
+    required = false,
+    defaultValue = "10",
+  )
+  var maximumFrequencyPerUser by Delegates.notNull<Int>()
     private set
 }
 
@@ -459,6 +465,7 @@ private fun getReachAndFrequency(measurementTypeParams: MeasurementTypeParams): 
       epsilon = measurementTypeParams.reachAndFrequency.frequencyPrivacyEpsilon
       delta = measurementTypeParams.reachAndFrequency.frequencyPrivacyDelta
     }
+    maximumFrequencyPerUser = measurementTypeParams.reachAndFrequency.maximumFrequencyPerUser
   }
 }
 
@@ -484,23 +491,10 @@ private fun getDuration(measurementTypeParams: MeasurementTypeParams): Duration 
 
 private fun getMeasurementResult(
   resultPair: Measurement.ResultPair,
-  certificateStub: CertificatesCoroutineStub,
-  apiAuthenticationKey: String,
   privateKeyHandle: PrivateKeyHandle
 ): Measurement.Result {
-  val certificate = runBlocking {
-    certificateStub
-      .withAuthenticationKey(apiAuthenticationKey)
-      .getCertificate(getCertificateRequest { name = resultPair.certificate })
-  }
-
   val signedResult = decryptResult(resultPair.encryptedResult, privateKeyHandle)
-
   val result = Measurement.Result.parseFrom(signedResult.data)
-
-  if (!verifyResult(signedResult.signature, result, readCertificate(certificate.x509Der))) {
-    error("Signature of the result is invalid.")
-  }
   return result
 }
 
@@ -636,7 +630,6 @@ class Benchmark(
   /** Collects responses from tasks that have completed. */
   private fun collectCompletedTasks(
     measurementStub: MeasurementsCoroutineStub,
-    certificateStub: CertificatesCoroutineStub,
     firstInstant: Instant
   ) {
     var iTask = 0
@@ -644,7 +637,7 @@ class Benchmark(
       val task = taskList.get(iTask)
 
       print("${(Instant.now(clock).toEpochMilli() - firstInstant.toEpochMilli()) / 1000.0} ")
-      println("Trying to retrieve ${task.referenceId} ${task.measurementName}...")
+      print("Trying to retrieve ${task.referenceId} ${task.measurementName}...")
       val measurement =
         runBlocking(Dispatchers.IO) {
           measurementStub
@@ -653,22 +646,16 @@ class Benchmark(
         }
 
       val timeoutOccurred = task.requestTime.plusSeconds(flags.timeout).isBefore(Instant.now(clock))
-
+      println("${measurement.state}")
       if (
         (measurement.state == Measurement.State.SUCCEEDED) ||
           (measurement.state == Measurement.State.FAILED) ||
           timeoutOccurred
       ) {
-
         if (measurement.state == Measurement.State.SUCCEEDED) {
-          val result =
-            getMeasurementResult(
-              measurement.resultsList.get(0),
-              certificateStub,
-              apiAuthenticationKey,
-              flags.privateKeyHandle
-            )
+          val result = getMeasurementResult(measurement.resultsList.get(0), flags.privateKeyHandle)
           task.result = result
+          // println ("Got result for task $iTask\n$measurement\n-----\n$result")
           task.status = "success"
         } else if (measurement.state == Measurement.State.FAILED) {
           task.status = "failed"
@@ -706,12 +693,12 @@ class Benchmark(
         out.print("${task.status},${task.errorMessage},")
         if (flags.measurementTypeParams.reachAndFrequency.selected) {
           var reach = 0L
-          if (task.result.hasReach()) {
+          if (task.status == "success" && task.result.hasReach()) {
             reach = task.result.reach.value
           }
           out.print(reach)
           var frequencies = arrayOf(0.0, 0.0, 0.0, 0.0, 0.0)
-          if (task.result.hasFrequency()) {
+          if (task.status == "success" && task.result.hasFrequency()) {
             task.result.frequency.relativeFrequencyDistributionMap.forEach {
               if (it.key <= frequencies.size) {
                 frequencies[(it.key - 1).toInt()] = it.value * reach.toDouble()
@@ -734,7 +721,6 @@ class Benchmark(
   fun generateBenchmarkReport() {
     val measurementConsumerStub = MeasurementConsumersCoroutineStub(channel)
     val measurementStub = MeasurementsCoroutineStub(channel)
-    val certificateStub = CertificatesCoroutineStub(channel)
     val dataProviderStub = DataProvidersCoroutineStub(channel)
 
     val programStartTime = Instant.now(clock)
@@ -748,7 +734,7 @@ class Benchmark(
 
       launch {
         while (taskList.size > 0 || !allRequestsSent) {
-          collectCompletedTasks(measurementStub, certificateStub, programStartTime)
+          collectCompletedTasks(measurementStub, programStartTime)
           delay(1000L)
         }
         generateOutput(programStartTime)
