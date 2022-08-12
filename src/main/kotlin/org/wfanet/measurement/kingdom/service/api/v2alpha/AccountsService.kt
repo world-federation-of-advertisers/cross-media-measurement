@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.gson.JsonParser
 import io.grpc.Status
+import io.grpc.StatusException
 import java.io.IOException
 import java.security.GeneralSecurityException
 import org.wfanet.measurement.api.AccountConstants
@@ -84,7 +85,14 @@ class AccountsService(
       this.externalOwnedMeasurementConsumerId = externalOwnedMeasurementConsumerId
     }
 
-    val result = internalAccountsStub.createAccount(internalCreateAccountRequest)
+    val result =
+      try {
+        internalAccountsStub.createAccount(internalCreateAccountRequest)
+      } catch (ex: StatusException) {
+        throw ex
+      } catch (ex: Throwable) {
+        failGrpc(Status.UNKNOWN) { "Unknown exception from internal createAccount." }
+      }
 
     return result.toAccount()
   }
@@ -119,7 +127,14 @@ class AccountsService(
       identity = openIdConnectIdentity
     }
 
-    val result = internalAccountsStub.activateAccount(internalActivateAccountRequest)
+    val result =
+      try {
+        internalAccountsStub.activateAccount(internalActivateAccountRequest)
+      } catch (ex: StatusException) {
+        throw ex
+      } catch (ex: Throwable) {
+        failGrpc(Status.UNKNOWN) { "Unknown exception from internal activateAccount." }
+      }
 
     // method only returns the basic account view so some fields are cleared
     return result.toAccount().copy { clearActivationParams() }
@@ -151,7 +166,14 @@ class AccountsService(
       identity = openIdConnectIdentity
     }
 
-    val result = internalAccountsStub.replaceAccountIdentity(internalReplaceAccountIdentityRequest)
+    val result =
+      try {
+        internalAccountsStub.replaceAccountIdentity(internalReplaceAccountIdentityRequest)
+      } catch (ex: StatusException) {
+        throw ex
+      } catch (ex: Throwable) {
+        failGrpc(Status.UNKNOWN) { "Unknown exception from internal replaceAccountIdentity." }
+      }
 
     // method only returns the basic account view so some fields are cleared
     return result.toAccount().copy { clearActivationParams() }
@@ -161,7 +183,13 @@ class AccountsService(
     grpcRequire(request.issuer.isNotBlank()) { "Issuer unspecified" }
 
     val openIdRequestParams =
-      internalAccountsStub.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
+      try {
+        internalAccountsStub.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
+      } catch (ex: StatusException) {
+        throw ex
+      } catch (ex: Throwable) {
+        failGrpc(Status.UNKNOWN) { "Unknown exception from internal replaceAccountIdentity." }
+      }
 
     var uriString = ""
     if (request.issuer == SELF_ISSUED_ISSUER) {
