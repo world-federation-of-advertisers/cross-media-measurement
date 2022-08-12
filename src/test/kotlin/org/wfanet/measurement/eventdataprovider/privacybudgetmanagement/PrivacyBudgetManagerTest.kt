@@ -16,6 +16,7 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 import com.google.common.truth.Truth.assertThat
 import java.time.LocalDate
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -42,7 +43,7 @@ class PrivacyBudgetManagerTest {
       Charge(0.6f, 0.02f)
     )
 
-  private fun PrivacyBudgetManager.assertChargeExceedsPrivacyBudget(
+  private suspend fun PrivacyBudgetManager.assertChargeExceedsPrivacyBudget(
     query: Query,
   ) {
     val exception = assertFailsWith<PrivacyBudgetManagerException> { chargePrivacyBudget(query) }
@@ -51,7 +52,7 @@ class PrivacyBudgetManagerTest {
   }
 
   @Test
-  fun `charge throws PRIVACY_BUDGET_EXCEEDED when given a large single charge`() {
+  fun `charge throws PRIVACY_BUDGET_EXCEEDED when given a large single charge`() = runBlocking {
     val backingStore = InMemoryBackingStore()
     val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 1.0f, 0.01f)
     val exception =
@@ -63,7 +64,7 @@ class PrivacyBudgetManagerTest {
   }
 
   @Test
-  fun `charge throws INVALID_PRIVACY_BUCKET_FILTER when given wrong event filter`() {
+  fun `charge throws INVALID_PRIVACY_BUCKET_FILTER when given wrong event filter`() = runBlocking {
     val backingStore = InMemoryBackingStore()
     val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
 
@@ -76,7 +77,7 @@ class PrivacyBudgetManagerTest {
   }
 
   @Test
-  fun `charges privacy budget for measurement`() {
+  fun `charges privacy budget for measurement`() = runBlocking {
     val backingStore = InMemoryBackingStore()
     val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
 
@@ -88,7 +89,7 @@ class PrivacyBudgetManagerTest {
   }
 
   @Test
-  fun `checks empty privacy budget manager and returns budget wont be exceeded`() {
+  fun `checks empty privacy budget manager and returns budget wont be exceeded`() = runBlocking {
     val backingStore = InMemoryBackingStore()
     val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
     // Check returns false because charges would not have exceeded the budget.
@@ -96,7 +97,7 @@ class PrivacyBudgetManagerTest {
   }
 
   @Test
-  fun `checks exceeded privacy budget for measurement`() {
+  fun `checks exceeded privacy budget for measurement`() = runBlocking {
     val backingStore = InMemoryBackingStore()
     val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
 
@@ -108,7 +109,7 @@ class PrivacyBudgetManagerTest {
   }
 
   @Test
-  fun `returns true for different reference that will be processed`() {
+  fun `returns true for different reference that will be processed`() = runBlocking {
     val backingStore = InMemoryBackingStore()
     val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
 
@@ -122,7 +123,7 @@ class PrivacyBudgetManagerTest {
       .isTrue()
   }
   @Test
-  fun `returns false for same reference that will not be processed`() {
+  fun `returns false for same reference that will not be processed`() = runBlocking {
     val backingStore = InMemoryBackingStore()
     val pbm = PrivacyBudgetManager(privacyBucketFilter, backingStore, 10.0f, 0.02f)
 

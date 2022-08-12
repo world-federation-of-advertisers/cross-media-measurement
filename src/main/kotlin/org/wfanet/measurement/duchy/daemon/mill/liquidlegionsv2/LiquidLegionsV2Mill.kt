@@ -19,7 +19,6 @@ import java.nio.file.Paths
 import java.time.Clock
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.measurement.api.Version
-import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey as V2alphaElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
@@ -294,11 +293,10 @@ class LiquidLegionsV2Mill(
     }
     when (publicApiVersion) {
       Version.V2_ALPHA -> {
-        val publicApiElgamalKey = V2alphaElGamalPublicKey.parseFrom(duchy.elGamalPublicKey)
         if (
           !verifyElGamalPublicKey(
+            duchy.elGamalPublicKey,
             duchy.elGamalPublicKeySignature,
-            publicApiElgamalKey,
             readCertificate(duchy.duchyCertificateDer)
           )
         ) {

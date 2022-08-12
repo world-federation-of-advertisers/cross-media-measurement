@@ -166,11 +166,14 @@ gcloud container clusters create halo-cmm-kingdom-demo-cluster \
   --service-account="gke-cluster@halo-kingdom-demo.iam.gserviceaccount.com" \
   --database-encryption-key=projects/halo-cmm-dev/locations/us-central1/keyRings/test-key-ring/cryptoKeys/k8s-secret \
   --num-nodes=3 --enable-autoscaling --min-nodes=1 --max-nodes=5 \
-  --machine-type=e2-small
+  --machine-type=e2-small --cluster-version=1.24.2-gke.1900
 ```
 
 Note: ~3 nodes with the `e2-small` machine type should be enough to run the
 Kingdom servers initially, but should be adjusted depending on expected load.
+
+The GKE version should be no older than `1.24.0` in order to support built-in gRPC 
+health probe.
 
 After creating the cluster, we can configure `kubectl` to be able to access it
 
@@ -412,13 +415,7 @@ duchies. As you can see from the result in the previous step. Only these two
 services have external IPs. However, these external IPs are ephemeral. We need
 to reserve them such that they are stable.
 
-Go to the Gcloud [Console](https://console.cloud.google.com/networking), under
-VPC network -> External IP address, find the above two external IPs, and click
-RESERVE on the right.
-
-Follow this
-[link](https://cloud.google.com/compute/docs/ip-addresses/reserve-static-external-ip-address#gcloud)
-if you want to reserve the IPs using Cloud CLI.
+See [Reserving External IPs](cluster-config.md#reserving-external-ips)
 
 ### Setup subdomain DNS A record
 

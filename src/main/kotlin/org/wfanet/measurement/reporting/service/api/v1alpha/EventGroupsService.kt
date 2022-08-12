@@ -16,7 +16,7 @@ package org.wfanet.measurement.reporting.service.api.v1alpha
 
 import io.grpc.Status
 import org.projectnessie.cel.Program
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DataProviderKey as CmmsDataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor
@@ -30,7 +30,7 @@ import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEven
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
-import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
+import org.wfanet.measurement.consent.client.measurementconsumer.decryptMetadata
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 import org.wfanet.measurement.reporting.v1alpha.EventGroup
 import org.wfanet.measurement.reporting.v1alpha.EventGroupKt.eventTemplate
@@ -55,13 +55,20 @@ class EventGroupsService(
       }
     }
     val apiAuthenticationKey: String = principal.config.apiKey
+    val dataProviderName =
+      CmmsDataProviderKey(
+          (EventGroupKey.fromName(request.parent)
+              ?: failGrpc(Status.FAILED_PRECONDITION) { "Event group parent unable to be parsed" })
+            .dataProviderReferenceId
+        )
+        .toName()
 
     val cmmsListEventGroupResponse =
       cmmsEventGroupsStub
         .withAuthenticationKey(apiAuthenticationKey)
         .listEventGroups(
           cmmsListEventGroupsRequest {
-            parent = request.parent
+            parent = dataProviderName
             pageSize = request.pageSize
             pageToken = request.pageToken
             filter = filter { measurementConsumers += principal.resourceKey.measurementConsumerId }
@@ -70,17 +77,12 @@ class EventGroupsService(
     val cmmsEventGroups = cmmsListEventGroupResponse.eventGroupsList
     val parsedEventGroupMetadataMap: Map<String, CmmsEventGroup.Metadata> =
       cmmsEventGroups.associate {
-        it.name to
-          CmmsEventGroup.Metadata.parseFrom(
-            decryptResult(
-                it.encryptedMetadata,
-                encryptionKeyPairStore.getPrivateKeyHandle(it.measurementConsumerPublicKey.data)
-                  ?: failGrpc(Status.FAILED_PRECONDITION) {
-                    "Public key does not have corresponding private key"
-                  }
-              )
-              .data
-          )
+        val measurementConsumerPrivateKey =
+          encryptionKeyPairStore.getPrivateKeyHandle(it.measurementConsumerPublicKey.data)
+            ?: failGrpc(Status.FAILED_PRECONDITION) {
+              "Public key does not have corresponding private key"
+            }
+        it.name to decryptMetadata(it.encryptedMetadata, measurementConsumerPrivateKey)
       }
 
     if (request.filter.isEmpty())
@@ -93,7 +95,7 @@ class EventGroupsService(
         .withAuthenticationKey(apiAuthenticationKey)
         .batchGetEventGroupMetadataDescriptors(
           batchGetEventGroupMetadataDescriptorsRequest {
-            parent = request.parent
+            parent = dataProviderName
             names +=
               parsedEventGroupMetadataMap.values.map { it.eventGroupMetadataDescriptor }.toSet()
           }
@@ -142,7 +144,7 @@ private fun CmmsEventGroup.toEventGroup(
           cmmsEventGroupKey.eventGroupId
         )
         .toName()
-    dataProvider = DataProviderKey(cmmsEventGroupKey.dataProviderId).toName()
+    dataProvider = CmmsDataProviderKey(cmmsEventGroupKey.dataProviderId).toName()
     eventGroupReferenceId = source.eventGroupReferenceId
     eventTemplates += source.eventTemplatesList.map { eventTemplate { type = it.type } }
     metadata = metadata {

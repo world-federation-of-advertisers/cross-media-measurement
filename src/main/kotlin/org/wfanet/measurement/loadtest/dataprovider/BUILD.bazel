@@ -21,6 +21,7 @@ kt_jvm_library(
         "EdpSimulatorFlags.kt",
         "EdpSimulatorRunner.kt",
         "EventQuery.kt",
+        "FilterEventQuery.kt",
         "RandomEventQuery.kt",
     ],
     deps = [
@@ -64,6 +65,7 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
+        "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/duchy",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
     ],
 )

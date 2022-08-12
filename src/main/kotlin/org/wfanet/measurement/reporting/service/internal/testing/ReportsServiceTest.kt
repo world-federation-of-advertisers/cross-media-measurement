@@ -98,7 +98,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
     assertThat(createdReport)
       .ignoringRepeatedFieldOrder()
       .reportingMismatchesOnly()
-      .ignoringFields(Report.CREATE_TIME_FIELD_NUMBER)
+      .ignoringFields(Report.CREATE_TIME_FIELD_NUMBER, Report.MEASUREMENTS_FIELD_NUMBER)
       .isEqualTo(retrievedReport)
   }
 
@@ -192,7 +192,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
     assertThat(createdReport)
       .ignoringRepeatedFieldOrder()
       .reportingMismatchesOnly()
-      .ignoringFields(Report.CREATE_TIME_FIELD_NUMBER)
+      .ignoringFields(Report.CREATE_TIME_FIELD_NUMBER, Report.MEASUREMENTS_FIELD_NUMBER)
       .isEqualTo(retrievedReport)
     assertThat(retrievedReport.createTime).isNotEqualTo(timestamp {})
   }
@@ -264,7 +264,7 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
     assertThat(createdReport)
       .ignoringRepeatedFieldOrder()
       .reportingMismatchesOnly()
-      .ignoringFields(Report.CREATE_TIME_FIELD_NUMBER)
+      .ignoringFields(Report.CREATE_TIME_FIELD_NUMBER, Report.MEASUREMENTS_FIELD_NUMBER)
       .isEqualTo(retrievedReport)
   }
 
@@ -375,8 +375,9 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
     assertThat(createdReport)
       .ignoringRepeatedFieldOrder()
       .reportingMismatchesOnly()
-      .ignoringFields(Report.CREATE_TIME_FIELD_NUMBER)
+      .ignoringFields(Report.CREATE_TIME_FIELD_NUMBER, Report.MEASUREMENTS_FIELD_NUMBER)
       .isEqualTo(retrievedReport)
+    assertThat(retrievedReport.measurementsMap).hasSize(2)
   }
 
   @Test
@@ -489,8 +490,9 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
     assertThat(reports)
       .ignoringRepeatedFieldOrder()
       .reportingMismatchesOnly()
-      .ignoringFields(Report.CREATE_TIME_FIELD_NUMBER)
+      .ignoringFields(Report.CREATE_TIME_FIELD_NUMBER, Report.MEASUREMENTS_FIELD_NUMBER)
       .containsExactly(createdReport)
+    assertThat(reports[0].measurementsMap).hasSize(2)
   }
 
   companion object {

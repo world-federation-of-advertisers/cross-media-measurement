@@ -1429,17 +1429,12 @@ class ReportsServiceTest {
       )
       .isEqualTo(expectedMeasurement)
 
-    val measurementSpec = MeasurementSpec.parseFrom(capturedMeasurement.measurementSpec.data)
-    val expectedMeasurementSpec = REACH_ONLY_MEASUREMENT_SPEC
-    assertThat(measurementSpec).isEqualTo(expectedMeasurementSpec)
     assertThat(
-        verifyMeasurementSpec(
-          capturedMeasurement.measurementSpec.signature,
-          measurementSpec,
-          MEASUREMENT_CONSUMER_CERTIFICATE
-        )
+        verifyMeasurementSpec(capturedMeasurement.measurementSpec, MEASUREMENT_CONSUMER_CERTIFICATE)
       )
       .isTrue()
+    val measurementSpec = MeasurementSpec.parseFrom(capturedMeasurement.measurementSpec.data)
+    assertThat(measurementSpec).isEqualTo(REACH_ONLY_MEASUREMENT_SPEC)
 
     val dataProvidersList = capturedMeasurement.dataProvidersList.sortedBy { it.key }
 
@@ -1452,7 +1447,7 @@ class ReportsServiceTest {
       val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
       assertThat(
           verifyRequisitionSpec(
-            signedRequisitionSpec.signature,
+            signedRequisitionSpec,
             requisitionSpec,
             measurementSpec,
             MEASUREMENT_CONSUMER_CERTIFICATE

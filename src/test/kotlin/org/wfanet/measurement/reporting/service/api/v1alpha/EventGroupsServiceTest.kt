@@ -64,7 +64,8 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
-import org.wfanet.measurement.consent.client.common.signMessage
+import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
+import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
 import org.wfanet.measurement.reporting.v1alpha.EventGroupKt.metadata
 import org.wfanet.measurement.reporting.v1alpha.eventGroup
 import org.wfanet.measurement.reporting.v1alpha.listEventGroupsRequest
@@ -97,18 +98,15 @@ private val CMMS_EVENT_GROUP_ID = "AAAAAAAAAHs"
 private val CMMS_EVENT_GROUP = cmmsEventGroup {
   name = "$DATA_PROVIDER_NAME/eventGroups/$CMMS_EVENT_GROUP_ID"
   measurementConsumer = MEASUREMENT_CONSUMER_NAME
-  eventGroupReferenceId = "id1"
+  eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
   measurementConsumerPublicKey = signedData { data = ENCRYPTION_PUBLIC_KEY.toByteString() }
   encryptedMetadata =
-    ENCRYPTION_PUBLIC_KEY.hybridEncrypt(
-      signMessage(
-          CmmsEventGroup.metadata {
-            eventGroupMetadataDescriptor = METADATA_NAME
-            metadata = Any.pack(TEST_MESSAGE)
-          },
-          EDP_SIGNING_KEY
-        )
-        .toByteString()
+    encryptMetadata(
+      CmmsEventGroup.metadata {
+        eventGroupMetadataDescriptor = METADATA_NAME
+        metadata = Any.pack(TEST_MESSAGE)
+      },
+      ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey()
     )
 }
 private val TEST_MESSAGE_2 = testMetadataMessage {
@@ -123,15 +121,12 @@ private val CMMS_EVENT_GROUP_2 = cmmsEventGroup {
   eventGroupReferenceId = "id2"
   measurementConsumerPublicKey = signedData { data = ENCRYPTION_PUBLIC_KEY.toByteString() }
   encryptedMetadata =
-    ENCRYPTION_PUBLIC_KEY.hybridEncrypt(
-      signMessage(
-          CmmsEventGroup.metadata {
-            eventGroupMetadataDescriptor = METADATA_NAME
-            metadata = Any.pack(TEST_MESSAGE_2)
-          },
-          EDP_SIGNING_KEY
-        )
-        .toByteString()
+    encryptMetadata(
+      CmmsEventGroup.metadata {
+        eventGroupMetadataDescriptor = METADATA_NAME
+        metadata = Any.pack(TEST_MESSAGE_2)
+      },
+      ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey()
     )
 }
 private val EVENT_GROUP = eventGroup {
@@ -143,7 +138,7 @@ private val EVENT_GROUP = eventGroup {
       )
       .toName()
   dataProvider = DATA_PROVIDER_NAME
-  eventGroupReferenceId = "id1"
+  eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
   metadata = metadata {
     eventGroupMetadataDescriptor = METADATA_NAME
     metadata = Any.pack(TEST_MESSAGE)
@@ -153,6 +148,9 @@ private const val PAGE_TOKEN = "base64encodedtoken"
 private const val NEXT_PAGE_TOKEN = "base64encodedtoken2"
 private const val DATA_PROVIDER_REFERENCE_ID = "123"
 private const val DATA_PROVIDER_NAME = "dataProviders/$DATA_PROVIDER_REFERENCE_ID"
+private const val EVENT_GROUP_REFERENCE_ID = "edpRefId1"
+private const val EVENT_GROUP_PARENT =
+  "measurementConsumers/$MEASUREMENT_CONSUMER_REFERENCE_ID/dataProviders/$DATA_PROVIDER_REFERENCE_ID/eventGroups/$EVENT_GROUP_REFERENCE_ID"
 private const val METADATA_NAME = "$DATA_PROVIDER_NAME/eventGroupMetadataDescriptors/abc"
 private val EVENT_GROUP_METADATA_DESCRIPTOR = eventGroupMetadataDescriptor {
   name = METADATA_NAME
@@ -201,7 +199,7 @@ class EventGroupsServiceTest {
         runBlocking {
           eventGroupsService.listEventGroups(
             listEventGroupsRequest {
-              parent = DATA_PROVIDER_NAME
+              parent = EVENT_GROUP_PARENT
               pageSize = 10
               pageToken = PAGE_TOKEN
             }
@@ -263,7 +261,7 @@ class EventGroupsServiceTest {
         runBlocking {
           eventGroupsService.listEventGroups(
             listEventGroupsRequest {
-              parent = DATA_PROVIDER_NAME
+              parent = EVENT_GROUP_PARENT
               filter = "age.value > 10"
               pageToken = PAGE_TOKEN
             }
@@ -312,15 +310,12 @@ class EventGroupsServiceTest {
       eventGroupReferenceId = "id1"
       measurementConsumerPublicKey = signedData { data = ENCRYPTION_PUBLIC_KEY.toByteString() }
       encryptedMetadata =
-        ENCRYPTION_PUBLIC_KEY.hybridEncrypt(
-          signMessage(
-              CmmsEventGroup.metadata {
-                eventGroupMetadataDescriptor = METADATA_NAME
-                metadata = Any.pack(testParentMetadataMessage { name = "name" })
-              },
-              EDP_SIGNING_KEY
-            )
-            .toByteString()
+        encryptMetadata(
+          CmmsEventGroup.metadata {
+            eventGroupMetadataDescriptor = METADATA_NAME
+            metadata = Any.pack(testParentMetadataMessage { name = "name" })
+          },
+          ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey()
         )
     }
     cmmsEventGroupsServiceMock.stub {
@@ -343,7 +338,7 @@ class EventGroupsServiceTest {
           runBlocking {
             eventGroupsService.listEventGroups(
               listEventGroupsRequest {
-                parent = DATA_PROVIDER_NAME
+                parent = EVENT_GROUP_PARENT
                 filter = "age.value > 10"
               }
             )
@@ -362,15 +357,12 @@ class EventGroupsServiceTest {
       eventGroupReferenceId = "id1"
       measurementConsumerPublicKey = signedData { data = ByteString.copyFromUtf8("consumerkey") }
       encryptedMetadata =
-        ENCRYPTION_PUBLIC_KEY.hybridEncrypt(
-          signMessage(
-              CmmsEventGroup.metadata {
-                eventGroupMetadataDescriptor = METADATA_NAME
-                metadata = Any.pack(testParentMetadataMessage { name = "name" })
-              },
-              EDP_SIGNING_KEY
-            )
-            .toByteString()
+        encryptMetadata(
+          CmmsEventGroup.metadata {
+            eventGroupMetadataDescriptor = METADATA_NAME
+            metadata = Any.pack(testParentMetadataMessage { name = "name" })
+          },
+          ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey()
         )
     }
     cmmsEventGroupsServiceMock.stub {
@@ -387,6 +379,7 @@ class EventGroupsServiceTest {
         EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
         ENCRYPTION_KEY_PAIR_STORE
       )
+
     val result =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
@@ -395,6 +388,32 @@ class EventGroupsServiceTest {
               listEventGroupsRequest {
                 parent = DATA_PROVIDER_NAME
                 filter = "age.value > 10"
+              }
+            )
+          }
+        }
+      }
+
+    assertThat(result.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `listEventGroups throws FAILED_PRECONDITION if parent not found`() {
+    val eventGroupsService =
+      EventGroupsService(
+        EventGroupsCoroutineStub(grpcTestServerRule.channel),
+        EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
+        ENCRYPTION_KEY_PAIR_STORE
+      )
+    val result =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking {
+            eventGroupsService.listEventGroups(
+              listEventGroupsRequest {
+                filter = "age.value > 10"
+                pageToken = PAGE_TOKEN
+                ENCRYPTION_KEY_PAIR_STORE
               }
             )
           }

@@ -73,6 +73,7 @@ package k8s
 				_kingdom_cert_collection_file_flag,
 				_debug_verbose_grpc_server_logging_flag,
 				"--port=8443",
+				"--health-port=8080",
 			] + _spannerConfig.flags
 
 			_podSpec: _initContainers: {
@@ -95,6 +96,7 @@ package k8s
 				_internal_api_target_flag,
 				_internal_api_cert_host_flag,
 				"--port=8443",
+				"--health-port=8080",
 			]
 			_dependencies: ["gcp-kingdom-data-server"]
 		}
@@ -115,6 +117,7 @@ package k8s
 				_akid_to_principal_map_file_flag,
 				_open_id_redirect_uri_flag,
 				"--port=8443",
+				"--health-port=8080",
 			]
 			_dependencies: ["gcp-kingdom-data-server"]
 		}

@@ -20,6 +20,7 @@ kt_jvm_library(
 java_binary(
     name = "EncryptionPublicKeys",
     main_class = "org.wfanet.measurement.api.v2alpha.tools.EncryptionPublicKeys",
+    visibility = ["//visibility:public"],
     runtime_deps = [":encryption_public_keys"],
 )
 
