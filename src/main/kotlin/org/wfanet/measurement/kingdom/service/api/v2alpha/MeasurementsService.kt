@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.protobuf.InvalidProtocolBufferException
 import io.grpc.Status
+import io.grpc.StatusException
 import java.util.AbstractMap
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
@@ -84,7 +85,14 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
       externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
     }
 
-    val internalMeasurement = internalMeasurementsStub.getMeasurement(internalGetMeasurementRequest)
+    val internalMeasurement =
+      try {
+        internalMeasurementsStub.getMeasurement(internalGetMeasurementRequest)
+      } catch (ex: StatusException) {
+        throw ex
+      } catch (ex: Throwable) {
+        failGrpc(Status.UNKNOWN) { "Unknow exception from internal getMeasurement." }
+      }
 
     return internalMeasurement.toMeasurement()
   }
@@ -137,13 +145,19 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
     }
 
     val internalMeasurement =
-      internalMeasurementsStub.createMeasurement(
-        request.measurement.toInternal(
-          measurementConsumerCertificateKey,
-          dataProvidersMap,
-          parsedMeasurementSpec
+      try {
+        internalMeasurementsStub.createMeasurement(
+          request.measurement.toInternal(
+            measurementConsumerCertificateKey,
+            dataProvidersMap,
+            parsedMeasurementSpec
+          )
         )
-      )
+      } catch (ex: StatusException) {
+        throw ex
+      } catch (ex: Throwable) {
+        failGrpc(Status.UNKNOWN) { "Unknown exception from internal createMeasurement." }
+      }
 
     return internalMeasurement.toMeasurement()
   }
@@ -165,9 +179,15 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
     }
 
     val results: List<InternalMeasurement> =
-      internalMeasurementsStub
-        .streamMeasurements(listMeasurementsPageToken.toStreamMeasurementsRequest())
-        .toList()
+      try {
+        internalMeasurementsStub
+          .streamMeasurements(listMeasurementsPageToken.toStreamMeasurementsRequest())
+          .toList()
+      } catch (ex: StatusException) {
+        throw ex
+      } catch (ex: Throwable) {
+        failGrpc(Status.UNKNOWN) { "Unknown exception from internal steamMeasurement." }
+      }
 
     if (results.isEmpty()) {
       return ListMeasurementsResponse.getDefaultInstance()
@@ -208,7 +228,13 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
     }
 
     val internalMeasurement =
-      internalMeasurementsStub.cancelMeasurement(internalCancelMeasurementRequest)
+      try {
+        internalMeasurementsStub.cancelMeasurement(internalCancelMeasurementRequest)
+      } catch (ex: StatusException) {
+        throw ex
+      } catch (ex: Throwable) {
+        failGrpc(Status.UNKNOWN) { "Unknown exception from internal cancelMeasurement." }
+      }
 
     return internalMeasurement.toMeasurement()
   }
@@ -314,7 +340,14 @@ private fun ListMeasurementsRequest.toListMeasurementsPageToken(): ListMeasureme
   val measurementStatesList = source.filter.statesList
 
   return if (source.pageToken.isNotBlank()) {
-    ListMeasurementsPageToken.parseFrom(source.pageToken.base64UrlDecode()).copy {
+    val pageToken =
+      try {
+        ListMeasurementsPageToken.parseFrom(source.pageToken.base64UrlDecode())
+      } catch (ex: Throwable) {
+        failGrpc(Status.INVALID_ARGUMENT) { "Failed to parse ListMeasurementsPageToken" }
+      }
+
+    pageToken.copy {
       grpcRequire(this.externalMeasurementConsumerId == externalMeasurementConsumerId) {
         "Arguments must be kept the same when using a page token"
       }
