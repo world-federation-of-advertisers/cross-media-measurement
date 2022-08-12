@@ -26,6 +26,8 @@ import java.security.PrivateKey
 import java.security.SecureRandom
 import java.time.Instant
 import kotlin.math.min
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
@@ -793,34 +795,43 @@ class ReportsService(
     measurementConsumerReferenceId: String,
     apiAuthenticationKey: String,
   ) = coroutineScope {
+    val cmmsMeasurementJobs = ArrayList<Deferred<Measurement>>(measurementsMap.size)
     for ((measurementReferenceId, internalMeasurement) in measurementsMap) {
       // Measurement with SUCCEEDED state is already synced
       if (internalMeasurement.state == InternalMeasurement.State.SUCCEEDED) continue
-      syncMeasurement(
-        measurementReferenceId,
-        measurementConsumerReferenceId,
-        apiAuthenticationKey,
-      )
+      cmmsMeasurementJobs += async {
+        getCMMSMeasurement(
+          measurementReferenceId,
+          measurementConsumerReferenceId,
+          apiAuthenticationKey,
+        )
+      }
     }
+    cmmsMeasurementJobs.forEach { syncMeasurement(apiAuthenticationKey, it.await()) }
   }
 
-  /** Syncs [InternalMeasurement] with the CMM [Measurement] given the measurement reference ID. */
-  private suspend fun syncMeasurement(
+  /** Get CMMS [Measurement]. */
+  private suspend fun getCMMSMeasurement(
     measurementReferenceId: String,
     measurementConsumerReferenceId: String,
     apiAuthenticationKey: String
-  ) {
+  ): Measurement {
     val measurementResourceName =
       MeasurementKey(measurementConsumerReferenceId, measurementReferenceId).toName()
-    val measurement =
-      try {
-        measurementsStub
-          .withAuthenticationKey(apiAuthenticationKey)
-          .getMeasurement(getMeasurementRequest { name = measurementResourceName })
-      } catch (e: StatusException) {
-        throw Exception("Unable to retrieve the measurement [$measurementResourceName].", e)
-      }
+    try {
+      return measurementsStub
+        .withAuthenticationKey(apiAuthenticationKey)
+        .getMeasurement(getMeasurementRequest { name = measurementResourceName })
+    } catch (e: StatusException) {
+      throw Exception("Unable to retrieve the measurement [$measurementResourceName].", e)
+    }
+  }
 
+  /** Syncs [InternalMeasurement] with the CMMS [Measurement]. */
+  private suspend fun syncMeasurement(apiAuthenticationKey: String, measurement: Measurement) {
+    val key = MeasurementKey.fromName(measurement.name)
+    val measurementConsumerReferenceId = key!!.measurementConsumerId
+    val measurementReferenceId = key.measurementId
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     when (measurement.state) {
       Measurement.State.SUCCEEDED -> {
@@ -844,7 +855,7 @@ class ReportsService(
           internalMeasurementsStub.setMeasurementResult(setInternalMeasurementResultRequest)
         } catch (e: StatusException) {
           throw Exception(
-            "Unable to update the measurement [$measurementResourceName] in the reporting " +
+            "Unable to update the measurement [${measurement.name}] in the reporting " +
               "database.",
             e
           )
@@ -864,7 +875,7 @@ class ReportsService(
           internalMeasurementsStub.setMeasurementFailure(setInternalMeasurementFailureRequest)
         } catch (e: StatusException) {
           throw Exception(
-            "Unable to update the measurement [$measurementResourceName] in the reporting " +
+            "Unable to update the measurement [${measurement.name}] in the reporting " +
               "database.",
             e
           )
