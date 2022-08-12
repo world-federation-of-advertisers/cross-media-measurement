@@ -66,6 +66,7 @@ class BigQueryEventQuery(
         socialGrade = DEFAULT_QUERY_PARAMETER.socialGrade,
         complete = DEFAULT_QUERY_PARAMETER.complete,
       )
+    // val fromEventFilterqueryConfig = buildQueryConfigFromEventFilter(eventFilter, publisher)
 
     bigQuery.query(queryConfig)
 
@@ -123,6 +124,21 @@ class BigQueryEventQuery(
         .build()
     return queryConfig
   }
+  //
+  // private fun buildQueryConfigFromEventFilter(
+  //   eventFilter: EventFilter,
+  //   publisher : Int
+  // ): QueryJobConfiguration {
+  //   var query =
+  //     """
+  //     SELECT vid
+  //     FROM `$tableName`
+  //     WHERE publisher_id = $publisher
+  //     AND date BETWEEN @begin_date AND @end_date
+  //     """.trimIndent()
+  //
+  //   return QueryJobConfiguration.newBuilder(query).build()
+  // }
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
