@@ -59,7 +59,7 @@ class CsvEventQueryTest {
 
   @Test
   fun `filters when no matching conditions`() {
-    val eventQuery = CsvEventQuery()
+    val eventQuery = CsvEventQuery("edp1")
     eventQuery.readCSVData(EVENTS)
     val userVids = eventQuery.getUserVirtualIds(NONMATCHING_EVENT_FILTER)
     assertThat(userVids.toList()).isEmpty()
@@ -68,7 +68,7 @@ class CsvEventQueryTest {
   @Test
   fun `filters matching conditions`() {
     val matchingVids = listOf(1000650, 1000997, 1001028, 1001096, 1001096, 1001289)
-    val eventQuery = CsvEventQuery()
+    val eventQuery = CsvEventQuery("edp1")
     eventQuery.readCSVData(EVENTS)
     val userVids = eventQuery.getUserVirtualIds(MATCHING_EVENT_FILTER)
     val expectedVids = matchingVids.map { it.toLong() }
