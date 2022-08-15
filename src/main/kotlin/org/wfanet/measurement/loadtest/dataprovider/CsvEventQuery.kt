@@ -113,11 +113,13 @@ class CsvEventQuery(
         when (event["Sex"]) {
           "M" -> gender = privacyGender { value = PrivacyGender.Value.GENDER_MALE }
           "F" -> gender = privacyGender { value = PrivacyGender.Value.GENDER_FEMALE }
+          else -> gender = privacyGender { value = PrivacyGender.Value.GENDER_UNSPECIFIED }
         }
         when (event["Age_Group"]) {
           "18_34" -> age = privacyAgeRange { value = PrivacyAgeRange.Value.AGE_18_TO_34 }
           "35_54" -> age = privacyAgeRange { value = PrivacyAgeRange.Value.AGE_35_TO_54 }
           "55+" -> age = privacyAgeRange { value = PrivacyAgeRange.Value.AGE_OVER_54 }
+          else -> age = privacyAgeRange { value = PrivacyAgeRange.Value.AGE_RANGE_UNSPECIFIED }
         }
       }
       this.videoAd = testVideoTemplate {
@@ -130,7 +132,7 @@ class CsvEventQuery(
         when (event["Sex"]) {
           "M" -> gender = bannerGender { value = BannerGender.Value.GENDER_MALE }
           "F" -> gender = bannerGender { value = BannerGender.Value.GENDER_FEMALE }
-          else -> gender = bannerGender { value = BannerGender.Value.GENDER_UNKOWN }
+          else -> gender = bannerGender { value = BannerGender.Value.GENDER_UNSPECIFIED }
         }
       }
     }
