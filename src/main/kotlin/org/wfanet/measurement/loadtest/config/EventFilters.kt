@@ -29,7 +29,7 @@ object EventFilters {
    * TODO(@uakyol): Add [date], [socialGrade], [gender] fields once filtration is implemented.
    */
   val EVENT_TEMPLATES_TO_FILTERS_MAP =
-    mapOf("$TEMPLATE_PREFIX.TestVideoTemplate" to "age.value == 1")
+    mapOf("$TEMPLATE_PREFIX.TestVideoTemplate" to "video_ad.age.value == 1")
 
   val VID_SAMPLER_HASH_FUNCTION = Hashing.farmHashFingerprint64()
 }
