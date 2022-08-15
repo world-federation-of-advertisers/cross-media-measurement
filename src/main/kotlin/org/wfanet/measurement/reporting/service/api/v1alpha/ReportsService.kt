@@ -26,8 +26,8 @@ import java.security.PrivateKey
 import java.security.SecureRandom
 import java.time.Instant
 import kotlin.math.min
-import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
@@ -46,18 +46,16 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
-import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt.value as dataProviderEntryValue
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec.VidSamplingInterval
-import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration as measurementSpecDuration
-import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression as measurementSpecImpression
-import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency as measurementSpecReachAndFrequency
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
-import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt.value as eventGroupEntryValue
-import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter as requisitionSpecEventFilter
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.TimeInterval as MeasurementTimeInterval
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
@@ -91,15 +89,10 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signRequisition
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
 import org.wfanet.measurement.internal.reporting.CreateReportRequest as InternalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.CreateReportRequest.MeasurementKey as InternalMeasurementKey
-import org.wfanet.measurement.internal.reporting.CreateReportRequestKt.measurementKey as internalMeasurementKey
+import org.wfanet.measurement.internal.reporting.CreateReportRequestKt.measurementKey
 import org.wfanet.measurement.internal.reporting.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.Measurement.Result as InternalMeasurementResult
-import org.wfanet.measurement.internal.reporting.MeasurementKt.ResultKt.frequency as internalFrequency
-import org.wfanet.measurement.internal.reporting.MeasurementKt.ResultKt.impression as internalImpression
-import org.wfanet.measurement.internal.reporting.MeasurementKt.ResultKt.reach as internalReach
-import org.wfanet.measurement.internal.reporting.MeasurementKt.ResultKt.watchDuration as internalWatchDuration
-import org.wfanet.measurement.internal.reporting.MeasurementKt.failure as internalFailure
-import org.wfanet.measurement.internal.reporting.MeasurementKt.result as internalMeasurementResult
+import org.wfanet.measurement.internal.reporting.MeasurementKt as InternalMeasurementKt
 import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.Metric as InternalMetric
 import org.wfanet.measurement.internal.reporting.Metric.Details as InternalMetricDetails
@@ -111,20 +104,11 @@ import org.wfanet.measurement.internal.reporting.Metric.NamedSetOperation as Int
 import org.wfanet.measurement.internal.reporting.Metric.SetOperation as InternalSetOperation
 import org.wfanet.measurement.internal.reporting.Metric.SetOperation.Operand as InternalOperand
 import org.wfanet.measurement.internal.reporting.Metric.WatchDurationParams as InternalWatchDurationParams
-import org.wfanet.measurement.internal.reporting.MetricKt.MeasurementCalculationKt.weightedMeasurement as internalWeightedMeasurement
-import org.wfanet.measurement.internal.reporting.MetricKt.SetOperationKt.operand as internalOperand
+import org.wfanet.measurement.internal.reporting.MetricKt as InternalMetricKt
 import org.wfanet.measurement.internal.reporting.MetricKt.SetOperationKt.reportingSetKey
-import org.wfanet.measurement.internal.reporting.MetricKt.details as internalMetricDetails
-import org.wfanet.measurement.internal.reporting.MetricKt.frequencyHistogramParams as internalFrequencyHistogramParams
-import org.wfanet.measurement.internal.reporting.MetricKt.impressionCountParams as internalImpressionCountParams
-import org.wfanet.measurement.internal.reporting.MetricKt.measurementCalculation as internalMeasurementCalculation
-import org.wfanet.measurement.internal.reporting.MetricKt.namedSetOperation as internalNamedSetOperation
-import org.wfanet.measurement.internal.reporting.MetricKt.reachParams as internalReachParams
-import org.wfanet.measurement.internal.reporting.MetricKt.setOperation as internalSetOperation
-import org.wfanet.measurement.internal.reporting.MetricKt.watchDurationParams as internalWatchDurationParams
 import org.wfanet.measurement.internal.reporting.PeriodicTimeInterval as InternalPeriodicTimeInterval
 import org.wfanet.measurement.internal.reporting.Report as InternalReport
-import org.wfanet.measurement.internal.reporting.ReportKt.details as internalReportDetails
+import org.wfanet.measurement.internal.reporting.ReportKt as InternalReportKt
 import org.wfanet.measurement.internal.reporting.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
@@ -169,7 +153,7 @@ import org.wfanet.measurement.reporting.v1alpha.MetricKt.watchDurationParams
 import org.wfanet.measurement.reporting.v1alpha.PeriodicTimeInterval
 import org.wfanet.measurement.reporting.v1alpha.Report
 import org.wfanet.measurement.reporting.v1alpha.Report.Result
-import org.wfanet.measurement.reporting.v1alpha.ReportKt.EventGroupUniverseKt.eventGroupEntry as eventGroupUniverseEntry
+import org.wfanet.measurement.reporting.v1alpha.ReportKt.EventGroupUniverseKt
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.ResultKt.HistogramTableKt.row
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.ResultKt.column
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.ResultKt.histogramTable
@@ -233,17 +217,18 @@ private const val WATCH_DURATION_EPSILON = 0.001
 
 private const val DIFFERENTIAL_PRIVACY_DELTA = 1e-12
 
-private val REACH_ONLY_MEASUREMENT_SPEC = measurementSpecReachAndFrequency {
-  reachPrivacyParams = differentialPrivacyParams {
-    epsilon = REACH_ONLY_REACH_EPSILON
-    delta = DIFFERENTIAL_PRIVACY_DELTA
+private val REACH_ONLY_MEASUREMENT_SPEC =
+  MeasurementSpecKt.reachAndFrequency {
+    reachPrivacyParams = differentialPrivacyParams {
+      epsilon = REACH_ONLY_REACH_EPSILON
+      delta = DIFFERENTIAL_PRIVACY_DELTA
+    }
+    frequencyPrivacyParams = differentialPrivacyParams {
+      epsilon = REACH_ONLY_FREQUENCY_EPSILON
+      delta = DIFFERENTIAL_PRIVACY_DELTA
+    }
+    maximumFrequencyPerUser = REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER
   }
-  frequencyPrivacyParams = differentialPrivacyParams {
-    epsilon = REACH_ONLY_FREQUENCY_EPSILON
-    delta = DIFFERENTIAL_PRIVACY_DELTA
-  }
-  maximumFrequencyPerUser = REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER
-}
 
 class ReportsService(
   private val internalReportsStub: InternalReportsCoroutineStub,
@@ -613,10 +598,10 @@ class ReportsService(
 
   /** Builds an [InternalMetricDetails] from a [Metric]. */
   private fun buildInternalMetricDetails(metric: Metric): InternalMetricDetails {
-    return internalMetricDetails {
+    return InternalMetricKt.details {
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (metric.metricTypeCase) {
-        MetricTypeCase.REACH -> reach = internalReachParams {}
+        MetricTypeCase.REACH -> reach = InternalMetricKt.reachParams {}
         MetricTypeCase.FREQUENCY_HISTOGRAM ->
           frequencyHistogram = metric.frequencyHistogram.toInternal()
         MetricTypeCase.IMPRESSION_COUNT -> impressionCount = metric.impressionCount.toInternal()
@@ -795,23 +780,24 @@ class ReportsService(
     measurementConsumerReferenceId: String,
     apiAuthenticationKey: String,
   ) = coroutineScope {
-    val cmmsMeasurementJobs = ArrayList<Deferred<Measurement>>(measurementsMap.size)
-    for ((measurementReferenceId, internalMeasurement) in measurementsMap) {
-      // Measurement with SUCCEEDED state is already synced
-      if (internalMeasurement.state == InternalMeasurement.State.SUCCEEDED) continue
-      cmmsMeasurementJobs += async {
-        getCMMSMeasurement(
-          measurementReferenceId,
-          measurementConsumerReferenceId,
-          apiAuthenticationKey,
-        )
+    measurementsMap
+      .filterValues { it.state != InternalMeasurement.State.SUCCEEDED }
+      .keys
+      .map { measurementReferenceId ->
+        async {
+          getCmmsMeasurement(
+            measurementReferenceId,
+            measurementConsumerReferenceId,
+            apiAuthenticationKey,
+          )
+        }
       }
-    }
-    cmmsMeasurementJobs.forEach { syncMeasurement(apiAuthenticationKey, it.await()) }
+      .awaitAll()
+      .forEach { syncMeasurement(apiAuthenticationKey, it) }
   }
 
   /** Get CMMS [Measurement]. */
-  private suspend fun getCMMSMeasurement(
+  private suspend fun getCmmsMeasurement(
     measurementReferenceId: String,
     measurementConsumerReferenceId: String,
     apiAuthenticationKey: String
@@ -964,9 +950,8 @@ class ReportsService(
         }
       }
 
-      details = internalReportDetails {
-        this.eventGroupFilters.putAll(reportInfo.eventGroupFilters)
-      }
+      details =
+        InternalReportKt.details { this.eventGroupFilters.putAll(reportInfo.eventGroupFilters) }
 
       this.reportIdempotencyKey = reportInfo.reportIdempotencyKey
     }
@@ -1020,7 +1005,7 @@ class ReportsService(
     reportInfo: ReportInfo,
     setOperationResult: SetOperationResult,
   ): InternalNamedSetOperation {
-    return internalNamedSetOperation {
+    return InternalMetricKt.namedSetOperation {
       displayName = namedSetOperation.uniqueName
       setOperation =
         buildInternalSetOperation(
@@ -1040,7 +1025,7 @@ class ReportsService(
     setOperation: SetOperation,
     measurementConsumerReferenceId: String,
   ): InternalSetOperation {
-    return internalSetOperation {
+    return InternalMetricKt.setOperation {
       this.type = setOperation.type.toInternal()
       this.lhs = buildInternalOperand(setOperation.lhs, measurementConsumerReferenceId)
       this.rhs = buildInternalOperand(setOperation.rhs, measurementConsumerReferenceId)
@@ -1055,7 +1040,7 @@ class ReportsService(
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     return when (operand.operandCase) {
       Operand.OperandCase.OPERATION ->
-        internalOperand {
+        InternalMetricKt.SetOperationKt.operand {
           operation = buildInternalSetOperation(operand.operation, measurementConsumerReferenceId)
         }
       Operand.OperandCase.REPORTING_SET -> {
@@ -1065,14 +1050,14 @@ class ReportsService(
             }
             .reportingSetId
 
-        internalOperand {
+        InternalMetricKt.SetOperationKt.operand {
           this.reportingSetId = reportingSetKey {
             this.measurementConsumerReferenceId = measurementConsumerReferenceId
             externalReportingSetId = apiIdToExternalId(reportingSetId)
           }
         }
       }
-      Operand.OperandCase.OPERAND_NOT_SET -> internalOperand {}
+      Operand.OperandCase.OPERAND_NOT_SET -> InternalMetricKt.SetOperationKt.operand {}
     }
   }
 
@@ -1084,13 +1069,14 @@ class ReportsService(
     setOperationResult: SetOperationResult,
   ): List<MeasurementCalculation> {
     return setOperationResult.weightedMeasurementInfoList.map { weightedMeasurementInfo ->
-      internalMeasurementCalculation {
+      InternalMetricKt.measurementCalculation {
         this.timeInterval = weightedMeasurementInfo.timeInterval.toInternal()
 
-        weightedMeasurements += internalWeightedMeasurement {
-          this.measurementReferenceId = weightedMeasurementInfo.measurementReferenceId
-          coefficient = weightedMeasurementInfo.weightedMeasurement.coefficient
-        }
+        weightedMeasurements +=
+          InternalMetricKt.MeasurementCalculationKt.weightedMeasurement {
+            this.measurementReferenceId = weightedMeasurementInfo.measurementReferenceId
+            coefficient = weightedMeasurementInfo.weightedMeasurement.coefficient
+          }
       }
     }
   }
@@ -1225,18 +1211,19 @@ class ReportsService(
         ) +=
           eventGroupEntry {
             key = eventGroupName
-            value = eventGroupEntryValue {
-              collectionInterval = timeInterval
+            value =
+              EventGroupEntryKt.value {
+                collectionInterval = timeInterval
 
-              val filter =
-                combineEventGroupFilters(
-                  internalReportingSet.filter,
-                  eventGroupFilters[eventGroupName]
-                )
-              if (filter != null) {
-                this.filter = requisitionSpecEventFilter { expression = filter }
+                val filter =
+                  combineEventGroupFilters(
+                    internalReportingSet.filter,
+                    eventGroupFilters[eventGroupName]
+                  )
+                if (filter != null) {
+                  this.filter = eventFilter { expression = filter }
+                }
               }
-            }
           }
       }
     }
@@ -1270,16 +1257,17 @@ class ReportsService(
           }
 
         key = dataProviderName
-        value = dataProviderEntryValue {
-          dataProviderCertificate = dataProvider.certificate
-          dataProviderPublicKey = dataProvider.publicKey
-          encryptedRequisitionSpec =
-            encryptRequisitionSpec(
-              signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
-              EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
-            )
-          nonceHash = hashSha256(requisitionSpec.nonce)
-        }
+        value =
+          DataProviderEntryKt.value {
+            dataProviderCertificate = dataProvider.certificate
+            dataProviderPublicKey = dataProvider.publicKey
+            encryptedRequisitionSpec =
+              encryptRequisitionSpec(
+                signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
+                EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
+              )
+            nonceHash = hashSha256(requisitionSpec.nonce)
+          }
       }
     }
   }
@@ -1418,7 +1406,7 @@ private fun buildInternalMeasurementKeys(
       }
     }
     .map { measurementReferenceId ->
-      internalMeasurementKey {
+      measurementKey {
         this.measurementConsumerReferenceId = measurementConsumerReferenceId
         this.measurementReferenceId = measurementReferenceId
       }
@@ -1529,7 +1517,7 @@ private fun buildDurationVidSamplingInterval(secureRandom: SecureRandom): VidSam
 private fun buildReachAndFrequencyMeasurementSpec(
   maximumFrequencyPerUser: Int
 ): MeasurementSpec.ReachAndFrequency {
-  return measurementSpecReachAndFrequency {
+  return MeasurementSpecKt.reachAndFrequency {
     reachPrivacyParams = differentialPrivacyParams {
       epsilon = REACH_FREQUENCY_REACH_EPSILON
       delta = DIFFERENTIAL_PRIVACY_DELTA
@@ -1546,7 +1534,7 @@ private fun buildReachAndFrequencyMeasurementSpec(
 private fun buildImpressionMeasurementSpec(
   maximumFrequencyPerUser: Int
 ): MeasurementSpec.Impression {
-  return measurementSpecImpression {
+  return MeasurementSpecKt.impression {
     privacyParams = differentialPrivacyParams {
       epsilon = IMPRESSION_EPSILON
       delta = DIFFERENTIAL_PRIVACY_DELTA
@@ -1560,7 +1548,7 @@ private fun buildDurationMeasurementSpec(
   maximumWatchDurationPerUser: Int,
   maximumFrequencyPerUser: Int
 ): MeasurementSpec.Duration {
-  return measurementSpecDuration {
+  return MeasurementSpecKt.duration {
     privacyParams = differentialPrivacyParams {
       epsilon = WATCH_DURATION_EPSILON
       delta = DIFFERENTIAL_PRIVACY_DELTA
@@ -1587,7 +1575,7 @@ private fun SetOperation.Type.toInternal(): InternalSetOperation.Type {
 /** Converts a [WatchDurationParams] to an [InternalWatchDurationParams]. */
 private fun WatchDurationParams.toInternal(): InternalWatchDurationParams {
   val source = this
-  return internalWatchDurationParams {
+  return InternalMetricKt.watchDurationParams {
     maximumFrequencyPerUser = source.maximumFrequencyPerUser
     maximumWatchDurationPerUser = source.maximumWatchDurationPerUser
   }
@@ -1596,13 +1584,15 @@ private fun WatchDurationParams.toInternal(): InternalWatchDurationParams {
 /** Converts a [ImpressionCountParams] to an [InternalImpressionCountParams]. */
 private fun ImpressionCountParams.toInternal(): InternalImpressionCountParams {
   val source = this
-  return internalImpressionCountParams { maximumFrequencyPerUser = source.maximumFrequencyPerUser }
+  return InternalMetricKt.impressionCountParams {
+    maximumFrequencyPerUser = source.maximumFrequencyPerUser
+  }
 }
 
 /** Converts a [FrequencyHistogramParams] to an [InternalFrequencyHistogramParams]. */
 private fun FrequencyHistogramParams.toInternal(): InternalFrequencyHistogramParams {
   val source = this
-  return internalFrequencyHistogramParams {
+  return InternalMetricKt.frequencyHistogramParams {
     maximumFrequencyPerUser = source.maximumFrequencyPerUser
   }
 }
@@ -1691,7 +1681,7 @@ private operator fun Duration.plus(other: Duration): Duration {
 private fun Measurement.Failure.toInternal(): InternalMeasurement.Failure {
   val source = this
 
-  return internalFailure {
+  return InternalMeasurementKt.failure {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     reason =
       when (source.reason) {
@@ -1750,20 +1740,22 @@ private fun aggregateResults(
     }
   }
 
-  return internalMeasurementResult {
+  return InternalMeasurementKt.result {
     if (internalResultsList.first().hasReach()) {
-      this.reach = internalReach { value = reachValue }
+      this.reach = InternalMeasurementKt.ResultKt.reach { value = reachValue }
     }
     if (internalResultsList.first().hasFrequency()) {
-      this.frequency = internalFrequency {
-        relativeFrequencyDistribution.putAll(frequencyDistribution)
-      }
+      this.frequency =
+        InternalMeasurementKt.ResultKt.frequency {
+          relativeFrequencyDistribution.putAll(frequencyDistribution)
+        }
     }
     if (internalResultsList.first().hasImpression()) {
-      this.impression = internalImpression { value = impressionValue }
+      this.impression = InternalMeasurementKt.ResultKt.impression { value = impressionValue }
     }
     if (internalResultsList.first().hasWatchDuration()) {
-      this.watchDuration = internalWatchDuration { value = watchDurationValue }
+      this.watchDuration =
+        InternalMeasurementKt.ResultKt.watchDuration { value = watchDurationValue }
     }
   }
 }
@@ -1772,20 +1764,23 @@ private fun aggregateResults(
 private fun Measurement.Result.toInternal(): InternalMeasurementResult {
   val source = this
 
-  return internalMeasurementResult {
+  return InternalMeasurementKt.result {
     if (source.hasReach()) {
-      this.reach = internalReach { value = source.reach.value }
+      this.reach = InternalMeasurementKt.ResultKt.reach { value = source.reach.value }
     }
     if (source.hasFrequency()) {
-      this.frequency = internalFrequency {
-        relativeFrequencyDistribution.putAll(source.frequency.relativeFrequencyDistributionMap)
-      }
+      this.frequency =
+        InternalMeasurementKt.ResultKt.frequency {
+          relativeFrequencyDistribution.putAll(source.frequency.relativeFrequencyDistributionMap)
+        }
     }
     if (source.hasImpression()) {
-      this.impression = internalImpression { value = source.impression.value }
+      this.impression =
+        InternalMeasurementKt.ResultKt.impression { value = source.impression.value }
     }
     if (source.hasWatchDuration()) {
-      this.watchDuration = internalWatchDuration { value = source.watchDuration.value }
+      this.watchDuration =
+        InternalMeasurementKt.ResultKt.watchDuration { value = source.watchDuration.value }
     }
   }
 }
@@ -1803,7 +1798,7 @@ private fun InternalReport.toReport(): Report {
     MeasurementConsumerKey(source.measurementConsumerReferenceId).toName()
   val eventGroupEntries =
     source.details.eventGroupFiltersMap.map { (eventGroupResourceName, filterPredicate) ->
-      eventGroupUniverseEntry {
+      EventGroupUniverseKt.eventGroupEntry {
         key = eventGroupResourceName
         value = filterPredicate
       }
