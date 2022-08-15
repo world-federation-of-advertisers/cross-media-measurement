@@ -25,7 +25,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.
 private const val MEASUREMENT_CONSUMER_ID = "ACME"
 
 private const val FILTER_EXPRESSION =
-  "privacy_budget.gender.value==0 && privacy_budget.age.value==0 && " +
+  "privacy_budget.gender.value==1 && privacy_budget.age.value==1 && " +
     "banner_ad.gender.value == 1"
 
 @RunWith(JUnit4::class)

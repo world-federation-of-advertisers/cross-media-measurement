@@ -67,7 +67,7 @@ class PrivacyBucketFilterTest {
       LandscapeMask(
         listOf(
           EventGroupSpec(
-            "privacy_budget.age.value in [0] && privacy_budget.gender.value == 1",
+            "privacy_budget.age.value in [1] && privacy_budget.gender.value == 2",
             LocalDate.now(ZoneId.of("UTC")).minusDays(1).atStartOfDay().toLocalDate(),
             LocalDate.now(ZoneId.of("UTC")).atStartOfDay().toLocalDate()
           )
@@ -126,7 +126,7 @@ class PrivacyBucketFilterTest {
       LandscapeMask(
         listOf(
           EventGroupSpec(
-            "privacy_budget.age.value in [0] && privacy_budget.gender.value == 1 && " +
+            "privacy_budget.age.value in [1] && privacy_budget.gender.value == 2 && " +
               "banner_ad.gender.value == 1",
             LocalDate.now(ZoneId.of("UTC")).minusDays(1).atStartOfDay().toLocalDate(),
             LocalDate.now(ZoneId.of("UTC")).atStartOfDay().toLocalDate()
@@ -186,7 +186,7 @@ class PrivacyBucketFilterTest {
       LandscapeMask(
         listOf(
           EventGroupSpec(
-            "privacy_budget.age.value in [0] ",
+            "privacy_budget.age.value in [1] ",
             LocalDate.now(ZoneId.of("UTC")).minusDays(1).atStartOfDay().toLocalDate(),
             LocalDate.now(ZoneId.of("UTC")).atStartOfDay().toLocalDate()
           )
