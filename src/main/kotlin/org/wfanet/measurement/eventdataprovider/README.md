@@ -1,8 +1,8 @@
 # Event Data Provider (EDP) Guide
 
 The code under this directory represents processes that happen at individual 
-EDP and thus are reference implementations. Any EDP can 
-change the implementation. Although this code represents a good alternative and 
+EDPs and thus are reference implementations. Any EDP can 
+change the implementation. This code represents a good alternative and 
 would work out of the box without any significant changes needed.
 
 ## Event Filtration
@@ -11,7 +11,7 @@ Event Filters are [CEL](https://github.com/google/cel-spec) expressions.
 The fields of these CEL expressions are defined in market specifics event templates ([examples](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing)).
 <br />This code provides validation and filtration support for these expressions. The recommended way to filter events is to map them to 
 an [event proto](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/test_event.proto#L26) (note that this proto is just an example and in production, event proto will be market specific)
-and simply use the filtering function ([example](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/test/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration/EventFiltersTest.kt#L46)).
+and simply [use the filtering function](https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/src/test/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration/EventFiltersTest.kt#L46).
 
 ## Privacy Budget management (PBM)
 
