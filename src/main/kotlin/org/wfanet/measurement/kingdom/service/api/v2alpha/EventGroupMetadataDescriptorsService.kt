@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.BatchGetEventGroupMetadataDescriptorsRequest
@@ -80,9 +81,17 @@ class EventGroupMetadataDescriptorsService(
       externalEventGroupMetadataDescriptorId = apiIdToExternalId(key.eventGroupMetadataDescriptorId)
     }
 
-    return internalEventGroupMetadataDescriptorsStub
-      .getEventGroupMetadataDescriptor(getRequest)
-      .toEventGroupMetadataDescriptor()
+    val internalEventGroupMetadataDescriptor =
+      try {
+        internalEventGroupMetadataDescriptorsStub.getEventGroupMetadataDescriptor(getRequest)
+      } catch (ex: StatusRuntimeException) {
+        when (ex.status) {
+          Status.NOT_FOUND ->
+            failGrpc(Status.NOT_FOUND, ex) { "EventGroupMetadataDescriptor not found" }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
+      }
+    return internalEventGroupMetadataDescriptor.toEventGroupMetadataDescriptor()
   }
 
   override suspend fun createEventGroupMetadataDescriptor(
@@ -108,11 +117,18 @@ class EventGroupMetadataDescriptorsService(
       }
     }
 
-    return internalEventGroupMetadataDescriptorsStub
-      .createEventGroupMetadataDescriptor(
-        request.eventGroupMetadataDescriptor.toInternal(parentKey.dataProviderId)
-      )
-      .toEventGroupMetadataDescriptor()
+    val createRequest = request.eventGroupMetadataDescriptor.toInternal(parentKey.dataProviderId)
+    val internalEventGroupMetadataDescriptor =
+      try {
+        internalEventGroupMetadataDescriptorsStub.createEventGroupMetadataDescriptor(createRequest)
+      } catch (ex: StatusRuntimeException) {
+        when (ex.status) {
+          Status.NOT_FOUND ->
+            failGrpc(Status.NOT_FOUND, ex) { "EventGroupMetadataDescriptor not found" }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
+      }
+    return internalEventGroupMetadataDescriptor.toEventGroupMetadataDescriptor()
   }
 
   override suspend fun updateEventGroupMetadataDescriptor(
@@ -140,17 +156,26 @@ class EventGroupMetadataDescriptorsService(
       }
     }
 
-    return internalEventGroupMetadataDescriptorsStub
-      .updateEventGroupMetadataDescriptor(
-        updateEventGroupMetadataDescriptorRequest {
-          eventGroupMetadataDescriptor =
-            request.eventGroupMetadataDescriptor.toInternal(
-              eventGroupMetadataDescriptorKey.dataProviderId,
-              eventGroupMetadataDescriptorKey.eventGroupMetadataDescriptorId
-            )
+    val updateRequest = updateEventGroupMetadataDescriptorRequest {
+      eventGroupMetadataDescriptor =
+        request.eventGroupMetadataDescriptor.toInternal(
+          eventGroupMetadataDescriptorKey.dataProviderId,
+          eventGroupMetadataDescriptorKey.eventGroupMetadataDescriptorId
+        )
+    }
+    val internalEventGroupMetadataDescriptor =
+      try {
+        internalEventGroupMetadataDescriptorsStub.updateEventGroupMetadataDescriptor(updateRequest)
+      } catch (ex: StatusRuntimeException) {
+        when (ex.status) {
+          Status.INVALID_ARGUMENT ->
+            failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid." }
+          Status.NOT_FOUND ->
+            failGrpc(Status.NOT_FOUND, ex) { "EventGroupMetadataDescriptor not found" }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
         }
-      )
-      .toEventGroupMetadataDescriptor()
+      }
+    return internalEventGroupMetadataDescriptor.toEventGroupMetadataDescriptor()
   }
 
   override suspend fun batchGetEventGroupMetadataDescriptors(

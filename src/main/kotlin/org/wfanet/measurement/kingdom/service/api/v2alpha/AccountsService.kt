@@ -16,7 +16,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.gson.JsonParser
 import io.grpc.Status
-import io.grpc.StatusException
+import io.grpc.StatusRuntimeException
 import java.io.IOException
 import java.security.GeneralSecurityException
 import org.wfanet.measurement.api.AccountConstants
@@ -88,10 +88,15 @@ class AccountsService(
     val result =
       try {
         internalAccountsStub.createAccount(internalCreateAccountRequest)
-      } catch (ex: StatusException) {
-        throw ex
-      } catch (ex: Throwable) {
-        failGrpc(Status.UNKNOWN) { "Unknown exception from internal createAccount." }
+      } catch (ex: StatusRuntimeException) {
+        when (ex.status) {
+          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Creator's Account not found." }
+          Status.PERMISSION_DENIED ->
+            failGrpc(Status.PERMISSION_DENIED, ex) {
+              "Caller does not own the owned measurement consumer."
+            }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
       }
 
     return result.toAccount()
@@ -130,10 +135,18 @@ class AccountsService(
     val result =
       try {
         internalAccountsStub.activateAccount(internalActivateAccountRequest)
-      } catch (ex: StatusException) {
-        throw ex
-      } catch (ex: Throwable) {
-        failGrpc(Status.UNKNOWN) { "Unknown exception from internal activateAccount." }
+      } catch (ex: StatusRuntimeException) {
+        when (ex.status) {
+          Status.PERMISSION_DENIED ->
+            failGrpc(Status.PERMISSION_DENIED, ex) {
+              "Activation token is not valid for this account."
+            }
+          Status.FAILED_PRECONDITION ->
+            failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition." }
+          Status.NOT_FOUND ->
+            failGrpc(Status.NOT_FOUND, ex) { "Account to activate has not been found." }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
       }
 
     // method only returns the basic account view so some fields are cleared
@@ -169,10 +182,13 @@ class AccountsService(
     val result =
       try {
         internalAccountsStub.replaceAccountIdentity(internalReplaceAccountIdentityRequest)
-      } catch (ex: StatusException) {
-        throw ex
-      } catch (ex: Throwable) {
-        failGrpc(Status.UNKNOWN) { "Unknown exception from internal replaceAccountIdentity." }
+      } catch (ex: StatusRuntimeException) {
+        when (ex.status) {
+          Status.FAILED_PRECONDITION ->
+            failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition." }
+          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Account was not found." }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
       }
 
     // method only returns the basic account view so some fields are cleared
@@ -183,13 +199,7 @@ class AccountsService(
     grpcRequire(request.issuer.isNotBlank()) { "Issuer unspecified" }
 
     val openIdRequestParams =
-      try {
-        internalAccountsStub.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
-      } catch (ex: StatusException) {
-        throw ex
-      } catch (ex: Throwable) {
-        failGrpc(Status.UNKNOWN) { "Unknown exception from internal replaceAccountIdentity." }
-      }
+      internalAccountsStub.generateOpenIdRequestParams(generateOpenIdRequestParamsRequest {})
 
     var uriString = ""
     if (request.issuer == SELF_ISSUED_ISSUER) {

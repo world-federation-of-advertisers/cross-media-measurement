@@ -16,7 +16,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.protobuf.InvalidProtocolBufferException
 import io.grpc.Status
-import io.grpc.StatusException
+import io.grpc.StatusRuntimeException
 import java.util.AbstractMap
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
@@ -88,10 +88,11 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
     val internalMeasurement =
       try {
         internalMeasurementsStub.getMeasurement(internalGetMeasurementRequest)
-      } catch (ex: StatusException) {
-        throw ex
-      } catch (ex: Throwable) {
-        failGrpc(Status.UNKNOWN) { "Unknow exception from internal getMeasurement." }
+      } catch (ex: StatusRuntimeException) {
+        when (ex.status) {
+          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Measurement not found" }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
       }
 
     return internalMeasurement.toMeasurement()
@@ -144,19 +145,24 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
       "nonce_hash list size is not equal to the data_providers list size."
     }
 
+    val createRequest =
+      request.measurement.toInternal(
+        measurementConsumerCertificateKey,
+        dataProvidersMap,
+        parsedMeasurementSpec
+      )
     val internalMeasurement =
       try {
-        internalMeasurementsStub.createMeasurement(
-          request.measurement.toInternal(
-            measurementConsumerCertificateKey,
-            dataProvidersMap,
-            parsedMeasurementSpec
-          )
-        )
-      } catch (ex: StatusException) {
-        throw ex
-      } catch (ex: Throwable) {
-        failGrpc(Status.UNKNOWN) { "Unknown exception from internal createMeasurement." }
+        internalMeasurementsStub.createMeasurement(createRequest)
+      } catch (ex: StatusRuntimeException) {
+        when (ex.status) {
+          Status.INVALID_ARGUMENT ->
+            failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid" }
+          Status.FAILED_PRECONDITION ->
+            failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition" }
+          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "MeasurementConsumer not found." }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
       }
 
     return internalMeasurement.toMeasurement()
@@ -179,15 +185,9 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
     }
 
     val results: List<InternalMeasurement> =
-      try {
-        internalMeasurementsStub
-          .streamMeasurements(listMeasurementsPageToken.toStreamMeasurementsRequest())
-          .toList()
-      } catch (ex: StatusException) {
-        throw ex
-      } catch (ex: Throwable) {
-        failGrpc(Status.UNKNOWN) { "Unknown exception from internal steamMeasurement." }
-      }
+      internalMeasurementsStub
+        .streamMeasurements(listMeasurementsPageToken.toStreamMeasurementsRequest())
+        .toList()
 
     if (results.isEmpty()) {
       return ListMeasurementsResponse.getDefaultInstance()
@@ -230,10 +230,15 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
     val internalMeasurement =
       try {
         internalMeasurementsStub.cancelMeasurement(internalCancelMeasurementRequest)
-      } catch (ex: StatusException) {
-        throw ex
-      } catch (ex: Throwable) {
-        failGrpc(Status.UNKNOWN) { "Unknown exception from internal cancelMeasurement." }
+      } catch (ex: StatusRuntimeException) {
+        when (ex.status) {
+          Status.INVALID_ARGUMENT ->
+            failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid" }
+          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Measurement not found." }
+          Status.FAILED_PRECONDITION ->
+            failGrpc(Status.FAILED_PRECONDITION, ex) { "Measurement state illegal." }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
       }
 
     return internalMeasurement.toMeasurement()
@@ -340,14 +345,7 @@ private fun ListMeasurementsRequest.toListMeasurementsPageToken(): ListMeasureme
   val measurementStatesList = source.filter.statesList
 
   return if (source.pageToken.isNotBlank()) {
-    val pageToken =
-      try {
-        ListMeasurementsPageToken.parseFrom(source.pageToken.base64UrlDecode())
-      } catch (ex: Throwable) {
-        failGrpc(Status.INVALID_ARGUMENT) { "Failed to parse ListMeasurementsPageToken" }
-      }
-
-    pageToken.copy {
+    ListMeasurementsPageToken.parseFrom(source.pageToken.base64UrlDecode()).copy {
       grpcRequire(this.externalMeasurementConsumerId == externalMeasurementConsumerId) {
         "Arguments must be kept the same when using a page token"
       }
