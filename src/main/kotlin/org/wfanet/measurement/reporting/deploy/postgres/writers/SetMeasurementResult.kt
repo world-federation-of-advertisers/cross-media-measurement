@@ -66,7 +66,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
     transactionContext.run {
       val numRowsUpdated = executeStatement(updateMeasurementStatement).numRowsUpdated
       if (numRowsUpdated == 0L) {
-        throw MeasurementNotFoundException()
+        return@run
       }
 
       val measurementResultsMap = mutableMapOf<String, MeasurementResultsReader.Result>()

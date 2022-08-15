@@ -19,14 +19,8 @@ import org.wfanet.measurement.internal.reporting.Measurement
 import org.wfanet.measurement.internal.reporting.Report
 import org.wfanet.measurement.internal.reporting.SetMeasurementFailureRequest
 import org.wfanet.measurement.internal.reporting.measurement
-import org.wfanet.measurement.reporting.service.internal.MeasurementNotFoundException
 
-/**
- * Update a [Measurement] to be in a failure state along with any dependent [Report].
- *
- * Throws the following on [execute]:
- * * [MeasurementNotFoundException] Measurement not found.
- */
+/** Update a [Measurement] to be in a failure state along with any dependent [Report]. */
 class SetMeasurementFailure(private val request: SetMeasurementFailureRequest) :
   PostgresWriter<Measurement>() {
   override suspend fun TransactionScope.runTransaction(): Measurement {
@@ -66,7 +60,7 @@ class SetMeasurementFailure(private val request: SetMeasurementFailureRequest) :
     transactionContext.run {
       val numRowsUpdated = executeStatement(updateMeasurementStatement).numRowsUpdated
       if (numRowsUpdated == 0L) {
-        throw MeasurementNotFoundException()
+        return@run
       }
       executeStatement(updateReportStatement)
     }

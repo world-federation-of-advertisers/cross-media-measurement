@@ -64,10 +64,6 @@ class PostgresMeasurementsService(
   }
 
   override suspend fun setMeasurementFailure(request: SetMeasurementFailureRequest): Measurement {
-    return try {
-      SetMeasurementFailure(request).execute(client, idGenerator)
-    } catch (e: MeasurementNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Measurement not found." }
-    }
+    return SetMeasurementFailure(request).execute(client, idGenerator)
   }
 }

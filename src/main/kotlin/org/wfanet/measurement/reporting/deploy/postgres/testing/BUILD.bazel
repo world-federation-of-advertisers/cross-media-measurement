@@ -3,6 +3,7 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 package(
     default_testonly = True,
     default_visibility = [
+        "//src/test/kotlin/org/wfanet/measurement/integration/postgres:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/reporting/deploy/postgres:__subpackages__",
     ],
 )
