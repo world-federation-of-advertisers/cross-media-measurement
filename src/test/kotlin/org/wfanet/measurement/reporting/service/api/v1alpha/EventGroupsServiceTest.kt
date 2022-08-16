@@ -150,7 +150,7 @@ private const val DATA_PROVIDER_REFERENCE_ID = "123"
 private const val DATA_PROVIDER_NAME = "dataProviders/$DATA_PROVIDER_REFERENCE_ID"
 private const val EVENT_GROUP_REFERENCE_ID = "edpRefId1"
 private const val EVENT_GROUP_PARENT =
-  "measurementConsumers/$MEASUREMENT_CONSUMER_REFERENCE_ID/dataProviders/$DATA_PROVIDER_REFERENCE_ID/eventGroups/$EVENT_GROUP_REFERENCE_ID"
+  "measurementConsumers/$MEASUREMENT_CONSUMER_REFERENCE_ID/dataProviders/$DATA_PROVIDER_REFERENCE_ID"
 private const val METADATA_NAME = "$DATA_PROVIDER_NAME/eventGroupMetadataDescriptors/abc"
 private val EVENT_GROUP_METADATA_DESCRIPTOR = eventGroupMetadataDescriptor {
   name = METADATA_NAME
