@@ -67,11 +67,10 @@ class CsvEventQueryTest {
 
   @Test
   fun `filters matching conditions`() {
-    val matchingVids = listOf(1000650, 1000997, 1001028, 1001096, 1001096, 1001289)
+    val matchingVids = listOf(1000650L, 1000997L, 1001028L, 1001096L, 1001096L, 1001289L)
     val eventQuery = CsvEventQuery("edp1")
     eventQuery.readCSVData(EVENTS)
     val userVids = eventQuery.getUserVirtualIds(MATCHING_EVENT_FILTER)
-    val expectedVids = matchingVids.map { it.toLong() }
-    assertThat(userVids.toList().sorted()).isEqualTo(expectedVids.sorted())
+    assertThat(userVids.toList().sorted()).isEqualTo(matchingVids.sorted())
   }
 }
