@@ -191,7 +191,7 @@ bazel run //src/main/k8s/local:edp_simulators_kind \
   --define=event_query=<TypeOfEventQuery>
 ```
 
-In the command, you can specify the type of `event_query` you want to use. The
+In the command, you will specify the type of `event_query` you want to use. The
 default is `randomEventQuery` which will generate random VIDs for each edp. You
 can use `csvEventQuery` to query VIDs from a CSV file for each edp.
 

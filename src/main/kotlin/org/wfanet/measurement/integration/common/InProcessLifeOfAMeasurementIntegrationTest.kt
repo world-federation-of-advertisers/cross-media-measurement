@@ -218,39 +218,38 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
       frontendSimulator.executeReachAndFrequency("1234")
     }
 
-  // @Test
-  // fun `create a direct RF measurement and check the result is equal to the expected result`() =
-  //   runBlocking {
-  //     // Wait until all EDPs finish creating eventGroups before the test starts.
-  //     val eventGroupList = pollForEventGroups()
-  //     assertThat(eventGroupList).isNotNull()
-  //
-  //     // Use frontend simulator to create a reach and frequency measurement and verify its
-  // result.
-  //     frontendSimulator.executeDirectReachAndFrequency("1234")
-  //   }
-  //
-  // @Test
-  // fun `create an impression measurement and check the result is equal to the expected result`() =
-  //   runBlocking {
-  //     // Wait until all EDPs finish creating eventGroups before the test starts.
-  //     val eventGroupList = pollForEventGroups()
-  //     assertThat(eventGroupList).isNotNull()
-  //
-  //     // Use frontend simulator to create an impression measurement and verify its result.
-  //     frontendSimulator.executeImpression("1234")
-  //   }
-  //
-  // @Test
-  // fun `create a duration measurement and check the result is equal to the expected result`() =
-  //   runBlocking {
-  //     // Wait until all EDPs finish creating eventGroups before the test starts.
-  //     val eventGroupList = pollForEventGroups()
-  //     assertThat(eventGroupList).isNotNull()
-  //
-  //     // Use frontend simulator to create a duration measurement and verify its result.
-  //     frontendSimulator.executeDuration("1234")
-  //   }
+  @Test
+  fun `create a direct RF measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      // Wait until all EDPs finish creating eventGroups before the test starts.
+      val eventGroupList = pollForEventGroups()
+      assertThat(eventGroupList).isNotNull()
+
+      // Use frontend simulator to create a reach and frequency measurement and verify its result.
+      frontendSimulator.executeDirectReachAndFrequency("1234")
+    }
+
+  @Test
+  fun `create an impression measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      // Wait until all EDPs finish creating eventGroups before the test starts.
+      val eventGroupList = pollForEventGroups()
+      assertThat(eventGroupList).isNotNull()
+
+      // Use frontend simulator to create an impression measurement and verify its result.
+      frontendSimulator.executeImpression("1234")
+    }
+
+  @Test
+  fun `create a duration measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      // Wait until all EDPs finish creating eventGroups before the test starts.
+      val eventGroupList = pollForEventGroups()
+      assertThat(eventGroupList).isNotNull()
+
+      // Use frontend simulator to create a duration measurement and verify its result.
+      frontendSimulator.executeDuration("1234")
+    }
 
   private suspend fun pollForEventGroups() {
     pollFor(timeoutMillis = 10_000) {

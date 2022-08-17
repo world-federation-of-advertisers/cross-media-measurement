@@ -27,7 +27,7 @@ def wfa_measurement_system_repositories():
         sha256 = None,
         # DO_NOT_SUBMIT
         # version = "0.39.0",
-        commit = "2421af12775ad40fc914251111a29ded5d7243c5",
+        commit = "90fb9ccafcd2e499e4b2dd88fbc938a58a6ef307",
     )
 
     wfa_repo_archive(
