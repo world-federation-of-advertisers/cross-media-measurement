@@ -79,10 +79,10 @@ edpSimulators: {
 				resources: {
 					limits: {
 						cpu:    cpu | *"400m"
-						memory: "2Gi"
+						memory: "1Gi"
 					}
 				}
-				jvmHeapSize: "1584m"
+				jvmHeapSize: "584m"
 			}
 		}
 	}
