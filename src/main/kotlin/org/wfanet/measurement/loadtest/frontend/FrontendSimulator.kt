@@ -21,10 +21,8 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.logging.Logger
-import kotlin.math.min
 import kotlin.random.Random
 import kotlinx.coroutines.delay
-import org.apache.commons.math3.distribution.LaplaceDistribution
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchProtos
@@ -134,14 +132,13 @@ class FrontendSimulator(
     )
 
     // Get the CMMS computed result and compare it with the expected result.
-    var reachAndFrequencyResult =
-      getReachAndFrequencyResult(createdReachAndFrequencyMeasurement.name)
-    while (reachAndFrequencyResult == null) {
+    var mpcResult = getComputedResult(createdReachAndFrequencyMeasurement.name)
+    while (mpcResult == null) {
       logger.info("Computation not done yet, wait for another 30 seconds.")
       delay(Duration.ofSeconds(30).toMillis())
-      reachAndFrequencyResult = getReachAndFrequencyResult(createdReachAndFrequencyMeasurement.name)
+      mpcResult = getComputedResult(createdReachAndFrequencyMeasurement.name)
     }
-    logger.info("Got reach and frequency result from Kingdom: $reachAndFrequencyResult")
+    logger.info("Got computed result from Kingdom: $mpcResult")
 
     val liquidLegionV2Protocol = createdReachAndFrequencyMeasurement.protocolConfig.liquidLegionsV2
     val expectedResult =
@@ -150,59 +147,10 @@ class FrontendSimulator(
 
     assertDpResultsEqual(
       expectedResult,
-      reachAndFrequencyResult,
+      mpcResult,
       liquidLegionV2Protocol.maximumFrequency.toLong()
     )
-    logger.info(
-      "Reach and frequency result is equal to the expected result. Correctness Test passes."
-    )
-  }
-
-  suspend fun executeDirectReachAndFrequency(runId: String) {
-    // Create a new measurement on behalf of the measurement consumer.
-    val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
-    val createdReachAndFrequencyMeasurement =
-      createMeasurement(measurementConsumer, runId, ::newReachAndFrequencyMeasurementSpec, 1)
-    logger.info(
-      "Created reach and frequency measurement ${createdReachAndFrequencyMeasurement.name}."
-    )
-
-    // Get the CMMS computed result and compare it with the expected result.
-    var reachAndFrequencyResult =
-      getReachAndFrequencyResult(createdReachAndFrequencyMeasurement.name)
-    while (reachAndFrequencyResult == null) {
-      logger.info("Computation not done yet, wait for another 30 seconds.")
-      delay(Duration.ofSeconds(30).toMillis())
-      reachAndFrequencyResult = getReachAndFrequencyResult(createdReachAndFrequencyMeasurement.name)
-    }
-    logger.info("Got reach and frequency result from Kingdom: $reachAndFrequencyResult")
-
-    // EdpSimulator sets to those values.
-    val reachValue = 1000L
-    val frequencyMap = mapOf(1L to 0.5, 2L to 0.25, 3L to 0.25)
-
-    val laplaceForReach = LaplaceDistribution(0.0, 1 / outputDpParams.epsilon)
-    laplaceForReach.reseedRandomGenerator(1)
-    val laplaceForFrequency = LaplaceDistribution(0.0, 1 / outputDpParams.epsilon)
-    laplaceForFrequency.reseedRandomGenerator(1)
-
-    // EdpSimulator sets to those noised values.
-    val expectedReachNoisedValue = reachValue + laplaceForReach.sample().toInt()
-    val expectedFrequencyNoisedMap = mutableMapOf<Long, Double>()
-    frequencyMap.forEach { (key, frequency) ->
-      expectedFrequencyNoisedMap[key] =
-        (frequency * reachValue.toDouble() + laplaceForFrequency.sample()) / reachValue.toDouble()
-    }
-
-    assertThat(reachAndFrequencyResult.reach.value).isEqualTo(expectedReachNoisedValue)
-    reachAndFrequencyResult.frequency.relativeFrequencyDistributionMap.forEach { (key, frequency) ->
-      assertThat(frequency).isEqualTo(expectedFrequencyNoisedMap[key])
-    }
-
-    logger.info(
-      "Direct reach and frequency result is equal to the expected result. " +
-        "Correctness Test passes."
-    )
+    logger.info("Computed result is equal to the expected result. Correctness Test passes.")
   }
 
   /** A sequence of operations done in the simulator involving an impression measurement. */
@@ -280,11 +228,10 @@ class FrontendSimulator(
       (
         serializedMeasurementPublicKey: ByteString,
         nonceHashes: MutableList<ByteString>
-      ) -> MeasurementSpec,
-    numberOfEdp: Int = 20,
+      ) -> MeasurementSpec
   ): Measurement {
-    var eventGroups = listEventGroups(measurementConsumer.name)
-    eventGroups = eventGroups.subList(0, min(numberOfEdp, eventGroups.size))
+    val eventGroups = listEventGroups(measurementConsumer.name)
+
     val nonceHashes = mutableListOf<ByteString>()
     val dataProviderEntries =
       eventGroups.map {
@@ -339,7 +286,7 @@ class FrontendSimulator(
   }
 
   /** Gets the result of a [Measurement] if it is succeeded. */
-  private suspend fun getReachAndFrequencyResult(measurementName: String): Result? {
+  private suspend fun getComputedResult(measurementName: String): Result? {
     val measurement =
       measurementsClient
         .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)

@@ -54,7 +54,6 @@ kt_jvm_library(
         "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
         "@any_sketch_java//src/main/java/org/wfanet/sampling:vid_sampler",
         "@wfa_common_jvm//imports/java/com/google/cloud/bigquery",
-        "@wfa_common_jvm//imports/java/org/apache/commons:math3",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:key_storage",

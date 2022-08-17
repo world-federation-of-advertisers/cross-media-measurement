@@ -128,7 +128,7 @@ private val UPDATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
 @RunWith(JUnit4::class)
 class MeasurementsServiceTest {
   private val internalMeasurementsMock: MeasurementsGrpcKt.MeasurementsCoroutineImplBase =
-    mockService {
+    mockService() {
       onBlocking { createMeasurement(any()) }.thenReturn(INTERNAL_MEASUREMENT)
       onBlocking { getMeasurement(any()) }.thenReturn(INTERNAL_MEASUREMENT)
       onBlocking { streamMeasurements(any()) }
@@ -230,12 +230,14 @@ class MeasurementsServiceTest {
   }
 
   @Test
-  fun `createMeasurement with RF type single EDP returns measurement with resource name set`() {
+  fun `createMeasurement with RF type returns measurement with resource name set`() {
     val request = createMeasurementRequest { measurement = MEASUREMENT }
+
     val result =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
         runBlocking { service.createMeasurement(request) }
       }
+
     val expected = MEASUREMENT
 
     verifyProtoArgument(
@@ -246,93 +248,7 @@ class MeasurementsServiceTest {
         INTERNAL_MEASUREMENT.copy {
           clearUpdateTime()
           clearExternalMeasurementId()
-          details =
-            details.copy {
-              clearFailure()
-              clearProtocolConfig()
-              clearDuchyProtocolConfig()
-            }
-          results.clear()
-        }
-      )
-
-    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
-  }
-
-  @Test
-  fun `createMeasurement with RF type two EDP returns measurement with resource name set`() {
-    var measurementWithTwoEdp =
-      MEASUREMENT.copy {
-        dataProviders += dataProviderEntry {
-          key = makeDataProvider(456L)
-          value = value {
-            dataProviderCertificate = "dataProviders/AAAAAAAAAcg/certificates/AAAAAAAAAcg"
-            dataProviderPublicKey = signedData {
-              data = UPDATE_TIME.toByteString()
-              signature = UPDATE_TIME.toByteString()
-            }
-            encryptedRequisitionSpec = UPDATE_TIME.toByteString()
-            nonceHash = DATA_PROVIDER_NONCE_HASH
-          }
-        }
-        measurementSpec = signedData {
-          data =
-            MEASUREMENT_SPEC.copy { nonceHashes += ByteString.copyFromUtf8("bar") }.toByteString()
-          signature = UPDATE_TIME.toByteString()
-        }
-      }
-
-    val dataProviderMap =
-      measurementWithTwoEdp.dataProvidersList.associateBy(
-        { apiIdToExternalId(DataProviderKey.fromName(it.key)!!.dataProviderId) },
-        {
-          InternalMeasurementKt.dataProviderValue {
-            externalDataProviderCertificateId =
-              apiIdToExternalId(
-                DataProviderCertificateKey.fromName(it.value.dataProviderCertificate)!!
-                  .certificateId
-              )
-            dataProviderPublicKey = it.value.dataProviderPublicKey.data
-            dataProviderPublicKeySignature = it.value.dataProviderPublicKey.signature
-            encryptedRequisitionSpec = it.value.encryptedRequisitionSpec
-            nonceHash = it.value.nonceHash
-          }
-        }
-      )
-    runBlocking {
-      whenever(internalMeasurementsMock.createMeasurement(any()))
-        .thenReturn(
-          INTERNAL_MEASUREMENT.copy {
-            dataProviders.clear()
-            dataProviders.putAll(dataProviderMap)
-            details = details.copy { measurementSpec = measurementWithTwoEdp.measurementSpec.data }
-          }
-        )
-    }
-
-    val request = createMeasurementRequest { measurement = measurementWithTwoEdp }
-    val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-        runBlocking { service.createMeasurement(request) }
-      }
-    val expected = measurementWithTwoEdp
-
-    verifyProtoArgument(
-        internalMeasurementsMock,
-        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement
-      )
-      .isEqualTo(
-        INTERNAL_MEASUREMENT.copy {
-          clearUpdateTime()
-          clearExternalMeasurementId()
-          dataProviders.clear()
-          dataProviders.putAll(dataProviderMap)
-          details =
-            details.copy {
-              clearFailure()
-              measurementSpec = measurementWithTwoEdp.measurementSpec.data
-            }
-
+          details = details.copy { clearFailure() }
           results.clear()
         }
       )
@@ -546,7 +462,7 @@ class MeasurementsServiceTest {
   }
 
   @Test
-  fun `createMeasurement throws INVALID_ARGUMENT when RF reach privacy params are missing`() {
+  fun `createMeasurement throws INVALID_ARGUMENT when reach privacy params are missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
@@ -580,7 +496,7 @@ class MeasurementsServiceTest {
   }
 
   @Test
-  fun `createMeasurement throws INVALID_ARGUMENT when RF frequency privacy params are missing`() {
+  fun `createMeasurement throws INVALID_ARGUMENT when frequency privacy params are missing`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
