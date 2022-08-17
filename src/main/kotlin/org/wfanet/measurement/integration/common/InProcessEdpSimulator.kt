@@ -32,9 +32,10 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.InMemory
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
-import org.wfanet.measurement.loadtest.dataprovider.CsvEventQuery
 import org.wfanet.measurement.loadtest.dataprovider.EdpData
 import org.wfanet.measurement.loadtest.dataprovider.EdpSimulator
+import org.wfanet.measurement.loadtest.dataprovider.RandomEventQuery
+import org.wfanet.measurement.loadtest.dataprovider.SketchGenerationParams
 import org.wfanet.measurement.loadtest.storage.SketchStore
 import org.wfanet.measurement.storage.StorageClient
 
@@ -72,9 +73,8 @@ class InProcessEdpSimulator(
             requisitionsStub = requisitionsClient.withPrincipalName(edpData.name),
             requisitionFulfillmentStub = requisitionFulfillmentClient,
             sketchStore = SketchStore(storageClient),
-            // eventQuery =
-            //   RandomEventQuery(SketchGenerationParams(reach = 1000, universeSize = 10_000)),
-            eventQuery = CsvEventQuery(displayName),
+            eventQuery =
+              RandomEventQuery(SketchGenerationParams(reach = 1000, universeSize = 10_000)),
             throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
             eventTemplateNames = eventTemplateNames,
             PrivacyBudgetManager(
