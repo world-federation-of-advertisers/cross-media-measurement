@@ -25,7 +25,6 @@ java_binary(
 
 java_image(
     name = "filesystem_example_daemon_image",
-    data = ["@grpc_health_probe//file"],
     main_class = "org.wfanet.panelmatch.client.deploy.filesystem.FilesystemExampleDaemonMainKt",
     runtime_deps = [":filesystem"],
 )
