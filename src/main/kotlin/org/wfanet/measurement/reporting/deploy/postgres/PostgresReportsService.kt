@@ -15,8 +15,13 @@
 package org.wfanet.measurement.reporting.deploy.postgres
 
 import io.grpc.Status
+import io.r2dbc.postgresql.api.PostgresqlException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.retry
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.internal.reporting.CreateReportRequest
@@ -48,14 +53,24 @@ class PostgresReportsService(
   }
 
   override suspend fun getReport(request: GetReportRequest): Report {
-    try {
-      return ReportReader()
-        .getReportByExternalId(
-          client.singleUse(),
-          request.measurementConsumerReferenceId,
-          request.externalReportId
-        )
-        .report
+    return try {
+      flow {
+          emit(
+            ReportReader()
+              .getReportByExternalId(
+                client.singleUse(),
+                request.measurementConsumerReferenceId,
+                request.externalReportId
+              )
+              .report
+          )
+        }
+        .retry(5) { e ->
+          (e is PostgresqlException &&
+              e.errorDetails.code == PostgresErrorCodes.SERIALIZABLE_ERROR_CODE)
+            .also { if (it) delay(200) }
+        }
+        .first()
     } catch (e: ReportNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "Report not found" }
     }
@@ -64,22 +79,37 @@ class PostgresReportsService(
   override suspend fun getReportByIdempotencyKey(
     request: GetReportByIdempotencyKeyRequest
   ): Report {
-    try {
-      return ReportReader()
-        .getReportByIdempotencyKey(
-          client.singleUse(),
-          request.measurementConsumerReferenceId,
-          request.reportIdempotencyKey
-        )
-        .report
+    return try {
+      flow {
+          emit(
+            ReportReader()
+              .getReportByIdempotencyKey(
+                client.singleUse(),
+                request.measurementConsumerReferenceId,
+                request.reportIdempotencyKey
+              )
+              .report
+          )
+        }
+        .retry(5) { e ->
+          (e is PostgresqlException &&
+              e.errorDetails.code == PostgresErrorCodes.SERIALIZABLE_ERROR_CODE)
+            .also { if (it) delay(200) }
+        }
+        .first()
     } catch (e: ReportNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "Report not found" }
     }
   }
 
   override fun streamReports(request: StreamReportsRequest): Flow<Report> {
-    return ReportReader().listReports(client, request.filter, request.limit).map { result ->
-      result.report
-    }
+    return ReportReader()
+      .listReports(client, request.filter, request.limit)
+      .map { result -> result.report }
+      .retry(5) { e ->
+        (e is PostgresqlException &&
+            e.errorDetails.code == PostgresErrorCodes.SERIALIZABLE_ERROR_CODE)
+          .also { if (it) delay(200) }
+      }
   }
 }

@@ -15,8 +15,13 @@
 package org.wfanet.measurement.reporting.deploy.postgres
 
 import io.grpc.Status
+import io.r2dbc.postgresql.api.PostgresqlException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.retry
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -45,22 +50,36 @@ class PostgresReportingSetsService(
 
   override suspend fun getReportingSet(request: GetReportingSetRequest): ReportingSet {
     return try {
-      ReportingSetReader()
-        .readReportingSetByExternalId(
-          client.singleUse(),
-          request.measurementConsumerReferenceId,
-          ExternalId(request.externalReportingSetId)
-        )
-        .reportingSet
+      flow {
+          emit(
+            ReportingSetReader()
+              .readReportingSetByExternalId(
+                client.singleUse(),
+                request.measurementConsumerReferenceId,
+                ExternalId(request.externalReportingSetId)
+              )
+              .reportingSet
+          )
+        }
+        .retry(5) { e ->
+          (e is PostgresqlException &&
+              e.errorDetails.code == PostgresErrorCodes.SERIALIZABLE_ERROR_CODE)
+            .also { if (it) delay(200) }
+        }
+        .first()
     } catch (e: ReportingSetNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "Reporting Set not found" }
     }
   }
 
   override fun streamReportingSets(request: StreamReportingSetsRequest): Flow<ReportingSet> {
-    return ReportingSetReader().listReportingSets(client, request.filter, request.limit).map {
-      result ->
-      result.reportingSet
-    }
+    return ReportingSetReader()
+      .listReportingSets(client, request.filter, request.limit)
+      .map { result -> result.reportingSet }
+      .retry(5) { e ->
+        (e is PostgresqlException &&
+            e.errorDetails.code == PostgresErrorCodes.SERIALIZABLE_ERROR_CODE)
+          .also { if (it) delay(200) }
+      }
   }
 }
