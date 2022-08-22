@@ -201,9 +201,9 @@ update `fileName` in
 `//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider/CsvEventQuery.kt`
 
 If the CSV data is large, each edp_simulator will need time to import the CSV
-data. In the logs of each `edp-simulator-deployment`, wait for the log `INFO: Executing
-requisitionFulfillingWorkflow...` to show up which indicates it's ready to
-accept requests
+data. In the logs of each `edp-simulator-deployment`, wait for the log `INFO:
+Executing requisitionFulfillingWorkflow...` to show up which indicates it's
+ready to accept requests
 
 ## Deploy MC Frontend Simulator
 
