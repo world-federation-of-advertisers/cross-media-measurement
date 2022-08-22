@@ -17,6 +17,7 @@ package org.wfanet.measurement.reporting.deploy.postgres
 import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.single
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -24,6 +25,7 @@ import org.wfanet.measurement.internal.reporting.GetReportingSetRequest
 import org.wfanet.measurement.internal.reporting.ReportingSet
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.StreamReportingSetsRequest
+import org.wfanet.measurement.reporting.deploy.postgres.PostgresSerializable.withRetries
 import org.wfanet.measurement.reporting.deploy.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.deploy.postgres.writers.CreateReportingSet
 import org.wfanet.measurement.reporting.service.internal.ReportingSetAlreadyExistsException
@@ -45,22 +47,25 @@ class PostgresReportingSetsService(
 
   override suspend fun getReportingSet(request: GetReportingSetRequest): ReportingSet {
     return try {
-      ReportingSetReader()
-        .readReportingSetByExternalId(
-          client.singleUse(),
-          request.measurementConsumerReferenceId,
-          ExternalId(request.externalReportingSetId)
-        )
-        .reportingSet
+      withRetries {
+          ReportingSetReader()
+            .readReportingSetByExternalId(
+              client.singleUse(),
+              request.measurementConsumerReferenceId,
+              ExternalId(request.externalReportingSetId)
+            )
+            .reportingSet
+        }
+        .single()
     } catch (e: ReportingSetNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "Reporting Set not found" }
     }
   }
 
   override fun streamReportingSets(request: StreamReportingSetsRequest): Flow<ReportingSet> {
-    return ReportingSetReader().listReportingSets(client, request.filter, request.limit).map {
-      result ->
-      result.reportingSet
-    }
+    return ReportingSetReader()
+      .listReportingSets(client, request.filter, request.limit)
+      .map { result -> result.reportingSet }
+      .withRetries()
   }
 }

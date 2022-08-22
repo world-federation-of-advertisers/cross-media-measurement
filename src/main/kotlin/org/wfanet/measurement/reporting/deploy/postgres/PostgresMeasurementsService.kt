@@ -15,6 +15,7 @@
 package org.wfanet.measurement.reporting.deploy.postgres
 
 import io.grpc.Status
+import kotlinx.coroutines.flow.single
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.internal.reporting.GetMeasurementRequest
@@ -22,6 +23,7 @@ import org.wfanet.measurement.internal.reporting.Measurement
 import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.SetMeasurementFailureRequest
 import org.wfanet.measurement.internal.reporting.SetMeasurementResultRequest
+import org.wfanet.measurement.reporting.deploy.postgres.PostgresSerializable.withRetries
 import org.wfanet.measurement.reporting.deploy.postgres.readers.MeasurementReader
 import org.wfanet.measurement.reporting.deploy.postgres.writers.CreateMeasurement
 import org.wfanet.measurement.reporting.deploy.postgres.writers.SetMeasurementFailure
@@ -43,13 +45,16 @@ class PostgresMeasurementsService(
 
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
     return try {
-      MeasurementReader()
-        .readMeasurementByReferenceIds(
-          client.singleUse(),
-          request.measurementConsumerReferenceId,
-          request.measurementReferenceId
-        )
-        .measurement
+      withRetries {
+          MeasurementReader()
+            .readMeasurementByReferenceIds(
+              client.singleUse(),
+              request.measurementConsumerReferenceId,
+              request.measurementReferenceId
+            )
+            .measurement
+        }
+        .single()
     } catch (e: MeasurementNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "Measurement not found." }
     }

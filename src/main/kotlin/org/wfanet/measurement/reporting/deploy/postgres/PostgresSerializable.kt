@@ -27,14 +27,17 @@ object PostgresSerializable {
   private const val SERIALIZABLE_ERROR_CODE = "40001"
   @OptIn(ExperimentalTime::class) private val SERIALIZABLE_RETRY_DURATION = 30.seconds
 
-  @OptIn(ExperimentalTime::class)
   fun <T> withRetries(block: suspend () -> T): Flow<T> {
+    return flow { emit(block()) }.withRetries()
+  }
+
+  @OptIn(ExperimentalTime::class)
+  fun <T> Flow<T>.withRetries(): Flow<T> {
     val retryLimit: TimeMark = TimeSource.Monotonic.markNow().plus(SERIALIZABLE_RETRY_DURATION)
-    return flow { emit(block()) }
-      .retry { e ->
-        (retryLimit.hasNotPassedNow() &&
-          e is PostgresqlException &&
-          e.errorDetails.code == SERIALIZABLE_ERROR_CODE)
-      }
+    return this.retry { e ->
+      (retryLimit.hasNotPassedNow() &&
+        e is PostgresqlException &&
+        e.errorDetails.code == SERIALIZABLE_ERROR_CODE)
+    }
   }
 }
