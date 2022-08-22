@@ -291,10 +291,3 @@ k8s_apply(
     imports = REPORTING_IMAGE_IMPORTS,
     tags = ["manual"],
 )
-
-k8s_apply(
-    name = "prometheus_kind",
-    src = ":prometheus",
-    delete_selector = "app.kubernetes.io/component=prometheus",
-    tags = ["manual"],
-)
