@@ -16,7 +16,6 @@ package org.wfanet.measurement.reporting.deploy.postgres.writers
 
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.logging.Logger
-import kotlinx.coroutines.flow.single
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.db.r2dbc.ReadWriteContext
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -65,7 +64,7 @@ abstract class PostgresWriter<T> {
   suspend fun execute(databaseClient: DatabaseClient, idGenerator: IdGenerator): T {
     logger.fine("Running ${this::class.simpleName} transaction")
     check(executed.compareAndSet(false, true)) { "Cannot execute PostgresWriter multiple times" }
-    return withRetries { runTransaction(databaseClient, idGenerator) }.single()
+    return withRetries { runTransaction(databaseClient, idGenerator) }
   }
 
   companion object {

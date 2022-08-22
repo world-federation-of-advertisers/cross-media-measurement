@@ -22,13 +22,14 @@ import kotlin.time.TimeSource
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.retry
+import kotlinx.coroutines.flow.single
 
 object PostgresSerializable {
   private const val SERIALIZABLE_ERROR_CODE = "40001"
-  @OptIn(ExperimentalTime::class) private val SERIALIZABLE_RETRY_DURATION = 30.seconds
+  @OptIn(ExperimentalTime::class) private val SERIALIZABLE_RETRY_DURATION = 120.seconds
 
-  fun <T> withRetries(block: suspend () -> T): Flow<T> {
-    return flow { emit(block()) }.withRetries()
+  suspend fun <T> withRetries(block: suspend () -> T): T {
+    return flow { emit(block()) }.withRetries().single()
   }
 
   @OptIn(ExperimentalTime::class)

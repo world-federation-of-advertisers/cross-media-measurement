@@ -17,7 +17,6 @@ package org.wfanet.measurement.reporting.deploy.postgres
 import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.single
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.internal.reporting.CreateReportRequest
@@ -52,15 +51,14 @@ class PostgresReportsService(
   override suspend fun getReport(request: GetReportRequest): Report {
     try {
       return withRetries {
-          ReportReader()
-            .getReportByExternalId(
-              client.singleUse(),
-              request.measurementConsumerReferenceId,
-              request.externalReportId
-            )
-            .report
-        }
-        .single()
+        ReportReader()
+          .getReportByExternalId(
+            client.singleUse(),
+            request.measurementConsumerReferenceId,
+            request.externalReportId
+          )
+          .report
+      }
     } catch (e: ReportNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "Report not found" }
     }
@@ -71,15 +69,14 @@ class PostgresReportsService(
   ): Report {
     try {
       return withRetries {
-          ReportReader()
-            .getReportByIdempotencyKey(
-              client.singleUse(),
-              request.measurementConsumerReferenceId,
-              request.reportIdempotencyKey
-            )
-            .report
-        }
-        .single()
+        ReportReader()
+          .getReportByIdempotencyKey(
+            client.singleUse(),
+            request.measurementConsumerReferenceId,
+            request.reportIdempotencyKey
+          )
+          .report
+      }
     } catch (e: ReportNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "Report not found" }
     }

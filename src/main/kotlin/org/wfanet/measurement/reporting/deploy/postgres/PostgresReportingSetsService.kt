@@ -17,7 +17,6 @@ package org.wfanet.measurement.reporting.deploy.postgres
 import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.single
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -48,15 +47,14 @@ class PostgresReportingSetsService(
   override suspend fun getReportingSet(request: GetReportingSetRequest): ReportingSet {
     return try {
       withRetries {
-          ReportingSetReader()
-            .readReportingSetByExternalId(
-              client.singleUse(),
-              request.measurementConsumerReferenceId,
-              ExternalId(request.externalReportingSetId)
-            )
-            .reportingSet
-        }
-        .single()
+        ReportingSetReader()
+          .readReportingSetByExternalId(
+            client.singleUse(),
+            request.measurementConsumerReferenceId,
+            ExternalId(request.externalReportingSetId)
+          )
+          .reportingSet
+      }
     } catch (e: ReportingSetNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "Reporting Set not found" }
     }
