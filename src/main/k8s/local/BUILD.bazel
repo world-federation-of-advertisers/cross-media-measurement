@@ -131,15 +131,6 @@ cue_dump(
     ],
 )
 
-cue_dump(
-    name = "prometheus",
-    srcs = ["prometheus.cue"],
-    tags = ["manual"],
-    deps = [
-        "//src/main/k8s:base",
-    ],
-)
-
 [kind_load_image(
     name = "load_" + image.name,
     image_archive = image.image + ".tar",
