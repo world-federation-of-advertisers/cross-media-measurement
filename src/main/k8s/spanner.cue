@@ -18,12 +18,14 @@ package k8s
 	project:       string
 	instance:      string
 	database:      string
+	readyTimeout?: string
 	emulatorHost?: string
 
 	flags: [
 		"--spanner-project=\(project)",
 		"--spanner-instance=\(instance)",
 		"--spanner-database=\(database)",
+		if readyTimeout != _|_ {"--spanner-ready-timeout=\(readyTimeout)"},
 		if emulatorHost != _|_ {"--spanner-emulator-host=\(emulatorHost)"},
 	]
 }

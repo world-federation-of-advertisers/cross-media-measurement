@@ -8,18 +8,38 @@ local KiND cluster. You should have some familiarity with Kubernetes and
 `kubectl`.
 
 Minimum Version Required:
-- KiND: v0.13.0
-- kubernetes server: v1.24.0
-- kubectl: compatible with kubernetes server
 
-Use the default `kind` as the KiND cluster name. The corresponding k8s cluster name is 
-`kind-kind`.
+-   KiND: v0.13.0
+-   kubernetes server: v1.24.0
+-   kubectl: compatible with kubernetes server
+
+Use the default `kind` as the KiND cluster name. The corresponding k8s cluster
+name is `kind-kind`.
 
 Note that some of the targets listed below -- namely, the Duchies and
 simulators -- have requirements regarding the version of glibc in the build
 environment. See [Building](../../../../docs/building.md).
 
 ## Initial Setup
+
+### Set Default Resource Requirements
+
+Apply the following manifest:
+
+```yaml
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: resource-requirements
+spec:
+  limits:
+  - type: Container
+    defaultRequest:
+      cpu: 20m
+    default:
+      cpu: 100m
+      memory: 256Mi
+```
 
 ### Create Secret
 
