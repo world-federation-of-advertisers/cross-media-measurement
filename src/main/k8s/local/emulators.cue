@@ -16,25 +16,23 @@ package k8s
 
 _secret_name: string @tag("secret_name")
 
+#ComponentName: "testing"
+
 objectSets: [
 	services,
 	pods,
 	deployments,
 ]
 
+services: [Name=string]: #Service & {
+	metadata: {
+		_component: #ComponentName
+		name:       Name
+	}
+}
 services: {
 	"spanner-emulator": {
-		apiVersion: "v1"
-		kind:       "Service"
-		metadata: {
-			name: "spanner-emulator"
-			labels: {
-				"app.kubernetes.io/part-of":   #AppName
-				"app.kubernetes.io/component": "testing"
-			}
-		}
 		spec: {
-			selector: app: "spanner-emulator-app"
 			ports: [{
 				name:       "grpc"
 				port:       9010
@@ -48,45 +46,40 @@ services: {
 			}]
 		}
 	}
-	"fake-storage-server": #GrpcService & {
-		_name:   "fake-storage-server"
-		_system: "testing"
-	}
+	"fake-storage-server": #GrpcService
 }
 
+pods: [Name=string]: #Pod & {
+	metadata: {
+		_component: #ComponentName
+		name:       Name
+	}
+}
 pods: {
-	"spanner-emulator-pod": {
-		apiVersion: "v1"
-		kind:       "Pod"
-		metadata: {
-			name: "spanner-emulator-pod"
-			labels: {
-				app:                           "spanner-emulator-app"
-				"app.kubernetes.io/part-of":   #AppName
-				"app.kubernetes.io/component": "testing"
-			}
-		}
-		spec: containers: [{
-			name:  "spanner-emulator-container"
+	"spanner-emulator": Pod={
+		spec: _containers: "\(Pod.metadata.name)": {
 			image: "gcr.io/cloud-spanner-emulator/emulator"
-		}]
+		}
 	}
 }
 
+deployments: [Name=string]: #Deployment & {
+	_name:       Name
+	_secretName: _secret_name
+	_system:     #ComponentName
+}
 deployments: {
-	"fake-storage-server-deployment": #ServerDeployment & {
-		_name:       "fake-storage-server"
-		_secretName: _secret_name
-		_image:      "bazel/src/main/kotlin/org/wfanet/measurement/storage/filesystem:server_image"
-		_system:     "testing"
-		_args: [
-			"--debug-verbose-grpc-server-logging=true",
-			"--port=8443",
-			"--require-client-auth=false",
-			"--tls-cert-file=/var/run/secrets/files/kingdom_tls.pem",
-			"--tls-key-file=/var/run/secrets/files/kingdom_tls.key",
-			"--cert-collection-file=/var/run/secrets/files/all_root_certs.pem",
-		]
-		_resourceConfig: #DefaultResourceConfig
+	"fake-storage-server": #ServerDeployment & {
+		_container: {
+			image: "bazel/src/main/kotlin/org/wfanet/measurement/storage/filesystem:server_image"
+			args: [
+				"--debug-verbose-grpc-server-logging=true",
+				"--port=8443",
+				"--require-client-auth=false",
+				"--tls-cert-file=/var/run/secrets/files/kingdom_tls.pem",
+				"--tls-key-file=/var/run/secrets/files/kingdom_tls.key",
+				"--cert-collection-file=/var/run/secrets/files/all_root_certs.pem",
+			]
+		}
 	}
 }
