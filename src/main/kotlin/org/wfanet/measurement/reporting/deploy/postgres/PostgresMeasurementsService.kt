@@ -15,11 +15,6 @@
 package org.wfanet.measurement.reporting.deploy.postgres
 
 import io.grpc.Status
-import io.r2dbc.postgresql.api.PostgresqlException
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.retry
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.internal.reporting.GetMeasurementRequest
@@ -48,23 +43,13 @@ class PostgresMeasurementsService(
 
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
     return try {
-      flow {
-          emit(
-            MeasurementReader()
-              .readMeasurementByReferenceIds(
-                client.singleUse(),
-                request.measurementConsumerReferenceId,
-                request.measurementReferenceId
-              )
-              .measurement
-          )
-        }
-        .retry(5) { e ->
-          (e is PostgresqlException &&
-              e.errorDetails.code == PostgresErrorCodes.SERIALIZABLE_ERROR_CODE)
-            .also { if (it) delay(200) }
-        }
-        .first()
+      MeasurementReader()
+        .readMeasurementByReferenceIds(
+          client.singleUse(),
+          request.measurementConsumerReferenceId,
+          request.measurementReferenceId
+        )
+        .measurement
     } catch (e: MeasurementNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "Measurement not found." }
     }

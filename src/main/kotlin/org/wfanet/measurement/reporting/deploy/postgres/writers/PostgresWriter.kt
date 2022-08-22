@@ -14,17 +14,13 @@
 
 package org.wfanet.measurement.reporting.deploy.postgres.writers
 
-import io.r2dbc.postgresql.api.PostgresqlException
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.logging.Logger
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.retry
+import kotlinx.coroutines.flow.single
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.db.r2dbc.ReadWriteContext
 import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.reporting.deploy.postgres.PostgresErrorCodes
+import org.wfanet.measurement.reporting.deploy.postgres.PostgresSerializable.withRetries
 import org.wfanet.measurement.reporting.service.internal.ReportingInternalException
 
 /** Abstraction for writing to Postgres. */
@@ -69,13 +65,7 @@ abstract class PostgresWriter<T> {
   suspend fun execute(databaseClient: DatabaseClient, idGenerator: IdGenerator): T {
     logger.fine("Running ${this::class.simpleName} transaction")
     check(executed.compareAndSet(false, true)) { "Cannot execute PostgresWriter multiple times" }
-    return flow { emit(runTransaction(databaseClient, idGenerator)) }
-      .retry(25) { e ->
-        (e is PostgresqlException &&
-            e.errorDetails.code == PostgresErrorCodes.SERIALIZABLE_ERROR_CODE)
-          .also { if (it) delay(200) }
-      }
-      .first()
+    return withRetries { runTransaction(databaseClient, idGenerator) }.single()
   }
 
   companion object {

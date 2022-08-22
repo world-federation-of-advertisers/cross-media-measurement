@@ -8,7 +8,7 @@ kt_jvm_library(
     name = "writers",
     srcs = glob(["*.kt"]),
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres:error_codes",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres:serializable",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/readers",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:internal_exception",
         "//src/main/proto/wfa/measurement/internal/reporting:measurement_kt_jvm_proto",
@@ -17,7 +17,6 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/reporting:reporting_set_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/io/r2dbc",
-        "@wfa_common_jvm//imports/java/org/postgresql:r2dbc",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc",
