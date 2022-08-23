@@ -3,6 +3,10 @@
 This package contains targets that generate Kubernetes manifests for deploying
 CMMS components using [CUE](https://cuelang.org/).
 
+See the
+[Kubernetes API Reference](https://kubernetes.io/docs/reference/kubernetes-api/)
+for background.
+
 ## Useful Labels
 
 All resources defined in these manifests should have the
