@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import org.apache.commons.math3.distribution.LaplaceDistribution
+import org.apache.commons.math3.stat.Frequency
 import org.projectnessie.cel.common.types.pb.ProtoTypeRegistry
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.Sketch
@@ -428,9 +429,23 @@ class EdpSimulator(
     requisitionSpec: RequisitionSpec,
     measurementSpec: MeasurementSpec
   ) {
-    // TODO(@alberthsuu): Get reach and frequency from actual resource
-    val reachValue = 1000L
-    val frequencyMap = mapOf(1L to 0.5, 2L to 0.25, 3L to 0.25)
+    val vidList: MutableList<Long> = mutableListOf()
+
+    requisitionSpec.eventGroupsList.forEach { eventGroup ->
+      eventQuery
+        .getUserVirtualIds(eventGroup.value.filter)
+        .filter { vid ->
+          VidSampler(VID_SAMPLER_HASH_FUNCTION)
+            .vidIsInSamplingBucket(
+              vid,
+              measurementSpec.vidSamplingInterval.start,
+              measurementSpec.vidSamplingInterval.width
+            )
+        }
+        .forEach { vid -> vidList.add(vid) }
+    }
+
+    val (reachValue, frequencyMap) = calculateDirectReachAndFrequency(vidList)
 
     val laplaceForReach =
       LaplaceDistribution(0.0, 1 / measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon)
@@ -442,9 +457,9 @@ class EdpSimulator(
     laplaceForFrequency.reseedRandomGenerator(1)
 
     val frequencyNoisedMap = mutableMapOf<Long, Double>()
-    frequencyMap.forEach { (key, frequency) ->
+    frequencyMap.forEach { (key, percentage) ->
       frequencyNoisedMap[key] =
-        (frequency * reachValue.toDouble() + laplaceForFrequency.sample()) / reachValue.toDouble()
+        (percentage * reachValue.toDouble() + laplaceForFrequency.sample()) / reachValue.toDouble()
     }
 
     val requisitionData =
@@ -536,6 +551,27 @@ class EdpSimulator(
             "crypto"
           )
       )
+    }
+
+    fun calculateDirectReachAndFrequency(
+      vidList: MutableList<Long>
+    ): Pair<Long, Map<Long, Double>> {
+      val vidSet = vidList.toSet()
+      val frequency = Frequency()
+      val frequencyCountMap = mutableMapOf<Long, Int>()
+
+      vidList.forEach { vid -> frequency.addValue(vid) }
+      vidSet.forEach { vid ->
+        frequencyCountMap.merge(frequency.getCount(vid), 1) { a, b -> a + b }
+      }
+
+      val reachValue = vidSet.size.toLong()
+      val frequencyMap = mutableMapOf<Long, Double>()
+      frequencyCountMap.forEach { (frequency, count) ->
+        frequencyMap[frequency] = count.toDouble() / reachValue
+      }
+
+      return Pair(reachValue, frequencyMap)
     }
   }
 }
