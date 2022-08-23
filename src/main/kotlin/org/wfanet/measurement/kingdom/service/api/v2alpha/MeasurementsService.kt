@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.protobuf.InvalidProtocolBufferException
 import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import java.util.AbstractMap
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
@@ -84,7 +85,15 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
       externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
     }
 
-    val internalMeasurement = internalMeasurementsStub.getMeasurement(internalGetMeasurementRequest)
+    val internalMeasurement =
+      try {
+        internalMeasurementsStub.getMeasurement(internalGetMeasurementRequest)
+      } catch (ex: StatusRuntimeException) {
+        when (ex.status) {
+          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Measurement not found" }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
+      }
 
     return internalMeasurement.toMeasurement()
   }
@@ -136,14 +145,25 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
       "nonce_hash list size is not equal to the data_providers list size."
     }
 
-    val internalMeasurement =
-      internalMeasurementsStub.createMeasurement(
-        request.measurement.toInternal(
-          measurementConsumerCertificateKey,
-          dataProvidersMap,
-          parsedMeasurementSpec
-        )
+    val createRequest =
+      request.measurement.toInternal(
+        measurementConsumerCertificateKey,
+        dataProvidersMap,
+        parsedMeasurementSpec
       )
+    val internalMeasurement =
+      try {
+        internalMeasurementsStub.createMeasurement(createRequest)
+      } catch (ex: StatusRuntimeException) {
+        when (ex.status) {
+          Status.INVALID_ARGUMENT ->
+            failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid" }
+          Status.FAILED_PRECONDITION ->
+            failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition" }
+          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "MeasurementConsumer not found." }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
+      }
 
     return internalMeasurement.toMeasurement()
   }
@@ -208,7 +228,18 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
     }
 
     val internalMeasurement =
-      internalMeasurementsStub.cancelMeasurement(internalCancelMeasurementRequest)
+      try {
+        internalMeasurementsStub.cancelMeasurement(internalCancelMeasurementRequest)
+      } catch (ex: StatusRuntimeException) {
+        when (ex.status) {
+          Status.INVALID_ARGUMENT ->
+            failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid" }
+          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Measurement not found." }
+          Status.FAILED_PRECONDITION ->
+            failGrpc(Status.FAILED_PRECONDITION, ex) { "Measurement state illegal." }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
+      }
 
     return internalMeasurement.toMeasurement()
   }

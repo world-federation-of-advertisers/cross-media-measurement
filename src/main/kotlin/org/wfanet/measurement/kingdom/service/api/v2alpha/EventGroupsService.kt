@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.Version
@@ -95,7 +96,15 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
       externalEventGroupId = apiIdToExternalId(key.eventGroupId)
     }
 
-    val eventGroup = internalEventGroupsStub.getEventGroup(getRequest).toEventGroup()
+    val eventGroup =
+      try {
+        internalEventGroupsStub.getEventGroup(getRequest).toEventGroup()
+      } catch (ex: StatusRuntimeException) {
+        when (ex.status) {
+          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "EventGroup not found." }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
+      }
 
     when (principal) {
       is MeasurementConsumerPrincipal -> {
@@ -143,9 +152,18 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
       "measurement_consumer_certificate must be specified if measurement_consumer_public_key is " +
         "specified"
     }
-    return internalEventGroupsStub
-      .createEventGroup(request.eventGroup.toInternal(parentKey.dataProviderId))
-      .toEventGroup()
+
+    val createRequest = request.eventGroup.toInternal(parentKey.dataProviderId)
+    return try {
+      internalEventGroupsStub.createEventGroup(createRequest).toEventGroup()
+    } catch (ex: StatusRuntimeException) {
+      when (ex.status) {
+        Status.FAILED_PRECONDITION ->
+          failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition" }
+        Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "DataProvider not found." }
+        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+      }
+    }
   }
 
   override suspend fun updateEventGroup(request: UpdateEventGroupRequest): EventGroup {
@@ -180,14 +198,23 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
       "measurement_consumer_certificate must be specified if measurement_consumer_public_key is " +
         "specified"
     }
-    return internalEventGroupsStub
-      .updateEventGroup(
-        updateEventGroupRequest {
-          eventGroup =
-            request.eventGroup.toInternal(eventGroupKey.dataProviderId, eventGroupKey.eventGroupId)
-        }
-      )
-      .toEventGroup()
+
+    val updateRequest = updateEventGroupRequest {
+      eventGroup =
+        request.eventGroup.toInternal(eventGroupKey.dataProviderId, eventGroupKey.eventGroupId)
+    }
+    return try {
+      internalEventGroupsStub.updateEventGroup(updateRequest).toEventGroup()
+    } catch (ex: StatusRuntimeException) {
+      when (ex.status) {
+        Status.INVALID_ARGUMENT ->
+          failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid." }
+        Status.FAILED_PRECONDITION ->
+          failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition." }
+        Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "EventGroup not found." }
+        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+      }
+    }
   }
 
   override suspend fun listEventGroups(request: ListEventGroupsRequest): ListEventGroupsResponse {
