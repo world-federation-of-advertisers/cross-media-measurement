@@ -7,8 +7,10 @@ This assumes that you have `kubectl` installed and configured to point to a
 local KiND cluster. You should have some familiarity with Kubernetes and
 `kubectl`.
 
-Minimum Version Required: - KiND: v0.13.0 - kubernetes server: v1.24.0 -
-kubectl: compatible with kubernetes server
+Minimum Version Required:
+- KiND: v0.13.0
+- kubernetes server: v1.24.0
+- kubectl: compatible with kubernetes server
 
 Use the default `kind` as the KiND cluster name. The corresponding k8s cluster
 name is `kind-kind`.
