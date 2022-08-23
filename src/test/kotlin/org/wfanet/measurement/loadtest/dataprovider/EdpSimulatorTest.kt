@@ -601,6 +601,22 @@ class EdpSimulatorTest {
         )
     }
   }
+  @Test
+  fun `calculate direct reach and frequency correctly`() {
+    runBlocking {
+      val vidList = mutableListOf(1L, 1L, 1L, 2L, 2L, 3L, 4L, 5L)
+      val (reachValue, frequencyMap) = EdpSimulator.calculateDirectReachAndFrequency(vidList)
+      // 5 unique people(1, 2, 3, 4, 5) being reached
+      val expectedReachValue = 5
+      // 1 reach -> 0.6(3/5), 2 reach -> 0.2(1/5), 3 reach -> 0.2(1/5)
+      val expectedFrequencyMap = mapOf(1L to 0.6, 2L to 0.2, 3L to 0.2)
+
+      assertThat(reachValue).isEqualTo(expectedReachValue)
+      frequencyMap.forEach { (frequency, percentage) ->
+        assertThat(percentage).isEqualTo(expectedFrequencyMap[frequency])
+      }
+    }
+  }
 
   companion object {
     private val MC_SIGNING_KEY =

@@ -24,7 +24,6 @@ import java.util.logging.Logger
 import kotlin.math.min
 import kotlin.random.Random
 import kotlinx.coroutines.delay
-import org.apache.commons.math3.distribution.LaplaceDistribution
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchProtos
@@ -175,34 +174,10 @@ class FrontendSimulator(
       delay(Duration.ofSeconds(30).toMillis())
       reachAndFrequencyResult = getReachAndFrequencyResult(createdReachAndFrequencyMeasurement.name)
     }
-    logger.info("Got reach and frequency result from Kingdom: $reachAndFrequencyResult")
+    logger.info("Got direct reach and frequency result from Kingdom: $reachAndFrequencyResult")
 
-    // EdpSimulator sets to those values.
-    val reachValue = 1000L
-    val frequencyMap = mapOf(1L to 0.5, 2L to 0.25, 3L to 0.25)
-
-    val laplaceForReach = LaplaceDistribution(0.0, 1 / outputDpParams.epsilon)
-    laplaceForReach.reseedRandomGenerator(1)
-    val laplaceForFrequency = LaplaceDistribution(0.0, 1 / outputDpParams.epsilon)
-    laplaceForFrequency.reseedRandomGenerator(1)
-
-    // EdpSimulator sets to those noised values.
-    val expectedReachNoisedValue = reachValue + laplaceForReach.sample().toInt()
-    val expectedFrequencyNoisedMap = mutableMapOf<Long, Double>()
-    frequencyMap.forEach { (key, frequency) ->
-      expectedFrequencyNoisedMap[key] =
-        (frequency * reachValue.toDouble() + laplaceForFrequency.sample()) / reachValue.toDouble()
-    }
-
-    assertThat(reachAndFrequencyResult.reach.value).isEqualTo(expectedReachNoisedValue)
-    reachAndFrequencyResult.frequency.relativeFrequencyDistributionMap.forEach { (key, frequency) ->
-      assertThat(frequency).isEqualTo(expectedFrequencyNoisedMap[key])
-    }
-
-    logger.info(
-      "Direct reach and frequency result is equal to the expected result. " +
-        "Correctness Test passes."
-    )
+    assertThat(reachAndFrequencyResult.reach.value).isNotNull()
+    assertThat(reachAndFrequencyResult.frequency.relativeFrequencyDistributionMap).isNotNull()
   }
 
   /** A sequence of operations done in the simulator involving an impression measurement. */
