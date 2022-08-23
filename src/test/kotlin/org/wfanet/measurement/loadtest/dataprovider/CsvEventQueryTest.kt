@@ -14,6 +14,8 @@
 package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.common.truth.Truth.assertThat
+import kotlin.test.assertFails
+import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -22,6 +24,7 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemp
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate.AgeRange.Value as PrivacyAge
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate.Gender.Value as PrivacyGender
 
+private const val EDP1 = "edp1"
 private val BANNER_FEMALE = BannerGender.GENDER_FEMALE.ordinal
 private val PRIVACY_35_54 = PrivacyAge.AGE_35_TO_54.ordinal
 private val PRIVACY_MALE = PrivacyGender.GENDER_MALE.ordinal
@@ -34,6 +37,7 @@ private val NONMATCHING_EVENT_FILTER = eventFilter {
   expression =
     "privacy_budget.gender.value == $PRIVACY_MALE && banner_ad.gender.value == $BANNER_FEMALE"
 }
+private val EMPTY_EVENT_FILTER = eventFilter { expression = "" }
 
 private val CSV_HEADER =
   listOf("Publisher_ID", "Event_ID", "Sex", "Age_Group", "Social_Grade", "Date", "Complete", "VID")
@@ -56,11 +60,18 @@ private val EVENTS = CSV_EVENTS_LIST.map { event -> CSV_HEADER.zip(event).toMap(
 
 @RunWith(JUnit4::class)
 class CsvEventQueryTest {
+  companion object {
+    @JvmStatic private val eventQuery = CsvEventQuery(EDP1)
+
+    @BeforeClass
+    @JvmStatic
+    fun initialize() {
+      eventQuery.readCSVData(EVENTS)
+    }
+  }
 
   @Test
   fun `filters when no matching conditions`() {
-    val eventQuery = CsvEventQuery("edp1")
-    eventQuery.readCSVData(EVENTS)
     val userVids = eventQuery.getUserVirtualIds(NONMATCHING_EVENT_FILTER)
     assertThat(userVids.toList()).isEmpty()
   }
@@ -68,9 +79,12 @@ class CsvEventQueryTest {
   @Test
   fun `filters matching conditions`() {
     val matchingVids = listOf(1000650L, 1000997L, 1001028L, 1001096L, 1001096L, 1001289L)
-    val eventQuery = CsvEventQuery("edp1")
-    eventQuery.readCSVData(EVENTS)
     val userVids = eventQuery.getUserVirtualIds(MATCHING_EVENT_FILTER)
     assertThat(userVids.toList().sorted()).isEqualTo(matchingVids.sorted())
+  }
+
+  @Test
+  fun `empty filter should fail`() {
+    assertFails { eventQuery.getUserVirtualIds(EMPTY_EVENT_FILTER) }
   }
 }
