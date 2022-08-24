@@ -88,7 +88,7 @@ message Metric {
   message NamedSetOperation {
     string display_name = 1;
     SetOperation set_operation = 2;
-    repeated MeasurementCalculation measurement_calculation = 3;
+    repeated MeasurementCalculation measurement_calculations = 3;
   }
   repeated NamedSetOperation named_set_operations = 2;
 }

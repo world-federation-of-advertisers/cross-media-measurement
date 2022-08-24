@@ -1,0 +1,23 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "resource_key",
+    srcs = ["ResourceKey.kt"],
+    deps = [
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
+    name = "principal",
+    srcs = ["Principal.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/api:resource_key",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)

@@ -1,0 +1,16 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+
+kt_jvm_library(
+    name = "services",
+    srcs = ["PostgresServices.kt"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/gcloud/postgres/server:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/server:__subpackages__",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/common/server:reporting_data_server",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres:services",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+    ],
+)

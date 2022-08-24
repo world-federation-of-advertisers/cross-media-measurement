@@ -47,7 +47,8 @@ class UpdateEventGroup(private val eventGroup: EventGroup) :
           ExternalId(eventGroup.externalDataProviderId),
           ExternalId(eventGroup.externalEventGroupId)
         )
-    if (internalEventGroupResult.eventGroup.externalMeasurementConsumerId !=
+    if (
+      internalEventGroupResult.eventGroup.externalMeasurementConsumerId !=
         eventGroup.externalMeasurementConsumerId
     ) {
       throw EventGroupInvalidArgsException(

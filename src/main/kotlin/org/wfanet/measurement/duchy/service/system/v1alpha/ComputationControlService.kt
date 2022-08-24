@@ -50,24 +50,24 @@ class ComputationControlService(
   override suspend fun advanceComputation(
     requests: Flow<AdvanceComputationRequest>
   ): AdvanceComputationResponse {
-    grpcRequireNotNull(requests.consumeFirst()) { "Empty request stream" }.use {
-      consumed: ConsumedFlowItem<AdvanceComputationRequest> ->
-      val header = consumed.item.header
-      val globalComputationId =
-        grpcRequireNotNull(ComputationKey.fromName(header.name)?.computationId) {
-          "Resource name unspecified or invalid."
+    grpcRequireNotNull(requests.consumeFirst()) { "Empty request stream" }
+      .use { consumed: ConsumedFlowItem<AdvanceComputationRequest> ->
+        val header = consumed.item.header
+        val globalComputationId =
+          grpcRequireNotNull(ComputationKey.fromName(header.name)?.computationId) {
+            "Resource name unspecified or invalid."
+          }
+        grpcRequire(consumed.hasRemaining) { "Request stream has no body" }
+        if (header.isForAsyncComputation()) {
+          handleAsyncRequest(
+            header,
+            consumed.remaining.map { it.bodyChunk.partialData },
+            globalComputationId
+          )
+        } else {
+          failGrpc { "Synchronous computations are not yet supported." }
         }
-      grpcRequire(consumed.hasRemaining) { "Request stream has no body" }
-      if (header.isForAsyncComputation()) {
-        handleAsyncRequest(
-          header,
-          consumed.remaining.map { it.bodyChunk.partialData },
-          globalComputationId
-        )
-      } else {
-        failGrpc { "Synchronous computations are not yet supported." }
       }
-    }
     return AdvanceComputationResponse.getDefaultInstance()
   }
 

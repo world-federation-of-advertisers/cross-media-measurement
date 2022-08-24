@@ -15,13 +15,16 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase as DataProvidersCoroutineService
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
+import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.signedData
@@ -30,9 +33,7 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
-import org.wfanet.measurement.internal.kingdom.DataProviderKt.details
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
-import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
 
 private val API_VERSION = Version.V2_ALPHA
@@ -46,15 +47,13 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
         "Resource name unspecified or invalid"
       }
 
-    val principal = principalFromCurrentContext
-
-    when (val resourceKey = principal.resourceKey) {
-      is DataProviderKey -> {
-        if (resourceKey.dataProviderId != key.dataProviderId) {
+    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
+      is DataProviderPrincipal -> {
+        if (principal.resourceKey.dataProviderId != key.dataProviderId) {
           failGrpc(Status.PERMISSION_DENIED) { "Cannot get other DataProviders" }
         }
       }
-      is MeasurementConsumerKey -> {}
+      is MeasurementConsumerPrincipal -> {}
       else -> {
         failGrpc(Status.PERMISSION_DENIED) {
           "Caller does not have permission to get DataProviders"
@@ -62,11 +61,19 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
       }
     }
 
-    val internalResponse: InternalDataProvider =
-      internalClient.getDataProvider(
-        getDataProviderRequest { externalDataProviderId = apiIdToExternalId(key.dataProviderId) }
-      )
-    return internalResponse.toDataProvider()
+    val internalDataProvider =
+      try {
+        internalClient.getDataProvider(
+          getDataProviderRequest { externalDataProviderId = apiIdToExternalId(key.dataProviderId) }
+        )
+      } catch (ex: StatusRuntimeException) {
+        when (ex.status) {
+          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "DataProvider not found" }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
+      }
+
+    return internalDataProvider.toDataProvider()
   }
 }
 

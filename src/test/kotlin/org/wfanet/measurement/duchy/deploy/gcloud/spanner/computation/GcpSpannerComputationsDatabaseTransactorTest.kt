@@ -113,8 +113,14 @@ object ComputationProtocolStages :
 
   override fun stageToProtocol(stage: FakeProtocolStages): FakeProtocol {
     return when (stage) {
-      A, B, C, D, E -> FakeProtocol.ZERO
-      X, Y, Z -> FakeProtocol.ONE
+      A,
+      B,
+      C,
+      D,
+      E -> FakeProtocol.ZERO
+      X,
+      Y,
+      Z -> FakeProtocol.ONE
     }
   }
 
@@ -1445,8 +1451,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
     testClock.tickSeconds("time-ended")
     databaseClient.write(listOf(computation, stage, unfinishedPreviousAttempt, attempt))
     val expectedDetails =
-      FAKE_COMPUTATION_DETAILS
-        .toBuilder()
+      FAKE_COMPUTATION_DETAILS.toBuilder()
         .setEndReason(EndComputationReason.SUCCEEDED.toString())
         .build()
     database.endComputation(token, E, EndComputationReason.SUCCEEDED, FAKE_COMPUTATION_DETAILS)
@@ -1553,8 +1558,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
     testClock.tickSeconds("time-failed")
     databaseClient.write(listOf(computation, stage, attempt))
     val expectedDetails =
-      FAKE_COMPUTATION_DETAILS
-        .toBuilder()
+      FAKE_COMPUTATION_DETAILS.toBuilder()
         .setEndReason(EndComputationReason.FAILED.toString())
         .build()
     database.endComputation(token, E, EndComputationReason.FAILED, FAKE_COMPUTATION_DETAILS)

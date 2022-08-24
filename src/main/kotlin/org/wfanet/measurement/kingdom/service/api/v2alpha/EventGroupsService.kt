@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.Version
@@ -24,6 +25,7 @@ import org.wfanet.measurement.api.v2.alpha.copy
 import org.wfanet.measurement.api.v2.alpha.listEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKt.eventTemplate
@@ -33,6 +35,8 @@ import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
+import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.UpdateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
@@ -71,17 +75,17 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
         "Resource name is either unspecified or invalid"
       }
 
-    val principal = principalFromCurrentContext
+    val principal: MeasurementPrincipal = principalFromCurrentContext
 
-    when (val resourceKey = principal.resourceKey) {
-      is DataProviderKey -> {
-        if (resourceKey.dataProviderId != key.dataProviderId) {
+    when (principal) {
+      is DataProviderPrincipal -> {
+        if (principal.resourceKey.dataProviderId != key.dataProviderId) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot get EventGroups belonging to other DataProviders"
           }
         }
       }
-      is MeasurementConsumerKey -> {}
+      is MeasurementConsumerPrincipal -> {}
       else -> {
         failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to get EventGroups" }
       }
@@ -92,11 +96,19 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
       externalEventGroupId = apiIdToExternalId(key.eventGroupId)
     }
 
-    val eventGroup = internalEventGroupsStub.getEventGroup(getRequest).toEventGroup()
+    val eventGroup =
+      try {
+        internalEventGroupsStub.getEventGroup(getRequest).toEventGroup()
+      } catch (ex: StatusRuntimeException) {
+        when (ex.status) {
+          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "EventGroup not found." }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
+      }
 
-    when (val resourceKey = principal.resourceKey) {
-      is MeasurementConsumerKey -> {
-        if (eventGroup.measurementConsumer != resourceKey.toName()) {
+    when (principal) {
+      is MeasurementConsumerPrincipal -> {
+        if (eventGroup.measurementConsumer != principal.resourceKey.toName()) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot get EventGroups belonging to other MeasurementConsumers"
           }
@@ -114,11 +126,9 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
         "Parent is either unspecified or invalid"
       }
 
-    val principal = principalFromCurrentContext
-
-    when (val resourceKey = principal.resourceKey) {
-      is DataProviderKey -> {
-        if (resourceKey.toName() != request.parent) {
+    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
+      is DataProviderPrincipal -> {
+        if (principal.resourceKey.toName() != request.parent) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot create EventGroups for another DataProvider"
           }
@@ -142,9 +152,18 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
       "measurement_consumer_certificate must be specified if measurement_consumer_public_key is " +
         "specified"
     }
-    return internalEventGroupsStub
-      .createEventGroup(request.eventGroup.toInternal(parentKey.dataProviderId))
-      .toEventGroup()
+
+    val createRequest = request.eventGroup.toInternal(parentKey.dataProviderId)
+    return try {
+      internalEventGroupsStub.createEventGroup(createRequest).toEventGroup()
+    } catch (ex: StatusRuntimeException) {
+      when (ex.status) {
+        Status.FAILED_PRECONDITION ->
+          failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition" }
+        Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "DataProvider not found." }
+        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+      }
+    }
   }
 
   override suspend fun updateEventGroup(request: UpdateEventGroupRequest): EventGroup {
@@ -153,11 +172,9 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
         "EventGroup name is either unspecified or invalid"
       }
 
-    val principal = principalFromCurrentContext
-
-    when (val resourceKey = principal.resourceKey) {
-      is DataProviderKey -> {
-        if (resourceKey.dataProviderId != eventGroupKey.dataProviderId) {
+    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
+      is DataProviderPrincipal -> {
+        if (principal.resourceKey.dataProviderId != eventGroupKey.dataProviderId) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot update EventGroups for another DataProvider"
           }
@@ -181,24 +198,32 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
       "measurement_consumer_certificate must be specified if measurement_consumer_public_key is " +
         "specified"
     }
-    return internalEventGroupsStub
-      .updateEventGroup(
-        updateEventGroupRequest {
-          eventGroup =
-            request.eventGroup.toInternal(eventGroupKey.dataProviderId, eventGroupKey.eventGroupId)
-        }
-      )
-      .toEventGroup()
+
+    val updateRequest = updateEventGroupRequest {
+      eventGroup =
+        request.eventGroup.toInternal(eventGroupKey.dataProviderId, eventGroupKey.eventGroupId)
+    }
+    return try {
+      internalEventGroupsStub.updateEventGroup(updateRequest).toEventGroup()
+    } catch (ex: StatusRuntimeException) {
+      when (ex.status) {
+        Status.INVALID_ARGUMENT ->
+          failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid." }
+        Status.FAILED_PRECONDITION ->
+          failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition." }
+        Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "EventGroup not found." }
+        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+      }
+    }
   }
 
   override suspend fun listEventGroups(request: ListEventGroupsRequest): ListEventGroupsResponse {
-    val principal = principalFromCurrentContext
-
     val listEventGroupsPageToken = request.toListEventGroupPageToken()
 
-    when (val resourceKey = principal.resourceKey) {
-      is DataProviderKey -> {
-        if (apiIdToExternalId(resourceKey.dataProviderId) !=
+    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
+      is DataProviderPrincipal -> {
+        if (
+          apiIdToExternalId(principal.resourceKey.dataProviderId) !=
             listEventGroupsPageToken.externalDataProviderId
         ) {
           failGrpc(Status.PERMISSION_DENIED) {
@@ -206,8 +231,9 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
           }
         }
       }
-      is MeasurementConsumerKey -> {
-        val externalMeasurementConsumerId = apiIdToExternalId(resourceKey.measurementConsumerId)
+      is MeasurementConsumerPrincipal -> {
+        val externalMeasurementConsumerId =
+          apiIdToExternalId(principal.resourceKey.measurementConsumerId)
         if (listEventGroupsPageToken.externalMeasurementConsumerIdsList.isEmpty()) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot list Event Groups belonging to other MeasurementConsumers"
@@ -352,8 +378,8 @@ private fun ListEventGroupsRequest.toListEventGroupPageToken(): ListEventGroupsP
   val externalMeasurementConsumerIdsList =
     source.filter.measurementConsumersList.map { measurementConsumerName ->
       grpcRequireNotNull(MeasurementConsumerKey.fromName(measurementConsumerName)) {
-        "Measurement consumer name in filter invalid"
-      }
+          "Measurement consumer name in filter invalid"
+        }
         .let { key -> apiIdToExternalId(key.measurementConsumerId) }
     }
 
@@ -368,9 +394,8 @@ private fun ListEventGroupsRequest.toListEventGroupPageToken(): ListEventGroupsP
           externalMeasurementConsumerIds.containsAll(externalMeasurementConsumerIdsList)
       ) { "Arguments must be kept the same when using a page token" }
 
-      if (source.pageSize != 0 &&
-          source.pageSize >= MIN_PAGE_SIZE &&
-          source.pageSize <= MAX_PAGE_SIZE
+      if (
+        source.pageSize != 0 && source.pageSize >= MIN_PAGE_SIZE && source.pageSize <= MAX_PAGE_SIZE
       ) {
         pageSize = source.pageSize
       }

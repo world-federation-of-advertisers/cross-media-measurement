@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.protobuf.InvalidProtocolBufferException
 import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import java.util.AbstractMap
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
@@ -35,7 +36,9 @@ import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Measurement.DataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
+import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.listMeasurementsResponse
@@ -82,7 +85,15 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
       externalMeasurementConsumerId = apiIdToExternalId(key.measurementConsumerId)
     }
 
-    val internalMeasurement = internalMeasurementsStub.getMeasurement(internalGetMeasurementRequest)
+    val internalMeasurement =
+      try {
+        internalMeasurementsStub.getMeasurement(internalGetMeasurementRequest)
+      } catch (ex: StatusRuntimeException) {
+        when (ex.status) {
+          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Measurement not found" }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
+      }
 
     return internalMeasurement.toMeasurement()
   }
@@ -97,7 +108,8 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
         MeasurementConsumerCertificateKey.fromName(measurement.measurementConsumerCertificate)
       ) { "Measurement Consumer Certificate resource name is either unspecified or invalid" }
 
-    if (authenticatedMeasurementConsumerKey.measurementConsumerId !=
+    if (
+      authenticatedMeasurementConsumerKey.measurementConsumerId !=
         measurementConsumerCertificateKey.measurementConsumerId
     ) {
       failGrpc(Status.PERMISSION_DENIED) {
@@ -133,14 +145,25 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
       "nonce_hash list size is not equal to the data_providers list size."
     }
 
-    val internalMeasurement =
-      internalMeasurementsStub.createMeasurement(
-        request.measurement.toInternal(
-          measurementConsumerCertificateKey,
-          dataProvidersMap,
-          parsedMeasurementSpec
-        )
+    val createRequest =
+      request.measurement.toInternal(
+        measurementConsumerCertificateKey,
+        dataProvidersMap,
+        parsedMeasurementSpec
       )
+    val internalMeasurement =
+      try {
+        internalMeasurementsStub.createMeasurement(createRequest)
+      } catch (ex: StatusRuntimeException) {
+        when (ex.status) {
+          Status.INVALID_ARGUMENT ->
+            failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid" }
+          Status.FAILED_PRECONDITION ->
+            failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition" }
+          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "MeasurementConsumer not found." }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
+      }
 
     return internalMeasurement.toMeasurement()
   }
@@ -152,7 +175,8 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
 
     val listMeasurementsPageToken = request.toListMeasurementsPageToken()
 
-    if (apiIdToExternalId(authenticatedMeasurementConsumerKey.measurementConsumerId) !=
+    if (
+      apiIdToExternalId(authenticatedMeasurementConsumerKey.measurementConsumerId) !=
         listMeasurementsPageToken.externalMeasurementConsumerId
     ) {
       failGrpc(Status.PERMISSION_DENIED) {
@@ -204,7 +228,18 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
     }
 
     val internalMeasurement =
-      internalMeasurementsStub.cancelMeasurement(internalCancelMeasurementRequest)
+      try {
+        internalMeasurementsStub.cancelMeasurement(internalCancelMeasurementRequest)
+      } catch (ex: StatusRuntimeException) {
+        when (ex.status) {
+          Status.INVALID_ARGUMENT ->
+            failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid" }
+          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Measurement not found." }
+          Status.FAILED_PRECONDITION ->
+            failGrpc(Status.FAILED_PRECONDITION, ex) { "Measurement state illegal." }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
+      }
 
     return internalMeasurement.toMeasurement()
   }
@@ -357,7 +392,11 @@ private fun ListMeasurementsPageToken.toStreamMeasurementsRequest(): StreamMeasu
 }
 
 private fun getAuthenticatedMeasurementConsumerKey(): MeasurementConsumerKey {
-  val principal = principalFromCurrentContext
-  return principal.resourceKey as? MeasurementConsumerKey
-    ?: failGrpc(Status.PERMISSION_DENIED) { "Caller cannot get a Measurement" }
+  val principal: MeasurementPrincipal = principalFromCurrentContext
+
+  if (principal !is MeasurementConsumerPrincipal) {
+    failGrpc(Status.PERMISSION_DENIED) { "Caller cannot get a Measurement" }
+  }
+
+  return principal.resourceKey
 }

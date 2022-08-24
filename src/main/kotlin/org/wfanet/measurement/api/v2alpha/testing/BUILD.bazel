@@ -5,6 +5,7 @@ package(
     default_visibility = [
         "//src/main/kotlin/org/wfanet/measurement/integration/common:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:__pkg__",
     ],
 )
 

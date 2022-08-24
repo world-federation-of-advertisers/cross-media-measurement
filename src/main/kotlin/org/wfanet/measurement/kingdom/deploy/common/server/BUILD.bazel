@@ -10,6 +10,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:duchy_ids",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/service:data_services",
+        "@wfa_common_jvm//imports/java/io/grpc/netty",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
@@ -35,7 +36,7 @@ kt_jvm_library(
     runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [
         ":utils",
-        "//src/main/kotlin/org/wfanet/measurement/common/identity:textproto_file_principal_lookup",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:textproto_file_principal_lookup",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:accounts_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:api_key_authentication_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:api_keys_service",
@@ -66,7 +67,6 @@ java_binary(
 
 java_image(
     name = "v2alpha_public_api_server_image",
-    data = ["@grpc_health_probe//file"],
     main_class = "org.wfanet.measurement.kingdom.deploy.common.server.V2alphaPublicApiServerKt",
     visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":v2alpha_public_api_server"],
@@ -97,7 +97,6 @@ java_binary(
 
 java_image(
     name = "system_api_server_image",
-    data = ["@grpc_health_probe//file"],
     main_class = "org.wfanet.measurement.kingdom.deploy.common.server.SystemApiServerKt",
     visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":system_api_server"],

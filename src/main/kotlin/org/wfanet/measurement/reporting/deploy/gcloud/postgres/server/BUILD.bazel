@@ -1,0 +1,32 @@
+load("@io_bazel_rules_docker//java:image.bzl", "java_image")
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+load("@rules_java//java:defs.bzl", "java_binary")
+
+kt_jvm_library(
+    name = "gcloud_postgres_reporting_data_server",
+    srcs = ["GCloudPostgresReportingDataServer.kt"],
+    runtime_deps = ["@wfa_common_jvm//imports/java/com/google/cloud/sql/postgres:r2dbc"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/common/server:reporting_data_server",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/common/server/postgres:services",
+        "@wfa_common_jvm//imports/java/io/r2dbc",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/postgres:factories",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/postgres:flags",
+    ],
+)
+
+java_binary(
+    name = "GCloudPostgresReportingDataServer",
+    main_class = "org.wfanet.measurement.reporting.deploy.gcloud.postgres.server.GCloudPostgresReportingDataServerKt",
+    runtime_deps = [":gcloud_postgres_reporting_data_server"],
+)
+
+java_image(
+    name = "gcloud_postgres_reporting_data_server_image",
+    main_class = "org.wfanet.measurement.reporting.deploy.gcloud.postgres.server.GCloudPostgresReportingDataServerKt",
+    visibility = ["//src:docker_image_deployment"],
+    runtime_deps = [":gcloud_postgres_reporting_data_server"],
+)

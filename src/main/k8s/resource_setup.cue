@@ -14,13 +14,14 @@
 
 package k8s
 
-#ResourceSetup: {
+#ResourceSetup: ResourceSetup={
 	_edp_display_names: [...string]
 	_duchy_ids: [...string]
 	_resource_setup_secret_name: string
 	_job_image:                  string
 	_job_image_pull_policy:      string | *"Always"
 	_dependencies: [...string]
+	_resourceConfig: #ResourceConfig
 	_edp_cert_key_files_flags:
 		[
 			for d in _edp_display_names {
@@ -64,7 +65,9 @@ package k8s
 		_secretName:      _resource_setup_secret_name
 		_image:           _job_image
 		_imagePullPolicy: _job_image_pull_policy
-		_dependencies:    _dependencies
+		_dependencies:    ResourceSetup._dependencies
+		_resources:       _resourceConfig.resources
+		_jvmHeapSize:     _resourceConfig.jvmHeapSize
 		_args:
 			_edp_cert_key_files_flags +
 			_mc_cert_key_files_flags +

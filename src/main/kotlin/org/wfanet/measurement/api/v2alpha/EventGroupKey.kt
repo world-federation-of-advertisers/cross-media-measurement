@@ -15,6 +15,7 @@
 package org.wfanet.measurement.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
+import org.wfanet.measurement.common.api.ResourceKey
 
 private val parser = ResourceNameParser("dataProviders/{data_provider}/eventGroups/{event_group}")
 
@@ -26,10 +27,10 @@ data class EventGroupKey(val dataProviderId: String, val eventGroupId: String) :
     )
   }
 
-  companion object {
+  companion object FACTORY : ResourceKey.Factory<EventGroupKey> {
     val defaultValue = EventGroupKey("", "")
 
-    fun fromName(resourceName: String): EventGroupKey? {
+    override fun fromName(resourceName: String): EventGroupKey? {
       return parser.parseIdVars(resourceName)?.let {
         EventGroupKey(it.getValue(IdVariable.DATA_PROVIDER), it.getValue(IdVariable.EVENT_GROUP))
       }

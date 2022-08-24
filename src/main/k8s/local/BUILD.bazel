@@ -21,6 +21,7 @@ cue_dump(
     },
     tags = ["manual"],
     deps = [
+        ":config",
         "//src/main/k8s:base",
     ],
 )
@@ -46,6 +47,7 @@ cue_dump(
     },
     tags = ["manual"],
     deps = [
+        ":config",
         "//src/main/k8s:resource_setup",
     ],
 )
@@ -81,6 +83,7 @@ cue_dump(
     },
     tags = ["manual"],
     deps = [
+        ":config",
         "//src/main/k8s:edp_simulator",
     ],
 )
@@ -95,7 +98,36 @@ cue_dump(
     },
     tags = ["manual"],
     deps = [
+        ":config",
         "//src/main/k8s:frontend_simulator",
+    ],
+)
+
+cue_dump(
+    name = "postgres_database",
+    srcs = ["postgres_database.cue"],
+    cue_tags = {
+        "db_secret_name": TEST_K8S_SETTINGS.db_secret_name,
+    },
+    tags = ["manual"],
+    deps = [
+        "//src/main/k8s:base",
+    ],
+)
+
+cue_dump(
+    name = "reporting",
+    srcs = ["reporting.cue"],
+    cue_tags = {
+        "secret_name": TEST_K8S_SETTINGS.secret_name,
+        "db_secret_name": TEST_K8S_SETTINGS.db_secret_name,
+        "mc_config_secret_name": TEST_K8S_SETTINGS.mc_config_secret_name,
+    },
+    tags = ["manual"],
+    deps = [
+        ":config",
+        "//src/main/k8s:postgres",
+        "//src/main/k8s:reporting",
     ],
 )
 
@@ -225,5 +257,37 @@ k8s_apply(
     name = "mc_frontend_simulator_kind",
     src = ":mc_frontend_simulator",
     imports = FRONTEND_SIMULATOR_IMAGE_IMPORTS,
+    tags = ["manual"],
+)
+
+k8s_apply(
+    name = "reporting_database_kind",
+    src = ":postgres_database",
+    delete_selector = "app.kubernetes.io/component=postgres",
+    tags = ["manual"],
+)
+
+REPORTING_IMAGE_NAMES = [
+    "reporting_postgres_update_schema_image",
+    "reporting_data_server_image",
+    "reporting_v1alpha_public_api_server_image",
+]
+
+REPORTING_IMAGE_IMPORTS = [
+    ":load_" + image_name
+    for image_name in REPORTING_IMAGE_NAMES
+]
+
+kind_load_images(
+    name = "load_reporting_images",
+    tags = ["manual"],
+    deps = REPORTING_IMAGE_IMPORTS,
+)
+
+k8s_apply(
+    name = "reporting_kind",
+    src = ":reporting",
+    delete_selector = "app.kubernetes.io/component=reporting",
+    imports = REPORTING_IMAGE_IMPORTS,
     tags = ["manual"],
 )

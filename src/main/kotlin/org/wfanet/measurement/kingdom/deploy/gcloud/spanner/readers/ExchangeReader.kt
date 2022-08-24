@@ -46,7 +46,8 @@ class ExchangeReader : SpannerReader<ExchangeReader.Result>() {
           state = struct.getProtoEnum("State", Exchange.State::forNumber)
           details = struct.getProtoMessage("ExchangeDetails", ExchangeDetails.parser())
           serializedRecurringExchange =
-            struct.getProtoMessage("RecurringExchangeDetails", RecurringExchangeDetails.parser())
+            struct
+              .getProtoMessage("RecurringExchangeDetails", RecurringExchangeDetails.parser())
               .externalExchangeWorkflow
         },
       recurringExchangeId = struct.getLong("RecurringExchangeId")

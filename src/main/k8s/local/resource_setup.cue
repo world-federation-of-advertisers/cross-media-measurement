@@ -16,13 +16,14 @@ package k8s
 
 _secret_name: string @tag("secret_name")
 
-objectSets: [resourceSetupJob]
+objectSets: [resourceSetup]
 
-resourceSetupJob: #ResourceSetup & {
+resourceSetup: #ResourceSetup & {
 	_edp_display_names: ["edp1", "edp2", "edp3", "edp4", "edp5", "edp6"]
 	_duchy_ids: ["aggregator", "worker1", "worker2"]
 	_job_image:                  "bazel/src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:resource_setup_runner_image"
 	_job_image_pull_policy:      "Never"
 	_resource_setup_secret_name: _secret_name
 	_dependencies: ["gcp-kingdom-data-server"]
+	_resourceConfig: #DefaultResourceConfig
 }

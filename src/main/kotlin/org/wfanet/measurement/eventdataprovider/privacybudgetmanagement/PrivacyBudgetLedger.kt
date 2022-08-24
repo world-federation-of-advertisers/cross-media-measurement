@@ -58,7 +58,7 @@ class PrivacyBudgetLedger(
    * @throws PrivacyBudgetManagerException if there is an error commiting the transaction to the
    * database.
    */
-  fun chargingWillExceedPrivacyBudget(
+  suspend fun chargingWillExceedPrivacyBudget(
     privacyBucketGroups: Set<PrivacyBucketGroup>,
     charges: Set<Charge>
   ): Boolean {
@@ -85,7 +85,7 @@ class PrivacyBudgetLedger(
    * unsuccessful. Possible causes could include exceeding available privacy budget or an inability
    * to commit an update to the database.
    */
-  fun charge(
+  suspend fun charge(
     reference: Reference,
     privacyBucketGroups: Set<PrivacyBucketGroup>,
     charges: Set<Charge>
@@ -106,13 +106,13 @@ class PrivacyBudgetLedger(
     }
   }
 
-  fun hasLedgerEntry(reference: Reference): Boolean {
+  suspend fun hasLedgerEntry(reference: Reference): Boolean {
     backingStore.startTransaction().use { context: PrivacyBudgetLedgerTransactionContext ->
       return context.hasLedgerEntry(reference)
     }
   }
 
-  private fun getExceededPrivacyBuckets(
+  private suspend fun getExceededPrivacyBuckets(
     context: PrivacyBudgetLedgerTransactionContext,
     privacyBucketGroups: Set<PrivacyBucketGroup>,
     charges: Set<Charge>
@@ -121,7 +121,7 @@ class PrivacyBudgetLedger(
       privacyBudgetIsExceeded(context.findIntersectingBalanceEntries(it).toSet(), charges)
     }
 
-  private fun checkPrivacyBudgetExceeded(
+  private suspend fun checkPrivacyBudgetExceeded(
     context: PrivacyBudgetLedgerTransactionContext,
     privacyBucketGroups: Set<PrivacyBucketGroup>,
     charges: Set<Charge>
@@ -135,7 +135,7 @@ class PrivacyBudgetLedger(
     }
   }
 
-  private fun checkPrivacyBudgetExceeded(
+  private suspend fun checkPrivacyBudgetExceeded(
     context: PrivacyBudgetLedgerTransactionContext,
     reference: Reference,
     privacyBucketGroups: Set<PrivacyBucketGroup>,
@@ -177,7 +177,7 @@ class PrivacyBudgetLedger(
    * @return true if adding the charges would cause the total privacy budget usage for this bucket
    * to be exceeded.
    */
-  private fun privacyBudgetIsExceeded(
+  private suspend fun privacyBudgetIsExceeded(
     balanceEntries: Set<PrivacyBudgetBalanceEntry>,
     charges: Set<Charge>
   ): Boolean {

@@ -63,52 +63,54 @@ class RequisitionFulfillmentService(
   override suspend fun fulfillRequisition(
     requests: Flow<FulfillRequisitionRequest>
   ): FulfillRequisitionResponse {
-    grpcRequireNotNull(requests.consumeFirst()) { "Empty request stream" }.use { consumed ->
-      val header = consumed.item.header
-      val key =
-        grpcRequireNotNull(RequisitionKey.fromName(header.name)) {
-          "Resource name unspecified or invalid."
+    grpcRequireNotNull(requests.consumeFirst()) { "Empty request stream" }
+      .use { consumed ->
+        val header = consumed.item.header
+        val key =
+          grpcRequireNotNull(RequisitionKey.fromName(header.name)) {
+            "Resource name unspecified or invalid."
+          }
+        grpcRequire(header.nonce != 0L) { "nonce unspecified" }
+
+        // Ensure that the caller is the data_provider who owns this requisition.
+        val caller = callIdentityProvider()
+        if (
+          caller.type != Provider.Type.DATA_PROVIDER ||
+            externalIdToApiId(caller.externalId) != key.dataProviderId
+        ) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "The data_provider id doesn't match the caller's identity."
+          }
         }
-      grpcRequire(header.nonce != 0L) { "nonce unspecified" }
 
-      // Ensure that the caller is the data_provider who owns this requisition.
-      val caller = callIdentityProvider()
-      if (caller.type != Provider.Type.DATA_PROVIDER ||
-          externalIdToApiId(caller.externalId) != key.dataProviderId
-      ) {
-        failGrpc(Status.PERMISSION_DENIED) {
-          "The data_provider id doesn't match the caller's identity."
+        val externalRequisitionKey = externalRequisitionKey {
+          externalRequisitionId = key.requisitionId
+          requisitionFingerprint = header.requisitionFingerprint
         }
+        val computationToken = getComputationToken(externalRequisitionKey)
+        val requisitionMetadata =
+          verifyRequisitionFulfillment(computationToken, externalRequisitionKey, header.nonce)
+
+        // Only try writing to the blob store if it is not already marked fulfilled.
+        // TODO(world-federation-of-advertisers/cross-media-measurement#85): Handle the case that it
+        //  is already marked fulfilled locally.
+        if (requisitionMetadata.path.isBlank()) {
+          val blob =
+            requisitionStore.write(
+              RequisitionBlobContext(computationToken.globalComputationId, key.requisitionId),
+              consumed.remaining.map { it.bodyChunk.data }
+            )
+          recordRequisitionBlobPathLocally(computationToken, externalRequisitionKey, blob.blobKey)
+        }
+
+        fulfillRequisitionAtKingdom(
+          computationToken.globalComputationId,
+          externalRequisitionKey.externalRequisitionId,
+          header.nonce
+        )
+
+        return FULFILLED_RESPONSE
       }
-
-      val externalRequisitionKey = externalRequisitionKey {
-        externalRequisitionId = key.requisitionId
-        requisitionFingerprint = header.requisitionFingerprint
-      }
-      val computationToken = getComputationToken(externalRequisitionKey)
-      val requisitionMetadata =
-        verifyRequisitionFulfillment(computationToken, externalRequisitionKey, header.nonce)
-
-      // Only try writing to the blob store if it is not already marked fulfilled.
-      // TODO(world-federation-of-advertisers/cross-media-measurement#85): Handle the case that it
-      //  is already marked fulfilled locally.
-      if (requisitionMetadata.path.isBlank()) {
-        val blob =
-          requisitionStore.write(
-            RequisitionBlobContext(computationToken.globalComputationId, key.requisitionId),
-            consumed.remaining.map { it.bodyChunk.data }
-          )
-        recordRequisitionBlobPathLocally(computationToken, externalRequisitionKey, blob.blobKey)
-      }
-
-      fulfillRequisitionAtKingdom(
-        computationToken.globalComputationId,
-        externalRequisitionKey.externalRequisitionId,
-        header.nonce
-      )
-
-      return FULFILLED_RESPONSE
-    }
   }
 
   private suspend fun getComputationToken(
@@ -126,8 +128,9 @@ class RequisitionFulfillmentService(
       computationsClient.getComputationToken(request)
     } catch (e: StatusException) {
       if (e.status.code == Status.Code.NOT_FOUND) {
-        throw Status.NOT_FOUND
-          .withDescription("No computation is expecting this requisition $this.")
+        throw Status.NOT_FOUND.withDescription(
+            "No computation is expecting this requisition $this."
+          )
           .asRuntimeException()
       } else {
         throw Status.INTERNAL.withCause(e).asRuntimeException()
@@ -144,23 +147,26 @@ class RequisitionFulfillmentService(
     when (Version.fromString(kingdomComputation.publicApiVersion)) {
       Version.V2_ALPHA -> {}
       Version.VERSION_UNSPECIFIED ->
-        throw Status.FAILED_PRECONDITION
-          .withDescription("Public API version invalid or unspecified")
+        throw Status.FAILED_PRECONDITION.withDescription(
+            "Public API version invalid or unspecified"
+          )
           .asRuntimeException()
     }
 
     val measurementSpec = MeasurementSpec.parseFrom(kingdomComputation.measurementSpec)
     val requisitionMetadata =
       checkNotNull(computationToken.requisitionsList.find { it.externalKey == requisitionKey })
-    if (!verifyRequisitionFulfillment(
+    if (
+      !verifyRequisitionFulfillment(
         measurementSpec,
         requisitionMetadata.toConsentSignalingRequisition(),
         requisitionKey.requisitionFingerprint,
         nonce
       )
     ) {
-      throw Status.FAILED_PRECONDITION
-        .withDescription("Requisition fulfillment could not be verified")
+      throw Status.FAILED_PRECONDITION.withDescription(
+          "Requisition fulfillment could not be verified"
+        )
         .asRuntimeException()
     }
 

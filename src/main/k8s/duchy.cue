@@ -75,17 +75,13 @@ import ("strings")
 	}
 
 	deployments: [Name=_]: #Deployment & {
-		_unprefixed_name:       strings.TrimSuffix(Name, "-deployment")
-		_name:                  _object_prefix + _unprefixed_name
-		_secretName:            _duchy_secret_name
-		_system:                "duchy"
-		_image:                 _images[_unprefixed_name]
-		_imagePullPolicy:       _duchy_image_pull_policy
-		_replicas:              _resource_configs[_unprefixed_name].replicas
-		_resourceRequestMemory: _resource_configs[_unprefixed_name].resourceRequestMemory
-		_resourceLimitMemory:   _resource_configs[_unprefixed_name].resourceLimitMemory
-		_resourceRequestCpu:    _resource_configs[_unprefixed_name].resourceRequestCpu
-		_resourceLimitCpu:      _resource_configs[_unprefixed_name].resourceLimitCpu
+		_unprefixed_name: strings.TrimSuffix(Name, "-deployment")
+		_name:            _object_prefix + _unprefixed_name
+		_secretName:      _duchy_secret_name
+		_system:          "duchy"
+		_image:           _images[_unprefixed_name]
+		_imagePullPolicy: _duchy_image_pull_policy
+		_resourceConfig:  _resource_configs[_unprefixed_name]
 	}
 
 	deployments: {
@@ -135,6 +131,7 @@ import ("strings")
 				_duchy_cert_collection_file_flag,
 				_debug_verbose_grpc_server_logging_flag,
 				"--port=8443",
+				"--health-port=8080",
 			]
 		}
 		"computation-control-server-deployment": #ServerDeployment & {
@@ -148,6 +145,7 @@ import ("strings")
 				_duchy_cert_collection_file_flag,
 				_debug_verbose_grpc_server_logging_flag,
 				"--port=8443",
+				"--health-port=8080",
 			] + _blob_storage_flags
 		}
 		"spanner-computations-server-deployment": Deployment=#ServerDeployment & {
@@ -162,6 +160,7 @@ import ("strings")
 				_kingdom_system_api_cert_host_flag,
 				"--channel-shutdown-timeout=3s",
 				"--port=8443",
+				"--health-port=8080",
 			] + _spannerConfig.flags
 
 			_podSpec: _initContainers: {
@@ -188,6 +187,7 @@ import ("strings")
 				_kingdom_system_api_target_flag,
 				_kingdom_system_api_cert_host_flag,
 				"--port=8443",
+				"--health-port=8080",
 			] + _blob_storage_flags
 			_dependencies: ["\(_name)-spanner-computations-server"]
 		}

@@ -56,16 +56,12 @@ package k8s
 	}
 
 	deployments: [Name=_]: #ServerDeployment & {
-		_name:                  Name
-		_secretName:            _kingdom_secret_name
-		_system:                "kingdom"
-		_image:                 _images[_name]
-		_imagePullPolicy:       _kingdom_image_pull_policy
-		_replicas:              _resource_configs[_name].replicas
-		_resourceRequestMemory: _resource_configs[_name].resourceRequestMemory
-		_resourceLimitMemory:   _resource_configs[_name].resourceLimitMemory
-		_resourceRequestCpu:    _resource_configs[_name].resourceRequestCpu
-		_resourceLimitCpu:      _resource_configs[_name].resourceLimitCpu
+		_name:            Name
+		_secretName:      _kingdom_secret_name
+		_system:          "kingdom"
+		_image:           _images[_name]
+		_imagePullPolicy: _kingdom_image_pull_policy
+		_resourceConfig:  _resource_configs[_name]
 	}
 	deployments: {
 		"gcp-kingdom-data-server": Deployment={
@@ -77,6 +73,7 @@ package k8s
 				_kingdom_cert_collection_file_flag,
 				_debug_verbose_grpc_server_logging_flag,
 				"--port=8443",
+				"--health-port=8080",
 			] + _spannerConfig.flags
 
 			_podSpec: _initContainers: {
@@ -99,6 +96,7 @@ package k8s
 				_internal_api_target_flag,
 				_internal_api_cert_host_flag,
 				"--port=8443",
+				"--health-port=8080",
 			]
 			_dependencies: ["gcp-kingdom-data-server"]
 		}
@@ -119,6 +117,7 @@ package k8s
 				_akid_to_principal_map_file_flag,
 				_open_id_redirect_uri_flag,
 				"--port=8443",
+				"--health-port=8080",
 			]
 			_dependencies: ["gcp-kingdom-data-server"]
 		}

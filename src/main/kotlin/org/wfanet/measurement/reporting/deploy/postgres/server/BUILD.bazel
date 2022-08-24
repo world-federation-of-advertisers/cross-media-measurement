@@ -1,0 +1,29 @@
+load("@io_bazel_rules_docker//java:image.bzl", "java_image")
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+load("@rules_java//java:defs.bzl", "java_binary")
+
+kt_jvm_library(
+    name = "postgres_reporting_data_server",
+    srcs = ["PostgresReportingDataServer.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/common/server:reporting_data_server",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/common/server/postgres:services",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/postgres:flags",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres",
+    ],
+)
+
+java_binary(
+    name = "PostgresReportingDataServer",
+    main_class = "org.wfanet.measurement.reporting.deploy.postgres.server.PostgresReportingDataServerKt",
+    runtime_deps = [":postgres_reporting_data_server"],
+)
+
+java_image(
+    name = "postgres_reporting_data_server_image",
+    main_class = "org.wfanet.measurement.reporting.deploy.postgres.server.PostgresReportingDataServerKt",
+    visibility = ["//src:docker_image_deployment"],
+    runtime_deps = [":postgres_reporting_data_server"],
+)

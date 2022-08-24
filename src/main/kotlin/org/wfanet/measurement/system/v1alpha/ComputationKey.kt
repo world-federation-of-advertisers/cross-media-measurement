@@ -15,6 +15,7 @@
 package org.wfanet.measurement.system.v1alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
+import org.wfanet.measurement.common.api.ResourceKey
 
 private val parser = ResourceNameParser("computations/{computation}")
 
@@ -24,10 +25,10 @@ data class ComputationKey(val computationId: String) : ResourceKey {
     return parser.assembleName(mapOf(IdVariable.COMPUTATION to computationId))
   }
 
-  companion object {
+  companion object FACTORY : ResourceKey.Factory<ComputationKey> {
     val defaultValue = ComputationKey("")
 
-    fun fromName(resourceName: String): ComputationKey? {
+    override fun fromName(resourceName: String): ComputationKey? {
       return parser.parseIdVars(resourceName)?.let {
         ComputationKey(it.getValue(IdVariable.COMPUTATION))
       }

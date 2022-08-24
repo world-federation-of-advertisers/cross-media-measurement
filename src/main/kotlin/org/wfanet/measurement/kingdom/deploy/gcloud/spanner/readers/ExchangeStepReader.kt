@@ -68,7 +68,8 @@ class ExchangeStepReader(exchangeStepsIndex: Index = Index.NONE) :
       provider = buildProvider(struct)
       updateTime = struct.getTimestamp("UpdateTime").toProto()
       serializedExchangeWorkflow =
-        struct.getProtoMessage("RecurringExchangeDetails", RecurringExchangeDetails.parser())
+        struct
+          .getProtoMessage("RecurringExchangeDetails", RecurringExchangeDetails.parser())
           .externalExchangeWorkflow
     }
   }

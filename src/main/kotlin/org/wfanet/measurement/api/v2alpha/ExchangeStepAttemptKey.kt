@@ -15,6 +15,7 @@
 package org.wfanet.measurement.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
+import org.wfanet.measurement.common.api.ResourceKey
 
 private val parser =
   ResourceNameParser(
@@ -40,10 +41,10 @@ data class ExchangeStepAttemptKey(
     )
   }
 
-  companion object {
+  companion object FACTORY : ResourceKey.Factory<ExchangeStepAttemptKey> {
     val defaultValue = ExchangeStepAttemptKey("", "", "", "")
 
-    fun fromName(resourceName: String): ExchangeStepAttemptKey? {
+    override fun fromName(resourceName: String): ExchangeStepAttemptKey? {
       return parser.parseIdVars(resourceName)?.let {
         ExchangeStepAttemptKey(
           it.getValue(IdVariable.RECURRING_EXCHANGE),

@@ -15,17 +15,20 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.BatchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.BatchGetEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.GetEventGroupMetadataDescriptorRequest
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
+import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.UpdateEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
@@ -57,17 +60,15 @@ class EventGroupMetadataDescriptorsService(
         "Resource name is either unspecified or invalid"
       }
 
-    val principal = principalFromCurrentContext
-
-    when (val resourceKey = principal.resourceKey) {
-      is DataProviderKey -> {
-        if (resourceKey.dataProviderId != key.dataProviderId) {
+    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
+      is DataProviderPrincipal -> {
+        if (principal.resourceKey.dataProviderId != key.dataProviderId) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot get EventGroupMetadataDescriptors belonging to other DataProviders"
           }
         }
       }
-      is MeasurementConsumerKey -> {}
+      is MeasurementConsumerPrincipal -> {}
       else -> {
         failGrpc(Status.PERMISSION_DENIED) {
           "Caller does not have permission to get EventGroupMetadataDescriptors"
@@ -80,9 +81,17 @@ class EventGroupMetadataDescriptorsService(
       externalEventGroupMetadataDescriptorId = apiIdToExternalId(key.eventGroupMetadataDescriptorId)
     }
 
-    return internalEventGroupMetadataDescriptorsStub
-      .getEventGroupMetadataDescriptor(getRequest)
-      .toEventGroupMetadataDescriptor()
+    val internalEventGroupMetadataDescriptor =
+      try {
+        internalEventGroupMetadataDescriptorsStub.getEventGroupMetadataDescriptor(getRequest)
+      } catch (ex: StatusRuntimeException) {
+        when (ex.status) {
+          Status.NOT_FOUND ->
+            failGrpc(Status.NOT_FOUND, ex) { "EventGroupMetadataDescriptor not found" }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
+      }
+    return internalEventGroupMetadataDescriptor.toEventGroupMetadataDescriptor()
   }
 
   override suspend fun createEventGroupMetadataDescriptor(
@@ -93,11 +102,9 @@ class EventGroupMetadataDescriptorsService(
         "Parent is either unspecified or invalid"
       }
 
-    val principal = principalFromCurrentContext
-
-    when (val resourceKey = principal.resourceKey) {
-      is DataProviderKey -> {
-        if (resourceKey.toName() != request.parent) {
+    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
+      is DataProviderPrincipal -> {
+        if (principal.resourceKey.toName() != request.parent) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot create EventGroupMetadataDescriptors for another DataProvider"
           }
@@ -110,11 +117,18 @@ class EventGroupMetadataDescriptorsService(
       }
     }
 
-    return internalEventGroupMetadataDescriptorsStub
-      .createEventGroupMetadataDescriptor(
-        request.eventGroupMetadataDescriptor.toInternal(parentKey.dataProviderId)
-      )
-      .toEventGroupMetadataDescriptor()
+    val createRequest = request.eventGroupMetadataDescriptor.toInternal(parentKey.dataProviderId)
+    val internalEventGroupMetadataDescriptor =
+      try {
+        internalEventGroupMetadataDescriptorsStub.createEventGroupMetadataDescriptor(createRequest)
+      } catch (ex: StatusRuntimeException) {
+        when (ex.status) {
+          Status.NOT_FOUND ->
+            failGrpc(Status.NOT_FOUND, ex) { "EventGroupMetadataDescriptor not found" }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
+      }
+    return internalEventGroupMetadataDescriptor.toEventGroupMetadataDescriptor()
   }
 
   override suspend fun updateEventGroupMetadataDescriptor(
@@ -125,11 +139,11 @@ class EventGroupMetadataDescriptorsService(
         EventGroupMetadataDescriptorKey.fromName(request.eventGroupMetadataDescriptor.name)
       ) { "EventGroupMetadataDescriptor name is either unspecified or invalid" }
 
-    val principal = principalFromCurrentContext
-
-    when (val resourceKey = principal.resourceKey) {
-      is DataProviderKey -> {
-        if (resourceKey.dataProviderId != eventGroupMetadataDescriptorKey.dataProviderId) {
+    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
+      is DataProviderPrincipal -> {
+        if (
+          principal.resourceKey.dataProviderId != eventGroupMetadataDescriptorKey.dataProviderId
+        ) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot update EventGroupMetadataDescriptors for another DataProvider"
           }
@@ -142,17 +156,26 @@ class EventGroupMetadataDescriptorsService(
       }
     }
 
-    return internalEventGroupMetadataDescriptorsStub
-      .updateEventGroupMetadataDescriptor(
-        updateEventGroupMetadataDescriptorRequest {
-          eventGroupMetadataDescriptor =
-            request.eventGroupMetadataDescriptor.toInternal(
-              eventGroupMetadataDescriptorKey.dataProviderId,
-              eventGroupMetadataDescriptorKey.eventGroupMetadataDescriptorId
-            )
+    val updateRequest = updateEventGroupMetadataDescriptorRequest {
+      eventGroupMetadataDescriptor =
+        request.eventGroupMetadataDescriptor.toInternal(
+          eventGroupMetadataDescriptorKey.dataProviderId,
+          eventGroupMetadataDescriptorKey.eventGroupMetadataDescriptorId
+        )
+    }
+    val internalEventGroupMetadataDescriptor =
+      try {
+        internalEventGroupMetadataDescriptorsStub.updateEventGroupMetadataDescriptor(updateRequest)
+      } catch (ex: StatusRuntimeException) {
+        when (ex.status) {
+          Status.INVALID_ARGUMENT ->
+            failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid." }
+          Status.NOT_FOUND ->
+            failGrpc(Status.NOT_FOUND, ex) { "EventGroupMetadataDescriptor not found" }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
         }
-      )
-      .toEventGroupMetadataDescriptor()
+      }
+    return internalEventGroupMetadataDescriptor.toEventGroupMetadataDescriptor()
   }
 
   override suspend fun batchGetEventGroupMetadataDescriptors(
@@ -163,17 +186,17 @@ class EventGroupMetadataDescriptorsService(
         "Parent is either unspecified or invalid"
       }
 
-    val principal = principalFromCurrentContext
+    val principal: MeasurementPrincipal = principalFromCurrentContext
 
-    when (val resourceKey = principal.resourceKey) {
-      is DataProviderKey -> {
-        if (resourceKey.dataProviderId != parentKey.dataProviderId) {
+    when (principal) {
+      is DataProviderPrincipal -> {
+        if (principal.resourceKey.dataProviderId != parentKey.dataProviderId) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot get EventGroupMetadataDescriptors belonging to other DataProviders"
           }
         }
       }
-      is MeasurementConsumerKey -> {}
+      is MeasurementConsumerPrincipal -> {}
       else -> {
         failGrpc(Status.PERMISSION_DENIED) {
           "Caller does not have permission to get EventGroupMetadataDescriptors"

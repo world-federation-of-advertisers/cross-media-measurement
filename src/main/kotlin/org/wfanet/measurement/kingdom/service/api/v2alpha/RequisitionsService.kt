@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.Version
@@ -24,13 +25,15 @@ import org.wfanet.measurement.api.v2.alpha.copy
 import org.wfanet.measurement.api.v2.alpha.listRequisitionsPageToken
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
+import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.Requisition.DuchyEntry
@@ -84,14 +87,15 @@ class RequisitionsService(
   override suspend fun listRequisitions(
     request: ListRequisitionsRequest
   ): ListRequisitionsResponse {
-    val principal = principalFromCurrentContext
+    val principal: MeasurementPrincipal = principalFromCurrentContext
 
     val listRequisitionsPageToken = request.toListRequisitionsPageToken()
 
     var externalMeasurementConsumerId = 0L
-    when (val resourceKey = principal.resourceKey) {
-      is DataProviderKey -> {
-        if (apiIdToExternalId(resourceKey.dataProviderId) !=
+    when (principal) {
+      is DataProviderPrincipal -> {
+        if (
+          apiIdToExternalId(principal.resourceKey.dataProviderId) !=
             listRequisitionsPageToken.externalDataProviderId
         ) {
           failGrpc(Status.PERMISSION_DENIED) {
@@ -99,9 +103,11 @@ class RequisitionsService(
           }
         }
       }
-      is MeasurementConsumerKey -> {
-        externalMeasurementConsumerId = apiIdToExternalId(resourceKey.measurementConsumerId)
-        if (listRequisitionsPageToken.externalMeasurementConsumerId != 0L &&
+      is MeasurementConsumerPrincipal -> {
+        externalMeasurementConsumerId =
+          apiIdToExternalId(principal.resourceKey.measurementConsumerId)
+        if (
+          listRequisitionsPageToken.externalMeasurementConsumerId != 0L &&
             listRequisitionsPageToken.externalMeasurementConsumerId != externalMeasurementConsumerId
         ) {
           failGrpc(Status.PERMISSION_DENIED) {
@@ -116,27 +122,33 @@ class RequisitionsService(
       }
     }
 
-    val results: List<InternalRequisition> =
-      internalRequisitionStub
-        .streamRequisitions(
-          listRequisitionsPageToken.toStreamRequisitionsRequest().copy {
-            filter =
-              filter.copy {
-                // Filters for the caller's ID if the caller is an MC.
-                if (this.externalMeasurementConsumerId == 0L) {
-                  this.externalMeasurementConsumerId = externalMeasurementConsumerId
-                }
+    val streamRequest =
+      listRequisitionsPageToken.toStreamRequisitionsRequest().copy {
+        filter =
+          filter.copy {
+            // Filters for the caller's ID if the caller is an MC.
+            if (this.externalMeasurementConsumerId == 0L) {
+              this.externalMeasurementConsumerId = externalMeasurementConsumerId
+            }
 
-                // If no state filter set in public request, include all visible states.
-                if (states.isEmpty()) {
-                  states += InternalState.UNFULFILLED
-                  states += InternalState.FULFILLED
-                  states += InternalState.REFUSED
-                }
-              }
+            // If no state filter set in public request, include all visible states.
+            if (states.isEmpty()) {
+              states += InternalState.UNFULFILLED
+              states += InternalState.FULFILLED
+              states += InternalState.REFUSED
+            }
           }
-        )
-        .toList()
+      }
+    val results: List<InternalRequisition> =
+      try {
+        internalRequisitionStub.streamRequisitions(streamRequest).toList()
+      } catch (ex: StatusRuntimeException) {
+        when (ex.status) {
+          Status.INVALID_ARGUMENT ->
+            failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid." }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
+      }
 
     if (results.isEmpty()) {
       return ListRequisitionsResponse.getDefaultInstance()
@@ -166,11 +178,9 @@ class RequisitionsService(
         "Resource name unspecified or invalid"
       }
 
-    val principal = principalFromCurrentContext
-
-    when (val resourceKey = principal.resourceKey) {
-      is DataProviderKey -> {
-        if (resourceKey.dataProviderId != key.dataProviderId) {
+    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
+      is DataProviderPrincipal -> {
+        if (principal.resourceKey.dataProviderId != key.dataProviderId) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot refuse Requisitions belonging to other DataProviders"
           }
@@ -197,7 +207,19 @@ class RequisitionsService(
         }
     }
 
-    val result = internalRequisitionStub.refuseRequisition(refuseRequest)
+    val result =
+      try {
+        internalRequisitionStub.refuseRequisition(refuseRequest)
+      } catch (ex: StatusRuntimeException) {
+        when (ex.status) {
+          Status.INVALID_ARGUMENT ->
+            failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid." }
+          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Requisition not found." }
+          Status.FAILED_PRECONDITION ->
+            failGrpc(Status.FAILED_PRECONDITION, ex) { "Requisition or Measurement state illegal." }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
+      }
 
     return result.toRequisition()
   }
@@ -213,7 +235,8 @@ class RequisitionsService(
     grpcRequire(!request.encryptedData.isEmpty) { "encrypted_data must be provided" }
     // Ensure that the caller is the data_provider who owns this requisition.
     val caller = callIdentityProvider()
-    if (caller.type != Provider.Type.DATA_PROVIDER ||
+    if (
+      caller.type != Provider.Type.DATA_PROVIDER ||
         externalIdToApiId(caller.externalId) != key.dataProviderId
     ) {
       failGrpc(Status.PERMISSION_DENIED) {
@@ -221,16 +244,28 @@ class RequisitionsService(
       }
     }
 
-    internalRequisitionStub.fulfillRequisition(
-      fulfillRequisitionRequest {
-        externalRequisitionId = apiIdToExternalId(key.requisitionId)
-        nonce = request.nonce
-        directParams = directRequisitionParams {
-          externalDataProviderId = apiIdToExternalId(key.dataProviderId)
-          encryptedData = request.encryptedData
-        }
+    val fulfillRequest = fulfillRequisitionRequest {
+      externalRequisitionId = apiIdToExternalId(key.requisitionId)
+      nonce = request.nonce
+      directParams = directRequisitionParams {
+        externalDataProviderId = apiIdToExternalId(key.dataProviderId)
+        encryptedData = request.encryptedData
       }
-    )
+    }
+    try {
+      internalRequisitionStub.fulfillRequisition(fulfillRequest)
+    } catch (ex: StatusRuntimeException) {
+      when (ex.status) {
+        Status.INVALID_ARGUMENT ->
+          failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid." }
+        Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Requisition not found." }
+        Status.FAILED_PRECONDITION ->
+          failGrpc(Status.FAILED_PRECONDITION, ex) {
+            "Requisition or Measurement state illegal, or Duchy not found."
+          }
+        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+      }
+    }
 
     return fulfillDirectRequisitionResponse { state = State.FULFILLED }
   }
@@ -266,8 +301,8 @@ private fun InternalRequisition.toRequisition(): Requisition {
       data = parentMeasurement.measurementSpec
       signature = parentMeasurement.measurementSpecSignature
     }
-    if (parentMeasurement.protocolConfig.protocolCase !=
-        ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
+    if (
+      parentMeasurement.protocolConfig.protocolCase != ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
     ) {
       protocolConfig =
         try {
@@ -329,17 +364,19 @@ private fun Refusal.Justification.toInternal(): InternalRefusal.Justification =
       InternalRefusal.Justification.INSUFFICIENT_PRIVACY_BUDGET
     Refusal.Justification.UNFULFILLABLE -> InternalRefusal.Justification.UNFULFILLABLE
     Refusal.Justification.DECLINED -> InternalRefusal.Justification.DECLINED
-    Refusal.Justification.JUSTIFICATION_UNSPECIFIED, Refusal.Justification.UNRECOGNIZED ->
-      InternalRefusal.Justification.JUSTIFICATION_UNSPECIFIED
+    Refusal.Justification.JUSTIFICATION_UNSPECIFIED,
+    Refusal.Justification.UNRECOGNIZED -> InternalRefusal.Justification.JUSTIFICATION_UNSPECIFIED
   }
 
 /** Converts an internal [InternalState] to a public [State]. */
 private fun InternalState.toRequisitionState(): State =
   when (this) {
-    InternalState.PENDING_PARAMS, InternalState.UNFULFILLED -> State.UNFULFILLED
+    InternalState.PENDING_PARAMS,
+    InternalState.UNFULFILLED -> State.UNFULFILLED
     InternalState.FULFILLED -> State.FULFILLED
     InternalState.REFUSED -> State.REFUSED
-    InternalState.STATE_UNSPECIFIED, InternalState.UNRECOGNIZED -> State.STATE_UNSPECIFIED
+    InternalState.STATE_UNSPECIFIED,
+    InternalState.UNRECOGNIZED -> State.STATE_UNSPECIFIED
   }
 
 /** Converts a public [State] to an internal [InternalState]. */
@@ -348,7 +385,8 @@ private fun State.toInternal(): InternalState =
     State.UNFULFILLED -> InternalState.UNFULFILLED
     State.FULFILLED -> InternalState.FULFILLED
     State.REFUSED -> InternalState.REFUSED
-    State.STATE_UNSPECIFIED, State.UNRECOGNIZED -> InternalState.STATE_UNSPECIFIED
+    State.STATE_UNSPECIFIED,
+    State.UNRECOGNIZED -> InternalState.STATE_UNSPECIFIED
   }
 
 /** Converts an internal [DuchyValue] to a public [DuchyEntry.Value]. */

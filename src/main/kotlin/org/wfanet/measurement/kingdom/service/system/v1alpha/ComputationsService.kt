@@ -100,8 +100,9 @@ class ComputationsService(
       }
     val authenticatedDuchy: DuchyIdentity = duchyIdentityProvider()
     if (aggregatorCertificateKey.duchyId != authenticatedDuchy.id) {
-      throw Status.PERMISSION_DENIED
-        .withDescription("Aggregator certificate not owned by authenticated Duchy")
+      throw Status.PERMISSION_DENIED.withDescription(
+          "Aggregator certificate not owned by authenticated Duchy"
+        )
         .asRuntimeException()
     }
 

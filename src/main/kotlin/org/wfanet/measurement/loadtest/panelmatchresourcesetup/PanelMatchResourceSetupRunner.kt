@@ -23,7 +23,7 @@ import org.wfanet.measurement.api.v2alpha.exchangeWorkflow
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
-import org.wfanet.measurement.common.crypto.tink.testing.loadPublicKey
+import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.toProtoDate
@@ -69,8 +69,7 @@ private fun run(@CommandLine.Mixin flags: PanelMatchResourceSetupFlags) {
     )
 
   val exchangeWorkflow: ExchangeWorkflow by lazy {
-    flags
-      .exchangeWorkflow
+    flags.exchangeWorkflow
       .inputStream()
       .use { input -> parseTextProto(input.bufferedReader(), exchangeWorkflow {}) }
       .copy { firstExchangeDate = EXCHANGE_DATE.toProtoDate() }
