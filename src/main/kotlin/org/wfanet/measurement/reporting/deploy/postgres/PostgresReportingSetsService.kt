@@ -24,7 +24,7 @@ import org.wfanet.measurement.internal.reporting.GetReportingSetRequest
 import org.wfanet.measurement.internal.reporting.ReportingSet
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.StreamReportingSetsRequest
-import org.wfanet.measurement.reporting.deploy.postgres.PostgresSerializable.withRetries
+import org.wfanet.measurement.reporting.deploy.postgres.PostgresSerializable.withSerializableErrorRetries
 import org.wfanet.measurement.reporting.deploy.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.deploy.postgres.writers.CreateReportingSet
 import org.wfanet.measurement.reporting.service.internal.ReportingSetAlreadyExistsException
@@ -46,7 +46,7 @@ class PostgresReportingSetsService(
 
   override suspend fun getReportingSet(request: GetReportingSetRequest): ReportingSet {
     return try {
-      withRetries {
+      withSerializableErrorRetries {
         ReportingSetReader()
           .readReportingSetByExternalId(
             client.singleUse(),
@@ -64,6 +64,6 @@ class PostgresReportingSetsService(
     return ReportingSetReader()
       .listReportingSets(client, request.filter, request.limit)
       .map { result -> result.reportingSet }
-      .withRetries()
+      .withSerializableErrorRetries()
   }
 }

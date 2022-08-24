@@ -22,7 +22,7 @@ import org.wfanet.measurement.internal.reporting.Measurement
 import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.SetMeasurementFailureRequest
 import org.wfanet.measurement.internal.reporting.SetMeasurementResultRequest
-import org.wfanet.measurement.reporting.deploy.postgres.PostgresSerializable.withRetries
+import org.wfanet.measurement.reporting.deploy.postgres.PostgresSerializable.withSerializableErrorRetries
 import org.wfanet.measurement.reporting.deploy.postgres.readers.MeasurementReader
 import org.wfanet.measurement.reporting.deploy.postgres.writers.CreateMeasurement
 import org.wfanet.measurement.reporting.deploy.postgres.writers.SetMeasurementFailure
@@ -44,7 +44,7 @@ class PostgresMeasurementsService(
 
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
     return try {
-      withRetries {
+      withSerializableErrorRetries {
         MeasurementReader()
           .readMeasurementByReferenceIds(
             client.singleUse(),

@@ -25,7 +25,7 @@ import org.wfanet.measurement.internal.reporting.GetReportRequest
 import org.wfanet.measurement.internal.reporting.Report
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.StreamReportsRequest
-import org.wfanet.measurement.reporting.deploy.postgres.PostgresSerializable.withRetries
+import org.wfanet.measurement.reporting.deploy.postgres.PostgresSerializable.withSerializableErrorRetries
 import org.wfanet.measurement.reporting.deploy.postgres.readers.ReportReader
 import org.wfanet.measurement.reporting.deploy.postgres.writers.CreateReport
 import org.wfanet.measurement.reporting.service.internal.MeasurementCalculationTimeIntervalNotFoundException
@@ -50,7 +50,7 @@ class PostgresReportsService(
 
   override suspend fun getReport(request: GetReportRequest): Report {
     try {
-      return withRetries {
+      return withSerializableErrorRetries {
         ReportReader()
           .getReportByExternalId(
             client.singleUse(),
@@ -68,7 +68,7 @@ class PostgresReportsService(
     request: GetReportByIdempotencyKeyRequest
   ): Report {
     try {
-      return withRetries {
+      return withSerializableErrorRetries {
         ReportReader()
           .getReportByIdempotencyKey(
             client.singleUse(),
@@ -86,6 +86,6 @@ class PostgresReportsService(
     return ReportReader()
       .listReports(client, request.filter, request.limit)
       .map { result -> result.report }
-      .withRetries()
+      .withSerializableErrorRetries()
   }
 }
