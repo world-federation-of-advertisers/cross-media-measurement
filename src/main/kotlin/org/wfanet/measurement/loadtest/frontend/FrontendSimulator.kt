@@ -157,13 +157,17 @@ class FrontendSimulator(
     )
   }
 
+  /**
+   * A sequence of operations done in the simulator involving a direct reach and frequency
+   * measurement.
+   */
   suspend fun executeDirectReachAndFrequency(runId: String) {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     val createdReachAndFrequencyMeasurement =
       createMeasurement(measurementConsumer, runId, ::newReachAndFrequencyMeasurementSpec, 1)
     logger.info(
-      "Created reach and frequency measurement ${createdReachAndFrequencyMeasurement.name}."
+      "Created direct reach and frequency measurement ${createdReachAndFrequencyMeasurement.name}."
     )
 
     // Get the CMMS computed result and compare it with the expected result.
@@ -176,8 +180,27 @@ class FrontendSimulator(
     }
     logger.info("Got direct reach and frequency result from Kingdom: $reachAndFrequencyResult")
 
-    assertThat(reachAndFrequencyResult.reach.value).isNotNull()
-    assertThat(reachAndFrequencyResult.frequency.relativeFrequencyDistributionMap).isNotNull()
+    // For InProcessLifeOfAMeasurementIntegrationTest, EdpSimulator sets to those values with seeded
+    // random VIDs and Laplace noise.
+    val expectedReachValue = 948L
+    val expectedFrequencyMap =
+      mapOf(
+        1L to 0.947389665261748,
+        2L to 0.04805005905234108,
+        3L to 0.0038138458821366963,
+        4L to 9.558853281715655E-5
+      )
+
+    assertThat(reachAndFrequencyResult.reach.value).isEqualTo(expectedReachValue)
+    reachAndFrequencyResult.frequency.relativeFrequencyDistributionMap.forEach {
+      (frequency, percentage) ->
+      assertThat(percentage).isEqualTo(expectedFrequencyMap[frequency])
+    }
+
+    logger.info(
+      "Direct reach and frequency result is equal to the expected result. " +
+        "Correctness Test passes."
+    )
   }
 
   /** A sequence of operations done in the simulator involving an impression measurement. */

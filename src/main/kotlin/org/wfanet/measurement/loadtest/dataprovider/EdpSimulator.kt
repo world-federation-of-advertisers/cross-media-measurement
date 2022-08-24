@@ -431,7 +431,7 @@ class EdpSimulator(
     logger.info("Calculating direct reach and frequency...")
     val vidSampler = VidSampler(VID_SAMPLER_HASH_FUNCTION)
     val eventGroupIdSet = mutableSetOf<String>()
-    val vidList: MutableList<Long> = mutableListOf()
+    val vidList = mutableListOf<Long>()
 
     for (eventGroup in requisitionSpec.eventGroupsList) {
       if (eventGroupIdSet.contains(eventGroup.key)) continue

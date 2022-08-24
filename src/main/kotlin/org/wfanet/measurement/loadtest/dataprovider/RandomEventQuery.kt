@@ -25,11 +25,13 @@ data class SketchGenerationParams(
 /** Fulfill the query with randomly generated ids. */
 class RandomEventQuery(private val sketchGenerationParams: SketchGenerationParams) : EventQuery() {
 
-  /** Generate Ids using random values. The parameter is ignored. */
+  /** Generate Ids using random values. The eventFilter parameter is ignored. */
   override fun getUserVirtualIds(eventFilter: EventFilter): Sequence<Long> {
+    val random = Random(1)
+
     return sequence {
       for (i in 1..sketchGenerationParams.reach) {
-        yield(Random.nextInt(1, sketchGenerationParams.universeSize + 1).toLong())
+        yield(random.nextInt(1, sketchGenerationParams.universeSize + 1).toLong())
       }
     }
   }
