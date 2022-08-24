@@ -17,6 +17,7 @@ package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2
 import com.google.protobuf.ByteString
 import java.nio.file.Paths
 import java.time.Clock
+import kotlin.math.min
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -425,7 +426,7 @@ class LiquidLegionsV2Mill(
           dataClients
             .readAllRequisitionBlobs(token, duchyId)
             .concat(readAndCombineAllInputBlobs(token, workerStubs.size))
-            .toCompleteSetupPhaseRequest(llv2Details, token.requisitionsCount)
+            .toCompleteSetupPhaseRequest(token, llv2Details, token.requisitionsCount)
         val cryptoResult: CompleteSetupPhaseResponse = cryptoWorker.completeSetupPhase(request)
         logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
         cryptoResult.combinedRegisterVector
@@ -456,7 +457,7 @@ class LiquidLegionsV2Mill(
         val request =
           dataClients
             .readAllRequisitionBlobs(token, duchyId)
-            .toCompleteSetupPhaseRequest(llv2Details, token.requisitionsCount)
+            .toCompleteSetupPhaseRequest(token, llv2Details, token.requisitionsCount)
         val cryptoResult: CompleteSetupPhaseResponse = cryptoWorker.completeSetupPhase(request)
         logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
         cryptoResult.combinedRegisterVector
@@ -496,7 +497,7 @@ class LiquidLegionsV2Mill(
             totalSketchesCount = token.requisitionsCount
           }
         if (llv2Parameters.noise.hasFrequencyNoiseConfig()) {
-          requestBuilder.noiseParameters = getFrequencyNoiseParams(llv2Parameters)
+          requestBuilder.noiseParameters = getFrequencyNoiseParams(token, llv2Parameters)
         }
         val cryptoResult: CompleteExecutionPhaseOneAtAggregatorResponse =
           cryptoWorker.completeExecutionPhaseOneAtAggregator(requestBuilder.build())
@@ -585,7 +586,7 @@ class LiquidLegionsV2Mill(
             compositeElGamalPublicKey = llv2Details.combinedPublicKey
             curveId = llv2Parameters.ellipticCurveId.toLong()
             flagCountTuples = readAndCombineAllInputBlobs(token, 1)
-            maximumFrequency = llv2Parameters.maximumFrequency
+            maximumFrequency = getMaximumRequestedFrequency(token)
             liquidLegionsParametersBuilder.apply {
               decayRate = llv2Parameters.liquidLegionsSketch.decayRate
               size = llv2Parameters.liquidLegionsSketch.size
@@ -602,7 +603,7 @@ class LiquidLegionsV2Mill(
         if (noiseConfig.hasFrequencyNoiseConfig()) {
           requestBuilder.frequencyNoiseParametersBuilder.apply {
             contributorsCount = workerStubs.size + 1
-            maximumFrequency = llv2Parameters.maximumFrequency
+            maximumFrequency = getMaximumRequestedFrequency(token)
             dpParams = noiseConfig.frequencyNoiseConfig
           }
         }
@@ -672,7 +673,7 @@ class LiquidLegionsV2Mill(
         if (llv2Parameters.noise.hasFrequencyNoiseConfig()) {
           requestBuilder.apply {
             partialCompositeElGamalPublicKey = llv2Details.partiallyCombinedPublicKey
-            noiseParameters = getFrequencyNoiseParams(llv2Parameters)
+            noiseParameters = getFrequencyNoiseParams(token, llv2Parameters)
           }
         }
 
@@ -714,7 +715,7 @@ class LiquidLegionsV2Mill(
             localElGamalKeyPair = llv2Details.localElgamalKey
             curveId = llv2Parameters.ellipticCurveId.toLong()
             sameKeyAggregatorMatrix = readAndCombineAllInputBlobs(token, 1)
-            maximumFrequency = llv2Parameters.maximumFrequency
+            maximumFrequency = getMaximumRequestedFrequency(token)
           }
         if (llv2Parameters.noise.hasFrequencyNoiseConfig()) {
           requestBuilder.globalFrequencyDpNoisePerBucketBuilder.apply {
@@ -816,11 +817,13 @@ class LiquidLegionsV2Mill(
   }
 
   private fun ByteString.toCompleteSetupPhaseRequest(
+		token: ComputationToken,
     llv2Details: LiquidLegionsSketchAggregationV2.ComputationDetails,
     totalRequisitionsCount: Int
   ): CompleteSetupPhaseRequest {
     val noiseConfig = llv2Details.parameters.noise
     val requestBuilder = CompleteSetupPhaseRequest.newBuilder().setCombinedRegisterVector(this)
+		requestBuilder.setMaximumFrequency(getMaximumRequestedFrequency(token))
     if (noiseConfig.hasReachNoiseConfig()) {
       requestBuilder.noiseParametersBuilder.apply {
         compositeElGamalPublicKey = llv2Details.combinedPublicKey
@@ -838,16 +841,25 @@ class LiquidLegionsV2Mill(
   }
 
   private fun getFrequencyNoiseParams(
+		token: ComputationToken,
     llv2Parameters: Parameters
   ): FlagCountTupleNoiseGenerationParameters {
     return FlagCountTupleNoiseGenerationParameters.newBuilder()
       .apply {
-        maximumFrequency = llv2Parameters.maximumFrequency
+        maximumFrequency = getMaximumRequestedFrequency(token)
         contributorsCount = workerStubs.size + 1
         dpParams = llv2Parameters.noise.frequencyNoiseConfig
       }
       .build()
   }
+
+	private fun getMaximumRequestedFrequency(token: ComputationToken): Int {
+		val llv2MaximumFrequency : Int = token.computationDetails.liquidLegionsV2.parameters.maximumFrequency
+    val measurementSpec =
+      MeasurementSpec.parseFrom(token.computationDetails.kingdomComputation.measurementSpec)
+		val measurementSpecMaximumFrequency: Int = measurementSpec.reachAndFrequency.maximumFrequencyPerUser
+		return min(llv2MaximumFrequency, measurementSpecMaximumFrequency)
+	}
 
   companion object {
     init {
