@@ -23,7 +23,7 @@ kt_jvm_library(
 
 kt_jvm_library(
     name = "serializable",
-    srcs = ["PostgresSerializable.kt"],
+    srcs = ["SerializableErrors.kt"],
     visibility = [
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres:__subpackages__",
     ],

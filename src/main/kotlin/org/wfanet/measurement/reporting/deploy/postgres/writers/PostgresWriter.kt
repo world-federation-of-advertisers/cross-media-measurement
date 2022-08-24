@@ -19,7 +19,7 @@ import java.util.logging.Logger
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.db.r2dbc.ReadWriteContext
 import org.wfanet.measurement.common.identity.IdGenerator
-import org.wfanet.measurement.reporting.deploy.postgres.PostgresSerializable.withSerializableErrorRetries
+import org.wfanet.measurement.reporting.deploy.postgres.SerializableErrors
 import org.wfanet.measurement.reporting.service.internal.ReportingInternalException
 
 /** Abstraction for writing to Postgres. */
@@ -64,7 +64,7 @@ abstract class PostgresWriter<T> {
   suspend fun execute(databaseClient: DatabaseClient, idGenerator: IdGenerator): T {
     logger.fine("Running ${this::class.simpleName} transaction")
     check(executed.compareAndSet(false, true)) { "Cannot execute PostgresWriter multiple times" }
-    return withSerializableErrorRetries { runTransaction(databaseClient, idGenerator) }
+    return SerializableErrors.retrying { runTransaction(databaseClient, idGenerator) }
   }
 
   companion object {
