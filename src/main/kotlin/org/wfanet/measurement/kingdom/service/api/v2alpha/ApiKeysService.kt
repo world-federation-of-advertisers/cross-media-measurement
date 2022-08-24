@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import org.wfanet.measurement.api.accountFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.ApiKey
 import org.wfanet.measurement.api.v2alpha.ApiKeyKey
@@ -59,7 +60,15 @@ class ApiKeysService(
       description = request.apiKey.description
     }
 
-    val result = internalApiKeysStub.createApiKey(internalCreateApiKeyRequest)
+    val result =
+      try {
+        internalApiKeysStub.createApiKey(internalCreateApiKeyRequest)
+      } catch (ex: StatusRuntimeException) {
+        when (ex.status) {
+          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "MeasurementConsumer not found." }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
+      }
 
     return result.toApiKey()
   }
@@ -82,7 +91,15 @@ class ApiKeysService(
       externalApiKeyId = apiIdToExternalId(key.apiKeyId)
     }
 
-    val result = internalApiKeysStub.deleteApiKey(deleteApiKeyRequest)
+    val result =
+      try {
+        internalApiKeysStub.deleteApiKey(deleteApiKeyRequest)
+      } catch (ex: StatusRuntimeException) {
+        when (ex.status) {
+          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { ex.message ?: "Not found." }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
+      }
 
     return result.toApiKey()
   }
