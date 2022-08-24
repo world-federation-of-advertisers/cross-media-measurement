@@ -608,7 +608,9 @@ class EdpSimulatorTest {
       val (reachValue, frequencyMap) = EdpSimulator.calculateDirectReachAndFrequency(vidList)
       // 5 unique people(1, 2, 3, 4, 5) being reached
       val expectedReachValue = 5
-      // 1 reach -> 0.6(3/5), 2 reach -> 0.2(1/5), 3 reach -> 0.2(1/5)
+      // 1 reach -> 0.6(3/5)(VID 3L, 4L, 5L)
+      // 2 reach -> 0.2(1/5)(VID 2L)
+      // 3 reach -> 0.2(1/5)(VID 1L)
       val expectedFrequencyMap = mapOf(1L to 0.6, 2L to 0.2, 3L to 0.2)
 
       assertThat(reachValue).isEqualTo(expectedReachValue)

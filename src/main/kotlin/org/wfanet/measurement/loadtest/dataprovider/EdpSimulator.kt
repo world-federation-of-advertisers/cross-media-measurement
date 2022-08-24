@@ -28,7 +28,6 @@ import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import org.apache.commons.math3.distribution.LaplaceDistribution
-import org.apache.commons.math3.stat.Frequency
 import org.projectnessie.cel.common.types.pb.ProtoTypeRegistry
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.Sketch
@@ -429,24 +428,29 @@ class EdpSimulator(
     requisitionSpec: RequisitionSpec,
     measurementSpec: MeasurementSpec
   ) {
+    logger.info("Calculating direct reach and frequency...")
+    val vidSampler = VidSampler(VID_SAMPLER_HASH_FUNCTION)
+    val eventGroupIdSet = mutableSetOf<String>()
     val vidList: MutableList<Long> = mutableListOf()
 
-    requisitionSpec.eventGroupsList.forEach { eventGroup ->
-      eventQuery
-        .getUserVirtualIds(eventGroup.value.filter)
-        .filter { vid ->
-          VidSampler(VID_SAMPLER_HASH_FUNCTION)
-            .vidIsInSamplingBucket(
-              vid,
-              measurementSpec.vidSamplingInterval.start,
-              measurementSpec.vidSamplingInterval.width
-            )
+    for (eventGroup in requisitionSpec.eventGroupsList) {
+      if (eventGroupIdSet.contains(eventGroup.key)) continue
+
+      vidList +=
+        eventQuery.getUserVirtualIds(eventGroup.value.filter).filter { vid ->
+          vidSampler.vidIsInSamplingBucket(
+            vid,
+            measurementSpec.vidSamplingInterval.start,
+            measurementSpec.vidSamplingInterval.width
+          )
         }
-        .forEach { vid -> vidList.add(vid) }
+
+      eventGroupIdSet.add(eventGroup.key)
     }
 
     val (reachValue, frequencyMap) = calculateDirectReachAndFrequency(vidList)
 
+    logger.info("Adding publisher noise to direct reach and frequency...")
     val laplaceForReach =
       LaplaceDistribution(0.0, 1 / measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon)
     laplaceForReach.reseedRandomGenerator(1)
@@ -553,22 +557,18 @@ class EdpSimulator(
       )
     }
 
-    fun calculateDirectReachAndFrequency(
-      vidList: MutableList<Long>
-    ): Pair<Long, Map<Long, Double>> {
-      val vidSet = vidList.toSet()
-      val frequency = Frequency()
-      val frequencyCountMap = mutableMapOf<Long, Int>()
+    fun calculateDirectReachAndFrequency(vidList: List<Long>): Pair<Long, Map<Long, Double>> {
+      val reachValue = vidList.toSet().size.toLong()
+      val frequencyMap = mutableMapOf<Long, Double>().withDefault { 0.0 }
 
-      vidList.forEach { vid -> frequency.addValue(vid) }
-      vidSet.forEach { vid ->
-        frequencyCountMap.merge(frequency.getCount(vid), 1) { a, b -> a + b }
-      }
-
-      val reachValue = vidSet.size.toLong()
-      val frequencyMap = mutableMapOf<Long, Double>()
-      frequencyCountMap.forEach { (frequency, count) ->
-        frequencyMap[frequency] = count.toDouble() / reachValue
+      vidList
+        .groupingBy { it }
+        .eachCount()
+        .forEach { (_, frequency) ->
+          frequencyMap[frequency.toLong()] = frequencyMap.getValue(frequency.toLong()) + 1.0
+        }
+      frequencyMap.forEach { (frequency, _) ->
+        frequencyMap[frequency] = frequencyMap.getValue(frequency) / reachValue.toDouble()
       }
 
       return Pair(reachValue, frequencyMap)
