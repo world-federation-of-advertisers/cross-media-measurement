@@ -25,8 +25,9 @@ import "strings"
 }
 
 #SpannerConfig: {
-	project:  #GCloudProject
-	instance: #SpannerInstance
+	project:      #GCloudProject
+	instance:     #SpannerInstance
+	readyTimeout: "30s"
 }
 
 #CloudStorageConfig: Config={

@@ -33,5 +33,4 @@ frontendSimulator: #FrontendSimulator & {
 		"--forwarded-storage-service-target=" + (#Target & {name: "fake-storage-server"}).target,
 		"--forwarded-storage-cert-host=localhost",
 	]
-	_resourceConfig: #DefaultResourceConfig
 }
