@@ -20,9 +20,9 @@ import java.util.logging.Logger
 import kotlin.math.pow
 import kotlin.random.Random
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
 import org.wfanet.measurement.common.grpc.grpcStatusCode
+import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.withRetriesOnEach
 import org.wfanet.measurement.duchy.daemon.utils.MeasurementType
@@ -35,8 +35,8 @@ import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.Computation.State
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
-import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsRequest
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
+import org.wfanet.measurement.system.v1alpha.streamActiveComputationsRequest
 
 /**
  * The Herald looks to the kingdom for status of computations.
@@ -94,21 +94,18 @@ class Herald(
   suspend fun syncStatuses(continuationToken: String): String {
     var lastProcessedContinuationToken = continuationToken
     logger.info("Reading stream of active computations since $continuationToken.")
-    systemComputationsClient
-      .streamActiveComputations(
-        StreamActiveComputationsRequest.newBuilder().setContinuationToken(continuationToken).build()
-      )
-      .withRetriesOnEach(maxAttempts = 3, retryPredicate = ::mayBeTransientGrpcError) { response ->
-        processSystemComputationChange(response)
-        lastProcessedContinuationToken = response.continuationToken
-      }
-      .catch { e ->
-        // TODO(world-federation-of-advertisers/cross-media-measurement#584): Determine under what
-        // conditions the computation should be failed so the Herald doesn't get stuck on one that
-        // cannot succeed.
-        throw e
-      }
-      .collect()
+    logAndSuppressExceptionSuspend {
+      systemComputationsClient
+        .streamActiveComputations(
+          streamActiveComputationsRequest { this.continuationToken = continuationToken }
+        )
+        .withRetriesOnEach(maxAttempts = 3, retryPredicate = ::mayBeTransientGrpcError) { response
+          ->
+          lastProcessedContinuationToken = response.continuationToken
+          processSystemComputationChange(response)
+        }
+        .collect()
+    }
 
     return lastProcessedContinuationToken
   }

@@ -17,7 +17,6 @@ package org.wfanet.measurement.duchy.daemon.herald
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import java.time.Clock
-import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -156,6 +155,8 @@ private val NON_AGGREGATOR_COMPUTATION_DETAILS =
   ComputationDetails.newBuilder()
     .apply { liquidLegionsV2Builder.apply { role = RoleInComputation.NON_AGGREGATOR } }
     .build()
+
+private const val COMPUTATION_GLOBAL_ID = "42314125676756"
 
 @RunWith(JUnit4::class)
 @OptIn(ExperimentalCoroutinesApi::class) // For `runTest`.
@@ -458,7 +459,7 @@ class HeraldTest {
   @Test
   fun `syncStatuses starts computations in wait_to_start`() = runTest {
     val waitingToStart =
-      buildComputationAtKingdom("42314125676756", Computation.State.PENDING_COMPUTATION)
+      buildComputationAtKingdom(COMPUTATION_GLOBAL_ID, Computation.State.PENDING_COMPUTATION)
     val addingNoise = buildComputationAtKingdom("231313", Computation.State.PENDING_COMPUTATION)
     mockStreamActiveComputationsToReturn(waitingToStart, addingNoise)
 
@@ -495,7 +496,7 @@ class HeraldTest {
   @Test
   fun `syncStatuses starts computations with retries`() = runTest {
     val computation =
-      buildComputationAtKingdom("42314125676756", Computation.State.PENDING_COMPUTATION)
+      buildComputationAtKingdom(COMPUTATION_GLOBAL_ID, Computation.State.PENDING_COMPUTATION)
     val streamActiveComputationsJob = Job()
     systemComputations.stub {
       onBlocking { streamActiveComputations(any()) }
@@ -560,7 +561,7 @@ class HeraldTest {
       )
 
     val computation =
-      buildComputationAtKingdom("42314125676756", Computation.State.PENDING_COMPUTATION)
+      buildComputationAtKingdom(COMPUTATION_GLOBAL_ID, Computation.State.PENDING_COMPUTATION)
     mockStreamActiveComputationsToReturn(computation)
 
     fakeComputationStorage.addComputation(
@@ -570,7 +571,7 @@ class HeraldTest {
       blobs = listOf(newInputBlobMetadata(0L, "local-copy-of-sketches"))
     )
 
-    assertFailsWith<Herald.AttemptsExhaustedException> { heraldWithOneRetry.syncStatuses("") }
+    assertThat(heraldWithOneRetry.syncStatuses("")).isEqualTo("token_for_$COMPUTATION_GLOBAL_ID")
   }
 
   private fun mockStreamActiveComputationsToReturn(vararg computations: Computation) =
