@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.api.v2alpha.event_templates.testing;
 
 import "google/protobuf/duration.proto";
+import "google/type/date.proto";
 import "wfa/measurement/api/v2alpha/event_annotations.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha.event_templates.testing";
@@ -54,6 +55,23 @@ message TestPrivacyBudgetTemplate {
     Value value = 1;
   }
 
+  message SocialGrade {
+    option (.wfa.measurement.api.v2alpha.event_field) = {
+      display_name: "Social Grade"
+    };
+
+    enum Value {
+      GRADE_UNSPECIFIED = 0;
+      ABC1 = 1;
+      C2DE = 2;
+    }
+    Value value = 1;
+  }
+
   AgeRange age = 1;
   Gender gender = 2;
+  int32 publisher = 3;
+  SocialGrade socialGrade = 4;
+  google.type.Date date = 5;
+  bool complete = 6;
 }

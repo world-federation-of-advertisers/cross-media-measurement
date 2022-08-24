@@ -24,6 +24,26 @@ import java.util.UUID
 import java.util.logging.Logger
 import kotlinx.coroutines.yield
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
+import com.google.protobuf.Message
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplate.Gender as BannerGender
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplateKt
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate.AgeRange as PrivacyAgeRange
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate.Gender as PrivacyGender
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate.SocialGrade as PrivacySocialGrade
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplateKt
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate.AgeRange as VideoAgeRange
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplateKt
+import com.google.cloud.bigquery.FieldValueList
+import com.google.type.Date
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.testBannerTemplate
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.testPrivacyBudgetTemplate
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.testVideoTemplate
+import org.wfanet.measurement.common.toProtoDate
+import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 /** The mapping from the EDP Display name to the Publisher Id in the synthetic data. */
 private val DISPLAY_NAME_TO_PUBLISHER_MAP = (1..6).associateBy { "edp$it" }
@@ -52,6 +72,9 @@ class BigQueryEventQuery(
    * TODO(@uakyol): Use [eventFiltbiger] rather than DEFAULT_QUERY_PARAMETER once the GCS
    * correctness test supports [EventFilter]s
    */
+  private val eventsList: MutableList<TestEvent> = mutableListOf()
+  private val vidsList: MutableList<Int> = mutableListOf()
+
   override fun getUserVirtualIds(eventFilter: EventFilter): Sequence<Long> {
     val publisher =
       DISPLAY_NAME_TO_PUBLISHER_MAP[edpDisplayName]
@@ -66,7 +89,7 @@ class BigQueryEventQuery(
         socialGrade = DEFAULT_QUERY_PARAMETER.socialGrade,
         complete = DEFAULT_QUERY_PARAMETER.complete,
       )
-    // val fromEventFilterqueryConfig = buildQueryConfigFromEventFilter(eventFilter, publisher)
+    val entireTableQueryConfig = buildGeneralQueryConfig(eventFilter, publisher)
 
     bigQuery.query(queryConfig)
 
@@ -80,9 +103,25 @@ class BigQueryEventQuery(
     }
     logger.info("Running query on BigQuery table.")
 
-    return sequence {
-      queryJob.getQueryResults().iterateAll().forEach { yield(it.get("vid").longValue) }
+    queryJob.getQueryResults().iterateAll().forEach {
+      this.vidsList.add(it["VID"].stringValue.toInt())
+      this.eventsList.add(fieldValuesToTestEvent(it))
     }
+
+    val program =
+      EventFilters.compileProgram(
+        eventFilter.expression,
+        testEvent {},
+      )
+
+    return sequence {
+      this@BigQueryEventQuery.eventsList.zip(this@BigQueryEventQuery.vidsList) { event, vid ->
+        if (EventFilters.matches(event as Message, program)) {
+          yield(vid.toLong())
+        }
+      }
+    }
+
   }
 
   // Builds a query based on the parameters given.
@@ -124,21 +163,67 @@ class BigQueryEventQuery(
         .build()
     return queryConfig
   }
-  //
-  // private fun buildQueryConfigFromEventFilter(
-  //   eventFilter: EventFilter,
-  //   publisher : Int
-  // ): QueryJobConfiguration {
-  //   var query =
-  //     """
-  //     SELECT vid
-  //     FROM `$tableName`
-  //     WHERE publisher_id = $publisher
-  //     AND date BETWEEN @begin_date AND @end_date
-  //     """.trimIndent()
-  //
-  //   return QueryJobConfiguration.newBuilder(query).build()
-  // }
+
+  private fun buildGeneralQueryConfig(
+    eventFilter: EventFilter,
+    publisher : Int
+  ): QueryJobConfiguration {
+    var query =
+      """
+      SELECT vid
+      FROM `$tableName`
+      WHERE publisher_id = $publisher
+      """.trimIndent()
+
+    return QueryJobConfiguration.newBuilder(query).build()
+  }
+
+  private fun fieldValuesToTestEvent(fieldValues: FieldValueList): TestEvent {
+
+    return testEvent {
+      this.privacyBudget = testPrivacyBudgetTemplate {
+        when (fieldValues.get("Sex").stringValue) {
+          "M" -> gender = TestPrivacyBudgetTemplateKt.gender { value = PrivacyGender.Value.GENDER_MALE }
+          "F" -> gender = TestPrivacyBudgetTemplateKt.gender { value = PrivacyGender.Value.GENDER_FEMALE }
+        }
+        when (fieldValues.get("Age_Group").stringValue) {
+          "18_34" -> age = TestPrivacyBudgetTemplateKt.ageRange { value = PrivacyAgeRange.Value.AGE_18_TO_24 }
+          "35_54" -> age = TestPrivacyBudgetTemplateKt.ageRange { value = PrivacyAgeRange.Value.AGE_35_TO_54 }
+          "55+" -> age = TestPrivacyBudgetTemplateKt.ageRange { value = PrivacyAgeRange.Value.AGE_OVER_54 }
+        }
+        when (val publisherId = fieldValues.get("Publisher").stringValue.toIntOrNull()) {
+          is Int -> publisher = publisherId
+        }
+        when (fieldValues.get("Social_Grade").stringValue) {
+          "ABC1" -> socialGrade = TestPrivacyBudgetTemplateKt.socialGrade { value = PrivacySocialGrade.Value.ABC1 }
+          "C2DE" -> socialGrade = TestPrivacyBudgetTemplateKt.socialGrade { value = PrivacySocialGrade.Value.C2DE }
+          else -> socialGrade = TestPrivacyBudgetTemplateKt.socialGrade { value = PrivacySocialGrade.Value.GRADE_UNSPECIFIED }
+        }
+        val formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd")
+        when (val eventDate = LocalDate.parse(fieldValues.get("Date").stringValue, formatter)) {
+          is LocalDate -> date = eventDate.toProtoDate()
+        }
+        when (fieldValues.get("Complete").stringValue) {
+          "1" -> complete = true
+          "0" -> complete = false
+        }
+      }
+      this.videoAd = testVideoTemplate {
+        when (fieldValues.get("Age_Group").stringValue) {
+          "18_34" -> age = TestVideoTemplateKt.ageRange { value = VideoAgeRange.Value.AGE_18_TO_24 }
+          else -> age = TestVideoTemplateKt.ageRange { value = VideoAgeRange.Value.AGE_RANGE_UNSPECIFIED }
+        }
+      }
+      this.bannerAd = testBannerTemplate {
+        when (fieldValues.get("Sex").stringValue) {
+          "M" -> gender = TestBannerTemplateKt.gender { value = BannerGender.Value.GENDER_MALE }
+          "F" -> gender = TestBannerTemplateKt.gender { value = BannerGender.Value.GENDER_FEMALE }
+          else -> gender = TestBannerTemplateKt.gender { value = BannerGender.Value.GENDER_UNKOWN }
+        }
+      }
+    }
+  }
+
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)

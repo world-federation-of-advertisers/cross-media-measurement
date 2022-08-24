@@ -14,6 +14,7 @@ proto_library(
     srcs = glob(["*template.proto"]),
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        "@com_google_googleapis//google/type:date_proto",
         "@com_google_protobuf//:descriptor_proto",
         "@com_google_protobuf//:duration_proto",
         "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_proto",
