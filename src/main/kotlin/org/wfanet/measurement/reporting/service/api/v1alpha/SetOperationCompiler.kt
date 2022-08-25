@@ -211,7 +211,7 @@ class SetOperationCompiler {
    *   A U B    1         1      -1
    * ```
    */
-  private suspend fun convertSinglePrimitiveRegionToUnionSetCoefficientMap(
+  private fun convertSinglePrimitiveRegionToUnionSetCoefficientMap(
     numReportingSets: Int,
     region: PrimitiveRegion,
     primitiveRegionsToUnionSetCoefficients: PrimitiveRegionToUnionSetCoefficientMap
@@ -235,22 +235,18 @@ class SetOperationCompiler {
 
     val unionSetCoefficients = mutableMapOf<UnionSet, Int>()
 
-    coroutineScope {
-      for (size in 1..numReportingSets) {
-        // Skips it if the union-only set is too light
-        if (size + primitiveRegionWeight < numReportingSets) {
-          continue
-        }
-
-        // Instead of flipping the sign at the end of the loop, this could avoid the race condition.
-        count++
-        val sign = if (count % 2 == 1) baseSign else -baseSign
-
-        launch {
-          val composingUnionSets = findComposingUnionSets(setBitPositions, unsetBitPositions, size)
-          unionSetCoefficients += composingUnionSets.associateWith { sign }
-        }
+    for (size in 1..numReportingSets) {
+      // Skips it if the union-only set is too light
+      if (size + primitiveRegionWeight < numReportingSets) {
+        continue
       }
+
+      // Instead of flipping the sign at the end of the loop, this could avoid the race condition.
+      count++
+      val sign = if (count % 2 == 1) baseSign else -baseSign
+
+      val composingUnionSets = findComposingUnionSets(setBitPositions, unsetBitPositions, size)
+      unionSetCoefficients += composingUnionSets.associateWith { sign }
     }
 
     if (unionSetCoefficients.isNotEmpty()) {
