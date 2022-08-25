@@ -604,7 +604,7 @@ class EdpSimulatorTest {
   @Test
   fun `calculate direct reach and frequency correctly`() {
     runBlocking {
-      val vidList = mutableListOf(1L, 1L, 1L, 2L, 2L, 3L, 4L, 5L)
+      val vidList = listOf(1L, 1L, 1L, 2L, 2L, 3L, 4L, 5L)
       val (reachValue, frequencyMap) = EdpSimulator.calculateDirectReachAndFrequency(vidList)
       // 5 unique people(1, 2, 3, 4, 5) being reached
       val expectedReachValue = 5

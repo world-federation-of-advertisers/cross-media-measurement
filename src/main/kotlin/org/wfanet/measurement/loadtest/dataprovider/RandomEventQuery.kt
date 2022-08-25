@@ -27,6 +27,9 @@ class RandomEventQuery(private val sketchGenerationParams: SketchGenerationParam
 
   /** Generate Ids using random values. The eventFilter parameter is ignored. */
   override fun getUserVirtualIds(eventFilter: EventFilter): Sequence<Long> {
+    // TODO(@alberthsuu): Generate eventId, deduplicate the list of (eventId, vid), and
+    // return the vids in case eventGroups overlap in some way
+
     val random = Random(1)
 
     return sequence {
