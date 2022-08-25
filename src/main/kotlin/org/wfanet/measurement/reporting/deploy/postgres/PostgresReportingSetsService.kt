@@ -24,6 +24,7 @@ import org.wfanet.measurement.internal.reporting.GetReportingSetRequest
 import org.wfanet.measurement.internal.reporting.ReportingSet
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.StreamReportingSetsRequest
+import org.wfanet.measurement.reporting.deploy.postgres.SerializableErrors.withSerializableErrorRetries
 import org.wfanet.measurement.reporting.deploy.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.deploy.postgres.writers.CreateReportingSet
 import org.wfanet.measurement.reporting.service.internal.ReportingSetAlreadyExistsException
@@ -45,22 +46,24 @@ class PostgresReportingSetsService(
 
   override suspend fun getReportingSet(request: GetReportingSetRequest): ReportingSet {
     return try {
-      ReportingSetReader()
-        .readReportingSetByExternalId(
-          client.singleUse(),
-          request.measurementConsumerReferenceId,
-          ExternalId(request.externalReportingSetId)
-        )
-        .reportingSet
+      SerializableErrors.retrying {
+        ReportingSetReader()
+          .readReportingSetByExternalId(
+            client.singleUse(),
+            request.measurementConsumerReferenceId,
+            ExternalId(request.externalReportingSetId)
+          )
+          .reportingSet
+      }
     } catch (e: ReportingSetNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "Reporting Set not found" }
     }
   }
 
   override fun streamReportingSets(request: StreamReportingSetsRequest): Flow<ReportingSet> {
-    return ReportingSetReader().listReportingSets(client, request.filter, request.limit).map {
-      result ->
-      result.reportingSet
-    }
+    return ReportingSetReader()
+      .listReportingSets(client, request.filter, request.limit)
+      .map { result -> result.reportingSet }
+      .withSerializableErrorRetries()
   }
 }
