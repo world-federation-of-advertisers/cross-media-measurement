@@ -119,7 +119,13 @@ class Herald(
           lastProcessedContinuationToken = response.continuationToken
           processSystemComputationChange(response)
         } catch (ex: Throwable) {
-          handleException(response.computation, ex)
+          if (!mayBeTransientGrpcError(ex)) {
+            failComputationAtKingdom(
+              response.computation,
+              ex.message ?: "Error raised from Herald."
+            )
+          }
+          throw ex
         }
       }
       .collect()
@@ -235,12 +241,6 @@ class Herald(
           LiquidLegionsV2Starter.startComputation(token, internalComputationsClient)
         else -> error { "Unknown or unsupported protocol." }
       }
-    }
-  }
-
-  private suspend fun handleException(computation: Computation, ex: Throwable) {
-    if (!mayBeTransientGrpcError(ex)) {
-      failComputationAtKingdom(computation, ex.message ?: "Error raised from Herald.")
     }
   }
 
