@@ -430,23 +430,17 @@ class EdpSimulator(
   ) {
     logger.info("Calculating direct reach and frequency...")
     val vidSampler = VidSampler(VID_SAMPLER_HASH_FUNCTION)
-    val eventGroupIdSet = mutableSetOf<String>()
-    val vidList = mutableListOf<Long>()
-
-    for (eventGroup in requisitionSpec.eventGroupsList) {
-      if (eventGroupIdSet.contains(eventGroup.key)) continue
-
-      vidList +=
-        eventQuery.getUserVirtualIds(eventGroup.value.filter).filter { vid ->
+    val vidList: List<Long> =
+      requisitionSpec.eventGroupsList
+        .distinctBy { eventGroup -> eventGroup.key }
+        .flatMap { eventGroup -> eventQuery.getUserVirtualIds(eventGroup.value.filter) }
+        .filter { vid ->
           vidSampler.vidIsInSamplingBucket(
             vid,
             measurementSpec.vidSamplingInterval.start,
             measurementSpec.vidSamplingInterval.width
           )
         }
-
-      eventGroupIdSet.add(eventGroup.key)
-    }
 
     val (reachValue, frequencyMap) = calculateDirectReachAndFrequency(vidList)
 
@@ -461,8 +455,8 @@ class EdpSimulator(
     laplaceForFrequency.reseedRandomGenerator(1)
 
     val frequencyNoisedMap = mutableMapOf<Long, Double>()
-    frequencyMap.forEach { (key, percentage) ->
-      frequencyNoisedMap[key] =
+    frequencyMap.forEach { (frequency, percentage) ->
+      frequencyNoisedMap[frequency] =
         (percentage * reachValue.toDouble() + laplaceForFrequency.sample()) / reachValue.toDouble()
     }
 
