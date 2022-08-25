@@ -15,6 +15,7 @@
 package org.wfanet.measurement.duchy.daemon.herald
 
 import io.grpc.Status
+import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
 import kotlin.math.pow
@@ -23,19 +24,25 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
+import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.withRetriesOnEach
 import org.wfanet.measurement.duchy.daemon.utils.MeasurementType
 import org.wfanet.measurement.duchy.daemon.utils.key
 import org.wfanet.measurement.duchy.daemon.utils.toMeasurementType
+import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.service.internal.computations.toGetTokenRequest
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.Computation.State
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
+import org.wfanet.measurement.system.v1alpha.failComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.streamActiveComputationsRequest
 
 /**
@@ -53,14 +60,17 @@ import org.wfanet.measurement.system.v1alpha.streamActiveComputationsRequest
  * @param maxAttempts maximum number of attempts to start a computation.
  */
 class Herald(
+  private val heraldId: String,
+  private val duchyId: String,
   private val internalComputationsClient: ComputationsCoroutineStub,
   private val systemComputationsClient: SystemComputationsCoroutineStub,
+  private val systemComputationParticipantClient: SystemComputationParticipantsCoroutineStub,
   private val protocolsSetupConfig: ProtocolsSetupConfig,
   private val blobStorageBucket: String = "computation-blob-storage",
   private val maxAttempts: Int = 10,
   private val retryBackoff: ExponentialBackoff = ExponentialBackoff(),
+  private val clock: Clock,
 ) {
-
   /**
    * Syncs the status of computations stored at the kingdom with those stored locally continually in
    * a forever loop. The [pollingThrottler] is used to limit how often the kingdom and local
@@ -78,7 +88,9 @@ class Herald(
     var lastProcessedContinuationToken = ""
 
     pollingThrottler.loopOnReady {
-      lastProcessedContinuationToken = syncStatuses(lastProcessedContinuationToken)
+      logAndSuppressExceptionSuspend {
+        lastProcessedContinuationToken = syncStatuses(lastProcessedContinuationToken)
+      }
     }
   }
 
@@ -92,20 +104,25 @@ class Herald(
    * computations from the system computation service.
    */
   suspend fun syncStatuses(continuationToken: String): String {
-    var lastProcessedContinuationToken = continuationToken
     logger.info("Reading stream of active computations since $continuationToken.")
-    logAndSuppressExceptionSuspend {
-      systemComputationsClient
-        .streamActiveComputations(
-          streamActiveComputationsRequest { this.continuationToken = continuationToken }
-        )
-        .withRetriesOnEach(maxAttempts = 3, retryPredicate = ::mayBeTransientGrpcError) { response
-          ->
+
+    val streamRequest = streamActiveComputationsRequest {
+      this.continuationToken = continuationToken
+    }
+    var lastProcessedContinuationToken = continuationToken
+    systemComputationsClient
+      .streamActiveComputations(streamRequest)
+      // TODO(@renjiez): Use new version of withRetriesOnEach() to add finally block to
+      //  failComputationAtKingdom
+      .withRetriesOnEach(maxAttempts = 3, retryPredicate = ::mayBeTransientGrpcError) { response ->
+        try {
           lastProcessedContinuationToken = response.continuationToken
           processSystemComputationChange(response)
+        } catch (ex: Throwable) {
+          handleException(response.computation, ex)
         }
-        .collect()
-    }
+      }
+      .collect()
 
     return lastProcessedContinuationToken
   }
@@ -219,6 +236,28 @@ class Herald(
         else -> error { "Unknown or unsupported protocol." }
       }
     }
+  }
+
+  private suspend fun handleException(computation: Computation, ex: Throwable) {
+    if (!mayBeTransientGrpcError(ex)) {
+      failComputationAtKingdom(computation, ex.message ?: "Error raised from Herald.")
+    }
+  }
+
+  /**
+   */
+  private suspend fun failComputationAtKingdom(computation: Computation, errorMessage: String) {
+    val globalId = computation.key.computationId
+    val request = failComputationParticipantRequest {
+      name = ComputationParticipantKey(globalId, duchyId).toName()
+      failure =
+        ComputationParticipantKt.failure {
+          participantChildReferenceId = heraldId
+          this.errorMessage = errorMessage
+          errorTime = clock.protoTimestamp()
+        }
+    }
+    systemComputationParticipantClient.failComputationParticipant(request)
   }
 
   companion object {
