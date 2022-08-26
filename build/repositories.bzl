@@ -24,8 +24,8 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_common_jvm",
         repo = "common-jvm",
-        sha256 = "f60316de53fe9b5ea3cd9bb0f9c8666091a61fb5684a0577602ecdcdf4a5d2be",
-        version = "0.41.2",
+        sha256 = "2c08c2fbfa076df788b6f82d5441d0eb7e76b40d459937a9709138ec99352885",
+        version = "0.43.3",
     )
 
     wfa_repo_archive(
@@ -66,8 +66,8 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_consent_signaling_client",
         repo = "consent-signaling-client",
-        sha256 = "b907c0dd4f6efbe4f6db3f34efeca0f1763d3cc674c37cbfebac1ee2a80c86f5",
-        version = "0.12.0",
+        sha256 = "ad92284f50b685b2044756693271501feeff6054f09e2d1daaf33ffa54f48cd8",
+        version = "0.14.1",
     )
 
     wfa_repo_archive(

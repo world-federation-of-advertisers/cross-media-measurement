@@ -88,12 +88,12 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.consent.client.common.signMessage
 import org.wfanet.measurement.consent.client.common.toPublicKeyHandle
 import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
+import org.wfanet.measurement.consent.client.duchy.signResult
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
@@ -170,14 +170,12 @@ class EdpSimulator(
         certificatesStub.getCertificate(
           getCertificateRequest { name = requisition.measurementConsumerCertificate }
         )
-
-      val measurementSpec = MeasurementSpec.parseFrom(requisition.measurementSpec.data)
       val measurementConsumerCertificateX509 =
         readCertificate(measurementConsumerCertificate.x509Der)
+
       if (
         !verifyMeasurementSpec(
-          measurementSpecSignature = requisition.measurementSpec.signature,
-          measurementSpec = measurementSpec,
+          signedMeasurementSpec = requisition.measurementSpec,
           measurementConsumerCertificate = measurementConsumerCertificateX509,
         )
       ) {
@@ -188,13 +186,15 @@ class EdpSimulator(
           "Invalid measurementSpec"
         )
       }
+      val measurementSpec = MeasurementSpec.parseFrom(requisition.measurementSpec.data)
+
       val requisitionFingerprint = computeRequisitionFingerprint(requisition)
       val signedRequisitionSpec: SignedData =
         decryptRequisitionSpec(requisition.encryptedRequisitionSpec, edpData.encryptionKey)
       val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
       if (
         !verifyRequisitionSpec(
-          requisitionSpecSignature = signedRequisitionSpec.signature,
+          signedRequisitionSpec = signedRequisitionSpec,
           requisitionSpec = requisitionSpec,
           measurementConsumerCertificate = measurementConsumerCertificateX509,
           measurementSpec = measurementSpec,
@@ -500,7 +500,7 @@ class EdpSimulator(
     val measurementEncryptionPublicKey =
       EncryptionPublicKey.parseFrom(measurementSpec.measurementPublicKey)
 
-    val signedData = signMessage(requisitionData, edpData.signingKey)
+    val signedData = signResult(requisitionData, edpData.signingKey)
 
     val encryptedData =
       measurementEncryptionPublicKey.toPublicKeyHandle().hybridEncrypt(signedData.toByteString())

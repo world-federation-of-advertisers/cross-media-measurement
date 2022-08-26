@@ -20,23 +20,14 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.duration
-import io.grpc.Metadata
-import io.grpc.MethodDescriptor
 import io.grpc.Server
-import io.grpc.ServerCall
-import io.grpc.ServerCallHandler
-import io.grpc.ServerInterceptor
 import io.grpc.ServerInterceptors
 import io.grpc.ServerServiceDefinition
 import io.grpc.netty.NettyServerBuilder
-import java.io.ByteArrayOutputStream
 import java.io.File
-import java.io.PrintStream
 import java.nio.file.Paths
-import java.security.Permission
 import java.security.cert.X509Certificate
 import java.time.Instant
-import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -104,6 +95,9 @@ import org.wfanet.measurement.common.grpc.toServerTlsContext
 import org.wfanet.measurement.common.openid.createRequestUri
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.common.testing.CommandLineTesting.assertExitsWith
+import org.wfanet.measurement.common.testing.CommandLineTesting.capturingSystemOut
+import org.wfanet.measurement.common.testing.HeaderCapturingInterceptor
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
@@ -429,15 +423,9 @@ class MeasurementSystemTest {
       }
     val measurement = request.measurement
     // measurementSpec matches
-    val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
-    assertThat(
-        verifyMeasurementSpec(
-          measurement.measurementSpec.signature,
-          measurementSpec,
-          MEASUREMENT_CONSUMER_CERTIFICATE
-        )
-      )
+    assertThat(verifyMeasurementSpec(measurement.measurementSpec, MEASUREMENT_CONSUMER_CERTIFICATE))
       .isTrue()
+    val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
     val nonceHashes = measurement.dataProvidersList.map { it.value.nonceHash }
     assertThat(measurementSpec)
       .comparingExpectedFieldsOnly()
@@ -459,7 +447,7 @@ class MeasurementSystemTest {
     val requisitionSpec1 = RequisitionSpec.parseFrom(signedRequisitionSpec1.data)
     assertThat(
         verifyRequisitionSpec(
-          signedRequisitionSpec1.signature,
+          signedRequisitionSpec1,
           requisitionSpec1,
           measurementSpec,
           MEASUREMENT_CONSUMER_CERTIFICATE
@@ -507,7 +495,7 @@ class MeasurementSystemTest {
     val requisitionSpec2 = RequisitionSpec.parseFrom(signedRequisitionSpec2.data)
     assertThat(
         verifyRequisitionSpec(
-          signedRequisitionSpec2.signature,
+          signedRequisitionSpec2,
           requisitionSpec2,
           measurementSpec,
           MEASUREMENT_CONSUMER_CERTIFICATE
@@ -829,62 +817,4 @@ private fun getEncryptedResult(
 ): ByteString {
   val signedResult = signResult(result, AGGREGATOR_SIGNING_KEY)
   return encryptResult(signedResult, publicKey)
-}
-
-private inline fun capturingSystemOut(block: () -> Unit): String {
-  val originalOut = System.out
-  val outputStream = ByteArrayOutputStream()
-
-  System.setOut(PrintStream(outputStream, true))
-  try {
-    block()
-  } finally {
-    System.setOut(originalOut)
-  }
-
-  return outputStream.toString()
-}
-
-private inline fun assertExitsWith(status: Int, block: () -> Unit) {
-  val exception: ExitException = assertFailsWith {
-    val originalSecurityManager: SecurityManager? = System.getSecurityManager()
-    System.setSecurityManager(
-      object : SecurityManager() {
-        override fun checkPermission(perm: Permission?) {
-          // Allow everything.
-        }
-
-        override fun checkExit(status: Int) {
-          super.checkExit(status)
-          throw ExitException(status)
-        }
-      }
-    )
-
-    try {
-      block()
-    } finally {
-      System.setSecurityManager(originalSecurityManager)
-    }
-  }
-  assertThat(exception.status).isEqualTo(status)
-}
-
-private class ExitException(val status: Int) : RuntimeException()
-
-private class HeaderCapturingInterceptor : ServerInterceptor {
-  override fun <ReqT, RespT> interceptCall(
-    call: ServerCall<ReqT, RespT>,
-    headers: Metadata,
-    next: ServerCallHandler<ReqT, RespT>,
-  ): ServerCall.Listener<ReqT> {
-    capturedHeaders.getOrPut(call.methodDescriptor.fullMethodName) { mutableListOf() }.add(headers)
-    return next.startCall(call, headers)
-  }
-
-  private val capturedHeaders = mutableMapOf<String, MutableList<Metadata>>()
-
-  fun captured(descriptor: MethodDescriptor<*, *>): List<Metadata> {
-    return capturedHeaders[descriptor.fullMethodName] ?: listOf()
-  }
 }

@@ -7,6 +7,14 @@ This assumes that you have `kubectl` installed and configured to point to a
 local KiND cluster. You should have some familiarity with Kubernetes and
 `kubectl`.
 
+Minimum Version Required:
+- KiND: v0.13.0
+- kubernetes server: v1.24.0
+- kubectl: compatible with kubernetes server
+
+Use the default `kind` as the KiND cluster name. The corresponding k8s cluster name is 
+`kind-kind`.
+
 Note that some of the targets listed below -- namely, the Duchies and
 simulators -- have requirements regarding the version of glibc in the build
 environment. See [Building](../../../../docs/building.md).

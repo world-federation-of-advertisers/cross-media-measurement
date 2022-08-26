@@ -33,7 +33,7 @@ service EventGroups {
   rpc ListEventGroups(ListEventGroupsRequest)
       returns (ListEventGroupsResponse) {
     option (google.api.http) = {
-      get: "/v1alpha/{parent=dataProviders/*}/eventGroups"
+      get: "/v1alpha/{parent=measurementConsumers/*/dataProviders/*}/eventGroups"
     };
     option (google.api.method_signature) = "parent";
   }
@@ -41,9 +41,11 @@ service EventGroups {
 
 // Request message for `ListEventGroups` method.
 message ListEventGroupsRequest {
-  // Resource key of the parent `DataProvider`. The wildcard ID (`-`) may be
-  // used in place of the `DataProvider` ID to list across `DataProvider`s, in
-  // which case a filter should be specified.
+  // Resource name of the parent `DataProvider` under a given
+  // `MeasurementConsumer`, in the form
+  // `measurementConsumers/{measurement_consumer}/dataProviders/{data_provider}`.
+  // The wildcard ID (`-`) may be used in place of the `DataProvider` ID to list
+  // across `DataProvider`s, in which case a filter should be specified.
   string parent = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
