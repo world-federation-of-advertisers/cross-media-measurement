@@ -14,6 +14,7 @@ java_library(
     name = "all",
     resources = [
         "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:libsketch_encrypter_adapter.so",
+        "@any_sketch_java//src/main/java/org/wfanet/estimation:libestimators.so",
     ],
     runtime_deps = [
         "//imports/java/com/google:cel-generated-pb",
