@@ -15,16 +15,13 @@
 package org.wfanet.measurement.duchy.daemon.herald
 
 import io.grpc.Status
-import java.util.logging.Level
+import java.time.Duration
 import java.util.logging.Logger
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import kotlin.math.pow
+import kotlin.random.Random
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.job
-import kotlinx.coroutines.launch
 import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.withRetriesOnEach
@@ -60,9 +57,9 @@ class Herald(
   private val systemComputationsClient: SystemComputationsCoroutineStub,
   private val protocolsSetupConfig: ProtocolsSetupConfig,
   private val blobStorageBucket: String = "computation-blob-storage",
-  private val maxAttempts: Int = 10
+  private val maxAttempts: Int = 10,
+  private val retryBackoff: ExponentialBackoff = ExponentialBackoff(),
 ) {
-  private val retryScope = CoroutineScope(Dispatchers.IO)
 
   /**
    * Syncs the status of computations stored at the kingdom with those stored locally continually in
@@ -95,13 +92,6 @@ class Herald(
    * computations from the system computation service.
    */
   suspend fun syncStatuses(continuationToken: String): String {
-    for (job in retryScope.coroutineContext.job.children) {
-      job.join()
-    }
-    // TODO(world-federation-of-advertisers/cross-media-measurement#87): Fail the computation and
-    // carry on instead of crashing the herald.
-    retryScope.ensureActive()
-
     var lastProcessedContinuationToken = continuationToken
     logger.info("Reading stream of active computations since $continuationToken.")
     systemComputationsClient
@@ -112,10 +102,12 @@ class Herald(
         processSystemComputationChange(response)
         lastProcessedContinuationToken = response.continuationToken
       }
-      // Cancel the flow on the first error, but don't actually throw the error. This will keep
-      // the continuation token at the last successfully processed item. A later execution of
-      // syncStatuses() may be successful if the state at the kingdom and/or this duchy was updated.
-      .catch { e -> logger.log(Level.SEVERE, "Exception:", e) }
+      .catch { e ->
+        // TODO(world-federation-of-advertisers/cross-media-measurement#584): Determine under what
+        // conditions the computation should be failed so the Herald doesn't get stuck on one that
+        // cannot succeed.
+        throw e
+      }
       .collect()
 
     return lastProcessedContinuationToken
@@ -162,35 +154,39 @@ class Herald(
     }
   }
 
+  class AttemptsExhaustedException(cause: Throwable, buildMessage: () -> String) :
+    Exception(buildMessage(), cause)
+
   /**
-   * Attempts the block once and if that fails, launches a coroutine to continue retrying in the
-   * background. Retrying is necessary since there is a race condition between the mill updating
-   * local computation state and the herald retrieving a systemComputation update from the kingdom.
+   * Runs [block] for [systemComputation], retrying up to a total of [maxAttempts] attempts.
    *
-   * TODO(@SanjayVas): Fix this unusual pattern by either doing all of the attempts in another
-   * coroutine scope (making this function non-suspending) or suspend until they're all done.
+   * Retrying is necessary since there is a race condition between the mill updating local
+   * computation state and the herald retrieving a systemComputation update from the kingdom.
+   *
+   * TODO(world-federation-of-advertisers/cross-media-measurement#585): Be more specific about retry
+   * conditions rather than unconditionally retrying.
    */
-  private suspend fun runWithRetry(
+  private suspend fun <R> runWithRetries(
     systemComputation: Computation,
-    block: suspend (systemComputation: Computation) -> Unit
-  ) {
+    block: suspend (systemComputation: Computation) -> R
+  ): R {
     val globalId = systemComputation.key.computationId
-    if (!runCatching { block(systemComputation) }.isSuccess) {
-      retryScope.launch(Dispatchers.IO) {
-        var attemptResult: Result<Unit>? = null
-        for (i in 2..maxAttempts) {
-          logger.info("[id=$globalId] Attempt #$i")
-          delay(timeMillis = minOf((1L shl i) * 1000L, 60_000L))
-          attemptResult = kotlin.runCatching { block(systemComputation) }
-          if (attemptResult.isSuccess) {
-            return@launch
-          }
+    val finalResult =
+      (1..maxAttempts).fold(Result.failure<R>(IllegalStateException())) { previous, attemptNumber ->
+        if (previous.isSuccess) {
+          return@fold previous
         }
 
-        val cause: Throwable = attemptResult!!.exceptionOrNull()!!
-        val message = "[id=$globalId] Giving up after $maxAttempts attempts"
-        logger.log(Level.SEVERE, message, cause)
-        throw IllegalStateException(message, cause)
+        logger.info("[id=$globalId] Attempt #$attemptNumber")
+        val result = runCatching { block(systemComputation) }
+        if (result.isFailure) {
+          retryBackoff.delay(attemptNumber)
+        }
+        result
+      }
+    return finalResult.getOrElse {
+      throw AttemptsExhaustedException(it) {
+        "[id=$globalId] Giving up after $maxAttempts attempts"
       }
     }
   }
@@ -198,7 +194,7 @@ class Herald(
   /** Attempts to update a new computation from duchy confirmation. */
   private suspend fun update(systemComputation: Computation) {
     val globalId = systemComputation.key.computationId
-    runWithRetry(systemComputation) {
+    runWithRetries(systemComputation) {
       logger.info("[id=$globalId]: Updating Computation")
       val token = internalComputationsClient.getComputationToken(globalId.toGetTokenRequest()).token
       when (token.computationDetails.protocolCase) {
@@ -217,7 +213,7 @@ class Herald(
   /** Attempts to start a computation that is in WAIT_TO_START. */
   private suspend fun start(systemComputation: Computation) {
     val globalId = systemComputation.key.computationId
-    runWithRetry(systemComputation) {
+    runWithRetries(systemComputation) {
       logger.info("[id=$globalId]: Starting Computation")
       val token = internalComputationsClient.getComputationToken(globalId.toGetTokenRequest()).token
       when (token.computationDetails.protocolCase) {
@@ -243,5 +239,51 @@ fun mayBeTransientGrpcError(error: Throwable): Boolean {
     Status.Code.UNKNOWN,
     Status.Code.UNAVAILABLE -> true
     else -> false
+  }
+}
+
+data class ExponentialBackoff(
+  val initialDelay: Duration = Duration.ofSeconds(1),
+  val multiplier: Double = 2.0,
+  val randomnessFactor: Double = 0.3,
+  val random: Random = Random.Default,
+) {
+  suspend fun delay(attemptNumber: Int) {
+    delay(
+      random
+        .randomizedDuration(
+          exponentialDuration(
+            initialDelay = initialDelay,
+            multiplier = multiplier,
+            attempts = attemptNumber,
+          ),
+          randomnessFactor = randomnessFactor,
+        )
+        .toMillis()
+    )
+  }
+
+  companion object {
+    private fun exponentialDuration(
+      initialDelay: Duration,
+      multiplier: Double,
+      attempts: Int
+    ): Duration {
+      if (attempts == 1) {
+        return initialDelay
+      }
+      return Duration.ofMillis((initialDelay.toMillis() * (multiplier.pow(attempts - 1))).toLong())
+    }
+
+    private fun Random.randomizedDuration(
+      delay: Duration,
+      randomnessFactor: Double,
+    ): Duration {
+      if (randomnessFactor == 0.0) {
+        return delay
+      }
+      val maxOffset = randomnessFactor * delay.toMillis()
+      return delay.plusMillis(nextDouble(-maxOffset, maxOffset).toLong())
+    }
   }
 }

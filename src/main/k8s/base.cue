@@ -31,17 +31,59 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 #GrpcServicePort: 8443
 
 #ResourceConfig: {
-	replicas:              int
-	resourceRequestCpu:    string
-	resourceLimitCpu:      string
-	resourceRequestMemory: string
-	resourceLimitMemory:   string
+	replicas?:  int32
+	resources?: #ResourceRequirements
+
+	// TODO(world-federation-of-advertisers/cross-media-measurement#623): Set heap
+	// size as a percentage instead.
+	jvmHeapSize?: string
 }
 
-#Target: {
-	name:   string
-	_caps:  strings.Replace(strings.ToUpper(name), "-", "_", -1)
-	target: "$(" + _caps + "_SERVICE_HOST):$(" + _caps + "_SERVICE_PORT)"
+#ResourceQuantity: {
+	cpu?:    string
+	memory?: string
+}
+
+#ResourceRequirements: {
+	limits?:   #ResourceQuantity
+	requests?: #ResourceQuantity
+}
+
+#CommonTarget: {
+	host:   string
+	port:   uint32 | string
+	target: "\(host):\(port)"
+}
+
+#ServiceTarget: {
+	#CommonTarget
+
+	serviceName:     string
+	_serviceNameVar: strings.Replace(strings.ToUpper(serviceName), "-", "_", -1)
+
+	host: "$(" + _serviceNameVar + "_SERVICE_HOST)"
+	port: "$(" + _serviceNameVar + "_SERVICE_PORT)"
+}
+
+#Target: #CommonTarget | *#ServiceTarget | {
+	#ServiceTarget
+
+	name:        string
+	serviceName: name
+}
+
+#GrpcTarget: GrpcTarget={
+	*#CommonTarget | #ServiceTarget
+
+	certificateHost?: string
+
+	targetOption:          string
+	certificateHostOption: string
+
+	args: [
+		"\(targetOption)=\(GrpcTarget.target)",
+		if (certificateHost != _|_) {"\(certificateHostOption)=\(certificateHost)"},
+	]
 }
 
 #SecretMount: {
@@ -134,9 +176,28 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	...
 }
 
+#EnvVar: {
+	name: string
+}
+
+#EnvVar: {
+	value: string
+} | {
+	valueFrom:
+		secretKeyRef: {
+			name: string
+			key:  string
+		}
+}
+
+#EnvVarMap: [Name=string]: #EnvVar & {
+	name: Name
+}
+
 #Container: {
 	_secretMounts: [...#SecretMount]
 	_configMapMounts: [...#ConfigMapMount]
+	_envVars: #EnvVarMap
 
 	name:   string
 	image?: string
@@ -149,34 +210,40 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		mountPath: mount.mountPath
 		readOnly:  true
 	}]
+	resources?:      #ResourceRequirements
 	readinessProbe?: #Probe
+	env: [ for _, envVar in _envVars {envVar}]
 	...
 }
 
 #Deployment: Deployment={
 	_name:       string
-	_replicas:   int
 	_secretName: string
 	_image:      string
 	_args: [...string]
+	_envVars:         #EnvVarMap
 	_ports:           [{containerPort: #GrpcServicePort}] | *[]
 	_restartPolicy:   string | *"Always"
 	_imagePullPolicy: string | *"Never"
 	_system:          string
-	_jvm_flags:       string | *""
+	_resourceConfig:  #ResourceConfig
 	_dependencies: [...string]
-	_resourceRequestCpu:    string
-	_resourceLimitCpu:      string
-	_resourceRequestMemory: string
-	_resourceLimitMemory:   string
 	_configMapMounts: [...#ConfigMapMount]
+	_secretMounts: [...#SecretMount]
 	_podSpec: #PodSpec & {
 		_secretMounts: [{
 			name:       _name + "-files"
 			secretName: _secretName
-		}]
+		}] + Deployment._secretMounts
 		_configMapMounts: Deployment._configMapMounts
 		_dependencies:    Deployment._dependencies
+
+		_container: _envVars: Deployment._envVars
+		if _resourceConfig.jvmHeapSize != _|_ {
+			_container: _envVars: "JAVA_TOOL_OPTIONS": {
+				value: "-Xms\(_resourceConfig.jvmHeapSize) -Xmx\(_resourceConfig.jvmHeapSize)"
+			}
+		}
 	}
 
 	apiVersion: "apps/v1"
@@ -192,29 +259,18 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		annotations: system: _system
 	}
 	spec: {
-		replicas: _replicas
 		selector: matchLabels: app: _name + "-app"
+		replicas?: _resourceConfig.replicas
 		template: {
 			metadata: labels: app: _name + "-app"
 			spec: _podSpec & {
 				containers: [{
-					name:  _name + "-container"
-					image: _image
-					resources: requests: {
-						memory: _resourceRequestMemory
-						cpu:    _resourceRequestCpu
-					}
-					resources: limits: {
-						memory: _resourceLimitMemory
-						cpu:    _resourceLimitCpu
-					}
+					name:            _name + "-container"
+					image:           _image
 					imagePullPolicy: _imagePullPolicy
 					args:            _args
 					ports:           _ports
-					env: [{
-						name:  "JAVA_TOOL_OPTIONS"
-						value: _jvm_flags
-					}]
+					resources:       _resourceConfig.resources
 				}]
 				restartPolicy: _restartPolicy
 			}
@@ -246,10 +302,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_imagePullPolicy: string | *"Always"
 	_args: [...string]
 	_dependencies: [...string]
-	_resourceRequestCpu:    string | *"100m"
-	_resourceLimitCpu:      string | *"200m"
-	_resourceRequestMemory: string | *"256Mi"
-	_resourceLimitMemory:   string | *"512Mi"
+	_resources?:   #ResourceRequirements
+	_jvmHeapSize?: string
 	_jobSpec: {
 		backoffLimit?: uint
 	}
@@ -261,6 +315,11 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			}]
 		}
 		_dependencies: Job._dependencies
+		if _jvmHeapSize != _|_ {
+			_container: _envVars: "JAVA_TOOL_OPTIONS": {
+				value: "-Xms\(_jvmHeapSize) -Xmx\(_jvmHeapSize)"
+			}
+		}
 
 		restartPolicy: string | *"OnFailure"
 	}
@@ -283,14 +342,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 					image:           _image
 					imagePullPolicy: _imagePullPolicy
 					args:            _args
-					resources: requests: {
-						memory: _resourceRequestMemory
-						cpu:    _resourceRequestCpu
-					}
-					resources: limits: {
-						memory: _resourceLimitMemory
-						cpu:    _resourceLimitCpu
-					}
+					resources?:      _resources
 				}]
 			}
 		}

@@ -105,7 +105,8 @@ class ComputationsService(
       )
     )
 
-    return computationsDatabase.readComputationToken(request.globalComputationId)!!
+    return computationsDatabase
+      .readComputationToken(request.globalComputationId)!!
       .toCreateComputationResponse()
   }
 
@@ -131,7 +132,8 @@ class ComputationsService(
       )
     )
 
-    return computationsDatabase.readComputationToken(request.token.globalComputationId)!!
+    return computationsDatabase
+      .readComputationToken(request.token.globalComputationId)!!
       .toFinishComputationResponse()
   }
 
@@ -163,7 +165,8 @@ class ComputationsService(
       request.details,
       request.requisitionsList
     )
-    return computationsDatabase.readComputationToken(request.token.globalComputationId)!!
+    return computationsDatabase
+      .readComputationToken(request.token.globalComputationId)!!
       .toUpdateComputationDetailsResponse()
   }
 
@@ -174,7 +177,8 @@ class ComputationsService(
       request.token.toDatabaseEditToken(),
       BlobRef(request.outputBlobId, request.blobPath)
     )
-    return computationsDatabase.readComputationToken(request.token.globalComputationId)!!
+    return computationsDatabase
+      .readComputationToken(request.token.globalComputationId)!!
       .toRecordOutputBlobPathResponse()
   }
 
@@ -205,7 +209,8 @@ class ComputationsService(
         request.nextComputationStage
       )
     )
-    return computationsDatabase.readComputationToken(request.token.globalComputationId)!!
+    return computationsDatabase
+      .readComputationToken(request.token.globalComputationId)!!
       .toAdvanceComputationStageResponse()
   }
 

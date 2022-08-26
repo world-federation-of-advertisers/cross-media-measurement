@@ -45,6 +45,7 @@ kt_jvm_library(
         "@any_sketch_java//src/main/java/org/wfanet/estimation:estimators",
         "@any_sketch_java//src/main/java/org/wfanet/estimation:value_histogram",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/apache/commons:math3",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:hashing",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
     ],
@@ -67,7 +68,7 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
     ],
 )
 

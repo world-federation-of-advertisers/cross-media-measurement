@@ -47,7 +47,6 @@ class InProcessEdpSimulator(
   duchyPublicApiChannel: Channel,
   private val eventTemplateNames: List<String>
 ) {
-
   private val backgroundScope = CoroutineScope(Dispatchers.Default)
 
   private val eventGroupsClient by lazy { EventGroupsCoroutineStub(kingdomPublicApiChannel) }

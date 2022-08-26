@@ -11,6 +11,9 @@ These certificates were generated using OpenSSL. See the
 for examples on how to do this. The OpenSSL CLI also has some tools for
 inspecting the certificates and signing keys.
 
+Test certificates under version control should be valid for a long period (e.g.
+10 years) to avoid breaking tests.
+
 ## Tink Keyset Generation
 
 Use the

@@ -16,8 +16,14 @@ package org.wfanet.measurement.loadtest.resourcesetup
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
+import io.grpc.Status
+import io.grpc.StatusException
 import java.time.Clock
 import java.util.logging.Logger
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.retry
+import kotlinx.coroutines.flow.single
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub
@@ -40,6 +46,7 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens.generateIdToken
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
+import org.wfanet.measurement.internal.kingdom.Account as InternalAccount
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.DataProviderKt as InternalDataProviderKt
@@ -52,6 +59,17 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.fillCertificateFromDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.parseCertificateDer
 
 private val API_VERSION = Version.V2_ALPHA
+
+/**
+ * Maximum number of times that we will retry the first request to the Kingdom. We allow retries
+ * because the resource setup step is usually executed immediately after the step that launches the
+ * Kingdom, but the Kingdom typically takes some time to launch. Therefore, the first few attempts
+ * to communicate with the Kingdom may fail because it is still initializing.
+ */
+private const val MAX_RETRY_COUNT = 30L
+
+/** Amount of time in milliseconds between retries. */
+private const val SLEEP_INTERVAL_MILLIS = 10000L
 
 /** A Job preparing resources required for the correctness test. */
 class ResourceSetup(
@@ -76,10 +94,17 @@ class ResourceSetup(
   ) {
     logger.info("Starting with RunID: $runId ...")
 
+    // Step 0: Setup communications with Kingdom and create the Account.
+    val internalAccount = createAccountWithRetries()
+
     // Step 1: Create the MC.
     val (measurementConsumer, apiAuthenticationKey) =
-      createMeasurementConsumer(measurementConsumerContent)
+      createMeasurementConsumer(measurementConsumerContent, internalAccount)
     logger.info("Successfully created measurement consumer: ${measurementConsumer.name}")
+    logger.info(
+      "Successfully created measurement consumer signing certificate: " +
+        measurementConsumer.certificate
+    )
     logger.info(
       "API key for measurement consumer ${measurementConsumer.name}: $apiAuthenticationKey"
     )
@@ -95,6 +120,8 @@ class ResourceSetup(
       val certificate = createDuchyCertificate(it)
       logger.info("Successfully created certificate ${certificate.name}")
     }
+
+    logger.info("Resource setup was successful.")
   }
 
   /** Create an internal dataProvider, and return its corresponding public API resource name. */
@@ -118,11 +145,39 @@ class ResourceSetup(
     return DataProviderKey(externalIdToApiId(internalDataProvider.externalDataProviderId)).toName()
   }
 
+  suspend fun createAccountWithRetries(): InternalAccount {
+    // The initial account is created via the Kingdom Internal API by the Kingdom operator.
+    // This is our first attempt to contact the Kingdom.  If it fails, we will retry it.
+    // This is to allow the Kingdom more time to start up.
+
+    fun isRetriable(e: Throwable) =
+      (e is StatusException) && (e.getStatus().getCode() == Status.Code.UNAVAILABLE)
+
+    // TODO(@SanjayVas):  Remove this polling behavior after the readiness probe for the Kingdom
+    // is fixed.
+    var retryCount = 0L
+    val internalAccount =
+      flow { emit(internalAccountsClient.createAccount(internalAccount {})) }
+        .retry(MAX_RETRY_COUNT) { e ->
+          isRetriable(e).also {
+            if (it) {
+              retryCount += 1
+              logger.info(
+                "Try #$retryCount to communicate with Kindgdom failed.  " +
+                  "Retrying in ${SLEEP_INTERVAL_MILLIS / 1000} seconds ..."
+              )
+              delay(SLEEP_INTERVAL_MILLIS)
+            }
+          }
+        }
+        .single()
+    return internalAccount
+  }
+
   suspend fun createMeasurementConsumer(
     measurementConsumerContent: EntityContent,
+    internalAccount: InternalAccount
   ): MeasurementConsumerAndKey {
-    // The initial account is created via the Kingdom Internal API by the Kingdom operator.
-    val internalAccount = internalAccountsClient.createAccount(internalAccount {})
     val accountName = AccountKey(externalIdToApiId(internalAccount.externalAccountId)).toName()
     val accountActivationToken = externalIdToApiId(internalAccount.activationToken)
     val mcCreationToken =
@@ -155,8 +210,8 @@ class ResourceSetup(
             measurementConsumerContent.signingKey
           )
         displayName = measurementConsumerContent.displayName
+        measurementConsumerCreationToken = mcCreationToken
       }
-      measurementConsumerCreationToken = mcCreationToken
     }
     val measurementConsumer =
       measurementConsumersClient.withIdToken(idToken).createMeasurementConsumer(request)

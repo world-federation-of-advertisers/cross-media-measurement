@@ -31,25 +31,34 @@ full path to the executable.
     ```
 
 
-## `Simple Report`
+## `MeasurementSystem`
 
-The Simple Report Tool can be used to create, list or get a `Measurement` by
-calling the public Kingdom API.
+CommandLine tool for interaction with public Kingdom APIs including Accounts 
+operations and Measurements operations.
 
 ### TLS flags
 
-You'll need to specify the public API target using the 
-`--kingdom-public-api-target` option.
+To specify the public API target, use the `--kingdom-public-api-target` option.
 
-You'll also need to specify a TLS client certificate and key using the
-`--tls-cert-file` and `--tls-key-file` options, respectively. The issuer of this
-certificate must be trusted by the Kingdom server, i.e. the issuer
-certificate must be in that server's trusted certificate collection file.
+To specify a TLS client certificate and key, use the `--tls-cert-file` and 
+`--tls-key-file` options, respectively. The issuer of this certificate must be 
+trusted by the Kingdom server, i.e. the issuer certificate must be in that 
+server's trusted certificate collection file.
 
-### Create
+### Accounts Operations
 
-To create a `Measurement`, the user needs to provide values of the `Measurement`
-by arguments
+#### Authenticate
+
+#### Activate
+
+### Measurements Operations
+
+Measurements operations require argument `--api-key` to access Kingdom public
+API.
+
+#### Create
+
+To create a `Measurement`, provide values of the `Measurement` by arguments
 
 `Measurement` is a nested structure contains a list of `DataProviderEntry`,
 while `DataProviderEntry` contains a list of `EventGroupEntry`. To specify these
@@ -57,25 +66,56 @@ value via CLI arguments, the inputs should be grouped.
 
 See the [Examples](##Examples) section below.
 
-### List
+#### List
 
 To list `Measurement`s of a `MeasurementConsumer`, the user specifies the
 name of the `MeasurementConsumer` with corresponding credential arguments.
+To navigate to next page, use `--page-size` and `page-token`.
 
 See the [Examples](##Examples) section below.
 
-### Get
+#### Get
 
 To get a certain `Measurement`, the user specifies the name of the `Measurement` 
 and provides the private encryption key to decrypt the results.
 
 See the [Examples](##Examples) section below.
 
-## Examples
+### Examples
 
-This assumes that you have built the `SimpleReport` target, which outputs to
+This assumes that you have built the `MeasurementSystem` target, which outputs to
 `bazel-bin` by default. For brevity, the examples to not include the full path
 to the executable.
+
+#### Accounts
+
+* Authenticate
+  
+  ```shell
+  MeasurementSystem \
+  --tls-cert-file=secretfiles/mc_tls.pem --tls-key-file=secretfiles/mc_tls.key \
+  --cert-collection-file=secretfiles/kingdom_root.pem \
+  --kingdom-public-api-target=public.kingdom.dev.halo-cmm.org:8443 \
+  accounts \
+  authenticate \
+  --self-issued-openid-provider-key=secretfiles/account1_siop_private.tink
+  ```
+
+* Active
+
+  ```shell
+  MeasurementSystem \
+  --tls-cert-file=secretfiles/mc_tls.pem --tls-key-file=secretfiles/mc_tls.key \
+  --cert-collection-file=secretfiles/kingdom_root.pem \
+  --kingdom-public-api-target=public.kingdom.dev.halo-cmm.org:8443 \
+  accounts \
+  activate \
+  accounts/KcuXSjfBx9E \
+  --id-token=Sjf8Sdjd2V \
+  --activation-token=vzmtXavLdk4
+  ```
+
+#### Measurements
 
 * Create
 
@@ -90,10 +130,11 @@ to the executable.
   options within a group does not matter.
 
   ```shell
-  SimpleReport \
+  MeasurementSystem \
   --tls-cert-file=secretfiles/mc_tls.pem --tls-key-file=secretfiles/mc_tls.key \
   --cert-collection-file=secretfiles/kingdom_root.pem \
   --kingdom-public-api-target=public.kingdom.dev.halo-cmm.org:8443 \
+  measurements \
   --api-key=nR5QPN7ptx \
   create \
   --measurement-consumer=measurementConsumers/777 \
@@ -124,10 +165,11 @@ to the executable.
 * List
 
   ```shell
-  SimpleReport \
+  MeasurementSystem \
   --tls-cert-file=secretfiles/mc_tls.pem --tls-key-file=secretfiles/mc_tls.key \
   --cert-collection-file=secretfiles/kingdom_root.pem \
   --kingdom-public-api-target=public.kingdom.dev.halo-cmm.org:8443 \
+  measurements \
   --api-key=nR5QPN7ptx \
   list \
   --measurement-consumer=measurementConsumers/777
@@ -139,13 +181,14 @@ to the executable.
   `mc_enc_private.tink`.
 
   ```shell
-  SimpleReport \
+  MeasurementSystem \
   --tls-cert-file=secretfiles/mc_tls.pem --tls-key-file=secretfiles/mc_tls.key \
   --cert-collection-file=secretfiles/kingdom_root.pem \
   --kingdom-public-api-target=public.kingdom.dev.halo-cmm.org:8443 \
+  measurements \
   --api-key=nR5QPN7ptx \
   get \
-  --measurement=measurementConsumers/777/measurements/100 \
-  --encryption-private-key-file=secretfiles/mc_enc_private.tink
+  --encryption-private-key-file=secretfiles/mc_enc_private.tink \
+  measurementConsumers/777/measurements/100
   ```
 

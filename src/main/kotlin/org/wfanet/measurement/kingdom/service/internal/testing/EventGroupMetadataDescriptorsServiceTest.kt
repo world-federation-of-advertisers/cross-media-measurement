@@ -271,7 +271,8 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
         )
         .toList()
 
-    if (eventGroupMetadataDescriptor1.externalEventGroupMetadataDescriptorId <
+    if (
+      eventGroupMetadataDescriptor1.externalEventGroupMetadataDescriptorId <
         eventGroupMetadataDescriptor2.externalEventGroupMetadataDescriptorId
     ) {
       assertThat(eventGroupMetadataDescriptors)

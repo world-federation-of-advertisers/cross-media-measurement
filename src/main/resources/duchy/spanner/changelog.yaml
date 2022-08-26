@@ -15,10 +15,6 @@
 # Liquibase changelog.
 
 databaseChangeLog:
-- preConditions:
-    onFail: HALT
-    onError: HALT
-
 - include:
     file: create-computations-schema.sql
     relativeToChangeLogFile: true

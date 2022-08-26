@@ -227,13 +227,13 @@ class LiquidLegionsV2Mill(
         logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
 
         // Updates the newly generated localElgamalKey to the ComputationDetails.
-        dataClients.computationsClient.updateComputationDetails(
+        dataClients.computationsClient
+          .updateComputationDetails(
             UpdateComputationDetailsRequest.newBuilder()
               .also {
                 it.token = token
                 it.details =
-                  token
-                    .computationDetails
+                  token.computationDetails
                     .toBuilder()
                     .apply { liquidLegionsV2Builder.localElgamalKey = cryptoResult.elGamalKeyPair }
                     .build()
@@ -295,7 +295,8 @@ class LiquidLegionsV2Mill(
     when (publicApiVersion) {
       Version.V2_ALPHA -> {
         val publicApiElgamalKey = V2alphaElGamalPublicKey.parseFrom(duchy.elGamalPublicKey)
-        if (!verifyElGamalPublicKey(
+        if (
+          !verifyElGamalPublicKey(
             duchy.elGamalPublicKeySignature,
             publicApiElgamalKey,
             readCertificate(duchy.duchyCertificateDer)
@@ -356,16 +357,17 @@ class LiquidLegionsV2Mill(
             )
             .map { it.publicKey }
             .toCombinedPublicKey(llv2Details.parameters.ellipticCurveId)
-        UNKNOWN, UNRECOGNIZED -> error("Invalid role ${llv2Details.role}")
+        UNKNOWN,
+        UNRECOGNIZED -> error("Invalid role ${llv2Details.role}")
       }
 
-    return dataClients.computationsClient.updateComputationDetails(
+    return dataClients.computationsClient
+      .updateComputationDetails(
         UpdateComputationDetailsRequest.newBuilder()
           .apply {
             this.token = token
             details =
-              token
-                .computationDetails
+              token.computationDetails
                 .toBuilder()
                 .apply {
                   liquidLegionsV2Builder.also {
@@ -620,13 +622,13 @@ class LiquidLegionsV2Mill(
         tempToken
       } else {
         // Update the newly calculated reach to the ComputationDetails.
-        dataClients.computationsClient.updateComputationDetails(
+        dataClients.computationsClient
+          .updateComputationDetails(
             UpdateComputationDetailsRequest.newBuilder()
               .also {
                 it.token = tempToken
                 it.details =
-                  token
-                    .computationDetails
+                  token.computationDetails
                     .toBuilder()
                     .apply { liquidLegionsV2Builder.reachEstimateBuilder.reach = reach }
                     .build()

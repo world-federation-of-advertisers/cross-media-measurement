@@ -1,0 +1,15 @@
+# proto-file: wfa/measurement/reporting/v1alpha/metric.proto
+# proto-message: Metric
+reach { }
+set_operations {
+  unique_name: "operation1"
+  set_operation {
+    type: 1
+    lhs {
+      reporting_set: "measurementConsumers/1/reportingSets/1"
+    }
+    rhs {
+      reporting_set: "measurementConsumers/1/reportingSets/2"
+    }
+  }
+}

@@ -72,12 +72,12 @@ fun InternalRequisition.toSystemRequisition(): Requisition {
 /** Converts a kingdom internal Requisition.State to system Api Requisition.State. */
 fun InternalRequisition.State.toSystemRequisitionState(): Requisition.State {
   return when (this) {
-    InternalRequisition.State.PENDING_PARAMS, InternalRequisition.State.UNFULFILLED ->
-      Requisition.State.UNFULFILLED
+    InternalRequisition.State.PENDING_PARAMS,
+    InternalRequisition.State.UNFULFILLED -> Requisition.State.UNFULFILLED
     InternalRequisition.State.FULFILLED -> Requisition.State.FULFILLED
     InternalRequisition.State.REFUSED -> Requisition.State.REFUSED
-    InternalRequisition.State.STATE_UNSPECIFIED, InternalRequisition.State.UNRECOGNIZED ->
-      error("Invalid requisition state.")
+    InternalRequisition.State.STATE_UNSPECIFIED,
+    InternalRequisition.State.UNRECOGNIZED -> error("Invalid requisition state.")
   }
 }
 
@@ -261,8 +261,8 @@ fun InternalMeasurement.State.toSystemComputationState(): Computation.State {
     InternalMeasurement.State.SUCCEEDED -> Computation.State.SUCCEEDED
     InternalMeasurement.State.FAILED -> Computation.State.FAILED
     InternalMeasurement.State.CANCELLED -> Computation.State.CANCELLED
-    InternalMeasurement.State.STATE_UNSPECIFIED, InternalMeasurement.State.UNRECOGNIZED ->
-      error("Invalid measurement state.")
+    InternalMeasurement.State.STATE_UNSPECIFIED,
+    InternalMeasurement.State.UNRECOGNIZED -> error("Invalid measurement state.")
   }
 }
 

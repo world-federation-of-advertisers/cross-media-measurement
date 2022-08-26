@@ -17,7 +17,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:proto_conversions",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
         "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:model_provider_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:recurring_exchange_kt_jvm_proto",

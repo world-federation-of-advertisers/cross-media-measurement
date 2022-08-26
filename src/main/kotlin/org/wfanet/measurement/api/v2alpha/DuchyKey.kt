@@ -15,6 +15,7 @@
 package org.wfanet.measurement.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
+import org.wfanet.measurement.common.api.ResourceKey
 
 /** [ResourceKey] of a Duchy. */
 data class DuchyKey(val duchyId: String) : ResourceKey {
@@ -22,13 +23,13 @@ data class DuchyKey(val duchyId: String) : ResourceKey {
     return parser.assembleName(mapOf(IdVariable.DUCHY to duchyId))
   }
 
-  companion object {
+  companion object FACTORY : ResourceKey.Factory<DuchyKey> {
     const val COLLECTION_NAME = "duchies"
     val defaultValue = DuchyKey("")
 
     private val parser = ResourceNameParser("$COLLECTION_NAME/{duchy}")
 
-    fun fromName(resourceName: String): DuchyKey? {
+    override fun fromName(resourceName: String): DuchyKey? {
       return parser.parseIdVars(resourceName)?.let { DuchyKey(it.getValue(IdVariable.DUCHY)) }
     }
   }

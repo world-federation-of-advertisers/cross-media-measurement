@@ -105,10 +105,10 @@ message Metric {
 
   // A `SetOperation` associated with a name.
   message NamedSetOperation {
-    // The name of the set for display purposes.
-    //
-    // e.g. this may be a column or row header in CSV output.
-    string display_name = 1 [(google.api.field_behavior) = REQUIRED];
+    // Unique name of the set operation for display purposes and creation of
+    // measurement reference ID. The name should be unique for the SAME metric
+    // type among all metrics in a report.
+    string unique_name = 1 [(google.api.field_behavior) = REQUIRED];
 
     // A set operation that specifies the set of event groups.
     SetOperation set_operation = 2 [(google.api.field_behavior) = REQUIRED];

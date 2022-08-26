@@ -14,6 +14,12 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- changeset efoxepstein:2 dbms:cloudspanner
+-- preconditions onFail:MARK_RAN onError:HALT
+-- precondition-sql-check expectedResult:0 SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'RecurringExchanges'
+
+START BATCH DDL;
+
 -- Cloud Spanner database schema for the Kingdom exchange related tables.
 --
 -- Table hierarchy:
@@ -39,18 +45,15 @@
 -- In the long run, we intend to deduplicate this. However, in the short term,
 -- JSON provides debugging value.
 
--- changeset efoxepstein:create-model-providers-table dbms:cloudspanner
 CREATE TABLE ModelProviders (
   ModelProviderId INT64 NOT NULL,
 
   ExternalModelProviderId INT64 NOT NULL,
 ) PRIMARY KEY (ModelProviderId);
 
--- changeset efoxepstein:create-model-providers-by-external-id-index dbms:cloudspanner
 CREATE UNIQUE INDEX ModelProvidersByExternalId
   ON ModelProviders(ExternalModelProviderId);
 
--- changeset efoxepstein:create-mp-certs-table dbms:cloudspanner
 CREATE TABLE ModelProviderCertificates (
   ModelProviderId INT64 NOT NULL,
   CertificateId INT64 NOT NULL,
@@ -61,16 +64,13 @@ CREATE TABLE ModelProviderCertificates (
 ) PRIMARY KEY (ModelProviderId, CertificateId),
   INTERLEAVE IN PARENT ModelProviders ON DELETE CASCADE;
 
--- changeset efoxepstein:create-mp-certs-by-external-id-index dbms:cloudspanner
 CREATE UNIQUE INDEX ModelProviderCertificatesByExternalId
   ON ModelProviderCertificates(ModelProviderId, ExternalModelProviderCertificateId);
 
 -- No Certificate should belong to more than one ModelProvider.
--- changeset efoxepstein:create-mp-certs-by-cert-id-index dbms:cloudspanner
 CREATE UNIQUE INDEX ModelProviderCertificatesByCertificateId
   ON ModelProviderCertificates(CertificateId);
 
--- changeset efoxepstein:create-recurring-exchanges-table dbms:cloudspanner
 CREATE TABLE RecurringExchanges (
   RecurringExchangeId           INT64 NOT NULL,
 
@@ -95,23 +95,18 @@ CREATE TABLE RecurringExchanges (
     REFERENCES DataProviders(DataProviderId),
 ) PRIMARY KEY (RecurringExchangeId);
 
--- changeset efoxepstein:create-recurring-exchanges-by-external-id-index dbms:cloudspanner
 CREATE UNIQUE INDEX RecurringExchangesByExternalId
   ON RecurringExchanges(ExternalRecurringExchangeId);
 
--- changeset efoxepstein:create-recurring-exchanges-by-edp-id-index dbms:cloudspanner
 CREATE INDEX RecurringExchangesByDataProviderId
   ON RecurringExchanges(DataProviderId);
 
--- changeset efoxepstein:create-recurring-exchanges-by-mp-id-index dbms:cloudspanner
 CREATE INDEX RecurringExchangesByModelProviderId
   ON RecurringExchanges(ModelProviderId);
 
--- changeset efoxepstein:create-recurring-exchanges-by-next-date-index dbms:cloudspanner
 CREATE INDEX RecurringExchangesByNextExchangeDate
   ON RecurringExchanges(NextExchangeDate);
 
--- changeset efoxepstein:create-exchanges-table dbms:cloudspanner
 CREATE TABLE Exchanges (
   RecurringExchangeId  INT64 NOT NULL,
   Date                 DATE NOT NULL,
@@ -125,10 +120,8 @@ CREATE TABLE Exchanges (
 ) PRIMARY KEY (RecurringExchangeId, Date),
   INTERLEAVE IN PARENT RecurringExchanges ON DELETE CASCADE;
 
--- changeset efoxepstein:create-exchanges-by-date-index dbms:cloudspanner
 CREATE INDEX ExchangesByDate ON Exchanges(Date);
 
--- changeset efoxepstein:create-exchange-steps-table dbms:cloudspanner
 CREATE TABLE ExchangeSteps (
   RecurringExchangeId  INT64 NOT NULL,
   Date                 DATE NOT NULL,
@@ -152,15 +145,12 @@ CREATE TABLE ExchangeSteps (
 ) PRIMARY KEY (RecurringExchangeId, Date, StepIndex),
   INTERLEAVE IN PARENT Exchanges ON DELETE CASCADE;
 
--- changeset efoxepstein:create-exchange-steps-by-mp-id-index dbms:cloudspanner
 CREATE NULL_FILTERED INDEX ExchangeStepsByModelProviderId
   ON ExchangeSteps(ModelProviderId, State);
 
--- changeset efoxepstein:create-exchange-steps-by-edp-id-index dbms:cloudspanner
 CREATE NULL_FILTERED INDEX ExchangeStepsByDataProviderId
   ON ExchangeSteps(DataProviderId, State);
 
--- changeset efoxepstein:create-exchange-attempts-table dbms:cloudspanner
 CREATE TABLE ExchangeStepAttempts (
   RecurringExchangeId  INT64 NOT NULL,
   Date                 DATE NOT NULL,
@@ -179,3 +169,5 @@ CREATE TABLE ExchangeStepAttempts (
   ExchangeStepAttemptDetailsJson  STRING(MAX) NOT NULL,
 ) PRIMARY KEY (RecurringExchangeId, Date, StepIndex, AttemptIndex),
   INTERLEAVE IN PARENT ExchangeSteps ON DELETE CASCADE;
+
+RUN BATCH;

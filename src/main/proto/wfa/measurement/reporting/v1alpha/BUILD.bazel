@@ -16,6 +16,7 @@ proto_library(
     deps = [
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_protobuf//:any_proto",
     ],
 )
 
@@ -71,6 +72,17 @@ proto_library(
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
     ],
+)
+
+java_proto_library(
+    name = "reporting_set_java_proto",
+    deps = [":reporting_set_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "reporting_set_kt_jvm_proto",
+    srcs = [":reporting_set_proto"],
+    deps = [":reporting_set_java_proto"],
 )
 
 proto_library(

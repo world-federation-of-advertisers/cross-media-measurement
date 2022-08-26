@@ -126,8 +126,7 @@ class ComputationsServiceTest {
     )
     val tokenAtStart = fakeService.getComputationToken(id.toGetTokenRequest()).token
     val newComputationDetails =
-      AGGREGATOR_COMPUTATION_DETAILS
-        .toBuilder()
+      AGGREGATOR_COMPUTATION_DETAILS.toBuilder()
         .apply { liquidLegionsV2Builder.reachEstimateBuilder.reach = 123 }
         .build()
     val request =
@@ -174,8 +173,7 @@ class ComputationsServiceTest {
     )
     val tokenAtStart = fakeService.getComputationToken(id.toGetTokenRequest()).token
     val newComputationDetails =
-      AGGREGATOR_COMPUTATION_DETAILS
-        .toBuilder()
+      AGGREGATOR_COMPUTATION_DETAILS.toBuilder()
         .apply { liquidLegionsV2Builder.reachEstimateBuilder.reach = 123 }
         .build()
     val requisitionDetails1 =
@@ -286,7 +284,8 @@ class ComputationsServiceTest {
     val tokenAtStart = fakeService.getComputationToken(id.toGetTokenRequest()).token
 
     val tokenAfterRecordingBlob =
-      fakeService.recordOutputBlobPath(
+      fakeService
+        .recordOutputBlobPath(
           RecordOutputBlobPathRequest.newBuilder()
             .apply {
               token = tokenAtStart

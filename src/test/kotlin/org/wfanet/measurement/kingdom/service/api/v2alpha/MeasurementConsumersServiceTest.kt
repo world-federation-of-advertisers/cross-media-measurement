@@ -49,7 +49,7 @@ import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.testing.FIXED_ENCRYPTION_PUBLIC_KEYSET
 import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_PEM_FILE
-import org.wfanet.measurement.common.crypto.tink.testing.loadPublicKey
+import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -110,8 +110,8 @@ class MeasurementConsumersServiceTest {
       measurementConsumer = measurementConsumer {
         certificateDer = SERVER_CERTIFICATE_DER
         publicKey = SIGNED_PUBLIC_KEY
+        measurementConsumerCreationToken = MEASUREMENT_CONSUMER_CREATION_TOKEN
       }
-      measurementConsumerCreationToken = MEASUREMENT_CONSUMER_CREATION_TOKEN
     }
 
     val createdMeasurementConsumer =
@@ -123,6 +123,7 @@ class MeasurementConsumersServiceTest {
       request.measurementConsumer.copy {
         name = MEASUREMENT_CONSUMER_NAME
         certificate = CERTIFICATE_NAME
+        clearMeasurementConsumerCreationToken()
       }
     assertThat(createdMeasurementConsumer).isEqualTo(expectedMeasurementConsumer)
     verifyProtoArgument(
@@ -159,8 +160,10 @@ class MeasurementConsumersServiceTest {
   @Test
   fun `create throws INVALID_ARGUMENT when certificate DER is missing`() {
     val request = createMeasurementConsumerRequest {
-      measurementConsumer = measurementConsumer { publicKey = SIGNED_PUBLIC_KEY }
-      measurementConsumerCreationToken = MEASUREMENT_CONSUMER_CREATION_TOKEN
+      measurementConsumer = measurementConsumer {
+        publicKey = SIGNED_PUBLIC_KEY
+        measurementConsumerCreationToken = MEASUREMENT_CONSUMER_CREATION_TOKEN
+      }
     }
 
     val exception =
@@ -193,8 +196,10 @@ class MeasurementConsumersServiceTest {
   @Test
   fun `create throws INVALID_ARGUMENT when public key is missing`() {
     val request = createMeasurementConsumerRequest {
-      measurementConsumer = measurementConsumer { certificateDer = SERVER_CERTIFICATE_DER }
-      measurementConsumerCreationToken = MEASUREMENT_CONSUMER_CREATION_TOKEN
+      measurementConsumer = measurementConsumer {
+        certificateDer = SERVER_CERTIFICATE_DER
+        measurementConsumerCreationToken = MEASUREMENT_CONSUMER_CREATION_TOKEN
+      }
     }
 
     val exception =

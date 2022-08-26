@@ -1,0 +1,34 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+
+package(
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/reporting:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "encryption_key_pair_map",
+    srcs = ["EncryptionKeyPairMap.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/config/reporting:encryption_key_pair_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+    ],
+)
+
+kt_jvm_library(
+    name = "flags",
+    srcs = ["InternalApiFlags.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/picocli",
+    ],
+)
+
+kt_jvm_library(
+    name = "kingdom_flags",
+    srcs = ["KingdomApiFlags.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/picocli",
+    ],
+)

@@ -1,0 +1,36 @@
+# proto-file: wfa/measurement/reporting/v1alpha/metric.proto
+# proto-message: Metric
+reach { }
+cumulative: true
+set_operations {
+  unique_name: "operation1"
+  set_operation {
+    type: 1
+    lhs {
+      reporting_set: "measurementConsumers/1/reportingSets/1"
+    }
+    rhs {
+      reporting_set: "measurementConsumers/1/reportingSets/2"
+    }
+  }
+}
+set_operations {
+  unique_name: "operation2"
+  set_operation {
+    type: 2
+    lhs {
+      reporting_set: "measurementConsumers/1/reportingSets/3"
+    }
+    rhs {
+      operation {
+        type: 3
+        lhs {
+          reporting_set: "measurementConsumers/1/reportingSets/4"
+        }
+        rhs {
+          reporting_set: "measurementConsumers/1/reportingSets/5"
+        }
+      }
+    }
+  }
+}

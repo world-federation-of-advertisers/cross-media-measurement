@@ -81,8 +81,8 @@ fun InternalMeasurement.State.toState(): State =
     InternalMeasurement.State.SUCCEEDED -> State.SUCCEEDED
     InternalMeasurement.State.FAILED -> State.FAILED
     InternalMeasurement.State.CANCELLED -> State.CANCELLED
-    InternalMeasurement.State.STATE_UNSPECIFIED, InternalMeasurement.State.UNRECOGNIZED ->
-      State.STATE_UNSPECIFIED
+    InternalMeasurement.State.STATE_UNSPECIFIED,
+    InternalMeasurement.State.UNRECOGNIZED -> State.STATE_UNSPECIFIED
   }
 
 /** Convert a public [State] to an internal [InternalMeasurement.State]. */
@@ -104,8 +104,8 @@ fun State.toInternalState(): List<InternalMeasurement.State> {
     State.SUCCEEDED -> listOf(InternalMeasurement.State.SUCCEEDED)
     State.FAILED -> listOf(InternalMeasurement.State.FAILED)
     State.CANCELLED -> listOf(InternalMeasurement.State.CANCELLED)
-    State.STATE_UNSPECIFIED, State.UNRECOGNIZED ->
-      listOf(InternalMeasurement.State.STATE_UNSPECIFIED)
+    State.STATE_UNSPECIFIED,
+    State.UNRECOGNIZED -> listOf(InternalMeasurement.State.STATE_UNSPECIFIED)
   }
 }
 
@@ -188,7 +188,8 @@ fun InternalMeasurement.toMeasurement(): Measurement {
     }
     dataProviders +=
       source.dataProvidersMap.entries.map(Map.Entry<Long, DataProviderValue>::toDataProviderEntry)
-    if (source.details.protocolConfig.protocolCase !=
+    if (
+      source.details.protocolConfig.protocolCase !=
         InternalProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
     ) {
       protocolConfig = source.details.protocolConfig.toProtocolConfig()
@@ -274,13 +275,16 @@ fun Measurement.toInternal(
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (measurementSpecProto.measurementTypeCase) {
         MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
-          protocolConfig = internalProtocolConfig {
-            externalProtocolConfigId = Llv2ProtocolConfig.name
-            measurementType = InternalProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
-            liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
-          }
-          duchyProtocolConfig = duchyProtocolConfig {
-            liquidLegionsV2 = Llv2ProtocolConfig.duchyProtocolConfig
+          // For single EDP direct R/F measurement, don't generate internal protocolConfig
+          if (dataProvidersCount > 1) {
+            protocolConfig = internalProtocolConfig {
+              externalProtocolConfigId = Llv2ProtocolConfig.name
+              measurementType = InternalProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
+              liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
+            }
+            duchyProtocolConfig = duchyProtocolConfig {
+              liquidLegionsV2 = Llv2ProtocolConfig.duchyProtocolConfig
+            }
           }
         }
         // No protocol for impression or duration type.
@@ -319,8 +323,8 @@ private val InternalExchange.v2AlphaState: Exchange.State
       InternalExchange.State.ACTIVE -> Exchange.State.ACTIVE
       InternalExchange.State.SUCCEEDED -> Exchange.State.SUCCEEDED
       InternalExchange.State.FAILED -> Exchange.State.FAILED
-      InternalExchange.State.STATE_UNSPECIFIED, InternalExchange.State.UNRECOGNIZED ->
-        error("Invalid InternalExchange state.")
+      InternalExchange.State.STATE_UNSPECIFIED,
+      InternalExchange.State.UNRECOGNIZED -> error("Invalid InternalExchange state.")
     }
   }
 
@@ -344,8 +348,8 @@ fun InternalExchangeStep.toV2Alpha(): ExchangeStep {
 /** @throws [IllegalStateException] if State not specified */
 fun ExchangeStepAttempt.State.toInternal(): InternalExchangeStepAttempt.State {
   return when (this) {
-    ExchangeStepAttempt.State.STATE_UNSPECIFIED, ExchangeStepAttempt.State.UNRECOGNIZED ->
-      error("Invalid ExchangeStepAttempt state: $this")
+    ExchangeStepAttempt.State.STATE_UNSPECIFIED,
+    ExchangeStepAttempt.State.UNRECOGNIZED -> error("Invalid ExchangeStepAttempt state: $this")
     ExchangeStepAttempt.State.ACTIVE -> InternalExchangeStepAttempt.State.ACTIVE
     ExchangeStepAttempt.State.SUCCEEDED -> InternalExchangeStepAttempt.State.SUCCEEDED
     ExchangeStepAttempt.State.FAILED -> InternalExchangeStepAttempt.State.FAILED
@@ -392,8 +396,8 @@ fun ExchangeStep.State.toInternal(): InternalExchangeStep.State {
     ExchangeStep.State.IN_PROGRESS -> InternalExchangeStep.State.IN_PROGRESS
     ExchangeStep.State.SUCCEEDED -> InternalExchangeStep.State.SUCCEEDED
     ExchangeStep.State.FAILED -> InternalExchangeStep.State.FAILED
-    ExchangeStep.State.STATE_UNSPECIFIED, ExchangeStep.State.UNRECOGNIZED ->
-      error("Invalid ExchangeStep state: $this")
+    ExchangeStep.State.STATE_UNSPECIFIED,
+    ExchangeStep.State.UNRECOGNIZED -> error("Invalid ExchangeStep state: $this")
   }
 }
 
@@ -426,8 +430,8 @@ private val InternalExchangeStep.v2AlphaState: ExchangeStep.State
       InternalExchangeStep.State.IN_PROGRESS -> ExchangeStep.State.IN_PROGRESS
       InternalExchangeStep.State.SUCCEEDED -> ExchangeStep.State.SUCCEEDED
       InternalExchangeStep.State.FAILED -> ExchangeStep.State.FAILED
-      InternalExchangeStep.State.STATE_UNSPECIFIED, InternalExchangeStep.State.UNRECOGNIZED ->
-        error("Invalid InternalExchangeStep state: $this")
+      InternalExchangeStep.State.STATE_UNSPECIFIED,
+      InternalExchangeStep.State.UNRECOGNIZED -> error("Invalid InternalExchangeStep state: $this")
     }
   }
 
@@ -445,9 +449,7 @@ fun ExchangeWorkflow.toInternal(): InternalExchangeWorkflow {
         stepIndex = index
         party = step.party.toInternal()
         prerequisiteStepIndices +=
-          step
-            .inputLabelsMap
-            .values
+          step.inputLabelsMap.values
             .flatMap { value ->
               val prerequisites = labelsMap.getOrDefault(value, emptyList())
               prerequisites.forEach { (stepId, stepIndex) ->
@@ -472,7 +474,8 @@ fun ExchangeWorkflow.Party.toInternal(): InternalExchangeWorkflow.Party {
   return when (this) {
     ExchangeWorkflow.Party.DATA_PROVIDER -> InternalExchangeWorkflow.Party.DATA_PROVIDER
     ExchangeWorkflow.Party.MODEL_PROVIDER -> InternalExchangeWorkflow.Party.MODEL_PROVIDER
-    ExchangeWorkflow.Party.PARTY_UNSPECIFIED, ExchangeWorkflow.Party.UNRECOGNIZED ->
+    ExchangeWorkflow.Party.PARTY_UNSPECIFIED,
+    ExchangeWorkflow.Party.UNRECOGNIZED ->
       throw IllegalArgumentException("Provider is not set for the Exchange Step.")
   }
 }

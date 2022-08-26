@@ -58,7 +58,8 @@ object ComputationProtocolStages :
       LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         LiquidLegionsSketchAggregationV2Protocol.EnumStages.longToEnum(value.stage)
           .toProtocolStage()
-      UNSPECIFIED, UNRECOGNIZED -> error("protocol not set")
+      UNSPECIFIED,
+      UNRECOGNIZED -> error("protocol not set")
     }
   }
 
@@ -67,7 +68,8 @@ object ComputationProtocolStages :
     return when (protocol) {
       LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         LiquidLegionsSketchAggregationV2Protocol.ComputationStages.validInitialStages
-      UNSPECIFIED, UNRECOGNIZED -> error("protocol not set")
+      UNSPECIFIED,
+      UNRECOGNIZED -> error("protocol not set")
     }
   }
 
@@ -76,7 +78,8 @@ object ComputationProtocolStages :
     return when (protocol) {
       LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
         LiquidLegionsSketchAggregationV2Protocol.ComputationStages.validTerminalStages
-      UNSPECIFIED, UNRECOGNIZED -> error("protocol not set")
+      UNSPECIFIED,
+      UNRECOGNIZED -> error("protocol not set")
     }
   }
 

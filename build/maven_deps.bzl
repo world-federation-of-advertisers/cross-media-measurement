@@ -44,6 +44,10 @@ _RUNTIME_DEPS = [
 # TODO: this list can likely be minimized
 _ARTIFACTS = {
     "com.google.crypto.tink:tink": "1.6.0",
+    #"com.google.protobuf:protobuf-java": "3.20.1",
+    #"com.google.protobuf:protobuf-java-util": "3.20.1",
+    #"com.google.protobuf:protobuf-javalite": "3.20.1",
+    #"com.google.protobuf:protobuf-kotlin": "3.20.1",
     "com.opentable.components:otj-pg-embedded": "1.0.0",
     "software.aws.rds:aws-postgresql-jdbc": "0.1.0",
     "org.projectnessie.cel:cel-core": "0.2.4",

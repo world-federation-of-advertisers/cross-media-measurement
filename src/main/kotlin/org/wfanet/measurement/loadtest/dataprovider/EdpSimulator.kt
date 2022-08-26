@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import org.apache.commons.math3.distribution.LaplaceDistribution
 import org.projectnessie.cel.common.types.pb.ProtoTypeRegistry
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.Sketch
@@ -58,17 +59,17 @@ import org.wfanet.measurement.api.v2alpha.LiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.frequency
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.impression
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.watchDuration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
-import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
@@ -78,9 +79,7 @@ import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
-import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
-import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -141,7 +140,7 @@ class EdpSimulator(
   }
 
   /** Creates an eventGroup for the MC. */
-  private suspend fun createEventGroup() {
+  suspend fun createEventGroup() {
     val eventGroup =
       eventGroupsStub.createEventGroup(
         createEventGroupRequest {
@@ -157,17 +156,16 @@ class EdpSimulator(
   }
 
   /** Executes the requisition fulfillment workflow. */
-  private suspend fun executeRequisitionFulfillingWorkflow() {
+  suspend fun executeRequisitionFulfillingWorkflow() {
     logger.info("Executing requisitionFulfillingWorkflow...")
     val requisitions = getRequisitions()
     if (requisitions.isEmpty()) {
-      logger.info("No unfulfilled requisition. Polling again later...")
+      logger.fine("No unfulfilled requisition. Polling again later...")
       return
     }
 
     for (requisition in requisitions) {
       logger.info("Processing requisition ${requisition.name}...")
-
       val measurementConsumerCertificate =
         certificatesStub.getCertificate(
           getCertificateRequest { name = requisition.measurementConsumerCertificate }
@@ -176,7 +174,8 @@ class EdpSimulator(
       val measurementSpec = MeasurementSpec.parseFrom(requisition.measurementSpec.data)
       val measurementConsumerCertificateX509 =
         readCertificate(measurementConsumerCertificate.x509Der)
-      if (!verifyMeasurementSpec(
+      if (
+        !verifyMeasurementSpec(
           measurementSpecSignature = requisition.measurementSpec.signature,
           measurementSpec = measurementSpec,
           measurementConsumerCertificate = measurementConsumerCertificateX509,
@@ -189,12 +188,12 @@ class EdpSimulator(
           "Invalid measurementSpec"
         )
       }
-
       val requisitionFingerprint = computeRequisitionFingerprint(requisition)
       val signedRequisitionSpec: SignedData =
         decryptRequisitionSpec(requisition.encryptedRequisitionSpec, edpData.encryptionKey)
       val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
-      if (!verifyRequisitionSpec(
+      if (
+        !verifyRequisitionSpec(
           requisitionSpecSignature = signedRequisitionSpec.signature,
           requisitionSpec = requisitionSpec,
           measurementConsumerCertificate = measurementConsumerCertificateX509,
@@ -209,9 +208,12 @@ class EdpSimulator(
         )
       }
 
-      if (requisition.protocolConfig.protocolCase != ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2
-      ) {
+      if (!requisition.hasProtocolConfig()) {
         when (measurementSpec.measurementTypeCase) {
+          MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
+            // Direct R/F measurement(single EDP) will not have protocolConfig
+            fulfillDirectReachAndFrequencyMeasurement(requisition, requisitionSpec, measurementSpec)
+          }
           MeasurementSpec.MeasurementTypeCase.IMPRESSION ->
             fulfillImpressionMeasurement(requisition, requisitionSpec, measurementSpec)
           MeasurementSpec.MeasurementTypeCase.DURATION ->
@@ -287,7 +289,7 @@ class EdpSimulator(
       )
     }
 
-  suspend fun generateSketch(
+  private suspend fun generateSketch(
     requisitionName: String,
     sketchConfig: SketchConfig,
     measurementSpec: MeasurementSpec,
@@ -300,15 +302,15 @@ class EdpSimulator(
     val anySketch: AnySketch = SketchProtos.toAnySketch(sketchConfig)
     logger.info("Generating Sketch...")
 
-    // TODO(@uakyol): Populate sketch based on all event groups not just the first one.
-    populateAnySketch(
-      requisitionSpec.eventGroupsList[0].value.filter,
-      VidSampler(VID_SAMPLER_HASH_FUNCTION),
-      vidSamplingIntervalStart,
-      vidSamplingIntervalWidth,
-      anySketch
-    )
-
+    requisitionSpec.eventGroupsList.forEach {
+      populateAnySketch(
+        it.value.filter,
+        VidSampler(VID_SAMPLER_HASH_FUNCTION),
+        vidSamplingIntervalStart,
+        vidSamplingIntervalWidth,
+        anySketch
+      )
+    }
     return SketchProtos.fromAnySketch(anySketch, sketchConfig)
   }
 
@@ -419,6 +421,39 @@ class EdpSimulator(
     }
 
     return requisitionsStub.listRequisitions(request).requisitionsList
+  }
+
+  private suspend fun fulfillDirectReachAndFrequencyMeasurement(
+    requisition: Requisition,
+    requisitionSpec: RequisitionSpec,
+    measurementSpec: MeasurementSpec
+  ) {
+    // TODO(@alberthsuu): Get reach and frequency from actual resource
+    val reachValue = 1000L
+    val frequencyMap = mapOf(1L to 0.5, 2L to 0.25, 3L to 0.25)
+
+    val laplaceForReach =
+      LaplaceDistribution(0.0, 1 / measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon)
+    laplaceForReach.reseedRandomGenerator(1)
+    val reachNoisedValue = reachValue + laplaceForReach.sample().toInt()
+
+    val laplaceForFrequency =
+      LaplaceDistribution(0.0, 1 / measurementSpec.reachAndFrequency.frequencyPrivacyParams.epsilon)
+    laplaceForFrequency.reseedRandomGenerator(1)
+
+    val frequencyNoisedMap = mutableMapOf<Long, Double>()
+    frequencyMap.forEach { (key, frequency) ->
+      frequencyNoisedMap[key] =
+        (frequency * reachValue.toDouble() + laplaceForFrequency.sample()) / reachValue.toDouble()
+    }
+
+    val requisitionData =
+      MeasurementKt.result {
+        reach = reach { value = reachNoisedValue }
+        frequency = frequency { relativeFrequencyDistribution.putAll(frequencyNoisedMap) }
+      }
+
+    fulfillDirectMeasurement(requisition, requisitionSpec, measurementSpec, requisitionData)
   }
 
   private suspend fun fulfillImpressionMeasurement(

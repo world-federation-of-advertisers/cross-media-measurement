@@ -25,26 +25,23 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 #KingdomSystemApiTarget:       "system.kingdom.dev.halo-cmm.org:8443"
 #InternalServerServiceAccount: "internal-server"
 #StorageServiceAccount:        "storage"
-#DefaultResourceConfig: {
-	replicas:              1
-	resourceRequestCpu:    "100m"
-	resourceLimitCpu:      "400m"
-	resourceRequestMemory: "256Mi"
-	resourceLimitMemory:   "512Mi"
+#DuchyServerResourceConfig:    #DefaultResourceConfig & {
 }
-#MillResourceConfig: {
-	replicas:              1
-	resourceRequestCpu:    "200m"
-	resourceLimitCpu:      "800m"
-	resourceRequestMemory: "512Mi"
-	resourceLimitMemory:   "4096Mi"
+#MillResourceConfig: #DefaultResourceConfig & {
+	replicas: 1
+	resources: {
+		requests: {
+			cpu: "200m"
+		}
+		limits: {
+			cpu:    "800m"
+			memory: "4Gi"
+		}
+	}
+	jvmHeapSize: "3584m"
 }
-#HeraldResourceConfig: {
-	replicas:              1 // We should have 1 and only 1 herald.
-	resourceRequestCpu:    "100m"
-	resourceLimitCpu:      "400m"
-	resourceRequestMemory: "256Mi"
-	resourceLimitMemory:   "512Mi"
+#HeraldResourceConfig: #DefaultResourceConfig & {
+	replicas: 1 // We should have 1 and only 1 herald.
 }
 
 objectSets: [
@@ -95,12 +92,12 @@ duchy: #Duchy & {
 		}
 	}
 	_resource_configs: {
-		"async-computation-control-server": #DefaultResourceConfig
-		"computation-control-server":       #DefaultResourceConfig
+		"async-computation-control-server": #DuchyServerResourceConfig
+		"computation-control-server":       #DuchyServerResourceConfig
 		"herald-daemon":                    #HeraldResourceConfig
 		"liquid-legions-v2-mill-daemon":    #MillResourceConfig
-		"requisition-fulfillment-server":   #DefaultResourceConfig
-		"spanner-computations-server":      #DefaultResourceConfig
+		"requisition-fulfillment-server":   #DuchyServerResourceConfig
+		"spanner-computations-server":      #DuchyServerResourceConfig
 	}
 	_duchy_image_pull_policy: "Always"
 	_verbose_grpc_logging:    "false"

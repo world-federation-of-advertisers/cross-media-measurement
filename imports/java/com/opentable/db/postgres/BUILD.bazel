@@ -1,6 +1,0 @@
-package(default_visibility = ["//visibility:public"])
-
-alias(
-    name = "otj_pg_embedded",
-    actual = "@maven//:com_opentable_components_otj_pg_embedded",
-)

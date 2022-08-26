@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting;
 
+import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/reporting/measurement.proto";
 import "wfa/measurement/internal/reporting/metric.proto";
 import "wfa/measurement/internal/reporting/time_interval.proto";
@@ -62,14 +63,15 @@ message Report {
     // it easier to store the results while doing the calculations. The csv
     // should still be generated row by row.
     message Result {
+      message Column {
+        string column_header = 1;
+        // Required to be in the same order as `row_headers`.
+        repeated double set_operations = 2;
+      }
+
       message ScalarTable {
         repeated string row_headers = 1;
-        message Column {
-          string column_header = 1;
-          // Required to be in the same order as `row_headers`.
-          repeated int32 set_operations = 2;
-        }
-        repeated Column column = 2;
+        repeated Column columns = 2;
       }
       ScalarTable scalar_table = 1;
 
@@ -79,18 +81,18 @@ message Report {
           int32 frequency = 2;
         }
         repeated Row rows = 1;
-        message Column {
-          string column_header = 1;
-          // Required to be in the same order as `row_headers`.
-          repeated int32 set_operations = 2;
-        }
-        repeated Column column = 2;
+        repeated Column columns = 2;
       }
-      HistogramTable histogram_table = 2;
+      repeated HistogramTable histogram_tables = 2;
     }
 
     // Set only when `state` is `SUCCEEDED`. Output-only.
     Result result = 2;
   }
   Details details = 8;
+
+  // When the report was created. Output-only.
+  google.protobuf.Timestamp create_time = 9;
+
+  string report_idempotency_key = 10;
 }
