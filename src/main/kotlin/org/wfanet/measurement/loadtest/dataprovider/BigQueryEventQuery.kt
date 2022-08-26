@@ -38,6 +38,7 @@ import com.google.cloud.bigquery.FieldValueList
 import com.google.type.Date
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import kotlin.math.log
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testBannerTemplate
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testPrivacyBudgetTemplate
@@ -79,17 +80,17 @@ class BigQueryEventQuery(
     val publisher =
       DISPLAY_NAME_TO_PUBLISHER_MAP[edpDisplayName]
         ?: error("EDP $edpDisplayName not in the test data.")
-    val queryConfig =
-      buildQueryConfig(
-        publisher = publisher,
-        beginDate = DEFAULT_QUERY_PARAMETER.beginDate,
-        endDate = DEFAULT_QUERY_PARAMETER.endDate,
-        sex = DEFAULT_QUERY_PARAMETER.sex,
-        ageGroup = DEFAULT_QUERY_PARAMETER.ageGroup,
-        socialGrade = DEFAULT_QUERY_PARAMETER.socialGrade,
-        complete = DEFAULT_QUERY_PARAMETER.complete,
-      )
-    val entireTableQueryConfig = buildGeneralQueryConfig(eventFilter, publisher)
+    // val queryConfig =
+    //   buildQueryConfig(
+    //     publisher = publisher,
+    //     beginDate = DEFAULT_QUERY_PARAMETER.beginDate,
+    //     endDate = DEFAULT_QUERY_PARAMETER.endDate,
+    //     sex = DEFAULT_QUERY_PARAMETER.sex,
+    //     ageGroup = DEFAULT_QUERY_PARAMETER.ageGroup,
+    //     socialGrade = DEFAULT_QUERY_PARAMETER.socialGrade,
+    //     complete = DEFAULT_QUERY_PARAMETER.complete,
+    //   )
+    val queryConfig = buildGeneralQueryConfig(eventFilter, publisher)
 
     bigQuery.query(queryConfig)
 
@@ -104,7 +105,7 @@ class BigQueryEventQuery(
     logger.info("Running query on BigQuery table.")
 
     queryJob.getQueryResults().iterateAll().forEach {
-      this.vidsList.add(it["VID"].stringValue.toInt())
+      this.vidsList.add(it.get("VID").stringValue.toInt())
       this.eventsList.add(fieldValuesToTestEvent(it))
     }
 
@@ -178,54 +179,58 @@ class BigQueryEventQuery(
     return QueryJobConfiguration.newBuilder(query).build()
   }
 
-  private fun fieldValuesToTestEvent(fieldValues: FieldValueList): TestEvent {
-
-    return testEvent {
-      this.privacyBudget = testPrivacyBudgetTemplate {
-        when (fieldValues.get("Sex").stringValue) {
-          "M" -> gender = TestPrivacyBudgetTemplateKt.gender { value = PrivacyGender.Value.GENDER_MALE }
-          "F" -> gender = TestPrivacyBudgetTemplateKt.gender { value = PrivacyGender.Value.GENDER_FEMALE }
-        }
-        when (fieldValues.get("Age_Group").stringValue) {
-          "18_34" -> age = TestPrivacyBudgetTemplateKt.ageRange { value = PrivacyAgeRange.Value.AGE_18_TO_24 }
-          "35_54" -> age = TestPrivacyBudgetTemplateKt.ageRange { value = PrivacyAgeRange.Value.AGE_35_TO_54 }
-          "55+" -> age = TestPrivacyBudgetTemplateKt.ageRange { value = PrivacyAgeRange.Value.AGE_OVER_54 }
-        }
-        when (val publisherId = fieldValues.get("Publisher").stringValue.toIntOrNull()) {
-          is Int -> publisher = publisherId
-        }
-        when (fieldValues.get("Social_Grade").stringValue) {
-          "ABC1" -> socialGrade = TestPrivacyBudgetTemplateKt.socialGrade { value = PrivacySocialGrade.Value.ABC1 }
-          "C2DE" -> socialGrade = TestPrivacyBudgetTemplateKt.socialGrade { value = PrivacySocialGrade.Value.C2DE }
-          else -> socialGrade = TestPrivacyBudgetTemplateKt.socialGrade { value = PrivacySocialGrade.Value.GRADE_UNSPECIFIED }
-        }
-        val formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd")
-        when (val eventDate = LocalDate.parse(fieldValues.get("Date").stringValue, formatter)) {
-          is LocalDate -> date = eventDate.toProtoDate()
-        }
-        when (fieldValues.get("Complete").stringValue) {
-          "1" -> complete = true
-          "0" -> complete = false
-        }
-      }
-      this.videoAd = testVideoTemplate {
-        when (fieldValues.get("Age_Group").stringValue) {
-          "18_34" -> age = TestVideoTemplateKt.ageRange { value = VideoAgeRange.Value.AGE_18_TO_24 }
-          else -> age = TestVideoTemplateKt.ageRange { value = VideoAgeRange.Value.AGE_RANGE_UNSPECIFIED }
-        }
-      }
-      this.bannerAd = testBannerTemplate {
-        when (fieldValues.get("Sex").stringValue) {
-          "M" -> gender = TestBannerTemplateKt.gender { value = BannerGender.Value.GENDER_MALE }
-          "F" -> gender = TestBannerTemplateKt.gender { value = BannerGender.Value.GENDER_FEMALE }
-          else -> gender = TestBannerTemplateKt.gender { value = BannerGender.Value.GENDER_UNKOWN }
-        }
-      }
-    }
-  }
-
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    fun fieldValuesToTestEvent(fieldValues: FieldValueList): TestEvent {
+      return testEvent {
+        this.privacyBudget = testPrivacyBudgetTemplate {
+          when (fieldValues.get("Sex").stringValue) {
+            "M" -> gender = TestPrivacyBudgetTemplateKt.gender { value = PrivacyGender.Value.GENDER_MALE }
+            "F" -> gender = TestPrivacyBudgetTemplateKt.gender { value = PrivacyGender.Value.GENDER_FEMALE }
+          }
+          when (fieldValues.get("Age Group").stringValue) {
+            "18_34" -> age = TestPrivacyBudgetTemplateKt.ageRange { value = PrivacyAgeRange.Value.AGE_18_TO_24 }
+            "35_54" -> age = TestPrivacyBudgetTemplateKt.ageRange { value = PrivacyAgeRange.Value.AGE_35_TO_54 }
+            "55+" -> age = TestPrivacyBudgetTemplateKt.ageRange { value = PrivacyAgeRange.Value.AGE_OVER_54 }
+          }
+          when (val publisherId = fieldValues.get("Publisher ID").stringValue.toIntOrNull()) {
+            is Int -> publisher = publisherId
+          }
+          when (fieldValues.get("Social Grade").stringValue) {
+            "ABC1" -> socialGrade = TestPrivacyBudgetTemplateKt.socialGrade { value = PrivacySocialGrade.Value.ABC1 }
+            "C2DE" -> socialGrade = TestPrivacyBudgetTemplateKt.socialGrade { value = PrivacySocialGrade.Value.C2DE }
+          }
+          val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+          var eventDate : LocalDate?
+          eventDate = try {
+            LocalDate.parse(fieldValues.get("Date").stringValue, formatter)
+          } catch (e: Exception) {
+            null
+          }
+          when (eventDate) {
+            is LocalDate -> date = eventDate.toProtoDate()
+          }
+          when (fieldValues.get("Complete").stringValue) {
+            "1" -> complete = true
+            "0" -> complete = false
+          }
+        }
+        this.videoAd = testVideoTemplate {
+          when (fieldValues.get("Age Group").stringValue) {
+            "18_34" -> age = TestVideoTemplateKt.ageRange { value = VideoAgeRange.Value.AGE_18_TO_24 }
+            else -> age = TestVideoTemplateKt.ageRange { value = VideoAgeRange.Value.AGE_RANGE_UNSPECIFIED }
+          }
+        }
+        this.bannerAd = testBannerTemplate {
+          when (fieldValues.get("Sex").stringValue) {
+            "M" -> gender = TestBannerTemplateKt.gender { value = BannerGender.Value.GENDER_MALE }
+            "F" -> gender = TestBannerTemplateKt.gender { value = BannerGender.Value.GENDER_FEMALE }
+            else -> gender = TestBannerTemplateKt.gender { value = BannerGender.Value.GENDER_UNKOWN }
+          }
+        }
+      }
+    }
   }
 }
