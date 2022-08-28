@@ -26,11 +26,10 @@ import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.common.throttler.Throttler
-import org.wfanet.measurement.common.withRetriesOnEach
+import org.wfanet.measurement.common.withRetriesOnEachWithErrorHandler
 import org.wfanet.measurement.duchy.daemon.utils.MeasurementType
 import org.wfanet.measurement.duchy.daemon.utils.key
 import org.wfanet.measurement.duchy.daemon.utils.toMeasurementType
-import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.service.internal.computations.toGetTokenRequest
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
@@ -66,10 +65,10 @@ class Herald(
   private val systemComputationsClient: SystemComputationsCoroutineStub,
   private val systemComputationParticipantClient: SystemComputationParticipantsCoroutineStub,
   private val protocolsSetupConfig: ProtocolsSetupConfig,
+  private val clock: Clock,
   private val blobStorageBucket: String = "computation-blob-storage",
   private val maxAttempts: Int = 10,
   private val retryBackoff: ExponentialBackoff = ExponentialBackoff(),
-  private val clock: Clock,
 ) {
   /**
    * Syncs the status of computations stored at the kingdom with those stored locally continually in
@@ -112,25 +111,37 @@ class Herald(
     var lastProcessedContinuationToken = continuationToken
     systemComputationsClient
       .streamActiveComputations(streamRequest)
-      // TODO(@renjiez): Use new version of withRetriesOnEach() to add finally block to
-      //  failComputationAtKingdom
-      .withRetriesOnEach(maxAttempts = 3, retryPredicate = ::mayBeTransientGrpcError) { response ->
-        try {
-          lastProcessedContinuationToken = response.continuationToken
-          processSystemComputationChange(response)
-        } catch (ex: Throwable) {
-          if (!mayBeTransientGrpcError(ex)) {
-            failComputationAtKingdom(
-              response.computation,
-              ex.message ?: "Error raised from Herald."
-            )
-          }
-          throw ex
-        }
+      .withRetriesOnEachWithErrorHandler(maxAttempts = 3, errorHandlingBlock = ::handleException) {
+        response ->
+        lastProcessedContinuationToken = response.continuationToken
+        processSystemComputationChange(response)
       }
       .collect()
 
     return lastProcessedContinuationToken
+  }
+
+  /** Fail computation at Kingdom and Duchy. Return true for retry or false for cancellation */
+  private suspend fun handleException(
+    response: StreamActiveComputationsResponse,
+    ex: Throwable,
+    attemptsExhausted: Boolean
+  ): Boolean {
+    return if (!mayBeTransientGrpcError(ex)) {
+      failComputationAtKingdom(
+        response.computation,
+        "Herald failed by non-transient error. ${ex.message}"
+      )
+      false
+    } else if (attemptsExhausted) {
+      failComputationAtKingdom(
+        response.computation,
+        "Herald failed by exhausting attempts. ${ex.message}"
+      )
+      false
+    } else {
+      true
+    }
   }
 
   private suspend fun processSystemComputationChange(response: StreamActiveComputationsResponse) {
