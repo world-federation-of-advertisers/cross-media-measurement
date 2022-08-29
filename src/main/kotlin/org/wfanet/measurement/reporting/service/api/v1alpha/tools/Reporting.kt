@@ -475,6 +475,10 @@ class Reporting : Runnable {
       .withShutdownTimeout(Duration.ofSeconds(1))
   }
   override fun run() {}
+
+  companion object {
+    @JvmStatic fun main(args: Array<String>) = commandLineMain(Reporting(), args)
+  }
 }
 
 /**
