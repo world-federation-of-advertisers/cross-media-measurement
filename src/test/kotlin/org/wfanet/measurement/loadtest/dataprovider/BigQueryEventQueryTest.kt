@@ -108,52 +108,6 @@ class BigQueryEventQueryTest {
   }
 
   @Test
-  fun `correctly parse local dates`() {
-    val formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd")
-    when (LocalDate.parse("2022/07/05", formatter)) {
-      is LocalDate -> logger.info(LocalDate.parse("2022/07/01", formatter).toString())
-      else -> logger.info("Failure case")
-    }
-
-    val nonMatchingEvents =
-      (1..5).associateWith {
-        listOf(
-          testEvent {
-            this.bannerAd = testBannerTemplate {
-              gender = TestBannerTemplateKt.gender { value = NONMATCHING_BANNER_GENDER }
-            }
-            this.privacyBudget = testPrivacyBudgetTemplate {
-              age = TestPrivacyBudgetTemplateKt.ageRange { value = NONMATCHING_PRIVACY_AGE_RANGE }
-            }
-          }
-        )
-      }
-    val eventQuery = FilterEventQuery(nonMatchingEvents)
-    val userVids = eventQuery.getUserVirtualIds(MATCHING_EVENT_FILTER)
-    assertThat(userVids.toList()).isEmpty()
-  }
-
-  @Test
-  fun `filters when no matching conditions`() {
-    val nonMatchingEvents =
-      (1..5).associateWith {
-        listOf(
-          testEvent {
-            this.bannerAd = testBannerTemplate {
-              gender = TestBannerTemplateKt.gender { value = NONMATCHING_BANNER_GENDER }
-            }
-            this.privacyBudget = testPrivacyBudgetTemplate {
-              age = TestPrivacyBudgetTemplateKt.ageRange { value = NONMATCHING_PRIVACY_AGE_RANGE }
-            }
-          }
-        )
-      }
-    val eventQuery = FilterEventQuery(nonMatchingEvents)
-    val userVids = eventQuery.getUserVirtualIds(MATCHING_EVENT_FILTER)
-    assertThat(userVids.toList()).isEmpty()
-  }
-
-  @Test
   fun `invalid values creates testEvent with default values`() {
     val fieldValues =
       FieldValueList.of(
@@ -195,4 +149,48 @@ class BigQueryEventQueryTest {
     val testEvent = BigQueryEventQuery.fieldValuesToTestEvent(fieldValues)
     assertThat(testEvent).isEqualTo(expectedEvent)
   }
+  //
+  // @Test
+  // fun `missing values creates testEvent with default values`() {
+  //   val partialSchema =
+  //     FieldList.of(
+  //       Field.of("Age Group", StandardSQLTypeName.STRING),
+  //       Field.of("VID", StandardSQLTypeName.STRING)
+  //     )
+  //
+  //   val fieldValues =
+  //     FieldValueList.of(
+  //       listOf(
+  //         FieldValue.of(FieldValue.Attribute.PRIMITIVE, "N/A"),
+  //         FieldValue.of(FieldValue.Attribute.PRIMITIVE, "1003520")
+  //       ),
+  //       partialSchema
+  //     )
+  //
+  //   val expectedEvent = testEvent {
+  //     this.bannerAd = testBannerTemplate {
+  //       gender = TestBannerTemplateKt.gender { value = BannerGender.Value.GENDER_UNKOWN }
+  //     }
+  //     this.videoAd = testVideoTemplate {
+  //       age = TestVideoTemplateKt.ageRange { value =  VideoAgeRange.Value.AGE_RANGE_UNSPECIFIED }
+  //     }
+  //     this.privacyBudget = testPrivacyBudgetTemplate {
+  //       // age = TestPrivacyBudgetTemplateKt.ageRange { value = PrivacyAgeRange.Value.AGE_18_TO_24 }
+  //       // gender = TestPrivacyBudgetTemplateKt.gender { value = PrivacyGender.Value.GENDER_MALE }
+  //       // publisher = 0
+  //       // socialGrade = TestPrivacyBudgetTemplateKt.socialGrade { value = TestPrivacyBudgetTemplate.SocialGrade.Value.GRADE_UNSPECIFIED }
+  //       // date = Date.newBuilder()
+  //       //   .apply {
+  //       //     year = 0
+  //       //     month = 0
+  //       //     day = 0
+  //       //   }
+  //       //   .build()
+  //       // complete = false
+  //     }
+  //   }
+  //
+  //   val testEvent = BigQueryEventQuery.fieldValuesToTestEvent(fieldValues)
+  //   assertThat(testEvent).isEqualTo(expectedEvent)
+  // }
 }

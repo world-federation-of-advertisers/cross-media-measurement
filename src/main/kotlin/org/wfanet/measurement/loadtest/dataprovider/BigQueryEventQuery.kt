@@ -75,6 +75,7 @@ class BigQueryEventQuery(
    */
   private val eventsList: MutableList<TestEvent> = mutableListOf()
   private val vidsList: MutableList<Int> = mutableListOf()
+  private val valueMap: Map<String, String> = mutableMapOf()
 
   override fun getUserVirtualIds(eventFilter: EventFilter): Sequence<Long> {
     val publisher =
