@@ -15,21 +15,9 @@
 package k8s
 
 #SpannerConfig: {
-	project:      "cross-media-measurement-system"
-	instance:     "emulator-instance"
-	emulatorHost: (#Target & {name: "spanner-emulator"}).target
-}
+	project:  "cross-media-measurement-system"
+	instance: "emulator-instance"
 
-#DefaultResourceConfig: #ResourceConfig & {
-	replicas: replicas | *1
-	resources: {
-		requests: {
-			cpu: cpu | *"100m"
-		}
-		limits: {
-			cpu:    cpu | *"400m"
-			memory: memory | *"512Mi"
-		}
-	}
-	jvmHeapSize: jvmHeapSize | *"400m"
+	let EmulatorTarget = #ServiceTarget & {serviceName: "spanner-emulator"}
+	emulatorHost: EmulatorTarget.target
 }

@@ -108,6 +108,16 @@ using the `gcloud` CLI. See
 [Encrypt secrets at the application layer](https://cloud.google.com/kubernetes-engine/docs/how-to/encrypting-secrets)
 for more information.
 
+## Setting Default Resource Requirements
+
+It's a good idea to set default resource requirements for your cluster namespace
+using a `LimitRange`. See the corresponding
+[guide](https://kubernetes.io/docs/tasks/administer-cluster/manage-resources/memory-default-namespace/)
+for more information.
+
+For the `dev` environment, we use
+[resource_requirements.yaml](../../src/main/k8s/testing/secretfiles/resource_requirements.yaml)
+
 ## Reserving External IPs
 
 If you already have an IP that was assigned to a `LoadBalancer` service, you can

@@ -79,7 +79,6 @@ edp_simulators: {
 			_edp_simulator_image:         _imageConfig.image
 			_simulator_image_pull_policy: "Always"
 			_additional_args:             _bigQueryConfig.flags
-			_resourceConfig:              #DefaultResourceConfig
 		}
 	}
 }
