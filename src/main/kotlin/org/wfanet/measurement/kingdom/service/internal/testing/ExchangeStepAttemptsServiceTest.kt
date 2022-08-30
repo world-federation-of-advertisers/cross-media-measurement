@@ -17,6 +17,8 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.rpc.ErrorInfo
+import io.grpc.Status
 import io.grpc.Status.Code.INVALID_ARGUMENT
 import io.grpc.Status.Code.NOT_FOUND
 import io.grpc.StatusRuntimeException
@@ -323,15 +325,15 @@ abstract class ExchangeStepAttemptsServiceTest {
   fun `finishExchangeStepAttempt fails without exchange step attempt`() = runBlocking {
     createRecurringExchange()
 
+    val request: FinishExchangeStepAttemptRequest = makeRequest(ExchangeStepAttempt.State.SUCCEEDED)
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        exchangeStepAttemptsService.finishExchangeStepAttempt(
-          makeRequest(ExchangeStepAttempt.State.SUCCEEDED)
-        )
+        exchangeStepAttemptsService.finishExchangeStepAttempt(request)
       }
 
-    assertThat(exception.status.code).isEqualTo(NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("ExchangeStepAttempt not found")
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    val errorInfo: ErrorInfo = checkNotNull(exception.errorInfo)
+    assertThat(errorInfo.reason).isEqualTo("EXCHANGE_STEP_ATTEMPT_NOT_FOUND")
   }
 
   @Test
@@ -342,22 +344,23 @@ abstract class ExchangeStepAttemptsServiceTest {
       claimReadyExchangeStepRequest { provider = PROVIDER }
     )
 
+    val request: FinishExchangeStepAttemptRequest =
+      makeRequest(
+        ExchangeStepAttempt.State.SUCCEEDED,
+        1,
+        provider {
+          externalId = EXTERNAL_DATA_PROVIDER_ID
+          type = Provider.Type.DATA_PROVIDER
+        }
+      )
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        exchangeStepAttemptsService.finishExchangeStepAttempt(
-          makeRequest(
-            ExchangeStepAttempt.State.SUCCEEDED,
-            1,
-            provider {
-              externalId = EXTERNAL_DATA_PROVIDER_ID
-              type = Provider.Type.DATA_PROVIDER
-            }
-          )
-        )
+        exchangeStepAttemptsService.finishExchangeStepAttempt(request)
       }
 
-    assertThat(exception.status.code).isEqualTo(NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("ExchangeStep not found")
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    val errorInfo: ErrorInfo = checkNotNull(exception.errorInfo)
+    assertThat(errorInfo.reason).isEqualTo("EXCHANGE_STEP_NOT_FOUND")
   }
 
   @Test
@@ -417,8 +420,9 @@ abstract class ExchangeStepAttemptsServiceTest {
         )
       }
 
-    assertThat(exception.status.code).isEqualTo(NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("ExchangeStepAttempt not found")
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    val errorInfo: ErrorInfo = checkNotNull(exception.errorInfo)
+    assertThat(errorInfo.reason).isEqualTo("EXCHANGE_STEP_ATTEMPT_NOT_FOUND")
   }
 
   @Test
