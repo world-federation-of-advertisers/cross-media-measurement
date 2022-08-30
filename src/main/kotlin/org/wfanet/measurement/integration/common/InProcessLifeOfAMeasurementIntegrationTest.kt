@@ -225,7 +225,8 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
       val eventGroupList = pollForEventGroups()
       assertThat(eventGroupList).isNotNull()
 
-      // Use frontend simulator to create a reach and frequency measurement and verify its result.
+      // Use frontend simulator to create a direct reach and frequency measurement and verify its
+      // result.
       frontendSimulator.executeDirectReachAndFrequency("1234")
     }
 

@@ -338,6 +338,10 @@ class EdpSimulator(
     return response.encryptedSketch.asBufferedFlow(1024)
   }
 
+  /**
+   * Calculate reach and frequency for measurement with multiple EDPs by creating encrypted sketch
+   * and send to Duchy to perform MPC and fulfillRequisition
+   */
   private suspend fun fulfillRequisitionForReachAndFrequencyMeasurement(
     requisition: Requisition,
     measurementSpec: MeasurementSpec,
@@ -423,15 +427,32 @@ class EdpSimulator(
     return requisitionsStub.listRequisitions(request).requisitionsList
   }
 
+  /**
+   * Calculate direct reach and frequency for measurement with single EDP by summing up VIDs
+   * directly and fulfillDirectMeasurement
+   */
   private suspend fun fulfillDirectReachAndFrequencyMeasurement(
     requisition: Requisition,
     requisitionSpec: RequisitionSpec,
     measurementSpec: MeasurementSpec
   ) {
-    // TODO(@alberthsuu): Get reach and frequency from actual resource
-    val reachValue = 1000L
-    val frequencyMap = mapOf(1L to 0.5, 2L to 0.25, 3L to 0.25)
+    logger.info("Calculating direct reach and frequency...")
+    val vidSampler = VidSampler(VID_SAMPLER_HASH_FUNCTION)
+    val vidList: List<Long> =
+      requisitionSpec.eventGroupsList
+        .distinctBy { eventGroup -> eventGroup.key }
+        .flatMap { eventGroup -> eventQuery.getUserVirtualIds(eventGroup.value.filter) }
+        .filter { vid ->
+          vidSampler.vidIsInSamplingBucket(
+            vid,
+            measurementSpec.vidSamplingInterval.start,
+            measurementSpec.vidSamplingInterval.width
+          )
+        }
 
+    val (reachValue, frequencyMap) = calculateDirectReachAndFrequency(vidList)
+
+    logger.info("Adding publisher noise to direct reach and frequency...")
     val laplaceForReach =
       LaplaceDistribution(0.0, 1 / measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon)
     laplaceForReach.reseedRandomGenerator(1)
@@ -442,9 +463,9 @@ class EdpSimulator(
     laplaceForFrequency.reseedRandomGenerator(1)
 
     val frequencyNoisedMap = mutableMapOf<Long, Double>()
-    frequencyMap.forEach { (key, frequency) ->
-      frequencyNoisedMap[key] =
-        (frequency * reachValue.toDouble() + laplaceForFrequency.sample()) / reachValue.toDouble()
+    frequencyMap.forEach { (frequency, percentage) ->
+      frequencyNoisedMap[frequency] =
+        (percentage * reachValue.toDouble() + laplaceForFrequency.sample()) / reachValue.toDouble()
     }
 
     val requisitionData =
@@ -536,6 +557,27 @@ class EdpSimulator(
             "crypto"
           )
       )
+    }
+
+    /**
+     * Function to calculate direct reach and frequency in
+     * fulfillDirectReachAndFrequencyMeasurement()
+     */
+    fun calculateDirectReachAndFrequency(vidList: List<Long>): Pair<Long, Map<Long, Double>> {
+      val reachValue = vidList.toSet().size.toLong()
+      val frequencyMap = mutableMapOf<Long, Double>().withDefault { 0.0 }
+
+      vidList
+        .groupingBy { it }
+        .eachCount()
+        .forEach { (_, frequency) ->
+          frequencyMap[frequency.toLong()] = frequencyMap.getValue(frequency.toLong()) + 1.0
+        }
+      frequencyMap.forEach { (frequency, _) ->
+        frequencyMap[frequency] = frequencyMap.getValue(frequency) / reachValue.toDouble()
+      }
+
+      return Pair(reachValue, frequencyMap)
     }
   }
 }
