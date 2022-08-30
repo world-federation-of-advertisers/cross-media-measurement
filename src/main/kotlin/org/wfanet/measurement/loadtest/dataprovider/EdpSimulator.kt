@@ -338,6 +338,10 @@ class EdpSimulator(
     return response.encryptedSketch.asBufferedFlow(1024)
   }
 
+  /**
+   * Calculate reach and frequency for measurement with multiple EDPs by creating encrypted sketch
+   * and send to Duchy to perform MPC and fulfillRequisition
+   */
   private suspend fun fulfillRequisitionForReachAndFrequencyMeasurement(
     requisition: Requisition,
     measurementSpec: MeasurementSpec,
@@ -423,6 +427,10 @@ class EdpSimulator(
     return requisitionsStub.listRequisitions(request).requisitionsList
   }
 
+  /**
+   * Calculate direct reach and frequency for measurement with single EDP by summing up VIDs
+   * directly and fulfillDirectMeasurement
+   */
   private suspend fun fulfillDirectReachAndFrequencyMeasurement(
     requisition: Requisition,
     requisitionSpec: RequisitionSpec,
@@ -551,6 +559,10 @@ class EdpSimulator(
       )
     }
 
+    /**
+     * Function to calculate direct reach and frequency in
+     * fulfillDirectReachAndFrequencyMeasurement()
+     */
     fun calculateDirectReachAndFrequency(vidList: List<Long>): Pair<Long, Map<Long, Double>> {
       val reachValue = vidList.toSet().size.toLong()
       val frequencyMap = mutableMapOf<Long, Double>().withDefault { 0.0 }
