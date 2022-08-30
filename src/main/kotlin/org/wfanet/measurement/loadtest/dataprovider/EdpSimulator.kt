@@ -338,6 +338,10 @@ class EdpSimulator(
     return response.encryptedSketch.asBufferedFlow(1024)
   }
 
+  /**
+   * Calculate reach and frequency for measurement with multiple EDPs by creating encrypted sketch
+   * and send to Duchy to perform MPC and fulfillRequisition
+   */
   private suspend fun fulfillRequisitionForReachAndFrequencyMeasurement(
     requisition: Requisition,
     measurementSpec: MeasurementSpec,
@@ -423,6 +427,10 @@ class EdpSimulator(
     return requisitionsStub.listRequisitions(request).requisitionsList
   }
 
+  /**
+   * Calculate direct reach and frequency for measurement with single EDP by summing up VIDs
+   * directly and fulfillDirectMeasurement
+   */
   private suspend fun fulfillDirectReachAndFrequencyMeasurement(
     requisition: Requisition,
     requisitionSpec: RequisitionSpec,
