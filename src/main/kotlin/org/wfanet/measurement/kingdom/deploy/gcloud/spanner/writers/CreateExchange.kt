@@ -14,28 +14,31 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import io.grpc.Status
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.Exchange
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RecurringExchangeNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RecurringExchangeReader
 
 private val INITIAL_STATE: Exchange.State = Exchange.State.ACTIVE
 
+/**
+ * [SpannerWriter] for creating an [Exchange].
+ *
+ * Throws one of the following [KingdomInternalException] types on [execute]:
+ * * [RecurringExchangeNotFoundException]
+ */
 class CreateExchange(private val exchange: Exchange) : SimpleSpannerWriter<Exchange>() {
   override suspend fun TransactionScope.runTransaction(): Exchange {
+    val externalRecurringExchangeId = ExternalId(exchange.externalRecurringExchangeId)
     val recurringExchangeId =
       RecurringExchangeReader()
-        .readByExternalRecurringExchangeId(
-          transactionContext,
-          ExternalId(exchange.externalRecurringExchangeId)
-        )
+        .readByExternalRecurringExchangeId(transactionContext, externalRecurringExchangeId)
         ?.recurringExchangeId
-        ?: failGrpc(Status.NOT_FOUND) { "RecurringExchange not found" }
+        ?: throw RecurringExchangeNotFoundException(externalRecurringExchangeId)
 
     transactionContext.bufferInsertMutation("Exchanges") {
       set("RecurringExchangeId" to recurringExchangeId)
