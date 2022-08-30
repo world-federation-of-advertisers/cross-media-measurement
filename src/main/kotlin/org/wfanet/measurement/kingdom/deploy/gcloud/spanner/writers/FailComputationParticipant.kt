@@ -104,6 +104,7 @@ class FailComputationParticipant(private val request: FailComputationParticipant
         failure =
           MeasurementKt.failure {
             reason = Measurement.Failure.Reason.COMPUTATION_PARTICIPANT_FAILED
+            message = "Computation Participant failed. ${request.errorMessage}"
           }
       }
 
