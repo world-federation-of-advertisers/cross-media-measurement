@@ -14,11 +14,10 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common
 
-import com.google.rpc.ErrorInfo
 import com.google.rpc.errorInfo
+import com.google.type.Date
 import io.grpc.Metadata
 import io.grpc.Status
-import io.grpc.StatusRuntimeException
 import io.grpc.protobuf.ProtoUtils
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
@@ -43,28 +42,23 @@ sealed class KingdomInternalException : Exception {
 
   fun throwStatusRuntimeException(
     status: Status = Status.INVALID_ARGUMENT,
-    provideDescription: () -> String,
+    provideDescription: () -> String = { message ?: "" },
   ): Nothing {
     val info = errorInfo {
       reason = code.toString()
-      domain = ErrorInfo::class.qualifiedName.toString()
+      domain = ErrorCode.getDescriptor().fullName
       metadata.putAll(context)
     }
 
     val metadata = Metadata()
     metadata.put(ProtoUtils.keyForProto(info), info)
 
-    throw status
-      .withDescription(provideDescription() + contextToString())
-      .asRuntimeException(metadata)
+    throw status.withDescription(provideDescription()).asRuntimeException(metadata)
   }
 
-  private fun contextToString() = context.entries.joinToString(prefix = " ", separator = " ")
-}
-
-fun StatusRuntimeException.getErrorInfo(): ErrorInfo? {
-  val key = ProtoUtils.keyForProto(ErrorInfo.getDefaultInstance())
-  return trailers?.get(key)
+  override fun toString(): String {
+    return super.toString() + " " + context.toString()
+  }
 }
 
 class MeasurementConsumerNotFoundException(
@@ -412,5 +406,45 @@ class EventGroupMetadataDescriptorNotFoundException(
         "external_data_provider_id" to externalDataProviderId.toString(),
         "external_event_group_metadata_descriptor_id" to
           externalEventGroupMetadataDescriptorId.toString()
+      )
+}
+
+class RecurringExchangeNotFoundException(
+  val externalRecurringExchangeId: ExternalId,
+  provideDescription: () -> String = { "RecurringExchange not found" }
+) : KingdomInternalException(ErrorCode.RECURRING_EXCHANGE_NOT_FOUND, provideDescription) {
+  override val context: Map<String, String>
+    get() = mapOf("external_recurring_exchange_id" to externalRecurringExchangeId.value.toString())
+}
+
+class ExchangeStepAttemptNotFoundException(
+  val externalRecurringExchangeId: ExternalId,
+  val date: Date,
+  val stepIndex: Int,
+  val attemptNumber: Int,
+  provideDescription: () -> String = { "ExchangeStepAttempt not found" }
+) : KingdomInternalException(ErrorCode.EXCHANGE_STEP_ATTEMPT_NOT_FOUND, provideDescription) {
+  override val context: Map<String, String>
+    get() =
+      mapOf(
+        "external_recurring_exchange_id" to externalRecurringExchangeId.value.toString(),
+        "date" to date.toString(),
+        "step_index" to stepIndex.toString(),
+        "attempt_number" to attemptNumber.toString()
+      )
+}
+
+class ExchangeStepNotFoundException(
+  val externalRecurringExchangeId: ExternalId,
+  val date: Date,
+  val stepIndex: Int,
+  provideDescription: () -> String = { "ExchangeStep not found" }
+) : KingdomInternalException(ErrorCode.EXCHANGE_STEP_NOT_FOUND, provideDescription) {
+  override val context: Map<String, String>
+    get() =
+      mapOf(
+        "external_recurring_exchange_id" to externalRecurringExchangeId.value.toString(),
+        "date" to date.toString(),
+        "step_index" to stepIndex.toString(),
       )
 }

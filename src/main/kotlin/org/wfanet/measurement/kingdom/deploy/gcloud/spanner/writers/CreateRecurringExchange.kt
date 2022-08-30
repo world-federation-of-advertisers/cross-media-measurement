@@ -14,8 +14,6 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import io.grpc.Status
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
@@ -23,31 +21,36 @@ import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelProviderReader
 
 private val INITIAL_STATE: RecurringExchange.State = RecurringExchange.State.ACTIVE
 
+/**
+ * [SpannerWriter] for creating a [RecurringExchange].
+ *
+ * Throws one of the following [KingdomInternalException] types on [execute]:
+ * * [DataProviderNotFoundException]
+ * * [ModelProviderNotFoundException]
+ */
 class CreateRecurringExchange(private val recurringExchange: RecurringExchange) :
   SimpleSpannerWriter<RecurringExchange>() {
   override suspend fun TransactionScope.runTransaction(): RecurringExchange {
+    val externalDataProviderId = ExternalId(recurringExchange.externalDataProviderId)
     val dataProviderId =
       DataProviderReader()
-        .readByExternalDataProviderId(
-          transactionContext,
-          ExternalId(recurringExchange.externalDataProviderId)
-        )
+        .readByExternalDataProviderId(transactionContext, externalDataProviderId)
         ?.dataProviderId
-        ?: failGrpc(Status.FAILED_PRECONDITION) { "DataProvider not found" }
+        ?: throw DataProviderNotFoundException(externalDataProviderId)
 
+    val externalModelProviderId = ExternalId(recurringExchange.externalModelProviderId)
     val modelProviderId =
       ModelProviderReader()
-        .readByExternalModelProviderId(
-          transactionContext,
-          ExternalId(recurringExchange.externalModelProviderId)
-        )
+        .readByExternalModelProviderId(transactionContext, externalModelProviderId)
         ?.modelProviderId
-        ?: failGrpc(Status.FAILED_PRECONDITION) { "ModelProvider not found" }
+        ?: throw ModelProviderNotFoundException(externalModelProviderId)
 
     val externalId = idGenerator.generateExternalId()
     transactionContext.bufferInsertMutation("RecurringExchanges") {
