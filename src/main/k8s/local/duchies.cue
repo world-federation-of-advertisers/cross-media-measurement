@@ -19,27 +19,24 @@ _aggregator_cert_name: string @tag("aggregator_cert_name")
 _worker1_cert_name:    string @tag("worker1_cert_name")
 _worker2_cert_name:    string @tag("worker2_cert_name")
 
-#KingdomSystemApiTarget:    (#Target & {name: "system-api-server"}).target
-#SpannerEmulatorHost:       (#Target & {name: "spanner-emulator"}).target
-#DuchyServerResourceConfig: #DefaultResourceConfig & {
-}
-#MillResourceConfig: #DefaultResourceConfig & {
-	replicas: 1
-	resources: {
-		requests: {
-			cpu: "200m"
-		}
-		limits: {
-			cpu:    "800m"
-			memory: "4Gi"
-		}
+#KingdomSystemApiTarget:   (#Target & {name: "system-api-server"}).target
+#SpannerEmulatorHost:      (#Target & {name: "spanner-emulator"}).target
+#MillResourceRequirements: #ResourceRequirements & {
+	requests: {
+		cpu: "200m"
 	}
-	jvmHeapSize: "3584m"
+	limits: {
+		cpu:    "800m"
+		memory: "4Gi"
+	}
 }
-#HeraldResourceConfig: #DefaultResourceConfig & {
-	replicas: 1 // We should have 1 and only 1 herald.
+#SpannerComputationsResourceRequirements: #ResourceRequirements & {
+	requests: cpu: "50m"
+	limits: {
+		cpu:    "200m"
+		memory: "384Mi"
+	}
 }
-
 #DuchyConfig: {
 	let duchyName = name
 	name:                            string
@@ -96,15 +93,19 @@ duchies: [ for duchyConfig in _duchyConfigs {
 			"spanner-computations-server":      "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:spanner_computations_server_image"
 			"update-duchy-schema":              "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/tools:update_schema_image"
 		}
-		_resource_configs: {
-			"async-computation-control-server": #DuchyServerResourceConfig
-			"computation-control-server":       #DuchyServerResourceConfig
-			"herald-daemon":                    #HeraldResourceConfig
-			"liquid-legions-v2-mill-daemon":    #MillResourceConfig
-			"requisition-fulfillment-server":   #DuchyServerResourceConfig
-			"spanner-computations-server":      #DuchyServerResourceConfig
-		}
 		_duchy_image_pull_policy: "Never"
 		_verbose_grpc_logging:    "true"
+
+		deployments: {
+			"liquid-legions-v2-mill-daemon-deployment": {
+				_container: {
+					_javaOptions: maxRamPercentage: 50.0
+					resources: #MillResourceRequirements
+				}
+			}
+			"spanner-computations-server-deployment": {
+				_container: resources: #SpannerComputationsResourceRequirements
+			}
+		}
 	}
 }]
