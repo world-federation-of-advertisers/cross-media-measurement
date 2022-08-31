@@ -560,10 +560,10 @@ absl::Status AddAllFrequencyNoise(
   return absl::OkStatus();
 }
 
-// Copies encrypted registers from source to dest, replacing all keys with
+// Copies encrypted registers, replacing all keys with
 // the destroyed register flag and all counts with random values.
-absl::StatusOr<std::string> DestroyKeysAndCounts(const CompleteSetupPhaseRequest& request) {
-
+absl::StatusOr<std::string> DestroyKeysAndCounts(
+    const CompleteSetupPhaseRequest& request) {
   std::string source = request.combined_register_vector();
   std::string dest;
   ASSIGN_OR_RETURN(size_t register_count,
@@ -575,13 +575,13 @@ absl::StatusOr<std::string> DestroyKeysAndCounts(const CompleteSetupPhaseRequest
 
   dest.reserve(register_count * kBytesPerCipherRegister);
 
-  // If the noise parameters were included with the request, then we can create a
-  // protocol_cryptor representing the actual cipher that is in use.  If the noise
-  // parameters were omitted, then we use a default protocol_cryptor.  In this
-  // case, the key would not be recognized as a destroyed register, however all registers
-  // would have the same key, so in effect, no registers would be destroyed.  In either
-  // case, no information should leak about the number of publishers contributing to a
-  // particular register.
+  // If the noise parameters were included with the request, then we can create
+  // a protocol_cryptor representing the actual cipher that is in use.  If the
+  // noise parameters were omitted, then we use a default protocol_cryptor.  In
+  // this case, the key would not be recognized as a destroyed register, however
+  // all registers would have the same key, so in effect, no registers would be
+  // destroyed.  In either case, no information should leak about the number of
+  // publishers contributing to a particular register.
 
   std::unique_ptr<ProtocolCryptor> protocol_cryptor;
 
@@ -589,21 +589,23 @@ absl::StatusOr<std::string> DestroyKeysAndCounts(const CompleteSetupPhaseRequest
     ASSIGN_OR_RETURN_ERROR(
         protocol_cryptor,
         CreateProtocolCryptorWithKeys(
-            request.noise_parameters().curve_id(), kGenerateWithNewElGamalPublicKey,
-            kGenerateWithNewElGamalPrivateKey, kGenerateWithNewPohligHellmanKey,
-            std::make_pair(
-                request.noise_parameters().composite_el_gamal_public_key().generator(),
-                request.noise_parameters().composite_el_gamal_public_key().element()),
+            request.noise_parameters().curve_id(),
+            kGenerateWithNewElGamalPublicKey, kGenerateWithNewElGamalPrivateKey,
+            kGenerateWithNewPohligHellmanKey,
+            std::make_pair(request.noise_parameters()
+                               .composite_el_gamal_public_key()
+                               .generator(),
+                           request.noise_parameters()
+                               .composite_el_gamal_public_key()
+                               .element()),
             kGenerateNewParitialCompositeCipher),
         "Failed to create the protocol cipher, invalid curveId or keys.");
   } else {
     ASSIGN_OR_RETURN(
         protocol_cryptor,
         CreateProtocolCryptorWithKeys(
-            kDefaultEllipticCurveId,
-            kGenerateWithNewElGamalPublicKey,
-            kGenerateWithNewElGamalPrivateKey,
-            kGenerateWithNewPohligHellmanKey,
+            kDefaultEllipticCurveId, kGenerateWithNewElGamalPublicKey,
+            kGenerateWithNewElGamalPrivateKey, kGenerateWithNewPohligHellmanKey,
             kGenerateWithNewElGamalPublicKey,
             kGenerateWithNewElGamalPublicKey));
   }
@@ -611,14 +613,16 @@ absl::StatusOr<std::string> DestroyKeysAndCounts(const CompleteSetupPhaseRequest
   ASSIGN_OR_RETURN(std::string destroyed_register_key_ec,
                    protocol_cryptor->MapToCurve(kDestroyedRegisterKey));
 
-  for (size_t register_index = 0; register_index < register_count; ++register_index) {
+  for (size_t register_index = 0; register_index < register_count;
+       ++register_index) {
     size_t offset = register_index * kBytesPerCipherRegister;
     auto register_id = source.substr(offset, kBytesPerCipherText);
     dest.append(register_id);
 
     // Append destroyed key
     RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
-        *protocol_cryptor, CompositeType::kFull, destroyed_register_key_ec, dest));
+        *protocol_cryptor, CompositeType::kFull, destroyed_register_key_ec,
+        dest));
 
     // Replace the count by a random value.
     std::string random_count = absl::StrCat(
@@ -626,8 +630,7 @@ absl::StatusOr<std::string> DestroyKeysAndCounts(const CompleteSetupPhaseRequest
     ASSIGN_OR_RETURN(std::string random_encrypted_count,
                      protocol_cryptor->MapToCurve(register_id));
     RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
-        *protocol_cryptor, CompositeType::kFull,
-        random_encrypted_count, dest));
+        *protocol_cryptor, CompositeType::kFull, random_encrypted_count, dest));
   }
 
   return dest;
@@ -936,7 +939,8 @@ CompleteExecutionPhaseTwoAtAggregator(
     }
     // Add a new row to the SameKeyAggregator Matrix if the register is not
     // destroyed or blinded histogram noise.
-    if (flags[0] && !flags[1] && !flags[2] && (request.maximum_frequency() > 1)) {
+    if (flags[0] && !flags[1] && !flags[2] &&
+        (request.maximum_frequency() > 1)) {
       ASSIGN_OR_RETURN(ElGamalCiphertext current_count_ciphertext,
                        ExtractElGamalCiphertextFromString(current_block.substr(
                            kBytesPerCipherText * 3, kBytesPerCipherText)));
