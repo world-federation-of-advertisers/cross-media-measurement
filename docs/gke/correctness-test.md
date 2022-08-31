@@ -60,7 +60,7 @@ values for your container registry):
 ```shell
 bazel run //src/main/docker:push_resource_setup_runner_image \
   -c opt --define container_registry=gcr.io \
-  --define image_repo_prefix=halo-kingdom-demo
+  --define image_repo_prefix=halo-cmm-demo
 ```
 
 ### Create and apply K8s manifest
@@ -128,30 +128,30 @@ The AKIDs come from the EDP certificates in
 [secretfiles](../../src/main/k8s/testing/secretfiles).
 
 ```prototext
-# proto-file: src/main/proto/wfa/measurement/config/authority_key_to_principal_map.proto
+# proto-file: wfa/measurement/config/authority_key_to_principal_map.proto
 # proto-message: AuthorityKeyToPrincipalMap
 entries {
-  authority_key_identifier: "\xD6\x65\x86\x86\xD8\x7E\xD2\xC4\xDA\xD8\xDF\x76\x39\x66\x21\x3A\xC2\x92\xCC\xE2"
+  authority_key_identifier: "\x90\xC1\xD3\xBD\xE6\x74\x01\x55\xA7\xEF\xE6\x64\x72\xA6\x68\x9C\x41\x5B\x77\x04"
   principal_resource_name: "dataProviders/OljiQHRz-E4"
 }
 entries {
-  authority_key_identifier: "\x6F\x57\x36\x3D\x7C\x5A\x49\x7C\xD1\x68\x57\xCD\xA0\x44\xDF\x68\xBA\xD1\xBA\x86"
+  authority_key_identifier: "\xF6\xED\xD1\x90\x2E\xF2\x04\x06\xEB\x16\xC4\x40\xCF\x69\x43\x86\x16\xCC\xAE\x08"
   principal_resource_name: "dataProviders/Fegw_3Rz-2Y"
 }
 entries {
-  authority_key_identifier: "\xEE\xB8\x30\x10\x0A\xDB\x8F\xEC\x33\x3B\x0A\x5B\x85\xDF\x4B\x2C\x06\x8F\x8E\x28"
+  authority_key_identifier: "\xC8\x03\x73\x90\x9E\xBF\x33\x46\xEA\x94\x44\xC4\xAC\x77\x4D\x47\x67\xA1\x81\x94"
   principal_resource_name: "dataProviders/aeULv4uMBDg"
 }
 entries {
-  authority_key_identifier: "\x74\x72\x6D\xF6\xC0\x44\x42\x61\x7D\x9F\xF7\x3F\xF7\xB2\xAC\x0F\x9D\xB0\xCA\xCC"
+  authority_key_identifier: "\x95\x42\x02\x4C\xED\x13\x36\xFD\x2E\xB3\xAB\x30\xFE\x2B\x9A\x06\xBE\x19\x17\x54"
   principal_resource_name: "dataProviders/d2QIG4uMA8s"
 }
 entries {
-  authority_key_identifier: "\xA6\xED\xBA\xEA\x3F\x9A\xE0\x72\x95\xBF\x1E\xD2\xCB\xC8\x6B\x1E\x0B\x39\x47\xE9"
+  authority_key_identifier: "\x84\xEA\x3D\xFE\xD6\x45\x43\x3F\x5C\xC6\xED\x86\xA2\x83\x3D\xF8\x0D\x5D\x6B\xB7"
   principal_resource_name: "dataProviders/IjDOL3Rz_PY"
 }
 entries {
-  authority_key_identifier: "\xA7\x36\x39\x6B\xDC\xB4\x79\xC3\xFF\x08\xB6\x02\x60\x36\x59\x84\x3B\xDE\xDB\x93"
+  authority_key_identifier: "\xBB\x12\x20\xA8\xE6\x04\x95\xCF\xA8\x33\x42\x33\x27\xD2\x07\x69\xC2\xBF\x8A\x5A"
   principal_resource_name: "dataProviders/U8rTiHRz_b4"
 }
 ```
@@ -168,7 +168,7 @@ You can then restart the Kingdom deployments that depend on `config-files`. At
 the moment, this is just the public API server.
 
 ```shell
-kubectl rollout restart deployments/v2alpha-public-api-server-deployment
+kubectl rollout restart deployments v2alpha-public-api-server-deployment
 ```
 
 ## Step 3. Prepare EDP test data
@@ -318,21 +318,31 @@ acts as one of the 6 different EDPs.
     to create a separate storage bucket for the simulators. Follow the same
     process as creating a storage bucket for a Duchy.
 
-2.  Create K8s cluster
+1.  Create K8s cluster
+
+    You may use the same cluster service account as the Kingdom/Duchies.
 
     ```shell
     gcloud container clusters create halo-cmm-simulator-demo-cluster \
-    --num-nodes=2 --enable-autoscaling --min-nodes=2 --max-nodes=4 \
-    --machine-type=e2-medium
+    --service-account="gke-cluster@halo-cmm-demo.iam.gserviceaccount.com" \
+    --num-nodes=4 --enable-autoscaling --min-nodes=4 --max-nodes=8 \
+    --machine-type=e2-small
     ```
 
-3.  Configure `kubectl` to connect to the cluster
+1.  Configure `kubectl` to connect to the cluster
 
     ```shell
     gcloud container clusters get-credentials halo-cmm-simulator-demo-cluster
     ```
 
-4.  Create the k8s secret which contains the certificates and config files used
+1.  Create a `simulator` K8s service account
+
+    Follow the same steps as in Kingdom/Duchy deployment. The underlying IAM
+    service account must be able to access the Cloud Storage bucket, create
+    BigQuery jobs, and access the `labelled_events` BigQuery table. See the
+    [configuration guide](cluster-config.md#workload-identity) for details.
+
+1.  Create the k8s secret which contains the certificates and config files used
     by the EDP simulators.
 
     ```shell
@@ -343,7 +353,7 @@ acts as one of the 6 different EDPs.
     secret should be the same as the one in the kingdom cluster. And in our
     case, it is certs-and-configs-gb46dm7468
 
-5.  Push container image
+1.  Push container image
 
     ```shell
     bazel run -c opt //src/main/docker:push_gcs_edp_simulator_runner_image \
@@ -351,7 +361,7 @@ acts as one of the 6 different EDPs.
       --define image_repo_prefix=halo-cmm-demo
     ```
 
-6.  Generate K8s manifests
+1.  Generate K8s manifest
 
     The CUE files for the EDP simulators are
     [`config.cue`](../../src/main/k8s/dev/config.cue) and
@@ -359,15 +369,14 @@ acts as one of the 6 different EDPs.
 
     Update the definitions in these files for your configuration. For example:
 
-    ```
+    ```cue
     #GloudProject: "halo-cmm-demo"
     #ContainerRegistry: "gcr.io"
     ```
 
-    ```
+    ```cue
     #KingdomPublicApiTarget: "your kingdom public API domain/subdomain:8443"
     #DuchyPublicApiTarget:   "your kingdom system API domain/subdomain:8443"
-    #BigQueryTableName:      "demo.labelled_events"
     ```
 
     Generate the manifest using the `//src/main/k8s/dev:edp_simulator_gke`
@@ -386,29 +395,39 @@ acts as one of the 6 different EDPs.
       --define=edp6_name=dataProviders/VGExFmehRhY
     ```
 
-7.  Apply the K8s manifest
+1.  Apply the K8s manifest
 
     ```shell
     k8s apply -f bazel-bin/src/main/k8s/dev/edp_simulator_gke.yaml
     ```
 
-8.  Verify everything is fine.
+1.  Verify everything is fine.
 
     ```shell
-    $ kubectl get pods NAME READY STATUS RESTARTS AGE
-    edp1-simulator-deployment-b76f8b667-2zvcp 1/1 Running 0 64s
-    edp2-simulator-deployment-7d9844f554-mx7hc 1/1 Running 0 64s
-    edp3-simulator-deployment-76dd8699cc-dxtc4 1/1 Running 0 64s
-    edp4-simulator-deployment-6664db67b7-jz2gf 1/1 Running 0 64s
-    edp5-simulator-deployment-57989ff79d-2zblf 1/1 Running 0 64s
-    edp6-simulator-deployment-65cd9f4c6b-ck6jm 1/1 Running 0 63s
+    kubectl get pods
     ```
 
-    Check the log of any one of them, you should see something like this
+    Example output showing all pods are running and ready:
+
+    ```
+    NAME                                         READY   STATUS      RESTARTS   AGE
+    edp1-simulator-deployment-d8bddf566-tm2sh    1/1     Running     0          78s
+    edp2-simulator-deployment-775bb96f55-2jzbm   1/1     Running     0          78s
+    edp3-simulator-deployment-5d48c86954-xlrfm   1/1     Running     0          78s
+    edp4-simulator-deployment-f44c67c66-6c8nn    1/1     Running     0          78s
+    edp5-simulator-deployment-86888c855b-l77fg   1/1     Running     0          77s
+    edp6-simulator-deployment-598d8f7d49-2qzh9   1/1     Running     0          77s
+    ```
+
+    Check the logs of any one of them:
 
     ```shell
-    $ kubectl logs -f edp1-simulator-deployment-b76f8b667-2zvcp
-    Picked up JAVA_TOOL_OPTIONS:
+    kubectl logs -f deployments/edp1-simulator-deployment
+    ```
+
+    You should see something like this:
+
+    ```
     Jan 26, 2022 10:55:16 PM org.wfanet.measurement.loadtest.dataprovider.EdpSimulator createEventGroup
     INFO: Successfully created eventGroup dataProviders/HRL1wWehTSM/eventGroups/NeQ2xZiZsN0...
     Jan 26, 2022 10:55:16 PM org.wfanet.measurement.loadtest.dataprovider.EdpSimulator executeRequisitionFulfillingWorkflow

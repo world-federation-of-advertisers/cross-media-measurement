@@ -14,15 +14,19 @@
 
 package k8s
 
+#EdpConfig: {
+	displayName:  string
+	resourceName: string
+}
+
 #EdpSimulator: {
-	_edp: {display_name: string, resource_name: string}
+	_edpConfig:                 #EdpConfig
 	_mc_resource_name:          string
 	_edp_secret_name:           string
 	_duchy_public_api_target:   string
 	_kingdom_public_api_target: string
 
-	_edp_display_name:  _edp.display_name
-	_edp_resource_name: _edp.resource_name
+	let DisplayName = _edpConfig.displayName
 
 	_edp_simulator_image:         string
 	_simulator_image_pull_policy: string
@@ -31,21 +35,21 @@ package k8s
 	_additional_args: [...string]
 
 	deployment: #Deployment & {
-		_name:       _edp_display_name + "-simulator"
+		_name:       DisplayName + "-simulator"
 		_secretName: _edp_secret_name
 		_system:     "simulator"
 		_container: {
 			image:           _edp_simulator_image
 			imagePullPolicy: _simulator_image_pull_policy
 			args:            [
-						"--tls-cert-file=/var/run/secrets/files/\(_edp_display_name)_tls.pem",
-						"--tls-key-file=/var/run/secrets/files/\(_edp_display_name)_tls.key",
+						"--tls-cert-file=/var/run/secrets/files/\(DisplayName)_tls.pem",
+						"--tls-key-file=/var/run/secrets/files/\(DisplayName)_tls.key",
 						"--cert-collection-file=/var/run/secrets/files/all_root_certs.pem",
-						"--data-provider-resource-name=\(_edp_resource_name)",
-						"--data-provider-display-name=\(_edp_display_name)",
-						"--data-provider-encryption-private-keyset=/var/run/secrets/files/\(_edp_display_name)_enc_private.tink",
-						"--data-provider-consent-signaling-private-key-der-file=/var/run/secrets/files/\(_edp_display_name)_cs_private.der",
-						"--data-provider-consent-signaling-certificate-der-file=/var/run/secrets/files/\(_edp_display_name)_cs_cert.der",
+						"--data-provider-resource-name=\(_edpConfig.resourceName)",
+						"--data-provider-display-name=\(DisplayName)",
+						"--data-provider-encryption-private-keyset=/var/run/secrets/files/\(DisplayName)_enc_private.tink",
+						"--data-provider-consent-signaling-private-key-der-file=/var/run/secrets/files/\(DisplayName)_cs_private.der",
+						"--data-provider-consent-signaling-certificate-der-file=/var/run/secrets/files/\(DisplayName)_cs_cert.der",
 						"--mc-resource-name=\(_mc_resource_name)",
 						"--kingdom-public-api-target=\(_kingdom_public_api_target)",
 						"--kingdom-public-api-cert-host=localhost",

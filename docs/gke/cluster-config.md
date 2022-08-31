@@ -89,6 +89,26 @@ gsutil iam ch \
   gs://worker1-duchy
 ```
 
+### Granting BigQuery table access
+
+Grant the service account the `roles/bigquery.jobUser` role at the project
+level, and the `roles/bigquery.dataViewer` role at the table level.
+
+This can be done through the Cloud Console, but here are sample commands using
+the `gcloud` and `bq` CLI tools.
+
+```shell
+gcloud projects add-iam-policy-binding halo-cmm-dev \
+  --role=roles/bigquery.jobUser \
+  --member='serviceAccount:simulator@halo-cmm-dev.iam.gserviceaccount.com`
+```
+
+```shell
+bq add-iam-policy-binding --table=true 'demo.labelled_events' \
+  --role=roles/bigquery.dataViewer \
+  --member='serviceAccount:simulator@halo-cmm-dev.iam.gserviceaccount.com'
+```
+
 ## Network Policy
 
 Kubernetes (K8s) network policies can be used to limit network ingress and

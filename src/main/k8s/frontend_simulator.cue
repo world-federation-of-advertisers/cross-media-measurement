@@ -23,7 +23,7 @@ package k8s
 	_kingdom_public_api_target:   string
 	_blob_storage_flags: [...string]
 
-	frontend_simulator_job: #Job & {
+	job: #Job & {
 		_name:       "frontend-simulator"
 		_secretName: _mc_secret_name
 		_container: {
