@@ -37,5 +37,4 @@ frontend_simulator: #FrontendSimulator & {
 	_kingdom_public_api_target: #KingdomPublicApiTarget
 	_simulator_image:           _imageConfig.image
 	_blob_storage_flags:        _cloudStorageConfig.flags
-	_resourceConfig:            #DefaultResourceConfig
 }
