@@ -302,7 +302,7 @@ class FrontendSimulator(
     maximumFrequency: Long
   ) {
     val reachRatio = expectedResult.reach.value.toDouble() / actualResult.reach.value.toDouble()
-    assertThat(reachRatio).isWithin(0.05).of(1.0)
+    assertThat(reachRatio).isWithin(0.10).of(1.0)
     (1L..maximumFrequency).forEach {
       val expected = expectedResult.frequency.relativeFrequencyDistributionMap.getOrDefault(it, 0.0)
       val actual = actualResult.frequency.relativeFrequencyDistributionMap.getOrDefault(it, 0.0)
