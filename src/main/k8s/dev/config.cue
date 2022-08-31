@@ -43,10 +43,12 @@ import "strings"
 #BigQueryConfig: Config={
 	#GCloudConfig
 
-	table: string
+	dataset: string
+	table:   string
 	flags: [
-		"--big-query-project-name=" + Config.project,
-		"--big-query-table-name=" + table,
+		"--big-query-project=" + Config.project,
+		"--big-query-dataset=" + dataset,
+		"--big-query-table=" + table,
 	]
 }
 

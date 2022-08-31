@@ -15,8 +15,9 @@
 package k8s
 
 #SpannerConfig: {
-	project:  "cross-media-measurement-system"
-	instance: "emulator-instance"
+	project:      "cross-media-measurement-system"
+	instance:     "emulator-instance"
+	readyTimeout: "30s"
 
 	let EmulatorTarget = #ServiceTarget & {serviceName: "spanner-emulator"}
 	emulatorHost: EmulatorTarget.target
