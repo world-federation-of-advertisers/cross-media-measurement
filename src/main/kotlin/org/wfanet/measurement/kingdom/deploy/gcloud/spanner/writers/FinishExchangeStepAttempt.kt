@@ -17,12 +17,10 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.type.Date
-import io.grpc.Status
 import java.time.Clock
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.flow.singleOrNull
 import kotlinx.coroutines.flow.toList
-import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.toProtoTime
@@ -42,11 +40,22 @@ import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.StreamExchangeStepsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ExchangeStepAttemptNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ExchangeStepNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RecurringExchangeNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamExchangeSteps
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepAttemptReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.RecurringExchangeReader
 
+/**
+ * [SpannerWriter] for finishing an [ExchangeStepAttempt].
+ *
+ * Throws one of the following [KingdomInternalException] types on [execute]:
+ * * [ExchangeStepAttemptNotFoundException]
+ * * [ExchangeStepNotFoundException]
+ * * [RecurringExchangeNotFoundException]
+ */
 class FinishExchangeStepAttempt(
   private val provider: Provider,
   private val externalRecurringExchangeId: ExternalId,
@@ -78,16 +87,14 @@ class FinishExchangeStepAttempt(
           filter {
             principal = provider
             stepProvider = provider
-            externalRecurringExchangeIds +=
-              this@FinishExchangeStepAttempt.externalRecurringExchangeId.value
+            externalRecurringExchangeIds += externalRecurringExchangeId.value
             dates += exchangeDate
-            stepIndices += this@FinishExchangeStepAttempt.stepIndex
+            stepIndices += stepIndex
           }
         )
         .execute(transactionContext)
         .singleOrNull()
-        ?: failGrpc(Status.NOT_FOUND) { "ExchangeStep not found" }
-    // TODO: use a KingdomInternalException above
+        ?: throw ExchangeStepNotFoundException(externalRecurringExchangeId, exchangeDate, stepIndex)
 
     // TODO(yunyeng): Think about an ACTIVE case for auto-fail scenario.
     // See https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/190.
@@ -121,8 +128,7 @@ class FinishExchangeStepAttempt(
         ?.recurringExchange
         ?.details
         ?.exchangeWorkflow
-        ?: failGrpc(Status.NOT_FOUND) { "RecurringExchange not found" }
-    // TODO: use a KingdomInternalException above
+        ?: throw RecurringExchangeNotFoundException(externalRecurringExchangeId)
 
     val steps = findNewlyUnblockedExchangeSteps(workflow)
     updateExchangeStepsToReady(
@@ -208,8 +214,12 @@ class FinishExchangeStepAttempt(
       }
       .execute(transactionContext)
       .singleOrNull()
-      ?: failGrpc(Status.NOT_FOUND) { "ExchangeStepAttempt not found" }
-    // TODO: use a KingdomInternalException above
+      ?: throw ExchangeStepAttemptNotFoundException(
+        externalRecurringExchangeId,
+        exchangeDate,
+        stepIndex,
+        attemptNumber
+      )
   }
 
   private fun TransactionScope.updateExchangeState(state: Exchange.State) {
