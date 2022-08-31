@@ -41,7 +41,7 @@ class UnclaimedTasksQuery<StageT>(
         AND c.LockExpirationTime IS NOT NULL
         AND c.UpdateTime IS NOT NULL
         AND c.LockExpirationTime <= @current_time
-      ORDER BY c.LockExpirationTime ASC, c.UpdateTime ASC
+      ORDER BY c.UpdateTime ASC, c.LockExpirationTime ASC
       LIMIT 50
       """
   }
