@@ -20,6 +20,7 @@ _secret_name:        string @tag("secret_name")
 _cloudStorageBucket: string @tag("cloud_storage_bucket")
 
 #KingdomPublicApiTarget: "public.kingdom.dev.halo-cmm.org:8443"
+#ServiceAccount:         "simulator"
 
 objectSets: [frontend_simulator]
 
@@ -37,4 +38,7 @@ frontend_simulator: #FrontendSimulator & {
 	_kingdom_public_api_target: #KingdomPublicApiTarget
 	_simulator_image:           _imageConfig.image
 	_blob_storage_flags:        _cloudStorageConfig.flags
+	job: spec: template: spec: #ServiceAccountPodSpec & {
+		serviceAccountName: #ServiceAccount
+	}
 }
