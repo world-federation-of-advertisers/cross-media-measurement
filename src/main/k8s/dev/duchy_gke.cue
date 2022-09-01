@@ -22,7 +22,14 @@ _certificateId:                string @tag("certificate_id")
 
 _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 
-#KingdomSystemApiTarget:       "system.kingdom.dev.halo-cmm.org:8443"
+// DNS name of the Kingdom's internal API with which it communicates with Duchies.
+// The default is to look for a Kingdom running in the same cluster.
+// For a multi-cluster deployment, this should be set to the fully qualified
+// domain name of the server that is running the system-api-server service.
+//
+// Example using fully qualified domain name:
+// #KingdomSystemApiTarget:       "system.kingdom.dev.halo-cmm.org:8443"
+#KingdomSystemApiTarget:       "system-api-server:8443"
 #InternalServerServiceAccount: "internal-server"
 #StorageServiceAccount:        "storage"
 #MillResourceRequirements:     #ResourceRequirements & {
@@ -77,9 +84,23 @@ duchy: #Duchy & {
 	}
 	_duchy_secret_name: _secret_name
 	_computation_control_targets: {
-		"aggregator": "system.aggregator.dev.halo-cmm.org:8443"
-		"worker1":    "system.worker1.dev.halo-cmm.org:8443"
-		"worker2":    "system.worker2.dev.halo-cmm.org:8443"
+            // DNS names of each of the duchies.
+            //
+            // The default configuration is to attempt to communicate with
+            // other duchies within the same cluster.  In a multi-cluster
+            // configuration, these should be set to the fully qualified
+            // domain names of the servers running the computation-control-server
+            // services.
+            //
+            // The following is an example showing how to specify the fully
+            // qualified domain name:
+            //      "aggregator": "system.aggregator.dev.halo-cmm.org:8443"
+            //
+            // TODO: These values should be moved to the configuration section
+            // at the top of the file.
+            "aggregator": "aggregator-computation-control-server:8443"
+            "worker1":    "worker1-computation-control-server:8443"
+            "worker2":    "worker2-computation-control-server:8443"
 	}
 	_kingdom_system_api_target: #KingdomSystemApiTarget
 	_blob_storage_flags:        _cloudStorageConfig.flags

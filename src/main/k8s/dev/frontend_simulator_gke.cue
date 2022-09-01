@@ -19,10 +19,20 @@ _mc_api_key:         string @tag("mc_api_key")
 _secret_name:        string @tag("secret_name")
 _cloudStorageBucket: string @tag("cloud_storage_bucket")
 
-#KingdomPublicApiTarget: "public.kingdom.dev.halo-cmm.org:8443"
-#ServiceAccount:         "simulator"
+// DNS name of the public API of the Kingdom.  The default is to look for a 
+// Kingdom running in the same cluster.  For a multi-cluster deployment, this
+// should be set to the fully qualified domain name of the server that is 
+// running the v2alpha-public-api-server service.
+//
+// Example using fully qualified domain name:
+// #KingdomPublicApiTarget: "public.kingdom.dev.halo-cmm.org:8443"
+#KingdomPublicApiTarget:    "v2alpha-public-api-server:8443"
 
-objectSets: [frontend_simulator]
+// The storage bucket associated with the frontend simulator must be
+// writable by this account.
+#ServiceAccount: "internal-server"
+
+objectSets: [frontend_simulator, [network_policy]]
 
 _cloudStorageConfig: #CloudStorageConfig & {
 	bucket: _cloudStorageBucket
@@ -41,4 +51,14 @@ frontend_simulator: #FrontendSimulator & {
 	job: spec: template: spec: #ServiceAccountPodSpec & {
 		serviceAccountName: #ServiceAccount
 	}
+}
+
+// Allow front-end simulator to communicate with other nodes in cluster.
+network_policy: #NetworkPolicy & {
+      _name:          "frontend-simulator"
+      _app_label:     "frontend-simulator-app"
+      _egresses: {
+                 // Need to send external traffic.
+                 any: {}
+       }
 }

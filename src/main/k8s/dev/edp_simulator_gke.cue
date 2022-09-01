@@ -25,13 +25,32 @@ _edpResourceNames: [_edp1_name, _edp2_name, _edp3_name, _edp4_name, _edp5_name, 
 _secret_name:        string @tag("secret_name")
 _cloudStorageBucket: string @tag("cloud_storage_bucket")
 
-#KingdomPublicApiTarget: "public.kingdom.dev.halo-cmm.org:8443"
-#DuchyPublicApiTarget:   "public.worker1.dev.halo-cmm.org:8443"
+// DNS name of the public API of the Kingdom.  This is used to poll for
+// new requisition requests.  The default is to look for a Kingdom running
+// in the same cluster.  For a multi-cluster deployment, this should be set
+// to the fully qualified domain name of the server that is running the
+// v2alpha-public-api-server service.
+//
+// Example using fully qualified domain name:
+// #KingdomPublicApiTarget: "public.kingdom.dev.halo-cmm.org:8443"
+#KingdomPublicApiTarget:    "v2alpha-public-api-server:8443"
+
+// DNS name of the public API provided by the duchies.  When an EDP fulfills
+// a requisition, the fulfilled requisition is sent to this server.
+// The default is to look for a Duchy running in the same cluster.  For
+// a multi-cluster deployment, this should be set to the fully qualified
+// domain name of the server that is running the worker1-requisition-fulfillment-server
+// service.
+//
+// Example using fully qualified domain name:
+// #DuchyPublicApiTarget:   "public.worker1.dev.halo-cmm.org:8443"
+#DuchyPublicApiTarget:      "worker1-requisition-fulfillment-server:8443"
+
 #BigQueryDataSet:        "demo"
 #BigQueryTable:          "labelled_events"
-#ServiceAccount:         "simulator"
+#ServiceAccount:         "storage"
 
-objectSets: [ for edp in edp_simulators {edp}]
+objectSets: [ for edp in edp_simulators {edp}] + network_policies
 
 _cloudStorageConfig: #CloudStorageConfig & {
 	bucket: _cloudStorageBucket
@@ -73,4 +92,18 @@ edp_simulators: {
 			}
 		}
 	}
+}
+
+// Allow EDP simulator nodes to communicate with other nodes in cluster.
+network_policies: {
+        [for edp in _edpConfigs {
+              networkPolicies: #NetworkPolicy & {
+                      _name:          edp.displayName
+                      _app_label:     edp.displayName + "-simulator-app"
+                      _egresses: {
+                                    // Need to send external traffic.
+                                    any: {}
+                      }
+              }
+      }]
 }
