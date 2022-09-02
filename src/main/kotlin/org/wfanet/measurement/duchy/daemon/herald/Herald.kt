@@ -34,6 +34,7 @@ import org.wfanet.measurement.duchy.service.internal.computations.toGetTokenRequ
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
+import org.wfanet.measurement.internal.duchy.finishComputationRequest
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.Computation.State
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
@@ -59,16 +60,16 @@ import org.wfanet.measurement.system.v1alpha.streamActiveComputationsRequest
  * @param maxAttempts maximum number of attempts to start a computation.
  */
 class Herald(
-    private val heraldId: String,
-    private val duchyId: String,
-    private val internalComputationsClient: ComputationsCoroutineStub,
-    private val systemComputationsClient: SystemComputationsCoroutineStub,
-    private val systemComputationParticipantClient: SystemComputationParticipantsCoroutineStub,
-    private val protocolsSetupConfig: ProtocolsSetupConfig,
-    private val clock: Clock,
-    private val blobStorageBucket: String = "computation-blob-storage",
-    private val maxAttempts: Int = 10,
-    private val retryBackoff: ExponentialBackoff = ExponentialBackoff(),
+  private val heraldId: String,
+  private val duchyId: String,
+  private val internalComputationsClient: ComputationsCoroutineStub,
+  private val systemComputationsClient: SystemComputationsCoroutineStub,
+  private val systemComputationParticipantClient: SystemComputationParticipantsCoroutineStub,
+  private val protocolsSetupConfig: ProtocolsSetupConfig,
+  private val clock: Clock,
+  private val blobStorageBucket: String = "computation-blob-storage",
+  private val maxAttempts: Int = 10,
+  private val retryBackoff: ExponentialBackoff = ExponentialBackoff(),
 ) {
   /**
    * Syncs the status of computations stored at the kingdom with those stored locally continually in
@@ -110,34 +111,40 @@ class Herald(
     }
     var lastProcessedContinuationToken = continuationToken
     systemComputationsClient
-        .streamActiveComputations(streamRequest)
-        .withRetriesOnEachWithErrorHandler(
-            maxAttempts = 3, errorHandlingBlock = ::handleException) { response ->
-          lastProcessedContinuationToken = response.continuationToken
-          processSystemComputationChange(response)
-        }
-        .collect()
+      .streamActiveComputations(streamRequest)
+      .withRetriesOnEachWithErrorHandler(maxAttempts = 3, errorHandlingBlock = ::handleException) {
+        response ->
+        lastProcessedContinuationToken = response.continuationToken
+        processSystemComputationChange(response)
+      }
+      .collect()
 
     return lastProcessedContinuationToken
   }
 
   /**
-   * Return true for keeping retry or false for cancellation. Fail computation at Kingdom after
-   * cancellation.
+   * Return true for keeping retry or false for cancellation. Fail computation at Kingdom and duchy
+   * after cancellation.
    */
   private suspend fun handleException(
-      response: StreamActiveComputationsResponse,
-      ex: Throwable,
-      attemptsExhausted: Boolean
+    response: StreamActiveComputationsResponse,
+    ex: Throwable,
+    attemptsExhausted: Boolean
   ): Boolean {
     logger.warning("Exception caught by herald. $ex")
     return if (!mayBeTransientGrpcError(ex)) {
       failComputationAtKingdom(
-          response.computation, "Herald failed by non-transient error. ${ex.message}")
+        response.computation,
+        "Herald failed by non-transient error. ${ex.message}"
+      )
+      failComputationAtDuchy(response.computation)
       false
     } else if (attemptsExhausted) {
       failComputationAtKingdom(
-          response.computation, "Herald failed by exhausting attempts. ${ex.message}")
+        response.computation,
+        "Herald failed by exhausting attempts. ${ex.message}"
+      )
+      failComputationAtDuchy(response.computation)
       false
     } else {
       true
@@ -168,10 +175,11 @@ class Herald(
       when (systemComputation.toMeasurementType()) {
         MeasurementType.REACH_AND_FREQUENCY -> {
           LiquidLegionsV2Starter.createComputation(
-              internalComputationsClient,
-              systemComputation,
-              protocolsSetupConfig.liquidLegionsV2,
-              blobStorageBucket)
+            internalComputationsClient,
+            systemComputation,
+            protocolsSetupConfig.liquidLegionsV2,
+            blobStorageBucket
+          )
         }
       }
       logger.info("[id=$globalId]: Created Computation")
@@ -185,7 +193,7 @@ class Herald(
   }
 
   class AttemptsExhaustedException(cause: Throwable, buildMessage: () -> String) :
-      Exception(buildMessage(), cause)
+    Exception(buildMessage(), cause)
 
   /**
    * Runs [block] for [systemComputation], retrying up to a total of [maxAttempts] attempts.
@@ -197,24 +205,23 @@ class Herald(
    * conditions rather than unconditionally retrying.
    */
   private suspend fun <R> runWithRetries(
-      systemComputation: Computation,
-      block: suspend (systemComputation: Computation) -> R
+    systemComputation: Computation,
+    block: suspend (systemComputation: Computation) -> R
   ): R {
     val globalId = systemComputation.key.computationId
     val finalResult =
-        (1..maxAttempts).fold(Result.failure<R>(IllegalStateException())) { previous, attemptNumber
-          ->
-          if (previous.isSuccess) {
-            return@fold previous
-          }
-
-          logger.info("[id=$globalId] Attempt #$attemptNumber")
-          val result = runCatching { block(systemComputation) }
-          if (result.isFailure) {
-            retryBackoff.delay(attemptNumber)
-          }
-          result
+      (1..maxAttempts).fold(Result.failure<R>(IllegalStateException())) { previous, attemptNumber ->
+        if (previous.isSuccess) {
+          return@fold previous
         }
+
+        logger.info("[id=$globalId] Attempt #$attemptNumber")
+        val result = runCatching { block(systemComputation) }
+        if (result.isFailure) {
+          retryBackoff.delay(attemptNumber)
+        }
+        result
+      }
     return finalResult.getOrElse {
       throw AttemptsExhaustedException(it) {
         "[id=$globalId] Giving up after $maxAttempts attempts"
@@ -230,11 +237,12 @@ class Herald(
       val token = internalComputationsClient.getComputationToken(globalId.toGetTokenRequest()).token
       when (token.computationDetails.protocolCase) {
         ComputationDetails.ProtocolCase.LIQUID_LEGIONS_V2 ->
-            LiquidLegionsV2Starter.updateRequisitionsAndKeySets(
-                token,
-                internalComputationsClient,
-                systemComputation,
-                protocolsSetupConfig.liquidLegionsV2.externalAggregatorDuchyId)
+          LiquidLegionsV2Starter.updateRequisitionsAndKeySets(
+            token,
+            internalComputationsClient,
+            systemComputation,
+            protocolsSetupConfig.liquidLegionsV2.externalAggregatorDuchyId
+          )
         else -> error { "Unknown or unsupported protocol." }
       }
     }
@@ -248,7 +256,7 @@ class Herald(
       val token = internalComputationsClient.getComputationToken(globalId.toGetTokenRequest()).token
       when (token.computationDetails.protocolCase) {
         ComputationDetails.ProtocolCase.LIQUID_LEGIONS_V2 ->
-            LiquidLegionsV2Starter.startComputation(token, internalComputationsClient)
+          LiquidLegionsV2Starter.startComputation(token, internalComputationsClient)
         else -> error { "Unknown or unsupported protocol." }
       }
     }
@@ -260,13 +268,35 @@ class Herald(
     val request = failComputationParticipantRequest {
       name = ComputationParticipantKey(globalId, duchyId).toName()
       failure =
-          ComputationParticipantKt.failure {
-            participantChildReferenceId = heraldId
-            this.errorMessage = errorMessage
-            errorTime = clock.protoTimestamp()
-          }
+        ComputationParticipantKt.failure {
+          participantChildReferenceId = heraldId
+          this.errorMessage = errorMessage
+          errorTime = clock.protoTimestamp()
+        }
     }
     systemComputationParticipantClient.failComputationParticipant(request)
+  }
+
+  /** Call finishComputation to fail local Computation. */
+  private suspend fun failComputationAtDuchy(computation: Computation) {
+    val globalId = computation.key.computationId
+    val token =
+      try {
+        internalComputationsClient.getComputationToken(globalId.toGetTokenRequest()).token
+      } catch (ex: Throwable) {
+        null
+      } ?: return
+
+    val finishRequest = finishComputationRequest {
+      this.token = token
+      endingComputationStage =
+        when (token.computationDetails.protocolCase) {
+          ComputationDetails.ProtocolCase.LIQUID_LEGIONS_V2 -> LiquidLegionsV2Starter.failStage
+          else -> error { "Unknown or unsupported protocol." }
+        }
+      reason = ComputationDetails.CompletedReason.FAILED
+    }
+    internalComputationsClient.finishComputation(finishRequest)
   }
 
   companion object {
@@ -288,30 +318,31 @@ fun mayBeTransientGrpcError(error: Throwable): Boolean {
 }
 
 data class ExponentialBackoff(
-    val initialDelay: Duration = Duration.ofSeconds(1),
-    val multiplier: Double = 2.0,
-    val randomnessFactor: Double = 0.3,
-    val random: Random = Random.Default,
+  val initialDelay: Duration = Duration.ofSeconds(1),
+  val multiplier: Double = 2.0,
+  val randomnessFactor: Double = 0.3,
+  val random: Random = Random.Default,
 ) {
   suspend fun delay(attemptNumber: Int) {
     delay(
-        random
-            .randomizedDuration(
-                exponentialDuration(
-                    initialDelay = initialDelay,
-                    multiplier = multiplier,
-                    attempts = attemptNumber,
-                ),
-                randomnessFactor = randomnessFactor,
-            )
-            .toMillis())
+      random
+        .randomizedDuration(
+          exponentialDuration(
+            initialDelay = initialDelay,
+            multiplier = multiplier,
+            attempts = attemptNumber,
+          ),
+          randomnessFactor = randomnessFactor,
+        )
+        .toMillis()
+    )
   }
 
   companion object {
     private fun exponentialDuration(
-        initialDelay: Duration,
-        multiplier: Double,
-        attempts: Int
+      initialDelay: Duration,
+      multiplier: Double,
+      attempts: Int
     ): Duration {
       if (attempts == 1) {
         return initialDelay
@@ -320,8 +351,8 @@ data class ExponentialBackoff(
     }
 
     private fun Random.randomizedDuration(
-        delay: Duration,
-        randomnessFactor: Double,
+      delay: Duration,
+      randomnessFactor: Double,
     ): Duration {
       if (randomnessFactor == 0.0) {
         return delay

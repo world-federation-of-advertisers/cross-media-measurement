@@ -56,6 +56,7 @@ import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase as DuchyComputationsCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub as DuchyComputationsCoroutineStub
+import org.wfanet.measurement.internal.duchy.FinishComputationResponse
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant
@@ -666,12 +667,14 @@ class HeraldTest {
   @Test
   fun `syncStatuses fails computation for attempts-axhausted error`() = runTest {
     // Set up a new herald with mock services to raise certain exception
-    val mockComputationsService: DuchyComputationsCoroutineImplBase = mockService {
+    val internalComputationsService: DuchyComputationsCoroutineImplBase = mockService {
       onBlocking { createComputation(any()) }.thenThrow(Status.UNKNOWN.asRuntimeException())
+      onBlocking { finishComputation(any()) }
+        .thenReturn(FinishComputationResponse.getDefaultInstance())
     }
     val mockTestServerRule = GrpcTestServerRule {
       addService(systemComputations)
-      addService(mockComputationsService)
+      addService(internalComputationsService)
       addService(systemComputationParticipants)
     }
     val mockInternalComputationsStub = DuchyComputationsCoroutineStub(mockTestServerRule.channel)
