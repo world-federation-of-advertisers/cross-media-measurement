@@ -575,6 +575,7 @@ class LiquidLegionsV2Mill(
       "invalid role for this function."
     }
     var reach = 0L
+    val maximumRequestedFrequency = getMaximumRequestedFrequency(token)
     val (bytes, tempToken) =
       existingOutputOr(token) {
         when (Version.fromString(token.computationDetails.kingdomComputation.publicApiVersion)) {
@@ -589,7 +590,7 @@ class LiquidLegionsV2Mill(
             compositeElGamalPublicKey = llv2Details.combinedPublicKey
             curveId = llv2Parameters.ellipticCurveId.toLong()
             flagCountTuples = readAndCombineAllInputBlobs(token, 1)
-            maximumFrequency = getMaximumRequestedFrequency(token)
+            maximumFrequency = maximumRequestedFrequency
             liquidLegionsParametersBuilder.apply {
               decayRate = llv2Parameters.liquidLegionsSketch.decayRate
               size = llv2Parameters.liquidLegionsSketch.size
@@ -603,10 +604,10 @@ class LiquidLegionsV2Mill(
             globalReachDpNoise = noiseConfig.reachNoiseConfig.globalReachDpNoise
           }
         }
-        if (noiseConfig.hasFrequencyNoiseConfig() && (getMaximumRequestedFrequency(token) > 1)) {
+        if (noiseConfig.hasFrequencyNoiseConfig() && (maximumRequestedFrequency > 1)) {
           requestBuilder.frequencyNoiseParametersBuilder.apply {
             contributorsCount = workerStubs.size + 1
-            maximumFrequency = getMaximumRequestedFrequency(token)
+            maximumFrequency = maximumRequestedFrequency
             dpParams = noiseConfig.frequencyNoiseConfig
           }
         }
@@ -641,8 +642,8 @@ class LiquidLegionsV2Mill(
       }
 
     // If this is a reach-only computation, then our job is done.
-    if (getMaximumRequestedFrequency(token) == 1) {
-      sendResultToKingdom(token, reach, emptyMap<Long, Double>())
+    if (maximumRequestedFrequency == 1) {
+      sendResultToKingdom(token, reach, mapOf(1L to 1.0))
       return completeComputation(nextToken, CompletedReason.SUCCEEDED)
     }
 
@@ -670,6 +671,7 @@ class LiquidLegionsV2Mill(
     val llv2Details = token.computationDetails.liquidLegionsV2
     val llv2Parameters = llv2Details.parameters
     require(NON_AGGREGATOR == llv2Details.role) { "invalid role for this function." }
+    val maximumRequestedFrequency = getMaximumRequestedFrequency(token)
     val (bytes, nextToken) =
       existingOutputOr(token) {
         val requestBuilder =
@@ -682,7 +684,7 @@ class LiquidLegionsV2Mill(
         if (llv2Parameters.noise.hasFrequencyNoiseConfig()) {
           requestBuilder.apply {
             partialCompositeElGamalPublicKey = llv2Details.partiallyCombinedPublicKey
-            if (getMaximumRequestedFrequency(token) > 1) {
+            if (maximumRequestedFrequency > 1) {
               noiseParameters = getFrequencyNoiseParams(token, llv2Parameters)
             }
           }
@@ -705,7 +707,7 @@ class LiquidLegionsV2Mill(
       stub = nextDuchyStub(llv2Details.participantList)
     )
 
-    if (getMaximumRequestedFrequency(token) == 1) {
+    if (maximumRequestedFrequency == 1) {
       // If this is a reach-only computation, then our job is done.
       return completeComputation(nextToken, CompletedReason.SUCCEEDED)
     } else {

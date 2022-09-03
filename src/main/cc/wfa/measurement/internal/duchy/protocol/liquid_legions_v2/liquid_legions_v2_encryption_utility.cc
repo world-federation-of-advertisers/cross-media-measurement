@@ -581,7 +581,8 @@ absl::StatusOr<std::string> DestroyKeysAndCounts(
   // this case, the key would not be recognized as a destroyed register, however
   // all registers would have the same key, so in effect, no registers would be
   // destroyed.  In either case, no information should leak about the number of
-  // publishers contributing to a particular register.
+  // publishers contributing to a particular register.  In the production
+  // implementation, it appears that the noise parameters are always included.
 
   std::unique_ptr<ProtocolCryptor> protocol_cryptor;
 
@@ -628,7 +629,7 @@ absl::StatusOr<std::string> DestroyKeysAndCounts(
     std::string random_count = absl::StrCat(
         "random_count", protocol_cryptor->NextRandomBigNumAsString());
     ASSIGN_OR_RETURN(std::string random_encrypted_count,
-                     protocol_cryptor->MapToCurve(register_id));
+                     protocol_cryptor->MapToCurve(random_count));
     RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
         *protocol_cryptor, CompositeType::kFull, random_encrypted_count, dest));
   }

@@ -221,8 +221,9 @@ class FrontendSimulator(
       reachOnlyResult = getReachAndFrequencyResult(createdReachOnlyMeasurement.name)
     }
     if (reachOnlyResult == null) {
-      logger.info("A reach-only result could not be obtained")
-      assertThat(false).isTrue()
+      assertThat(reachOnlyResult as Result?).isNotNull()
+      return // never executed, but allows Kotlin to infer that reachOnlyResult is not null
+      // afterwards
     }
     logger.info("Actual result: $reachOnlyResult")
 
@@ -231,13 +232,14 @@ class FrontendSimulator(
       getExpectedResult(createdReachOnlyMeasurement.name, liquidLegionV2Protocol)
     val expectedResult = result {
       reach = reach { value = expectedResultWithFrequencies.reach.value }
+      frequency = frequency { relativeFrequencyDistribution.putAll(mapOf(1L to 1.0)) }
     }
 
     logger.info("Expected result: $expectedResult")
 
     assertDpResultsEqual(
       expectedResult,
-      reachOnlyResult!!,
+      reachOnlyResult,
       liquidLegionV2Protocol.maximumFrequency.toLong()
     )
     logger.info("Reach-only result is equal to the expected result. Correctness Test passes.")
