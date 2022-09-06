@@ -24,7 +24,7 @@ _worker2_cert_name:    string @tag("worker2_cert_name")
 #DuchyServerResourceConfig: #DefaultResourceConfig & {
 }
 #MillResourceConfig: #DefaultResourceConfig & {
-	replicas: 1
+	replicas: 10
 	resources: {
 		requests: {
 			cpu: "200m"
@@ -38,6 +38,7 @@ _worker2_cert_name:    string @tag("worker2_cert_name")
 }
 #HeraldResourceConfig: #DefaultResourceConfig & {
 	replicas: 1 // We should have 1 and only 1 herald.
+  jvmHeapSize: "3584m"
 }
 
 #DuchyConfig: {

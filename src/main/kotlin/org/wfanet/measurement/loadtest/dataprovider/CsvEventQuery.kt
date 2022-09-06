@@ -66,7 +66,7 @@ class CsvEventQuery(
         "data",
       )
     // Update fileName to the name of the CSV file you want to use.
-    val fileName = "synthetic-labelled-events.csv"
+    val fileName = "benchmark_data_large.csv" // "synthetic-labelled-events.csv"
     val fileRuntimePath = getRuntimePath(directoryPath.resolve(fileName)).toString()
     logger.info("Reading data from CSV file...")
     val fileReader = FileReader(fileRuntimePath)

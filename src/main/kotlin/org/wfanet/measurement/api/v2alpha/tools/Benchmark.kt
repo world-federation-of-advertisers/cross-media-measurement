@@ -366,7 +366,8 @@ class EventGroupInput {
     names = ["--event-filter"],
     description = ["Raw CEL expression of EventFilter"],
     required = false,
-    defaultValue = ""
+    // Can't use an empty expression.
+    defaultValue = "video_ad.age.value in [0,1,2,3]"
   )
   lateinit var eventFilter: String
     private set
