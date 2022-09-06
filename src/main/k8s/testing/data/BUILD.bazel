@@ -1,0 +1,11 @@
+package(
+    default_testonly = True,
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
+    ],
+)
+
+filegroup(
+    name = "all_csv_files",
+    srcs = glob(["*.csv"]),
+)

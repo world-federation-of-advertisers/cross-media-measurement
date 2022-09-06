@@ -51,22 +51,19 @@ class CsvEventQuery(
 
   /** Import VIDs from CSV file and creates events list. */
   init {
-    // Place CSV files in //src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider/data
+    // Get path for CSV files in //src/main/k8s/testing/data
     val directoryPath =
       Paths.get(
         "wfa_measurement_system",
         "src",
         "main",
-        "kotlin",
-        "org",
-        "wfanet",
-        "measurement",
-        "loadtest",
-        "dataprovider",
+        "k8s",
+        "testing",
         "data",
       )
-    // Update fileName to the name of the CSV file you want to use.
+
     val fileName = "synthetic-labelled-events.csv"
+
     val fileRuntimePath = getRuntimePath(directoryPath.resolve(fileName)).toString()
     logger.info("Reading data from CSV file...")
     val fileReader = FileReader(fileRuntimePath)
