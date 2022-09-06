@@ -195,6 +195,19 @@ bazel run //src/main/k8s/local:edp_simulators_kind \
   --define=edp6_name=dataProviders/U8rTiHRz_b4
 ```
 
+The target `edp_simulators_kind` uses `RandomEventQuery` which will generate
+random VIDs for each edp. You can also use the target `edp_simulators_kind_csv`
+which will use `CsvEventQuery` to query VIDs from a CSV file for each edp.
+
+To use `edp_simulators_kind_csv`, place the labelled-events CSV file you want to
+use under `//src/main/k8s/testing/data`, and update `fileName` in
+`//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider/CsvEventQuery.kt`
+
+If the CSV file is large, each edp_simulator will need time to import the CSV
+data. In the logs of each `edp-simulator-deployment`, wait for the log `INFO:
+Executing requisitionFulfillingWorkflow...` to show up which indicates it's
+ready to accept requests
+
 ## Deploy MC Frontend Simulator
 
 This is a job that tests correctness by creating a Measurement and validating

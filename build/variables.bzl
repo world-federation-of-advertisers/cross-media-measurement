@@ -50,7 +50,6 @@ TEST_K8S_SETTINGS = struct(
     edp6_name = "$(edp6_name)",
     db_secret_name = "$(k8s_db_secret_name)",
     mc_config_secret_name = "$(k8s_mc_config_secret_name)",
-    event_query = "$(event_query)",
 )
 
 # Settings for Kingdom Kubernetes deployments.
