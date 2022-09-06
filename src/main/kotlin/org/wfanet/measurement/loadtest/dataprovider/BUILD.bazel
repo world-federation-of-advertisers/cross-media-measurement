@@ -26,7 +26,7 @@ kt_jvm_library(
         "RandomEventQuery.kt",
     ],
     data = [
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider/data:all_csv_files",
+        "//src/main/k8s/testing/data:all_csv_files",
     ],
     deps = [
         "//imports/java/com/google:cel-generated-pb",
