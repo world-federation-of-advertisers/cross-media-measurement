@@ -31,10 +31,10 @@ _worker2_cert_name:    string @tag("worker2_cert_name")
 	}
 }
 #SpannerComputationsResourceRequirements: #ResourceRequirements & {
-	requests: cpu: "50m"
+	requests: cpu: "300m"
 	limits: {
-		cpu:    "200m"
-		memory: "384Mi"
+		cpu:    "400m"
+		memory: "1024Mi"
 	}
 }
 #DuchyConfig: {

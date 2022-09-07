@@ -17,10 +17,10 @@ package k8s
 _secret_name: string @tag("secret_name")
 
 #DataServerResourceRequirements: #ResourceRequirements & {
-	requests: cpu: "50m"
+	requests: cpu: "300m"
 	limits: {
-		cpu:    "200m"
-		memory: "384Mi"
+		cpu:    "400m"
+		memory: "1524Mi"
 	}
 }
 
