@@ -16,6 +16,9 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.gson.JsonParser
 import com.google.protobuf.kotlin.toByteStringUtf8
+import com.google.rpc.ErrorInfo
+import io.grpc.StatusRuntimeException
+import io.grpc.protobuf.ProtoUtils
 import java.time.Clock
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -347,3 +350,14 @@ fun DataProvider.toDataProviderValue(nonce: Long = Random.Default.nextLong()) = 
   encryptedRequisitionSpec = "Encrypted RequisitionSpec $nonce".toByteStringUtf8()
   nonceHash = hashSha256(nonce)
 }
+
+/**
+ * [ErrorInfo] from [trailers][StatusRuntimeException.getTrailers].
+ *
+ * TODO(@SanjayVas): Move this to common.grpc.
+ */
+val StatusRuntimeException.errorInfo: ErrorInfo?
+  get() {
+    val key = ProtoUtils.keyForProto(ErrorInfo.getDefaultInstance())
+    return trailers?.get(key)
+  }

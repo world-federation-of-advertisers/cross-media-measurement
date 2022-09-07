@@ -13,6 +13,7 @@ kt_jvm_test(
         "//src/main/k8s/testing/secretfiles:root_certs",
         "//src/main/k8s/testing/secretfiles:secret_files",
     ],
+    jvm_flags = ["-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false"],
     test_class = "org.wfanet.measurement.reporting.service.api.v1alpha.tools.ReportingTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha/tools:reporting",

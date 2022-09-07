@@ -14,19 +14,22 @@
 
 package k8s
 
-_mc_name:            string @tag("mc_name")
-_edp1_name:          string @tag("edp1_name")
-_edp2_name:          string @tag("edp2_name")
-_edp3_name:          string @tag("edp3_name")
-_edp4_name:          string @tag("edp4_name")
-_edp5_name:          string @tag("edp5_name")
-_edp6_name:          string @tag("edp6_name")
+_mc_name:   string @tag("mc_name")
+_edp1_name: string @tag("edp1_name")
+_edp2_name: string @tag("edp2_name")
+_edp3_name: string @tag("edp3_name")
+_edp4_name: string @tag("edp4_name")
+_edp5_name: string @tag("edp5_name")
+_edp6_name: string @tag("edp6_name")
+_edpResourceNames: [_edp1_name, _edp2_name, _edp3_name, _edp4_name, _edp5_name, _edp6_name]
 _secret_name:        string @tag("secret_name")
 _cloudStorageBucket: string @tag("cloud_storage_bucket")
 
 #KingdomPublicApiTarget: "public.kingdom.dev.halo-cmm.org:8443"
 #DuchyPublicApiTarget:   "public.worker1.dev.halo-cmm.org:8443"
-#BigQueryTableName:      "demo.labelled_events"
+#BigQueryDataSet:        "demo"
+#BigQueryTable:          "labelled_events"
+#ServiceAccount:         "simulator"
 
 objectSets: [ for edp in edp_simulators {edp}]
 
@@ -34,43 +37,29 @@ _cloudStorageConfig: #CloudStorageConfig & {
 	bucket: _cloudStorageBucket
 }
 _bigQueryConfig: #BigQueryConfig & {
-	table: #BigQueryTableName
+	dataset: #BigQueryDataSet
+	table:   #BigQueryTable
 }
 _imageConfig: #ImageConfig & {
 	repoSuffix: "loadtest/edp-simulator"
 }
 
-#Edps: [
-	{
-		display_name:  "edp1"
-		resource_name: _edp1_name
-	},
-	{
-		display_name:  "edp2"
-		resource_name: _edp2_name
-	},
-	{
-		display_name:  "edp3"
-		resource_name: _edp3_name
-	},
-	{
-		display_name:  "edp4"
-		resource_name: _edp4_name
-	},
-	{
-		display_name:  "edp5"
-		resource_name: _edp5_name
-	},
-	{
-		display_name:  "edp6"
-		resource_name: _edp6_name
+#EdpConfig: {
+	publisherId: int
+}
+_edpConfigs: [...#EdpConfig]
+_edpConfigs: [
+	for i, name in _edpResourceNames {
+		publisherId:  i + 1
+		resourceName: name
+		displayName:  "edp\(publisherId)"
 	},
 ]
 
 edp_simulators: {
-	for edp in #Edps {
-		"\(edp.display_name)": #EdpSimulator & {
-			_edp:                         edp
+	for edp in _edpConfigs {
+		"\(edp.displayName)": #EdpSimulator & {
+			_edpConfig:                   edp
 			_edp_secret_name:             _secret_name
 			_duchy_public_api_target:     #DuchyPublicApiTarget
 			_kingdom_public_api_target:   #KingdomPublicApiTarget
@@ -78,8 +67,10 @@ edp_simulators: {
 			_mc_resource_name:            _mc_name
 			_edp_simulator_image:         _imageConfig.image
 			_simulator_image_pull_policy: "Always"
-			_additional_args:             _bigQueryConfig.flags
-			_resourceConfig:              #DefaultResourceConfig
+			_additional_args:             ["--publisher-id=\(edp.publisherId)"] + _bigQueryConfig.flags
+			deployment: spec: template: spec: #ServiceAccountPodSpec & {
+				serviceAccountName: #ServiceAccount
+			}
 		}
 	}
 }

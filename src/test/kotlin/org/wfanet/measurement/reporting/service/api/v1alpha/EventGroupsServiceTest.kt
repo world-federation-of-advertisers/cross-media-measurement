@@ -98,7 +98,7 @@ private val CMMS_EVENT_GROUP_ID = "AAAAAAAAAHs"
 private val CMMS_EVENT_GROUP = cmmsEventGroup {
   name = "$DATA_PROVIDER_NAME/eventGroups/$CMMS_EVENT_GROUP_ID"
   measurementConsumer = MEASUREMENT_CONSUMER_NAME
-  eventGroupReferenceId = "id1"
+  eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
   measurementConsumerPublicKey = signedData { data = ENCRYPTION_PUBLIC_KEY.toByteString() }
   encryptedMetadata =
     encryptMetadata(
@@ -138,7 +138,7 @@ private val EVENT_GROUP = eventGroup {
       )
       .toName()
   dataProvider = DATA_PROVIDER_NAME
-  eventGroupReferenceId = "id1"
+  eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
   metadata = metadata {
     eventGroupMetadataDescriptor = METADATA_NAME
     metadata = Any.pack(TEST_MESSAGE)
@@ -148,6 +148,9 @@ private const val PAGE_TOKEN = "base64encodedtoken"
 private const val NEXT_PAGE_TOKEN = "base64encodedtoken2"
 private const val DATA_PROVIDER_REFERENCE_ID = "123"
 private const val DATA_PROVIDER_NAME = "dataProviders/$DATA_PROVIDER_REFERENCE_ID"
+private const val EVENT_GROUP_REFERENCE_ID = "edpRefId1"
+private const val EVENT_GROUP_PARENT =
+  "measurementConsumers/$MEASUREMENT_CONSUMER_REFERENCE_ID/dataProviders/$DATA_PROVIDER_REFERENCE_ID"
 private const val METADATA_NAME = "$DATA_PROVIDER_NAME/eventGroupMetadataDescriptors/abc"
 private val EVENT_GROUP_METADATA_DESCRIPTOR = eventGroupMetadataDescriptor {
   name = METADATA_NAME
@@ -196,7 +199,7 @@ class EventGroupsServiceTest {
         runBlocking {
           eventGroupsService.listEventGroups(
             listEventGroupsRequest {
-              parent = DATA_PROVIDER_NAME
+              parent = EVENT_GROUP_PARENT
               pageSize = 10
               pageToken = PAGE_TOKEN
             }
@@ -258,7 +261,7 @@ class EventGroupsServiceTest {
         runBlocking {
           eventGroupsService.listEventGroups(
             listEventGroupsRequest {
-              parent = DATA_PROVIDER_NAME
+              parent = EVENT_GROUP_PARENT
               filter = "age.value > 10"
               pageToken = PAGE_TOKEN
             }
@@ -335,7 +338,7 @@ class EventGroupsServiceTest {
           runBlocking {
             eventGroupsService.listEventGroups(
               listEventGroupsRequest {
-                parent = DATA_PROVIDER_NAME
+                parent = EVENT_GROUP_PARENT
                 filter = "age.value > 10"
               }
             )
@@ -376,6 +379,7 @@ class EventGroupsServiceTest {
         EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
         ENCRYPTION_KEY_PAIR_STORE
       )
+
     val result =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
@@ -384,6 +388,32 @@ class EventGroupsServiceTest {
               listEventGroupsRequest {
                 parent = DATA_PROVIDER_NAME
                 filter = "age.value > 10"
+              }
+            )
+          }
+        }
+      }
+
+    assertThat(result.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `listEventGroups throws FAILED_PRECONDITION if parent not found`() {
+    val eventGroupsService =
+      EventGroupsService(
+        EventGroupsCoroutineStub(grpcTestServerRule.channel),
+        EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
+        ENCRYPTION_KEY_PAIR_STORE
+      )
+    val result =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+          runBlocking {
+            eventGroupsService.listEventGroups(
+              listEventGroupsRequest {
+                filter = "age.value > 10"
+                pageToken = PAGE_TOKEN
+                ENCRYPTION_KEY_PAIR_STORE
               }
             )
           }

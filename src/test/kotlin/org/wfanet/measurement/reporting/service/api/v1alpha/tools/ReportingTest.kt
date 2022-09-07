@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.reporting.service.api.v1alpha.tools
 
+import com.google.common.truth.Truth.assertThat
 import io.grpc.Server
 import io.grpc.ServerServiceDefinition
 import io.grpc.netty.NettyServerBuilder
@@ -34,10 +35,14 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.grpc.toServerTlsContext
+import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.common.testing.CommandLineTesting
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.reporting.v1alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
+import org.wfanet.measurement.reporting.v1alpha.ListEventGroupsResponse
+import org.wfanet.measurement.reporting.v1alpha.ListReportingSetsResponse
 import org.wfanet.measurement.reporting.v1alpha.Metric
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.SetOperationKt.operand
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.namedSetOperation
@@ -46,6 +51,7 @@ import org.wfanet.measurement.reporting.v1alpha.MetricKt.setOperation
 import org.wfanet.measurement.reporting.v1alpha.Report
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.EventGroupUniverseKt.eventGroupEntry
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.eventGroupUniverse
+import org.wfanet.measurement.reporting.v1alpha.ReportingSet
 import org.wfanet.measurement.reporting.v1alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.reporting.v1alpha.ReportsGrpcKt.ReportsCoroutineImplBase
 import org.wfanet.measurement.reporting.v1alpha.createReportRequest
@@ -64,7 +70,6 @@ import org.wfanet.measurement.reporting.v1alpha.report
 import org.wfanet.measurement.reporting.v1alpha.reportingSet
 import org.wfanet.measurement.reporting.v1alpha.timeInterval
 import org.wfanet.measurement.reporting.v1alpha.timeIntervals
-import picocli.CommandLine
 
 private const val HOST = "localhost"
 private val SECRETS_DIR: Path =
@@ -207,6 +212,12 @@ class ReportingTest {
     server.awaitTermination(1, SECONDS)
   }
 
+  private fun callCli(args: Array<String>): String {
+    return CommandLineTesting.capturingSystemOut {
+      CommandLineTesting.assertExitsWith(0) { Reporting.main(args) }
+    }
+  }
+
   @Test
   fun `reporting_sets create calls api with valid request`() {
     val args =
@@ -225,7 +236,7 @@ class ReportingTest {
         "--display-name=test-reporting-set",
       )
 
-    CommandLine(Reporting()).execute(*args)
+    val output = callCli(args)
 
     verifyProtoArgument(
         reportingSetsServiceMock,
@@ -241,6 +252,8 @@ class ReportingTest {
           }
         }
       )
+    assertThat(parseTextProto(output.reader(), ReportingSet.getDefaultInstance()))
+      .isEqualTo(REPORTING_SET)
   }
 
   @Test
@@ -256,7 +269,8 @@ class ReportingTest {
         "--parent=$MEASUREMENT_CONSUMER_NAME",
         "--page-size=50",
       )
-    CommandLine(Reporting()).execute(*args)
+
+    val output = callCli(args)
 
     verifyProtoArgument(reportingSetsServiceMock, ReportingSetsCoroutineImplBase::listReportingSets)
       .isEqualTo(
@@ -265,6 +279,8 @@ class ReportingTest {
           pageSize = 50
         }
       )
+    assertThat(parseTextProto(output.reader(), ListReportingSetsResponse.getDefaultInstance()))
+      .isEqualTo(LIST_REPORTING_SETS_RESPONSE)
   }
 
   @Test
@@ -285,7 +301,6 @@ class ReportingTest {
       }
     }
     """.trimIndent()
-
     val args =
       arrayOf(
         "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
@@ -304,7 +319,8 @@ class ReportingTest {
         "--periodic-interval-count=3",
         "--metric=$metric",
       )
-    CommandLine(Reporting()).execute(*args)
+
+    val output = callCli(args)
 
     verifyProtoArgument(reportsServiceMock, ReportsCoroutineImplBase::createReport)
       .isEqualTo(
@@ -338,6 +354,7 @@ class ReportingTest {
           }
         }
       )
+    assertThat(parseTextProto(output.reader(), Report.getDefaultInstance())).isEqualTo(REPORT)
   }
 
   @Test
@@ -376,7 +393,7 @@ class ReportingTest {
         "--interval-end-time=2022-06-13T11:57:54.21Z",
         "--metric=$textFormatMetric",
       )
-    CommandLine(Reporting()).execute(*args)
+    val output = callCli(args)
 
     verifyProtoArgument(reportsServiceMock, ReportsCoroutineImplBase::createReport)
       .comparingExpectedFieldsOnly()
@@ -396,6 +413,7 @@ class ReportingTest {
           }
         }
       )
+    assertThat(parseTextProto(output.reader(), Report.getDefaultInstance())).isEqualTo(REPORT)
   }
 
   @Test
@@ -418,7 +436,7 @@ class ReportingTest {
         "--periodic-interval-count=3",
         "--metric=$textFormatMetric",
       )
-    CommandLine(Reporting()).execute(*args)
+    val output = callCli(args)
 
     verifyProtoArgument(reportsServiceMock, ReportsCoroutineImplBase::createReport)
       .comparingExpectedFieldsOnly()
@@ -454,6 +472,7 @@ class ReportingTest {
           }
         }
       )
+    assertThat(parseTextProto(output.reader(), Report.getDefaultInstance())).isEqualTo(REPORT)
   }
 
   @Test
@@ -468,7 +487,7 @@ class ReportingTest {
         "list",
         "--parent=$MEASUREMENT_CONSUMER_NAME",
       )
-    CommandLine(Reporting()).execute(*args)
+    callCli(args)
 
     verifyProtoArgument(reportsServiceMock, ReportsCoroutineImplBase::listReports)
       .isEqualTo(
@@ -491,10 +510,11 @@ class ReportingTest {
         "get",
         REPORT_NAME,
       )
-    CommandLine(Reporting()).execute(*args)
+    val output = callCli(args)
 
     verifyProtoArgument(reportsServiceMock, ReportsCoroutineImplBase::getReport)
       .isEqualTo(getReportRequest { name = REPORT_NAME })
+    assertThat(parseTextProto(output.reader(), Report.getDefaultInstance())).isEqualTo(REPORT)
   }
 
   @Test
@@ -510,7 +530,7 @@ class ReportingTest {
         "--parent=$DATA_PROVIDER_NAME",
         "--filter=abcd",
       )
-    CommandLine(Reporting()).execute(*args)
+    val output = callCli(args)
 
     verifyProtoArgument(eventGroupsServiceMock, EventGroupsCoroutineImplBase::listEventGroups)
       .isEqualTo(
@@ -520,5 +540,7 @@ class ReportingTest {
           pageSize = 1000
         }
       )
+    assertThat(parseTextProto(output.reader(), ListEventGroupsResponse.getDefaultInstance()))
+      .isEqualTo(LIST_EVENT_GROUPS_RESPONSE)
   }
 }
