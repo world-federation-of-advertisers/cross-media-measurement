@@ -17,7 +17,7 @@ package k8s
 _secret_name: string @tag("secret_name")
 
 #DataServerResourceRequirements: #ResourceRequirements & {
-	limits: memory: "512Mi"
+	limits: memory: "1524Mi"
 }
 
 objectSets: [ for objectSet in kingdom {objectSet}]
@@ -37,10 +37,7 @@ kingdom: #Kingdom & {
 
 	deployments: {
 		"gcp-kingdom-data-server": {
-			_container: {
-				_javaOptions: maxRamPercentage: 40.0
-				resources: #DataServerResourceRequirements
-			}
+			_container: resources: #DataServerResourceRequirements
 		}
 	}
 }

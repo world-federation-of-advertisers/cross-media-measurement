@@ -28,11 +28,7 @@ _secret_name: string @tag("secret_name")
 #Worker1PublicApiTarget: (#Target & {name: "worker1-requisition-fulfillment-server"}).target
 
 #EdpSimulatorsResourceRequirements: #ResourceRequirements & {
-	requests: cpu: "300m"
-	limits: {
-		cpu:    "400m"
-		memory: "4Gi"
-	}
+	limits: memory: "3700Mi"
 }
 
 objectSets: [ for simulator in edpSimulators {simulator}]
@@ -64,7 +60,7 @@ edpSimulators: {
 			deployment: {
 				_container:
 				{
-					_javaOptions: maxRamPercentage: 50.0
+					_javaOptions: maxRamPercentage: 30.0
 					resources: #EdpSimulatorsResourceRequirements
 				}
 			}

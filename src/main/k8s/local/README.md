@@ -25,7 +25,7 @@ environment. See [Building](../../../../docs/building.md).
 ### Set Default Resource Requirements
 
 ```shell
-kubectl apply -f src/main/k8s/testing/secretfiles/resource_requirements.yaml
+kubectl apply -f src/main/k8s/testing/secretfiles/resource_requirements_kind.yaml
 ```
 
 ### Create Secret
