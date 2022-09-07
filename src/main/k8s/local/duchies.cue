@@ -25,7 +25,7 @@ _worker2_cert_name:    string @tag("worker2_cert_name")
 	limits: memory: "4Gi"
 }
 #SpannerComputationsResourceRequirements: #ResourceRequirements & {
-	limits: memory: "384Mi"
+	limits: memory: "1024Mi"
 }
 #DuchyConfig: {
 	let duchyName = name
