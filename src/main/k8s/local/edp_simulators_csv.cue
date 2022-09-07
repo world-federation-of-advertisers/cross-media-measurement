@@ -14,55 +14,42 @@
 
 package k8s
 
-_mc_name:     string @tag("mc_name")
-_edp1_name:   string @tag("edp1_name")
-_edp2_name:   string @tag("edp2_name")
-_edp3_name:   string @tag("edp3_name")
-_edp4_name:   string @tag("edp4_name")
-_edp5_name:   string @tag("edp5_name")
-_edp6_name:   string @tag("edp6_name")
+_mc_name:   string @tag("mc_name")
+_edp1_name: string @tag("edp1_name")
+_edp2_name: string @tag("edp2_name")
+_edp3_name: string @tag("edp3_name")
+_edp4_name: string @tag("edp4_name")
+_edp5_name: string @tag("edp5_name")
+_edp6_name: string @tag("edp6_name")
+_edpResourceNames: [_edp1_name, _edp2_name, _edp3_name, _edp4_name, _edp5_name, _edp6_name]
 _secret_name: string @tag("secret_name")
 
 #KingdomPublicApiTarget: (#Target & {name: "v2alpha-public-api-server"}).target
 #Worker1PublicApiTarget: (#Target & {name: "worker1-requisition-fulfillment-server"}).target
 
+#EdpSimulatorsResourceRequirements: #ResourceRequirements & {
+	requests: cpu: "300m"
+	limits: {
+		cpu:    "400m"
+		memory: "4Gi"
+	}
+}
+
 objectSets: [ for simulator in edpSimulators {simulator}]
 
-#DataProvider: {
-	displayName:  string
-	resourceName: string
-}
-_dataProviders: [Name=_]: #DataProvider & {
-	displayName: Name
-}
-_dataProviders: {
-	"edp1": {
-		resourceName: _edp1_name
-	}
-	"edp2": {
-		resourceName: _edp2_name
-	}
-	"edp3": {
-		resourceName: _edp3_name
-	}
-	"edp4": {
-		resourceName: _edp4_name
-	}
-	"edp5": {
-		resourceName: _edp5_name
-	}
-	"edp6": {
-		resourceName: _edp6_name
-	}
-}
+_edpConfigs: [...#EdpConfig]
+_edpConfigs: [
+	for i, name in _edpResourceNames {
+		let EdpNum = i + 1
+		resourceName: name
+		displayName:  "edp\(EdpNum)"
+	},
+]
 
 edpSimulators: {
-	for dataProvider in _dataProviders {
-		"\(dataProvider.displayName)": #EdpSimulator & {
-			_edp: {
-				display_name:  dataProvider.displayName
-				resource_name: dataProvider.resourceName
-			}
+	for edpConfig in _edpConfigs {
+		"\(edpConfig.displayName)": #EdpSimulator & {
+			_edpConfig:                 edpConfig
 			_edp_secret_name:           _secret_name
 			_mc_resource_name:          _mc_name
 			_event_query_flag:          "csvEventQuery"
@@ -74,14 +61,12 @@ edpSimulators: {
 			]
 			_edp_simulator_image:         "bazel/src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:forwarded_storage_edp_simulator_runner_image"
 			_simulator_image_pull_policy: "Never"
-			_resourceConfig:              #DefaultResourceConfig & {
-				resources: {
-					limits: {
-						cpu:    cpu | *"400m"
-						memory: "1Gi"
-					}
+			deployment: {
+				_container:
+				{
+					_javaOptions: maxRamPercentage: 50.0
+					resources: #EdpSimulatorsResourceRequirements
 				}
-				jvmHeapSize: "584m"
 			}
 		}
 	}
