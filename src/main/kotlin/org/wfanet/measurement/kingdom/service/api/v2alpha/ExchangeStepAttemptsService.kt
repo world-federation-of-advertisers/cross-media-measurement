@@ -15,7 +15,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
-import io.grpc.StatusRuntimeException
+import io.grpc.StatusException
 import java.time.LocalDate
 import org.wfanet.measurement.api.v2alpha.AppendLogEntryRequest
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
@@ -124,9 +124,9 @@ class ExchangeStepAttemptsService(
     val response =
       try {
         internalExchangeStepAttempts.finishExchangeStepAttempt(internalRequest)
-      } catch (ex: StatusRuntimeException) {
-        when (ex.status) {
-          Status.INVALID_ARGUMENT ->
+      } catch (ex: StatusException) {
+        when (ex.status.code) {
+          Status.Code.INVALID_ARGUMENT ->
             failGrpc(Status.INVALID_ARGUMENT, ex) { "Date must be provided in the request." }
           else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
         }

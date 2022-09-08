@@ -15,7 +15,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
-import io.grpc.StatusRuntimeException
+import io.grpc.StatusException
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.Version
@@ -142,9 +142,9 @@ class RequisitionsService(
     val results: List<InternalRequisition> =
       try {
         internalRequisitionStub.streamRequisitions(streamRequest).toList()
-      } catch (ex: StatusRuntimeException) {
-        when (ex.status) {
-          Status.INVALID_ARGUMENT ->
+      } catch (ex: StatusException) {
+        when (ex.status.code) {
+          Status.Code.INVALID_ARGUMENT ->
             failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid." }
           else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
         }
@@ -210,12 +210,12 @@ class RequisitionsService(
     val result =
       try {
         internalRequisitionStub.refuseRequisition(refuseRequest)
-      } catch (ex: StatusRuntimeException) {
-        when (ex.status) {
-          Status.INVALID_ARGUMENT ->
+      } catch (ex: StatusException) {
+        when (ex.status.code) {
+          Status.Code.INVALID_ARGUMENT ->
             failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid." }
-          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Requisition not found." }
-          Status.FAILED_PRECONDITION ->
+          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Requisition not found." }
+          Status.Code.FAILED_PRECONDITION ->
             failGrpc(Status.FAILED_PRECONDITION, ex) { "Requisition or Measurement state illegal." }
           else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
         }
@@ -254,12 +254,12 @@ class RequisitionsService(
     }
     try {
       internalRequisitionStub.fulfillRequisition(fulfillRequest)
-    } catch (ex: StatusRuntimeException) {
-      when (ex.status) {
-        Status.INVALID_ARGUMENT ->
+    } catch (ex: StatusException) {
+      when (ex.status.code) {
+        Status.Code.INVALID_ARGUMENT ->
           failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid." }
-        Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Requisition not found." }
-        Status.FAILED_PRECONDITION ->
+        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Requisition not found." }
+        Status.Code.FAILED_PRECONDITION ->
           failGrpc(Status.FAILED_PRECONDITION, ex) {
             "Requisition or Measurement state illegal, or Duchy not found."
           }
