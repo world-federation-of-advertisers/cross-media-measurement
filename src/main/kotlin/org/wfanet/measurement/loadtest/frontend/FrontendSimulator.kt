@@ -161,8 +161,8 @@ class FrontendSimulator(
   }
 
   /**
-   * A sequence of operations done in the simulator involving a reach and frequency measurement
-   * with invalid params.
+   * A sequence of operations done in the simulator involving a reach and frequency measurement with
+   * invalid params.
    */
   suspend fun executeInvalidReachAndFrequency(runId: String) {
     // Create a new measurement on behalf of the measurement consumer.

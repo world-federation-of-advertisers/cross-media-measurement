@@ -78,7 +78,7 @@ class FailComputationParticipant(private val request: FailComputationParticipant
       Measurement.State.PENDING_REQUISITION_FULFILLMENT,
       Measurement.State.PENDING_PARTICIPANT_CONFIRMATION,
       Measurement.State.PENDING_COMPUTATION,
-      Measurement.State.FAILED,-> {}
+      Measurement.State.FAILED, -> {}
       Measurement.State.SUCCEEDED,
       Measurement.State.CANCELLED,
       Measurement.State.STATE_UNSPECIFIED,

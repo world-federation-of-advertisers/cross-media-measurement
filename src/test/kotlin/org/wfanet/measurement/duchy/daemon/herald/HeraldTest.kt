@@ -70,7 +70,9 @@ import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.L
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.mpcNoise
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.system.v1alpha.ComputationKt.mpcProtocolConfig
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub as SystemComputationLogEntriesCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntry
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant as SystemComputationParticipant
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
@@ -78,9 +80,6 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.Compu
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineImplBase as SystemComputationsCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
-import kotlinx.coroutines.delay
-import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineImplBase
-import org.wfanet.measurement.system.v1alpha.ComputationLogEntry
 import org.wfanet.measurement.system.v1alpha.FailComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.Requisition
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
@@ -196,10 +195,11 @@ class HeraldTest {
         .thenReturn(FAIL_COMPUTATION_PARTICIPANT_RESPONSE)
     }
 
-  private val computationLogEntries: ComputationLogEntriesCoroutineImplBase = mockService() {
-    onBlocking { createComputationLogEntry(any()) }
-      .thenReturn(ComputationLogEntry.getDefaultInstance())
-  }
+  private val computationLogEntries: ComputationLogEntriesCoroutineImplBase =
+    mockService() {
+      onBlocking { createComputationLogEntry(any()) }
+        .thenReturn(ComputationLogEntry.getDefaultInstance())
+    }
 
   private val fakeComputationStorage = FakeComputationsDatabase()
 
