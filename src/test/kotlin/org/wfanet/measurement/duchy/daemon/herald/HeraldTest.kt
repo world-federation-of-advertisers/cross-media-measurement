@@ -672,7 +672,7 @@ class HeraldTest {
   }
 
   @Test
-  fun `syncStatuses fails computation for attempts-axhausted error`() = runTest {
+  fun `syncStatuses fails computation for attempts-exhausted error`() = runTest {
     // Set up a new herald with mock services to raise certain exception
     val internalComputationsService: DuchyComputationsCoroutineImplBase = mockService {
       onBlocking { createComputation(any()) }.thenThrow(Status.UNKNOWN.asRuntimeException())
