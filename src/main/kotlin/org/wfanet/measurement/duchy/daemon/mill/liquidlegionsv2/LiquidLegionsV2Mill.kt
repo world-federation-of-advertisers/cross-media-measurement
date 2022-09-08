@@ -17,6 +17,7 @@ package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2
 import com.google.protobuf.ByteString
 import java.nio.file.Paths
 import java.time.Clock
+import kotlin.math.min
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -425,7 +426,7 @@ class LiquidLegionsV2Mill(
           dataClients
             .readAllRequisitionBlobs(token, duchyId)
             .concat(readAndCombineAllInputBlobs(token, workerStubs.size))
-            .toCompleteSetupPhaseRequest(llv2Details, token.requisitionsCount)
+            .toCompleteSetupPhaseRequest(token, llv2Details, token.requisitionsCount)
         val cryptoResult: CompleteSetupPhaseResponse = cryptoWorker.completeSetupPhase(request)
         logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
         cryptoResult.combinedRegisterVector
@@ -456,7 +457,7 @@ class LiquidLegionsV2Mill(
         val request =
           dataClients
             .readAllRequisitionBlobs(token, duchyId)
-            .toCompleteSetupPhaseRequest(llv2Details, token.requisitionsCount)
+            .toCompleteSetupPhaseRequest(token, llv2Details, token.requisitionsCount)
         val cryptoResult: CompleteSetupPhaseResponse = cryptoWorker.completeSetupPhase(request)
         logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
         cryptoResult.combinedRegisterVector
@@ -495,8 +496,11 @@ class LiquidLegionsV2Mill(
             combinedRegisterVector = readAndCombineAllInputBlobs(token, 1)
             totalSketchesCount = token.requisitionsCount
           }
-        if (llv2Parameters.noise.hasFrequencyNoiseConfig()) {
-          requestBuilder.noiseParameters = getFrequencyNoiseParams(llv2Parameters)
+        if (
+          llv2Parameters.noise.hasFrequencyNoiseConfig() &&
+            (getMaximumRequestedFrequency(token) > 1)
+        ) {
+          requestBuilder.noiseParameters = getFrequencyNoiseParams(token, llv2Parameters)
         }
         val cryptoResult: CompleteExecutionPhaseOneAtAggregatorResponse =
           cryptoWorker.completeExecutionPhaseOneAtAggregator(requestBuilder.build())
@@ -571,6 +575,7 @@ class LiquidLegionsV2Mill(
       "invalid role for this function."
     }
     var reach = 0L
+    val maximumRequestedFrequency = getMaximumRequestedFrequency(token)
     val (bytes, tempToken) =
       existingOutputOr(token) {
         when (Version.fromString(token.computationDetails.kingdomComputation.publicApiVersion)) {
@@ -585,7 +590,7 @@ class LiquidLegionsV2Mill(
             compositeElGamalPublicKey = llv2Details.combinedPublicKey
             curveId = llv2Parameters.ellipticCurveId.toLong()
             flagCountTuples = readAndCombineAllInputBlobs(token, 1)
-            maximumFrequency = llv2Parameters.maximumFrequency
+            maximumFrequency = maximumRequestedFrequency
             liquidLegionsParametersBuilder.apply {
               decayRate = llv2Parameters.liquidLegionsSketch.decayRate
               size = llv2Parameters.liquidLegionsSketch.size
@@ -599,10 +604,10 @@ class LiquidLegionsV2Mill(
             globalReachDpNoise = noiseConfig.reachNoiseConfig.globalReachDpNoise
           }
         }
-        if (noiseConfig.hasFrequencyNoiseConfig()) {
+        if (noiseConfig.hasFrequencyNoiseConfig() && (maximumRequestedFrequency > 1)) {
           requestBuilder.frequencyNoiseParametersBuilder.apply {
             contributorsCount = workerStubs.size + 1
-            maximumFrequency = llv2Parameters.maximumFrequency
+            maximumFrequency = maximumRequestedFrequency
             dpParams = noiseConfig.frequencyNoiseConfig
           }
         }
@@ -636,6 +641,12 @@ class LiquidLegionsV2Mill(
           .token
       }
 
+    // If this is a reach-only computation, then our job is done.
+    if (maximumRequestedFrequency == 1) {
+      sendResultToKingdom(token, reach, mapOf(1L to 1.0))
+      return completeComputation(nextToken, CompletedReason.SUCCEEDED)
+    }
+
     // Passes the computation to the next duchy.
     sendAdvanceComputationRequest(
       header =
@@ -660,6 +671,7 @@ class LiquidLegionsV2Mill(
     val llv2Details = token.computationDetails.liquidLegionsV2
     val llv2Parameters = llv2Details.parameters
     require(NON_AGGREGATOR == llv2Details.role) { "invalid role for this function." }
+    val maximumRequestedFrequency = getMaximumRequestedFrequency(token)
     val (bytes, nextToken) =
       existingOutputOr(token) {
         val requestBuilder =
@@ -672,7 +684,9 @@ class LiquidLegionsV2Mill(
         if (llv2Parameters.noise.hasFrequencyNoiseConfig()) {
           requestBuilder.apply {
             partialCompositeElGamalPublicKey = llv2Details.partiallyCombinedPublicKey
-            noiseParameters = getFrequencyNoiseParams(llv2Parameters)
+            if (maximumRequestedFrequency > 1) {
+              noiseParameters = getFrequencyNoiseParams(token, llv2Parameters)
+            }
           }
         }
 
@@ -693,48 +707,24 @@ class LiquidLegionsV2Mill(
       stub = nextDuchyStub(llv2Details.participantList)
     )
 
-    return dataClients.transitionComputationToStage(
-      nextToken,
-      inputsToNextStage = nextToken.outputPathList(),
-      stage = Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS.toProtocolStage()
-    )
+    if (maximumRequestedFrequency == 1) {
+      // If this is a reach-only computation, then our job is done.
+      return completeComputation(nextToken, CompletedReason.SUCCEEDED)
+    } else {
+      return dataClients.transitionComputationToStage(
+        nextToken,
+        inputsToNextStage = nextToken.outputPathList(),
+        stage = Stage.WAIT_EXECUTION_PHASE_THREE_INPUTS.toProtocolStage()
+      )
+    }
   }
 
-  private suspend fun completeExecutionPhaseThreeAtAggregator(
-    token: ComputationToken
-  ): ComputationToken {
-    val llv2Details = token.computationDetails.liquidLegionsV2
-    val llv2Parameters = llv2Details.parameters
-    require(AGGREGATOR == llv2Details.role) { "invalid role for this function." }
-    require(llv2Details.hasReachEstimate()) { "Reach estimate is missing." }
-    val (bytes, nextToken) =
-      existingOutputOr(token) {
-        val requestBuilder =
-          CompleteExecutionPhaseThreeAtAggregatorRequest.newBuilder().apply {
-            localElGamalKeyPair = llv2Details.localElgamalKey
-            curveId = llv2Parameters.ellipticCurveId.toLong()
-            sameKeyAggregatorMatrix = readAndCombineAllInputBlobs(token, 1)
-            maximumFrequency = llv2Parameters.maximumFrequency
-          }
-        if (llv2Parameters.noise.hasFrequencyNoiseConfig()) {
-          requestBuilder.globalFrequencyDpNoisePerBucketBuilder.apply {
-            contributorsCount = workerStubs.size + 1
-            dpParams = llv2Parameters.noise.frequencyNoiseConfig
-          }
-        }
-        val cryptoResult: CompleteExecutionPhaseThreeAtAggregatorResponse =
-          cryptoWorker.completeExecutionPhaseThreeAtAggregator(requestBuilder.build())
-        logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
-        cryptoResult.toByteString()
-      }
-
-    val frequencyDistributionMap =
-      CompleteExecutionPhaseThreeAtAggregatorResponse.parseFrom(bytes.flatten())
-        .frequencyDistributionMap
-
-    val reachAndFrequency =
-      ReachAndFrequency(llv2Details.reachEstimate.reach, frequencyDistributionMap)
-
+  private suspend fun sendResultToKingdom(
+    token: ComputationToken,
+    reach: Long,
+    frequency: Map<Long, Double>
+  ) {
+    val reachAndFrequency = ReachAndFrequency(reach, frequency)
     val kingdomComputation = token.computationDetails.kingdomComputation
     val serializedPublicApiEncryptionPublicKey: ByteString
     val encryptedResult =
@@ -754,7 +744,41 @@ class LiquidLegionsV2Mill(
       resultPublicKey = serializedPublicApiEncryptionPublicKey,
       encryptedResult = encryptedResult
     )
+  }
 
+  private suspend fun completeExecutionPhaseThreeAtAggregator(
+    token: ComputationToken
+  ): ComputationToken {
+    val llv2Details = token.computationDetails.liquidLegionsV2
+    val llv2Parameters = llv2Details.parameters
+    require(AGGREGATOR == llv2Details.role) { "invalid role for this function." }
+    require(llv2Details.hasReachEstimate()) { "Reach estimate is missing." }
+    val (bytes, nextToken) =
+      existingOutputOr(token) {
+        val requestBuilder =
+          CompleteExecutionPhaseThreeAtAggregatorRequest.newBuilder().apply {
+            localElGamalKeyPair = llv2Details.localElgamalKey
+            curveId = llv2Parameters.ellipticCurveId.toLong()
+            sameKeyAggregatorMatrix = readAndCombineAllInputBlobs(token, 1)
+            maximumFrequency = getMaximumRequestedFrequency(token)
+          }
+        if (llv2Parameters.noise.hasFrequencyNoiseConfig()) {
+          requestBuilder.globalFrequencyDpNoisePerBucketBuilder.apply {
+            contributorsCount = workerStubs.size + 1
+            dpParams = llv2Parameters.noise.frequencyNoiseConfig
+          }
+        }
+        val cryptoResult: CompleteExecutionPhaseThreeAtAggregatorResponse =
+          cryptoWorker.completeExecutionPhaseThreeAtAggregator(requestBuilder.build())
+        logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
+        cryptoResult.toByteString()
+      }
+
+    val frequencyDistributionMap =
+      CompleteExecutionPhaseThreeAtAggregatorResponse.parseFrom(bytes.flatten())
+        .frequencyDistributionMap
+
+    sendResultToKingdom(token, llv2Details.reachEstimate.reach, frequencyDistributionMap)
     return completeComputation(nextToken, CompletedReason.SUCCEEDED)
   }
 
@@ -816,11 +840,13 @@ class LiquidLegionsV2Mill(
   }
 
   private fun ByteString.toCompleteSetupPhaseRequest(
+    token: ComputationToken,
     llv2Details: LiquidLegionsSketchAggregationV2.ComputationDetails,
     totalRequisitionsCount: Int
   ): CompleteSetupPhaseRequest {
     val noiseConfig = llv2Details.parameters.noise
     val requestBuilder = CompleteSetupPhaseRequest.newBuilder().setCombinedRegisterVector(this)
+    requestBuilder.setMaximumFrequency(getMaximumRequestedFrequency(token))
     if (noiseConfig.hasReachNoiseConfig()) {
       requestBuilder.noiseParametersBuilder.apply {
         compositeElGamalPublicKey = llv2Details.combinedPublicKey
@@ -838,15 +864,28 @@ class LiquidLegionsV2Mill(
   }
 
   private fun getFrequencyNoiseParams(
+    token: ComputationToken,
     llv2Parameters: Parameters
   ): FlagCountTupleNoiseGenerationParameters {
     return FlagCountTupleNoiseGenerationParameters.newBuilder()
       .apply {
-        maximumFrequency = llv2Parameters.maximumFrequency
+        maximumFrequency = getMaximumRequestedFrequency(token)
         contributorsCount = workerStubs.size + 1
         dpParams = llv2Parameters.noise.frequencyNoiseConfig
       }
       .build()
+  }
+
+  private fun getMaximumRequestedFrequency(token: ComputationToken): Int {
+    var maximumRequestedFrequency =
+      token.computationDetails.liquidLegionsV2.parameters.maximumFrequency
+    val measurementSpec =
+      MeasurementSpec.parseFrom(token.computationDetails.kingdomComputation.measurementSpec)
+    val measurementSpecMaximumFrequency = measurementSpec.reachAndFrequency.maximumFrequencyPerUser
+    if (measurementSpecMaximumFrequency > 0) {
+      maximumRequestedFrequency = min(maximumRequestedFrequency, measurementSpecMaximumFrequency)
+    }
+    return maximumRequestedFrequency
   }
 
   companion object {
