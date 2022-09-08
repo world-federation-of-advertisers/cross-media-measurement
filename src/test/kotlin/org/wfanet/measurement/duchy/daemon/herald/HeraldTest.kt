@@ -26,7 +26,6 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Rule
@@ -79,6 +78,9 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.Compu
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineImplBase as SystemComputationsCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
+import kotlinx.coroutines.delay
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineImplBase
+import org.wfanet.measurement.system.v1alpha.ComputationLogEntry
 import org.wfanet.measurement.system.v1alpha.FailComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.Requisition
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
@@ -194,6 +196,11 @@ class HeraldTest {
         .thenReturn(FAIL_COMPUTATION_PARTICIPANT_RESPONSE)
     }
 
+  private val computationLogEntries: ComputationLogEntriesCoroutineImplBase = mockService() {
+    onBlocking { createComputationLogEntry(any()) }
+      .thenReturn(ComputationLogEntry.getDefaultInstance())
+  }
+
   private val fakeComputationStorage = FakeComputationsDatabase()
 
   @get:Rule
@@ -208,6 +215,7 @@ class HeraldTest {
       )
     )
     addService(systemComputationParticipants)
+    addService(computationLogEntries)
   }
 
   private val internalComputationsStub: DuchyComputationsCoroutineStub by lazy {
@@ -542,7 +550,7 @@ class HeraldTest {
   }
 
   @Test
-  fun `syncStatuses starts computations with retries`() = runTest {
+  fun `syncStatuses starts computations with retries`() = runBlocking {
     val computation =
       buildComputationAtKingdom(COMPUTATION_GLOBAL_ID, Computation.State.PENDING_COMPUTATION)
     val streamActiveComputationsJob = Job()
@@ -571,7 +579,7 @@ class HeraldTest {
 
     // Verify that after first attempt, computation is still in INITIALIZATION_PHASE.
     streamActiveComputationsJob.join()
-    runCurrent()
+
     assertThat(
         fakeComputationStorage.mapValues { (_, fakeComputation) ->
           fakeComputation.computationStage
@@ -590,7 +598,6 @@ class HeraldTest {
       computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
       blobs = listOf(newPassThroughBlobMetadata(0L, "local-copy-of-sketches"))
     )
-
     // Verify that next attempt succeeds.
     syncResult.await()
     val finalComputation =
@@ -661,7 +668,7 @@ class HeraldTest {
         ComputationParticipantKey(invalidComputation.key.computationId, NON_AGGREGATOR_DUCHY_ID)
           .toName()
       )
-    assertThat(failRequest.failure.errorMessage).contains("non-transient")
+    assertThat(failRequest.failure.errorMessage).contains("1 attempt(s)")
   }
 
   @Test
@@ -703,7 +710,7 @@ class HeraldTest {
       .isEqualTo(
         ComputationParticipantKey(computation.key.computationId, AGGREGATOR_DUCHY_ID).toName()
       )
-    assertThat(failRequest.failure.errorMessage).contains("exhausting attempts")
+    assertThat(failRequest.failure.errorMessage).contains("3 attempt(s)")
   }
 
   private fun mockStreamActiveComputationsToReturn(vararg computations: Computation) =

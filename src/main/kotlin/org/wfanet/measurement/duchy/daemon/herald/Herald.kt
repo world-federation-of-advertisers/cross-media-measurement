@@ -20,13 +20,15 @@ import java.time.Duration
 import java.util.logging.Logger
 import kotlin.math.pow
 import kotlin.random.Random
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.common.throttler.Throttler
-import org.wfanet.measurement.common.withRetriesOnEachWithErrorHandler
 import org.wfanet.measurement.duchy.daemon.utils.MeasurementType
 import org.wfanet.measurement.duchy.daemon.utils.key
 import org.wfanet.measurement.duchy.daemon.utils.toMeasurementType
@@ -41,7 +43,6 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
-import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
 import org.wfanet.measurement.system.v1alpha.failComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.streamActiveComputationsRequest
 
@@ -68,7 +69,7 @@ class Herald(
   private val protocolsSetupConfig: ProtocolsSetupConfig,
   private val clock: Clock,
   private val blobStorageBucket: String = "computation-blob-storage",
-  private val maxAttempts: Int = 10,
+  private val maxAttempts: Int = 5,
   private val retryBackoff: ExponentialBackoff = ExponentialBackoff(),
 ) {
   /**
@@ -103,8 +104,8 @@ class Herald(
    * @return the continuation token of the last computation processed in that stream of active
    * computations from the system computation service.
    */
-  suspend fun syncStatuses(continuationToken: String): String {
-    logger.info("Reading stream of active computations since $continuationToken.")
+  suspend fun syncStatuses(continuationToken: String): String = coroutineScope {
+    logger.info("Reading stream of active computations since \"$continuationToken\".")
 
     val streamRequest = streamActiveComputationsRequest {
       this.continuationToken = continuationToken
@@ -112,56 +113,49 @@ class Herald(
     var lastProcessedContinuationToken = continuationToken
     systemComputationsClient
       .streamActiveComputations(streamRequest)
-      .withRetriesOnEachWithErrorHandler(maxAttempts = 3, errorHandlingBlock = ::handleException) {
-        response ->
+      .onEach { response ->
+        launch { processSystemComputationWithoutExceptions(response.computation, 3) }
         lastProcessedContinuationToken = response.continuationToken
-        processSystemComputationChange(response)
       }
       .collect()
 
-    return lastProcessedContinuationToken
+    return@coroutineScope lastProcessedContinuationToken
   }
 
-  /**
-   * Return true for keeping retry or false for cancellation. Fail computation at Kingdom and duchy
-   * after cancellation.
-   */
-  private suspend fun handleException(
-    response: StreamActiveComputationsResponse,
-    ex: Throwable,
-    attemptsExhausted: Boolean
-  ): Boolean {
-    logger.warning("Exception caught by herald. $ex")
-    return if (!mayBeTransientGrpcError(ex)) {
-      failComputationAtKingdom(
-        response.computation,
-        "Herald failed by non-transient error. ${ex.message}"
-      )
-      failComputationAtDuchy(response.computation)
-      false
-    } else if (attemptsExhausted) {
-      failComputationAtKingdom(
-        response.computation,
-        "Herald failed by exhausting attempts. ${ex.message}"
-      )
-      failComputationAtDuchy(response.computation)
-      false
-    } else {
-      true
+  private suspend fun processSystemComputationWithoutExceptions(
+    computation: Computation,
+    maxAttempts: Int = 10
+  ) {
+    var attemptNumber = 0
+    while (true) {
+      attemptNumber++
+      try {
+        processSystemComputationChange(computation)
+        return
+      } catch (ex: Throwable) {
+        if (!mayBeTransientGrpcError(ex) || attemptNumber >= maxAttempts) {
+          failComputationAtKingdom(
+            computation,
+            "Herald failed after $attemptNumber attempt(s). ${ex.message}"
+          )
+          failComputationAtDuchy(computation)
+          return
+        }
+      }
     }
   }
 
-  private suspend fun processSystemComputationChange(response: StreamActiveComputationsResponse) {
-    require(response.computation.name.isNotEmpty()) { "Resource name not specified" }
-    val globalId: String = response.computation.key.computationId
+  private suspend fun processSystemComputationChange(computation: Computation) {
+    require(computation.name.isNotEmpty()) { "Resource name not specified" }
+    val globalId: String = computation.key.computationId
     logger.info("[id=$globalId]: Processing updated GlobalComputation")
-    when (val state = response.computation.state) {
+    when (val state = computation.state) {
       // Creates a new computation if it is not already present in the database.
-      State.PENDING_REQUISITION_PARAMS -> create(response.computation)
+      State.PENDING_REQUISITION_PARAMS -> create(computation)
       // Updates a computation for duchy confirmation.
-      State.PENDING_PARTICIPANT_CONFIRMATION -> update(response.computation)
+      State.PENDING_PARTICIPANT_CONFIRMATION -> update(computation)
       // Starts a computation locally.
-      State.PENDING_COMPUTATION -> start(response.computation)
+      State.PENDING_COMPUTATION -> start(computation)
       else -> logger.warning("Unexpected global computation state '$state'")
     }
   }
@@ -274,7 +268,11 @@ class Herald(
           errorTime = clock.protoTimestamp()
         }
     }
-    systemComputationParticipantClient.failComputationParticipant(request)
+    try {
+      systemComputationParticipantClient.failComputationParticipant(request)
+    } catch (ex: Throwable) {
+      logger.warning("[id=$globalId]: Error when failComputationAtKingdom.")
+    }
   }
 
   /** Call finishComputation to fail local Computation. */
@@ -296,7 +294,11 @@ class Herald(
         }
       reason = ComputationDetails.CompletedReason.FAILED
     }
-    internalComputationsClient.finishComputation(finishRequest)
+    try {
+      internalComputationsClient.finishComputation(finishRequest)
+    } catch (ex: Throwable) {
+      logger.warning("[id=$globalId]: Error when failComputationAtDuchy.")
+    }
   }
 
   companion object {

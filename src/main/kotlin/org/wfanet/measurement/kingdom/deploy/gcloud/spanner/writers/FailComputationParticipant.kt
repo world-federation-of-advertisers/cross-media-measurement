@@ -77,9 +77,9 @@ class FailComputationParticipant(private val request: FailComputationParticipant
       Measurement.State.PENDING_REQUISITION_PARAMS,
       Measurement.State.PENDING_REQUISITION_FULFILLMENT,
       Measurement.State.PENDING_PARTICIPANT_CONFIRMATION,
-      Measurement.State.PENDING_COMPUTATION, -> {}
+      Measurement.State.PENDING_COMPUTATION,
+      Measurement.State.FAILED,-> {}
       Measurement.State.SUCCEEDED,
-      Measurement.State.FAILED,
       Measurement.State.CANCELLED,
       Measurement.State.STATE_UNSPECIFIED,
       Measurement.State.UNRECOGNIZED, -> {
@@ -99,21 +99,22 @@ class FailComputationParticipant(private val request: FailComputationParticipant
       set("State" to NEXT_COMPUTATION_PARTICIPANT_STATE)
     }
 
-    val updatedMeasurementDetails =
-      measurementDetails.copy {
-        failure =
-          MeasurementKt.failure {
-            reason = Measurement.Failure.Reason.COMPUTATION_PARTICIPANT_FAILED
-            message = "Computation Participant failed. ${request.errorMessage}"
-          }
-      }
-
-    updateMeasurementState(
-      InternalId(measurementConsumerId),
-      InternalId(measurementId),
-      Measurement.State.FAILED,
-      updatedMeasurementDetails
-    )
+    if (measurementState != Measurement.State.FAILED) {
+      val updatedMeasurementDetails =
+        measurementDetails.copy {
+          failure =
+            MeasurementKt.failure {
+              reason = Measurement.Failure.Reason.COMPUTATION_PARTICIPANT_FAILED
+              message = "Computation Participant failed. ${request.errorMessage}"
+            }
+        }
+      updateMeasurementState(
+        InternalId(measurementConsumerId),
+        InternalId(measurementId),
+        Measurement.State.FAILED,
+        updatedMeasurementDetails
+      )
+    }
 
     return computationParticipant.copy { state = NEXT_COMPUTATION_PARTICIPANT_STATE }
   }

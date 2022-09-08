@@ -74,16 +74,19 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
     get() = kingdomDataServicesRule.value
 
   private val kingdom: InProcessKingdom =
-      InProcessKingdom(
-          dataServicesProvider = { kingdomDataServices }, verboseGrpcLogging = false, REDIRECT_URI)
+    InProcessKingdom(
+      dataServicesProvider = { kingdomDataServices },
+      verboseGrpcLogging = false,
+      REDIRECT_URI
+    )
 
   private val duchies: List<InProcessDuchy> by lazy {
     ALL_DUCHY_NAMES.map {
       InProcessDuchy(
-          externalDuchyId = it,
-          kingdomSystemApiChannel = kingdom.systemApiChannel,
-          duchyDependenciesProvider = { duchyDependenciesRule.value(it) },
-          verboseGrpcLogging = false,
+        externalDuchyId = it,
+        kingdomSystemApiChannel = kingdom.systemApiChannel,
+        duchyDependenciesProvider = { duchyDependenciesRule.value(it) },
+        verboseGrpcLogging = false,
       )
     }
   }
@@ -91,18 +94,23 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
   private val edpSimulators: List<InProcessEdpSimulator> by lazy {
     ALL_EDP_DISPLAY_NAMES.map {
       InProcessEdpSimulator(
-          displayName = it,
-          storageClient = storageClient,
-          kingdomPublicApiChannel = kingdom.publicApiChannel,
-          duchyPublicApiChannel = duchies[1].publicApiChannel,
-          eventTemplateNames = EVENT_TEMPLATES_TO_FILTERS_MAP.keys.toList())
+        displayName = it,
+        storageClient = storageClient,
+        kingdomPublicApiChannel = kingdom.publicApiChannel,
+        duchyPublicApiChannel = duchies[1].publicApiChannel,
+        eventTemplateNames = EVENT_TEMPLATES_TO_FILTERS_MAP.keys.toList()
+      )
     }
   }
 
   @get:Rule
   val ruleChain: TestRule by lazy {
     chainRulesSequentially(
-        kingdomDataServicesRule, kingdom, duchyDependenciesRule, *duchies.toTypedArray())
+      kingdomDataServicesRule,
+      kingdom,
+      duchyDependenciesRule,
+      *duchies.toTypedArray()
+    )
   }
 
   private val publicMeasurementsClient by lazy {
@@ -134,50 +142,55 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
 
   private suspend fun createAllResources() {
     val resourceSetup =
-        ResourceSetup(
-            internalAccountsClient = kingdom.internalAccountsClient,
-            internalDataProvidersClient = kingdom.internalDataProvidersClient,
-            accountsClient = publicAccountsClient,
-            apiKeysClient = publicApiKeysClient,
-            internalCertificatesClient = kingdom.internalCertificatesClient,
-            measurementConsumersClient = publicMeasurementConsumersClient,
-            runId = "12345")
+      ResourceSetup(
+        internalAccountsClient = kingdom.internalAccountsClient,
+        internalDataProvidersClient = kingdom.internalDataProvidersClient,
+        accountsClient = publicAccountsClient,
+        apiKeysClient = publicApiKeysClient,
+        internalCertificatesClient = kingdom.internalCertificatesClient,
+        measurementConsumersClient = publicMeasurementConsumersClient,
+        runId = "12345"
+      )
     // Create the MC.
     val (measurementConsumer, apiKey) =
-        resourceSetup.createMeasurementConsumer(
-            MC_ENTITY_CONTENT, resourceSetup.createAccountWithRetries())
+      resourceSetup.createMeasurementConsumer(
+        MC_ENTITY_CONTENT,
+        resourceSetup.createAccountWithRetries()
+      )
     mcResourceName = measurementConsumer.name
     apiAuthenticationKey = apiKey
     // Create all EDPs
     edpDisplayNameToResourceNameMap =
-        ALL_EDP_DISPLAY_NAMES.associateWith {
-          val edp = createEntityContent(it)
-          resourceSetup.createInternalDataProvider(edp)
-        }
+      ALL_EDP_DISPLAY_NAMES.associateWith {
+        val edp = createEntityContent(it)
+        resourceSetup.createInternalDataProvider(edp)
+      }
     // Create all duchy certificates.
     duchyCertMap =
-        ALL_DUCHY_NAMES.associateWith {
-          resourceSetup
-              .createDuchyCertificate(DuchyCert(it, loadTestCertDerFile("${it}_cs_cert.der")))
-              .name
-        }
+      ALL_DUCHY_NAMES.associateWith {
+        resourceSetup
+          .createDuchyCertificate(DuchyCert(it, loadTestCertDerFile("${it}_cs_cert.der")))
+          .name
+      }
 
     frontendSimulator =
-        FrontendSimulator(
-            MeasurementConsumerData(
-                mcResourceName,
-                MC_ENTITY_CONTENT.signingKey,
-                loadEncryptionPrivateKey("${MC_DISPLAY_NAME}_enc_private.tink"),
-                apiAuthenticationKey),
-            OUTPUT_DP_PARAMS,
-            publicDataProvidersClient,
-            publicEventGroupsClient,
-            publicMeasurementsClient,
-            publicRequisitionsClient,
-            publicMeasurementConsumersClient,
-            publicCertificatesClient,
-            SketchStore(storageClient),
-            EVENT_TEMPLATES_TO_FILTERS_MAP)
+      FrontendSimulator(
+        MeasurementConsumerData(
+          mcResourceName,
+          MC_ENTITY_CONTENT.signingKey,
+          loadEncryptionPrivateKey("${MC_DISPLAY_NAME}_enc_private.tink"),
+          apiAuthenticationKey
+        ),
+        OUTPUT_DP_PARAMS,
+        publicDataProvidersClient,
+        publicEventGroupsClient,
+        publicMeasurementsClient,
+        publicRequisitionsClient,
+        publicMeasurementConsumersClient,
+        publicCertificatesClient,
+        SketchStore(storageClient),
+        EVENT_TEMPLATES_TO_FILTERS_MAP
+      )
   }
 
   @Before
@@ -196,41 +209,39 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
 
   @Test
   fun `create a RF measurement and check the result is equal to the expected result`() =
-      runBlocking {
-        // Wait until all EDPs finish creating eventGroups before the test starts.
-        val eventGroupList = pollForEventGroups()
-        assertThat(eventGroupList).isNotNull()
+    runBlocking {
+      // Wait until all EDPs finish creating eventGroups before the test starts.
+      val eventGroupList = pollForEventGroups()
+      assertThat(eventGroupList).isNotNull()
 
-        // Use frontend simulator to create a reach and frequency measurement and verify its result.
-        frontendSimulator.executeReachAndFrequency("1234")
-      }
+      // Use frontend simulator to create a reach and frequency measurement and verify its result.
+      frontendSimulator.executeReachAndFrequency("1234")
+    }
 
   @Test
   fun `create a RF measurement of invalid params and check the result contains error info`() =
-      runBlocking {
-        // Wait until all EDPs finish creating eventGroups before the test starts.
-        val eventGroupList = pollForEventGroups()
-        assertThat(eventGroupList).isNotNull()
-        println("Event Group Ready.")
+    runBlocking {
+      // Wait until all EDPs finish creating eventGroups before the test starts.
+      val eventGroupList = pollForEventGroups()
+      assertThat(eventGroupList).isNotNull()
 
-        // Use frontend simulator to create an invalid reach and frequency measurement and verify
-        // its
-        // error info.
-        frontendSimulator.executeInvalidReachAndFrequency("1234")
-      }
+      // Use frontend simulator to create an invalid reach and frequency measurement and verify
+      // its error info.
+      frontendSimulator.executeInvalidReachAndFrequency("1234")
+    }
 
   private suspend fun pollForEventGroups() {
     pollFor(timeoutMillis = 10_000) {
       val eventGroups =
-          publicEventGroupsClient
-              .withAuthenticationKey(apiAuthenticationKey)
-              .listEventGroups(
-                  listEventGroupsRequest {
-                    parent = "dataProviders/-"
-                    filter =
-                        ListEventGroupsRequestKt.filter { measurementConsumers += mcResourceName }
-                  })
-              .eventGroupsList
+        publicEventGroupsClient
+          .withAuthenticationKey(apiAuthenticationKey)
+          .listEventGroups(
+            listEventGroupsRequest {
+              parent = "dataProviders/-"
+              filter = ListEventGroupsRequestKt.filter { measurementConsumers += mcResourceName }
+            }
+          )
+          .eventGroupsList
       if (eventGroups.size == ALL_EDP_DISPLAY_NAMES.size) eventGroups else null
     }
   }
@@ -243,8 +254,9 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
     fun initConfig() {
       DuchyIds.setForTest(ALL_DUCHY_NAMES)
       Llv2ProtocolConfig.setForTest(
-          LLV2_PROTOCOL_CONFIG_CONFIG.protocolConfig,
-          LLV2_PROTOCOL_CONFIG_CONFIG.duchyProtocolConfig)
+        LLV2_PROTOCOL_CONFIG_CONFIG.protocolConfig,
+        LLV2_PROTOCOL_CONFIG_CONFIG.duchyProtocolConfig
+      )
       DuchyInfo.setForTest(ALL_DUCHY_NAMES.toSet())
     }
   }
