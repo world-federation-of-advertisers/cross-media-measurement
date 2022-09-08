@@ -219,6 +219,40 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
     }
 
   @Test
+  fun `create a direct RF measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      // Wait until all EDPs finish creating eventGroups before the test starts.
+      val eventGroupList = pollForEventGroups()
+      assertThat(eventGroupList).isNotNull()
+
+      // Use frontend simulator to create a direct reach and frequency measurement and verify its
+      // result.
+      frontendSimulator.executeDirectReachAndFrequency("1234")
+    }
+
+  @Test
+  fun `create an impression measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      // Wait until all EDPs finish creating eventGroups before the test starts.
+      val eventGroupList = pollForEventGroups()
+      assertThat(eventGroupList).isNotNull()
+
+      // Use frontend simulator to create an impression measurement and verify its result.
+      frontendSimulator.executeImpression("1234")
+    }
+
+  @Test
+  fun `create a duration measurement and check the result is equal to the expected result`() =
+    runBlocking {
+      // Wait until all EDPs finish creating eventGroups before the test starts.
+      val eventGroupList = pollForEventGroups()
+      assertThat(eventGroupList).isNotNull()
+
+      // Use frontend simulator to create a duration measurement and verify its result.
+      frontendSimulator.executeDuration("1234")
+    }
+
+  @Test
   fun `create a RF measurement of invalid params and check the result contains error info`() =
     runBlocking {
       // Wait until all EDPs finish creating eventGroups before the test starts.

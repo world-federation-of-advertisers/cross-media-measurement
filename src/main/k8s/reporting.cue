@@ -35,8 +35,6 @@ package k8s
 	_secretName:         string
 	_mcConfigSecretName: string
 
-	_resourceConfigs: [Name=_]: #ResourceConfig
-
 	_tlsArgs: [
 		"--tls-cert-file=/var/run/secrets/files/reporting_tls.pem",
 		"--tls-key-file=/var/run/secrets/files/reporting_tls.key",
@@ -64,56 +62,58 @@ package k8s
 	}
 
 	deployments: [Name=_]: #ServerDeployment & {
-		_name:            Name
-		_secretName:      Reporting._secretName
-		_system:          "reporting"
-		_image:           _images[_name]
-		_imagePullPolicy: Reporting._imagePullPolicy
-		_resourceConfig:  _resourceConfigs[_name]
+		_name:       Name
+		_secretName: Reporting._secretName
+		_system:     "reporting"
+		_container: {
+			image:           _images[_name]
+			imagePullPolicy: Reporting._imagePullPolicy
+		}
 	}
 	deployments: {
-		"postgres-reporting-data-server": Deployment={
-			_args: [
-				_reportingCertCollectionFileFlag,
-				_debugVerboseGrpcServerLoggingFlag,
-				"--port=8443",
-				"--health-port=8080",
+		"postgres-reporting-data-server": {
+			_container: args: [
+						_reportingCertCollectionFileFlag,
+						_debugVerboseGrpcServerLoggingFlag,
+						"--port=8443",
+						"--health-port=8080",
 			] + _postgresConfig.flags + _tlsArgs
 
-			_podSpec: _initContainers: {
-				"update-reporting-schema": InitContainer={
-					image:           _images[InitContainer.name]
-					imagePullPolicy: Deployment._imagePullPolicy
-					args:            _postgresConfig.flags
-					_envVars:        Deployment._envVars
-				}
+			_updateSchemaContainer: Container=#Container & {
+				image:           _images[Container.name]
+				args:            _postgresConfig.flags
+				imagePullPolicy: _container.imagePullPolicy
+			}
+
+			spec: template: spec: _initContainers: {
+				"update-reporting-schema": _updateSchemaContainer
 			}
 		}
 
 		"v1alpha-public-api-server": {
-			_secretMounts: [{
-				name:       "mc-config"
-				secretName: Reporting._mcConfigSecretName
-				mountPath:  "/var/run/secrets/files/config/mc/"
-			}]
-
-			_configMapMounts: [{
-				name: "config-files"
-			}]
-
-			_args: [
-				_debugVerboseGrpcClientLoggingFlag,
-				_debugVerboseGrpcServerLoggingFlag,
-				_reportingCertCollectionFileFlag,
-				_akidToPrincipalMapFileFlag,
-				_measurementConsumerConfigFileFlag,
-				_signingPrivateKeyStoreDirFlag,
-				_encryptionKeyPairDirFlag,
-				_encryptionKeyPairConfigFileFlag,
-				"--port=8443",
-				"--health-port=8080",
+			_container: args: [
+						_debugVerboseGrpcClientLoggingFlag,
+						_debugVerboseGrpcServerLoggingFlag,
+						_reportingCertCollectionFileFlag,
+						_akidToPrincipalMapFileFlag,
+						_measurementConsumerConfigFileFlag,
+						_signingPrivateKeyStoreDirFlag,
+						_encryptionKeyPairDirFlag,
+						_encryptionKeyPairConfigFileFlag,
+						"--port=8443",
+						"--health-port=8080",
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args
-			_dependencies: ["postgres-reporting-data-server"]
+
+			spec: template: spec: {
+				_projectionMounts: {
+					"mc-config": {
+						volume: secret: secretName: Reporting._mcConfigSecretName
+						volumeMount: mountPath: "/var/run/secrets/files/config/mc/"
+					}
+					"config-files": #ConfigMapMount
+				}
+				_dependencies: ["postgres-reporting-data-server"]
+			}
 		}
 	}
 
@@ -137,7 +137,7 @@ package k8s
 			_ingresses: {
 				gRpc: {
 					ports: [{
-						port: #GrpcServicePort
+						port: #GrpcPort
 					}]
 				}
 			}

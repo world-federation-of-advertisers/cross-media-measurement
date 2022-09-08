@@ -16,7 +16,12 @@ package k8s
 
 _secret_name: string @tag("secret_name")
 
-#KingdomServerResourceConfig: #DefaultResourceConfig & {
+#DataServerResourceRequirements: #ResourceRequirements & {
+	requests: cpu: "50m"
+	limits: {
+		cpu:    "200m"
+		memory: "384Mi"
+	}
 }
 
 objectSets: [ for objectSet in kingdom {objectSet}]
@@ -30,12 +35,13 @@ kingdom: #Kingdom & {
 		"system-api-server":         "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:system_api_server_image"
 		"v2alpha-public-api-server": "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:v2alpha_public_api_server_image"
 	}
-	_resource_configs: {
-		"gcp-kingdom-data-server":   #KingdomServerResourceConfig
-		"system-api-server":         #KingdomServerResourceConfig
-		"v2alpha-public-api-server": #KingdomServerResourceConfig
-	}
 	_kingdom_image_pull_policy: "Never"
 	_verboseGrpcServerLogging:  true
 	_verboseGrpcClientLogging:  true
+
+	deployments: {
+		"gcp-kingdom-data-server": {
+			_container: resources: #DataServerResourceRequirements
+		}
+	}
 }

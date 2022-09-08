@@ -25,6 +25,7 @@ import org.wfanet.measurement.internal.reporting.GetReportRequest
 import org.wfanet.measurement.internal.reporting.Report
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.StreamReportsRequest
+import org.wfanet.measurement.reporting.deploy.postgres.SerializableErrors.withSerializableErrorRetries
 import org.wfanet.measurement.reporting.deploy.postgres.readers.ReportReader
 import org.wfanet.measurement.reporting.deploy.postgres.writers.CreateReport
 import org.wfanet.measurement.reporting.service.internal.MeasurementCalculationTimeIntervalNotFoundException
@@ -49,13 +50,15 @@ class PostgresReportsService(
 
   override suspend fun getReport(request: GetReportRequest): Report {
     try {
-      return ReportReader()
-        .getReportByExternalId(
-          client.singleUse(),
-          request.measurementConsumerReferenceId,
-          request.externalReportId
-        )
-        .report
+      return SerializableErrors.retrying {
+        ReportReader()
+          .getReportByExternalId(
+            client.singleUse(),
+            request.measurementConsumerReferenceId,
+            request.externalReportId
+          )
+          .report
+      }
     } catch (e: ReportNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "Report not found" }
     }
@@ -65,21 +68,24 @@ class PostgresReportsService(
     request: GetReportByIdempotencyKeyRequest
   ): Report {
     try {
-      return ReportReader()
-        .getReportByIdempotencyKey(
-          client.singleUse(),
-          request.measurementConsumerReferenceId,
-          request.reportIdempotencyKey
-        )
-        .report
+      return SerializableErrors.retrying {
+        ReportReader()
+          .getReportByIdempotencyKey(
+            client.singleUse(),
+            request.measurementConsumerReferenceId,
+            request.reportIdempotencyKey
+          )
+          .report
+      }
     } catch (e: ReportNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "Report not found" }
     }
   }
 
   override fun streamReports(request: StreamReportsRequest): Flow<Report> {
-    return ReportReader().listReports(client, request.filter, request.limit).map { result ->
-      result.report
-    }
+    return ReportReader()
+      .listReports(client, request.filter, request.limit)
+      .map { result -> result.report }
+      .withSerializableErrorRetries()
   }
 }

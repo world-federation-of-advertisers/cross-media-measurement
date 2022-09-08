@@ -22,11 +22,7 @@ import com.google.cloud.bigquery.QueryJobConfiguration
 import com.google.cloud.bigquery.QueryParameterValue
 import java.util.UUID
 import java.util.logging.Logger
-import kotlinx.coroutines.yield
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
-
-/** The mapping from the EDP Display name to the Publisher Id in the synthetic data. */
-private val DISPLAY_NAME_TO_PUBLISHER_MAP = (1..6).associateBy { "edp$it" }
 
 /** TODO(@uakyol): Delete once the GCS correctness test supports [EventFilter]s */
 private val DEFAULT_QUERY_PARAMETER =
@@ -41,9 +37,10 @@ private val DEFAULT_QUERY_PARAMETER =
 
 /** Fulfill the query by querying the specified BigQuery table. */
 class BigQueryEventQuery(
-  private val edpDisplayName: String,
   private val bigQuery: BigQuery,
+  private val datasetName: String,
   private val tableName: String,
+  private val publisherId: Int,
 ) : EventQuery() {
 
   /**
@@ -53,12 +50,9 @@ class BigQueryEventQuery(
    * correctness test supports [EventFilter]s
    */
   override fun getUserVirtualIds(eventFilter: EventFilter): Sequence<Long> {
-    val publisher =
-      DISPLAY_NAME_TO_PUBLISHER_MAP[edpDisplayName]
-        ?: error("EDP $edpDisplayName not in the test data.")
     val queryConfig =
       buildQueryConfig(
-        publisher = publisher,
+        publisher = publisherId,
         beginDate = DEFAULT_QUERY_PARAMETER.beginDate,
         endDate = DEFAULT_QUERY_PARAMETER.endDate,
         sex = DEFAULT_QUERY_PARAMETER.sex,
@@ -97,7 +91,7 @@ class BigQueryEventQuery(
     var query =
       """
       SELECT vid
-      FROM `$tableName`
+      FROM `$datasetName.$tableName`
       WHERE publisher_id = $publisher
       AND date BETWEEN @begin_date AND @end_date
       """.trimIndent()

@@ -24,7 +24,6 @@ import java.util.logging.Logger
 import kotlin.math.min
 import kotlin.random.Random
 import kotlinx.coroutines.delay
-import org.apache.commons.math3.distribution.LaplaceDistribution
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchProtos
@@ -161,6 +160,10 @@ class FrontendSimulator(
     )
   }
 
+  /**
+   * A sequence of operations done in the simulator involving a reach and frequency measurement
+   * with invalid params.
+   */
   suspend fun executeInvalidReachAndFrequency(runId: String) {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
@@ -184,13 +187,17 @@ class FrontendSimulator(
     logger.info("Receive failed Measurement from Kingdom: ${failure.message}. Test passes.")
   }
 
+  /**
+   * A sequence of operations done in the simulator involving a direct reach and frequency
+   * measurement.
+   */
   suspend fun executeDirectReachAndFrequency(runId: String) {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     val createdReachAndFrequencyMeasurement =
       createMeasurement(measurementConsumer, runId, ::newReachAndFrequencyMeasurementSpec, 1)
     logger.info(
-      "Created reach and frequency measurement ${createdReachAndFrequencyMeasurement.name}."
+      "Created direct reach and frequency measurement ${createdReachAndFrequencyMeasurement.name}."
     )
 
     // Get the CMMS computed result and compare it with the expected result.
@@ -201,28 +208,23 @@ class FrontendSimulator(
       delay(Duration.ofSeconds(30).toMillis())
       reachAndFrequencyResult = getReachAndFrequencyResult(createdReachAndFrequencyMeasurement.name)
     }
-    logger.info("Got reach and frequency result from Kingdom: $reachAndFrequencyResult")
+    logger.info("Got direct reach and frequency result from Kingdom: $reachAndFrequencyResult")
 
-    // EdpSimulator sets to those values.
-    val reachValue = 1000L
-    val frequencyMap = mapOf(1L to 0.5, 2L to 0.25, 3L to 0.25)
+    // For InProcessLifeOfAMeasurementIntegrationTest, EdpSimulator sets to those values with seeded
+    // random VIDs and Laplace noise.
+    val expectedReachValue = 948L
+    val expectedFrequencyMap =
+      mapOf(
+        1L to 0.947389665261748,
+        2L to 0.04805005905234108,
+        3L to 0.0038138458821366963,
+        4L to 9.558853281715655E-5
+      )
 
-    val laplaceForReach = LaplaceDistribution(0.0, 1 / outputDpParams.epsilon)
-    laplaceForReach.reseedRandomGenerator(1)
-    val laplaceForFrequency = LaplaceDistribution(0.0, 1 / outputDpParams.epsilon)
-    laplaceForFrequency.reseedRandomGenerator(1)
-
-    // EdpSimulator sets to those noised values.
-    val expectedReachNoisedValue = reachValue + laplaceForReach.sample().toInt()
-    val expectedFrequencyNoisedMap = mutableMapOf<Long, Double>()
-    frequencyMap.forEach { (key, frequency) ->
-      expectedFrequencyNoisedMap[key] =
-        (frequency * reachValue.toDouble() + laplaceForFrequency.sample()) / reachValue.toDouble()
-    }
-
-    assertThat(reachAndFrequencyResult.reach.value).isEqualTo(expectedReachNoisedValue)
-    reachAndFrequencyResult.frequency.relativeFrequencyDistributionMap.forEach { (key, frequency) ->
-      assertThat(frequency).isEqualTo(expectedFrequencyNoisedMap[key])
+    assertThat(reachAndFrequencyResult.reach.value).isEqualTo(expectedReachValue)
+    reachAndFrequencyResult.frequency.relativeFrequencyDistributionMap.forEach {
+      (frequency, percentage) ->
+      assertThat(percentage).isEqualTo(expectedFrequencyMap[frequency])
     }
 
     logger.info(

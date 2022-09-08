@@ -68,4 +68,10 @@ enum ErrorCode {
   EVENT_GROUP_INVALID_ARGS = 21;
   /** EventGroupMetadataDescriptor could not be found. */
   EVENT_GROUP_METADATA_DESCRIPTOR_NOT_FOUND = 22;
+  /** RecurringExchange could not be found. */
+  RECURRING_EXCHANGE_NOT_FOUND = 23;
+  /** ExchangeStepAttempt could not be found. */
+  EXCHANGE_STEP_ATTEMPT_NOT_FOUND = 24;
+  /** ExchangeStep could not be found. */
+  EXCHANGE_STEP_NOT_FOUND = 25;
 }

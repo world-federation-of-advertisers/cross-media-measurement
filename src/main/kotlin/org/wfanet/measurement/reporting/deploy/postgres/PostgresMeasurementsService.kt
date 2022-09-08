@@ -43,13 +43,15 @@ class PostgresMeasurementsService(
 
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
     return try {
-      MeasurementReader()
-        .readMeasurementByReferenceIds(
-          client.singleUse(),
-          request.measurementConsumerReferenceId,
-          request.measurementReferenceId
-        )
-        .measurement
+      SerializableErrors.retrying {
+        MeasurementReader()
+          .readMeasurementByReferenceIds(
+            client.singleUse(),
+            request.measurementConsumerReferenceId,
+            request.measurementReferenceId
+          )
+          .measurement
+      }
     } catch (e: MeasurementNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "Measurement not found." }
     }

@@ -24,6 +24,7 @@ import io.grpc.StatusRuntimeException
 import java.time.Clock
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -493,6 +494,33 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       .ignoringFields(Report.CREATE_TIME_FIELD_NUMBER, Report.MEASUREMENTS_FIELD_NUMBER)
       .containsExactly(createdReport)
     assertThat(reports[0].measurementsMap).hasSize(2)
+  }
+
+  @Test
+  fun `concurrent methods all succeed`() {
+    val createdReport = runBlocking {
+      service.createReport(createCreateReportRequest("1234", "1234", "1234", "1235"))
+    }
+    val streamRequest = streamReportsRequest {
+      filter =
+        StreamReportsRequestKt.filter {
+          measurementConsumerReferenceId = createdReport.measurementConsumerReferenceId
+        }
+    }
+
+    runBlocking {
+      val deferredCreatedReport = async {
+        service.createReport(createCreateReportRequest("1235", "1235", "1234", "1235"))
+      }
+      val deferredStreamedReports = async { service.streamReports(streamRequest) }
+      val deferredCreatedReport2 = async {
+        service.createReport(createCreateReportRequest("1236", "1236", "1234", "1235"))
+      }
+
+      assertThat(deferredCreatedReport.await().externalReportId).isNotEqualTo(0L)
+      assertThat(deferredStreamedReports.await().toList().size).isGreaterThan(0)
+      assertThat(deferredCreatedReport2.await().externalReportId).isNotEqualTo(0L)
+    }
   }
 
   companion object {
