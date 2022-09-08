@@ -28,6 +28,7 @@ internal fun SpannerWriter.TransactionScope.updateMeasurementState(
   state: Measurement.State,
   details: Measurement.Details? = null,
 ) {
+  println("Measurement state changed to ${state.name}")
   updateMutation("Measurements") {
       set("MeasurementConsumerId" to measurementConsumerId)
       set("MeasurementId" to measurementId)

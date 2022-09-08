@@ -99,29 +99,29 @@ import org.wfanet.measurement.loadtest.storage.SketchStore
 private const val DATA_PROVIDER_WILDCARD = "dataProviders/-"
 
 data class MeasurementConsumerData(
-    // The MC's public API resource name
-    val name: String,
-    /** The MC's consent signaling signing key. */
-    val signingKey: SigningKeyHandle,
-    /** The MC's encryption public key. */
-    val encryptionKey: PrivateKeyHandle,
-    /** An API key for the MC. */
-    val apiAuthenticationKey: String
+  // The MC's public API resource name
+  val name: String,
+  /** The MC's consent signaling signing key. */
+  val signingKey: SigningKeyHandle,
+  /** The MC's encryption public key. */
+  val encryptionKey: PrivateKeyHandle,
+  /** An API key for the MC. */
+  val apiAuthenticationKey: String
 )
 
 /** A simulator performing frontend operations. */
 class FrontendSimulator(
-    private val measurementConsumerData: MeasurementConsumerData,
-    private val outputDpParams: DifferentialPrivacyParams,
-    private val dataProvidersClient: DataProvidersCoroutineStub,
-    private val eventGroupsClient: EventGroupsCoroutineStub,
-    private val measurementsClient: MeasurementsCoroutineStub,
-    private val requisitionsClient: RequisitionsCoroutineStub,
-    private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
-    private val certificatesClient: CertificatesCoroutineStub,
-    private val sketchStore: SketchStore,
-    /** Map of event template names to filter expressions. */
-    private val eventTemplateFilters: Map<String, String> = emptyMap()
+  private val measurementConsumerData: MeasurementConsumerData,
+  private val outputDpParams: DifferentialPrivacyParams,
+  private val dataProvidersClient: DataProvidersCoroutineStub,
+  private val eventGroupsClient: EventGroupsCoroutineStub,
+  private val measurementsClient: MeasurementsCoroutineStub,
+  private val requisitionsClient: RequisitionsCoroutineStub,
+  private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
+  private val certificatesClient: CertificatesCoroutineStub,
+  private val sketchStore: SketchStore,
+  /** Map of event template names to filter expressions. */
+  private val eventTemplateFilters: Map<String, String> = emptyMap()
 ) {
   /** Cache of resource name to [Certificate]. */
   private val certificateCache = mutableMapOf<String, Certificate>()
@@ -131,13 +131,14 @@ class FrontendSimulator(
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     val createdReachAndFrequencyMeasurement =
-        createMeasurement(measurementConsumer, runId, ::newReachAndFrequencyMeasurementSpec)
+      createMeasurement(measurementConsumer, runId, ::newReachAndFrequencyMeasurementSpec)
     logger.info(
-        "Created reach and frequency measurement ${createdReachAndFrequencyMeasurement.name}.")
+      "Created reach and frequency measurement ${createdReachAndFrequencyMeasurement.name}."
+    )
 
     // Get the CMMS computed result and compare it with the expected result.
     var reachAndFrequencyResult =
-        getReachAndFrequencyResult(createdReachAndFrequencyMeasurement.name)
+      getReachAndFrequencyResult(createdReachAndFrequencyMeasurement.name)
     while (reachAndFrequencyResult == null) {
       logger.info("Computation not done yet, wait for another 30 seconds.")
       delay(Duration.ofSeconds(30).toMillis())
@@ -147,13 +148,17 @@ class FrontendSimulator(
 
     val liquidLegionV2Protocol = createdReachAndFrequencyMeasurement.protocolConfig.liquidLegionsV2
     val expectedResult =
-        getExpectedResult(createdReachAndFrequencyMeasurement.name, liquidLegionV2Protocol)
+      getExpectedResult(createdReachAndFrequencyMeasurement.name, liquidLegionV2Protocol)
     logger.info("Expected result: $expectedResult")
 
     assertDpResultsEqual(
-        expectedResult, reachAndFrequencyResult, liquidLegionV2Protocol.maximumFrequency.toLong())
+      expectedResult,
+      reachAndFrequencyResult,
+      liquidLegionV2Protocol.maximumFrequency.toLong()
+    )
     logger.info(
-        "Reach and frequency result is equal to the expected result. Correctness Test passes.")
+      "Reach and frequency result is equal to the expected result. Correctness Test passes."
+    )
   }
 
   suspend fun executeInvalidReachAndFrequency(runId: String) {
@@ -161,30 +166,36 @@ class FrontendSimulator(
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
 
     val invalidMeasurement =
-        createMeasurement(measurementConsumer, runId, ::newInvalidReachAndFrequencyMeasurementSpec)
-    logger.info("Created invalid reach and frequency measurement ${invalidMeasurement.name}.")
+      createMeasurement(measurementConsumer, runId, ::newInvalidReachAndFrequencyMeasurementSpec)
+    logger.info(
+      "Created invalid reach and frequency measurement ${invalidMeasurement.name}, state=${invalidMeasurement.state.name}"
+    )
 
     var failure = getFailure(invalidMeasurement.name)
+    var attempts = 0
     while (failure == null) {
-      logger.info("Computation not done yet, wait for another 30 seconds.")
-      delay(Duration.ofSeconds(30).toMillis())
+      attempts += 1
+      assertThat(attempts).isLessThan(10)
+      logger.info("Computation not done yet, wait for another 5 seconds...")
+      delay(Duration.ofSeconds(5).toMillis())
       failure = getFailure(invalidMeasurement.name)
     }
-
     assertThat(failure.message).contains("reach_privacy_params.delta")
+    logger.info("Receive failed Measurement from Kingdom: ${failure.message}. Test passes.")
   }
 
   suspend fun executeDirectReachAndFrequency(runId: String) {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     val createdReachAndFrequencyMeasurement =
-        createMeasurement(measurementConsumer, runId, ::newReachAndFrequencyMeasurementSpec, 1)
+      createMeasurement(measurementConsumer, runId, ::newReachAndFrequencyMeasurementSpec, 1)
     logger.info(
-        "Created reach and frequency measurement ${createdReachAndFrequencyMeasurement.name}.")
+      "Created reach and frequency measurement ${createdReachAndFrequencyMeasurement.name}."
+    )
 
     // Get the CMMS computed result and compare it with the expected result.
     var reachAndFrequencyResult =
-        getReachAndFrequencyResult(createdReachAndFrequencyMeasurement.name)
+      getReachAndFrequencyResult(createdReachAndFrequencyMeasurement.name)
     while (reachAndFrequencyResult == null) {
       logger.info("Computation not done yet, wait for another 30 seconds.")
       delay(Duration.ofSeconds(30).toMillis())
@@ -206,7 +217,7 @@ class FrontendSimulator(
     val expectedFrequencyNoisedMap = mutableMapOf<Long, Double>()
     frequencyMap.forEach { (key, frequency) ->
       expectedFrequencyNoisedMap[key] =
-          (frequency * reachValue.toDouble() + laplaceForFrequency.sample()) / reachValue.toDouble()
+        (frequency * reachValue.toDouble() + laplaceForFrequency.sample()) / reachValue.toDouble()
     }
 
     assertThat(reachAndFrequencyResult.reach.value).isEqualTo(expectedReachNoisedValue)
@@ -215,8 +226,9 @@ class FrontendSimulator(
     }
 
     logger.info(
-        "Direct reach and frequency result is equal to the expected result. " +
-            "Correctness Test passes.")
+      "Direct reach and frequency result is equal to the expected result. " +
+        "Correctness Test passes."
+    )
   }
 
   /** A sequence of operations done in the simulator involving an impression measurement. */
@@ -224,7 +236,7 @@ class FrontendSimulator(
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     val createdImpressionMeasurement =
-        createMeasurement(measurementConsumer, runId, ::newImpressionMeasurementSpec)
+      createMeasurement(measurementConsumer, runId, ::newImpressionMeasurementSpec)
     logger.info("Created impression measurement ${createdImpressionMeasurement.name}.")
 
     var impressionResults = getImpressionResults(createdImpressionMeasurement.name)
@@ -237,10 +249,10 @@ class FrontendSimulator(
     impressionResults.forEach {
       val result = parseAndVerifyResult(it)
       assertThat(result.impression.value)
-          .isEqualTo(
-              // EdpSimulator sets it to this value.
-              apiIdToExternalId(
-                  DataProviderCertificateKey.fromName(it.certificate)!!.dataProviderId))
+        .isEqualTo(
+          // EdpSimulator sets it to this value.
+          apiIdToExternalId(DataProviderCertificateKey.fromName(it.certificate)!!.dataProviderId)
+        )
     }
     logger.info("Impression result is equal to the expected result. Correctness Test passes.")
   }
@@ -250,7 +262,7 @@ class FrontendSimulator(
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     val createdDurationMeasurement =
-        createMeasurement(measurementConsumer, runId, ::newDurationMeasurementSpec)
+      createMeasurement(measurementConsumer, runId, ::newDurationMeasurementSpec)
     logger.info("Created duration measurement ${createdDurationMeasurement.name}.")
 
     var durationResults = getDurationResults(createdDurationMeasurement.name)
@@ -263,19 +275,19 @@ class FrontendSimulator(
     durationResults.forEach {
       val result = parseAndVerifyResult(it)
       assertThat(result.watchDuration.value.seconds)
-          .isEqualTo(
-              // EdpSimulator sets it to this value.
-              apiIdToExternalId(
-                  DataProviderCertificateKey.fromName(it.certificate)!!.dataProviderId))
+        .isEqualTo(
+          // EdpSimulator sets it to this value.
+          apiIdToExternalId(DataProviderCertificateKey.fromName(it.certificate)!!.dataProviderId)
+        )
     }
     logger.info("Duration result is equal to the expected result. Correctness Test passes.")
   }
 
   /** Compare two [Result]s within the differential privacy error range. */
   private fun assertDpResultsEqual(
-      expectedResult: Result,
-      actualResult: Result,
-      maximumFrequency: Long
+    expectedResult: Result,
+    actualResult: Result,
+    maximumFrequency: Long
   ) {
     val reachRatio = expectedResult.reach.value.toDouble() / actualResult.reach.value.toDouble()
     assertThat(reachRatio).isWithin(0.02).of(1.0)
@@ -288,46 +300,48 @@ class FrontendSimulator(
 
   /** Creates a Measurement on behalf of the [MeasurementConsumer]. */
   private suspend fun createMeasurement(
-      measurementConsumer: MeasurementConsumer,
-      runId: String,
-      newMeasurementSpec:
-          (
-              serializedMeasurementPublicKey: ByteString,
-              nonceHashes: MutableList<ByteString>) -> MeasurementSpec,
-      numberOfEdp: Int = 20,
+    measurementConsumer: MeasurementConsumer,
+    runId: String,
+    newMeasurementSpec:
+      (
+        serializedMeasurementPublicKey: ByteString,
+        nonceHashes: MutableList<ByteString>
+      ) -> MeasurementSpec,
+    numberOfEdp: Int = 20,
   ): Measurement {
     var eventGroups = listEventGroups(measurementConsumer.name)
     eventGroups = eventGroups.subList(0, min(numberOfEdp, eventGroups.size))
     val nonceHashes = mutableListOf<ByteString>()
     val dataProviderEntries =
-        eventGroups.map {
-          val nonce = Random.Default.nextLong()
-          nonceHashes.add(hashSha256(nonce))
-          createDataProviderEntry(it, measurementConsumer, nonce)
-        }
+      eventGroups.map {
+        val nonce = Random.Default.nextLong()
+        nonceHashes.add(hashSha256(nonce))
+        createDataProviderEntry(it, measurementConsumer, nonce)
+      }
 
     val request = createMeasurementRequest {
       measurement = measurement {
         measurementConsumerCertificate = measurementConsumer.certificate
         measurementSpec =
-            signMeasurementSpec(
-                newMeasurementSpec(measurementConsumer.publicKey.data, nonceHashes),
-                measurementConsumerData.signingKey)
+          signMeasurementSpec(
+            newMeasurementSpec(measurementConsumer.publicKey.data, nonceHashes),
+            measurementConsumerData.signingKey
+          )
         dataProviders += dataProviderEntries
         this.measurementReferenceId = runId
       }
     }
     return measurementsClient
-        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-        .createMeasurement(request)
+      .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+      .createMeasurement(request)
   }
 
   /** Gets the result of a [Measurement] if it is succeeded. */
   private suspend fun getImpressionResults(measurementName: String): List<Measurement.ResultPair> {
     val measurement =
-        measurementsClient
-            .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-            .getMeasurement(getMeasurementRequest { name = measurementName })
+      measurementsClient
+        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+        .getMeasurement(getMeasurementRequest { name = measurementName })
     logger.info("Current Measurement state is: " + measurement.state)
     if (measurement.state == Measurement.State.FAILED) {
       logger.warning("Failure reason: " + measurement.failure.reason)
@@ -339,9 +353,9 @@ class FrontendSimulator(
   /** Gets the result of a [Measurement] if it is succeeded. */
   private suspend fun getDurationResults(measurementName: String): List<Measurement.ResultPair> {
     val measurement =
-        measurementsClient
-            .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-            .getMeasurement(getMeasurementRequest { name = measurementName })
+      measurementsClient
+        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+        .getMeasurement(getMeasurementRequest { name = measurementName })
     logger.info("Current Measurement state is: " + measurement.state)
     if (measurement.state == Measurement.State.FAILED) {
       logger.warning("Failure reason: " + measurement.failure.reason)
@@ -353,9 +367,9 @@ class FrontendSimulator(
   /** Gets the result of a [Measurement] if it is succeeded. */
   private suspend fun getReachAndFrequencyResult(measurementName: String): Result? {
     val measurement =
-        measurementsClient
-            .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-            .getMeasurement(getMeasurementRequest { name = measurementName })
+      measurementsClient
+        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+        .getMeasurement(getMeasurementRequest { name = measurementName })
     logger.info("Current Measurement state is: " + measurement.state)
     if (measurement.state == Measurement.State.FAILED) {
       logger.warning("Failure reason: " + measurement.failure.reason)
@@ -372,9 +386,9 @@ class FrontendSimulator(
   /** Gets the failure of an invalid [Measurement] if it is failed */
   private suspend fun getFailure(measurementName: String): Failure? {
     val measurement =
-        measurementsClient
-            .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-            .getMeasurement(getMeasurementRequest { name = measurementName })
+      measurementsClient
+        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+        .getMeasurement(getMeasurementRequest { name = measurementName })
     logger.info("Current Measurement state is: " + measurement.state)
     if (measurement.state != Measurement.State.FAILED) {
       return null
@@ -384,14 +398,14 @@ class FrontendSimulator(
 
   private suspend fun parseAndVerifyResult(resultPair: Measurement.ResultPair): Result {
     val certificate =
-        certificateCache.getOrPut(resultPair.certificate) {
-          certificatesClient
-              .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-              .getCertificate(getCertificateRequest { name = resultPair.certificate })
-        }
+      certificateCache.getOrPut(resultPair.certificate) {
+        certificatesClient
+          .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+          .getCertificate(getCertificateRequest { name = resultPair.certificate })
+      }
 
     val signedResult =
-        decryptResult(resultPair.encryptedResult, measurementConsumerData.encryptionKey)
+      decryptResult(resultPair.encryptedResult, measurementConsumerData.encryptionKey)
     if (!verifyResult(signedResult, readCertificate(certificate.x509Der))) {
       error("Signature of the result is invalid.")
     }
@@ -400,19 +414,18 @@ class FrontendSimulator(
 
   /** Gets the expected result of a [Measurement] using raw sketches. */
   suspend fun getExpectedResult(
-      measurementName: String,
-      protocolConfig: ProtocolConfig.LiquidLegionsV2
+    measurementName: String,
+    protocolConfig: ProtocolConfig.LiquidLegionsV2
   ): Result {
     val requisitions = listRequisitions(measurementName)
     require(requisitions.isNotEmpty()) { "Requisition list is empty." }
 
     val anySketches =
-        requisitions.map {
-          val storedSketch =
-              sketchStore.get(it)?.read()?.flatten()
-                  ?: error("Sketch blob not found for ${it.name}.")
-          SketchProtos.toAnySketch(Sketch.parseFrom(storedSketch))
-        }
+      requisitions.map {
+        val storedSketch =
+          sketchStore.get(it)?.read()?.flatten() ?: error("Sketch blob not found for ${it.name}.")
+        SketchProtos.toAnySketch(Sketch.parseFrom(storedSketch))
+      }
 
     val combinedAnySketch = anySketches[0]
     if (anySketches.size > 1) {
@@ -420,12 +433,13 @@ class FrontendSimulator(
     }
 
     val expectedReach =
-        estimateCardinality(
-            combinedAnySketch,
-            protocolConfig.sketchParams.decayRate,
-            protocolConfig.sketchParams.maxSize)
+      estimateCardinality(
+        combinedAnySketch,
+        protocolConfig.sketchParams.decayRate,
+        protocolConfig.sketchParams.maxSize
+      )
     val expectedFrequency =
-        estimateFrequency(combinedAnySketch, protocolConfig.maximumFrequency.toLong())
+      estimateFrequency(combinedAnySketch, protocolConfig.maximumFrequency.toLong())
     return result {
       reach = reach { value = expectedReach }
       frequency = frequency { relativeFrequencyDistribution.putAll(expectedFrequency) }
@@ -442,7 +456,7 @@ class FrontendSimulator(
   private fun estimateFrequency(anySketch: AnySketch, maximumFrequency: Long): Map<Long, Double> {
     val valueIndex = anySketch.getValueIndex("SamplingIndicator").asInt
     val actualHistogram =
-        ValueHistogram.calculateHistogram(anySketch, "Frequency") { it.values[valueIndex] != -1L }
+      ValueHistogram.calculateHistogram(anySketch, "Frequency") { it.values[valueIndex] != -1L }
     val result = mutableMapOf<Long, Double>()
     actualHistogram.forEach {
       val key = minOf(it.key, maximumFrequency)
@@ -454,13 +468,13 @@ class FrontendSimulator(
   private suspend fun getMeasurementConsumer(name: String): MeasurementConsumer {
     val request = getMeasurementConsumerRequest { this.name = name }
     return measurementConsumersClient
-        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-        .getMeasurementConsumer(request)
+      .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+      .getMeasurementConsumer(request)
   }
 
   private fun newReachAndFrequencyMeasurementSpec(
-      serializedMeasurementPublicKey: ByteString,
-      nonceHashes: List<ByteString>
+    serializedMeasurementPublicKey: ByteString,
+    nonceHashes: List<ByteString>
   ): MeasurementSpec {
     return measurementSpec {
       measurementPublicKey = serializedMeasurementPublicKey
@@ -477,8 +491,8 @@ class FrontendSimulator(
   }
 
   private fun newInvalidReachAndFrequencyMeasurementSpec(
-      serializedMeasurementPublicKey: ByteString,
-      nonceHashes: List<ByteString>
+    serializedMeasurementPublicKey: ByteString,
+    nonceHashes: List<ByteString>
   ): MeasurementSpec {
     return newReachAndFrequencyMeasurementSpec(serializedMeasurementPublicKey, nonceHashes).copy {
       val invalidPrivacyParams = differentialPrivacyParams {
@@ -493,8 +507,8 @@ class FrontendSimulator(
   }
 
   private fun newImpressionMeasurementSpec(
-      serializedMeasurementPublicKey: ByteString,
-      nonceHashes: List<ByteString>
+    serializedMeasurementPublicKey: ByteString,
+    nonceHashes: List<ByteString>
   ): MeasurementSpec {
     return measurementSpec {
       measurementPublicKey = serializedMeasurementPublicKey
@@ -507,8 +521,8 @@ class FrontendSimulator(
   }
 
   private fun newDurationMeasurementSpec(
-      serializedMeasurementPublicKey: ByteString,
-      nonceHashes: List<ByteString>
+    serializedMeasurementPublicKey: ByteString,
+    nonceHashes: List<ByteString>
   ): MeasurementSpec {
     return measurementSpec {
       measurementPublicKey = serializedMeasurementPublicKey
@@ -526,9 +540,9 @@ class FrontendSimulator(
       filter = ListEventGroupsRequestKt.filter { measurementConsumers += measurementConsumer }
     }
     return eventGroupsClient
-        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-        .listEventGroups(request)
-        .eventGroupsList
+      .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+      .listEventGroups(request)
+      .eventGroupsList
   }
 
   private suspend fun listRequisitions(measurement: String): List<Requisition> {
@@ -537,9 +551,9 @@ class FrontendSimulator(
       filter = ListRequisitionsRequestKt.filter { this.measurement = measurement }
     }
     return requisitionsClient
-        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-        .listRequisitions(request)
-        .requisitionsList
+      .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+      .listRequisitions(request)
+      .requisitionsList
   }
 
   private fun extractDataProviderName(eventGroupName: String): String {
@@ -550,16 +564,16 @@ class FrontendSimulator(
   private suspend fun getDataProvider(name: String): DataProvider {
     val request = GetDataProviderRequest.newBuilder().also { it.name = name }.build()
     return dataProvidersClient
-        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-        .getDataProvider(request)
+      .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+      .getDataProvider(request)
   }
 
   private fun createFilterExpression(): String = eventTemplateFilters.values.joinToString(" && ")
 
   private suspend fun createDataProviderEntry(
-      eventGroup: EventGroup,
-      measurementConsumer: MeasurementConsumer,
-      nonce: Long
+    eventGroup: EventGroup,
+    measurementConsumer: MeasurementConsumer,
+    nonce: Long
   ): DataProviderEntry {
     val dataProvider = getDataProvider(extractDataProviderName(eventGroup.name))
 
@@ -569,45 +583,41 @@ class FrontendSimulator(
       eventGroups += eventGroupEntry {
         key = eventGroup.name
         value =
-            RequisitionSpecKt.EventGroupEntryKt.value {
-              collectionInterval = timeInterval {
-                startTime =
-                    LocalDate.now()
-                        .minusDays(1)
-                        .atStartOfDay()
-                        .toInstant(ZoneOffset.UTC)
-                        .toProtoTime()
-                endTime = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
-              }
-              filter = eventFilter { expression = eventFilterExpression }
+          RequisitionSpecKt.EventGroupEntryKt.value {
+            collectionInterval = timeInterval {
+              startTime =
+                LocalDate.now().minusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+              endTime = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
             }
+            filter = eventFilter { expression = eventFilterExpression }
+          }
       }
       measurementPublicKey = measurementConsumer.publicKey.data
       this.nonce = nonce
     }
     val signedRequisitionSpec =
-        signRequisitionSpec(requisitionSpec, measurementConsumerData.signingKey)
+      signRequisitionSpec(requisitionSpec, measurementConsumerData.signingKey)
     return dataProvider.toDataProviderEntry(signedRequisitionSpec, hashSha256(nonce))
   }
 
   private fun DataProvider.toDataProviderEntry(
-      signedRequisitionSpec: SignedData,
-      nonceHash: ByteString
+    signedRequisitionSpec: SignedData,
+    nonceHash: ByteString
   ): DataProviderEntry {
     val source = this
     return dataProviderEntry {
       key = source.name
       this.value =
-          MeasurementKt.DataProviderEntryKt.value {
-            dataProviderCertificate = source.certificate
-            dataProviderPublicKey = source.publicKey
-            encryptedRequisitionSpec =
-                encryptRequisitionSpec(
-                    signedRequisitionSpec,
-                    EncryptionPublicKey.parseFrom(source.publicKey.data),
-                )
-            this.nonceHash = nonceHash
-          }
+        MeasurementKt.DataProviderEntryKt.value {
+          dataProviderCertificate = source.certificate
+          dataProviderPublicKey = source.publicKey
+          encryptedRequisitionSpec =
+            encryptRequisitionSpec(
+              signedRequisitionSpec,
+              EncryptionPublicKey.parseFrom(source.publicKey.data),
+            )
+          this.nonceHash = nonceHash
+        }
     }
   }
 
@@ -615,9 +625,10 @@ class FrontendSimulator(
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     init {
       loadLibrary(
-          name = "estimators",
-          directoryPath =
-              Paths.get("any_sketch_java", "src", "main", "java", "org", "wfanet", "estimation"))
+        name = "estimators",
+        directoryPath =
+          Paths.get("any_sketch_java", "src", "main", "java", "org", "wfanet", "estimation")
+      )
     }
   }
 }

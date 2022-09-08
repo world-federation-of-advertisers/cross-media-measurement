@@ -37,6 +37,7 @@ service ComputationParticipants {
   // Transitions a `ComputationParticipant` to the `FAILED` state.
   //
   // This is a [state transition method](https://google.aip.dev/216).
+  // It doesn't update the Computation if its state is already FAILED
   rpc FailComputationParticipant(FailComputationParticipantRequest)
       returns (ComputationParticipant);
 
