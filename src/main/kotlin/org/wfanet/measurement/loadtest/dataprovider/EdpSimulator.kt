@@ -23,6 +23,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
@@ -438,19 +439,19 @@ class EdpSimulator(
   ) {
     logger.info("Calculating direct reach and frequency...")
     val vidSampler = VidSampler(VID_SAMPLER_HASH_FUNCTION)
+    val vidSamplingIntervalStart = measurementSpec.vidSamplingInterval.start
+    val vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width
+
     val vidList: List<Long> =
       requisitionSpec.eventGroupsList
         .distinctBy { eventGroup -> eventGroup.key }
         .flatMap { eventGroup -> eventQuery.getUserVirtualIds(eventGroup.value.filter) }
         .filter { vid ->
-          vidSampler.vidIsInSamplingBucket(
-            vid,
-            measurementSpec.vidSamplingInterval.start,
-            measurementSpec.vidSamplingInterval.width
-          )
+          vidSampler.vidIsInSamplingBucket(vid, vidSamplingIntervalStart, vidSamplingIntervalWidth)
         }
 
-    val (reachValue, frequencyMap) = calculateDirectReachAndFrequency(vidList)
+    val (reachValue, frequencyMap) =
+      calculateDirectReachAndFrequency(vidList, vidSamplingIntervalWidth)
 
     logger.info("Adding publisher noise to direct reach and frequency...")
     val laplaceForReach =
@@ -463,9 +464,9 @@ class EdpSimulator(
     laplaceForFrequency.reseedRandomGenerator(1)
 
     val frequencyNoisedMap = mutableMapOf<Long, Double>()
-    frequencyMap.forEach { (frequency, percentage) ->
+    frequencyMap.forEach { (frequency, value) ->
       frequencyNoisedMap[frequency] =
-        (percentage * reachValue.toDouble() + laplaceForFrequency.sample()) / reachValue.toDouble()
+        (value * reachValue.toDouble() + laplaceForFrequency.sample()) / reachValue.toDouble()
     }
 
     val requisitionData =
@@ -560,12 +561,20 @@ class EdpSimulator(
     }
 
     /**
-     * Function to calculate direct reach and frequency in
-     * fulfillDirectReachAndFrequencyMeasurement()
+     * Function to calculate direct reach and frequency from VIDs in
+     * fulfillDirectReachAndFrequencyMeasurement(). Reach and frequency need to scale by sampling
+     * rate
      */
-    fun calculateDirectReachAndFrequency(vidList: List<Long>): Pair<Long, Map<Long, Double>> {
-      val reachValue = vidList.toSet().size.toLong()
+    fun calculateDirectReachAndFrequency(
+      vidList: List<Long>,
+      samplingRate: Float
+    ): Pair<Long, Map<Long, Double>> {
+      require(samplingRate > 0) { "Invalid samplingRate $samplingRate" }
+      require(samplingRate <= 1.0) { "Invalid samplingRate $samplingRate" }
+
+      var reachValue = vidList.toSet().size.toLong()
       val frequencyMap = mutableMapOf<Long, Double>().withDefault { 0.0 }
+      val decimal = 1000
 
       vidList
         .groupingBy { it }
@@ -574,8 +583,13 @@ class EdpSimulator(
           frequencyMap[frequency.toLong()] = frequencyMap.getValue(frequency.toLong()) + 1.0
         }
       frequencyMap.forEach { (frequency, _) ->
-        frequencyMap[frequency] = frequencyMap.getValue(frequency) / reachValue.toDouble()
+        frequencyMap[frequency] =
+          (frequencyMap.getValue(frequency) / reachValue.toDouble()) / samplingRate.toDouble()
+        frequencyMap[frequency] =
+          (frequencyMap.getValue(frequency) * decimal).roundToInt().toDouble() / decimal
       }
+
+      reachValue = (reachValue / samplingRate).toLong()
 
       return Pair(reachValue, frequencyMap)
     }
