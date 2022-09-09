@@ -719,33 +719,6 @@ class LiquidLegionsV2Mill(
     }
   }
 
-  private suspend fun sendResultToKingdom(
-    token: ComputationToken,
-    reach: Long,
-    frequency: Map<Long, Double>
-  ) {
-    val reachAndFrequency = ReachAndFrequency(reach, frequency)
-    val kingdomComputation = token.computationDetails.kingdomComputation
-    val serializedPublicApiEncryptionPublicKey: ByteString
-    val encryptedResult =
-      when (Version.fromString(kingdomComputation.publicApiVersion)) {
-        Version.V2_ALPHA -> {
-          val signedResult = signResult(reachAndFrequency.toV2AlphaMeasurementResult(), signingKey)
-          val publicApiEncryptionPublicKey =
-            kingdomComputation.measurementPublicKey.toV2AlphaEncryptionPublicKey()
-          serializedPublicApiEncryptionPublicKey = publicApiEncryptionPublicKey.toByteString()
-          encryptResult(signedResult, publicApiEncryptionPublicKey)
-        }
-        Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
-      }
-    sendResultToKingdom(
-      globalId = token.globalComputationId,
-      certificate = consentSignalCert,
-      resultPublicKey = serializedPublicApiEncryptionPublicKey,
-      encryptedResult = encryptedResult
-    )
-  }
-
   private suspend fun completeExecutionPhaseThreeAtAggregator(
     token: ComputationToken
   ): ComputationToken {
@@ -817,6 +790,33 @@ class LiquidLegionsV2Mill(
 
     // This duchy's responsibility for the computation is done. Mark it COMPLETED locally.
     return completeComputation(nextToken, CompletedReason.SUCCEEDED)
+  }
+
+  private suspend fun sendResultToKingdom(
+    token: ComputationToken,
+    reach: Long,
+    frequency: Map<Long, Double>
+  ) {
+    val reachAndFrequency = ReachAndFrequency(reach, frequency)
+    val kingdomComputation = token.computationDetails.kingdomComputation
+    val serializedPublicApiEncryptionPublicKey: ByteString
+    val encryptedResult =
+      when (Version.fromString(kingdomComputation.publicApiVersion)) {
+        Version.V2_ALPHA -> {
+          val signedResult = signResult(reachAndFrequency.toV2AlphaMeasurementResult(), signingKey)
+          val publicApiEncryptionPublicKey =
+            kingdomComputation.measurementPublicKey.toV2AlphaEncryptionPublicKey()
+          serializedPublicApiEncryptionPublicKey = publicApiEncryptionPublicKey.toByteString()
+          encryptResult(signedResult, publicApiEncryptionPublicKey)
+        }
+        Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
+      }
+    sendResultToKingdom(
+      globalId = token.globalComputationId,
+      certificate = consentSignalCert,
+      resultPublicKey = serializedPublicApiEncryptionPublicKey,
+      encryptedResult = encryptedResult
+    )
   }
 
   private fun nextDuchyStub(

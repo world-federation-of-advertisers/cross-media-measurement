@@ -566,12 +566,13 @@ absl::StatusOr<std::string> DestroyKeysAndCounts(
     const CompleteSetupPhaseRequest& request) {
   std::string source = request.combined_register_vector();
   std::string dest;
-  ASSIGN_OR_RETURN(size_t register_count,
-                   GetNumberOfBlocks(source, kBytesPerCipherRegister));
 
-  if (register_count == 0) {
+  if (source.empty()) {
     return dest;
   }
+
+  ASSIGN_OR_RETURN(size_t register_count,
+                   GetNumberOfBlocks(source, kBytesPerCipherRegister));
 
   dest.reserve(register_count * kBytesPerCipherRegister);
 
