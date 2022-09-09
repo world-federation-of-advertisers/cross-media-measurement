@@ -57,7 +57,7 @@ inline const std::pair<std::string, std::string> kGenerateNewCompositeCipher = {
 inline const std::pair<std::string, std::string>
     kGenerateNewParitialCompositeCipher = {"", ""};
 // Elliptic curve to be used when none is specified.
-inline const int kDefaultEllipticCurveId = 415;
+inline const int kDefaultEllipticCurveId = 415; // NID_X9_62_prime256v1
 
 }  // namespace wfa::measurement::common::crypto
 
