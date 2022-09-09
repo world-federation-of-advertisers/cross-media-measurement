@@ -20,7 +20,7 @@ _secret_name: string @tag("secret_name")
 	requests: cpu: "50m"
 	limits: {
 		cpu:    "200m"
-		memory: "384Mi"
+		memory: "768Mi"
 	}
 }
 

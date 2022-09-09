@@ -34,7 +34,14 @@ _worker2_cert_name:    string @tag("worker2_cert_name")
 	requests: cpu: "50m"
 	limits: {
 		cpu:    "200m"
-		memory: "384Mi"
+		memory: "768Mi"
+	}
+}
+#HeraldResourceRequirements: #ResourceRequirements & {
+	requests: cpu: "50m"
+	limits: {
+		cpu:    "200m"
+		memory: "768Mi"
 	}
 }
 #DuchyConfig: {
@@ -105,6 +112,9 @@ duchies: [ for duchyConfig in _duchyConfigs {
 			}
 			"spanner-computations-server-deployment": {
 				_container: resources: #SpannerComputationsResourceRequirements
+			}
+			"herald-daemon-deployment": {
+				_container: resources: #HeraldResourceRequirements
 			}
 		}
 	}
