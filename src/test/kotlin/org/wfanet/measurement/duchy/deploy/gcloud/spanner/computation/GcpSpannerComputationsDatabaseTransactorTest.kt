@@ -1682,6 +1682,136 @@ class GcpSpannerComputationsDatabaseTransactorTest :
     )
   }
 
+  @Test
+  fun `UnclaimedTaskQuery returns tasks in ascending order of UpdateTime`() = runBlocking {
+    testClock.tickSeconds("7_minutes_ago")
+    testClock.tickSeconds("6_minutes_ago", 60)
+    testClock.tickSeconds("5_minutes_ago", 60)
+    testClock.tickSeconds("TimeOfTest", 300)
+    val fiveMinutesAgo = testClock["5_minutes_ago"].toGcloudTimestamp()
+    val sixMinutesAgo = testClock["6_minutes_ago"].toGcloudTimestamp()
+    val sevenMinutesAgo = testClock["7_minutes_ago"].toGcloudTimestamp()
+    val timeOfSet = testClock["TimeOfTest"].toGcloudTimestamp()
+
+    val computation1 =
+      computationMutations.insertComputation(
+        localId = 123L,
+        updateTime = sevenMinutesAgo,
+        protocol = FakeProtocol.ZERO,
+        stage = A,
+        globalId = "001",
+        lockOwner = WRITE_NULL_STRING,
+        lockExpirationTime = sixMinutesAgo,
+        details = FAKE_COMPUTATION_DETAILS
+      )
+    val computationStage1 =
+      computationMutations.insertComputationStage(
+        localId = 123L,
+        stage = A,
+        nextAttempt = 1,
+        creationTime = sevenMinutesAgo,
+        details = computationMutations.detailsFor(A, FAKE_COMPUTATION_DETAILS)
+      )
+    val computation2 =
+      computationMutations.insertComputation(
+        localId = 567L,
+        updateTime = sixMinutesAgo,
+        protocol = FakeProtocol.ZERO,
+        stage = C,
+        globalId = "002",
+        lockOwner = WRITE_NULL_STRING,
+        lockExpirationTime = sixMinutesAgo,
+        details = FAKE_COMPUTATION_DETAILS
+      )
+    val computationStage2 =
+      computationMutations.insertComputationStage(
+        localId = 567L,
+        stage = C,
+        nextAttempt = 1,
+        creationTime = sixMinutesAgo,
+        details = computationMutations.detailsFor(C, FAKE_COMPUTATION_DETAILS)
+      )
+    val computation3 =
+      computationMutations.insertComputation(
+        localId = 900L,
+        updateTime = fiveMinutesAgo,
+        protocol = FakeProtocol.ZERO,
+        stage = B,
+        globalId = "003",
+        lockOwner = WRITE_NULL_STRING,
+        lockExpirationTime = sevenMinutesAgo,
+        details = FAKE_COMPUTATION_DETAILS
+      )
+    val computationStage3 =
+      computationMutations.insertComputationStage(
+        localId = 900L,
+        stage = B,
+        nextAttempt = 1,
+        creationTime = fiveMinutesAgo,
+        details = computationMutations.detailsFor(B, FAKE_COMPUTATION_DETAILS)
+      )
+
+    databaseClient.write(
+      listOf(
+        computation1,
+        computationStage1,
+        computation2,
+        computationStage2,
+        computation3,
+        computationStage3,
+      )
+    )
+
+    assertQueryReturns(
+      databaseClient,
+      """
+      SELECT c.ComputationId,  c.GlobalComputationId,
+      FROM Computations as c
+      JOIN ComputationStages AS cs USING(ComputationId, ComputationStage)
+      WHERE
+            c.LockExpirationTime IS NOT NULL
+        AND c.UpdateTime IS NOT NULL
+      ORDER BY c.UpdateTime ASC, c.LockExpirationTime ASC
+      LIMIT 50
+      """.trimIndent(),
+      Struct.newBuilder()
+        .apply {
+          set("ComputationId").to(123L)
+          set("GlobalComputationId").to("001")
+        }
+        .build(),
+      Struct.newBuilder()
+        .apply {
+          set("ComputationId").to(567L)
+          set("GlobalComputationId").to("002")
+        }
+        .build(),
+      Struct.newBuilder()
+        .apply {
+          set("ComputationId").to(900L)
+          set("GlobalComputationId").to("003")
+        }
+        .build(),
+    )
+
+    // Claim computation1 and update
+    assertEquals("001", database.claimTask(FakeProtocol.ZERO, "owner"))
+    val newComputation1 =
+      computationMutations.updateComputation(
+        localId = 123L,
+        updateTime = timeOfSet,
+        stage = A,
+        lockOwner = WRITE_NULL_STRING,
+        lockExpirationTime = timeOfSet,
+        details = FAKE_COMPUTATION_DETAILS
+      )
+    databaseClient.write(newComputation1)
+
+    assertEquals("002", database.claimTask(FakeProtocol.ZERO, "owner"))
+    assertEquals("003", database.claimTask(FakeProtocol.ZERO, "owner"))
+    assertEquals("001", database.claimTask(FakeProtocol.ZERO, "owner"))
+  }
+
   private fun <T> ValueBinder<T>.toFakeStage(value: FakeProtocolStages): T =
     to(ComputationProtocolStages.computationStageEnumToLongValues(value).stage)
 }
