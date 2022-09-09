@@ -61,6 +61,7 @@ Reporting \
   --cert-collection-file=secretfiles/kingdom_root.pem \
   --reporting-server-api-target=v1alpha.reporting.dev.halo-cmm.org:8443 \
   reports create \
+  --idempotency-key="report001" \
   --parent=measurementConsumers/777 \
   --event-group-key=$EVENT_GROUP_NAME_1 \
   --event-group-value="video_ad.age.value == 1" \
