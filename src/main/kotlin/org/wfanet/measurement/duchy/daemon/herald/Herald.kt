@@ -46,6 +46,8 @@ import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoro
 import org.wfanet.measurement.system.v1alpha.failComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.streamActiveComputationsRequest
 
+private const val MAX_ATTEMPTS = 3
+
 /**
  * The Herald looks to the kingdom for status of computations.
  *
@@ -114,7 +116,7 @@ class Herald(
     systemComputationsClient
       .streamActiveComputations(streamRequest)
       .onEach { response ->
-        launch { processSystemComputationWithoutExceptions(response.computation, 3) }
+        launch { processSystemComputationWithoutExceptions(response.computation, MAX_ATTEMPTS) }
         lastProcessedContinuationToken = response.continuationToken
       }
       .collect()
@@ -271,7 +273,7 @@ class Herald(
     try {
       systemComputationParticipantClient.failComputationParticipant(request)
     } catch (ex: Throwable) {
-      logger.warning("[id=$globalId]: Error when failComputationAtKingdom.")
+      logger.warning("[id=$globalId]: Error when failComputationAtKingdom.\n$ex")
     }
   }
 
@@ -297,7 +299,7 @@ class Herald(
     try {
       internalComputationsClient.finishComputation(finishRequest)
     } catch (ex: Throwable) {
-      logger.warning("[id=$globalId]: Error when failComputationAtDuchy.")
+      logger.warning("[id=$globalId]: Error when failComputationAtDuchy.\n$ex")
     }
   }
 
