@@ -16,7 +16,7 @@
 
 load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
 
-_PREFIX = IMAGE_REPOSITORY_SETTINGS.repository_prefix
+_PREFIX = IMAGE_REPOSITORY_SETTINGS.repository_prefix + "/tf_test"
 
 # List of specs for all Docker containers to push to a container registry.
 # These are common to both local execution (e.g. in Kind) as well as on GKE.
