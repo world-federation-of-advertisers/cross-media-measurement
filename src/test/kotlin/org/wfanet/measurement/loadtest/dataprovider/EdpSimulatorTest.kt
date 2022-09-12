@@ -646,13 +646,13 @@ class EdpSimulatorTest {
       val vidList = listOf(1L, 1L, 1L, 2L, 2L, 3L, 4L, 5L)
       val (reachValue, frequencyMap) = EdpSimulator.calculateDirectReachAndFrequency(vidList, 0.1f)
 
-      // Scale reach and frequency by multiplying 1/samplingRate
+      // Scale reach by multiplying 1/samplingRate
       val expectedReachValue = 50
-      val expectedFrequencyMap = mapOf(1L to 6.0, 2L to 2.0, 3L to 2.0)
+      val expectedFrequencyMap = mapOf(1L to 0.6, 2L to 0.2, 3L to 0.2)
 
       assertThat(reachValue).isEqualTo(expectedReachValue)
-      frequencyMap.forEach { (frequency, value) ->
-        assertThat(value).isEqualTo(expectedFrequencyMap[frequency])
+      frequencyMap.forEach { (frequency, percentage) ->
+        assertThat(percentage).isEqualTo(expectedFrequencyMap[frequency])
       }
     }
   }

@@ -185,16 +185,16 @@ class FrontendSimulator(
     val expectedReachValue = 948L
     val expectedFrequencyMap =
       mapOf(
-        1L to 0.9469692226906203,
-        2L to 0.047577983183004935,
-        3L to 0.003760105102368519,
-        4L to 4.184775304897971E-5
+        1L to 0.947389665261748,
+        2L to 0.04805005905234108,
+        3L to 0.0038138458821366963,
+        4L to 9.558853281715655E-5
       )
 
     assertThat(reachAndFrequencyResult.reach.value).isEqualTo(expectedReachValue)
-    reachAndFrequencyResult.frequency.relativeFrequencyDistributionMap.forEach { (frequency, value)
-      ->
-      assertThat(value).isEqualTo(expectedFrequencyMap[frequency])
+    reachAndFrequencyResult.frequency.relativeFrequencyDistributionMap.forEach {
+      (frequency, percentage) ->
+      assertThat(percentage).isEqualTo(expectedFrequencyMap[frequency])
     }
 
     logger.info(
