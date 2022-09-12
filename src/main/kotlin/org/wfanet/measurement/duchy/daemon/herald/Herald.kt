@@ -25,6 +25,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
 import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.protoTimestamp
@@ -72,8 +73,11 @@ class Herald(
   private val clock: Clock,
   private val blobStorageBucket: String = "computation-blob-storage",
   private val maxAttempts: Int = 5,
+  private val maxConcurrency: Int = 5,
   private val retryBackoff: ExponentialBackoff = ExponentialBackoff(),
 ) {
+  private val semaphore = Semaphore(maxConcurrency)
+
   /**
    * Syncs the status of computations stored at the kingdom with those stored locally continually in
    * a forever loop. The [pollingThrottler] is used to limit how often the kingdom and local
@@ -113,9 +117,11 @@ class Herald(
       this.continuationToken = continuationToken
     }
     var lastProcessedContinuationToken = continuationToken
+
     systemComputationsClient
       .streamActiveComputations(streamRequest)
       .onEach { response ->
+        semaphore.acquire()
         launch { processSystemComputationWithoutExceptions(response.computation, MAX_ATTEMPTS) }
         lastProcessedContinuationToken = response.continuationToken
       }
@@ -133,6 +139,7 @@ class Herald(
       attemptNumber++
       try {
         processSystemComputationChange(computation)
+        semaphore.release()
         return
       } catch (ex: Throwable) {
         if (!mayBeTransientGrpcError(ex) || attemptNumber >= maxAttempts) {
@@ -141,6 +148,7 @@ class Herald(
             "Herald failed after $attemptNumber attempt(s). ${ex.message}"
           )
           failComputationAtDuchy(computation)
+          semaphore.release()
           return
         }
       }

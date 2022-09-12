@@ -731,6 +731,17 @@ class HeraldTest {
         )
     }
 
+  @Test
+  fun `syncStatuses finishes multiple tasks under coordination of semaphore`() = runTest {
+    val computations =
+      (1..10).map {
+        buildComputationAtKingdom(it.toString(), Computation.State.PENDING_REQUISITION_PARAMS)
+      }
+    mockStreamActiveComputationsToReturn(*computations.toTypedArray())
+
+    assertThat(aggregatorHerald.syncStatuses(EMPTY_TOKEN)).isNotEmpty()
+  }
+
   /**
    * Builds a kingdom system Api Computation using default values for fields not included in the
    * parameters.
