@@ -1,0 +1,10 @@
+secretGenerator:
+- name: certs-and-configs
+  files:
+  - all_root_certs.pem
+  - kingdom_tls.key
+  - kingdom_tls.pem
+  - health_probe_tls.pem
+  - health_probe_tls.key
+  - duchy_cert_config.textproto
+  - llv2_protocol_config_config.textproto
