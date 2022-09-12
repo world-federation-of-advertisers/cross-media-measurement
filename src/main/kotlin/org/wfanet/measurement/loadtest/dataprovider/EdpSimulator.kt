@@ -23,7 +23,6 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.util.logging.Level
 import java.util.logging.Logger
-import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
@@ -464,9 +463,9 @@ class EdpSimulator(
     laplaceForFrequency.reseedRandomGenerator(1)
 
     val frequencyNoisedMap = mutableMapOf<Long, Double>()
-    frequencyMap.forEach { (frequency, value) ->
+    frequencyMap.forEach { (frequency, percentage) ->
       frequencyNoisedMap[frequency] =
-        (value * reachValue.toDouble() + laplaceForFrequency.sample()) / reachValue.toDouble()
+        (percentage * reachValue.toDouble() + laplaceForFrequency.sample()) / reachValue.toDouble()
     }
 
     val requisitionData =
@@ -562,19 +561,19 @@ class EdpSimulator(
 
     /**
      * Function to calculate direct reach and frequency from VIDs in
-     * fulfillDirectReachAndFrequencyMeasurement(). Reach and frequency need to scale by sampling
-     * rate
+     * fulfillDirectReachAndFrequencyMeasurement(). Reach needs to scale by sampling rate
+     * @param vidList List of VIDs
+     * @param samplingRate Probability of sampling which is vidSamplingIntervalWidth
+     * @return Pair of reach value and frequency map
      */
     fun calculateDirectReachAndFrequency(
       vidList: List<Long>,
       samplingRate: Float
     ): Pair<Long, Map<Long, Double>> {
-      require(samplingRate > 0) { "Invalid samplingRate $samplingRate" }
-      require(samplingRate <= 1.0) { "Invalid samplingRate $samplingRate" }
+      require(samplingRate > 0 && samplingRate <= 1.0) { "Invalid samplingRate $samplingRate" }
 
       var reachValue = vidList.toSet().size.toLong()
       val frequencyMap = mutableMapOf<Long, Double>().withDefault { 0.0 }
-      val decimal = 1000
 
       vidList
         .groupingBy { it }
@@ -582,11 +581,9 @@ class EdpSimulator(
         .forEach { (_, frequency) ->
           frequencyMap[frequency.toLong()] = frequencyMap.getValue(frequency.toLong()) + 1.0
         }
+
       frequencyMap.forEach { (frequency, _) ->
-        frequencyMap[frequency] =
-          (frequencyMap.getValue(frequency) / reachValue.toDouble()) / samplingRate.toDouble()
-        frequencyMap[frequency] =
-          (frequencyMap.getValue(frequency) * decimal).roundToInt().toDouble() / decimal
+        frequencyMap[frequency] = frequencyMap.getValue(frequency) / reachValue.toDouble()
       }
 
       reachValue = (reachValue / samplingRate).toLong()
