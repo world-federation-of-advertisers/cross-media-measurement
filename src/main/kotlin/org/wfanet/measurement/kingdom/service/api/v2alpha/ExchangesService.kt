@@ -15,7 +15,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
-import io.grpc.StatusRuntimeException
+import io.grpc.StatusException
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import org.wfanet.measurement.api.v2alpha.Exchange
@@ -48,9 +48,9 @@ class ExchangesService(private val internalExchanges: ExchangesCoroutineStub) :
     val internalExchange =
       try {
         internalExchanges.getExchange(getRequest)
-      } catch (ex: StatusRuntimeException) {
-        when (ex.status) {
-          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Exchange not found" }
+      } catch (ex: StatusException) {
+        when (ex.status.code) {
+          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Exchange not found" }
           else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
         }
       }
