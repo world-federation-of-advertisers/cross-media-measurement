@@ -434,6 +434,14 @@ class CreateMeasurement : Runnable {
       )
       var frequencyPrivacyDelta by Delegates.notNull<Double>()
         private set
+
+      @set:Option(
+        names = ["--reach-max-frequency"],
+        description = ["Maximum frequency per user"],
+        required = true,
+      )
+      var maximumFrequencyPerUser by Delegates.notNull<Int>()
+        private set
     }
 
     class ImpressionParams {
@@ -462,7 +470,7 @@ class CreateMeasurement : Runnable {
         private set
 
       @set:Option(
-        names = ["--max-frequency"],
+        names = ["--impression-max-frequency"],
         description = ["Maximum frequency per user"],
         required = true,
       )
@@ -522,6 +530,7 @@ class CreateMeasurement : Runnable {
         epsilon = measurementTypeParams.reachAndFrequency.frequencyPrivacyEpsilon
         delta = measurementTypeParams.reachAndFrequency.frequencyPrivacyDelta
       }
+      maximumFrequencyPerUser = measurementTypeParams.reachAndFrequency.maximumFrequencyPerUser
     }
   }
 
@@ -696,7 +705,7 @@ class CreateMeasurement : Runnable {
           .withAuthenticationKey(parentCommand.apiAuthenticationKey)
           .createMeasurement(createMeasurementRequest { this.measurement = measurement })
       }
-    print("Measurement Name: ${response.name}")
+    println("Measurement Name: ${response.name}")
   }
 }
 
@@ -776,7 +785,7 @@ class GetMeasurement : Runnable {
     if (result.hasReach()) println("Reach - ${result.reach.value}")
     if (result.hasFrequency()) {
       println("Frequency - ")
-      result.frequency.relativeFrequencyDistributionMap.forEach {
+      result.frequency.relativeFrequencyDistributionMap.toSortedMap().forEach {
         println("\t${it.key}  ${it.value}")
       }
     }

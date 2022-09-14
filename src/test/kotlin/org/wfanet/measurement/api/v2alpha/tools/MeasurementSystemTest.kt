@@ -383,7 +383,7 @@ class MeasurementSystemTest {
           "--impression",
           "--impression-privacy-epsilon=0.015",
           "--impression-privacy-delta=0.0",
-          "--max-frequency=1000",
+          "--impression-max-frequency=1000",
           "--vid-sampling-start=0.1",
           "--vid-sampling-width=0.2",
           "--measurement-consumer=measurementConsumers/777",
@@ -537,6 +537,7 @@ class MeasurementSystemTest {
           "--reach-privacy-delta=0.0",
           "--frequency-privacy-epsilon=0.02",
           "--frequency-privacy-delta=0.0",
+          "--reach-max-frequency=1000",
           "--vid-sampling-start=0.1",
           "--vid-sampling-width=0.2",
           "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
@@ -569,6 +570,7 @@ class MeasurementSystemTest {
                 epsilon = 0.02
                 delta = 0.0
               }
+              maximumFrequencyPerUser = 1000
             }
           vidSamplingInterval =
             MeasurementSpecKt.vidSamplingInterval {
@@ -591,7 +593,7 @@ class MeasurementSystemTest {
           "--impression",
           "--impression-privacy-epsilon=0.015",
           "--impression-privacy-delta=0.0",
-          "--max-frequency=1000",
+          "--impression-max-frequency=1000",
           "--vid-sampling-start=0.1",
           "--vid-sampling-width=0.2",
           "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
