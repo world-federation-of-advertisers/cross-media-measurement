@@ -35,8 +35,8 @@ cue_library(
     srcs = ["kingdom.cue"],
     deps = [
         ":base",
-        ":spanner",
         ":open_telemetry_collector_sidecar",
+        ":spanner",
     ],
 )
 
@@ -71,8 +71,8 @@ cue_library(
     srcs = ["reporting.cue"],
     deps = [
         ":base",
-        ":postgres",
         ":open_telemetry_collector_sidecar",
+        ":postgres",
     ],
 )
 
