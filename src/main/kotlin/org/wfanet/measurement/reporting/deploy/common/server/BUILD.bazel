@@ -62,6 +62,7 @@ java_binary(
 
 java_image(
     name = "v1alpha_public_api_server_image",
+    data = ["@open_telemetry_java_agent//file"],
     main_class = "org.wfanet.measurement.reporting.deploy.common.server.V1AlphaPublicApiServerKt",
     visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":v1alpha_public_api_server"],

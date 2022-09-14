@@ -69,6 +69,7 @@ package k8s
 			image:           _images[_name]
 			imagePullPolicy: Reporting._imagePullPolicy
 		}
+		_instrumentMetrics: true
 	}
 	deployments: {
 		"postgres-reporting-data-server": {
@@ -122,7 +123,7 @@ package k8s
 	}
 
 	networkPolicies: {
-		"internal-data-server": {
+		"internal-reporting-data-server": {
 			_app_label: "postgres-reporting-data-server-app"
 			_sourceMatchLabels: [
 				"v1alpha-public-api-server-app",
@@ -130,8 +131,9 @@ package k8s
 			_egresses: {
 				any: {}
 			}
+			_exportMetrics: true
 		}
-		"public-api-server": {
+		"public-reporting-api-server": {
 			_app_label: "v1alpha-public-api-server-app"
 			_destinationMatchLabels: ["postgres-reporting-data-server-app"]
 			_ingresses: {
@@ -141,6 +143,7 @@ package k8s
 					}]
 				}
 			}
+			_exportMetrics: true
 		}
 	}
 }

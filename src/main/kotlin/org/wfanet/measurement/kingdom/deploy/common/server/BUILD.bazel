@@ -67,6 +67,7 @@ java_binary(
 
 java_image(
     name = "v2alpha_public_api_server_image",
+    data = ["@open_telemetry_java_agent//file"],
     main_class = "org.wfanet.measurement.kingdom.deploy.common.server.V2alphaPublicApiServerKt",
     visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":v2alpha_public_api_server"],
@@ -97,6 +98,7 @@ java_binary(
 
 java_image(
     name = "system_api_server_image",
+    data = ["@open_telemetry_java_agent//file"],
     main_class = "org.wfanet.measurement.kingdom.deploy.common.server.SystemApiServerKt",
     visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":system_api_server"],

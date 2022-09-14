@@ -63,6 +63,9 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 #HealthPort: 8080
 
+#OpenTelemetryReceiverPort:           4317
+#OpenTelemetryPrometheusExporterPort: 8889
+
 #ResourceQuantity: {
 	cpu?:    string
 	memory?: string
@@ -79,6 +82,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	maxDirectMemorySize?:  string
 	maxCachedBufferSize:   uint | *262144 // 256KiB
 	nettyMaxDirectMemory?: int
+	instrumentMetrics:     bool | *false
+	useSidecar:            bool | *false
 
 	_maxRamOptions: [...string]
 	if maxRamPercentage != _|_ {
@@ -86,6 +91,22 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			"-XX:MaxRAMPercentage=\(maxRamPercentage)",
 			"-XX:MinRAMPercentage=\(maxRamPercentage)",
 			"-XX:InitialRAMPercentage=\(maxRamPercentage)",
+		]
+	}
+
+	_openTelemetryJavaAgentOptions: [...string]
+	if instrumentMetrics != false {
+		_openTelemetryJavaAgentOptions: [
+			"-javaagent:/app/open_telemetry_java_agent/file/open-telemetry-java-agent",
+			if useSidecar != true {
+				"-Dotel.exporter.otlp.endpoint=http://open-telemetry-receiver:\(#OpenTelemetryReceiverPort)"
+			},
+			if useSidecar != false {
+				"-Dotel.exporter.otlp.endpoint=http://0.0.0.0:\(#OpenTelemetryReceiverPort)"
+			},
+			"-Dotel.metrics.exporter=otlp",
+			"-Dotel.exporter.otlp.metrics.protocol=grpc",
+			"-Dotel.traces.exporter=none",
 		]
 	}
 
@@ -99,6 +120,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			"-Dio.netty.maxDirectMemory=\(nettyMaxDirectMemory)"
 		},
 		"-Djdk.nio.maxCachedBufferSize=\(maxCachedBufferSize)",
+		for item in _openTelemetryJavaAgentOptions {item},
 	]
 }
 
@@ -201,29 +223,74 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	}
 }
 
+// K8s ConfigMap.
+#ConfigMap: {
+	_name:      string
+	_system:    string
+	apiVersion: "v1"
+	kind:       "ConfigMap"
+	metadata: {
+		name: _name
+		labels: {
+			"app.kubernetes.io/name":      _name
+			"app.kubernetes.io/part-of":   #AppName
+			"app.kubernetes.io/component": _system
+		}
+	}
+	data: {...}
+}
+
+// K8s ConfigMap for an Open Telemetry Collector
+#OpenTelemetryCollectorConfigMap: #ConfigMap & {
+	_system: "open-telemetry"
+	data:    {...} | *{
+		"config.yaml": """
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+              endpoint: 0.0.0.0:\(#OpenTelemetryReceiverPort)
+
+      exporters:
+        prometheus:
+          endpoint: 0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)
+
+      extensions:
+        health_check:
+
+      service:
+        extensions: [health_check]
+        pipelines:
+          metrics:
+            receivers: [otlp]
+            processors: []
+            exporters: [prometheus]
+      """
+	}
+}
+
 // K8s Service.
 #Service: {
+	_name:      string
+	_system:    string
 	apiVersion: "v1"
 	kind:       "Service"
 	metadata:   Metadata=#ObjectMeta & {
+		_component: _system
+		name:       _name
 		annotations: "system": Metadata._component
 	}
 	spec: {
-		selector: app: "\(metadata.name)-app"
+		selector: app: string | *"\(metadata.name)-app"
 		ports: [...#ServicePort]
 		type?: "ClusterIP" | "LoadBalancer"
 	}
 }
 
 #GrpcService: #Service & {
-	_name:   string
-	_system: string
-	_type:   *"ClusterIP" | "LoadBalancer"
+	_type: *"ClusterIP" | "LoadBalancer"
 
 	metadata: {
-		_component: _system
-
-		name: _name
 		annotations: {
 			"cloud.google.com/app-protocols":   "{\"\(#GrpcServicePort.name)\": \"HTTP2\"}"
 			"kubernetes.io/ingress.allow-http": "false"
@@ -331,12 +398,26 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 // K8s Deployment.
 #Deployment: {
-	_name:       string
-	_secretName: string
-	_system:     string
-	_container:  #Container & {
+	_name:              string
+	_secretName:        string
+	_system:            string
+	_instrumentMetrics: bool | *false
+	_useSidecar:        bool | *false
+	_container:         #Container & {
 		imagePullPolicy: _ | *"Never"
+		_javaOptions: {
+			instrumentMetrics: _instrumentMetrics
+			useSidecar:        _useSidecar
+		}
+
+		if _instrumentMetrics == true {
+			_envVars: "OTEL_SERVICE_NAME": {
+				value: _name
+			}
+		}
 	}
+	_sidecarContainers: [...#Container]
+	_sidecarProjectionMounts: [...#ProjectionMount]
 
 	apiVersion: "apps/v1"
 	kind:       "Deployment"
@@ -357,8 +438,21 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 				_projectionMounts: "\(_name)-files": {
 					volume: secret: secretName: _secretName
 				}
+
+				_projectionMounts: {
+					for sidecarProjectionMount in _sidecarProjectionMounts {
+						"\(sidecarProjectionMount.name)": sidecarProjectionMount
+					}
+				}
+
 				_containers: "\(_name)-container": _container
 				restartPolicy: restartPolicy | *"Always"
+
+				_containers: {
+					for sidecarContainer in _sidecarContainers {
+						"\(sidecarContainer.name)": sidecarContainer
+					}
+				}
 			}
 		}
 	}
@@ -444,6 +538,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_destinationMatchLabels: [...string]
 	_ingresses: [Name=_]: #IngressRule
 	_egresses: [Name=_]:  #EgressRule
+	_exportMetrics: bool | *false
 
 	_ingresses: {
 		if len(_sourceMatchLabels) > 0 {
@@ -478,6 +573,17 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 				protocol: "TCP"
 				port:     53
 			}]
+		}
+		if _exportMetrics == true {
+			collector: {
+				to: [{
+					podSelector: matchLabels: app: "open-telemetry-collector-app"
+				}]
+				ports: [{
+					protocol: "TCP"
+					port:     #OpenTelemetryReceiverPort
+				}]
+			}
 		}
 	}
 

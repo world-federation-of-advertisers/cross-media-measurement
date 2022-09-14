@@ -81,6 +81,7 @@ import ("strings")
 			image:           _images[_unprefixed_name]
 			imagePullPolicy: _duchy_image_pull_policy
 		}
+		_instrumentMetrics: true
 	}
 
 	deployments: {
@@ -236,6 +237,7 @@ import ("strings")
 			_destinationMatchLabels: [
 				_object_prefix + "spanner-computations-server-app",
 			]
+			_exportMetrics: true
 		}
 		"computation-control-server": {
 			_app_label: _object_prefix + "computation-control-server-app"

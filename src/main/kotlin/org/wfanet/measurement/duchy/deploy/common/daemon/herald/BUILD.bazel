@@ -27,6 +27,7 @@ java_binary(
 
 java_image(
     name = "herald_daemon_image",
+    data = ["@open_telemetry_java_agent//file"],
     main_class = "org.wfanet.measurement.duchy.deploy.common.daemon.herald.HeraldDaemonKt",
     visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":herald_daemon"],

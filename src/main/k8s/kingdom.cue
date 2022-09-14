@@ -61,6 +61,7 @@ package k8s
 			image:           _images[_name]
 			imagePullPolicy: _kingdom_image_pull_policy
 		}
+		_instrumentMetrics: true
 	}
 	deployments: {
 		"gcp-kingdom-data-server": {
@@ -84,7 +85,7 @@ package k8s
 			}
 		}
 
-		"system-api-server": {
+		"system-api-server": Deployment={
 			_container: args: [
 				_debug_verbose_grpc_client_logging_flag,
 				_debug_verbose_grpc_server_logging_flag,
@@ -98,9 +99,22 @@ package k8s
 				"--health-port=8080",
 			]
 			spec: template: spec: _dependencies: ["gcp-kingdom-data-server"]
+
+			_useSidecar:                    true
+			_openTelemetryCollectorSidecar: #OpenTelemetryCollectorSidecar & {
+				_name:          Deployment._name
+				_pod_label_app: Deployment.metadata.labels.app
+			}
+
+			_sidecarContainers: [
+				_openTelemetryCollectorSidecar._container,
+			]
+			_sidecarProjectionMounts: [
+				_openTelemetryCollectorSidecar._configMapMount,
+			]
 		}
 
-		"v2alpha-public-api-server": {
+		"v2alpha-public-api-server": Deployment={
 			_container: args: [
 				_debug_verbose_grpc_client_logging_flag,
 				_debug_verbose_grpc_server_logging_flag,
@@ -119,6 +133,19 @@ package k8s
 				_projectionMounts: "config-files": #ConfigMapMount
 				_dependencies: ["gcp-kingdom-data-server"]
 			}
+
+			_useSidecar:                    true
+			_openTelemetryCollectorSidecar: #OpenTelemetryCollectorSidecar & {
+				_name:          Deployment._name
+				_pod_label_app: Deployment.metadata.labels.app
+			}
+
+			_sidecarContainers: [
+				_openTelemetryCollectorSidecar._container,
+			]
+			_sidecarProjectionMounts: [
+				_openTelemetryCollectorSidecar._configMapMount,
+			]
 		}
 	}
 
@@ -138,6 +165,7 @@ package k8s
 				// Need to send external traffic to Spanner.
 				any: {}
 			}
+			_exportMetrics: true
 		}
 		"public-api-server": {
 			_app_label: "v2alpha-public-api-server-app"
