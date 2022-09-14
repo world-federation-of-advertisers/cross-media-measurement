@@ -95,6 +95,7 @@ private val TEXTPROTO_DIR: Path =
     )
   )!!
 
+private const val REPORT_IDEMPOTENCY_KEY = "report001"
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/1"
 private const val EVENT_GROUP_NAME_1 = "$MEASUREMENT_CONSUMER_NAME/dataProviders/1/eventGroups/1"
 private const val EVENT_GROUP_NAME_2 = "$MEASUREMENT_CONSUMER_NAME/dataProviders/1/eventGroups/2"
@@ -309,6 +310,7 @@ class ReportingTest {
         "--reporting-server-api-target=$HOST:${server.port}",
         "reports",
         "create",
+        "--idempotency-key=$REPORT_IDEMPOTENCY_KEY",
         "--parent=$MEASUREMENT_CONSUMER_NAME",
         "--event-group-key=$EVENT_GROUP_NAME_1",
         "--event-group-value=",
@@ -327,6 +329,7 @@ class ReportingTest {
         createReportRequest {
           parent = MEASUREMENT_CONSUMER_NAME
           report = report {
+            reportIdempotencyKey = REPORT_IDEMPOTENCY_KEY
             measurementConsumer = MEASUREMENT_CONSUMER_NAME
             eventGroupUniverse = eventGroupUniverse {
               eventGroupEntries += eventGroupEntry { key = EVENT_GROUP_NAME_1 }
@@ -384,6 +387,7 @@ class ReportingTest {
         "--reporting-server-api-target=$HOST:${server.port}",
         "reports",
         "create",
+        "--idempotency-key=$REPORT_IDEMPOTENCY_KEY",
         "--parent=$MEASUREMENT_CONSUMER_NAME",
         "--event-group-key=$EVENT_GROUP_NAME_1",
         "--event-group-value=",
@@ -428,6 +432,7 @@ class ReportingTest {
         "--reporting-server-api-target=$HOST:${server.port}",
         "reports",
         "create",
+        "--idempotency-key=$REPORT_IDEMPOTENCY_KEY",
         "--parent=$MEASUREMENT_CONSUMER_NAME",
         "--event-group-key=$EVENT_GROUP_NAME_1",
         "--event-group-value=",

@@ -15,7 +15,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
-import io.grpc.StatusRuntimeException
+import io.grpc.StatusException
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
@@ -124,13 +124,13 @@ class PublicKeysService(private val internalPublicKeysStub: PublicKeysCoroutineS
     }
     try {
       internalPublicKeysStub.updatePublicKey(updateRequest)
-    } catch (ex: StatusRuntimeException) {
-      when (ex.status) {
-        Status.INVALID_ARGUMENT ->
+    } catch (ex: StatusException) {
+      when (ex.status.code) {
+        Status.Code.INVALID_ARGUMENT ->
           failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid" }
-        Status.FAILED_PRECONDITION ->
+        Status.Code.FAILED_PRECONDITION ->
           failGrpc(Status.FAILED_PRECONDITION, ex) { "Certificate not found." }
-        Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { ex.message ?: "Not found." }
+        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { ex.message ?: "Not found." }
         else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
       }
     }

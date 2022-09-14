@@ -15,7 +15,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
-import io.grpc.StatusRuntimeException
+import io.grpc.StatusException
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
@@ -66,9 +66,9 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
         internalClient.getDataProvider(
           getDataProviderRequest { externalDataProviderId = apiIdToExternalId(key.dataProviderId) }
         )
-      } catch (ex: StatusRuntimeException) {
-        when (ex.status) {
-          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "DataProvider not found" }
+      } catch (ex: StatusException) {
+        when (ex.status.code) {
+          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "DataProvider not found" }
           else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
         }
       }

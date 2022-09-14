@@ -22,28 +22,27 @@ package k8s
 	_simulator_image_pull_policy: string | *"Always"
 	_kingdom_public_api_target:   string
 	_blob_storage_flags: [...string]
-	_resourceConfig: #ResourceConfig
 
-	frontend_simulator_job: #Job & {
-		_name:            "frontend-simulator"
-		_secretName:      _mc_secret_name
-		_image:           _simulator_image
-		_imagePullPolicy: _simulator_image_pull_policy
-		_resources:       _resourceConfig.resources
-		_jvmHeapSize:     _resourceConfig.jvmHeapSize
-		_args:            [
-					"--tls-cert-file=/var/run/secrets/files/mc_tls.pem",
-					"--tls-key-file=/var/run/secrets/files/mc_tls.key",
-					"--cert-collection-file=/var/run/secrets/files/all_root_certs.pem",
-					"--kingdom-public-api-target=\(_kingdom_public_api_target)",
-					"--kingdom-public-api-cert-host=localhost",
-					"--mc-resource-name=\(_mc_resource_name)",
-					"--api-authentication-key=\(_mc_api_authentication_key)",
-					"--mc-consent-signaling-cert-der-file=/var/run/secrets/files/mc_cs_cert.der",
-					"--mc-consent-signaling-key-der-file=/var/run/secrets/files/mc_cs_private.der",
-					"--mc-encryption-private-keyset=/var/run/secrets/files/mc_enc_private.tink",
-					"--output-differential-privacy-epsilon=0.1",
-					"--output-differential-privacy-delta=0.000001",
-		] + _blob_storage_flags
+	job: #Job & {
+		_name:       "frontend-simulator"
+		_secretName: _mc_secret_name
+		_container: {
+			image:           _simulator_image
+			imagePullPolicy: _simulator_image_pull_policy
+			args:            [
+						"--tls-cert-file=/var/run/secrets/files/mc_tls.pem",
+						"--tls-key-file=/var/run/secrets/files/mc_tls.key",
+						"--cert-collection-file=/var/run/secrets/files/all_root_certs.pem",
+						"--kingdom-public-api-target=\(_kingdom_public_api_target)",
+						"--kingdom-public-api-cert-host=localhost",
+						"--mc-resource-name=\(_mc_resource_name)",
+						"--api-authentication-key=\(_mc_api_authentication_key)",
+						"--mc-consent-signaling-cert-der-file=/var/run/secrets/files/mc_cs_cert.der",
+						"--mc-consent-signaling-key-der-file=/var/run/secrets/files/mc_cs_private.der",
+						"--mc-encryption-private-keyset=/var/run/secrets/files/mc_enc_private.tink",
+						"--output-differential-privacy-epsilon=0.1",
+						"--output-differential-privacy-delta=0.000001",
+			] + _blob_storage_flags
+		}
 	}
 }

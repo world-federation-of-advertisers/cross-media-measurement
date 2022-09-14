@@ -30,6 +30,9 @@ import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptsGrpcKt.ExchangeStepAttemptsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.FinishExchangeStepAttemptRequest
 import org.wfanet.measurement.internal.kingdom.GetExchangeStepAttemptRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ExchangeStepAttemptNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ExchangeStepNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RecurringExchangeNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ExchangeStepAttemptReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.FinishExchangeStepAttempt
 
@@ -42,6 +45,7 @@ class SpannerExchangeStepAttemptsService(
   override suspend fun getExchangeStepAttempt(
     request: GetExchangeStepAttemptRequest
   ): ExchangeStepAttempt {
+    val externalRecurringExchangeId = ExternalId(request.externalRecurringExchangeId)
     val result =
       ExchangeStepAttemptReader()
         .fillStatementBuilder {
@@ -82,7 +86,7 @@ class SpannerExchangeStepAttemptsService(
               }
           }
 
-          bind("external_recurring_exchange_id" to request.externalRecurringExchangeId)
+          bind("external_recurring_exchange_id" to externalRecurringExchangeId)
           bind("date" to request.date.toCloudDate())
           bind("step_index" to request.stepIndex.toLong())
           bind("attempt_index" to request.attemptNumber.toLong())
@@ -91,7 +95,13 @@ class SpannerExchangeStepAttemptsService(
         }
         .execute(client.singleUse())
         .singleOrNull()
-        ?: failGrpc(Status.NOT_FOUND) { "ExchangeStepAttempt not found" }
+        ?: ExchangeStepAttemptNotFoundException(
+            externalRecurringExchangeId,
+            request.date,
+            request.stepIndex,
+            request.attemptNumber
+          )
+          .throwStatusRuntimeException(Status.NOT_FOUND)
     return result.exchangeStepAttempt
   }
 
@@ -99,7 +109,8 @@ class SpannerExchangeStepAttemptsService(
     request: FinishExchangeStepAttemptRequest
   ): ExchangeStepAttempt {
     grpcRequire(request.hasDate()) { "Date must be provided in the request." }
-    return FinishExchangeStepAttempt(
+    val writer =
+      FinishExchangeStepAttempt(
         provider = request.provider,
         externalRecurringExchangeId = ExternalId(request.externalRecurringExchangeId),
         exchangeDate = request.date,
@@ -109,6 +120,14 @@ class SpannerExchangeStepAttemptsService(
         debugLogEntries = request.debugLogEntriesList,
         clock = clock
       )
-      .execute(client, idGenerator)
+    try {
+      return writer.execute(client, idGenerator)
+    } catch (e: RecurringExchangeNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND)
+    } catch (e: ExchangeStepNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND)
+    } catch (e: ExchangeStepAttemptNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND)
+    }
   }
 }

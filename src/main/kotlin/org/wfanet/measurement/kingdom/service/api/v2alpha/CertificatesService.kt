@@ -15,7 +15,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
-import io.grpc.StatusRuntimeException
+import io.grpc.StatusException
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.Certificate.RevocationState
 import org.wfanet.measurement.api.v2alpha.CertificateParentKey
@@ -123,9 +123,9 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
     val internalCertificate =
       try {
         internalCertificatesStub.getCertificate(internalGetCertificateRequest)
-      } catch (ex: StatusRuntimeException) {
-        when (ex.status) {
-          Status.INVALID_ARGUMENT ->
+      } catch (ex: StatusException) {
+        when (ex.status.code) {
+          Status.Code.INVALID_ARGUMENT ->
             failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid." }
           else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
         }
@@ -229,14 +229,14 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
     val response =
       try {
         internalCertificatesStub.createCertificate(internalCertificate)
-      } catch (ex: StatusRuntimeException) {
-        when (ex.status) {
-          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { ex.message ?: "Not found" }
-          Status.ALREADY_EXISTS ->
+      } catch (ex: StatusException) {
+        when (ex.status.code) {
+          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { ex.message ?: "Not found" }
+          Status.Code.ALREADY_EXISTS ->
             failGrpc(Status.ALREADY_EXISTS, ex) {
               "Certificate with the subject key identifier (SKID) already exists."
             }
-          Status.INVALID_ARGUMENT ->
+          Status.Code.INVALID_ARGUMENT ->
             failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid." }
           else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
         }
@@ -345,10 +345,10 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
     val internalCertificate =
       try {
         internalCertificatesStub.revokeCertificate(internalRevokeCertificateRequest)
-      } catch (ex: StatusRuntimeException) {
-        when (ex.status) {
-          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { ex.message ?: "Not found" }
-          Status.FAILED_PRECONDITION ->
+      } catch (ex: StatusException) {
+        when (ex.status.code) {
+          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { ex.message ?: "Not found" }
+          Status.Code.FAILED_PRECONDITION ->
             failGrpc(Status.FAILED_PRECONDITION, ex) { "Certificate is in wrong State." }
           else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
         }
@@ -448,10 +448,10 @@ class CertificatesService(private val internalCertificatesStub: CertificatesCoro
     val internalCertificate =
       try {
         internalCertificatesStub.releaseCertificateHold(internalReleaseCertificateHoldRequest)
-      } catch (ex: StatusRuntimeException) {
-        when (ex.status) {
-          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { ex.message ?: "Not found" }
-          Status.FAILED_PRECONDITION ->
+      } catch (ex: StatusException) {
+        when (ex.status.code) {
+          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { ex.message ?: "Not found" }
+          Status.Code.FAILED_PRECONDITION ->
             failGrpc(Status.FAILED_PRECONDITION, ex) { "Certificate is in wrong State." }
           else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
         }

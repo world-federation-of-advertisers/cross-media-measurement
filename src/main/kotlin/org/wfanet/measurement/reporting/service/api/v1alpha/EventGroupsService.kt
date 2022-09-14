@@ -57,7 +57,7 @@ class EventGroupsService(
     val apiAuthenticationKey: String = principal.config.apiKey
     val dataProviderName =
       CmmsDataProviderKey(
-          (EventGroupKey.fromName("${request.parent}/eventGroups/fake")
+          (EventGroupParentKey.fromName(request.parent)
               ?: failGrpc(Status.FAILED_PRECONDITION) { "Event group parent unable to be parsed" })
             .dataProviderReferenceId
         )

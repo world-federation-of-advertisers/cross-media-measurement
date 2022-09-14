@@ -18,9 +18,6 @@ _reportingSecretName:         string @tag("secret_name")
 _reportingDbSecretName:       string @tag("db_secret_name")
 _reportingMcConfigSecretName: string @tag("mc_config_secret_name")
 
-#ReportingServerResourceConfig: #DefaultResourceConfig & {
-}
-
 objectSets: [ for objectSet in reporting {objectSet}]
 
 reporting: #Reporting & {
@@ -44,30 +41,31 @@ reporting: #Reporting & {
 		"postgres-reporting-data-server": "bazel/src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/server:postgres_reporting_data_server_image"
 		"v1alpha-public-api-server":      "bazel/src/main/kotlin/org/wfanet/measurement/reporting/deploy/common/server:v1alpha_public_api_server_image"
 	}
-	_resourceConfigs: {
-		"postgres-reporting-data-server": #ReportingServerResourceConfig
-		"v1alpha-public-api-server":      #ReportingServerResourceConfig
-	}
 	_imagePullPolicy:          "Never"
 	_verboseGrpcServerLogging: true
 	_verboseGrpcClientLogging: true
 
+	let EnvVars = #EnvVarMap & {
+		"POSTGRES_USER": {
+			valueFrom:
+				secretKeyRef: {
+					name: _reportingDbSecretName
+					key:  "username"
+				}
+		}
+		"POSTGRES_PASSWORD": {
+			valueFrom:
+				secretKeyRef: {
+					name: _reportingDbSecretName
+					key:  "password"
+				}
+		}
+	}
+
 	deployments: {
 		"postgres-reporting-data-server": {
-			_envVars: "POSTGRES_USER": {
-				valueFrom:
-					secretKeyRef: {
-						name: _reportingDbSecretName
-						key:  "username"
-					}
-			}
-			_envVars: "POSTGRES_PASSWORD": {
-				valueFrom:
-					secretKeyRef: {
-						name: _reportingDbSecretName
-						key:  "password"
-					}
-			}
+			_container: _envVars:             EnvVars
+			_updateSchemaContainer: _envVars: EnvVars
 		}
 	}
 }

@@ -25,8 +25,9 @@ import "strings"
 }
 
 #SpannerConfig: {
-	project:  #GCloudProject
-	instance: #SpannerInstance
+	project:      #GCloudProject
+	instance:     #SpannerInstance
+	readyTimeout: "30s"
 }
 
 #CloudStorageConfig: Config={
@@ -42,10 +43,12 @@ import "strings"
 #BigQueryConfig: Config={
 	#GCloudConfig
 
-	table: string
+	dataset: string
+	table:   string
 	flags: [
-		"--big-query-project-name=" + Config.project,
-		"--big-query-table-name=" + table,
+		"--big-query-project=" + Config.project,
+		"--big-query-dataset=" + dataset,
+		"--big-query-table=" + table,
 	]
 }
 

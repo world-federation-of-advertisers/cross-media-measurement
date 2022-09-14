@@ -14,7 +14,9 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import com.google.cloud.bigquery.BigQuery
 import com.google.cloud.bigquery.BigQueryOptions
+import kotlin.properties.Delegates
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
@@ -30,30 +32,44 @@ import picocli.CommandLine
 class GcsEdpSimulatorRunner : EdpSimulatorRunner() {
   @CommandLine.Mixin private lateinit var gcsFlags: GcsFromFlags.Flags
 
+  @set:CommandLine.Option(
+    names = ["--publisher-id"],
+    description = ["ID of the publisher within the test dataset"],
+    required = true,
+  )
+  private var publisherId by Delegates.notNull<Int>()
+
   @CommandLine.Option(
-    names = ["--big-query-project-name"],
-    description = ["The project name of the big query to be used in this EDP simulator."],
+    names = ["--big-query-project"],
+    description = ["BigQuery project name"],
     required = true
   )
   lateinit var bigQueryProjectName: String
     private set
 
   @CommandLine.Option(
-    names = ["--big-query-table-name"],
-    description = ["The project name of the big query to be used in this EDP simulator."],
+    names = ["--big-query-dataset"],
+    description = ["Name of dataset within BigQuery project"],
+    required = true
+  )
+  lateinit var bigQueryDatasetName: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--big-query-table"],
+    description = ["Name of table within BigQuery dataset"],
     required = true
   )
   lateinit var bigQueryTableName: String
     private set
 
   override fun run() {
-    val gcs = GcsFromFlags(gcsFlags)
-    val bigQuery =
+    val bigQuery: BigQuery =
       BigQueryOptions.newBuilder().apply { setProjectId(bigQueryProjectName) }.build().service
 
     run(
-      GcsStorageClient.fromFlags(gcs),
-      BigQueryEventQuery(flags.dataProviderDisplayName, bigQuery, bigQueryTableName)
+      GcsStorageClient.fromFlags(GcsFromFlags(gcsFlags)),
+      BigQueryEventQuery(bigQuery, bigQueryDatasetName, bigQueryTableName, publisherId)
     )
   }
 }

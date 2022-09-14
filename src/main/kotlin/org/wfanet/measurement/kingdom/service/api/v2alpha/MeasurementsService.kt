@@ -16,7 +16,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.protobuf.InvalidProtocolBufferException
 import io.grpc.Status
-import io.grpc.StatusRuntimeException
+import io.grpc.StatusException
 import java.util.AbstractMap
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
@@ -88,9 +88,9 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
     val internalMeasurement =
       try {
         internalMeasurementsStub.getMeasurement(internalGetMeasurementRequest)
-      } catch (ex: StatusRuntimeException) {
-        when (ex.status) {
-          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Measurement not found" }
+      } catch (ex: StatusException) {
+        when (ex.status.code) {
+          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Measurement not found" }
           else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
         }
       }
@@ -154,13 +154,14 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
     val internalMeasurement =
       try {
         internalMeasurementsStub.createMeasurement(createRequest)
-      } catch (ex: StatusRuntimeException) {
-        when (ex.status) {
-          Status.INVALID_ARGUMENT ->
+      } catch (ex: StatusException) {
+        when (ex.status.code) {
+          Status.Code.INVALID_ARGUMENT ->
             failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid" }
-          Status.FAILED_PRECONDITION ->
+          Status.Code.FAILED_PRECONDITION ->
             failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition" }
-          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "MeasurementConsumer not found." }
+          Status.Code.NOT_FOUND ->
+            failGrpc(Status.NOT_FOUND, ex) { "MeasurementConsumer not found." }
           else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
         }
       }
@@ -230,12 +231,12 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
     val internalMeasurement =
       try {
         internalMeasurementsStub.cancelMeasurement(internalCancelMeasurementRequest)
-      } catch (ex: StatusRuntimeException) {
-        when (ex.status) {
-          Status.INVALID_ARGUMENT ->
+      } catch (ex: StatusException) {
+        when (ex.status.code) {
+          Status.Code.INVALID_ARGUMENT ->
             failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid" }
-          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Measurement not found." }
-          Status.FAILED_PRECONDITION ->
+          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Measurement not found." }
+          Status.Code.FAILED_PRECONDITION ->
             failGrpc(Status.FAILED_PRECONDITION, ex) { "Measurement state illegal." }
           else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
         }

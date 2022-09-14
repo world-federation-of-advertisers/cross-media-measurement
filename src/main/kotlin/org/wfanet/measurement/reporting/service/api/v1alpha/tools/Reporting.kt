@@ -193,6 +193,13 @@ class CreateReportCommand : Runnable {
   )
   private lateinit var measurementConsumerName: String
 
+  @CommandLine.Option(
+    names = ["--idempotency-key"],
+    description = ["Used as the prefix of the idempotency keys of measurements"],
+    required = true,
+  )
+  private lateinit var idempotencyKey: String
+
   class EventGroupInput {
     @CommandLine.Option(
       names = ["--event-group-key"],
@@ -290,6 +297,7 @@ class CreateReportCommand : Runnable {
     val request = createReportRequest {
       parent = measurementConsumerName
       report = report {
+        reportIdempotencyKey = idempotencyKey
         measurementConsumer = measurementConsumerName
         eventGroupUniverse = eventGroupUniverse {
           eventGroups.forEach {
