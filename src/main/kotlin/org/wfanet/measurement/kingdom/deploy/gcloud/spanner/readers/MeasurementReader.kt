@@ -138,13 +138,12 @@ class MeasurementReader(private val view: Measurement.View) :
           ExternalDuchyCertificateId,
           EncryptedResult
         FROM
-          Measurements as _Measurements
-          JOIN DuchyMeasurementResults USING(MeasurementConsumerId, MeasurementId)
+          DuchyMeasurementResults
           JOIN DuchyCertificates
             ON (DuchyCertificates.CertificateId = DuchyMeasurementResults.CertificateId)
         WHERE
-          Measurements.MeasurementConsumerId = DuchyMeasurementResults.MeasurementConsumerId
-          AND Measurements.MeasurementId = DuchyMeasurementResults.MeasurementId
+          DuchyMeasurementResults.MeasurementConsumerId = Measurements.MeasurementConsumerId
+          AND DuchyMeasurementResults.MeasurementId = Measurements.MeasurementId
       ) AS DuchyResults
     FROM
       Measurements
