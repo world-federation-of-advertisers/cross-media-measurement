@@ -82,6 +82,19 @@ import ("strings")
 			imagePullPolicy: _duchy_image_pull_policy
 		}
 		_instrumentMetrics: true
+		_receiverHost:      "0.0.0.0"
+
+		_openTelemetryCollectorSidecar: #OpenTelemetryCollectorSidecar & {
+			_name:        "\(_duchy.name)-\(Name)"
+			_podLabelApp: deployments[Name].metadata.labels.app
+		}
+
+		_sidecarContainers: [
+			_openTelemetryCollectorSidecar._container,
+		]
+		_sidecarProjectionMounts: [
+			_openTelemetryCollectorSidecar._configMapMount,
+		]
 	}
 
 	deployments: {
@@ -237,7 +250,6 @@ import ("strings")
 			_destinationMatchLabels: [
 				_object_prefix + "spanner-computations-server-app",
 			]
-			_exportMetrics: true
 		}
 		"computation-control-server": {
 			_app_label: _object_prefix + "computation-control-server-app"

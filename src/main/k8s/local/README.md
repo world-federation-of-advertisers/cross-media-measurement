@@ -314,25 +314,17 @@ bazel run //src/main/k8s/local:reporting_kind \
 
 ### Deploy Open Telemetry Collector
 ```shell
-bazel run //src/main/k8s/local:open_telemetry_kind \
-  --define=k8s_secret_name=certs-and-configs-k8888kc6gg
+bazel run //src/main/k8s/local:open_telemetry_kind
 ```
 
 ### Deploy Prometheus Server
 ```shell
-bazel run //src/main/k8s/local:prometheus_kind \
-  --define=k8s_secret_name=certs-and-configs-k8888kc6gg
+bazel run //src/main/k8s/local:prometheus_kind
 ```
 
 To be able to visit the Prometheus browser GUI at http://localhost:31111/, 
-add the following to the KiND config.
+start port-forwarding.
 ```shell
-nodes:
-- role: control-plane
-  extraPortMappings:
-  - containerPort: 31111
-    hostPort: 31111
-    listenAddress: "0.0.0.0"
-    protocol: tcp
+kubectl port-forward prometheus-pod 31111:9090
 ```
 

@@ -8,6 +8,12 @@ cue_library(
 )
 
 cue_library(
+    name = "open_telemetry_collector",
+    srcs = ["open_telemetry_collector.cue"],
+    deps = [":base"],
+)
+
+cue_library(
     name = "open_telemetry_collector_sidecar",
     srcs = ["open_telemetry_collector_sidecar.cue"],
     deps = [":base"],
@@ -74,10 +80,4 @@ cue_library(
         ":open_telemetry_collector_sidecar",
         ":postgres",
     ],
-)
-
-cue_library(
-    name = "open_telemetry_collector",
-    srcs = ["open_telemetry_collector.cue"],
-    deps = [":base"],
 )

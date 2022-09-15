@@ -14,8 +14,6 @@
 
 package k8s
 
-_secret_name: string @tag("secret_name")
-
 #DataServerResourceRequirements: #ResourceRequirements & {
 	requests: cpu: "50m"
 	limits: {
@@ -27,7 +25,6 @@ _secret_name: string @tag("secret_name")
 objectSets: [ for objectSet in openTelemetryCollector {objectSet}]
 
 openTelemetryCollector: #OpenTelemetryCollector & {
-	_open_telemetry_collector_secret_name: _secret_name
 	_images: {
 		"open-telemetry-collector": "otel/opentelemetry-collector:latest"
 	}

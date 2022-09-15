@@ -18,7 +18,11 @@ _reportingSecretName:         string @tag("secret_name")
 _reportingDbSecretName:       string @tag("db_secret_name")
 _reportingMcConfigSecretName: string @tag("mc_config_secret_name")
 
-objectSets: [ for objectSet in reporting {objectSet}]
+objectSets: [
+	for objectSet in reporting {objectSet},
+	for objectSet in reporting.deployments["postgres-reporting-data-server"]._openTelemetryCollectorSidecar {objectSet},
+	for objectSet in reporting.deployments["v1alpha-public-api-server"]._openTelemetryCollectorSidecar {objectSet},
+]
 
 reporting: #Reporting & {
 	_secretName:         _reportingSecretName

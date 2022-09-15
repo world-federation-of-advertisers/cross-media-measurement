@@ -113,13 +113,10 @@ services: {
 		}
 		spec: {
 			selector: app: "prometheus-app"
-			type: "NodePort"
 			ports: [{
-				name:       "prometheus"
-				port:       9090
-				protocol:   "TCP"
-				targetPort: 9090
-				nodePort:   31111
+				name:     "prometheus"
+				port:     9090
+				protocol: "TCP"
 			}]
 		}
 	}

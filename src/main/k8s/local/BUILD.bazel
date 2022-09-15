@@ -143,9 +143,6 @@ cue_dump(
 cue_dump(
     name = "open_telemetry",
     srcs = ["open_telemetry_collector.cue"],
-    cue_tags = {
-        "secret_name": TEST_K8S_SETTINGS.secret_name,
-    },
     tags = ["manual"],
     deps = [
         ":config",

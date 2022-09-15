@@ -77,13 +77,26 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	requests?: #ResourceQuantity
 }
 
+#OpenTelemetryJavaAgentOptions: {
+	receiverHost: string
+	serviceName:  string
+
+	javaOptions: [
+		"-javaagent:/app/open_telemetry_java_agent/file/open-telemetry-java-agent",
+		"-Dotel.exporter.otlp.endpoint=http://\(receiverHost):\(#OpenTelemetryReceiverPort)",
+		"-Dotel.metrics.exporter=otlp",
+		"-Dotel.exporter.otlp.metrics.protocol=grpc",
+		"-Dotel.traces.exporter=none",
+		"-Dotel.service.name=\(serviceName)",
+	]
+}
+
 #JavaOptions: {
 	maxRamPercentage?:     float
 	maxDirectMemorySize?:  string
 	maxCachedBufferSize:   uint | *262144 // 256KiB
 	nettyMaxDirectMemory?: int
-	instrumentMetrics:     bool | *false
-	useSidecar:            bool | *false
+	additionalOptions: [...string]
 
 	_maxRamOptions: [...string]
 	if maxRamPercentage != _|_ {
@@ -91,22 +104,6 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			"-XX:MaxRAMPercentage=\(maxRamPercentage)",
 			"-XX:MinRAMPercentage=\(maxRamPercentage)",
 			"-XX:InitialRAMPercentage=\(maxRamPercentage)",
-		]
-	}
-
-	_openTelemetryJavaAgentOptions: [...string]
-	if instrumentMetrics != false {
-		_openTelemetryJavaAgentOptions: [
-			"-javaagent:/app/open_telemetry_java_agent/file/open-telemetry-java-agent",
-			if useSidecar != true {
-				"-Dotel.exporter.otlp.endpoint=http://open-telemetry-receiver:\(#OpenTelemetryReceiverPort)"
-			},
-			if useSidecar != false {
-				"-Dotel.exporter.otlp.endpoint=http://0.0.0.0:\(#OpenTelemetryReceiverPort)"
-			},
-			"-Dotel.metrics.exporter=otlp",
-			"-Dotel.exporter.otlp.metrics.protocol=grpc",
-			"-Dotel.traces.exporter=none",
 		]
 	}
 
@@ -120,7 +117,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			"-Dio.netty.maxDirectMemory=\(nettyMaxDirectMemory)"
 		},
 		"-Djdk.nio.maxCachedBufferSize=\(maxCachedBufferSize)",
-		for item in _openTelemetryJavaAgentOptions {item},
+		for item in additionalOptions {item},
 	]
 }
 
@@ -399,20 +396,19 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 // K8s Deployment.
 #Deployment: {
 	_name:              string
-	_secretName:        string
+	_secretName?:       string
 	_system:            string
 	_instrumentMetrics: bool | *false
-	_useSidecar:        bool | *false
+	_receiverHost:      string
 	_container:         #Container & {
 		imagePullPolicy: _ | *"Never"
 		_javaOptions: {
-			instrumentMetrics: _instrumentMetrics
-			useSidecar:        _useSidecar
-		}
-
-		if _instrumentMetrics == true {
-			_envVars: "OTEL_SERVICE_NAME": {
-				value: _name
+			if _instrumentMetrics != false {
+				_openTelemetryJavaAgentOptions: #OpenTelemetryJavaAgentOptions & {
+					receiverHost: _receiverHost
+					serviceName:  _name
+				}
+				additionalOptions: _openTelemetryJavaAgentOptions.javaOptions
 			}
 		}
 	}
@@ -435,8 +431,10 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		template: {
 			metadata: labels: app: _name + "-app"
 			spec: #PodSpec & {
-				_projectionMounts: "\(_name)-files": {
-					volume: secret: secretName: _secretName
+				if _secretName != _|_ {
+					_projectionMounts: "\(_name)-files": {
+						volume: secret: secretName: _secretName
+					}
 				}
 
 				_projectionMounts: {

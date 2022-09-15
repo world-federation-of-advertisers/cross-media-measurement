@@ -16,16 +16,14 @@ package k8s
 
 #OpenTelemetryCollector: {
 	_images: [Name=_]: string
-	_open_telemetry_collector_secret_name: string
 
 	configMaps: [#OpenTelemetryCollectorConfigMap & {
 		_name: "open-telemetry-collector"
 	}]
 
 	deployments: [Name=string]: #Deployment & {
-		_name:       Name
-		_secretName: _open_telemetry_collector_secret_name
-		_system:     "open-telemetry"
+		_name:   Name
+		_system: "open-telemetry"
 		_container: {
 			image:           _images[_name]
 			imagePullPolicy: "Always"

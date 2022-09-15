@@ -70,6 +70,19 @@ package k8s
 			imagePullPolicy: Reporting._imagePullPolicy
 		}
 		_instrumentMetrics: true
+		_receiverHost:      "0.0.0.0"
+
+		_openTelemetryCollectorSidecar: #OpenTelemetryCollectorSidecar & {
+			_name:        Name
+			_podLabelApp: deployments[Name].metadata.labels.app
+		}
+
+		_sidecarContainers: [
+			_openTelemetryCollectorSidecar._container,
+		]
+		_sidecarProjectionMounts: [
+			_openTelemetryCollectorSidecar._configMapMount,
+		]
 	}
 	deployments: {
 		"postgres-reporting-data-server": {
@@ -131,7 +144,6 @@ package k8s
 			_egresses: {
 				any: {}
 			}
-			_exportMetrics: true
 		}
 		"public-reporting-api-server": {
 			_app_label: "v1alpha-public-api-server-app"
@@ -143,7 +155,6 @@ package k8s
 					}]
 				}
 			}
-			_exportMetrics: true
 		}
 	}
 }

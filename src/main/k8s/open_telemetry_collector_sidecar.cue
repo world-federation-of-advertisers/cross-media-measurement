@@ -15,15 +15,15 @@
 package k8s
 
 #OpenTelemetryCollectorSidecar: Sidecar={
-	_name:          string
-	_pod_label_app: string
-	_config?:       string
+	_name:        string
+	_podLabelApp: string
+	_config?:     string
 
 	configMaps: [#OpenTelemetryCollectorConfigMap & {
-		_name: "\(Sidecar._name)-open-telemetry-collector"
+		_name: "\(Sidecar._name)-otel-col"
 		if _config != _|_ {
 			data: {
-				"config.yaml": _config
+				"config.yaml": "\(_config)"
 			}
 		}
 	}]
@@ -33,7 +33,7 @@ package k8s
 		image:           "otel/opentelemetry-collector:0.59.0"
 		imagePullPolicy: "Always"
 		args: [
-			"--config=/etc/\(#AppName)/\(Sidecar._name)-open-telemetry-collector/config.yaml",
+			"--config=/etc/\(#AppName)/\(Sidecar._name)-otel-col/config.yaml",
 		]
 
 		ports: [{
@@ -48,7 +48,7 @@ package k8s
 	}
 
 	_configMapMount: #ConfigMapMount & {
-		name: "\(Sidecar._name)-open-telemetry-collector"
+		name: "\(Sidecar._name)-otel-col"
 	}
 
 	services: [Name=_]: #Service & {
@@ -56,9 +56,9 @@ package k8s
 		_system: "\(Sidecar._name)"
 	}
 	services: {
-		"\(Sidecar._name)-prometheus-exporter": {
+		"\(Sidecar._name)-prom-exp": {
 			spec: {
-				selector: app: _pod_label_app
+				selector: app: _podLabelApp
 				ports: [{
 					name:       "prom-exporter"
 					port:       #OpenTelemetryPrometheusExporterPort
