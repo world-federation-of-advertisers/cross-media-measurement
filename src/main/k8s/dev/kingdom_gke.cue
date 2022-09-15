@@ -20,11 +20,7 @@ _secret_name: string @tag("secret_name")
 #InternalServerServiceAccount: "internal-server"
 
 #DataServerResourceRequirements: #ResourceRequirements & {
-	requests: cpu: "50m"
-	limits: {
-		cpu:    "200m"
-		memory: "384Mi"
-	}
+	limits: memory: "512Mi"
 }
 
 objectSets: [
@@ -64,6 +60,7 @@ kingdom: #Kingdom & {
 	deployments: {
 		"gcp-kingdom-data-server": {
 			_container: {
+				_javaOptions: maxRamPercentage: 40.0
 				resources: #DataServerResourceRequirements
 			}
 			spec: template: spec: #ServiceAccountPodSpec & {
