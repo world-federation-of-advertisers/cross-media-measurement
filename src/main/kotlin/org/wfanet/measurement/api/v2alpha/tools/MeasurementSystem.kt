@@ -438,7 +438,8 @@ class CreateMeasurement : Runnable {
       @set:Option(
         names = ["--reach-max-frequency"],
         description = ["Maximum frequency per user"],
-        required = true,
+        required = false,
+        defaultValue = "10",
       )
       var maximumFrequencyPerUser by Delegates.notNull<Int>()
         private set
