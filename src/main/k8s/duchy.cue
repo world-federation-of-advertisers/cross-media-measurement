@@ -203,7 +203,7 @@ import ("strings")
 						"--health-port=8080",
 			] + _blob_storage_flags
 			spec: template: spec: {
-				_projectionMounts: "config-files": #ConfigMapMount
+				_mounts: "config-files": #ConfigMapMount
 				_dependencies: ["\(_name)-spanner-computations-server"]
 			}
 		}

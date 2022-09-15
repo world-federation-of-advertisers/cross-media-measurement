@@ -130,7 +130,7 @@ package k8s
 				"--health-port=8080",
 			]
 			spec: template: spec: {
-				_projectionMounts: "config-files": #ConfigMapMount
+				_mounts: "config-files": #ConfigMapMount
 				_dependencies: ["gcp-kingdom-data-server"]
 			}
 		}

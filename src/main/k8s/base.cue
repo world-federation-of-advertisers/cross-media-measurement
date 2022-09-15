@@ -170,6 +170,11 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	secret?: {
 		secretName: string
 	}
+} | {
+	emptyDir?: {
+		medium?:    "" | "Memory"
+		sizeLimit?: string
+	}
 }
 
 // K8s VolumeMount.
@@ -179,8 +184,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	readOnly?: bool
 }
 
-// Configuration for a projection Volume and a corresponding VolumeMount.
-#ProjectionMount: {
+// Configuration for a Volume and a corresponding VolumeMount.
+#Mount: {
 	name: string
 
 	let Name = name
@@ -190,18 +195,21 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	volumeMount: #VolumeMount & {
 		name:      Name
 		mountPath: string
-		readOnly:  true
 	}
 }
-#ProjectionMount: {
+#Mount: {
 	let Name = volumeMount.name
 	volume: configMap: name: string
 	volumeMount: mountPath: _ | *"/etc/\(#AppName)/\(Name)"
 } | {
 	volume: secret: secretName: string
 	volumeMount: mountPath: _ | *"/var/run/secrets/files"
+} | {
+	let Name = volumeMount.name
+	volume: emptyDir: {}
+	volumeMount: mountPath: _ | *"/run/\(Name)"
 }
-#ConfigMapMount: Mount=#ProjectionMount & {
+#ConfigMapMount: Mount=#Mount & {
 	volume: configMap: name: _ | *Mount.name
 }
 
@@ -298,10 +306,10 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 // K8s PodSpec.
 #PodSpec: {
-	_projectionMounts: [Name=string]: #ProjectionMount & {name: Name}
-	_volumes: [Name=string]:          #Volume & {name:          Name}
-	_containers: [Name=string]:       #Container & {
-		_volumeMounts: {for name, mount in _projectionMounts {"\(name)": mount.volumeMount}}
+	_mounts: [Name=string]:     #Mount & {name:  Name}
+	_volumes: [Name=string]:    #Volume & {name: Name}
+	_containers: [Name=string]: #Container & {
+		_volumeMounts: {for name, mount in _mounts {"\(name)": mount.volumeMount}}
 		name: Name
 	}
 	_initContainers: [Name=string]: #Container & {
@@ -309,7 +317,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	}
 	_dependencies: [...string]
 
-	_volumes: {for name, mount in _projectionMounts {"\(name)": mount.volume}}
+	_volumes: {for name, mount in _mounts {"\(name)": mount.volume}}
 	_initContainers: {
 		for dep in _dependencies {
 			"wait-for-\(dep)": {
@@ -410,7 +418,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		}
 	}
 	_sidecarContainers: [...#Container]
-	_sidecarProjectionMounts: [...#ProjectionMount]
+	_sidecarMounts: [...#Mount]
 
 	apiVersion: "apps/v1"
 	kind:       "Deployment"
@@ -429,14 +437,14 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			metadata: labels: app: _name + "-app"
 			spec: #PodSpec & {
 				if _secretName != _|_ {
-					_projectionMounts: "\(_name)-files": {
+					_mounts: "\(_name)-files": {
 						volume: secret: secretName: _secretName
 					}
 				}
 
-				_projectionMounts: {
-					for sidecarProjectionMount in _sidecarProjectionMounts {
-						"\(sidecarProjectionMount.name)": sidecarProjectionMount
+				_mounts: {
+					for sidecarMount in _sidecarMounts {
+						"\(sidecarMount.name)": sidecarMount
 					}
 				}
 
@@ -490,7 +498,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			metadata: labels: app: _name + "-app"
 			spec: #PodSpec & {
 				if _secretName != _|_ {
-					_projectionMounts: "\(_name)-files": {
+					_mounts: "\(_name)-files": {
 						volume: secret: secretName: _secretName
 					}
 				}
