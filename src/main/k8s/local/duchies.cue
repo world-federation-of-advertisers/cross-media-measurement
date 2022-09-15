@@ -22,20 +22,10 @@ _worker2_cert_name:    string @tag("worker2_cert_name")
 #KingdomSystemApiTarget:   (#Target & {name: "system-api-server"}).target
 #SpannerEmulatorHost:      (#Target & {name: "spanner-emulator"}).target
 #MillResourceRequirements: #ResourceRequirements & {
-	requests: {
-		cpu: "200m"
-	}
-	limits: {
-		cpu:    "800m"
-		memory: "4Gi"
-	}
+	limits: memory: "4Gi"
 }
 #SpannerComputationsResourceRequirements: #ResourceRequirements & {
-	requests: cpu: "50m"
-	limits: {
-		cpu:    "200m"
-		memory: "384Mi"
-	}
+	limits: memory: "384Mi"
 }
 #DuchyConfig: {
 	let duchyName = name

@@ -26,18 +26,10 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 #InternalServerServiceAccount: "internal-server"
 #StorageServiceAccount:        "storage"
 #MillResourceRequirements:     #ResourceRequirements & {
-	requests: cpu: "200m"
-	limits: {
-		cpu:    "800m"
-		memory: "4Gi"
-	}
+	limits: memory: "4Gi"
 }
 #SpannerComputationsResourceRequirements: #ResourceRequirements & {
-	requests: cpu: "50m"
-	limits: {
-		cpu:    "200m"
-		memory: "384Mi"
-	}
+	limits: memory: "384Mi"
 }
 #MillReplicas: 1
 
