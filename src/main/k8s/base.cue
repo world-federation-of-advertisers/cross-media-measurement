@@ -226,13 +226,10 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	_system:    string
 	apiVersion: "v1"
 	kind:       "ConfigMap"
-	metadata: {
-		name: _name
-		labels: {
-			"app.kubernetes.io/name":      _name
-			"app.kubernetes.io/part-of":   #AppName
-			"app.kubernetes.io/component": _system
-		}
+	metadata:   Metadata=#ObjectMeta & {
+		_component: _system
+		name:       _name
+		annotations: "system": Metadata._component
 	}
 	data: {...}
 }

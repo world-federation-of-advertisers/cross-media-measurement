@@ -67,38 +67,33 @@ clusterRoleBindings: {
 	}
 }
 
-configMaps: [Name=_]: #ConfigMap & {
-	_name:   Name
+configMaps: [#ConfigMap & {
+	_name:   "prometheus"
 	_system: "prometheus"
-}
+	data: {
+		"prometheus.yaml": """
+			global:
+			  scrape_interval: 30s
+			  scrape_timeout: 10s
+			  evaluation_interval: 30s
 
-configMaps: {
-	"prometheus": {
-		data: {
-			"prometheus.yaml": """
-				global:
-				  scrape_interval: 30s
-				  scrape_timeout: 10s
-				  evaluation_interval: 30s
-
-				scrape_configs:
-				  - job_name: otel-collector
-				    honor_labels: true
-				    honor_timestamps: true
-				    metrics_path: /metrics
-				    kubernetes_sd_configs:
-				      - role: endpoints
-				    relabel_configs:
-				      - source_labels: [__meta_kubernetes_pod_container_port_number]
-				        action: keep
-				        regex: 8889
-				      - source_labels: [__meta_kubernetes_namespace]
-				        action: drop
-				        regex: kube-system
-				"""
-		}
+			scrape_configs:
+			  - job_name: otel-collector
+			    honor_labels: true
+			    honor_timestamps: true
+			    metrics_path: /metrics
+			    kubernetes_sd_configs:
+			      - role: endpoints
+			    relabel_configs:
+			      - source_labels: [__meta_kubernetes_pod_container_port_number]
+			        action: keep
+			        regex: 8889
+			      - source_labels: [__meta_kubernetes_namespace]
+			        action: drop
+			        regex: kube-system
+			"""
 	}
-}
+}]
 
 services: {
 	"prometheus": {
