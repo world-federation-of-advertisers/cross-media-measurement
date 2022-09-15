@@ -72,7 +72,7 @@ package k8s
 		_sidecarContainers: [
 			_openTelemetryCollectorSidecar._container,
 		]
-		_sidecarProjectionMounts: [
+		_sidecarMounts: [
 			_openTelemetryCollectorSidecar._configMapMount,
 		]
 	}

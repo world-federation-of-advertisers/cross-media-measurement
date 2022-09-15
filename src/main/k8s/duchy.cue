@@ -92,7 +92,7 @@ import ("strings")
 		_sidecarContainers: [
 			_openTelemetryCollectorSidecar._container,
 		]
-		_sidecarProjectionMounts: [
+		_sidecarMounts: [
 			_openTelemetryCollectorSidecar._configMapMount,
 		]
 	}

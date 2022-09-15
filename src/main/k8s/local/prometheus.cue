@@ -130,7 +130,7 @@ pods: {
 			}
 		}
 		spec: #PodSpec & {
-			_projectionMounts: "prometheus": #ConfigMapMount
+			_mounts: "prometheus": #ConfigMapMount
 			_containers: {
 				"prometheus": {
 					image:           "docker.io/prom/prometheus:v2.38.0"

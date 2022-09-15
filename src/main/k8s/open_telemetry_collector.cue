@@ -48,7 +48,7 @@ package k8s
 			}
 
 			spec: template: spec: {
-				_projectionMounts: "open-telemetry-collector": #ConfigMapMount
+				_mounts: "open-telemetry-collector": #ConfigMapMount
 			}
 		}
 	}
