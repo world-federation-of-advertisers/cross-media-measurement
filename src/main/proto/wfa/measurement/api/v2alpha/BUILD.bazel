@@ -547,3 +547,17 @@ kt_jvm_proto_library(
     ],
     deps = [":requisition_spec_java_proto"],
 )
+
+proto_library(
+    name = "unary_requisition_fulfillment_service_proto",
+    srcs = ["unary_requisition_fulfillment_service.proto"],
+    deps = [
+        "@com_google_googleapis//google/api:resource_proto",
+        "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:requisition_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "unary_requisition_fulfillment_service_kt_jvm_grpc_proto",
+    srcs = [":unary_requisition_fulfillment_service_proto"],
+)

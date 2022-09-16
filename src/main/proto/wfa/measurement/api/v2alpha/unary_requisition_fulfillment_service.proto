@@ -1,0 +1,65 @@
+// Copyright 2022 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.api.v2alpha;
+
+import "google/api/resource.proto";
+import "wfa/measurement/api/v2alpha/requisition.proto";
+
+option java_package = "org.wfanet.measurement.api.v2alpha";
+option java_multiple_files = true;
+
+// Duchy service for fulfilling `Requisition`s using unary RPCs. This is a fork
+// of the `RequisitionFulfillment` service which uses client streaming RPCs.
+service UnaryRequisitionFulfillment {
+  // Fulfills a `Requisition`.
+  rpc FulfillRequisition(UnaryFulfillRequisitionRequest)
+      returns (UnaryFulfillRequisitionResponse) {}
+}
+
+// Request message for `FulfillRequisition` method.
+message UnaryFulfillRequisitionRequest {
+  // Resource name of the `Requisition`. Required.
+  string name = 1
+  [(google.api.resource_reference).type = "halo.wfanet.org/Requisition"];
+
+  // The fingerprint of the `Requisition`. Required.
+  //
+  // This is defined as the SHA256 hash of the concatenation of:
+  // 1. The `data` in `measurement_spec` from the `Requisition`.
+  // 2. The SHA256 hash of `encrypted_requisition_spec` from the
+  //    `Requisition`.
+  bytes requisition_fingerprint = 2;
+
+  // The `nonce` value from the `encrypted_requisition_spec`. Required.
+  fixed64 nonce = 3;
+
+  // Required.
+  //
+  // The format of the data depends on the corresponding `MeasurementSpec`. If
+  // the `Requisition` is for an encrypted sketch, this is the register
+  // data as documented in the `Sketch` message (sketch.proto) encrypted using
+  // the combined `Duchy` ElGamal public keys. The only alignment requirement
+  // is by bytes: a chunk might begin or end in the middle of a single
+  // register.
+  bytes data = 4;
+}
+
+// Response message for `FulfillRequisition` method.
+message UnaryFulfillRequisitionResponse {
+  // Resulting state of the `Requisition`.
+  Requisition.State state = 1;
+}

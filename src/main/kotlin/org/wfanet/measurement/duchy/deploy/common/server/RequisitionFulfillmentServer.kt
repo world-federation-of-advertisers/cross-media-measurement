@@ -29,6 +29,7 @@ import org.wfanet.measurement.duchy.storage.RequisitionStore
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub as SystemRequisitionsCoroutineStub
+import org.wfanet.measurement.duchy.service.api.v2alpha.UnaryRequisitionFulfillmentService
 import picocli.CommandLine
 
 abstract class RequisitionFulfillmentServer : Runnable {
@@ -62,15 +63,29 @@ abstract class RequisitionFulfillmentServer : Runnable {
         .withDuchyId(flags.duchy.duchyName)
 
     val principalLookup = TextprotoFilePrincipalLookup(flags.authorityKeyIdentifierToPrincipalMap)
-    val service =
+    val clientStreamingRequisitionFulfillmentService =
       RequisitionFulfillmentService(
           systemRequisitionsClient,
           computationsClient,
           RequisitionStore(storageClient)
         )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
+    val unaryRequisitionFulfillmentService =
+      UnaryRequisitionFulfillmentService(
+          systemRequisitionsClient,
+          computationsClient,
+          RequisitionStore(storageClient)
+        )
+        .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
 
-    CommonServer.fromFlags(flags.server, javaClass.name, service).start().blockUntilShutdown()
+    CommonServer.fromFlags(
+      flags.server,
+      javaClass.name,
+      clientStreamingRequisitionFulfillmentService,
+      unaryRequisitionFulfillmentService,
+    )
+      .start()
+      .blockUntilShutdown()
   }
 
   protected class Flags {
