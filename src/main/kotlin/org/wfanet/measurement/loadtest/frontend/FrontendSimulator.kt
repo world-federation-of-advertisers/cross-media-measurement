@@ -220,11 +220,7 @@ class FrontendSimulator(
       delay(Duration.ofSeconds(30).toMillis())
       reachOnlyResult = getReachAndFrequencyResult(createdReachOnlyMeasurement.name)
     }
-    if (reachOnlyResult == null) {
-      assertThat(reachOnlyResult as Result?).isNotNull()
-      return // never executed, but allows Kotlin to infer that reachOnlyResult is not null
-      // afterwards
-    }
+    checkNotNull(reachOnlyResult) { "Timed out waiting for response to reach-only request" }
     logger.info("Actual result: $reachOnlyResult")
 
     val liquidLegionV2Protocol = createdReachOnlyMeasurement.protocolConfig.liquidLegionsV2
