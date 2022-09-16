@@ -45,6 +45,7 @@ import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Measurement.DataProviderEntry
+import org.wfanet.measurement.api.v2alpha.Measurement.Failure
 import org.wfanet.measurement.api.v2alpha.Measurement.Result
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
@@ -66,7 +67,9 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedData
+import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
@@ -155,6 +158,33 @@ class FrontendSimulator(
     logger.info(
       "Reach and frequency result is equal to the expected result. Correctness Test passes."
     )
+  }
+
+  /**
+   * A sequence of operations done in the simulator involving a reach and frequency measurement with
+   * invalid params.
+   */
+  suspend fun executeInvalidReachAndFrequency(runId: String) {
+    // Create a new measurement on behalf of the measurement consumer.
+    val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
+
+    val invalidMeasurement =
+      createMeasurement(measurementConsumer, runId, ::newInvalidReachAndFrequencyMeasurementSpec)
+    logger.info(
+      "Created invalid reach and frequency measurement ${invalidMeasurement.name}, state=${invalidMeasurement.state.name}"
+    )
+
+    var failure = getFailure(invalidMeasurement.name)
+    var attempts = 0
+    while (failure == null) {
+      attempts += 1
+      assertThat(attempts).isLessThan(10)
+      logger.info("Computation not done yet, wait for another 5 seconds...")
+      delay(Duration.ofSeconds(5).toMillis())
+      failure = getFailure(invalidMeasurement.name)
+    }
+    assertThat(failure.message).contains("reach_privacy_params.delta")
+    logger.info("Receive failed Measurement from Kingdom: ${failure.message}. Test passes.")
   }
 
   /**
@@ -355,6 +385,19 @@ class FrontendSimulator(
     return parseAndVerifyResult(resultPair)
   }
 
+  /** Gets the failure of an invalid [Measurement] if it is failed */
+  private suspend fun getFailure(measurementName: String): Failure? {
+    val measurement =
+      measurementsClient
+        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+        .getMeasurement(getMeasurementRequest { name = measurementName })
+    logger.info("Current Measurement state is: " + measurement.state)
+    if (measurement.state != Measurement.State.FAILED) {
+      return null
+    }
+    return measurement.failure
+  }
+
   private suspend fun parseAndVerifyResult(resultPair: Measurement.ResultPair): Result {
     val certificate =
       certificateCache.getOrPut(resultPair.certificate) {
@@ -446,6 +489,22 @@ class FrontendSimulator(
         width = 1.0f
       }
       this.nonceHashes += nonceHashes
+    }
+  }
+
+  private fun newInvalidReachAndFrequencyMeasurementSpec(
+    serializedMeasurementPublicKey: ByteString,
+    nonceHashes: List<ByteString>
+  ): MeasurementSpec {
+    return newReachAndFrequencyMeasurementSpec(serializedMeasurementPublicKey, nonceHashes).copy {
+      val invalidPrivacyParams = differentialPrivacyParams {
+        epsilon = 1.0
+        delta = 0.0
+      }
+      reachAndFrequency = reachAndFrequency {
+        reachPrivacyParams = invalidPrivacyParams
+        frequencyPrivacyParams = invalidPrivacyParams
+      }
     }
   }
 
