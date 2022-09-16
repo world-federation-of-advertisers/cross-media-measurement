@@ -23,6 +23,7 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.random.Random
+import kotlin.test.assertFails
 import kotlinx.coroutines.runBlocking
 import org.junit.BeforeClass
 import org.junit.ClassRule
@@ -602,15 +603,51 @@ class EdpSimulatorTest {
     }
   }
   @Test
-  fun `calculate direct reach and frequency correctly`() {
+  fun `calculateDirectReachAndFrequency fails with sampling rate 0`() {
     runBlocking {
       val vidList = listOf(1L, 1L, 1L, 2L, 2L, 3L, 4L, 5L)
-      val (reachValue, frequencyMap) = EdpSimulator.calculateDirectReachAndFrequency(vidList)
+
+      assertFails { EdpSimulator.calculateDirectReachAndFrequency(vidList, 0.0f) }
+    }
+  }
+
+  @Test
+  fun `calculateDirectReachAndFrequency fails with sampling rate bigger than 1`() {
+    runBlocking {
+      val vidList = listOf(1L, 1L, 1L, 2L, 2L, 3L, 4L, 5L)
+
+      assertFails { EdpSimulator.calculateDirectReachAndFrequency(vidList, 1.1f) }
+    }
+  }
+
+  @Test
+  fun `calculate direct reach and frequency correctly with sampling rate 1`() {
+    runBlocking {
+      val vidList = listOf(1L, 1L, 1L, 2L, 2L, 3L, 4L, 5L)
+      val (reachValue, frequencyMap) = EdpSimulator.calculateDirectReachAndFrequency(vidList, 1.0f)
+
       // 5 unique people(1, 2, 3, 4, 5) being reached
       val expectedReachValue = 5
       // 1 reach -> 0.6(3/5)(VID 3L, 4L, 5L)
       // 2 reach -> 0.2(1/5)(VID 2L)
       // 3 reach -> 0.2(1/5)(VID 1L)
+      val expectedFrequencyMap = mapOf(1L to 0.6, 2L to 0.2, 3L to 0.2)
+
+      assertThat(reachValue).isEqualTo(expectedReachValue)
+      frequencyMap.forEach { (frequency, percentage) ->
+        assertThat(percentage).isEqualTo(expectedFrequencyMap[frequency])
+      }
+    }
+  }
+
+  @Test
+  fun `calculate direct reach and frequency correctly with sampling rate smaller than 1`() {
+    runBlocking {
+      val vidList = listOf(1L, 1L, 1L, 2L, 2L, 3L, 4L, 5L)
+      val (reachValue, frequencyMap) = EdpSimulator.calculateDirectReachAndFrequency(vidList, 0.1f)
+
+      // Scale reach by multiplying 1/samplingRate
+      val expectedReachValue = 50
       val expectedFrequencyMap = mapOf(1L to 0.6, 2L to 0.2, 3L to 0.2)
 
       assertThat(reachValue).isEqualTo(expectedReachValue)

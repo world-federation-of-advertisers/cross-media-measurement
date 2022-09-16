@@ -15,7 +15,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
-import io.grpc.StatusRuntimeException
+import io.grpc.StatusException
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.accountFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.AccountKey
@@ -86,15 +86,15 @@ class MeasurementConsumersService(
     val internalMeasurementConsumer =
       try {
         internalClient.createMeasurementConsumer(createRequest)
-      } catch (ex: StatusRuntimeException) {
-        when (ex.status) {
-          Status.INVALID_ARGUMENT ->
+      } catch (ex: StatusException) {
+        when (ex.status.code) {
+          Status.Code.INVALID_ARGUMENT ->
             failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid." }
-          Status.PERMISSION_DENIED ->
+          Status.Code.PERMISSION_DENIED ->
             failGrpc(Status.PERMISSION_DENIED, ex) {
               "Measurement Consumer creation token is not valid."
             }
-          Status.FAILED_PRECONDITION ->
+          Status.Code.FAILED_PRECONDITION ->
             failGrpc(Status.FAILED_PRECONDITION, ex) { "Account not found or inactivated." }
           else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
         }
@@ -137,9 +137,10 @@ class MeasurementConsumersService(
     val internalResponse =
       try {
         internalClient.getMeasurementConsumer(getRequest)
-      } catch (ex: StatusRuntimeException) {
-        when (ex.status) {
-          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "MeasurementConsumer not found" }
+      } catch (ex: StatusException) {
+        when (ex.status.code) {
+          Status.Code.NOT_FOUND ->
+            failGrpc(Status.NOT_FOUND, ex) { "MeasurementConsumer not found" }
           else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
         }
       }
@@ -175,11 +176,12 @@ class MeasurementConsumersService(
     val internalMeasurementConsumer =
       try {
         internalClient.addMeasurementConsumerOwner(internalAddMeasurementConsumerOwnerRequest)
-      } catch (ex: StatusRuntimeException) {
-        when (ex.status) {
-          Status.FAILED_PRECONDITION ->
+      } catch (ex: StatusException) {
+        when (ex.status.code) {
+          Status.Code.FAILED_PRECONDITION ->
             failGrpc(Status.FAILED_PRECONDITION, ex) { "Account not found." }
-          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "MeasurementConsumer not found." }
+          Status.Code.NOT_FOUND ->
+            failGrpc(Status.NOT_FOUND, ex) { "MeasurementConsumer not found." }
           else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
         }
       }
@@ -214,13 +216,14 @@ class MeasurementConsumersService(
     val internalMeasurementConsumer =
       try {
         internalClient.removeMeasurementConsumerOwner(internalRemoveMeasurementConsumerOwnerRequest)
-      } catch (ex: StatusRuntimeException) {
-        when (ex.status) {
-          Status.FAILED_PRECONDITION ->
+      } catch (ex: StatusException) {
+        when (ex.status.code) {
+          Status.Code.FAILED_PRECONDITION ->
             failGrpc(Status.FAILED_PRECONDITION, ex) {
               "Account not found or Account doesn't own the MeasurementConsumer."
             }
-          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "MeasurementConsumer not found." }
+          Status.Code.NOT_FOUND ->
+            failGrpc(Status.NOT_FOUND, ex) { "MeasurementConsumer not found." }
           else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
         }
       }
