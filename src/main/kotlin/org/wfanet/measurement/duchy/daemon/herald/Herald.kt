@@ -47,6 +47,8 @@ import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoro
 import org.wfanet.measurement.system.v1alpha.failComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.streamActiveComputationsRequest
 
+// Number of attempts that herald would retry processSystemComputationChange() when catch transient
+// exceptions.
 private const val MAX_ATTEMPTS = 3
 
 /**
