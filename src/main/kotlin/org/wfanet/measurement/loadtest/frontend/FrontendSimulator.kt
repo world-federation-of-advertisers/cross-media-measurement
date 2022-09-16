@@ -530,7 +530,6 @@ class FrontendSimulator(
     }
   }
 
-
   private fun newReachOnlyMeasurementSpec(
     serializedMeasurementPublicKey: ByteString,
     nonceHashes: List<ByteString>
