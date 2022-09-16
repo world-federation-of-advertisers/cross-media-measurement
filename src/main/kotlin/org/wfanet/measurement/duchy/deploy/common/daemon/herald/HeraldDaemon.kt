@@ -32,6 +32,7 @@ import org.wfanet.measurement.duchy.deploy.common.ComputationsServiceFlags
 import org.wfanet.measurement.duchy.deploy.common.SystemApiFlags
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
 import picocli.CommandLine
 
@@ -90,11 +91,13 @@ private fun run(@CommandLine.Mixin flags: Flags) {
       trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
     )
 
-  val systemComputationServiceChannel =
+  val systemServiceChannel =
     buildMutualTlsChannel(flags.systemApiFlags.target, clientCerts, flags.systemApiFlags.certHost)
       .withShutdownTimeout(flags.channelShutdownTimeout)
   val systemComputationsClient =
-    SystemComputationsCoroutineStub(systemComputationServiceChannel)
+    SystemComputationsCoroutineStub(systemServiceChannel).withDuchyId(flags.duchy.duchyName)
+  val systemComputationParticipantsClient =
+    SystemComputationParticipantsCoroutineStub(systemServiceChannel)
       .withDuchyId(flags.duchy.duchyName)
 
   val storageChannel =
@@ -105,14 +108,21 @@ private fun run(@CommandLine.Mixin flags: Flags) {
       )
       .withShutdownTimeout(flags.channelShutdownTimeout)
 
+  // This will be the name of the pod when deployed to Kubernetes.
+  val heraldId = System.getenv("HOSTNAME")
+
   val herald =
     Herald(
+      heraldId = heraldId,
+      duchyId = flags.duchy.duchyName,
       internalComputationsClient = ComputationsCoroutineStub(storageChannel),
       systemComputationsClient = systemComputationsClient,
+      systemComputationParticipantClient = systemComputationParticipantsClient,
       protocolsSetupConfig =
         flags.protocolsSetupConfig.reader().use {
           parseTextProto(it, ProtocolsSetupConfig.getDefaultInstance())
-        }
+        },
+      clock = Clock.systemUTC()
     )
   val pollingThrottler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval)
   runBlocking { herald.continuallySyncStatuses(pollingThrottler) }

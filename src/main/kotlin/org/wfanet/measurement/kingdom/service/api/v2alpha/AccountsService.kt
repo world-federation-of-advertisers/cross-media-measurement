@@ -16,7 +16,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.gson.JsonParser
 import io.grpc.Status
-import io.grpc.StatusRuntimeException
+import io.grpc.StatusException
 import java.io.IOException
 import java.security.GeneralSecurityException
 import org.wfanet.measurement.api.AccountConstants
@@ -88,10 +88,10 @@ class AccountsService(
     val result =
       try {
         internalAccountsStub.createAccount(internalCreateAccountRequest)
-      } catch (ex: StatusRuntimeException) {
-        when (ex.status) {
-          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Creator's Account not found." }
-          Status.PERMISSION_DENIED ->
+      } catch (ex: StatusException) {
+        when (ex.status.code) {
+          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Creator's Account not found." }
+          Status.Code.PERMISSION_DENIED ->
             failGrpc(Status.PERMISSION_DENIED, ex) {
               "Caller does not own the owned measurement consumer."
             }
@@ -135,15 +135,15 @@ class AccountsService(
     val result =
       try {
         internalAccountsStub.activateAccount(internalActivateAccountRequest)
-      } catch (ex: StatusRuntimeException) {
-        when (ex.status) {
-          Status.PERMISSION_DENIED ->
+      } catch (ex: StatusException) {
+        when (ex.status.code) {
+          Status.Code.PERMISSION_DENIED ->
             failGrpc(Status.PERMISSION_DENIED, ex) {
               "Activation token is not valid for this account."
             }
-          Status.FAILED_PRECONDITION ->
+          Status.Code.FAILED_PRECONDITION ->
             failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition." }
-          Status.NOT_FOUND ->
+          Status.Code.NOT_FOUND ->
             failGrpc(Status.NOT_FOUND, ex) { "Account to activate has not been found." }
           else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
         }
@@ -182,11 +182,11 @@ class AccountsService(
     val result =
       try {
         internalAccountsStub.replaceAccountIdentity(internalReplaceAccountIdentityRequest)
-      } catch (ex: StatusRuntimeException) {
-        when (ex.status) {
-          Status.FAILED_PRECONDITION ->
+      } catch (ex: StatusException) {
+        when (ex.status.code) {
+          Status.Code.FAILED_PRECONDITION ->
             failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition." }
-          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Account was not found." }
+          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Account was not found." }
           else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
         }
       }

@@ -263,6 +263,18 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
       frontendSimulator.executeDuration("1234")
     }
 
+  @Test
+  fun `create a RF measurement of invalid params and check the result contains error info`() =
+    runBlocking {
+      // Wait until all EDPs finish creating eventGroups before the test starts.
+      val eventGroupList = pollForEventGroups()
+      assertThat(eventGroupList).isNotNull()
+
+      // Use frontend simulator to create an invalid reach and frequency measurement and verify
+      // its error info.
+      frontendSimulator.executeInvalidReachAndFrequency("1234")
+    }
+
   private suspend fun pollForEventGroups() {
     pollFor(timeoutMillis = 10_000) {
       val eventGroups =

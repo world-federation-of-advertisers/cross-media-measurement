@@ -15,16 +15,21 @@
 package org.wfanet.measurement.duchy.daemon.herald
 
 import io.grpc.Status
+import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
 import kotlin.math.pow
 import kotlin.random.Random
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
 import org.wfanet.measurement.common.grpc.grpcStatusCode
+import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
+import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.common.throttler.Throttler
-import org.wfanet.measurement.common.withRetriesOnEach
 import org.wfanet.measurement.duchy.daemon.utils.MeasurementType
 import org.wfanet.measurement.duchy.daemon.utils.key
 import org.wfanet.measurement.duchy.daemon.utils.toMeasurementType
@@ -32,11 +37,19 @@ import org.wfanet.measurement.duchy.service.internal.computations.toGetTokenRequ
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
+import org.wfanet.measurement.internal.duchy.finishComputationRequest
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.Computation.State
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
+import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
-import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsRequest
-import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
+import org.wfanet.measurement.system.v1alpha.failComputationParticipantRequest
+import org.wfanet.measurement.system.v1alpha.streamActiveComputationsRequest
+
+// Number of attempts that herald would retry processSystemComputationChange() when catch transient
+// exceptions.
+private const val MAX_ATTEMPTS = 3
 
 /**
  * The Herald looks to the kingdom for status of computations.
@@ -53,13 +66,19 @@ import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
  * @param maxAttempts maximum number of attempts to start a computation.
  */
 class Herald(
+  private val heraldId: String,
+  private val duchyId: String,
   private val internalComputationsClient: ComputationsCoroutineStub,
   private val systemComputationsClient: SystemComputationsCoroutineStub,
+  private val systemComputationParticipantClient: SystemComputationParticipantsCoroutineStub,
   private val protocolsSetupConfig: ProtocolsSetupConfig,
+  private val clock: Clock,
   private val blobStorageBucket: String = "computation-blob-storage",
-  private val maxAttempts: Int = 10,
+  private val maxAttempts: Int = 5,
+  private val maxConcurrency: Int = 5,
   private val retryBackoff: ExponentialBackoff = ExponentialBackoff(),
 ) {
+  private val semaphore = Semaphore(maxConcurrency)
 
   /**
    * Syncs the status of computations stored at the kingdom with those stored locally continually in
@@ -78,7 +97,9 @@ class Herald(
     var lastProcessedContinuationToken = ""
 
     pollingThrottler.loopOnReady {
-      lastProcessedContinuationToken = syncStatuses(lastProcessedContinuationToken)
+      logAndSuppressExceptionSuspend {
+        lastProcessedContinuationToken = syncStatuses(lastProcessedContinuationToken)
+      }
     }
   }
 
@@ -91,39 +112,62 @@ class Herald(
    * @return the continuation token of the last computation processed in that stream of active
    * computations from the system computation service.
    */
-  suspend fun syncStatuses(continuationToken: String): String {
+  suspend fun syncStatuses(continuationToken: String): String = coroutineScope {
+    logger.info("Reading stream of active computations since \"$continuationToken\".")
+
+    val streamRequest = streamActiveComputationsRequest {
+      this.continuationToken = continuationToken
+    }
     var lastProcessedContinuationToken = continuationToken
-    logger.info("Reading stream of active computations since $continuationToken.")
+
     systemComputationsClient
-      .streamActiveComputations(
-        StreamActiveComputationsRequest.newBuilder().setContinuationToken(continuationToken).build()
-      )
-      .withRetriesOnEach(maxAttempts = 3, retryPredicate = ::mayBeTransientGrpcError) { response ->
-        processSystemComputationChange(response)
+      .streamActiveComputations(streamRequest)
+      .onEach { response ->
+        semaphore.acquire()
+        launch { processSystemComputationWithoutExceptions(response.computation, MAX_ATTEMPTS) }
         lastProcessedContinuationToken = response.continuationToken
-      }
-      .catch { e ->
-        // TODO(world-federation-of-advertisers/cross-media-measurement#584): Determine under what
-        // conditions the computation should be failed so the Herald doesn't get stuck on one that
-        // cannot succeed.
-        throw e
       }
       .collect()
 
-    return lastProcessedContinuationToken
+    return@coroutineScope lastProcessedContinuationToken
   }
 
-  private suspend fun processSystemComputationChange(response: StreamActiveComputationsResponse) {
-    require(response.computation.name.isNotEmpty()) { "Resource name not specified" }
-    val globalId: String = response.computation.key.computationId
+  private suspend fun processSystemComputationWithoutExceptions(
+    computation: Computation,
+    maxAttempts: Int = 10
+  ) {
+    var attemptNumber = 0
+    while (true) {
+      attemptNumber++
+      try {
+        processSystemComputationChange(computation)
+        semaphore.release()
+        return
+      } catch (ex: Throwable) {
+        if (!mayBeTransientGrpcError(ex) || attemptNumber >= maxAttempts) {
+          failComputationAtKingdom(
+            computation,
+            "Herald failed after $attemptNumber attempt(s). ${ex.message}"
+          )
+          failComputationAtDuchy(computation)
+          semaphore.release()
+          return
+        }
+      }
+    }
+  }
+
+  private suspend fun processSystemComputationChange(computation: Computation) {
+    require(computation.name.isNotEmpty()) { "Resource name not specified" }
+    val globalId: String = computation.key.computationId
     logger.info("[id=$globalId]: Processing updated GlobalComputation")
-    when (val state = response.computation.state) {
+    when (val state = computation.state) {
       // Creates a new computation if it is not already present in the database.
-      State.PENDING_REQUISITION_PARAMS -> create(response.computation)
+      State.PENDING_REQUISITION_PARAMS -> create(computation)
       // Updates a computation for duchy confirmation.
-      State.PENDING_PARTICIPANT_CONFIRMATION -> update(response.computation)
+      State.PENDING_PARTICIPANT_CONFIRMATION -> update(computation)
       // Starts a computation locally.
-      State.PENDING_COMPUTATION -> start(response.computation)
+      State.PENDING_COMPUTATION -> start(computation)
       else -> logger.warning("Unexpected global computation state '$state'")
     }
   }
@@ -221,6 +265,51 @@ class Herald(
           LiquidLegionsV2Starter.startComputation(token, internalComputationsClient)
         else -> error { "Unknown or unsupported protocol." }
       }
+    }
+  }
+
+  /** Call failComputationParticipant at Kingdom to fail the Computation */
+  private suspend fun failComputationAtKingdom(computation: Computation, errorMessage: String) {
+    val globalId = computation.key.computationId
+    val request = failComputationParticipantRequest {
+      name = ComputationParticipantKey(globalId, duchyId).toName()
+      failure =
+        ComputationParticipantKt.failure {
+          participantChildReferenceId = heraldId
+          this.errorMessage = errorMessage
+          errorTime = clock.protoTimestamp()
+        }
+    }
+    try {
+      systemComputationParticipantClient.failComputationParticipant(request)
+    } catch (ex: Throwable) {
+      logger.warning("[id=$globalId]: Error when failComputationAtKingdom.\n$ex")
+    }
+  }
+
+  /** Call finishComputation to fail local Computation. */
+  private suspend fun failComputationAtDuchy(computation: Computation) {
+    val globalId = computation.key.computationId
+    val token =
+      try {
+        internalComputationsClient.getComputationToken(globalId.toGetTokenRequest()).token
+      } catch (ex: Throwable) {
+        null
+      } ?: return
+
+    val finishRequest = finishComputationRequest {
+      this.token = token
+      endingComputationStage =
+        when (token.computationDetails.protocolCase) {
+          ComputationDetails.ProtocolCase.LIQUID_LEGIONS_V2 -> LiquidLegionsV2Starter.failStage
+          else -> error { "Unknown or unsupported protocol." }
+        }
+      reason = ComputationDetails.CompletedReason.FAILED
+    }
+    try {
+      internalComputationsClient.finishComputation(finishRequest)
+    } catch (ex: Throwable) {
+      logger.warning("[id=$globalId]: Error when failComputationAtDuchy.\n$ex")
     }
   }
 

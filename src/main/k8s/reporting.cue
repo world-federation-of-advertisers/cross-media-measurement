@@ -105,7 +105,7 @@ package k8s
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args
 
 			spec: template: spec: {
-				_projectionMounts: {
+				_mounts: {
 					"mc-config": {
 						volume: secret: secretName: Reporting._mcConfigSecretName
 						volumeMount: mountPath: "/var/run/secrets/files/config/mc/"

@@ -15,7 +15,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
-import io.grpc.StatusRuntimeException
+import io.grpc.StatusException
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.Version
@@ -99,9 +99,9 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
     val eventGroup =
       try {
         internalEventGroupsStub.getEventGroup(getRequest).toEventGroup()
-      } catch (ex: StatusRuntimeException) {
-        when (ex.status) {
-          Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "EventGroup not found." }
+      } catch (ex: StatusException) {
+        when (ex.status.code) {
+          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "EventGroup not found." }
           else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
         }
       }
@@ -156,11 +156,11 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
     val createRequest = request.eventGroup.toInternal(parentKey.dataProviderId)
     return try {
       internalEventGroupsStub.createEventGroup(createRequest).toEventGroup()
-    } catch (ex: StatusRuntimeException) {
-      when (ex.status) {
-        Status.FAILED_PRECONDITION ->
+    } catch (ex: StatusException) {
+      when (ex.status.code) {
+        Status.Code.FAILED_PRECONDITION ->
           failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition" }
-        Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "DataProvider not found." }
+        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "DataProvider not found." }
         else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
       }
     }
@@ -205,13 +205,13 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
     }
     return try {
       internalEventGroupsStub.updateEventGroup(updateRequest).toEventGroup()
-    } catch (ex: StatusRuntimeException) {
-      when (ex.status) {
-        Status.INVALID_ARGUMENT ->
+    } catch (ex: StatusException) {
+      when (ex.status.code) {
+        Status.Code.INVALID_ARGUMENT ->
           failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid." }
-        Status.FAILED_PRECONDITION ->
+        Status.Code.FAILED_PRECONDITION ->
           failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition." }
-        Status.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "EventGroup not found." }
+        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "EventGroup not found." }
         else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
       }
     }
