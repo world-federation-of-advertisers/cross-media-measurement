@@ -68,7 +68,10 @@ private val BASE_SQL =
       FROM
         DuchyMeasurementLogEntries
         JOIN MeasurementLogEntries USING (MeasurementConsumerId, MeasurementId, CreateTime)
-      WHERE DuchyMeasurementLogEntries.DuchyId = ComputationParticipants.DuchyId
+      WHERE
+        DuchyMeasurementLogEntries.DuchyId = ComputationParticipants.DuchyId
+        AND DuchyMeasurementLogEntries.MeasurementConsumerId = ComputationParticipants.MeasurementConsumerId
+        AND DuchyMeasurementLogEntries.MeasurementId = ComputationParticipants.MeasurementId
       ORDER BY MeasurementLogEntries.CreateTime DESC
     ) AS DuchyMeasurementLogEntries
   FROM
