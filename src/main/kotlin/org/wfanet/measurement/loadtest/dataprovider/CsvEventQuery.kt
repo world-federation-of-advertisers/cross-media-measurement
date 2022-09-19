@@ -54,7 +54,7 @@ class CsvEventQuery(
     run {
       if (edpDisplayName == "testing") return@run
 
-      val fileName = "benchmark_data_small.csv"
+      val fileName = "synthetic-labelled-events.csv"
 
       // Directory path in the container
       val directoryPath = Paths.get("/data/csvfiles")
