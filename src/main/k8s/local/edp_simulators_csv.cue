@@ -63,6 +63,14 @@ edpSimulators: {
 					_javaOptions: maxRamPercentage: 30.0
 					resources: #EdpSimulatorsResourceRequirements
 				}
+				spec: template: spec: {
+					_mounts: {
+						"csv-files": {
+							volume: emptyDir: {}
+							volumeMount: mountPath: "/data/csvfiles"
+						}
+					}
+				}
 			}
 		}
 	}

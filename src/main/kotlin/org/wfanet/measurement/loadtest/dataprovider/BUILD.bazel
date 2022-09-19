@@ -25,9 +25,6 @@ kt_jvm_library(
         "FilterEventQuery.kt",
         "RandomEventQuery.kt",
     ],
-    data = [
-        "//src/main/k8s/testing/data:all_csv_files",
-    ],
     deps = [
         "//imports/java/com/google:cel-generated-pb",
         "//imports/java/org/projectnessie/cel:core",
@@ -93,8 +90,10 @@ java_binary(
     runtime_deps = [":forwarded_storage_edp_simulator_runner"],
 )
 
+#Use java_debug_image_base which has TAR binary to run kubectl cp
 java_image(
     name = "forwarded_storage_edp_simulator_runner_image",
+    base = "@java_debug_image_base//image",
     main_class = "org.wfanet.measurement.loadtest.dataprovider.ForwardStorageEdpSimulatorRunnerKt",
     target_compatible_with = DISTROLESS_JAVA,
     visibility = ["//src:docker_image_deployment"],

@@ -15,6 +15,7 @@ package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.protobuf.Message
 import com.opencsv.CSVReaderBuilder
+import java.io.File
 import java.io.FileReader
 import java.nio.file.Paths
 import java.util.logging.Logger
@@ -31,7 +32,6 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.testBannerTemp
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testPrivacyBudgetTemplate
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testVideoTemplate
-import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 private const val SEX = "Sex"
@@ -51,39 +51,44 @@ class CsvEventQuery(
 
   /** Import VIDs from CSV file and creates events list. */
   init {
-    // Get path for CSV files in //src/main/k8s/testing/data
-    val directoryPath =
-      Paths.get(
-        "wfa_measurement_system",
-        "src",
-        "main",
-        "k8s",
-        "testing",
-        "data",
-      )
+    run {
+      if (edpDisplayName == "testing") return@run
 
-    val fileName = "synthetic-labelled-events.csv"
+      val fileName = "benchmark_data_small.csv"
 
-    val fileRuntimePath = getRuntimePath(directoryPath.resolve(fileName)).toString()
-    logger.info("Reading data from CSV file...")
-    val fileReader = FileReader(fileRuntimePath)
+      // Directory path in the container
+      val directoryPath = Paths.get("/data/csvfiles")
+      val filePath = directoryPath.resolve(fileName).toString()
+      var file = File(filePath)
 
-    fileReader.use {
-      val csvReader = CSVReaderBuilder(fileReader).withSkipLines(1).build()
-      csvReader.use { reader ->
-        var row = reader.readNext()
-        while (row != null) {
-          if (row[edpIdIndex] == edpDisplayName.last().toString()) {
-            val csvEventMap = mapOf(SEX to row[sexIndex], AGE_GROUP to row[ageGroupIndex])
-            vidsList.add(row[vidIndex].toInt())
-            eventsList.add(csvEntryToTestEvent(csvEventMap))
+      var maximumAttempts = 10
+      while (maximumAttempts > 0 && !file.exists()) {
+        logger.info("Waiting for copying CSV file into container...")
+        Thread.sleep(5000)
+        maximumAttempts -= 1
+        file = File(filePath)
+      }
+
+      logger.info("Reading data from CSV file $filePath...")
+      val fileReader = FileReader(filePath)
+
+      fileReader.use {
+        val csvReader = CSVReaderBuilder(fileReader).withSkipLines(1).build()
+        csvReader.use { reader ->
+          var row = reader.readNext()
+          while (row != null) {
+            if (row[edpIdIndex] == edpDisplayName.last().toString()) {
+              val csvEventMap = mapOf(SEX to row[sexIndex], AGE_GROUP to row[ageGroupIndex])
+              vidsList.add(row[vidIndex].toInt())
+              eventsList.add(csvEntryToTestEvent(csvEventMap))
+            }
+
+            row = reader.readNext()
           }
-
-          row = reader.readNext()
         }
       }
+      logger.info("Finished reading data from CSV file")
     }
-    logger.info("Finished reading data from CSV file")
   }
 
   /** Generates Ids by applying filter on events */
