@@ -68,8 +68,10 @@ clusterRoleBindings: {
 }
 
 configMaps: [#ConfigMap & {
-	_name:   "prometheus"
-	_system: "prometheus"
+	metadata: {
+		_component: "prometheus"
+		name:       "prometheus"
+	}
 	data: {
 		"prometheus.yaml": """
 			global:
@@ -85,9 +87,9 @@ configMaps: [#ConfigMap & {
 			    kubernetes_sd_configs:
 			      - role: endpoints
 			    relabel_configs:
-			      - source_labels: [__meta_kubernetes_pod_container_port_number]
+			      - source_labels: [__meta_kubernetes_endpoint_port_name]
 			        action: keep
-			        regex: 8889
+			        regex: prom-exporter
 			      - source_labels: [__meta_kubernetes_namespace]
 			        action: drop
 			        regex: kube-system

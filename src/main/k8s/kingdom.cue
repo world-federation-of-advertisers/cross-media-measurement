@@ -61,20 +61,20 @@ package k8s
 			image:           _images[_name]
 			imagePullPolicy: _kingdom_image_pull_policy
 		}
-		_instrumentMetrics: true
-		_receiverHost:      "0.0.0.0"
 
 		_openTelemetryCollectorSidecar: #OpenTelemetryCollectorSidecar & {
 			_name:        Name
 			_podLabelApp: deployments[Name].metadata.labels.app
 		}
 
-		_sidecarContainers: [
-			_openTelemetryCollectorSidecar._container,
-		]
-		_sidecarMounts: [
-			_openTelemetryCollectorSidecar._configMapMount,
-		]
+		spec: template: {
+			metadata:
+				annotations: {
+					"sidecar.opentelemetry.io/inject":                  "\(Name)-sidecar"
+					"instrumentation.opentelemetry.io/inject-java":     "true"
+					"instrumentation.opentelemetry.io/container-names": "\(Name)-container"
+				}
+		}
 	}
 	deployments: {
 		"gcp-kingdom-data-server": {

@@ -14,18 +14,6 @@
 
 package k8s
 
-#DataServerResourceRequirements: #ResourceRequirements & {
-	requests: cpu: "50m"
-	limits: {
-		cpu:    "200m"
-		memory: "384Mi"
-	}
-}
-
 objectSets: [ for objectSet in openTelemetryCollector {objectSet}]
 
-openTelemetryCollector: #OpenTelemetryCollector & {
-	_images: {
-		"open-telemetry-collector": "otel/opentelemetry-collector:latest"
-	}
-}
+openTelemetryCollector: #OpenTelemetryCollector

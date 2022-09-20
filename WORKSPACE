@@ -24,10 +24,6 @@ load("@wfa_common_cpp//build:common_cpp_deps.bzl", "common_cpp_deps")
 
 common_cpp_deps()
 
-load("//build/open_telemetry_java_agent:repo.bzl", "open_telemetry_java_agent")
-
-open_telemetry_java_agent()
-
 # Maven
 load("@wfa_common_jvm//build:common_jvm_maven.bzl", "COMMON_JVM_MAVEN_OVERRIDE_TARGETS", "common_jvm_maven_artifacts")
 load("@rules_jvm_external//:defs.bzl", "maven_install")

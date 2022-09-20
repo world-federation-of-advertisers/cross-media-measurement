@@ -26,7 +26,6 @@ java_binary(
 
 java_image(
     name = "gcloud_postgres_reporting_data_server_image",
-    data = ["@open_telemetry_java_agent//file"],
     main_class = "org.wfanet.measurement.reporting.deploy.gcloud.postgres.server.GCloudPostgresReportingDataServerKt",
     visibility = ["//src:docker_image_deployment"],
     runtime_deps = [":gcloud_postgres_reporting_data_server"],

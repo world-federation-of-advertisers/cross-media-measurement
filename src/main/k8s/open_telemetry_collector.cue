@@ -15,47 +15,28 @@
 package k8s
 
 #OpenTelemetryCollector: {
-	_images: [Name=_]: string
+	_config: string | *#OpenTelemetryCollectorConfig
 
-	configMaps: [#OpenTelemetryCollectorConfigMap & {
-		_name: "open-telemetry-collector"
-	}]
-
-	deployments: [Name=string]: #Deployment & {
-		_name:   Name
-		_system: "open-telemetry"
-		_container: {
-			image:           _images[_name]
-			imagePullPolicy: "Always"
-		}
-	}
 	deployments: {
 		"open-telemetry-collector": {
-			_container: {
-				args: [
-					"--config=/etc/\(#AppName)/open-telemetry-collector/config.yaml",
-				]
-
-				ports: [{
-					name:          "prom-exporter"
-					containerPort: #OpenTelemetryPrometheusExporterPort
-					protocol:      "TCP"
-				}, {
-					name:          "otel-receiver"
-					containerPort: #OpenTelemetryReceiverPort
-					protocol:      "TCP"
-				}]
+			apiVersion: "opentelemetry.io/v1alpha1"
+			kind:       "OpenTelemetryCollector"
+			metadata: {
+				name: "open-telemetry"
+				labels: app: "open-telemetry-app"
 			}
-
-			spec: template: spec: {
-				_mounts: "open-telemetry-collector": #ConfigMapMount
+			spec: {
+				mode:   "deployment"
+				config: "\(_config)"
 			}
 		}
 	}
 
 	services: [Name=_]: #Service & {
-		_name:   Name
-		_system: "open-telemetry"
+		metadata: {
+			_component: "open-telemetry"
+			name:       Name
+		}
 	}
 	services: {
 		"open-telemetry-receiver": {
@@ -82,24 +63,27 @@ package k8s
 		}
 	}
 
-	networkPolicies: [Name=_]: #NetworkPolicy & {
-		_name: Name
-	}
-
-	networkPolicies: {
-		"open-telemetry-collector": {
-			_app_label: "open-telemetry-collector-app"
-			_ingresses: {
-				grpc: {
-					ports: [{
-						port: #OpenTelemetryReceiverPort
-					}]
-				}
-				http: {
-					ports: [{
-						port: #OpenTelemetryPrometheusExporterPort
-					}]
-				}
+	instrumentations: {
+		"java-instrumentation": {
+			apiVersion: "opentelemetry.io/v1alpha1"
+			kind:       "Instrumentation"
+			metadata: name: "open-telemetry-java-agent"
+			spec: {
+				env: [
+					{
+						name:  "OTEL_TRACES_EXPORTER"
+						value: "none"
+					}, {
+						name:  "OTEL_EXPORTER_OTLP_ENDPOINT"
+						value: "http://0.0.0.0:\(#OpenTelemetryReceiverPort)"
+					}, {
+						name:  "OTEL_EXPORTER_OTLP_TIMEOUT"
+						value: "20"
+					}, {
+						name:  "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL"
+						value: "grpc"
+					},
+				]
 			}
 		}
 	}

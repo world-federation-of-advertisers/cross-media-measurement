@@ -67,6 +67,39 @@ bazel run //src/main/k8s/local:emulators_kind \
   --define=k8s_secret_name=certs-and-configs-k8888kc6gg
 ```
 
+## Metrics Setup
+
+The Open Telemetry Operator adds the creation and management of new Open
+Telemetry specific resources. It depends on Cert Manager to run.
+
+### Deploy Cert Manager
+```shell
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.9.1/cert-manager.yaml
+```
+
+### Deploy Open Telemetry Operator
+```shell
+kubectl apply -f https://github.com/open-telemetry/opentelemetry-operator/releases/download/v0.59.0/opentelemetry-operator.yaml
+```
+
+### Deploy Open Telemetry Collector
+Deploys an operator collector in deployment mode and an operator instrumentation
+for instrumenting the application code.
+```shell
+bazel run //src/main/k8s/local:open_telemetry_kind
+```
+
+### Deploy Prometheus Server
+```shell
+bazel run //src/main/k8s/local:prometheus_kind
+```
+
+To be able to visit the Prometheus browser GUI at http://localhost:31111/,
+start port-forwarding.
+```shell
+kubectl port-forward prometheus-pod 31111:9090
+```
+
 ## Resource Setup
 
 There is a chicken-and-egg problem with setting up initial resources, in that
@@ -309,22 +342,3 @@ bazel run //src/main/k8s/local:reporting_kind \
   --define=k8s_db_secret_name=db-auth-b286t5fcmt \
   --define=k8s_mc_config_secret_name=mc-config-975k88gktk
 ```
-
-## Metrics
-
-### Deploy Open Telemetry Collector
-```shell
-bazel run //src/main/k8s/local:open_telemetry_kind
-```
-
-### Deploy Prometheus Server
-```shell
-bazel run //src/main/k8s/local:prometheus_kind
-```
-
-To be able to visit the Prometheus browser GUI at http://localhost:31111/, 
-start port-forwarding.
-```shell
-kubectl port-forward prometheus-pod 31111:9090
-```
-
