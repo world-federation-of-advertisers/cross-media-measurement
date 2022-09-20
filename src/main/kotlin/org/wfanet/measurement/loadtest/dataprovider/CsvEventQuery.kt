@@ -17,7 +17,6 @@ import com.google.protobuf.Message
 import com.opencsv.CSVReaderBuilder
 import java.io.File
 import java.io.FileReader
-import java.nio.file.Paths
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplate.Gender as BannerGender
@@ -38,9 +37,8 @@ private const val SEX = "Sex"
 private const val AGE_GROUP = "Age_Group"
 
 /** Fulfill the query with VIDs imported from CSV file. */
-class CsvEventQuery(
-  private val edpDisplayName: String,
-) : EventQuery() {
+class CsvEventQuery(private val edpDisplayName: String, private val filePath: String) :
+  EventQuery() {
   private val edpIdIndex = 0
   private val sexIndex = 2
   private val ageGroupIndex = 3
@@ -52,13 +50,8 @@ class CsvEventQuery(
   /** Import VIDs from CSV file and creates events list. */
   init {
     run {
-      if (edpDisplayName == "testing") return@run
+      if (filePath == "testing") return@run
 
-      val fileName = "synthetic-labelled-events.csv"
-
-      // Directory path in the container
-      val directoryPath = Paths.get("/data/csvfiles")
-      val filePath = directoryPath.resolve(fileName).toString()
       var file = File(filePath)
 
       var maximumAttempts = 10

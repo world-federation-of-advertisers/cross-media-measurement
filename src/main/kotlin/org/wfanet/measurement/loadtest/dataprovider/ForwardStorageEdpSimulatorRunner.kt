@@ -30,11 +30,14 @@ class ForwardStorageEdpSimulatorRunner : EdpSimulatorRunner() {
   @CommandLine.Mixin private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags
 
   @CommandLine.Option(
-    names = ["--event-query"],
-    description = ["The type of event query for this EDP Simulator"],
+    names = ["--event-data-source"],
+    description =
+      [
+        "A filepath to a CSV file specifying the event data that will be returned by this simulator"
+      ],
     defaultValue = "randomEventQuery"
   )
-  lateinit var eventQueryFlag: String
+  lateinit var eventDataSource: String
     private set
 
   @set:CommandLine.Option(
@@ -54,14 +57,13 @@ class ForwardStorageEdpSimulatorRunner : EdpSimulatorRunner() {
     private set
 
   override fun run() {
-
     val eventQuery: EventQuery =
-      if (eventQueryFlag == "csvEventQuery") {
-        CsvEventQuery(flags.dataProviderDisplayName)
-      } else {
+      if (eventDataSource == "randomEventQuery") {
         RandomEventQuery(
           SketchGenerationParams(reach = edpSketchReach, universeSize = edpUniverseSize)
         )
+      } else {
+        CsvEventQuery(flags.dataProviderDisplayName, eventDataSource)
       }
 
     run(ForwardedStorageFromFlags(forwardedStorageFlags, flags.tlsFlags).storageClient, eventQuery)
