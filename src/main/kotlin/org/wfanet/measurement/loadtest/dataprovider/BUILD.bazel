@@ -90,9 +90,9 @@ java_binary(
     runtime_deps = [":forwarded_storage_edp_simulator_runner"],
 )
 
-#Use java_debug_image_base which has TAR binary to run kubectl cp
 java_image(
     name = "forwarded_storage_edp_simulator_runner_image",
+    #Use java_debug_image_base which has TAR binary to run kubectl cp
     base = "@java_debug_image_base//image",
     main_class = "org.wfanet.measurement.loadtest.dataprovider.ForwardStorageEdpSimulatorRunnerKt",
     target_compatible_with = DISTROLESS_JAVA,
