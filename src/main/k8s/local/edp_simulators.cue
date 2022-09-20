@@ -44,7 +44,7 @@ edpSimulators: {
 			_edpConfig:                 edpConfig
 			_edp_secret_name:           _secret_name
 			_mc_resource_name:          _mc_name
-			_event_query_flag:          "randomEventQuery"
+			_event_data_source:         "randomEventQuery"
 			_duchy_public_api_target:   #Worker1PublicApiTarget
 			_kingdom_public_api_target: #KingdomPublicApiTarget
 			_blob_storage_flags: [

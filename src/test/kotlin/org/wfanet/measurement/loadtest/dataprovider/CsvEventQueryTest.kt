@@ -24,7 +24,8 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemp
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate.AgeRange.Value as PrivacyAge
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate.Gender.Value as PrivacyGender
 
-private const val EDP0 = "testing"
+private const val EDP0 = "edp0"
+private const val FILEPATH = "testing"
 private val BANNER_FEMALE = BannerGender.GENDER_FEMALE.ordinal
 private val PRIVACY_35_54 = PrivacyAge.AGE_35_TO_54.ordinal
 private val PRIVACY_MALE = PrivacyGender.GENDER_MALE.ordinal
@@ -61,7 +62,7 @@ private val EVENTS = CSV_EVENTS_LIST.map { event -> CSV_HEADER.zip(event).toMap(
 @RunWith(JUnit4::class)
 class CsvEventQueryTest {
   companion object {
-    @JvmStatic private val eventQuery = CsvEventQuery(EDP0)
+    @JvmStatic private val eventQuery = CsvEventQuery(EDP0, FILEPATH)
 
     @BeforeClass
     @JvmStatic
