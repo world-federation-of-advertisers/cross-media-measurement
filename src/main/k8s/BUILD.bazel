@@ -16,8 +16,8 @@ cue_library(
     name = "open_telemetry_collector",
     srcs = ["open_telemetry_collector.cue"],
     deps = [
-      ":base",
-      ":open_telemetry_collector_sidecar",
+        ":base",
+        ":open_telemetry_collector_sidecar",
     ],
 )
 
