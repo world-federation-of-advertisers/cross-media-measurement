@@ -168,6 +168,8 @@ class Herald(
       State.PENDING_PARTICIPANT_CONFIRMATION -> update(computation)
       // Starts a computation locally.
       State.PENDING_COMPUTATION -> start(computation)
+      State.FAILED,
+      State.CANCELLED -> failComputationAtDuchy(computation)
       else -> logger.warning("Unexpected global computation state '$state'")
     }
   }
