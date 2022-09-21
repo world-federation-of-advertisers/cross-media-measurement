@@ -69,16 +69,6 @@ package k8s
 			image:           _images[_name]
 			imagePullPolicy: Reporting._imagePullPolicy
 		}
-
-		spec: template: {
-			metadata: {
-				labels: scrape: "true"
-				annotations: {
-					"prometheus.io/port":   "\(#OpenTelemetryPrometheusExporterPort)"
-					"prometheus.io/scrape": "true"
-				}
-			}
-		}
 	}
 	deployments: {
 		"postgres-reporting-data-server": {

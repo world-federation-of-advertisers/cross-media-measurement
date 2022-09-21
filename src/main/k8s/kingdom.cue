@@ -61,16 +61,6 @@ package k8s
 			image:           _images[_name]
 			imagePullPolicy: _kingdom_image_pull_policy
 		}
-
-		spec: template: {
-			metadata: {
-				labels: scrape: "true"
-				annotations: {
-					"prometheus.io/port":   "\(#OpenTelemetryPrometheusExporterPort)"
-					"prometheus.io/scrape": "true"
-				}
-			}
-		}
 	}
 	deployments: {
 		"gcp-kingdom-data-server": {

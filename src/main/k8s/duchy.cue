@@ -81,16 +81,6 @@ import ("strings")
 			image:           _images[_unprefixed_name]
 			imagePullPolicy: _duchy_image_pull_policy
 		}
-
-		spec: template: {
-			metadata: {
-				labels: scrape: "true"
-				annotations: {
-					"prometheus.io/port":   "\(#OpenTelemetryPrometheusExporterPort)"
-					"prometheus.io/scrape": "true"
-				}
-			}
-		}
 	}
 
 	deployments: {

@@ -374,13 +374,13 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			metadata: {
 				labels: {
 					app:    _name + "-app"
-					scrape: string | *"false"
+					scrape: string | *"true"
 				}
 				annotations: {
 					"sidecar.opentelemetry.io/inject":              string | *"default-sidecar"
 					"instrumentation.opentelemetry.io/inject-java": string | *"true"
-					"prometheus.io/port":                           string | *"-1"
-					"prometheus.io/scrape":                         string | *"false"
+					"prometheus.io/port":                           string | *"\(#OpenTelemetryPrometheusExporterPort)"
+					"prometheus.io/scrape":                         string | *"true"
 				}
 			}
 			spec: #PodSpec & {
