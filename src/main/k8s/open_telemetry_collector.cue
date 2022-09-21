@@ -81,7 +81,7 @@ package k8s
 						value: "otlp"
 					},
 				]
-				java: image: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:1.17.0"
+				java: image: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:1.18.0"
 			}
 		}
 	}
