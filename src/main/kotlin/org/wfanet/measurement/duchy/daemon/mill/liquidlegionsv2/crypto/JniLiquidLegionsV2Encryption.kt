@@ -41,6 +41,12 @@ import org.wfanet.measurement.internal.duchy.protocol.liquidlegionsv2.LiquidLegi
  * A [LiquidLegionsV2Encryption] implementation using the JNI [LiquidLegionsV2EncryptionUtility].
  */
 class JniLiquidLegionsV2Encryption : LiquidLegionsV2Encryption {
+//   // Set timeout as 1 hour
+//   private val timeoutInSecond = 3600
+//
+//   private fun <T> runWithTimeout(): {
+//
+//   }
 
   override fun completeInitializationPhase(
     request: CompleteInitializationPhaseRequest

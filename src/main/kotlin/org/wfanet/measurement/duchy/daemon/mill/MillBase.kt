@@ -157,6 +157,7 @@ abstract class MillBase(
       val latestToken = getLatestComputationToken(globalId)
       handleExceptions(latestToken, e)
     }
+    logger.info("@Mill $millId: Processed computation $globalId, stage $stage")
   }
 
   private suspend fun handleExceptions(token: ComputationToken, e: Exception) {

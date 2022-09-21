@@ -17,6 +17,7 @@ package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2
 import com.google.protobuf.ByteString
 import java.nio.file.Paths
 import java.time.Clock
+import java.util.logging.Logger
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -676,8 +677,10 @@ class LiquidLegionsV2Mill(
           }
         }
 
+        logger.info("completeExecutionPhaseTwo()")
         val cryptoResult: CompleteExecutionPhaseTwoResponse =
           cryptoWorker.completeExecutionPhaseTwo(requestBuilder.build())
+        logger.info("completeExecutionPhaseTwo() done")
         logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
         cryptoResult.flagCountTuples
       }
@@ -860,5 +863,6 @@ class LiquidLegionsV2Mill(
         directoryPath = Paths.get("any_sketch_java/src/main/java/org/wfanet/anysketch/crypto")
       )
     }
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
