@@ -37,55 +37,44 @@ private const val SEX = "Sex"
 private const val AGE_GROUP = "Age_Group"
 
 /** Fulfill the query with VIDs imported from CSV file. */
-class CsvEventQuery(private val edpDisplayName: String, private val filePath: String) :
-  EventQuery() {
+class CsvEventQuery(private val edpDisplayName: String, private val file: File) : EventQuery() {
   private val edpIdIndex = 0
   private val sexIndex = 2
   private val ageGroupIndex = 3
   private val vidIndex = 7
 
-  private val vidsList: MutableList<Int> = mutableListOf()
-  private val eventsList: MutableList<TestEvent> = mutableListOf()
+  private lateinit var vidsList: MutableList<Int>
+  private lateinit var eventsList: MutableList<TestEvent>
 
-  /** Import VIDs from CSV file and creates events list. */
-  init {
-    run {
-      if (filePath == "testing") return@run
+  private fun readCsvFile() {
+    this.vidsList = mutableListOf()
+    this.eventsList = mutableListOf()
 
-      var file = File(filePath)
+    logger.info("Reading data from CSV file $file...")
+    val fileReader = FileReader(file.toString())
 
-      var maximumAttempts = 10
-      while (maximumAttempts > 0 && !file.exists()) {
-        logger.info("Waiting for copying CSV file into container...")
-        Thread.sleep(5000)
-        maximumAttempts -= 1
-        file = File(filePath)
-      }
-
-      logger.info("Reading data from CSV file $filePath...")
-      val fileReader = FileReader(filePath)
-
-      fileReader.use {
-        val csvReader = CSVReaderBuilder(fileReader).withSkipLines(1).build()
-        csvReader.use { reader ->
-          var row = reader.readNext()
-          while (row != null) {
-            if (row[edpIdIndex] == edpDisplayName.last().toString()) {
-              val csvEventMap = mapOf(SEX to row[sexIndex], AGE_GROUP to row[ageGroupIndex])
-              vidsList.add(row[vidIndex].toInt())
-              eventsList.add(csvEntryToTestEvent(csvEventMap))
-            }
-
-            row = reader.readNext()
+    fileReader.use {
+      val csvReader = CSVReaderBuilder(fileReader).withSkipLines(1).build()
+      csvReader.use { reader ->
+        var row = reader.readNext()
+        while (row != null) {
+          if (row[edpIdIndex] == edpDisplayName.last().toString()) {
+            val csvEventMap = mapOf(SEX to row[sexIndex], AGE_GROUP to row[ageGroupIndex])
+            this.vidsList.add(row[vidIndex].toInt())
+            this.eventsList.add(csvEntryToTestEvent(csvEventMap))
           }
+
+          row = reader.readNext()
         }
       }
-      logger.info("Finished reading data from CSV file")
     }
+    logger.info("Finished reading data from CSV file")
   }
 
   /** Generates Ids by applying filter on events */
   override fun getUserVirtualIds(eventFilter: EventFilter): Sequence<Long> {
+    if (file.toString() != "testing" && !this::vidsList.isInitialized) readCsvFile()
+
     logger.info("Querying and filtering VIDs from CsvEventQuery...")
     val program =
       EventFilters.compileProgram(
@@ -148,8 +137,9 @@ class CsvEventQuery(private val edpDisplayName: String, private val filePath: St
 
   /** This function is to simulate reading CSV data in the unit test */
   fun readCSVData(csvEvents: List<Map<String, Any>>) {
-    this.eventsList.clear()
-    this.vidsList.clear()
+    this.vidsList = mutableListOf()
+    this.eventsList = mutableListOf()
+
     csvEvents.forEach {
       this.vidsList.add(it["VID"] as Int)
       this.eventsList.add(csvEntryToTestEvent(it))
