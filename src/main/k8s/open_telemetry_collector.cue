@@ -82,8 +82,12 @@ package k8s
 					}, {
 						name:  "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL"
 						value: "grpc"
+					}, {
+						name:  "OTEL_METRICS_EXPORTER"
+						value: "otlp"
 					},
 				]
+				java: image: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:1.17.0"
 			}
 		}
 	}

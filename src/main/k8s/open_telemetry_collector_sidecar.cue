@@ -15,9 +15,8 @@
 package k8s
 
 #OpenTelemetryCollectorSidecar: Sidecar={
-	_name:        string
-	_podLabelApp: string
-	_config:      string | *#OpenTelemetryCollectorConfig
+	_name:   string
+	_config: string | *#OpenTelemetryCollectorConfig
 
 	sidecars: {
 		"collector-sidecar": {
@@ -27,26 +26,6 @@ package k8s
 			spec: {
 				mode:   "sidecar"
 				config: "\(_config)"
-			}
-		}
-	}
-
-	services: [Name=_]: #Service & {
-		metadata: {
-			_component: "\(Sidecar._name)"
-			name:       Name
-		}
-	}
-	services: {
-		"\(Sidecar._name)-prom-exp": {
-			spec: {
-				selector: app: _podLabelApp
-				ports: [{
-					name:       "prom-exporter"
-					port:       #OpenTelemetryPrometheusExporterPort
-					protocol:   "TCP"
-					targetPort: #OpenTelemetryPrometheusExporterPort
-				}]
 			}
 		}
 	}

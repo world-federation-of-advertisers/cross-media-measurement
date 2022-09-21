@@ -71,17 +71,20 @@ package k8s
 		}
 
 		_openTelemetryCollectorSidecar: #OpenTelemetryCollectorSidecar & {
-			_name:        Name
-			_podLabelApp: deployments[Name].metadata.labels.app
+			_name: Name
 		}
 
 		spec: template: {
-			metadata:
+			metadata: {
+				labels: scrape: "true"
 				annotations: {
 					"sidecar.opentelemetry.io/inject":                  "\(Name)-sidecar"
 					"instrumentation.opentelemetry.io/inject-java":     "true"
 					"instrumentation.opentelemetry.io/container-names": "\(Name)-container"
+					"prometheus.io/port":                               "\(#OpenTelemetryPrometheusExporterPort)"
+					"prometheus.io/scrape":                             "true"
 				}
+			}
 		}
 	}
 	deployments: {

@@ -83,17 +83,20 @@ import ("strings")
 		}
 
 		_openTelemetryCollectorSidecar: #OpenTelemetryCollectorSidecar & {
-			_name:        "\(_duchy.name)-\(_unprefixed_name)"
-			_podLabelApp: deployments[Name].metadata.labels.app
+			_name: "\(_duchy.name)-\(_unprefixed_name)"
 		}
 
 		spec: template: {
-			metadata:
+			metadata: {
+				labels: scrape: "true"
 				annotations: {
 					"sidecar.opentelemetry.io/inject":                  "\(_duchy.name)-\(_unprefixed_name)-sidecar"
 					"instrumentation.opentelemetry.io/inject-java":     "true"
 					"instrumentation.opentelemetry.io/container-names": "\(_duchy.name)-\(_unprefixed_name)-container"
+					"prometheus.io/port":                               "\(#OpenTelemetryPrometheusExporterPort)"
+					"prometheus.io/scrape":                             "true"
 				}
+			}
 		}
 	}
 

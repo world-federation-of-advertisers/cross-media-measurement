@@ -216,11 +216,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 #ConfigMap: {
 	apiVersion: "v1"
 	kind:       "ConfigMap"
-	metadata:   Metadata=#ObjectMeta & {
-		_component: string
-		name:       string
-		annotations: "component": Metadata._component
-	}
+	metadata:   #ObjectMeta
 	data: {...}
 }
 
@@ -254,8 +250,6 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	apiVersion: "v1"
 	kind:       "Service"
 	metadata:   Metadata=#ObjectMeta & {
-		_component: string
-		name:       string
 		annotations: "system": Metadata._component
 	}
 	spec: {
@@ -403,11 +397,16 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		selector: matchLabels: app: _name + "-app"
 		template: {
 			metadata: {
-				labels: app: _name + "-app"
+				labels: {
+					app:    _name + "-app"
+					scrape: string | *"false"
+				}
 				annotations: {
 					"sidecar.opentelemetry.io/inject":                  string | *"false"
 					"instrumentation.opentelemetry.io/inject-java":     string | *"false"
 					"instrumentation.opentelemetry.io/container-names": string | *"false"
+					"prometheus.io/port":                               string | *"-1"
+					"prometheus.io/scrape":                             string | *"false"
 				}
 			}
 			spec: #PodSpec & {

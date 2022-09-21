@@ -85,14 +85,16 @@ configMaps: [#ConfigMap & {
 			    honor_timestamps: true
 			    metrics_path: /metrics
 			    kubernetes_sd_configs:
-			      - role: endpoints
+			      - role: pod
 			    relabel_configs:
-			      - source_labels: [__meta_kubernetes_endpoint_port_name]
+			      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape, __meta_kubernetes_pod_annotation_prometheus_io_port]
 			        action: keep
-			        regex: prom-exporter
-			      - source_labels: [__meta_kubernetes_namespace]
-			        action: drop
-			        regex: kube-system
+			        regex: true;\(#OpenTelemetryPrometheusExporterPort)
+			      - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+			        target_label: __address__
+			        action: replace
+			        regex: "([^:]+)(?::\\\\d+)?;(\\\\d+)"
+			        replacement: $1:$2
 			"""
 	}
 }]
