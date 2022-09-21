@@ -6,19 +6,11 @@ cue_library(
     name = "base",
     srcs = ["base.cue"],
 )
-cue_library(
-    name = "open_telemetry_collector_sidecar",
-    srcs = ["open_telemetry_collector_sidecar.cue"],
-    deps = [":base"],
-)
 
 cue_library(
     name = "open_telemetry_collector",
     srcs = ["open_telemetry_collector.cue"],
-    deps = [
-        ":base",
-        ":open_telemetry_collector_sidecar",
-    ],
+    deps = [":base"],
 )
 
 cue_library(

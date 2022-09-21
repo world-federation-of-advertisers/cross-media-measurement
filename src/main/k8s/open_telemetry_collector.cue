@@ -15,11 +15,47 @@
 package k8s
 
 #OpenTelemetryCollector: {
-	_defaultSidecar: #OpenTelemetryCollectorSidecar & {
-		_name: "default"
+	// Default config for an Open Telemetry Collector
+	#OpenTelemetryCollectorConfig:
+		"""
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+                endpoint: 0.0.0.0:\(#OpenTelemetryReceiverPort)
+
+        exporters:
+          prometheus:
+            endpoint: 0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)
+
+        extensions:
+          health_check:
+
+        service:
+          extensions: [health_check]
+          pipelines:
+            metrics:
+              receivers: [otlp]
+              processors: []
+              exporters: [prometheus]
+        """
+
+	sidecars: [Name=string]: {
+		_name:   Name
+		_config: string | *#OpenTelemetryCollectorConfig
+
+		apiVersion: "opentelemetry.io/v1alpha1"
+		kind:       "OpenTelemetryCollector"
+		metadata: name: "\(_name)-sidecar"
+		spec: {
+			mode:   "sidecar"
+			config: "\(_config)"
+		}
 	}
 
-	sidecars: _defaultSidecar.sidecars
+	sidecars: {
+		"default": {}
+	}
 
 	instrumentations: {
 		"java-instrumentation": {
