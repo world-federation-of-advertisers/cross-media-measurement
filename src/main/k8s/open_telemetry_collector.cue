@@ -40,7 +40,7 @@ package k8s
               exporters: [prometheus]
         """
 
-	sidecars: [Name=string]: {
+	openTelemetryCollectors: [Name=string]: {
 		_name:   Name
 		_config: string | *#OpenTelemetryCollectorConfig
 
@@ -53,7 +53,7 @@ package k8s
 		}
 	}
 
-	sidecars: {
+	openTelemetryCollectors: {
 		"default": {}
 	}
 
