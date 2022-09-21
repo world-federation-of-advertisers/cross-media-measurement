@@ -350,10 +350,10 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 // K8s Deployment.
 #Deployment: {
-	_name:        string
-	_secretName?: string
-	_system:      string
-	_container:   #Container & {
+	_name:       string
+	_secretName: string
+	_system:     string
+	_container:  #Container & {
 		imagePullPolicy: _ | *"Never"
 	}
 
