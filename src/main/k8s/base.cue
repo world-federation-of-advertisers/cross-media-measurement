@@ -220,31 +220,6 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	data: {...}
 }
 
-// Default config for an Open Telemetry Collector
-#OpenTelemetryCollectorConfig:
-	"""
-      receivers:
-        otlp:
-          protocols:
-            grpc:
-              endpoint: 0.0.0.0:\(#OpenTelemetryReceiverPort)
-
-      exporters:
-        prometheus:
-          endpoint: 0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)
-
-      extensions:
-        health_check:
-
-      service:
-        extensions: [health_check]
-        pipelines:
-          metrics:
-            receivers: [otlp]
-            processors: []
-            exporters: [prometheus]
-      """
-
 // K8s Service.
 #Service: {
 	apiVersion: "v1"
@@ -253,7 +228,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		annotations: "system": Metadata._component
 	}
 	spec: {
-		selector: app: string | *"\(metadata.name)-app"
+		selector: app: "\(metadata.name)-app"
 		ports: [...#ServicePort]
 		type?: "ClusterIP" | "LoadBalancer"
 	}
@@ -402,20 +377,16 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 					scrape: string | *"false"
 				}
 				annotations: {
-					"sidecar.opentelemetry.io/inject":                  string | *"false"
-					"instrumentation.opentelemetry.io/inject-java":     string | *"false"
-					"instrumentation.opentelemetry.io/container-names": string | *"false"
-					"prometheus.io/port":                               string | *"-1"
-					"prometheus.io/scrape":                             string | *"false"
+					"sidecar.opentelemetry.io/inject":              string | *"default-sidecar"
+					"instrumentation.opentelemetry.io/inject-java": string | *"true"
+					"prometheus.io/port":                           string | *"-1"
+					"prometheus.io/scrape":                         string | *"false"
 				}
 			}
 			spec: #PodSpec & {
-				if _secretName != _|_ {
-					_mounts: "\(_name)-files": {
-						volume: secret: secretName: _secretName
-					}
+				_mounts: "\(_name)-files": {
+					volume: secret: secretName: _secretName
 				}
-
 				_containers: "\(_name)-container": _container
 				restartPolicy: restartPolicy | *"Always"
 			}

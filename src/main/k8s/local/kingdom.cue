@@ -20,12 +20,7 @@ _secret_name: string @tag("secret_name")
 	limits: memory: "512Mi"
 }
 
-objectSets: [
-	for objectSet in kingdom.deployments["gcp-kingdom-data-server"]._openTelemetryCollectorSidecar {objectSet},
-	for objectSet in kingdom.deployments["system-api-server"]._openTelemetryCollectorSidecar {objectSet},
-	for objectSet in kingdom.deployments["v2alpha-public-api-server"]._openTelemetryCollectorSidecar {objectSet},
-	for objectSet in kingdom {objectSet},
-]
+objectSets: [ for objectSet in kingdom {objectSet}]
 
 kingdom: #Kingdom & {
 	_kingdom_secret_name: _secret_name

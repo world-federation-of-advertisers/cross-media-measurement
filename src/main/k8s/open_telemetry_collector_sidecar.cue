@@ -14,6 +14,31 @@
 
 package k8s
 
+// Default config for an Open Telemetry Collector
+#OpenTelemetryCollectorConfig:
+	"""
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+              endpoint: 0.0.0.0:\(#OpenTelemetryReceiverPort)
+
+      exporters:
+        prometheus:
+          endpoint: 0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)
+
+      extensions:
+        health_check:
+
+      service:
+        extensions: [health_check]
+        pipelines:
+          metrics:
+            receivers: [otlp]
+            processors: []
+            exporters: [prometheus]
+      """
+
 #OpenTelemetryCollectorSidecar: Sidecar={
 	_name:   string
 	_config: string | *#OpenTelemetryCollectorConfig

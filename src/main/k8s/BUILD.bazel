@@ -6,17 +6,19 @@ cue_library(
     name = "base",
     srcs = ["base.cue"],
 )
-
-cue_library(
-    name = "open_telemetry_collector",
-    srcs = ["open_telemetry_collector.cue"],
-    deps = [":base"],
-)
-
 cue_library(
     name = "open_telemetry_collector_sidecar",
     srcs = ["open_telemetry_collector_sidecar.cue"],
     deps = [":base"],
+)
+
+cue_library(
+    name = "open_telemetry_collector",
+    srcs = ["open_telemetry_collector.cue"],
+    deps = [
+      ":base",
+      ":open_telemetry_collector_sidecar",
+    ],
 )
 
 cue_library(
@@ -41,7 +43,6 @@ cue_library(
     srcs = ["kingdom.cue"],
     deps = [
         ":base",
-        ":open_telemetry_collector_sidecar",
         ":spanner",
     ],
 )
@@ -49,10 +50,7 @@ cue_library(
 cue_library(
     name = "duchy",
     srcs = ["duchy.cue"],
-    deps = [
-        ":base",
-        ":open_telemetry_collector_sidecar",
-    ],
+    deps = [":base"],
 )
 
 cue_library(
@@ -77,7 +75,6 @@ cue_library(
     srcs = ["reporting.cue"],
     deps = [
         ":base",
-        ":open_telemetry_collector_sidecar",
         ":postgres",
     ],
 )

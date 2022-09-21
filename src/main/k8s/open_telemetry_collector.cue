@@ -15,53 +15,11 @@
 package k8s
 
 #OpenTelemetryCollector: {
-	_config: string | *#OpenTelemetryCollectorConfig
-
-	deployments: {
-		"open-telemetry-collector": {
-			apiVersion: "opentelemetry.io/v1alpha1"
-			kind:       "OpenTelemetryCollector"
-			metadata: {
-				name: "open-telemetry"
-				labels: app: "open-telemetry-app"
-			}
-			spec: {
-				mode:   "deployment"
-				config: "\(_config)"
-			}
-		}
+	_defaultSidecar: #OpenTelemetryCollectorSidecar & {
+		_name: "default"
 	}
 
-	services: [Name=_]: #Service & {
-		metadata: {
-			_component: "open-telemetry"
-			name:       Name
-		}
-	}
-	services: {
-		"open-telemetry-receiver": {
-			spec: {
-				selector: app: deployments["open-telemetry-collector"].metadata.labels.app
-				ports: [{
-					name:       "otel-receiver"
-					port:       #OpenTelemetryReceiverPort
-					protocol:   "TCP"
-					targetPort: #OpenTelemetryReceiverPort
-				}]
-			}
-		}
-		"prometheus-exporter": {
-			spec: {
-				selector: app: deployments["open-telemetry-collector"].metadata.labels.app
-				ports: [{
-					name:       "prom-exporter"
-					port:       #OpenTelemetryPrometheusExporterPort
-					protocol:   "TCP"
-					targetPort: #OpenTelemetryPrometheusExporterPort
-				}]
-			}
-		}
-	}
+	sidecars: _defaultSidecar.sidecars
 
 	instrumentations: {
 		"java-instrumentation": {

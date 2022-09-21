@@ -62,19 +62,12 @@ package k8s
 			imagePullPolicy: _kingdom_image_pull_policy
 		}
 
-		_openTelemetryCollectorSidecar: #OpenTelemetryCollectorSidecar & {
-			_name: Name
-		}
-
 		spec: template: {
 			metadata: {
 				labels: scrape: "true"
 				annotations: {
-					"sidecar.opentelemetry.io/inject":                  "\(Name)-sidecar"
-					"instrumentation.opentelemetry.io/inject-java":     "true"
-					"instrumentation.opentelemetry.io/container-names": "\(Name)-container"
-					"prometheus.io/port":                               "\(#OpenTelemetryPrometheusExporterPort)"
-					"prometheus.io/scrape":                             "true"
+					"prometheus.io/port":   "\(#OpenTelemetryPrometheusExporterPort)"
+					"prometheus.io/scrape": "true"
 				}
 			}
 		}

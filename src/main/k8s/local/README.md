@@ -82,9 +82,9 @@ kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/
 kubectl apply -f https://github.com/open-telemetry/opentelemetry-operator/releases/download/v0.59.0/opentelemetry-operator.yaml
 ```
 
-### Deploy Open Telemetry Collector
-Deploys an operator collector in deployment mode and an operator instrumentation
-for instrumenting the application code.
+### Deploy Open Telemetry Resources
+Create an operator instrumentation resource fpr instrumenting the application 
+code and an operator collector sidecar resource for collecting the metrics.
 ```shell
 bazel run //src/main/k8s/local:open_telemetry_kind
 ```

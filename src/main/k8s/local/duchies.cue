@@ -52,15 +52,7 @@ _duchyConfigs: {
 	}
 }
 
-objectSets: [
-	for duchy in duchies for objectSet in duchy.deployments["herald-daemon-deployment"]._openTelemetryCollectorSidecar {objectSet},
-	for duchy in duchies for objectSet in duchy.deployments["liquid-legions-v2-mill-daemon-deployment"]._openTelemetryCollectorSidecar {objectSet},
-	for duchy in duchies for objectSet in duchy.deployments["async-computation-control-server-deployment"]._openTelemetryCollectorSidecar {objectSet},
-	for duchy in duchies for objectSet in duchy.deployments["computation-control-server-deployment"]._openTelemetryCollectorSidecar {objectSet},
-	for duchy in duchies for objectSet in duchy.deployments["spanner-computations-server-deployment"]._openTelemetryCollectorSidecar {objectSet},
-	for duchy in duchies for objectSet in duchy.deployments["requisition-fulfillment-server-deployment"]._openTelemetryCollectorSidecar {objectSet},
-	for duchy in duchies for objectSet in duchy {objectSet},
-]
+objectSets: [ for duchy in duchies for objectSet in duchy {objectSet}]
 
 _computationControlTargets: {
 	for name, duchyConfig in _duchyConfigs {
