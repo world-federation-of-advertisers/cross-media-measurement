@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import java.io.File
 import kotlin.properties.Delegates
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.storage.forwarded.ForwardedStorageFromFlags
@@ -30,14 +31,14 @@ class ForwardStorageEdpSimulatorRunner : EdpSimulatorRunner() {
   @CommandLine.Mixin private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags
 
   @CommandLine.Option(
-    names = ["--event-data-source"],
+    names = ["--events-csv"],
     description =
       [
         "A filepath to a CSV file specifying the event data that will be returned by this simulator"
       ],
     defaultValue = "randomEventQuery"
   )
-  lateinit var eventDataSource: String
+  lateinit var eventsCsv: File
     private set
 
   @set:CommandLine.Option(
@@ -58,12 +59,12 @@ class ForwardStorageEdpSimulatorRunner : EdpSimulatorRunner() {
 
   override fun run() {
     val eventQuery: EventQuery =
-      if (eventDataSource == "randomEventQuery") {
+      if (eventsCsv.toString() == "randomEventQuery") {
         RandomEventQuery(
           SketchGenerationParams(reach = edpSketchReach, universeSize = edpUniverseSize)
         )
       } else {
-        CsvEventQuery(flags.dataProviderDisplayName, eventDataSource)
+        CsvEventQuery(flags.dataProviderDisplayName, eventsCsv)
       }
 
     run(ForwardedStorageFromFlags(forwardedStorageFlags, flags.tlsFlags).storageClient, eventQuery)
