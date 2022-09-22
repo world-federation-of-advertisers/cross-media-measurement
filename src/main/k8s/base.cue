@@ -372,10 +372,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		selector: matchLabels: app: _name + "-app"
 		template: {
 			metadata: {
-				labels: {
-					app:    _name + "-app"
-					scrape: string | *"true"
-				}
+				labels: app: _name + "-app"
 				annotations: {
 					"sidecar.opentelemetry.io/inject":              string | *"default-sidecar"
 					"instrumentation.opentelemetry.io/inject-java": string | *"true"

@@ -15,6 +15,11 @@
 package k8s
 
 #OpenTelemetry: {
+	objectSets: [
+		openTelemetryCollectors,
+		instrumentations,
+	]
+
 	// Default config for an Open Telemetry Collector
 	#OpenTelemetryCollectorConfig:
 		"""

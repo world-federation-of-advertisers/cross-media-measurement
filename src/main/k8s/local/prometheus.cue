@@ -107,7 +107,7 @@ services: {
 			name: "prometheus"
 			labels: {
 				"app.kubernetes.io/part-of":   #AppName
-				"app.kubernetes.io/component": "testing"
+				"app.kubernetes.io/component": "prometheus"
 			}
 		}
 		spec: {
@@ -130,7 +130,7 @@ pods: {
 			labels: {
 				app:                           "prometheus-app"
 				"app.kubernetes.io/part-of":   #AppName
-				"app.kubernetes.io/component": "testing"
+				"app.kubernetes.io/component": "prometheus"
 			}
 		}
 		spec: #PodSpec & {

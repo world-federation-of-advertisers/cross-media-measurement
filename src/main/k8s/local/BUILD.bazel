@@ -135,19 +135,14 @@ cue_dump(
     name = "prometheus",
     srcs = ["prometheus.cue"],
     tags = ["manual"],
-    deps = [
-        "//src/main/k8s:base",
-    ],
+    deps = ["//src/main/k8s:base"],
 )
 
 cue_dump(
     name = "open_telemetry",
     srcs = ["open_telemetry.cue"],
     tags = ["manual"],
-    deps = [
-        ":config",
-        "//src/main/k8s:open_telemetry",
-    ],
+    deps = ["//src/main/k8s:open_telemetry"],
 )
 
 [kind_load_image(
@@ -321,6 +316,5 @@ k8s_apply(
 k8s_apply(
     name = "open_telemetry_kind",
     src = ":open_telemetry",
-    delete_selector = "app.kubernetes.io/component=open-telemetry",
     tags = ["manual"],
 )
