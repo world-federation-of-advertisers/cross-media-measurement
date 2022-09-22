@@ -8,6 +8,12 @@ cue_library(
 )
 
 cue_library(
+    name = "open_telemetry",
+    srcs = ["open_telemetry.cue"],
+    deps = [":base"],
+)
+
+cue_library(
     name = "spanner",
     srcs = ["spanner.cue"],
 )
