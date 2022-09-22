@@ -44,8 +44,10 @@ update the K8s resource in your Kingdom cluster.
 If you added a resource that uses mTLS, you will need to update the
 configuration file that maps the client certificate's authority key identifier
 (AKID) to the resource. If the resource is a `Duchy`, then you need to update
-the `DuchyCertConfig`. Otherwise, you need to update the
-`AuthorityKeyToPrincipalMap`.
+the
+[`DuchyCertConfig`](../../src/main/proto/wfa/measurement/config/duchy_cert_config.proto).
+Otherwise, you need to update the
+[`AuthorityKeyToPrincipalMap`](../../src/main/proto/wfa/measurement/config/authority_key_to_principal_map.proto).
 
 If your Kingdom cluster is configured similarly to the
 [`dev` environment](../../src/main/k8s/dev), then the two files are in different
@@ -58,3 +60,19 @@ locations:
     `authority_key_identifier_to_principal_map.textproto` file in the
     `config-files` ConfigMap. You'll need to update the file within the
     ConfigMap, and restart the Kingdom deployments.
+
+#### Config file format
+
+The configuration files above are protocol buffer messages in
+[text format](https://developers.google.com/protocol-buffers/docs/text-format-spec).
+They each have a field of type `bytes` that contains the certificate AKID which
+identifies that principal. The AKID is common represented as a series of bytes
+in hexadecimal. Byte literals in protobuf text format can be represented by the
+`\x` escape sequence followed by the two-digit hex value.
+
+One way to obtain the AKID value from an X.509 certificate is to use the
+`openssl` command-line tool:
+
+```shell
+openssl x509 -noout -text -in src/main/k8s/testing/secretfiles/edp1_root.pem
+```

@@ -15,9 +15,11 @@
 package org.wfanet.measurement.loadtest.resourcesetup
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.TextFormat
 import com.google.protobuf.kotlin.toByteString
 import io.grpc.Status
 import io.grpc.StatusException
+import java.io.File
 import java.time.Clock
 import java.util.logging.Logger
 import kotlinx.coroutines.delay
@@ -43,20 +45,24 @@ import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.withIdToken
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.tink.SelfIssuedIdTokens.generateIdToken
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.config.AuthorityKeyToPrincipalMapKt
+import org.wfanet.measurement.config.authorityKeyToPrincipalMap
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
 import org.wfanet.measurement.internal.kingdom.Account as InternalAccount
-import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
-import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt
+import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
 import org.wfanet.measurement.internal.kingdom.DataProviderKt as InternalDataProviderKt
-import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
+import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt
 import org.wfanet.measurement.internal.kingdom.account as internalAccount
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
 import org.wfanet.measurement.kingdom.service.api.v2alpha.fillCertificateFromDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.parseCertificateDer
+import org.wfanet.measurement.loadtest.resourcesetup.ResourcesKt.resource
 
 private val API_VERSION = Version.V2_ALPHA
 
@@ -71,15 +77,21 @@ private const val MAX_RETRY_COUNT = 30L
 /** Amount of time in milliseconds between retries. */
 private const val SLEEP_INTERVAL_MILLIS = 10000L
 
+private const val RESOURCES_OUTPUT_FILE = "resources.textproto"
+private const val AKID_PRINCIPAL_MAP_FILE = "authority_key_identifier_to_principal_map.textproto"
+private const val BAZEL_RC_FILE = "resource-setup.bazelrc"
+
 /** A Job preparing resources required for the correctness test. */
 class ResourceSetup(
-  private val internalAccountsClient: InternalAccountsCoroutineStub,
-  private val internalDataProvidersClient: InternalDataProvidersCoroutineStub,
+  private val internalAccountsClient: AccountsGrpcKt.AccountsCoroutineStub,
+  private val internalDataProvidersClient: DataProvidersGrpcKt.DataProvidersCoroutineStub,
   private val accountsClient: AccountsCoroutineStub,
   private val apiKeysClient: ApiKeysCoroutineStub,
-  private val internalCertificatesClient: InternalCertificatesCoroutineStub,
+  private val internalCertificatesClient: CertificatesGrpcKt.CertificatesCoroutineStub,
   private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
-  private val runId: String
+  private val runId: String,
+  private val bazelConfigName: String = DEFAULT_BAZEL_CONFIG_NAME,
+  private val outputDir: File? = null,
 ) {
   data class MeasurementConsumerAndKey(
     val measurementConsumer: MeasurementConsumer,
@@ -93,6 +105,7 @@ class ResourceSetup(
     duchyCerts: List<DuchyCert>,
   ) {
     logger.info("Starting with RunID: $runId ...")
+    val resources = mutableListOf<Resources.Resource>()
 
     // Step 0: Setup communications with Kingdom and create the Account.
     val internalAccount = createAccountWithRetries()
@@ -108,20 +121,105 @@ class ResourceSetup(
     logger.info(
       "API key for measurement consumer ${measurementConsumer.name}: $apiAuthenticationKey"
     )
+    resources.add(
+      resource {
+        name = measurementConsumer.name
+        this.measurementConsumer =
+          ResourcesKt.ResourceKt.measurementConsumer {
+            apiKey = apiAuthenticationKey
+
+            // Assume signing cert uses same issuer as TLS client cert.
+            authorityKeyIdentifier =
+              checkNotNull(measurementConsumerContent.signingKey.certificate.authorityKeyIdentifier)
+          }
+      }
+    )
 
     // Step 2: Create the EDPs.
     dataProviderContents.forEach {
       val dataProviderName = createInternalDataProvider(it)
       logger.info("Successfully created data provider: $dataProviderName")
+      resources.add(
+        resource {
+          name = dataProviderName
+          dataProvider =
+            ResourcesKt.ResourceKt.dataProvider {
+              displayName = it.displayName
+
+              // Assume signing cert uses same issuer as TLS client cert.
+              authorityKeyIdentifier =
+                checkNotNull(it.signingKey.certificate.authorityKeyIdentifier)
+            }
+        }
+      )
     }
 
     // Step 3: Create certificate for each duchy.
     duchyCerts.forEach {
       val certificate = createDuchyCertificate(it)
       logger.info("Successfully created certificate ${certificate.name}")
+      resources.add(
+        resource {
+          name = certificate.name
+          duchyCertificate = ResourcesKt.ResourceKt.duchyCertificate { duchyId = it.duchyId }
+        }
+      )
     }
 
+    writeOutput(resources)
     logger.info("Resource setup was successful.")
+  }
+
+  private fun writeOutput(resources: Iterable<Resources.Resource>) {
+    val output = outputDir?.let { FileOutput(it) } ?: ConsoleOutput
+
+    output.resolve(RESOURCES_OUTPUT_FILE).writer().use { writer ->
+      TextFormat.printer().print(resources { this.resources += resources }, writer)
+    }
+
+    val akidMap = authorityKeyToPrincipalMap {
+      for (resource in resources) {
+        val akid =
+          when (resource.resourceCase) {
+            Resources.Resource.ResourceCase.DATA_PROVIDER ->
+              resource.dataProvider.authorityKeyIdentifier
+            Resources.Resource.ResourceCase.MEASUREMENT_CONSUMER ->
+              resource.measurementConsumer.authorityKeyIdentifier
+            else -> continue
+          }
+        entries +=
+          AuthorityKeyToPrincipalMapKt.entry {
+            principalResourceName = resource.name
+            authorityKeyIdentifier = akid
+          }
+      }
+    }
+    output.resolve(AKID_PRINCIPAL_MAP_FILE).writer().use { writer ->
+      TextFormat.printer().print(akidMap, writer)
+    }
+
+    val configName = bazelConfigName
+    output.resolve(BAZEL_RC_FILE).writer().use { writer ->
+      for (resource in resources) {
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+        when (resource.resourceCase) {
+          Resources.Resource.ResourceCase.DATA_PROVIDER -> {
+            val displayName = resource.dataProvider.displayName
+            writer.appendLine("build:$configName --define=${displayName}_name=${resource.name}")
+          }
+          Resources.Resource.ResourceCase.MEASUREMENT_CONSUMER -> {
+            val apiKey = resource.measurementConsumer.apiKey
+            writer.appendLine("build:$configName --define=mc_name=${resource.name}")
+            writer.appendLine("build:$configName --define=mc_api_key=$apiKey")
+          }
+          Resources.Resource.ResourceCase.DUCHY_CERTIFICATE -> {
+            val duchyId = resource.duchyCertificate.duchyId
+            writer.appendLine("build:$configName --define=${duchyId}_cert_name=${resource.name}")
+          }
+          Resources.Resource.ResourceCase.RESOURCE_NOT_SET -> error("Bad resource case")
+        }
+      }
+    }
   }
 
   /** Create an internal dataProvider, and return its corresponding public API resource name. */
@@ -252,6 +350,8 @@ class ResourceSetup(
   }
 
   companion object {
+    const val DEFAULT_BAZEL_CONFIG_NAME = "halo-kind"
+
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
