@@ -166,7 +166,7 @@ class InProcessDuchy(
           protocolsSetupConfig = protocolsSetupConfig,
           clock = Clock.systemUTC(),
         )
-      herald.continuallySyncStatuses(throttler)
+      herald.continuallySyncStatuses()
     }
   }
 

@@ -15,21 +15,21 @@
 package org.wfanet.measurement.duchy.daemon.herald
 
 import io.grpc.Status
+import io.grpc.StatusException
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
+import kotlin.coroutines.coroutineContext
 import kotlin.math.pow
 import kotlin.random.Random
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import org.wfanet.measurement.common.grpc.grpcStatusCode
-import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.protoTimestamp
-import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.duchy.daemon.utils.MeasurementType
 import org.wfanet.measurement.duchy.daemon.utils.key
 import org.wfanet.measurement.duchy.daemon.utils.toMeasurementType
@@ -75,20 +75,16 @@ class Herald(
   private val clock: Clock,
   private val blobStorageBucket: String = "computation-blob-storage",
   private val maxAttempts: Int = 5,
-  private val maxConcurrency: Int = 5,
+  maxConcurrency: Int = 5,
   private val retryBackoff: ExponentialBackoff = ExponentialBackoff(),
 ) {
   private val semaphore = Semaphore(maxConcurrency)
 
   /**
    * Syncs the status of computations stored at the kingdom with those stored locally continually in
-   * a forever loop. The [pollingThrottler] is used to limit how often the kingdom and local
-   * computation storage service are polled.
-   *
-   * @param pollingThrottler throttles how often to get active computations from the Global
-   * Computation Service
+   * a forever loop.
    */
-  suspend fun continuallySyncStatuses(pollingThrottler: Throttler) {
+  suspend fun continuallySyncStatuses() {
     logger.info("Starting...")
     // Token signifying the last computation in an active state at the kingdom that was processed by
     // this job. When empty, all active computations at the kingdom will be streamed in the
@@ -96,12 +92,30 @@ class Herald(
     // the kingdom with all active computations locally.
     var lastProcessedContinuationToken = ""
 
-    pollingThrottler.loopOnReady {
-      logAndSuppressExceptionSuspend {
+    // TODO(world-federation-of-advertisers/cross-media-measurement#695): Use gRPC service config
+    // rather than custom retry logic w/backoff.
+    var attemptNumber = 1
+    while (coroutineContext.isActive) {
+      try {
         lastProcessedContinuationToken = syncStatuses(lastProcessedContinuationToken)
+      } catch (e: StreamingException) {
+        when (e.cause.status.code) {
+          Status.Code.UNAVAILABLE,
+          Status.Code.DEADLINE_EXCEEDED -> {
+            retryBackoff.delay(attemptNumber++)
+            continue
+          }
+          else -> throw e
+        }
       }
+
+      // Reset attempt number due to success.
+      attemptNumber = 1
     }
   }
+
+  private class StreamingException(message: String, override val cause: StatusException) :
+    Exception(message, cause)
 
   /**
    * Syncs the status of computations stored at the kingdom, via the system computation service,
@@ -112,24 +126,29 @@ class Herald(
    * @return the continuation token of the last computation processed in that stream of active
    * computations from the system computation service.
    */
-  suspend fun syncStatuses(continuationToken: String): String = coroutineScope {
+  suspend fun syncStatuses(continuationToken: String): String {
     logger.info("Reading stream of active computations since \"$continuationToken\".")
 
     val streamRequest = streamActiveComputationsRequest {
       this.continuationToken = continuationToken
     }
+
     var lastProcessedContinuationToken = continuationToken
+    coroutineScope {
+      systemComputationsClient
+        .streamActiveComputations(streamRequest)
+        .catch { cause ->
+          if (cause !is StatusException) throw cause
+          throw StreamingException("Error streaming active computations", cause)
+        }
+        .collect { response ->
+          semaphore.acquire()
+          launch { processSystemComputationWithoutExceptions(response.computation, MAX_ATTEMPTS) }
+          lastProcessedContinuationToken = response.continuationToken
+        }
+    }
 
-    systemComputationsClient
-      .streamActiveComputations(streamRequest)
-      .onEach { response ->
-        semaphore.acquire()
-        launch { processSystemComputationWithoutExceptions(response.computation, MAX_ATTEMPTS) }
-        lastProcessedContinuationToken = response.continuationToken
-      }
-      .collect()
-
-    return@coroutineScope lastProcessedContinuationToken
+    return lastProcessedContinuationToken
   }
 
   private suspend fun processSystemComputationWithoutExceptions(
