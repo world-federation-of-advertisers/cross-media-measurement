@@ -14,7 +14,7 @@
 
 package k8s
 
-#OpenTelemetryCollector: {
+#OpenTelemetry: {
 	// Default config for an Open Telemetry Collector
 	#OpenTelemetryCollectorConfig:
 		"""

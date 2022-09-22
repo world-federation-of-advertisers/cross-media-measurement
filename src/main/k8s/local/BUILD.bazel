@@ -142,11 +142,11 @@ cue_dump(
 
 cue_dump(
     name = "open_telemetry",
-    srcs = ["open_telemetry_collector.cue"],
+    srcs = ["open_telemetry.cue"],
     tags = ["manual"],
     deps = [
         ":config",
-        "//src/main/k8s:open_telemetry_collector",
+        "//src/main/k8s:open_telemetry",
     ],
 )
 

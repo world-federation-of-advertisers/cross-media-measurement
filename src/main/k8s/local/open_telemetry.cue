@@ -14,6 +14,6 @@
 
 package k8s
 
-objectSets: [ for objectSet in openTelemetryCollector {objectSet}]
+objectSets: [ for objectSet in openTelemetry {objectSet}]
 
-openTelemetryCollector: #OpenTelemetryCollector
+openTelemetry: #OpenTelemetry

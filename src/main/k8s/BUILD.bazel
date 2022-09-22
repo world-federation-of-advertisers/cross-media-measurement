@@ -8,8 +8,8 @@ cue_library(
 )
 
 cue_library(
-    name = "open_telemetry_collector",
-    srcs = ["open_telemetry_collector.cue"],
+    name = "open_telemetry",
+    srcs = ["open_telemetry.cue"],
     deps = [":base"],
 )
 
