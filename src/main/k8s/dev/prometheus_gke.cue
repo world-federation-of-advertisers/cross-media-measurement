@@ -16,6 +16,7 @@ package k8s
 
 objectSets: [
 	clusterPodMonitorings,
+	podMonitorings,
 ]
 
 clusterPodMonitorings: {
@@ -29,6 +30,31 @@ clusterPodMonitorings: {
 			selector: matchLabels: scrape: "true"
 			endpoints: [{
 				port:     #OpenTelemetryPrometheusExporterPort
+				interval: "30s"
+			}]
+		}
+	}
+}
+
+podMonitorings: {
+	"self-monitoring": {
+		apiVersion: "monitoring.googleapis.com/v1"
+		kind:       "PodMonitoring"
+		metadata: {
+			namespace: "gmp-system"
+			name:      "collector-pod-monitor"
+			labels: {
+				"app.kubernetes.io/name":    "collector-monitor"
+				"app.kubernetes.io/part-of": "google-cloud-managed-prometheus"
+			}
+		}
+		spec: {
+			selector: matchLabels: "app.kubernetes.io/name": "collector"
+			endpoints: [{
+				port:     "prom-metrics"
+				interval: "30s"
+			}, {
+				port:     "cfg-rel-metrics"
 				interval: "30s"
 			}]
 		}

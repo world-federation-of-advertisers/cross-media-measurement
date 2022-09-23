@@ -29,8 +29,14 @@ package k8s
               grpc:
                 endpoint: 0.0.0.0:\(#OpenTelemetryReceiverPort)
 
+        processors:
+          batch:
+            send_batch_size: 200
+            timeout: 10s
+
         exporters:
           prometheus:
+            send_timestamps: true
             endpoint: 0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)
 
         extensions:
@@ -41,7 +47,7 @@ package k8s
           pipelines:
             metrics:
               receivers: [otlp]
-              processors: []
+              processors: [batch]
               exporters: [prometheus]
         """
 

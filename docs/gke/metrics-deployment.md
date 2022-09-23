@@ -17,6 +17,8 @@ free to use whichever you prefer.
     - 1 OpenTelemetry Operator
     - 1 GMP ClusterPodMonitoring
         - prometheus-pod-monitor
+    - 1 GMP PodMonitoring
+      - collector-pod-monitor
     - 1 OpenTelemetry Operator OpenTelemetryCollector
       - default-sidecar
     - 1 OpenTelemetry Operator Instrumentation
@@ -96,9 +98,15 @@ verify by running
 ```shell
 kubectl get clusterpodmonitorings
 ```
+
+```shell
+kubectl get -n gmp-system podmonitorings
+```
+
 ```shell
 kubectl get opentelemetrycollectors
 ```
+
 ```shell
 kubectl get instrumentations
 ```
@@ -109,6 +117,11 @@ You should see something like the following:
 ```
 NAME                     AGE
 prometheus-pod-monitor   23s
+```
+
+```
+NAME                    AGE
+collector-pod-monitor   5m12s
 ```
 
 ```
