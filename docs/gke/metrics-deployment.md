@@ -156,8 +156,8 @@ kubectl describe pod <NAME-OF-POD>
 ```
 
 If the label is missing, recreate the k8s manifest from the latest cue files
-that add the label, or add it directly to the generated k8s YAML files, then
-apply the new manifest.
+that add the label, or add it to the k8s YAML files, then
+apply the updated manifests before restarting.
 
 ## Verify Managed Prometheus can Scrape Metrics
 
