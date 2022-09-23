@@ -162,6 +162,8 @@ class Herald(
 
   private suspend fun processSystemComputation(computation: Computation) {
     require(computation.name.isNotEmpty()) { "Resource name not specified" }
+    val globalId: String = computation.key.computationId
+    logger.fine("[id=$globalId]: Processing updated GlobalComputation")
     when (val state = computation.state) {
       // Creates a new computation if it is not already present in the database.
       State.PENDING_REQUISITION_PARAMS -> createComputation(computation)
