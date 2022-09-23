@@ -26,8 +26,8 @@ free to use whichever you prefer.
 
 Create a cluster for a Halo component. Complete a guide up until the "create
 the cluster" step. See 
-[Create Kingdom Cluster](kingdom-deployment.md#step-4.-create-the-cluster),
-[Create Duchy Cluster](duchy-deployment.md#step-5.-create-the-cluster), or
+[Create Kingdom Cluster](kingdom-deployment.md#step-4-create-the-cluster),
+[Create Duchy Cluster](duchy-deployment.md#step-5-create-the-cluster), or
 [Create Reporting Cluster](reporting-server-deployment.md#create-the-cluster).
 
 ### Quick start
