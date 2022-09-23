@@ -21,17 +21,23 @@ import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 private const val DEFAULT_HASH_MINIMUM_BITS = 128
 
 interface EncryptionKeyPairStore {
-  suspend fun getPrivateKeyHandle(publicKey: ByteString): PrivateKeyHandle?
+  suspend fun getPrivateKeyHandle(principal: String, publicKey: ByteString): PrivateKeyHandle?
 }
 
-class InMemoryEncryptionKeyPairStore(keyPairs: Map<ByteString, PrivateKeyHandle>) :
-  EncryptionKeyPairStore {
+class InMemoryEncryptionKeyPairStore(
+  principalToKeyPairs: Map<String, List<Pair<ByteString, PrivateKeyHandle>>>
+) : EncryptionKeyPairStore {
   private val hashFunction = goodFastHash(DEFAULT_HASH_MINIMUM_BITS)
 
   private fun fingerprint(key: ByteString) = hashFunction.hashBytes(key.toByteArray()).toString()
 
-  private val keyPairMap: Map<String, PrivateKeyHandle> = keyPairs.mapKeys { fingerprint(it.key) }
+  private val principalToKeyPairs: Map<String, Map<String, PrivateKeyHandle>> =
+    principalToKeyPairs.mapValues { (_, keyPairs) ->
+      keyPairs.associate { (publicKey, privateKey) -> fingerprint(publicKey) to privateKey }
+    }
 
-  override suspend fun getPrivateKeyHandle(publicKey: ByteString): PrivateKeyHandle? =
-    keyPairMap[fingerprint(publicKey)]
+  override suspend fun getPrivateKeyHandle(
+    principal: String,
+    publicKey: ByteString
+  ): PrivateKeyHandle? = principalToKeyPairs[principal]?.get(fingerprint(publicKey))
 }
