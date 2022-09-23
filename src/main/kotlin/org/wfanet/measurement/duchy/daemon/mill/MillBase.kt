@@ -111,7 +111,7 @@ abstract class MillBase(
    * queue. The polling interval is controlled by the [MinimumIntervalThrottler].
    */
   suspend fun continuallyProcessComputationQueue() {
-    logger.info("Starting...")
+    logger.info("Mill starting...")
     withContext(CoroutineName("Mill $millId")) {
       throttler.loopOnReady {
         // All errors thrown inside the loop should be suppressed such that the mill doesn't crash.
@@ -157,6 +157,7 @@ abstract class MillBase(
       val latestToken = getLatestComputationToken(globalId)
       handleExceptions(latestToken, e)
     }
+    logger.info("@Mill $millId: Processed computation $globalId")
   }
 
   private suspend fun handleExceptions(token: ComputationToken, e: Exception) {
