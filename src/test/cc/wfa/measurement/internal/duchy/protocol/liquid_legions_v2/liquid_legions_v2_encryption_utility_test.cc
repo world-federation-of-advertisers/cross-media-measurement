@@ -687,6 +687,66 @@ TEST(CompleteSetupPhase, WrongInputSketchSizeShouldThrow) {
               StatusIs(absl::StatusCode::kInvalidArgument, "not divisible"));
 }
 
+TEST(CompleteSetupPhase, FrequencyOneWorksAsExpectedWithoutNoise) {
+  CompleteSetupPhaseRequest request;
+
+  std::string register1 = "abc";
+  std::string register2 = "def";
+  for (int i = 3; i < kBytesPerCipherRegister; i++) {
+    register1 = register1 + " ";
+    register2 = register2 + " ";
+  }
+  std::string registers = register1 + register2;
+
+  request.set_combined_register_vector(registers);
+  request.set_maximum_frequency(1);
+
+  auto result = CompleteSetupPhase(request);
+  ASSERT_TRUE(result.ok());
+
+  std::string response_crv = result->combined_register_vector();
+  EXPECT_NE(registers, response_crv);
+  EXPECT_EQ(registers.length(), response_crv.length());
+  EXPECT_EQ("abc", response_crv.substr(0, 3));
+  EXPECT_EQ("def", response_crv.substr(kBytesPerCipherRegister, 3));
+}
+
+TEST(CompleteSetupPhase, FrequencyOneWorksAsExpectedWithNoise) {
+  CompleteSetupPhaseRequest request;
+  TestData test_data;
+
+  RegisterNoiseGenerationParameters reach_noise_parameters;
+  reach_noise_parameters.set_curve_id(kTestCurveId);
+  reach_noise_parameters.set_total_sketches_count(kPublisherCount);
+  reach_noise_parameters.set_contributors_count(kWorkerCount);
+  *reach_noise_parameters.mutable_dp_params()->mutable_blind_histogram() =
+      MakeDifferentialPrivacyParams(100, 1);
+  *reach_noise_parameters.mutable_dp_params()
+       ->mutable_noise_for_publisher_noise() =
+      MakeDifferentialPrivacyParams(100, 1);
+  *reach_noise_parameters.mutable_dp_params()->mutable_global_reach_dp_noise() =
+      MakeDifferentialPrivacyParams(40, std::exp(-80));
+  *reach_noise_parameters.mutable_composite_el_gamal_public_key() =
+      test_data.client_el_gamal_public_key_;
+
+  *request.mutable_noise_parameters() = reach_noise_parameters;
+
+  std::string register1 = "abc";
+  std::string register2 = "def";
+  for (int i = 3; i < kBytesPerCipherRegister; i++) {
+    register1 = register1 + " ";
+    register2 = register2 + " ";
+  }
+  std::string registers = register1 + register2;
+
+  request.set_combined_register_vector(registers);
+  request.set_maximum_frequency(1);
+
+  auto result = CompleteSetupPhase(request);
+  ASSERT_TRUE(result.ok());
+  EXPECT_NE(registers, result->combined_register_vector());
+}
+
 TEST(CompleteExecutionPhaseOne, WrongInputSketchSizeShouldThrow) {
   CompleteExecutionPhaseOneRequest request;
   request.set_combined_register_vector("1234");

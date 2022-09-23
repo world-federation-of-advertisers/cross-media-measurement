@@ -63,6 +63,9 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 #HealthPort: 8080
 
+#OpenTelemetryReceiverPort:           4317
+#OpenTelemetryPrometheusExporterPort: 8889
+
 #ResourceQuantity: {
 	cpu?:    string
 	memory?: string
@@ -207,6 +210,14 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		"app.kubernetes.io/part-of":   #AppName
 		"app.kubernetes.io/component": _component
 	}
+}
+
+// K8s ConfigMap.
+#ConfigMap: {
+	apiVersion: "v1"
+	kind:       "ConfigMap"
+	metadata:   #ObjectMeta
+	data: {...}
 }
 
 // K8s Service.
@@ -360,7 +371,15 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		replicas?: int32
 		selector: matchLabels: app: _name + "-app"
 		template: {
-			metadata: labels: app: _name + "-app"
+			metadata: {
+				labels: app: _name + "-app"
+				annotations: {
+					"sidecar.opentelemetry.io/inject":              string | *"default-sidecar"
+					"instrumentation.opentelemetry.io/inject-java": string | *"true"
+					"prometheus.io/port":                           string | *"\(#OpenTelemetryPrometheusExporterPort)"
+					"prometheus.io/scrape":                         string | *"true"
+				}
+			}
 			spec: #PodSpec & {
 				_mounts: "\(_name)-files": {
 					volume: secret: secretName: _secretName
