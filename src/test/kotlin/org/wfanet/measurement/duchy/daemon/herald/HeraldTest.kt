@@ -668,7 +668,7 @@ class HeraldTest {
         ComputationParticipantKey(invalidComputation.key.computationId, NON_AGGREGATOR_DUCHY_ID)
           .toName()
       )
-    assertThat(failRequest.failure.errorMessage).contains("1 attempt(s)")
+    assertThat(failRequest.failure.errorMessage).contains("1 attempts")
   }
 
   @Test
@@ -710,7 +710,7 @@ class HeraldTest {
       .isEqualTo(
         ComputationParticipantKey(computation.key.computationId, AGGREGATOR_DUCHY_ID).toName()
       )
-    assertThat(failRequest.failure.errorMessage).contains("3 attempt(s)")
+    assertThat(failRequest.failure.errorMessage).contains("3 attempts")
   }
 
   private fun mockStreamActiveComputationsToReturn(vararg computations: Computation) =
