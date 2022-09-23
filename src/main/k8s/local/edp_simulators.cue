@@ -14,18 +14,23 @@
 
 package k8s
 
-_mc_name:   string @tag("mc_name")
-_edp1_name: string @tag("edp1_name")
-_edp2_name: string @tag("edp2_name")
-_edp3_name: string @tag("edp3_name")
-_edp4_name: string @tag("edp4_name")
-_edp5_name: string @tag("edp5_name")
-_edp6_name: string @tag("edp6_name")
+_mc_name:       string         @tag("mc_name")
+_edp1_name:     string         @tag("edp1_name")
+_edp2_name:     string         @tag("edp2_name")
+_edp3_name:     string         @tag("edp3_name")
+_edp4_name:     string         @tag("edp4_name")
+_edp5_name:     string         @tag("edp5_name")
+_edp6_name:     string         @tag("edp6_name")
+_eventsCsvPath: null | *string @tag("eventsCsvPath")
 _edpResourceNames: [_edp1_name, _edp2_name, _edp3_name, _edp4_name, _edp5_name, _edp6_name]
 _secret_name: string @tag("secret_name")
 
 #KingdomPublicApiTarget: (#Target & {name: "v2alpha-public-api-server"}).target
 #Worker1PublicApiTarget: (#Target & {name: "worker1-requisition-fulfillment-server"}).target
+
+#EdpSimulatorsResourceRequirements: #ResourceRequirements & {
+	limits: memory: "2048Mi"
+}
 
 objectSets: [ for simulator in edpSimulators {simulator}]
 
@@ -44,15 +49,36 @@ edpSimulators: {
 			_edpConfig:                 edpConfig
 			_edp_secret_name:           _secret_name
 			_mc_resource_name:          _mc_name
-			_eventsCsv:                 "randomEventQuery"
+			_eventsCsv:                 _eventsCsvPath
 			_duchy_public_api_target:   #Worker1PublicApiTarget
 			_kingdom_public_api_target: #KingdomPublicApiTarget
 			_blob_storage_flags: [
 				"--forwarded-storage-service-target=" + (#Target & {name: "fake-storage-server"}).target,
 				"--forwarded-storage-cert-host=localhost",
 			]
+			_additional_args: [...string]
+			if _eventsCsvPath != _|_ {
+				_additional_args: [
+					"--events-csv=\(_eventsCsv)",
+				]
+			}
 			_edp_simulator_image:         "bazel/src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:forwarded_storage_edp_simulator_runner_image"
 			_simulator_image_pull_policy: "Never"
+			deployment: {
+				_container:
+				{
+					_javaOptions: maxRamPercentage: 30.0
+					resources: #EdpSimulatorsResourceRequirements
+				}
+				spec: template: spec: {
+					_mounts: {
+						"csv-files": {
+							volume: emptyDir: {}
+							volumeMount: mountPath: "/data/csvfiles"
+						}
+					}
+				}
+			}
 		}
 	}
 }

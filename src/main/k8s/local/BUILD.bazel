@@ -68,20 +68,9 @@ cue_dump(
     ],
 )
 
-cue_dump(
-    name = "edp_simulators",
+cue_library(
+    name = "edp_simulators_library",
     srcs = ["edp_simulators.cue"],
-    cue_tags = {
-        "secret_name": TEST_K8S_SETTINGS.secret_name,
-        "mc_name": TEST_K8S_SETTINGS.mc_name,
-        "edp1_name": TEST_K8S_SETTINGS.edp1_name,
-        "edp2_name": TEST_K8S_SETTINGS.edp2_name,
-        "edp3_name": TEST_K8S_SETTINGS.edp3_name,
-        "edp4_name": TEST_K8S_SETTINGS.edp4_name,
-        "edp5_name": TEST_K8S_SETTINGS.edp5_name,
-        "edp6_name": TEST_K8S_SETTINGS.edp6_name,
-    },
-    tags = ["manual"],
     deps = [
         ":config",
         "//src/main/k8s:edp_simulator",
@@ -89,8 +78,8 @@ cue_dump(
 )
 
 cue_dump(
-    name = "edp_simulators_csv",
-    srcs = ["edp_simulators_csv.cue"],
+    name = "edp_simulators",
+    srcs = None,
     cue_tags = {
         "secret_name": TEST_K8S_SETTINGS.secret_name,
         "mc_name": TEST_K8S_SETTINGS.mc_name,
@@ -103,8 +92,27 @@ cue_dump(
     },
     tags = ["manual"],
     deps = [
-        ":config",
-        "//src/main/k8s:edp_simulator",
+        ":edp_simulators_library",
+    ],
+)
+
+cue_dump(
+    name = "edp_simulators_csv",
+    srcs = None,
+    cue_tags = {
+        "secret_name": TEST_K8S_SETTINGS.secret_name,
+        "mc_name": TEST_K8S_SETTINGS.mc_name,
+        "edp1_name": TEST_K8S_SETTINGS.edp1_name,
+        "edp2_name": TEST_K8S_SETTINGS.edp2_name,
+        "edp3_name": TEST_K8S_SETTINGS.edp3_name,
+        "edp4_name": TEST_K8S_SETTINGS.edp4_name,
+        "edp5_name": TEST_K8S_SETTINGS.edp5_name,
+        "edp6_name": TEST_K8S_SETTINGS.edp6_name,
+        "eventsCsvPath": "/data/csvfiles/synthetic-labelled-events.csv",
+    },
+    tags = ["manual"],
+    deps = [
+        ":edp_simulators_library",
     ],
 )
 
