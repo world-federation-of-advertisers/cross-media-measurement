@@ -173,6 +173,10 @@ deployment guide. Note that you'll need to follow the steps twice for the two
 service accounts. The `dev` configuration assumes that they are named
 `internal-server` and `storage`.
 
+### Add Metrics to the cluster
+
+See [Metrics Deployment](metrics-deployment.md).
+
 ## Step 6. Create Kubernetes secrets
 
 ***(Note: this step does not use any halo code, and you don't need to do it

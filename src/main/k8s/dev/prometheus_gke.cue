@@ -24,14 +24,12 @@ clusterPodMonitorings: {
 		kind:       "ClusterPodMonitoring"
 		metadata: {
 			name:      "prometheus-pod-monitor"
-			namespace: "gmp-system"
 		}
 		spec: {
 			selector: matchLabels: scrape: "true"
 			endpoints: [{
-				port:     "\(#OpenTelemetryPrometheusExporterPort)"
+				port:     #OpenTelemetryPrometheusExporterPort
 				interval: "30s"
-				timeout:  "30s"
 			}]
 		}
 	}
