@@ -181,3 +181,13 @@ The first one tells you which targets it can find and whether they are up, and
 the latter is a good way to check that scraping is occurring. If it 
 hasn't been long enough, the latter might show all 0's, but after a couple of
 minutes you should be seeing results for every target that is up.
+
+## Adding Additional Metrics
+
+The above adds OpenTelemetry jvm and rpc metrics. With the above as a base, it
+is possible to add other metrics that can be scraped.
+
+### kubelet and cAdvisor
+
+See [kubelet](https://cloud.google.com/stackdriver/docs/managed-prometheus/setup-managed#kubelet-metrics)
+
