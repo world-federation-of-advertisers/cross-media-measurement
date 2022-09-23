@@ -23,7 +23,7 @@ clusterPodMonitorings: {
 		apiVersion: "monitoring.googleapis.com/v1"
 		kind:       "ClusterPodMonitoring"
 		metadata: {
-			name:      "prometheus-pod-monitor"
+			name: "prometheus-pod-monitor"
 		}
 		spec: {
 			selector: matchLabels: scrape: "true"
