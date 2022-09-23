@@ -233,6 +233,44 @@ class FrontendSimulator(
     )
   }
 
+  /** A sequence of operations done in the simulator involving a reach-only measurement. */
+  suspend fun executeReachOnly(runId: String) {
+    // Create a new measurement on behalf of the measurement consumer.
+    val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
+    val createdReachOnlyMeasurement =
+      createMeasurement(measurementConsumer, runId, ::newReachOnlyMeasurementSpec)
+    logger.info("Created reach-only measurement ${createdReachOnlyMeasurement.name}.")
+
+    // Get the CMMS computed result and compare it with the expected result.
+    var reachOnlyResult = getReachAndFrequencyResult(createdReachOnlyMeasurement.name)
+    var nAttempts = 0
+    while (reachOnlyResult == null && (nAttempts < 4)) {
+      nAttempts++
+      logger.info("Computation not done yet, wait for another 30 seconds.  Attempt $nAttempts")
+      delay(Duration.ofSeconds(30).toMillis())
+      reachOnlyResult = getReachAndFrequencyResult(createdReachOnlyMeasurement.name)
+    }
+    checkNotNull(reachOnlyResult) { "Timed out waiting for response to reach-only request" }
+    logger.info("Actual result: $reachOnlyResult")
+
+    val liquidLegionV2Protocol = createdReachOnlyMeasurement.protocolConfig.liquidLegionsV2
+    val expectedResultWithFrequencies =
+      getExpectedResult(createdReachOnlyMeasurement.name, liquidLegionV2Protocol)
+    val expectedResult = result {
+      reach = reach { value = expectedResultWithFrequencies.reach.value }
+      frequency = frequency { relativeFrequencyDistribution.putAll(mapOf(1L to 1.0)) }
+    }
+
+    logger.info("Expected result: $expectedResult")
+
+    assertDpResultsEqual(
+      expectedResult,
+      reachOnlyResult,
+      liquidLegionV2Protocol.maximumFrequency.toLong()
+    )
+    logger.info("Reach-only result is equal to the expected result. Correctness Test passes.")
+  }
+
   /** A sequence of operations done in the simulator involving an impression measurement. */
   suspend fun executeImpression(runId: String) {
     // Create a new measurement on behalf of the measurement consumer.
@@ -292,7 +330,7 @@ class FrontendSimulator(
     maximumFrequency: Long
   ) {
     val reachRatio = expectedResult.reach.value.toDouble() / actualResult.reach.value.toDouble()
-    assertThat(reachRatio).isWithin(0.02).of(1.0)
+    assertThat(reachRatio).isWithin(0.10).of(1.0)
     (1L..maximumFrequency).forEach {
       val expected = expectedResult.frequency.relativeFrequencyDistributionMap.getOrDefault(it, 0.0)
       val actual = actualResult.frequency.relativeFrequencyDistributionMap.getOrDefault(it, 0.0)
@@ -483,6 +521,25 @@ class FrontendSimulator(
       reachAndFrequency = reachAndFrequency {
         reachPrivacyParams = outputDpParams
         frequencyPrivacyParams = outputDpParams
+      }
+      vidSamplingInterval = vidSamplingInterval {
+        start = 0.0f
+        width = 1.0f
+      }
+      this.nonceHashes += nonceHashes
+    }
+  }
+
+  private fun newReachOnlyMeasurementSpec(
+    serializedMeasurementPublicKey: ByteString,
+    nonceHashes: List<ByteString>
+  ): MeasurementSpec {
+    return measurementSpec {
+      measurementPublicKey = serializedMeasurementPublicKey
+      reachAndFrequency = reachAndFrequency {
+        reachPrivacyParams = outputDpParams
+        frequencyPrivacyParams = outputDpParams
+        maximumFrequencyPerUser = 1
       }
       vidSamplingInterval = vidSamplingInterval {
         start = 0.0f
