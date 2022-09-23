@@ -518,6 +518,10 @@ class Benchmark(
     // Time at which the response to the request was received.
     lateinit var responseTime: Instant
 
+    // Time at which requisitions are fulfilled. It is the best estimation when detect the
+    // computation state changed into COMPUTING
+    var requisitionFulfilledTime: Instant? = null
+
     // Elapsed time from when request was made to response was received.
     var elapsedTimeMillis: Long = 0
 
@@ -648,6 +652,11 @@ class Benchmark(
       val timeoutOccurred = task.requestTime.plusSeconds(flags.timeout).isBefore(Instant.now(clock))
       println("${measurement.state}")
       if (
+        measurement.state == Measurement.State.COMPUTING && task.requisitionFulfilledTime == null
+      ) {
+        task.requisitionFulfilledTime = Instant.now(clock)
+      }
+      if (
         (measurement.state == Measurement.State.SUCCEEDED) ||
           (measurement.state == Measurement.State.FAILED) ||
           timeoutOccurred
@@ -677,7 +686,7 @@ class Benchmark(
   /** Writes a CSV file containing the benchmarking results. */
   private fun generateOutput(firstInstant: Instant) {
     File(flags.outputFile).printWriter().use { out ->
-      out.print("replica,startTime,ackTime,endTime,status,msg,")
+      out.print("replica,startTime,ackTime,computeTime,endTime,status,msg,")
       if (flags.measurementTypeParams.reachAndFrequency.selected) {
         out.println("reach,freq1,freq2,freq3,freq4,freq5")
       } else if (flags.measurementTypeParams.impression.selected) {
@@ -689,6 +698,13 @@ class Benchmark(
         out.print("${task.replicaId}")
         out.print(",${(task.requestTime.toEpochMilli() - firstInstant.toEpochMilli()) / 1000.0}")
         out.print(",${(task.ackTime.toEpochMilli() - firstInstant.toEpochMilli()) / 1000.0}")
+        if (task.requisitionFulfilledTime != null) {
+          out.print(
+            ",${(task.requisitionFulfilledTime!!.toEpochMilli() - firstInstant.toEpochMilli()) / 1000.0}"
+          )
+        } else {
+          out.print(",-1")
+        }
         out.print(",${task.elapsedTimeMillis / 1000.0},")
         out.print("${task.status},${task.errorMessage},")
         if (flags.measurementTypeParams.reachAndFrequency.selected) {
