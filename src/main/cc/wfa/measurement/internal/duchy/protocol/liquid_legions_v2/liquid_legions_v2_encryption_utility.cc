@@ -55,6 +55,7 @@ using ::wfa::measurement::common::crypto::kBlindedHistogramNoiseRegisterKey;
 using ::wfa::measurement::common::crypto::kBytesPerCipherRegister;
 using ::wfa::measurement::common::crypto::kBytesPerCipherText;
 using ::wfa::measurement::common::crypto::kBytesPerFlagsCountTuple;
+using ::wfa::measurement::common::crypto::kDefaultEllipticCurveId;
 using ::wfa::measurement::common::crypto::kDestroyedRegisterKey;
 using ::wfa::measurement::common::crypto::KeyCountPairCipherText;
 using ::wfa::measurement::common::crypto::kFlagZeroBase;
@@ -219,9 +220,6 @@ absl::StatusOr<int64_t> EstimateReach(double liquid_legions_decay_rate,
 
 absl::StatusOr<std::vector<ElGamalEcPointPair>> GetSameKeyAggregatorMatrixBase(
     ProtocolCryptor& protocol_cryptor, int64_t max_frequency) {
-  if (max_frequency < 2) {
-    return absl::InvalidArgumentError("max_frequency should be at least 2");
-  }
   // Result[i] =  - encrypted_one * (i+1)
   std::vector<ElGamalEcPointPair> result;
   ASSIGN_OR_RETURN(ElGamalEcPointPair one_ec,
@@ -522,9 +520,9 @@ absl::Status ValidateFrequencyNoiseParameters(
   if (parameters.contributors_count() < 1) {
     return absl::InvalidArgumentError("contributors_count should be positive.");
   }
-  if (parameters.maximum_frequency() < 2) {
+  if (parameters.maximum_frequency() < 1) {
     return absl::InvalidArgumentError(
-        "maximum_frequency should be at least 2.");
+        "maximum_frequency should be at least 1.");
   }
   if (parameters.dp_params().epsilon() <= 0 ||
       parameters.dp_params().delta() <= 0) {
@@ -562,6 +560,84 @@ absl::Status AddAllFrequencyNoise(
   return absl::OkStatus();
 }
 
+// Copies encrypted registers, replacing all keys with
+// the destroyed register flag and all counts with random values.
+absl::StatusOr<std::string> DestroyKeysAndCounts(
+    const CompleteSetupPhaseRequest& request) {
+  std::string source = request.combined_register_vector();
+  std::string dest;
+
+  if (source.empty()) {
+    return dest;
+  }
+
+  ASSIGN_OR_RETURN(size_t register_count,
+                   GetNumberOfBlocks(source, kBytesPerCipherRegister));
+
+  dest.reserve(register_count * kBytesPerCipherRegister);
+
+  // If the noise parameters were included with the request, then we can create
+  // a protocol_cryptor representing the actual cipher that is in use.  If the
+  // noise parameters were omitted, then we use a default protocol_cryptor.  In
+  // this case, the key would not be recognized as a destroyed register, however
+  // all registers would have the same key, so in effect, no registers would be
+  // destroyed.  In either case, no information should leak about the number of
+  // publishers contributing to a particular register.  In the production
+  // implementation, it appears that the noise parameters are always included.
+
+  std::unique_ptr<ProtocolCryptor> protocol_cryptor;
+
+  if (request.has_noise_parameters()) {
+    ASSIGN_OR_RETURN_ERROR(
+        protocol_cryptor,
+        CreateProtocolCryptorWithKeys(
+            request.noise_parameters().curve_id(),
+            kGenerateWithNewElGamalPublicKey, kGenerateWithNewElGamalPrivateKey,
+            kGenerateWithNewPohligHellmanKey,
+            std::make_pair(request.noise_parameters()
+                               .composite_el_gamal_public_key()
+                               .generator(),
+                           request.noise_parameters()
+                               .composite_el_gamal_public_key()
+                               .element()),
+            kGenerateNewParitialCompositeCipher),
+        "Failed to create the protocol cipher, invalid curveId or keys.");
+  } else {
+    ASSIGN_OR_RETURN(
+        protocol_cryptor,
+        CreateProtocolCryptorWithKeys(
+            kDefaultEllipticCurveId, kGenerateWithNewElGamalPublicKey,
+            kGenerateWithNewElGamalPrivateKey, kGenerateWithNewPohligHellmanKey,
+            kGenerateWithNewElGamalPublicKey,
+            kGenerateWithNewElGamalPublicKey));
+  }
+
+  ASSIGN_OR_RETURN(std::string destroyed_register_key_ec,
+                   protocol_cryptor->MapToCurve(kDestroyedRegisterKey));
+
+  for (size_t register_index = 0; register_index < register_count;
+       ++register_index) {
+    size_t offset = register_index * kBytesPerCipherRegister;
+    auto register_id = source.substr(offset, kBytesPerCipherText);
+    dest.append(register_id);
+
+    // Append destroyed key
+    RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
+        *protocol_cryptor, CompositeType::kFull, destroyed_register_key_ec,
+        dest));
+
+    // Replace the count by a random value.
+    std::string random_count = absl::StrCat(
+        "random_count", protocol_cryptor->NextRandomBigNumAsString());
+    ASSIGN_OR_RETURN(std::string random_encrypted_count,
+                     protocol_cryptor->MapToCurve(random_count));
+    RETURN_IF_ERROR(EncryptCompositeElGamalAndAppendToString(
+        *protocol_cryptor, CompositeType::kFull, random_encrypted_count, dest));
+  }
+
+  return dest;
+}
+
 }  // namespace
 
 absl::StatusOr<CompleteInitializationPhaseResponse> CompleteInitializationPhase(
@@ -591,7 +667,12 @@ absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
 
   CompleteSetupPhaseResponse response;
   std::string* response_crv = response.mutable_combined_register_vector();
-  *response_crv = request.combined_register_vector();
+
+  if (request.maximum_frequency() == 1) {
+    *response_crv = *DestroyKeysAndCounts(request);
+  } else {
+    *response_crv = request.combined_register_vector();
+  }
 
   if (request.has_noise_parameters()) {
     const RegisterNoiseGenerationParameters& noise_parameters =
@@ -860,7 +941,8 @@ CompleteExecutionPhaseTwoAtAggregator(
     }
     // Add a new row to the SameKeyAggregator Matrix if the register is not
     // destroyed or blinded histogram noise.
-    if (flags[0] && !flags[1] && !flags[2]) {
+    if (flags[0] && !flags[1] && !flags[2] &&
+        (request.maximum_frequency() > 1)) {
       ASSIGN_OR_RETURN(ElGamalCiphertext current_count_ciphertext,
                        ExtractElGamalCiphertextFromString(current_block.substr(
                            kBytesPerCipherText * 3, kBytesPerCipherText)));
