@@ -73,6 +73,6 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_rules_cue",
         repo = "rules_cue",
-        sha256 = "86c699afae3bbe44d36ff8f5fad9c13b22aab35219b3002287402fb9a5cdb5d5",
-        version = "0.1.1",
+        sha256 = "652379dec5174ed7fa8fe4223d0adf9a1d610ff0aa02e1bd1e74f79834b526a6",
+        version = "0.2.0",
     )

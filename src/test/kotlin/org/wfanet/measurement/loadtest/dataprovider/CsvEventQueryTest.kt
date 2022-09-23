@@ -25,8 +25,8 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemp
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate.AgeRange.Value as PrivacyAge
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate.Gender.Value as PrivacyGender
 
-private const val EDP0 = "edp0"
-private val FILEPATH: File = File("testing")
+private const val EDP0 = "testing"
+private val FILEPATH: File = File("")
 private val BANNER_FEMALE = BannerGender.GENDER_FEMALE.ordinal
 private val PRIVACY_35_54 = PrivacyAge.AGE_35_TO_54.ordinal
 private val PRIVACY_MALE = PrivacyGender.GENDER_MALE.ordinal
