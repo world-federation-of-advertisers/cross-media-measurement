@@ -25,7 +25,6 @@ package k8s
 	_edp_secret_name:           string
 	_duchy_public_api_target:   string
 	_kingdom_public_api_target: string
-	_eventsCsv:                 string
 
 	let DisplayName = _edpConfig.displayName
 
@@ -56,7 +55,6 @@ package k8s
 						"--kingdom-public-api-cert-host=localhost",
 						"--requisition-fulfillment-service-target=\(_duchy_public_api_target)",
 						"--requisition-fulfillment-service-cert-host=localhost",
-						"--events-csv=\(_eventsCsv)",
 			] + _blob_storage_flags + _additional_args
 		}
 	}

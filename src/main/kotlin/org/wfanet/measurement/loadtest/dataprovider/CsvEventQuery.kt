@@ -73,7 +73,7 @@ class CsvEventQuery(private val edpDisplayName: String, private val file: File) 
 
   /** Generates Ids by applying filter on events */
   override fun getUserVirtualIds(eventFilter: EventFilter): Sequence<Long> {
-    if (file.toString() != "testing" && !this::vidsList.isInitialized) readCsvFile()
+    if (edpDisplayName != "testing" && !this::vidsList.isInitialized) readCsvFile()
 
     logger.info("Querying and filtering VIDs from CsvEventQuery...")
     val program =
