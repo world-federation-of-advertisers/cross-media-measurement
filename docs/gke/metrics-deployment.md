@@ -120,3 +120,51 @@ default-sidecar   sidecar   0.60.0    41s
 NAME                        AGE   ENDPOINT   SAMPLER   SAMPLER ARG
 open-telemetry-java-agent   68s  
 ```
+
+## Apply K8s namespace annotations
+
+This ensures every pod can have metrics.
+
+```shell
+kubectl annotate namespaces default 'sidecar.opentelemetry.io/inject'=default-sidecar
+kubectl annotate namespaces default 'instrumentation.opentelemetry.io/inject-java'=true
+```
+
+You can verify by running
+
+```shell
+kubectl describe namespace default
+```
+
+You should see something like the following:
+
+```
+Name:         default
+Labels:       kubernetes.io/metadata.name=default
+Annotations:  instrumentation.opentelemetry.io/inject-java: true
+              sidecar.opentelemetry.io/inject: default-sidecar
+Status:       Active
+```
+
+## Restart Deployments to Start Collecting Metrics
+
+If deployments were started before these steps, they have to be restarted.
+Verify the pods have the label `scrape=true` with
+
+```shell
+kubectl describe pod <NAME-OF-POD>
+```
+
+If the label is missing, recreate the k8s manifest from the latest cue files
+that add the label, or add it directly to the generated k8s YAML files, then
+apply the new manifest.
+
+## Verify Managed Prometheus can Scrape Metrics
+
+Visit the [Managed Prometheus](https://console.cloud.google.com/monitoring/prometheus) page
+in Cloud Console. Query `up` and `scrape_samples_scraped`. 
+
+The first one tells you which targets it can find and whether they are up, and 
+the latter is a good way to check that scraping is occurring. If it 
+hasn't been long enough, the latter might show all 0's, but after a couple of
+minutes you should be seeing results for every target that is up.
