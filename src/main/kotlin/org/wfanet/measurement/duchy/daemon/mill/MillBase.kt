@@ -15,6 +15,8 @@
 package org.wfanet.measurement.duchy.daemon.mill
 
 import com.google.protobuf.ByteString
+import io.grpc.Status
+import io.grpc.StatusException
 import java.lang.management.ManagementFactory
 import java.lang.management.ThreadMXBean
 import java.security.cert.X509Certificate
@@ -44,7 +46,6 @@ import org.wfanet.measurement.duchy.db.computation.singleOutputBlobMetadata
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
-import org.wfanet.measurement.internal.duchy.ClaimWorkResponse
 import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
@@ -120,13 +121,25 @@ abstract class MillBase(
     }
   }
 
+  var computationsServerReady = false
   /** Poll and work on the next available computations. */
   suspend fun pollAndProcessNextComputation() {
     logger.fine("@Mill $millId: Polling available computations...")
+
     val claimWorkRequest =
       ClaimWorkRequest.newBuilder().setComputationType(computationType).setOwner(millId).build()
-    val claimWorkResponse: ClaimWorkResponse =
-      dataClients.computationsClient.claimWork(claimWorkRequest)
+    val claimWorkResponse =
+      try {
+        dataClients.computationsClient.claimWork(claimWorkRequest)
+      } catch (ex: StatusException) {
+        if (!computationsServerReady && ex.status.code == Status.Code.UNAVAILABLE) {
+          logger.info("ComputationServer not ready")
+          return
+        }
+        throw ex
+      }
+    computationsServerReady = true
+
     if (claimWorkResponse.hasToken()) {
       val wallDurationLogger = wallDurationLogger()
       val cpuDurationLogger = cpuDurationLogger()
