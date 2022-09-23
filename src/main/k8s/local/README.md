@@ -25,7 +25,7 @@ environment. See [Building](../../../../docs/building.md).
 ### Set Default Resource Requirements
 
 ```shell
-kubectl apply -f src/main/k8s/testing/secretfiles/resource_requirements_kind.yaml
+kubectl apply -f src/main/k8s/testing/secretfiles/resource_requirements.yaml
 ```
 
 ### Create Secret
@@ -200,11 +200,11 @@ random VIDs for each edp. You can also use target `edp_simulators_csv_kind`
 which will use `CsvEventQuery` to query VIDs from a CSV file for each edp.
 
 To use `CsvEventQuery`, you need to copy the CSV files you want to use from your
-local machine to the edp containers. First, update `_event_data_source` in
-`//src/main/k8s/local/edp_simulators_csv.cue`. Then after running the bazel
-command with the target `edp_simulators_csv_kind`, and all six edp deployments
-are in the status `1/1 Running`, run the following command for each edp to copy
-the CSV file from you local machine to the edp container:
+local machine to the edp containers. First, update `eventsCsvPath` in the target
+`edp_simulators_csv` in `//src/main/k8s/local/BUILD.bazel`. Then after running
+the bazel command with the target `edp_simulators_csv_kind`, and all six edp
+deployments are in the status `1/1 Running`, run the following command for each
+edp to copy the CSV file from you local machine to the edp container:
 
 ```shell
 kubectl cp </path/to/your/csvfiles> <edp-podname>:/data/csvfiles
