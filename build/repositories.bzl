@@ -73,6 +73,9 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_rules_cue",
         repo = "rules_cue",
-        sha256 = "86c699afae3bbe44d36ff8f5fad9c13b22aab35219b3002287402fb9a5cdb5d5",
-        version = "0.1.1",
+        #        DO_NOT_SUBMIT(world-federation-of-advertisers/rules_cue#6): Replace with version once released from main.
+        commit = "5cf4284def00ed07cb59efcc5d1ba7add416a7ab",
+        #        sha256 = "86c699afae3bbe44d36ff8f5fad9c13b22aab35219b3002287402fb9a5cdb5d5",
+        sha256 = None,
+        #        version = "0.1.1",
     )

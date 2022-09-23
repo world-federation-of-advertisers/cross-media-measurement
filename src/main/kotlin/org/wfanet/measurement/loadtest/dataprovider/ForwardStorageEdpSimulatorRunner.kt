@@ -36,9 +36,8 @@ class ForwardStorageEdpSimulatorRunner : EdpSimulatorRunner() {
       [
         "A filepath to a CSV file specifying the event data that will be returned by this simulator"
       ],
-    defaultValue = "randomEventQuery"
   )
-  lateinit var eventsCsv: File
+  var eventsCsv: File? = null
     private set
 
   @set:CommandLine.Option(
@@ -59,12 +58,12 @@ class ForwardStorageEdpSimulatorRunner : EdpSimulatorRunner() {
 
   override fun run() {
     val eventQuery: EventQuery =
-      if (eventsCsv.toString() == "randomEventQuery") {
+      if (eventsCsv == null) {
         RandomEventQuery(
           SketchGenerationParams(reach = edpSketchReach, universeSize = edpUniverseSize)
         )
       } else {
-        CsvEventQuery(flags.dataProviderDisplayName, eventsCsv)
+        CsvEventQuery(flags.dataProviderDisplayName, eventsCsv!!)
       }
 
     run(ForwardedStorageFromFlags(forwardedStorageFlags, flags.tlsFlags).storageClient, eventQuery)
