@@ -17,6 +17,7 @@ package org.wfanet.measurement.duchy.daemon.herald
 import io.grpc.Status
 import java.time.Clock
 import java.time.Duration
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.math.pow
 import kotlin.random.Random
@@ -89,7 +90,7 @@ class Herald(
    * Computation Service
    */
   suspend fun continuallySyncStatuses(pollingThrottler: Throttler) {
-    logger.info("Starting...")
+    logger.info("Server starting...")
     // Token signifying the last computation in an active state at the kingdom that was processed by
     // this job. When empty, all active computations at the kingdom will be streamed in the
     // response. The first execution of the loop will then compare all active computations at
@@ -124,7 +125,7 @@ class Herald(
       .streamActiveComputations(streamRequest)
       .onEach { response ->
         semaphore.acquire()
-        launch { processSystemComputationWithoutExceptions(response.computation, MAX_ATTEMPTS) }
+        launch { processSystemComputationAndSuppressException(response.computation, MAX_ATTEMPTS) }
         lastProcessedContinuationToken = response.continuationToken
       }
       .collect()
@@ -132,7 +133,7 @@ class Herald(
     return@coroutineScope lastProcessedContinuationToken
   }
 
-  private suspend fun processSystemComputationWithoutExceptions(
+  private suspend fun processSystemComputationAndSuppressException(
     computation: Computation,
     maxAttempts: Int = 10
   ) {
@@ -140,14 +141,16 @@ class Herald(
     while (true) {
       attemptNumber++
       try {
-        processSystemComputationChange(computation)
+        processSystemComputation(computation)
         semaphore.release()
         return
       } catch (ex: Throwable) {
         if (!mayBeTransientGrpcError(ex) || attemptNumber >= maxAttempts) {
+          val globalId: String = computation.key.computationId
+          logger.log(Level.SEVERE, "[id=$globalId] Non-transient error:", ex)
           failComputationAtKingdom(
             computation,
-            "Herald failed after $attemptNumber attempt(s). ${ex.message}"
+            "Herald failed after $attemptNumber attempts. ${ex.message}"
           )
           failComputationAtDuchy(computation)
           semaphore.release()
@@ -157,26 +160,26 @@ class Herald(
     }
   }
 
-  private suspend fun processSystemComputationChange(computation: Computation) {
+  private suspend fun processSystemComputation(computation: Computation) {
     require(computation.name.isNotEmpty()) { "Resource name not specified" }
     val globalId: String = computation.key.computationId
-    logger.info("[id=$globalId]: Processing updated GlobalComputation")
+    logger.fine("[id=$globalId]: Processing updated GlobalComputation")
     when (val state = computation.state) {
       // Creates a new computation if it is not already present in the database.
-      State.PENDING_REQUISITION_PARAMS -> create(computation)
+      State.PENDING_REQUISITION_PARAMS -> createComputation(computation)
       // Updates a computation for duchy confirmation.
-      State.PENDING_PARTICIPANT_CONFIRMATION -> update(computation)
+      State.PENDING_PARTICIPANT_CONFIRMATION -> confirmParticipant(computation)
       // Starts a computation locally.
-      State.PENDING_COMPUTATION -> start(computation)
+      State.PENDING_COMPUTATION -> startComputing(computation)
       else -> logger.warning("Unexpected global computation state '$state'")
     }
   }
 
   /** Creates a new computation. */
-  private suspend fun create(systemComputation: Computation) {
+  private suspend fun createComputation(systemComputation: Computation) {
     require(systemComputation.name.isNotEmpty()) { "Resource name not specified" }
     val globalId: String = systemComputation.key.computationId
-    logger.info("[id=$globalId] Creating Computation")
+    logger.info("[id=$globalId] Creating Computation...")
     try {
       when (systemComputation.toMeasurementType()) {
         MeasurementType.REACH_AND_FREQUENCY -> {
@@ -220,26 +223,25 @@ class Herald(
         if (previous.isSuccess) {
           return@fold previous
         }
-
-        logger.info("[id=$globalId] Attempt #$attemptNumber")
         val result = runCatching { block(systemComputation) }
         if (result.isFailure) {
+          logger.info("[id=$globalId] Waiting to retry attempt #${ attemptNumber + 1 }...")
           retryBackoff.delay(attemptNumber)
         }
         result
       }
     return finalResult.getOrElse {
       throw AttemptsExhaustedException(it) {
-        "[id=$globalId] Giving up after $maxAttempts attempts"
+        "[id=$globalId] Attempts reach maximum after $maxAttempts attempts"
       }
     }
   }
 
   /** Attempts to update a new computation from duchy confirmation. */
-  private suspend fun update(systemComputation: Computation) {
+  private suspend fun confirmParticipant(systemComputation: Computation) {
     val globalId = systemComputation.key.computationId
     runWithRetries(systemComputation) {
-      logger.info("[id=$globalId]: Updating Computation")
+      logger.info("[id=$globalId]: Confirming Participant...")
       val token = internalComputationsClient.getComputationToken(globalId.toGetTokenRequest()).token
       when (token.computationDetails.protocolCase) {
         ComputationDetails.ProtocolCase.LIQUID_LEGIONS_V2 ->
@@ -251,20 +253,22 @@ class Herald(
           )
         else -> error { "Unknown or unsupported protocol." }
       }
+      logger.info("[id=$globalId]: Confirmed Computation")
     }
   }
 
   /** Attempts to start a computation that is in WAIT_TO_START. */
-  private suspend fun start(systemComputation: Computation) {
+  private suspend fun startComputing(systemComputation: Computation) {
     val globalId = systemComputation.key.computationId
     runWithRetries(systemComputation) {
-      logger.info("[id=$globalId]: Starting Computation")
+      logger.info("[id=$globalId]: Starting Computation...")
       val token = internalComputationsClient.getComputationToken(globalId.toGetTokenRequest()).token
       when (token.computationDetails.protocolCase) {
         ComputationDetails.ProtocolCase.LIQUID_LEGIONS_V2 ->
           LiquidLegionsV2Starter.startComputation(token, internalComputationsClient)
         else -> error { "Unknown or unsupported protocol." }
       }
+      logger.info("[id=$globalId]: Started Computation")
     }
   }
 
