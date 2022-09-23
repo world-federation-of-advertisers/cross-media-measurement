@@ -25,7 +25,7 @@ environment. See [Building](../../../../docs/building.md).
 ### Set Default Resource Requirements
 
 ```shell
-kubectl apply -f src/main/k8s/testing/secretfiles/resource_requirements_kind.yaml
+kubectl apply -f src/main/k8s/testing/secretfiles/resource_requirements.yaml
 ```
 
 ### Create Secret
@@ -73,32 +73,31 @@ The Open Telemetry Operator adds the creation and management of new Open
 Telemetry specific resources. It depends on Cert Manager to run.
 
 ### Deploy Cert Manager
+
 ```shell
 kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.9.1/cert-manager.yaml
 ```
 
 ### Deploy Open Telemetry Operator
+
 ```shell
 kubectl apply -f https://github.com/open-telemetry/opentelemetry-operator/releases/download/v0.60.0/opentelemetry-operator.yaml
 ```
 
 ### Deploy Open Telemetry Resources
-Create an operator instrumentation resource fpr instrumenting the application 
+
+Create an operator instrumentation resource fpr instrumenting the application
 code and an operator collector sidecar resource for collecting the metrics.
-```shell
-bazel run //src/main/k8s/local:open_telemetry_kind
-```
+`shell bazel run //src/main/k8s/local:open_telemetry_kind`
 
 ### Deploy Prometheus Server
+
 ```shell
 bazel run //src/main/k8s/local:prometheus_kind
 ```
 
-To be able to visit the Prometheus browser GUI at http://localhost:31111/,
-start port-forwarding.
-```shell
-kubectl port-forward prometheus-pod 31111:9090
-```
+To be able to visit the Prometheus browser GUI at http://localhost:31111/, start
+port-forwarding. `shell kubectl port-forward prometheus-pod 31111:9090`
 
 ## Resource Setup
 
@@ -237,11 +236,11 @@ random VIDs for each edp. You can also use target `edp_simulators_csv_kind`
 which will use `CsvEventQuery` to query VIDs from a CSV file for each edp.
 
 To use `CsvEventQuery`, you need to copy the CSV files you want to use from your
-local machine to the edp containers. First, update `_event_data_source` in
-`//src/main/k8s/local/edp_simulators_csv.cue`. Then after running the bazel
-command with the target `edp_simulators_csv_kind`, and all six edp deployments
-are in the status `1/1 Running`, run the following command for each edp to copy
-the CSV file from you local machine to the edp container:
+local machine to the edp containers. First, update `eventsCsvPath` in the target
+`edp_simulators_csv` in `//src/main/k8s/local/BUILD.bazel`. Then after running
+the bazel command with the target `edp_simulators_csv_kind`, and all six edp
+deployments are in the status `1/1 Running`, run the following command for each
+edp to copy the CSV file from you local machine to the edp container:
 
 ```shell
 kubectl cp </path/to/your/csvfiles> <edp-podname>:/data/csvfiles
