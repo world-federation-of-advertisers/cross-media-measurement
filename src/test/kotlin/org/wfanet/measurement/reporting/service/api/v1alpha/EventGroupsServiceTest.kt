@@ -81,14 +81,17 @@ private val SECRET_FILES_PATH: Path =
   )
 private val ENCRYPTION_PRIVATE_KEY = loadEncryptionPrivateKey("mc_enc_private.tink")
 private val ENCRYPTION_PUBLIC_KEY = loadEncryptionPublicKey("mc_enc_public.tink")
-private val ENCRYPTION_KEY_PAIR_STORE =
-  InMemoryEncryptionKeyPairStore(
-    mapOf(ENCRYPTION_PUBLIC_KEY.toByteString() to ENCRYPTION_PRIVATE_KEY)
-  )
 private val EDP_SIGNING_KEY = loadSigningKey("edp1_cs_cert.der", "edp1_cs_private.der")
 private const val MEASUREMENT_CONSUMER_REFERENCE_ID = "measurementConsumerRefId"
 private val MEASUREMENT_CONSUMER_NAME =
   MeasurementConsumerKey(MEASUREMENT_CONSUMER_REFERENCE_ID).toName()
+private val ENCRYPTION_KEY_PAIR_STORE =
+  InMemoryEncryptionKeyPairStore(
+    mapOf(
+      MEASUREMENT_CONSUMER_NAME to
+        listOf(ENCRYPTION_PUBLIC_KEY.toByteString() to ENCRYPTION_PRIVATE_KEY)
+    )
+  )
 private val TEST_MESSAGE = testMetadataMessage {
   name = name { value = "Bob" }
   age = age { value = 15 }
