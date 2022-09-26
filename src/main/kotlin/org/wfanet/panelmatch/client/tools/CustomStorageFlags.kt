@@ -18,6 +18,7 @@ import com.google.crypto.tink.integration.awskms.AwsKmsClient
 import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import java.io.File
 import java.util.Optional
+import org.wfanet.measurement.aws.s3.S3StorageClient
 import org.wfanet.measurement.common.crypto.tink.TinkKeyStorageProvider
 import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
@@ -31,6 +32,8 @@ import org.wfanet.panelmatch.client.storage.gcloud.gcs.GcsStorageFactory
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.storage.StorageFactory
 import picocli.CommandLine
+import software.amazon.awssdk.regions.Region
+import software.amazon.awssdk.services.s3.S3Client
 
 // TODO: Add flags to support other storage clients
 class CustomStorageFlags {
@@ -50,6 +53,20 @@ class CustomStorageFlags {
   private lateinit var privateStorageRoot: File
 
   @CommandLine.Option(
+    names = ["--s3-storage-bucket"],
+    description = ["The name of the s3 bucket used for default private storage."],
+  )
+  lateinit var s3Bucket: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--s3-region"],
+    description = ["The region the s3 bucket is located in."],
+  )
+  lateinit var s3Region: String
+    private set
+
+  @CommandLine.Option(
     names = ["--tink-key-uri"],
     description = ["URI for tink"],
     required = true,
@@ -61,6 +78,8 @@ class CustomStorageFlags {
   private val rootStorageClient: StorageClient by lazy {
     when (storageType) {
       StorageDetails.PlatformCase.GCS -> GcsStorageClient.fromFlags(GcsFromFlags(gcsFlags))
+      StorageDetails.PlatformCase.AWS ->
+        S3StorageClient(S3Client.builder().region(Region.of(s3Region)).build(), s3Bucket)
       StorageDetails.PlatformCase.FILE -> {
         require(privateStorageRoot.exists() && privateStorageRoot.isDirectory)
         FileSystemStorageClient(privateStorageRoot)

@@ -22,6 +22,7 @@ import java.time.LocalDate
 import java.util.Optional
 import java.util.concurrent.Callable
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.aws.s3.S3StorageClient
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.tink.TinkKeyStorageProvider
 import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
@@ -36,6 +37,8 @@ import org.wfanet.panelmatch.client.storage.storageDetails
 import org.wfanet.panelmatch.common.ExchangeDateKey
 import org.wfanet.panelmatch.common.storage.StorageFactory
 import picocli.CommandLine
+import software.amazon.awssdk.regions.Region
+import software.amazon.awssdk.services.s3.S3Client
 
 @CommandLine.Command(name = "add_all_resources", description = ["Adds all resources into GCS"])
 class AddAllResources : Callable<Int> {
@@ -47,6 +50,7 @@ class AddAllResources : Callable<Int> {
   )
   private lateinit var tinkKeyUri: String
 
+  // TODO(jmolle): Make the flags not required and make AWS an option for root and shared storage.
   @CommandLine.Mixin private lateinit var gcsFlags: GcsFromFlags.Flags
 
   @CommandLine.Option(
@@ -135,7 +139,12 @@ class AddAllResources : Callable<Int> {
   private lateinit var workflowInputBlobContents: File
 
   private val rootStorageClient: StorageClient by lazy {
-    GcsStorageClient.fromFlags(GcsFromFlags(gcsFlags))
+    when (storageType) {
+      StorageDetails.PlatformCase.GCS -> GcsStorageClient.fromFlags(GcsFromFlags(gcsFlags))
+      StorageDetails.PlatformCase.AWS ->
+        S3StorageClient(S3Client.builder().region(Region.of(s3Region)).build(), s3Bucket)
+      else -> throw IllegalArgumentException("Unsupported default private storage type.")
+    }
   }
 
   private val defaults by lazy {

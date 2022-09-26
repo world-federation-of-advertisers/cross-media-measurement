@@ -40,6 +40,9 @@ kt_jvm_library(
         "@tink_java//src/main/java/com/google/crypto/tink/integration/awskms:aws_kms_client",
         "@tink_java//src/main/java/com/google/crypto/tink/integration/gcpkms:gcp_kms_client",
         "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//imports/java/software/amazon/awssdk/core",
+        "@wfa_common_jvm//imports/java/software/amazon/awssdk/services/s3",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/aws/s3",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
     ],
 )
