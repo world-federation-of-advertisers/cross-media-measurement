@@ -14,4 +14,71 @@
 
 package k8s
 
-objectSets: #OpenTelemetry.objectSets
+// Name of K8s service account for the internal API server.
+#InternalServerServiceAccount: "internal-server"
+
+objectSets: [networkPolicies] + #OpenTelemetry.objectSets
+
+#OpenTelemetry: {
+	openTelemetryCollectors: {
+		"deployment": {
+			_config: """
+                receivers:
+                  googlecloudspanner:
+                    collection_interval: 60s
+                    top_metrics_query_max_rows: 100
+                    backfill_enabled: true
+                    cardinality_total_limit: 200000
+                    projects:
+                      - project_id: \(#GCloudProject)
+                        instances:
+                          - instance_id: \(#SpannerInstance)
+                            databases:
+                              - "kingdom"
+
+                processors:
+                  batch:
+                    send_batch_size: 200
+                    timeout: 10s
+
+                exporters:
+                  prometheus:
+                    send_timestamps: true
+                    endpoint: 0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)
+
+                extensions:
+                  health_check:
+
+                service:
+                  extensions: [health_check]
+                  pipelines:
+                    metrics:
+                      receivers: [googlecloudspanner]
+                      processors: [batch]
+                      exporters: [prometheus]
+                """
+			metadata: name: "deployment"
+			spec: {
+				image:           "docker.io/otel/opentelemetry-collector-contrib:0.60.0"
+				imagePullPolicy: "Always"
+				mode:            "deployment"
+				serviceAccount:  #InternalServerServiceAccount
+				nodeSelector: "iam.gke.io/gke-metadata-server-enabled": "true"
+			}
+		}
+	}
+}
+
+networkPolicies: [Name=_]: #NetworkPolicy & {
+	_name: Name
+}
+
+networkPolicies: {
+	"opentelemetry-collector": {
+		_labels: "app.kubernetes.io/name": "deployment-collector"
+		_egresses: {
+			// Need to send external traffic to Spanner.
+			any: {}
+		}
+	}
+}

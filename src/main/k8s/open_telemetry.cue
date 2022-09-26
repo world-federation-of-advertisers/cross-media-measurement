@@ -57,9 +57,9 @@ package k8s
 
 		apiVersion: "opentelemetry.io/v1alpha1"
 		kind:       "OpenTelemetryCollector"
-		metadata: name: "\(_name)-sidecar"
+		metadata: name: string | *"\(_name)-sidecar"
 		spec: {
-			mode:   "sidecar"
+			mode:   "deployment" | *"sidecar"
 			config: "\(_config)"
 		}
 	}

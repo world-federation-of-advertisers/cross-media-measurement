@@ -23,14 +23,24 @@ clusterPodMonitorings: {
 	"gcp-prometheus-pod-monitoring": {
 		apiVersion: "monitoring.googleapis.com/v1"
 		kind:       "ClusterPodMonitoring"
-		metadata: {
-			name: "prometheus-pod-monitor"
-		}
+		metadata: name: "prometheus-pod-monitor"
 		spec: {
 			selector: matchLabels: scrape: "true"
 			endpoints: [{
 				port:     #OpenTelemetryPrometheusExporterPort
 				interval: "30s"
+			}]
+		}
+	}
+	"opentelemetry-collector-deployment-monitoring": {
+		apiVersion: "monitoring.googleapis.com/v1"
+		kind:       "ClusterPodMonitoring"
+		metadata: name: "opentelemetry-collector-pod-monitor"
+		spec: {
+			selector: matchLabels: "app.kubernetes.io/name": "deployment-collector"
+			endpoints: [{
+				port:     #OpenTelemetryPrometheusExporterPort
+				interval: "60s"
 			}]
 		}
 	}

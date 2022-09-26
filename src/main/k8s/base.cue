@@ -468,8 +468,9 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 // allow all traffic from pods matching _sourceMatchLabels to pods matching
 // _destinationMatchLabels.
 #NetworkPolicy: {
-	_name:      string
-	_app_label: string
+	_name: string
+	_labels: [_=string]: string
+	_app_label?: string
 	_sourceMatchLabels: [...string]
 	_destinationMatchLabels: [...string]
 	_ingresses: [Name=_]: #IngressRule
@@ -520,7 +521,14 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		}
 	}
 	spec: {
-		podSelector: matchLabels: app: _app_label
+		podSelector: matchLabels: {
+			if _app_label != _|_ {
+				"app": _app_label
+			}
+			for key, value in _labels {
+				"\(key)": value
+			}
+		}
 		policyTypes: ["Ingress", "Egress"]
 		ingress: [ for _, ingress in _ingresses {ingress}]
 		egress: [ for _, egress in _egresses {egress}]

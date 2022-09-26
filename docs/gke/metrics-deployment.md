@@ -15,14 +15,18 @@ free to use whichever you prefer.
     - 1 Managed Service for Prometheus
     - 1 cert-manager
     - 1 OpenTelemetry Operator
-    - 1 GMP ClusterPodMonitoring
+    - 2 GMP ClusterPodMonitoring
         - prometheus-pod-monitor
+        - opentelemetry-collector-pod-monitor
     - 1 GMP PodMonitoring
       - collector-pod-monitor
-    - 1 OpenTelemetry Operator OpenTelemetryCollector
+    - 2 OpenTelemetry Operator OpenTelemetryCollector
       - default-sidecar
+      - deployment
     - 1 OpenTelemetry Operator Instrumentation
       - open-telemetry-java-agent
+    - 1 Kubernetes NetworkPolicy
+      - opentelemetry-collector-network-policy
 
 ## Before you start
 
@@ -67,8 +71,19 @@ The main files for the `dev` Metrics are
 [`prometheus_gke.cue`](../../src/main/k8s/dev/prometheus_gke.cue) and
 [`open_telemetry_gke.cue`](../../src/main/k8s/dev/open_telemetry_gke.cue).
 
-You can modify the filtering of the OpenTelemetry metrics. The config is found
-in [`open_telemetry.cue`](../../src/main/k8s/open_telemetry.cue)
+Both [`open_telemetry_gke.cue`](../../src/main/k8s/dev/open_telemetry_gke.cue) 
+and [`config.cue`](../../src/main/k8s/dev/config.cue) need to be modified to 
+work with the right Spanner database. For example, if this is for a kingdom 
+cluster, the files need to be modified to work with the Spanner instance and 
+database the kingdom cluster is using. A reporting server cluster doesn't use 
+Spanner, so nothing here would be used. The contents of
+[`open_telemetry_gke.cue`](../../src/main/k8s/dev/open_telemetry_gke.cue) should 
+be swapped with the local KiND version:
+[`open_telemetry.cue`](../../src/main/k8s/local/open_telemetry.cue).
+
+If desired, you can modify the filtering of the OpenTelemetry metrics. The 
+config is found in the base version:
+[`open_telemetry.cue`](../../src/main/k8s/open_telemetry.cue).
 
 To generate the YAML manifests from the CUE files, run the following:
 
@@ -111,12 +126,16 @@ kubectl get opentelemetrycollectors
 kubectl get instrumentations
 ```
 
+```shell
+kubectl get networkpolicy
+```
 
 You should see something like the following:
 
 ```
-NAME                     AGE
-prometheus-pod-monitor   23s
+NAME                                  AGE
+opentelemetry-collector-pod-monitor   4h7m
+prometheus-pod-monitor                4h7m
 ```
 
 ```
@@ -125,13 +144,19 @@ collector-pod-monitor   5m12s
 ```
 
 ```
-NAME              MODE      VERSION   AGE
-default-sidecar   sidecar   0.60.0    41s
+NAME              MODE         VERSION   AGE
+default-sidecar   sidecar      0.60.0    4h7m
+deployment        deployment   0.60.0    131m
 ```
 
 ```
 NAME                        AGE   ENDPOINT   SAMPLER   SAMPLER ARG
 open-telemetry-java-agent   68s  
+```
+
+```
+NAME                                     POD-SELECTOR                                  AGE
+opentelemetry-collector-network-policy   app.kubernetes.io/name=deployment-collector   51m
 ```
 
 ## Apply K8s namespace annotations
@@ -183,8 +208,9 @@ minutes you should be seeing results for every target that is up.
 
 ## Adding Additional Metrics
 
-The above adds OpenTelemetry jvm and rpc metrics. With the above as a base, it
-is possible to add other metrics that can be scraped.
+The above adds OpenTelemetry jvm and rpc metrics, and Cloud Spanner metrics. 
+With the above as a base, it is possible to add other metrics that can be 
+scraped.
 
 ### kubelet and cAdvisor
 
