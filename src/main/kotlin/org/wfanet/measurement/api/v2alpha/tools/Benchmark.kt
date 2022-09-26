@@ -703,7 +703,7 @@ class Benchmark(
             ",${(task.requisitionFulfilledTime!!.toEpochMilli() - firstInstant.toEpochMilli()) / 1000.0}"
           )
         } else {
-          out.print(",-1")
+          out.print(",0.0")
         }
         out.print(",${task.elapsedTimeMillis / 1000.0},")
         out.print("${task.status},${task.errorMessage},")
