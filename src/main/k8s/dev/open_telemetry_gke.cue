@@ -69,13 +69,16 @@ objectSets: [networkPolicies] + #OpenTelemetry.objectSets
 	}
 }
 
+#NetworkPolicy: {
+	spec: podSelector: matchLabels: "app.kubernetes.io/name": "deployment-collector"
+}
+
 networkPolicies: [Name=_]: #NetworkPolicy & {
 	_name: Name
 }
 
 networkPolicies: {
 	"opentelemetry-collector": {
-		_labels: "app.kubernetes.io/name": "deployment-collector"
 		_egresses: {
 			// Need to send external traffic to Spanner.
 			any: {}

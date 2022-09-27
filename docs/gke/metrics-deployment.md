@@ -208,7 +208,7 @@ minutes you should be seeing results for every target that is up.
 
 ## Adding Additional Metrics
 
-The above adds OpenTelemetry jvm and rpc metrics, and Cloud Spanner metrics, as 
+The above adds OpenTelemetry JVM and RPC metrics, and Cloud Spanner metrics, as 
 well as self-monitoring of the Managed Prometheus collectors. With the above as 
 a base, it is possible to add other metrics that can be scraped.
 
