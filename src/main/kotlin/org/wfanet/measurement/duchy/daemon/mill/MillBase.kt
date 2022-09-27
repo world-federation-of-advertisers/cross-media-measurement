@@ -121,7 +121,6 @@ abstract class MillBase(
     }
   }
 
-  var computationsServerReady = false
   /** Poll and work on the next available computations. */
   suspend fun pollAndProcessNextComputation() {
     logger.fine("@Mill $millId: Polling available computations...")
@@ -129,16 +128,10 @@ abstract class MillBase(
     val claimWorkRequest =
       ClaimWorkRequest.newBuilder().setComputationType(computationType).setOwner(millId).build()
     val claimWorkResponse =
-      try {
+      withWaitForReady("ComputationServer not ready") {
         dataClients.computationsClient.claimWork(claimWorkRequest)
-      } catch (ex: StatusException) {
-        if (!computationsServerReady && ex.status.code == Status.Code.UNAVAILABLE) {
-          logger.info("ComputationServer not ready")
-          return
-        }
-        throw ex
       }
-    computationsServerReady = true
+        ?: return
 
     if (claimWorkResponse.hasToken()) {
       val wallDurationLogger = wallDurationLogger()
@@ -171,6 +164,24 @@ abstract class MillBase(
       handleExceptions(latestToken, e)
     }
     logger.info("@Mill $millId: Processed computation $globalId")
+  }
+
+  var serviceReady = false
+  private suspend fun <T> withWaitForReady(
+    message: String = "Service not ready",
+    block: suspend () -> T
+  ): T? {
+    try {
+      val response = block()
+      serviceReady = true
+      return response
+    } catch (ex: StatusException) {
+      if (!serviceReady && ex.status.code == Status.Code.UNAVAILABLE) {
+        logger.info(message)
+        return null
+      }
+      throw ex
+    }
   }
 
   private suspend fun handleExceptions(token: ComputationToken, e: Exception) {
