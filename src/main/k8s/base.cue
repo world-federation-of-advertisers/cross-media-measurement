@@ -579,3 +579,23 @@ default_deny_ingress_and_egress: [{
 		}]
 	}
 }
+
+// K8s custom resource defined by OpenTelemetry Operator used for creating
+// an OpenTelemetry Collector.
+#OpenTelemetryCollector: {
+	_name:   string
+	_config: string
+
+	apiVersion: "opentelemetry.io/v1alpha1"
+	kind:       "OpenTelemetryCollector"
+	metadata: name: string | *"\(_name)-sidecar"
+	spec: {
+		mode:            "deployment" | *"sidecar"
+		config:          "\(_config)"
+		image:           string | *"docker.io/otel/opentelemetry-collector-contrib:0.60.0"
+		imagePullPolicy: "Always"
+		if _serviceAccountName != _|_ {
+			serviceAccount: _serviceAccountName
+		}
+	}
+}

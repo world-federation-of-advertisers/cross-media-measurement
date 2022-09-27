@@ -20,9 +20,15 @@ package k8s
 objectSets: [networkPolicies] + #OpenTelemetry.objectSets
 
 #OpenTelemetry: {
+
+	#OpenTelemetryCollector: {
+		spec: nodeSelector: "iam.gke.io/gke-metadata-server-enabled": "true"
+	}
+
 	openTelemetryCollectors: {
 		"deployment": {
-			_config: """
+			_serviceAccountName: #InternalServerServiceAccount
+			_config:             """
                 receivers:
                   googlecloudspanner:
                     collection_interval: 60s
@@ -58,13 +64,7 @@ objectSets: [networkPolicies] + #OpenTelemetry.objectSets
                       exporters: [prometheus]
                 """
 			metadata: name: "deployment"
-			spec: {
-				image:           "docker.io/otel/opentelemetry-collector-contrib:0.60.0"
-				imagePullPolicy: "Always"
-				mode:            "deployment"
-				serviceAccount:  #InternalServerServiceAccount
-				nodeSelector: "iam.gke.io/gke-metadata-server-enabled": "true"
-			}
+			spec: mode:     "deployment"
 		}
 	}
 }

@@ -20,7 +20,7 @@ package k8s
 		instrumentations,
 	]
 
-	// Default config for an Open Telemetry Collector
+	// Basic default config for an Open Telemetry Collector
 	#OpenTelemetryCollectorConfig:
 		"""
         receivers:
@@ -51,21 +51,14 @@ package k8s
               exporters: [prometheus]
         """
 
-	openTelemetryCollectors: [Name=string]: {
-		_name:   Name
-		_config: string | *#OpenTelemetryCollectorConfig
-
-		apiVersion: "opentelemetry.io/v1alpha1"
-		kind:       "OpenTelemetryCollector"
-		metadata: name: string | *"\(_name)-sidecar"
-		spec: {
-			mode:   "deployment" | *"sidecar"
-			config: "\(_config)"
-		}
+	openTelemetryCollectors: [Name=string]: #OpenTelemetryCollector & {
+		_name: Name
 	}
 
 	openTelemetryCollectors: {
-		"default": {}
+		"default": {
+			_config: #OpenTelemetryCollectorConfig
+		}
 	}
 
 	instrumentations: {
