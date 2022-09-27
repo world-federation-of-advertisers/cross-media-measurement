@@ -78,7 +78,7 @@ cluster, the files need to be modified to work with the Spanner instance and
 database the kingdom cluster is using. A reporting server cluster doesn't use 
 Spanner, so nothing here would be used. The contents of
 [`open_telemetry_gke.cue`](../../src/main/k8s/dev/open_telemetry_gke.cue) should 
-be swapped with the local KiND version:
+be swapped with the local version:
 [`open_telemetry.cue`](../../src/main/k8s/local/open_telemetry.cue).
 
 If desired, you can modify the filtering of the OpenTelemetry metrics. The 
