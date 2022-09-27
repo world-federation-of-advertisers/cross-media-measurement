@@ -81,7 +81,6 @@ import org.wfanet.measurement.consent.client.duchy.signResult
 import picocli.CommandLine
 
 private const val HOST = "localhost"
-private const val PORT = 15788
 private val SECRETS_DIR: Path =
   getRuntimePath(
     Paths.get(
@@ -226,6 +225,9 @@ class BenchmarkTest {
 
   private val headerInterceptor = HeaderCapturingInterceptor()
 
+  private val port: Int
+    get() = server.port
+
   private lateinit var server: CommonServer
   @Before
   fun initServer() {
@@ -246,12 +248,11 @@ class BenchmarkTest {
 
     server =
       CommonServer.fromParameters(
-        PORT,
-        true,
-        serverCerts,
-        ClientAuth.REQUIRE,
-        "kingdom-test",
-        services
+        verboseGrpcLogging = true,
+        certs = serverCerts,
+        clientAuth = ClientAuth.REQUIRE,
+        nameForLogging = "kingdom-test",
+        services = services,
       )
     server.start()
   }
@@ -272,7 +273,7 @@ class BenchmarkTest {
         "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
         "--tls-key-file=$SECRETS_DIR/mc_tls.key",
         "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
-        "--kingdom-public-api-target=$HOST:$PORT",
+        "--kingdom-public-api-target=$HOST:$port",
         "--api-key=$API_KEY",
         "--measurement-consumer=measurementConsumers/777",
         "--reach-and-frequency",
@@ -341,7 +342,7 @@ class BenchmarkTest {
         "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
         "--tls-key-file=$SECRETS_DIR/mc_tls.key",
         "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
-        "--kingdom-public-api-target=$HOST:$PORT",
+        "--kingdom-public-api-target=$HOST:$port",
         "--api-key=$API_KEY",
         "--measurement-consumer=measurementConsumers/777",
         "--impression",
@@ -404,7 +405,7 @@ class BenchmarkTest {
         "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
         "--tls-key-file=$SECRETS_DIR/mc_tls.key",
         "--cert-collection-file=$SECRETS_DIR/kingdom_root.pem",
-        "--kingdom-public-api-target=$HOST:$PORT",
+        "--kingdom-public-api-target=$HOST:$port",
         "--api-key=$API_KEY",
         "--measurement-consumer=measurementConsumers/777",
         "--duration",
