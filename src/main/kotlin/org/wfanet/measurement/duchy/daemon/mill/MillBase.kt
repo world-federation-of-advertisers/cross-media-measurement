@@ -15,8 +15,6 @@
 package org.wfanet.measurement.duchy.daemon.mill
 
 import com.google.protobuf.ByteString
-import io.grpc.Status
-import io.grpc.StatusException
 import java.lang.management.ManagementFactory
 import java.lang.management.ThreadMXBean
 import java.security.cert.X509Certificate
@@ -128,10 +126,7 @@ abstract class MillBase(
     val claimWorkRequest =
       ClaimWorkRequest.newBuilder().setComputationType(computationType).setOwner(millId).build()
     val claimWorkResponse =
-      withWaitForReady("ComputationServer not ready") {
-        dataClients.computationsClient.claimWork(claimWorkRequest)
-      }
-        ?: return
+      dataClients.computationsClient.withWaitForReady().claimWork(claimWorkRequest)
 
     if (claimWorkResponse.hasToken()) {
       val wallDurationLogger = wallDurationLogger()
@@ -164,24 +159,6 @@ abstract class MillBase(
       handleExceptions(latestToken, e)
     }
     logger.info("@Mill $millId: Processed computation $globalId")
-  }
-
-  var serviceReady = false
-  private suspend fun <T> withWaitForReady(
-    message: String = "Service not ready",
-    block: suspend () -> T
-  ): T? {
-    try {
-      val response = block()
-      serviceReady = true
-      return response
-    } catch (ex: StatusException) {
-      if (!serviceReady && ex.status.code == Status.Code.UNAVAILABLE) {
-        logger.info(message)
-        return null
-      }
-      throw ex
-    }
   }
 
   private suspend fun handleExceptions(token: ComputationToken, e: Exception) {
