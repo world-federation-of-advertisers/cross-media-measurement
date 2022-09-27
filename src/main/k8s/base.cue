@@ -63,6 +63,9 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 #HealthPort: 8080
 
+#OpenTelemetryReceiverPort:           4317
+#OpenTelemetryPrometheusExporterPort: 8889
+
 #ResourceQuantity: {
 	cpu?:    string
 	memory?: string
@@ -151,6 +154,11 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	secret?: {
 		secretName: string
 	}
+} | {
+	emptyDir?: {
+		medium?:    "" | "Memory"
+		sizeLimit?: string
+	}
 }
 
 // K8s VolumeMount.
@@ -160,8 +168,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	readOnly?: bool
 }
 
-// Configuration for a projection Volume and a corresponding VolumeMount.
-#ProjectionMount: {
+// Configuration for a Volume and a corresponding VolumeMount.
+#Mount: {
 	name: string
 
 	let Name = name
@@ -171,18 +179,21 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	volumeMount: #VolumeMount & {
 		name:      Name
 		mountPath: string
-		readOnly:  true
 	}
 }
-#ProjectionMount: {
+#Mount: {
 	let Name = volumeMount.name
 	volume: configMap: name: string
 	volumeMount: mountPath: _ | *"/etc/\(#AppName)/\(Name)"
 } | {
 	volume: secret: secretName: string
 	volumeMount: mountPath: _ | *"/var/run/secrets/files"
+} | {
+	let Name = volumeMount.name
+	volume: emptyDir: {}
+	volumeMount: mountPath: _ | *"/run/\(Name)"
 }
-#ConfigMapMount: Mount=#ProjectionMount & {
+#ConfigMapMount: Mount=#Mount & {
 	volume: configMap: name: _ | *Mount.name
 }
 
@@ -199,6 +210,14 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		"app.kubernetes.io/part-of":   #AppName
 		"app.kubernetes.io/component": _component
 	}
+}
+
+// K8s ConfigMap.
+#ConfigMap: {
+	apiVersion: "v1"
+	kind:       "ConfigMap"
+	metadata:   #ObjectMeta
+	data: {...}
 }
 
 // K8s Service.
@@ -237,10 +256,10 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 // K8s PodSpec.
 #PodSpec: {
-	_projectionMounts: [Name=string]: #ProjectionMount & {name: Name}
-	_volumes: [Name=string]:          #Volume & {name:          Name}
-	_containers: [Name=string]:       #Container & {
-		_volumeMounts: {for name, mount in _projectionMounts {"\(name)": mount.volumeMount}}
+	_mounts: [Name=string]:     #Mount & {name:  Name}
+	_volumes: [Name=string]:    #Volume & {name: Name}
+	_containers: [Name=string]: #Container & {
+		_volumeMounts: {for name, mount in _mounts {"\(name)": mount.volumeMount}}
 		name: Name
 	}
 	_initContainers: [Name=string]: #Container & {
@@ -248,7 +267,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	}
 	_dependencies: [...string]
 
-	_volumes: {for name, mount in _projectionMounts {"\(name)": mount.volume}}
+	_volumes: {for name, mount in _mounts {"\(name)": mount.volume}}
 	_initContainers: {
 		for dep in _dependencies {
 			"wait-for-\(dep)": {
@@ -352,9 +371,17 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		replicas?: int32
 		selector: matchLabels: app: _name + "-app"
 		template: {
-			metadata: labels: app: _name + "-app"
+			metadata: {
+				labels: app: _name + "-app"
+				annotations: {
+					"sidecar.opentelemetry.io/inject":              string | *"default-sidecar"
+					"instrumentation.opentelemetry.io/inject-java": string | *"true"
+					"prometheus.io/port":                           string | *"\(#OpenTelemetryPrometheusExporterPort)"
+					"prometheus.io/scrape":                         string | *"true"
+				}
+			}
 			spec: #PodSpec & {
-				_projectionMounts: "\(_name)-files": {
+				_mounts: "\(_name)-files": {
 					volume: secret: secretName: _secretName
 				}
 				_containers: "\(_name)-container": _container
@@ -401,7 +428,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			metadata: labels: app: _name + "-app"
 			spec: #PodSpec & {
 				if _secretName != _|_ {
-					_projectionMounts: "\(_name)-files": {
+					_mounts: "\(_name)-files": {
 						volume: secret: secretName: _secretName
 					}
 				}

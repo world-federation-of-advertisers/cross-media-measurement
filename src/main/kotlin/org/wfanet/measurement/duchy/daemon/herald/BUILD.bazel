@@ -24,6 +24,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/duchy:computations_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/duchy/config:protocols_setup_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/system/v1alpha:computation_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/system/v1alpha:computation_participants_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/system/v1alpha:computations_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/system/v1alpha:differential_privacy_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",

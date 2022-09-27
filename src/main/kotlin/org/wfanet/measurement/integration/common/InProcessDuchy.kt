@@ -156,7 +156,16 @@ class InProcessDuchy(
         } else {
           NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG
         }
-      val herald = Herald(computationsClient, systemComputationsClient, protocolsSetupConfig)
+      val herald =
+        Herald(
+          heraldId = "$externalDuchyId Herald",
+          duchyId = externalDuchyId,
+          internalComputationsClient = computationsClient,
+          systemComputationsClient = systemComputationsClient,
+          systemComputationParticipantClient = systemComputationParticipantsClient,
+          protocolsSetupConfig = protocolsSetupConfig,
+          clock = Clock.systemUTC(),
+        )
       herald.continuallySyncStatuses(throttler)
     }
   }

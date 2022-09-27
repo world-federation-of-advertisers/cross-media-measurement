@@ -45,6 +45,7 @@ import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Measurement.DataProviderEntry
+import org.wfanet.measurement.api.v2alpha.Measurement.Failure
 import org.wfanet.measurement.api.v2alpha.Measurement.Result
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
@@ -66,7 +67,9 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedData
+import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
@@ -158,6 +161,33 @@ class FrontendSimulator(
   }
 
   /**
+   * A sequence of operations done in the simulator involving a reach and frequency measurement with
+   * invalid params.
+   */
+  suspend fun executeInvalidReachAndFrequency(runId: String) {
+    // Create a new measurement on behalf of the measurement consumer.
+    val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
+
+    val invalidMeasurement =
+      createMeasurement(measurementConsumer, runId, ::newInvalidReachAndFrequencyMeasurementSpec)
+    logger.info(
+      "Created invalid reach and frequency measurement ${invalidMeasurement.name}, state=${invalidMeasurement.state.name}"
+    )
+
+    var failure = getFailure(invalidMeasurement.name)
+    var attempts = 0
+    while (failure == null) {
+      attempts += 1
+      assertThat(attempts).isLessThan(10)
+      logger.info("Computation not done yet, wait for another 5 seconds...")
+      delay(Duration.ofSeconds(5).toMillis())
+      failure = getFailure(invalidMeasurement.name)
+    }
+    assertThat(failure.message).contains("reach_privacy_params.delta")
+    logger.info("Receive failed Measurement from Kingdom: ${failure.message}. Test passes.")
+  }
+
+  /**
    * A sequence of operations done in the simulator involving a direct reach and frequency
    * measurement.
    */
@@ -201,6 +231,44 @@ class FrontendSimulator(
       "Direct reach and frequency result is equal to the expected result. " +
         "Correctness Test passes."
     )
+  }
+
+  /** A sequence of operations done in the simulator involving a reach-only measurement. */
+  suspend fun executeReachOnly(runId: String) {
+    // Create a new measurement on behalf of the measurement consumer.
+    val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
+    val createdReachOnlyMeasurement =
+      createMeasurement(measurementConsumer, runId, ::newReachOnlyMeasurementSpec)
+    logger.info("Created reach-only measurement ${createdReachOnlyMeasurement.name}.")
+
+    // Get the CMMS computed result and compare it with the expected result.
+    var reachOnlyResult = getReachAndFrequencyResult(createdReachOnlyMeasurement.name)
+    var nAttempts = 0
+    while (reachOnlyResult == null && (nAttempts < 4)) {
+      nAttempts++
+      logger.info("Computation not done yet, wait for another 30 seconds.  Attempt $nAttempts")
+      delay(Duration.ofSeconds(30).toMillis())
+      reachOnlyResult = getReachAndFrequencyResult(createdReachOnlyMeasurement.name)
+    }
+    checkNotNull(reachOnlyResult) { "Timed out waiting for response to reach-only request" }
+    logger.info("Actual result: $reachOnlyResult")
+
+    val liquidLegionV2Protocol = createdReachOnlyMeasurement.protocolConfig.liquidLegionsV2
+    val expectedResultWithFrequencies =
+      getExpectedResult(createdReachOnlyMeasurement.name, liquidLegionV2Protocol)
+    val expectedResult = result {
+      reach = reach { value = expectedResultWithFrequencies.reach.value }
+      frequency = frequency { relativeFrequencyDistribution.putAll(mapOf(1L to 1.0)) }
+    }
+
+    logger.info("Expected result: $expectedResult")
+
+    assertDpResultsEqual(
+      expectedResult,
+      reachOnlyResult,
+      liquidLegionV2Protocol.maximumFrequency.toLong()
+    )
+    logger.info("Reach-only result is equal to the expected result. Correctness Test passes.")
   }
 
   /** A sequence of operations done in the simulator involving an impression measurement. */
@@ -262,7 +330,7 @@ class FrontendSimulator(
     maximumFrequency: Long
   ) {
     val reachRatio = expectedResult.reach.value.toDouble() / actualResult.reach.value.toDouble()
-    assertThat(reachRatio).isWithin(0.02).of(1.0)
+    assertThat(reachRatio).isWithin(0.10).of(1.0)
     (1L..maximumFrequency).forEach {
       val expected = expectedResult.frequency.relativeFrequencyDistributionMap.getOrDefault(it, 0.0)
       val actual = actualResult.frequency.relativeFrequencyDistributionMap.getOrDefault(it, 0.0)
@@ -353,6 +421,19 @@ class FrontendSimulator(
 
     val resultPair = measurement.resultsList[0]
     return parseAndVerifyResult(resultPair)
+  }
+
+  /** Gets the failure of an invalid [Measurement] if it is failed */
+  private suspend fun getFailure(measurementName: String): Failure? {
+    val measurement =
+      measurementsClient
+        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+        .getMeasurement(getMeasurementRequest { name = measurementName })
+    logger.info("Current Measurement state is: " + measurement.state)
+    if (measurement.state != Measurement.State.FAILED) {
+      return null
+    }
+    return measurement.failure
   }
 
   private suspend fun parseAndVerifyResult(resultPair: Measurement.ResultPair): Result {
@@ -446,6 +527,41 @@ class FrontendSimulator(
         width = 1.0f
       }
       this.nonceHashes += nonceHashes
+    }
+  }
+
+  private fun newReachOnlyMeasurementSpec(
+    serializedMeasurementPublicKey: ByteString,
+    nonceHashes: List<ByteString>
+  ): MeasurementSpec {
+    return measurementSpec {
+      measurementPublicKey = serializedMeasurementPublicKey
+      reachAndFrequency = reachAndFrequency {
+        reachPrivacyParams = outputDpParams
+        frequencyPrivacyParams = outputDpParams
+        maximumFrequencyPerUser = 1
+      }
+      vidSamplingInterval = vidSamplingInterval {
+        start = 0.0f
+        width = 1.0f
+      }
+      this.nonceHashes += nonceHashes
+    }
+  }
+
+  private fun newInvalidReachAndFrequencyMeasurementSpec(
+    serializedMeasurementPublicKey: ByteString,
+    nonceHashes: List<ByteString>
+  ): MeasurementSpec {
+    return newReachAndFrequencyMeasurementSpec(serializedMeasurementPublicKey, nonceHashes).copy {
+      val invalidPrivacyParams = differentialPrivacyParams {
+        epsilon = 1.0
+        delta = 0.0
+      }
+      reachAndFrequency = reachAndFrequency {
+        reachPrivacyParams = invalidPrivacyParams
+        frequencyPrivacyParams = invalidPrivacyParams
+      }
     }
   }
 

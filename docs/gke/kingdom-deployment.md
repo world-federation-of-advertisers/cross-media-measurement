@@ -165,15 +165,14 @@ gcloud container clusters create halo-cmm-kingdom-demo-cluster \
   --enable-network-policy --workload-pool=halo-kingdom-demo.svc.id.goog \
   --service-account="gke-cluster@halo-kingdom-demo.iam.gserviceaccount.com" \
   --database-encryption-key=projects/halo-cmm-dev/locations/us-central1/keyRings/test-key-ring/cryptoKeys/k8s-secret \
-  --num-nodes=3 --enable-autoscaling --min-nodes=1 --max-nodes=5 \
-  --machine-type=e2-small --cluster-version=1.24.2-gke.1900
+  --num-nodes=2 --enable-autoscaling --min-nodes=1 --max-nodes=5 \
+  --machine-type=e2-highcpu-2 --cluster-version=1.24.2-gke.1900
 ```
 
-Note: ~3 nodes with the `e2-small` machine type should be enough to run the
-Kingdom servers initially, but should be adjusted depending on expected load.
+Adjust the number of nodes and machine type according to your expected usage.
 
-The GKE version should be no older than `1.24.0` in order to support built-in gRPC 
-health probe.
+The GKE version should be no older than `1.24.0` in order to support built-in
+gRPC health probe.
 
 After creating the cluster, we can configure `kubectl` to be able to access it
 

@@ -126,8 +126,10 @@ class MeasurementReader(private val view: Measurement.View) :
         FROM
           Requisitions
           JOIN DataProviders USING (DataProviderId)
-          JOIN DataProviderCertificates
-            ON (DataProviderCertificates.CertificateId = Requisitions.DataProviderCertificateId)
+          JOIN DataProviderCertificates ON (
+            DataProviderCertificates.DataProviderId = Requisitions.DataProviderId
+            AND DataProviderCertificates.CertificateId = Requisitions.DataProviderCertificateId
+          )
         WHERE
           Requisitions.MeasurementConsumerId = Measurements.MeasurementConsumerId
           AND Requisitions.MeasurementId = Measurements.MeasurementId
@@ -138,13 +140,11 @@ class MeasurementReader(private val view: Measurement.View) :
           ExternalDuchyCertificateId,
           EncryptedResult
         FROM
-          Measurements as _Measurements
-          JOIN DuchyMeasurementResults USING(MeasurementConsumerId, MeasurementId)
-          JOIN DuchyCertificates
-            ON (DuchyCertificates.CertificateId = DuchyMeasurementResults.CertificateId)
+          DuchyMeasurementResults
+          JOIN DuchyCertificates USING (DuchyId, CertificateId)
         WHERE
-          Measurements.MeasurementConsumerId = DuchyMeasurementResults.MeasurementConsumerId
-          AND Measurements.MeasurementId = DuchyMeasurementResults.MeasurementId
+          DuchyMeasurementResults.MeasurementConsumerId = Measurements.MeasurementConsumerId
+          AND DuchyMeasurementResults.MeasurementId = Measurements.MeasurementId
       ) AS DuchyResults
     FROM
       Measurements
@@ -183,9 +183,11 @@ class MeasurementReader(private val view: Measurement.View) :
         FROM
           Requisitions
           JOIN DataProviders USING (DataProviderId)
-          JOIN DataProviderCertificates
-            ON (DataProviderCertificates.CertificateId = Requisitions.DataProviderCertificateId)
-          JOIN Certificates ON (Certificates.CertificateId = DataProviderCertificates.CertificateId)
+          JOIN DataProviderCertificates ON (
+            DataProviderCertificates.DataProviderId = Requisitions.DataProviderId
+            AND DataProviderCertificates.CertificateId = Requisitions.DataProviderCertificateId
+          )
+          JOIN Certificates USING (CertificateId)
         WHERE
           Requisitions.MeasurementConsumerId = Measurements.MeasurementConsumerId
           AND Requisitions.MeasurementId = Measurements.MeasurementId
@@ -211,7 +213,10 @@ class MeasurementReader(private val view: Measurement.View) :
             FROM
               DuchyMeasurementLogEntries
               JOIN MeasurementLogEntries USING (MeasurementConsumerId, MeasurementId, CreateTime)
-            WHERE DuchyMeasurementLogEntries.DuchyId = ComputationParticipants.DuchyId
+            WHERE
+              DuchyMeasurementLogEntries.DuchyId = ComputationParticipants.DuchyId
+              AND DuchyMeasurementLogEntries.MeasurementConsumerId = ComputationParticipants.MeasurementConsumerId
+              AND DuchyMeasurementLogEntries.MeasurementId = ComputationParticipants.MeasurementId
             ORDER BY MeasurementLogEntries.CreateTime DESC
           ) AS DuchyMeasurementLogEntries
         FROM
@@ -228,10 +233,8 @@ class MeasurementReader(private val view: Measurement.View) :
           ExternalDuchyCertificateId,
           EncryptedResult
         FROM
-          Measurements as _Measurements
-          JOIN DuchyMeasurementResults USING(MeasurementConsumerId, MeasurementId)
-          JOIN DuchyCertificates
-            ON (DuchyCertificates.CertificateId = DuchyMeasurementResults.CertificateId)
+          DuchyMeasurementResults
+          JOIN DuchyCertificates USING (CertificateId)
         WHERE
           Measurements.MeasurementConsumerId = DuchyMeasurementResults.MeasurementConsumerId
           AND Measurements.MeasurementId = DuchyMeasurementResults.MeasurementId

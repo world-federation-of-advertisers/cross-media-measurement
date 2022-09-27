@@ -105,7 +105,7 @@ package k8s
 			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args
 
 			spec: template: spec: {
-				_projectionMounts: {
+				_mounts: {
 					"mc-config": {
 						volume: secret: secretName: Reporting._mcConfigSecretName
 						volumeMount: mountPath: "/var/run/secrets/files/config/mc/"
@@ -122,7 +122,7 @@ package k8s
 	}
 
 	networkPolicies: {
-		"internal-data-server": {
+		"internal-reporting-data-server": {
 			_app_label: "postgres-reporting-data-server-app"
 			_sourceMatchLabels: [
 				"v1alpha-public-api-server-app",
@@ -131,7 +131,7 @@ package k8s
 				any: {}
 			}
 		}
-		"public-api-server": {
+		"public-reporting-api-server": {
 			_app_label: "v1alpha-public-api-server-app"
 			_destinationMatchLabels: ["postgres-reporting-data-server-app"]
 			_ingresses: {

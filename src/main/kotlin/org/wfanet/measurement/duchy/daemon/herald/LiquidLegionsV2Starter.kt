@@ -30,6 +30,7 @@ import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
+import org.wfanet.measurement.internal.duchy.computationStage
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig
 import org.wfanet.measurement.internal.duchy.createComputationRequest
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant
@@ -42,6 +43,8 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipant as SystemCom
 object LiquidLegionsV2Starter {
 
   private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+  val failStage = Stage.COMPLETE.toProtocolStage()
 
   suspend fun createComputation(
     computationStorageClient: ComputationsCoroutineStub,

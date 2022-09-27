@@ -110,6 +110,9 @@ message CompleteSetupPhaseRequest {
   // The parameters required for generating noise registers.
   // if unset, the worker only shuffles the register without adding any noise.
   RegisterNoiseGenerationParameters noise_parameters = 2;
+  // The maximum frequency that should be computed.
+  // If set to 1, then no frequency histogram is returned.
+  int32 maximum_frequency = 3;
 }
 
 // Response of the CompleteSetupPhase method.
