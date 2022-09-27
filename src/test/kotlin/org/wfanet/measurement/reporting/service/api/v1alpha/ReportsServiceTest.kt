@@ -303,18 +303,21 @@ private val MEASUREMENT_CONSUMER_PRIVATE_KEY_DATA = SECRETS_DIR.resolve("mc_enc_
 private val MEASUREMENT_CONSUMER_PRIVATE_KEY_HANDLE: PrivateKeyHandle =
   loadPrivateKey(MEASUREMENT_CONSUMER_PRIVATE_KEY_DATA)
 
-// InMemoryEncryptionKeyPairStore
-private val ENCRYPTION_KEY_PAIR_STORE =
-  InMemoryEncryptionKeyPairStore(
-    mapOf(MEASUREMENT_PUBLIC_KEY_DATA to MEASUREMENT_CONSUMER_PRIVATE_KEY_HANDLE)
-  )
-
 // Measurement consumer IDs and names
 private val MEASUREMENT_CONSUMER_EXTERNAL_IDS = listOf(111L, 112L)
 private val MEASUREMENT_CONSUMER_REFERENCE_IDS =
   MEASUREMENT_CONSUMER_EXTERNAL_IDS.map { externalIdToApiId(it) }
 private val MEASUREMENT_CONSUMER_NAMES =
   MEASUREMENT_CONSUMER_REFERENCE_IDS.map { MeasurementConsumerKey(it).toName() }
+
+// InMemoryEncryptionKeyPairStore
+private val ENCRYPTION_KEY_PAIR_STORE =
+  InMemoryEncryptionKeyPairStore(
+    mapOf(
+      MEASUREMENT_CONSUMER_NAMES[0] to
+        listOf(MEASUREMENT_PUBLIC_KEY_DATA to MEASUREMENT_CONSUMER_PRIVATE_KEY_HANDLE)
+    )
+  )
 
 // Measurement consumer certificate IDs
 private const val MEASUREMENT_CONSUMER_CERTIFICATE_EXTERNAL_ID = 121L
