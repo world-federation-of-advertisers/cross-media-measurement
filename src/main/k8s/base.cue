@@ -583,8 +583,9 @@ default_deny_ingress_and_egress: [{
 // K8s custom resource defined by OpenTelemetry Operator used for creating
 // an OpenTelemetry Collector.
 #OpenTelemetryCollector: {
-	_name:   string
-	_config: string
+	_name:                string
+	_config:              string
+	_serviceAccountName?: string
 
 	apiVersion: "opentelemetry.io/v1alpha1"
 	kind:       "OpenTelemetryCollector"
