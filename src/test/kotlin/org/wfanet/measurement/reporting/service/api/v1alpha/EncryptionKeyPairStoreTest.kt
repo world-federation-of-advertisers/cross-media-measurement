@@ -50,7 +50,8 @@ private val PUBLIC_KEY_2 = PUBLIC_KEY_FILE_2.readByteString()
 private val PRIVATE_KEY_FILE_2 = SECRETS_DIR.resolve("edp1_enc_private.tink").toFile()
 private val PRIVATE_KEY_HANDLE_2 = loadPrivateKey(PRIVATE_KEY_FILE_2)
 private val NON_EXISTENT_PUBLIC_KEY = "non existent public key".toByteStringUtf8()
-
+private val PRINCIPAL_NAME = "measurement_consumer1"
+private val NON_EXISTENT_PRINCIPAL_NAME = "measurement_consumer2"
 private val PLAIN_TEXT = "THis is plain text".toByteStringUtf8()
 
 @RunWith(JUnit4::class)
@@ -59,27 +60,47 @@ class EncryptionKeyPairStoreTest {
   fun `InMemoryEncryptionKeyPairStore returns PrivateKeyHandle for existing public key`() {
     val keyPairStore = InMemoryEncryptionKeyPairStore(getKeyPairs())
 
-    verifyKeyPair(keyPairStore, PUBLIC_KEY_1)
-    verifyKeyPair(keyPairStore, PUBLIC_KEY_2)
+    verifyKeyPair(keyPairStore, PRINCIPAL_NAME, PUBLIC_KEY_1)
+    verifyKeyPair(keyPairStore, PRINCIPAL_NAME, PUBLIC_KEY_2)
   }
 
   @Test
   fun `InMemoryEncryptionKeyPairStore returns null for non-existing public key`() {
     val keyPairStore = InMemoryEncryptionKeyPairStore(getKeyPairs())
 
-    assertThat(runBlocking { keyPairStore.getPrivateKeyHandle(NON_EXISTENT_PUBLIC_KEY) }).isNull()
+    assertThat(
+        runBlocking { keyPairStore.getPrivateKeyHandle(PRINCIPAL_NAME, NON_EXISTENT_PUBLIC_KEY) }
+      )
+      .isNull()
   }
 
-  private fun getKeyPairs(): Map<ByteString, PrivateKeyHandle> {
+  @Test
+  fun `InMemoryEncryptionKeyPairStore returns null for non-existing principal`() {
+    val keyPairStore = InMemoryEncryptionKeyPairStore(getKeyPairs())
+
+    assertThat(
+        runBlocking { keyPairStore.getPrivateKeyHandle(NON_EXISTENT_PRINCIPAL_NAME, PUBLIC_KEY_1) }
+      )
+      .isNull()
+  }
+
+  private fun getKeyPairs(): Map<String, List<Pair<ByteString, PrivateKeyHandle>>> {
     return mapOf(
-      PUBLIC_KEY_1 to PRIVATE_KEY_HANDLE_1,
-      PUBLIC_KEY_2 to PRIVATE_KEY_HANDLE_2,
+      PRINCIPAL_NAME to
+        listOf(
+          PUBLIC_KEY_1 to PRIVATE_KEY_HANDLE_1,
+          PUBLIC_KEY_2 to PRIVATE_KEY_HANDLE_2,
+        )
     )
   }
 
-  private fun verifyKeyPair(keyPairStore: InMemoryEncryptionKeyPairStore, publicKey: ByteString) {
+  private fun verifyKeyPair(
+    keyPairStore: InMemoryEncryptionKeyPairStore,
+    principalName: String,
+    publicKey: ByteString
+  ) {
     val privateKeyHandle = runBlocking {
-      requireNotNull(keyPairStore.getPrivateKeyHandle(publicKey))
+      requireNotNull(keyPairStore.getPrivateKeyHandle(principalName, publicKey))
     }
     val publicKeyHandle = TinkPublicKeyHandle(publicKey)
     val encryptedText = publicKeyHandle.hybridEncrypt(PLAIN_TEXT)
