@@ -98,7 +98,7 @@ cue_dump(
 
 cue_dump(
     name = "edp_simulators_csv",
-    srcs = None,
+    srcs = ["edp_simulators_csv.cue"],
     cue_tags = {
         "secret_name": TEST_K8S_SETTINGS.secret_name,
         "mc_name": TEST_K8S_SETTINGS.mc_name,
@@ -108,7 +108,6 @@ cue_dump(
         "edp4_name": TEST_K8S_SETTINGS.edp4_name,
         "edp5_name": TEST_K8S_SETTINGS.edp5_name,
         "edp6_name": TEST_K8S_SETTINGS.edp6_name,
-        "eventsCsvPath": "/data/csvfiles/synthetic-labelled-events.csv",
     },
     tags = ["manual"],
     deps = [
