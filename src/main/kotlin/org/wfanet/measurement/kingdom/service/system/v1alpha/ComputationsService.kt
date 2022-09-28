@@ -15,11 +15,20 @@
 package org.wfanet.measurement.kingdom.service.system.v1alpha
 
 import io.grpc.Status
-import java.time.Duration
+import io.grpc.StatusException
 import java.util.logging.Logger
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.ExperimentalTime
+import kotlin.time.TimeMark
+import kotlin.time.TimeSource
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.isActive
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
@@ -27,7 +36,6 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.duchyIdentityFromContext
-import org.wfanet.measurement.common.renewedFlow
 import org.wfanet.measurement.internal.kingdom.GetMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub
@@ -43,12 +51,14 @@ import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsContinuatio
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsRequest
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
 import org.wfanet.measurement.system.v1alpha.streamActiveComputationsContinuationToken
+import org.wfanet.measurement.system.v1alpha.streamActiveComputationsResponse
 
+@OptIn(ExperimentalTime::class)
 class ComputationsService(
   private val measurementsClient: MeasurementsCoroutineStub,
   private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext,
-  private val reconnectInterval: Duration = Duration.ofHours(1),
-  private val reconnectDelay: Duration = Duration.ofSeconds(1)
+  private val streamingTimeout: Duration = 10.minutes,
+  private val streamingThrottle: Duration = 1.seconds
 ) : ComputationsCoroutineImplBase() {
   override suspend fun getComputation(request: GetComputationRequest): Computation {
     val computationKey =
@@ -65,24 +75,40 @@ class ComputationsService(
   override fun streamActiveComputations(
     request: StreamActiveComputationsRequest
   ): Flow<StreamActiveComputationsResponse> {
+    val streamingDeadline: TimeMark = TimeSource.Monotonic.markNow() + streamingTimeout
     var currentContinuationToken = ContinuationTokenConverter.decode(request.continuationToken)
-    return renewedFlow(reconnectInterval, reconnectDelay) {
-      logger.info("Streaming active global computations since $currentContinuationToken")
-      streamMeasurements(currentContinuationToken)
-        .onEach {
-          currentContinuationToken = streamActiveComputationsContinuationToken {
-            updateTimeSince = it.updateTime
-            lastSeenExternalComputationId = it.externalComputationId
+    return flow {
+      // Continually request measurements from internal service until cancelled or streamingDeadline
+      // is reached.
+      //
+      // TODO(@SanjayVas): Figure out an alternative mechanism (e.g. Spanner change streams) to
+      // avoid having to poll internal service.
+      while (currentCoroutineContext().isActive && streamingDeadline.hasNotPassedNow()) {
+        streamMeasurements(currentContinuationToken)
+          .catch { cause ->
+            if (cause !is StatusException) throw cause
+            throw when (cause.status.code) {
+                Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+                Status.Code.CANCELLED -> Status.CANCELLED
+                else -> Status.UNKNOWN
+              }
+              .withCause(cause)
+              .asRuntimeException()
           }
-        }
-        .map { measurement ->
-          StreamActiveComputationsResponse.newBuilder()
-            .apply {
+          .collect { measurement ->
+            currentContinuationToken = streamActiveComputationsContinuationToken {
+              updateTimeSince = measurement.updateTime
+              lastSeenExternalComputationId = measurement.externalComputationId
+            }
+            val response = streamActiveComputationsResponse {
               continuationToken = ContinuationTokenConverter.encode(currentContinuationToken)
               computation = measurement.toSystemComputation()
             }
-            .build()
-        }
+            emit(response)
+          }
+
+        delay(streamingThrottle)
+      }
     }
   }
 
