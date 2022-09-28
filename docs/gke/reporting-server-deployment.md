@@ -127,6 +127,10 @@ After creating the cluster, we can configure `kubectl` to be able to access it
 gcloud container clusters get-credentials reporting
 ```
 
+### Add Metrics to the cluster
+
+See [Metrics Deployment](metrics-deployment.md).
+
 ### Quick start
 
 Supposing you want to create a cluster named `reporting` for the Reporting

@@ -372,7 +372,10 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		selector: matchLabels: app: _name + "-app"
 		template: {
 			metadata: {
-				labels: app: _name + "-app"
+				labels: {
+					app:    _name + "-app"
+					scrape: string | *"true"
+				}
 				annotations: {
 					"sidecar.opentelemetry.io/inject":              string | *"default-sidecar"
 					"instrumentation.opentelemetry.io/inject-java": string | *"true"
@@ -465,8 +468,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 // allow all traffic from pods matching _sourceMatchLabels to pods matching
 // _destinationMatchLabels.
 #NetworkPolicy: {
-	_name:      string
-	_app_label: string
+	_name:       string
+	_app_label?: string
 	_sourceMatchLabels: [...string]
 	_destinationMatchLabels: [...string]
 	_ingresses: [Name=_]: #IngressRule
@@ -517,7 +520,11 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		}
 	}
 	spec: {
-		podSelector: matchLabels: app: _app_label
+		podSelector: matchLabels: {
+			if _app_label != _|_ {
+				app: _app_label
+			}
+		}
 		policyTypes: ["Ingress", "Egress"]
 		ingress: [ for _, ingress in _ingresses {ingress}]
 		egress: [ for _, egress in _egresses {egress}]

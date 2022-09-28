@@ -185,3 +185,21 @@ cue_dump(
         "//src/main/k8s:reporting",
     ],
 )
+
+cue_dump(
+    name = "open_telemetry_gke",
+    srcs = ["open_telemetry_gke.cue"],
+    tags = ["manual"],
+    deps = [
+        ":base_gke",
+        ":config",
+        "//src/main/k8s:open_telemetry",
+    ],
+)
+
+cue_dump(
+    name = "prometheus_gke",
+    srcs = ["prometheus_gke.cue"],
+    tags = ["manual"],
+    deps = ["//src/main/k8s:base"],
+)
