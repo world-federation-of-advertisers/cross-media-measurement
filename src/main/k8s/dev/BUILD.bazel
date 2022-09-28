@@ -2,6 +2,7 @@ load("@wfa_rules_cue//cue:defs.bzl", "cue_library")
 load(
     "//build:variables.bzl",
     "DUCHY_K8S_SETTINGS",
+    "IMAGE_REPOSITORY_SETTINGS",
     "KINGDOM_K8S_SETTINGS",
     "REPORTING_K8S_SETTINGS",
     "SIMULATOR_K8S_SETTINGS",
@@ -28,6 +29,7 @@ cue_dump(
     srcs = ["kingdom_gke.cue"],
     cue_tags = {
         "secret_name": KINGDOM_K8S_SETTINGS.secret_name,
+        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
     },
     tags = ["manual"],
     deps = [
@@ -42,6 +44,7 @@ cue_dump(
     srcs = ["resource_setup_gke.cue"],
     cue_tags = {
         "secret_name": KINGDOM_K8S_SETTINGS.secret_name,
+        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
     },
     tags = ["manual"],
     deps = [
@@ -56,6 +59,7 @@ cue_dump(
     srcs = ["panel_match_resource_setup_gke.cue"],
     cue_tags = {
         "secret_name": KINGDOM_K8S_SETTINGS.secret_name,
+        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
     },
     tags = ["manual"],
     deps = [
@@ -73,6 +77,7 @@ cue_dump(
         "secret_name": DUCHY_K8S_SETTINGS.secret_name,
         "certificate_id": DUCHY_K8S_SETTINGS.certificate_id,
         "cloud_storage_bucket": DUCHY_K8S_SETTINGS.storage_bucket,
+        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
     },
     tags = ["manual"],
     deps = [
@@ -92,6 +97,7 @@ cue_dump(
         "secret_name": DUCHY_K8S_SETTINGS.secret_name,
         "certificate_id": DUCHY_K8S_SETTINGS.certificate_id,
         "cloud_storage_bucket": DUCHY_K8S_SETTINGS.storage_bucket,
+        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
     },
     tags = ["manual"],
     deps = [
@@ -111,6 +117,7 @@ cue_dump(
         "secret_name": DUCHY_K8S_SETTINGS.secret_name,
         "certificate_id": DUCHY_K8S_SETTINGS.certificate_id,
         "cloud_storage_bucket": DUCHY_K8S_SETTINGS.storage_bucket,
+        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
     },
     tags = ["manual"],
     deps = [
@@ -134,6 +141,7 @@ cue_dump(
         "edp6_name": SIMULATOR_K8S_SETTINGS.edp6_name,
         "secret_name": SIMULATOR_K8S_SETTINGS.secret_name,
         "cloud_storage_bucket": SIMULATOR_K8S_SETTINGS.storage_bucket,
+        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
     },
     tags = ["manual"],
     deps = [
@@ -151,6 +159,7 @@ cue_dump(
         "mc_api_key": SIMULATOR_K8S_SETTINGS.mc_api_key,
         "secret_name": SIMULATOR_K8S_SETTINGS.secret_name,
         "cloud_storage_bucket": SIMULATOR_K8S_SETTINGS.storage_bucket,
+        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
     },
     tags = ["manual"],
     deps = [
@@ -167,6 +176,7 @@ cue_dump(
     cue_tags = {
         "secret_name": REPORTING_K8S_SETTINGS.secret_name,
         "mc_config_secret_name": REPORTING_K8S_SETTINGS.mc_config_secret_name,
+        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
     },
     tags = ["manual"],
     deps = [
