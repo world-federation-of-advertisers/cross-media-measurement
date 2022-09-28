@@ -60,13 +60,13 @@ The `dev` configuration uses the
 docker images. Enable the Google Container Registry API in the console if you
 haven't done it. If you use other repositories, adjust the commands accordingly.
 
-Assuming a project named `halo-cmm-dev`, run the following to build and push the
-images:
+Assuming a project named `halo-cmm-dev` and an image tag `build-0001`, run the
+following to build and push the images:
 
 ```shell
 bazel query 'filter("reporting", kind("container_push", //src/main/docker:all))' |
   xargs bazel build -c opt --define container_registry=gcr.io \
-  --define image_repo_prefix=halo-cmm-dev
+  --define image_repo_prefix=halo-cmm-dev --define image_tag=build-0001
 ```
 
 and then push them:
@@ -74,7 +74,7 @@ and then push them:
 ```shell
 bazel query 'filter("reporting", kind("container_push", //src/main/docker:all))' |
   xargs -n 1 bazel run -c opt --define container_registry=gcr.io \
-  --define image_repo_prefix=halo-cmm-dev
+  --define image_repo_prefix=halo-cmm-dev --define image_tag=build-0001
 ```
 
 Tip: If you're using [Hybrid Development](../building.md#hybrid-development) for
@@ -332,7 +332,8 @@ To generate the YAML manifest from the CUE files, run the following
 ```shell
 bazel build //src/main/k8s/dev:reporting_gke \
   --define=k8s_reporting_secret_name=signing-abcdef
-  --define=k8s_reporting_mc_config_secret_name=mc-config-abcdef
+  --define=k8s_reporting_mc_config_secret_name=mc-config-abcdef \
+  --define image_tag=build-0001
 ```
 
 You can also do your customization to the generated YAML file rather than to the
