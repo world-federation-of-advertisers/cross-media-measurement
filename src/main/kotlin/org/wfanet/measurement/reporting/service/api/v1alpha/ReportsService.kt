@@ -665,6 +665,7 @@ class ReportsService(
         }
       }
     }
+    val principalName = principal.resourceKey.toName()
 
     val apiAuthenticationKey: String = principal.config.apiKey
 
@@ -696,7 +697,7 @@ class ReportsService(
       reports +=
         results
           .subList(0, min(results.size, listReportsPageToken.pageSize))
-          .map { syncReport(it, apiAuthenticationKey) }
+          .map { syncReport(it, apiAuthenticationKey, principalName) }
           .map(InternalReport::toReport)
 
       if (nextPageToken != null) {
@@ -721,6 +722,7 @@ class ReportsService(
         }
       }
     }
+    val principalName = principal.resourceKey.toName()
 
     val apiAuthenticationKey: String = principal.config.apiKey
 
@@ -736,7 +738,7 @@ class ReportsService(
         throw Exception("Unable to get the report from the reporting database.", e)
       }
 
-    val syncedInternalReport = syncReport(internalReport, apiAuthenticationKey)
+    val syncedInternalReport = syncReport(internalReport, apiAuthenticationKey, principalName)
 
     return syncedInternalReport.toReport()
   }
@@ -744,7 +746,8 @@ class ReportsService(
   /** Syncs the [InternalReport] and all [InternalMeasurement]s used by it. */
   private suspend fun syncReport(
     internalReport: InternalReport,
-    apiAuthenticationKey: String
+    apiAuthenticationKey: String,
+    principalName: String,
   ): InternalReport {
     // Report with SUCCEEDED or FAILED state is already synced.
     if (
@@ -766,7 +769,8 @@ class ReportsService(
     syncMeasurements(
       internalReport.measurementsMap,
       internalReport.measurementConsumerReferenceId,
-      apiAuthenticationKey
+      apiAuthenticationKey,
+      principalName,
     )
 
     return try {
@@ -792,6 +796,7 @@ class ReportsService(
     measurementsMap: Map<String, InternalMeasurement>,
     measurementConsumerReferenceId: String,
     apiAuthenticationKey: String,
+    principalName: String,
   ) = coroutineScope {
     for ((measurementReferenceId, internalMeasurement) in measurementsMap) {
       // Measurement with SUCCEEDED state is already synced
@@ -802,6 +807,7 @@ class ReportsService(
           measurementReferenceId,
           measurementConsumerReferenceId,
           apiAuthenticationKey,
+          principalName,
         )
       }
     }
@@ -811,7 +817,8 @@ class ReportsService(
   private suspend fun syncMeasurement(
     measurementReferenceId: String,
     measurementConsumerReferenceId: String,
-    apiAuthenticationKey: String
+    apiAuthenticationKey: String,
+    principalName: String,
   ) {
     val measurementResourceName =
       MeasurementKey(measurementConsumerReferenceId, measurementReferenceId).toName()
@@ -831,7 +838,10 @@ class ReportsService(
         // SUCCEEDED state
         val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
         val encryptionPrivateKeyHandle =
-          encryptionKeyPairStore.getPrivateKeyHandle(measurementSpec.measurementPublicKey)
+          encryptionKeyPairStore.getPrivateKeyHandle(
+            principalName,
+            measurementSpec.measurementPublicKey
+          )
             ?: failGrpc(Status.PERMISSION_DENIED) { "Encryption private key not found" }
 
         val setInternalMeasurementResultRequest =

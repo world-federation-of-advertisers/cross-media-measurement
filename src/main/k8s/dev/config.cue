@@ -61,7 +61,8 @@ import "strings"
 	#ContainerRegistryConfig
 
 	repoSuffix: string
-	image:      strings.Join([Config.registry, Config.repoPrefix, repoSuffix], "/")
+	tag:        string @tag("image_tag")
+	image:      strings.Join([Config.registry, Config.repoPrefix, repoSuffix], "/") + ":\(tag)"
 }
 
 #PostgresConfig: {

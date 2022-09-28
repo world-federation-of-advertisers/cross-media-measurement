@@ -26,6 +26,9 @@ IMAGE_REPOSITORY_SETTINGS = struct(
 
     # Common prefix of container image repositories.
     repository_prefix = "$(image_repo_prefix)",
+
+    # Common tag for container images.
+    image_tag = "$(image_tag)",
 )
 
 # Settings for test Kubernetes deployments.

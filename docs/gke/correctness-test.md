@@ -60,7 +60,7 @@ values for your container registry):
 ```shell
 bazel run //src/main/docker:push_resource_setup_runner_image \
   -c opt --define container_registry=gcr.io \
-  --define image_repo_prefix=halo-cmm-demo
+  --define image_repo_prefix=halo-cmm-demo --define image_tag=build-0001
 ```
 
 ### Create and apply K8s manifest
@@ -71,7 +71,8 @@ You can generate the K8s manifest for this job using the
 
 ```shell
 bazel build //src/main/k8s/dev:resource_setup_gke \
-  --define=k8s_kingdom_secret_name=certs-and-configs-gb46dm7468
+  --define=k8s_kingdom_secret_name=certs-and-configs-gb46dm7468 \
+  --define image_tag=build-0001
 ```
 
 By default, this will generate the manifest at
@@ -358,7 +359,7 @@ acts as one of the 6 different EDPs.
     ```shell
     bazel run -c opt //src/main/docker:push_gcs_edp_simulator_runner_image \
       --define container_registry=gcr.io \
-      --define image_repo_prefix=halo-cmm-demo
+      --define image_repo_prefix=halo-cmm-demo --define image_tag=build-0001
     ```
 
 1.  Generate K8s manifest
@@ -392,7 +393,8 @@ acts as one of the 6 different EDPs.
       --define=edp3_name=dataProviders/SQ99TmehSA8 \
       --define=edp4_name=dataProviders/TBZkB5heuL0 \
       --define=edp5_name=dataProviders/HOCBxZheuS8 \
-      --define=edp6_name=dataProviders/VGExFmehRhY
+      --define=edp6_name=dataProviders/VGExFmehRhY \
+      --define image_tag=build-0001
     ```
 
 1.  Apply the K8s manifest
@@ -488,7 +490,8 @@ correctness test. It works by:
       --define=k8s_simulator_secret_name=certs-and-configs-gb46dm7468 \
       --define=simulator_storage_bucket=halo-cmm-demo-bucket \
       --define=mc_name=measurementConsumers/TGWOaWehLQ8 \
-      --define=mc_api_key=ZEhkVZhe1Q0
+      --define=mc_api_key=ZEhkVZhe1Q0 \
+      --define image_tag=build-0001
     ```
 
 5.  Apply the K8s manifest

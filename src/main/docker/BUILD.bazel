@@ -13,6 +13,7 @@ package(default_testonly = True)  #TODO: delete when InMemoryKeyStore and FakeHy
         image = image_spec.image,
         registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
         repository = image_spec.repository,
+        tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
         tags = ["manual"],
     )
     for image_spec in ALL_GKE_IMAGES

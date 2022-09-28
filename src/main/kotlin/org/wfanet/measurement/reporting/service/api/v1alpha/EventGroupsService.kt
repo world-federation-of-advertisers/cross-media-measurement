@@ -54,6 +54,7 @@ class EventGroupsService(
         "Cannot list event groups with entities other than measurement consumer."
       }
     }
+    val principalName = principal.resourceKey.toName()
     val apiAuthenticationKey: String = principal.config.apiKey
     val dataProviderName =
       CmmsDataProviderKey(
@@ -78,7 +79,10 @@ class EventGroupsService(
     val parsedEventGroupMetadataMap: Map<String, CmmsEventGroup.Metadata> =
       cmmsEventGroups.associate {
         val measurementConsumerPrivateKey =
-          encryptionKeyPairStore.getPrivateKeyHandle(it.measurementConsumerPublicKey.data)
+          encryptionKeyPairStore.getPrivateKeyHandle(
+            principalName,
+            it.measurementConsumerPublicKey.data
+          )
             ?: failGrpc(Status.FAILED_PRECONDITION) {
               "Public key does not have corresponding private key"
             }

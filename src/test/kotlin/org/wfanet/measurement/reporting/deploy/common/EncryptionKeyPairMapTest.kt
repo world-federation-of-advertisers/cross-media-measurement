@@ -62,14 +62,25 @@ private val PUBLIC_KEY_FILE_1 = SECRETS_DIR.resolve("mc_enc_public.tink").toFile
 private val PUBLIC_KEY_1 = PUBLIC_KEY_FILE_1.readByteString()
 private val PUBLIC_KEY_FILE_2 = SECRETS_DIR.resolve("edp1_enc_public.tink").toFile()
 private val PUBLIC_KEY_2 = PUBLIC_KEY_FILE_2.readByteString()
+private val PUBLIC_KEY_FILE_3 = SECRETS_DIR.resolve("edp2_enc_public.tink").toFile()
+private val PUBLIC_KEY_3 = PUBLIC_KEY_FILE_3.readByteString()
 private val NON_EXISTENT_PUBLIC_KEY = "non existent public key".toByteStringUtf8()
-
-private val PLAIN_TEXT = "THis is plain text".toByteStringUtf8()
+private val MEASUREMENT_CONSUMER1 = "measurement_consumer1"
+private val MEASUREMENT_CONSUMER2 = "measurement_consumer2"
+private val NON_EXISTENT_MEASUREMENT_CONSUMER = "non_existent_measurement_consumer"
+private val PLAIN_TEXT = "This is plain text".toByteStringUtf8()
 
 @RunWith(JUnit4::class)
 class EncryptionKeyPairMapTest {
+
+  private fun findKeyPair(
+    principal: String,
+    publicKey: ByteString,
+    keyPairMap: Map<String, List<Pair<ByteString, PrivateKeyHandle>>>,
+  ) =
+    keyPairMap[principal]?.find { (key, _): Pair<ByteString, PrivateKeyHandle> -> key == publicKey }
   @Test
-  fun `EncryptionKeyPairStore returns corresponding private keys`() {
+  fun `keyPairMap returns corresponding private keys`() {
     val args =
       arrayOf(
         "--key-pair-dir=$SECRETS_DIR",
@@ -77,24 +88,52 @@ class EncryptionKeyPairMapTest {
       )
 
     runTest(args) { keyPairMap ->
-      verifyKeyPair(PUBLIC_KEY_1, requireNotNull(keyPairMap[PUBLIC_KEY_1]))
-      verifyKeyPair(PUBLIC_KEY_2, requireNotNull(keyPairMap[PUBLIC_KEY_2]))
+      val findPrivateKey = { principal: String, publicKey: ByteString ->
+        findKeyPair(principal, publicKey, keyPairMap)?.second
+      }
+      verifyKeyPair(
+        PUBLIC_KEY_1,
+        requireNotNull(findPrivateKey(MEASUREMENT_CONSUMER1, PUBLIC_KEY_1))
+      )
+      verifyKeyPair(
+        PUBLIC_KEY_2,
+        requireNotNull(findPrivateKey(MEASUREMENT_CONSUMER1, PUBLIC_KEY_2))
+      )
+      verifyKeyPair(
+        PUBLIC_KEY_3,
+        requireNotNull(findPrivateKey(MEASUREMENT_CONSUMER2, PUBLIC_KEY_3))
+      )
     }
   }
 
   @Test
-  fun `EncryptionKeyPairStore returns null when private key is not found`() {
+  fun `keyPairMap returns null when private key is not found`() {
     val args =
       arrayOf(
         "--key-pair-dir=$SECRETS_DIR",
         "--key-pair-config-file=$ENCRYPTION_KEY_PAIR_MAP",
       )
 
-    runTest(args) { keyPairMap -> assertThat(keyPairMap[NON_EXISTENT_PUBLIC_KEY]).isNull() }
+    runTest(args) { keyPairMap ->
+      assertThat(findKeyPair(MEASUREMENT_CONSUMER1, NON_EXISTENT_PUBLIC_KEY, keyPairMap)).isNull()
+    }
+  }
+
+  @Test
+  fun `keyPairMap returns null when principal is not found`() {
+    val args =
+      arrayOf(
+        "--key-pair-dir=$SECRETS_DIR",
+        "--key-pair-config-file=$ENCRYPTION_KEY_PAIR_MAP",
+      )
+
+    runTest(args) { keyPairMap ->
+      assertThat(findKeyPair(NON_EXISTENT_MEASUREMENT_CONSUMER, PUBLIC_KEY_1, keyPairMap)).isNull()
+    }
   }
 
   private class KeyPairMapWrapper(
-    val verifyBlock: (keyPairs: Map<ByteString, PrivateKeyHandle>) -> Unit
+    val verifyBlock: (keyPairs: Map<String, List<Pair<ByteString, PrivateKeyHandle>>>) -> Unit
   ) : Runnable {
     @Mixin lateinit var encryptionKeyPairMap: EncryptionKeyPairMap
 
@@ -105,7 +144,7 @@ class EncryptionKeyPairMapTest {
 
   private fun runTest(
     args: Array<String>,
-    verifyBlock: (Map<ByteString, PrivateKeyHandle>) -> Unit
+    verifyBlock: (Map<String, List<Pair<ByteString, PrivateKeyHandle>>>) -> Unit
   ) {
     val returnCode = CommandLine(KeyPairMapWrapper(verifyBlock)).execute(*args)
     assertThat(returnCode).isEqualTo(0)
