@@ -50,6 +50,7 @@ kt_jvm_test(
 kt_jvm_test(
     name = "CsvEventQueryTest",
     srcs = ["CsvEventQueryTest.kt"],
+    data = ["CsvEventQueryTestEvents.csv"],
     test_class = "org.wfanet.measurement.loadtest.dataprovider.CsvEventQueryTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",

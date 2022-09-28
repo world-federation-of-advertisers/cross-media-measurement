@@ -34,7 +34,8 @@ class ForwardStorageEdpSimulatorRunner : EdpSimulatorRunner() {
     names = ["--events-csv"],
     description =
       [
-        "A filepath to a CSV file specifying the event data that will be returned by this simulator"
+        "A filepath to a CSV file specifying the event data that will be returned by this simulator." +
+          "If not specified, RandomEventQuery will be used"
       ],
   )
   var eventsCsv: File? = null
