@@ -15,8 +15,9 @@ package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.common.truth.Truth.assertThat
 import java.io.File
+import java.nio.file.Path
+import java.nio.file.Paths
 import kotlin.test.assertFails
-import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -24,9 +25,24 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplate.Gender.Value as BannerGender
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate.AgeRange.Value as PrivacyAge
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate.Gender.Value as PrivacyGender
+import org.wfanet.measurement.common.getRuntimePath
 
-private const val EDP0 = "testing"
-private val FILEPATH: File = File("")
+val directoryPath: Path =
+  Paths.get(
+    "wfa_measurement_system",
+    "src",
+    "test",
+    "kotlin",
+    "org",
+    "wfanet",
+    "measurement",
+    "loadtest",
+    "dataprovider",
+  )
+const val fileName = "CsvEventQueryTestEvents.csv"
+private val FILE: File = File(getRuntimePath(directoryPath.resolve(fileName)).toString())
+
+private const val EDP1 = "edp1"
 private val BANNER_FEMALE = BannerGender.GENDER_FEMALE.ordinal
 private val PRIVACY_35_54 = PrivacyAge.AGE_35_TO_54.ordinal
 private val PRIVACY_MALE = PrivacyGender.GENDER_MALE.ordinal
@@ -41,35 +57,10 @@ private val NONMATCHING_EVENT_FILTER = eventFilter {
 }
 private val EMPTY_EVENT_FILTER = eventFilter { expression = "" }
 
-private val CSV_HEADER =
-  listOf("Publisher_ID", "Event_ID", "Sex", "Age_Group", "Social_Grade", "Date", "Complete", "VID")
-
-private val CSV_EVENTS_LIST =
-  listOf(
-    listOf(1, 1, "M", "18_34", "ABC1", "04/03/2021", 1, 1000077),
-    listOf(1, 2, "M", "35_54", "ABC1", "04/03/2021", 1, 1000650),
-    listOf(1, 3, "M", "55+", "ABC1", "04/03/2021", 1, 1000694),
-    listOf(1, 4, "M", "55+", "C2DE", "04/03/2021", 1, 1000759),
-    listOf(1, 5, "M", "55+", "C2DE", "04/03/2021", 1, 1000759),
-    listOf(1, 6, "F", "18_34", "ABC1", "04/03/2021", 1, 1000997),
-    listOf(1, 7, "F", "18_34", "C2DE", "04/03/2021", 1, 1001028),
-    listOf(1, 8, "F", "35_54", "ABC1", "04/03/2021", 1, 1001096),
-    listOf(1, 9, "F", "35_54", "ABC1", "04/03/2021", 1, 1001096),
-    listOf(1, 10, "F", "55+", "ABC1", "04/03/2021", 1, 1001289)
-  )
-
-private val EVENTS = CSV_EVENTS_LIST.map { event -> CSV_HEADER.zip(event).toMap() }
-
 @RunWith(JUnit4::class)
 class CsvEventQueryTest {
   companion object {
-    @JvmStatic private val eventQuery = CsvEventQuery(EDP0, FILEPATH)
-
-    @BeforeClass
-    @JvmStatic
-    fun initialize() {
-      eventQuery.readCSVData(EVENTS)
-    }
+    @JvmStatic private val eventQuery = CsvEventQuery(EDP1, FILE)
   }
 
   @Test

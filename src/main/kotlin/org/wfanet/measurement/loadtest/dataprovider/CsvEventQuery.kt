@@ -16,7 +16,6 @@ package org.wfanet.measurement.loadtest.dataprovider
 import com.google.protobuf.Message
 import com.opencsv.CSVReaderBuilder
 import java.io.File
-import java.io.FileReader
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplate.Gender as BannerGender
@@ -51,9 +50,8 @@ class CsvEventQuery(private val edpDisplayName: String, private val file: File) 
     this.eventsList = mutableListOf()
 
     logger.info("Reading data from CSV file $file...")
-    val fileReader = FileReader(file.toString())
 
-    fileReader.use {
+    file.reader().use { fileReader ->
       val csvReader = CSVReaderBuilder(fileReader).withSkipLines(1).build()
       csvReader.use { reader ->
         var row = reader.readNext()
@@ -73,7 +71,7 @@ class CsvEventQuery(private val edpDisplayName: String, private val file: File) 
 
   /** Generates Ids by applying filter on events */
   override fun getUserVirtualIds(eventFilter: EventFilter): Sequence<Long> {
-    if (edpDisplayName != "testing" && !this::vidsList.isInitialized) readCsvFile()
+    if (!this::vidsList.isInitialized) readCsvFile()
 
     logger.info("Querying and filtering VIDs from CsvEventQuery...")
     val program =
@@ -132,17 +130,6 @@ class CsvEventQuery(private val edpDisplayName: String, private val file: File) 
             gender = TestBannerTemplate.gender { value = BannerGender.Value.GENDER_UNSPECIFIED }
         }
       }
-    }
-  }
-
-  /** This function is to simulate reading CSV data in the unit test */
-  fun readCSVData(csvEvents: List<Map<String, Any>>) {
-    this.vidsList = mutableListOf()
-    this.eventsList = mutableListOf()
-
-    csvEvents.forEach {
-      this.vidsList.add(it["VID"] as Int)
-      this.eventsList.add(csvEntryToTestEvent(it))
     }
   }
 
