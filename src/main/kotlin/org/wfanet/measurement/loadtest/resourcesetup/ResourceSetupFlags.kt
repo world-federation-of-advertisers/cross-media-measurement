@@ -89,6 +89,21 @@ class ResourceSetupFlags {
   lateinit var mcEncryptionPublicKeyset: File
     private set
 
+  @CommandLine.Option(
+    names = ["--bazel-config-name"],
+    description = ["Name of the Bazel configuration to output"],
+    defaultValue = ResourceSetup.DEFAULT_BAZEL_CONFIG_NAME,
+  )
+  lateinit var bazelConfigName: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--output-dir"],
+    description = ["Directory to write output to. If not specified, output is written to STDOUT."],
+  )
+  var outputDir: File? = null
+    private set
+
   @CommandLine.Mixin
   lateinit var kingdomPublicApiFlags: KingdomPublicApiFlags
     private set
