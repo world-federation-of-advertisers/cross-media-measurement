@@ -160,6 +160,7 @@ fun InternalProtocolConfig.toProtocolConfig(): ProtocolConfig {
         maximumFrequency = source.liquidLegionsV2.maximumFrequency
       }
     }
+    isDirectRFMeasurement = source.isDirectRFMeasurement
   }
 }
 
@@ -275,16 +276,14 @@ fun Measurement.toInternal(
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (measurementSpecProto.measurementTypeCase) {
         MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
-          // For single EDP direct R/F measurement, don't generate internal protocolConfig
-          if (dataProvidersCount > 1) {
-            protocolConfig = internalProtocolConfig {
-              externalProtocolConfigId = Llv2ProtocolConfig.name
-              measurementType = InternalProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
-              liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
-            }
-            duchyProtocolConfig = duchyProtocolConfig {
-              liquidLegionsV2 = Llv2ProtocolConfig.duchyProtocolConfig
-            }
+          protocolConfig = internalProtocolConfig {
+            externalProtocolConfigId = Llv2ProtocolConfig.name
+            measurementType = InternalProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
+            liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
+            if (dataProvidersCount == 1) isDirectRFMeasurement = true
+          }
+          duchyProtocolConfig = duchyProtocolConfig {
+            liquidLegionsV2 = Llv2ProtocolConfig.duchyProtocolConfig
           }
         }
         // No protocol for impression or duration type.

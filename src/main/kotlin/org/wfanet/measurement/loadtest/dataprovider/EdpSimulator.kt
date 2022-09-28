@@ -208,26 +208,25 @@ class EdpSimulator(
         )
       }
 
-      if (!requisition.hasProtocolConfig()) {
-        when (measurementSpec.measurementTypeCase) {
-          MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
-            // Direct R/F measurement(single EDP) will not have protocolConfig
+      when (measurementSpec.measurementTypeCase) {
+        MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
+          if (requisition.protocolConfig.isDirectRFMeasurement) {
             fulfillDirectReachAndFrequencyMeasurement(requisition, requisitionSpec, measurementSpec)
+          } else {
+            fulfillRequisitionForReachAndFrequencyMeasurement(
+              requisition,
+              measurementSpec,
+              requisitionFingerprint,
+              requisitionSpec
+            )
           }
-          MeasurementSpec.MeasurementTypeCase.IMPRESSION ->
-            fulfillImpressionMeasurement(requisition, requisitionSpec, measurementSpec)
-          MeasurementSpec.MeasurementTypeCase.DURATION ->
-            fulfillDurationMeasurement(requisition, requisitionSpec, measurementSpec)
-          else ->
-            logger.info("Skipping requisition ${requisition.name}, unsupported measurement type")
         }
-      } else {
-        fulfillRequisitionForReachAndFrequencyMeasurement(
-          requisition,
-          measurementSpec,
-          requisitionFingerprint,
-          requisitionSpec
-        )
+        MeasurementSpec.MeasurementTypeCase.IMPRESSION ->
+          fulfillImpressionMeasurement(requisition, requisitionSpec, measurementSpec)
+        MeasurementSpec.MeasurementTypeCase.DURATION ->
+          fulfillDurationMeasurement(requisition, requisitionSpec, measurementSpec)
+        else ->
+          logger.info("Skipping requisition ${requisition.name}, unsupported measurement type")
       }
     }
   }

@@ -60,6 +60,9 @@ message ProtocolConfig {
     // May only be set when the measurement type is REACH_AND_FREQUENCY.
     LiquidLegionsV2 liquid_legions_v2 = 3;
   }
+
+  // If only single DataProvider, set to true
+  bool is_direct_RF_measurement = 4;
 }
 
 // Parameters for a Liquid Legions sketch.

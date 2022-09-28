@@ -249,8 +249,7 @@ class MeasurementsServiceTest {
           details =
             details.copy {
               clearFailure()
-              clearProtocolConfig()
-              clearDuchyProtocolConfig()
+              protocolConfig = protocolConfig.copy { isDirectRFMeasurement = true }
             }
           results.clear()
         }
@@ -261,7 +260,7 @@ class MeasurementsServiceTest {
 
   @Test
   fun `createMeasurement with RF type two EDP returns measurement with resource name set`() {
-    var measurementWithTwoEdp =
+    val measurementWithTwoEdp =
       MEASUREMENT.copy {
         dataProviders += dataProviderEntry {
           key = makeDataProvider(456L)
@@ -1377,6 +1376,7 @@ class MeasurementsServiceTest {
             delta = 3.3
           }
         }
+      isDirectRFMeasurement = false
     }
 
     private val PUBLIC_PROTOCOL_CONFIG = protocolConfig {
@@ -1393,6 +1393,7 @@ class MeasurementsServiceTest {
           delta = 3.3
         }
       }
+      isDirectRFMeasurement = false
     }
 
     private val DUCHY_PROTOCOL_CONFIG = duchyProtocolConfig {
