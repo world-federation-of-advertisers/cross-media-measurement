@@ -15,6 +15,7 @@
 package org.wfanet.measurement.loadtest.frontend
 
 import io.grpc.ManagedChannel
+import java.util.logging.Logger
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
@@ -75,26 +76,31 @@ abstract class FrontendSimulatorRunner : Runnable {
           delta = flags.outputDpDelta
         }
         .build()
+    val frontendSimulator =
+      FrontendSimulator(
+        measurementConsumerData,
+        outputDpParams,
+        dataProvidersStub,
+        eventGroupsStub,
+        measurementsStub,
+        requisitionsStub,
+        measurementConsumersStub,
+        certificatesStub,
+        SketchStore(storageClient),
+        flags.resultPollingDelay,
+        EVENT_TEMPLATES_TO_FILTERS_MAP,
+      )
 
     runBlocking {
-      // Runs the frontend simulator.
-      val frontendSimulator =
-        FrontendSimulator(
-          measurementConsumerData,
-          outputDpParams,
-          dataProvidersStub,
-          eventGroupsStub,
-          measurementsStub,
-          requisitionsStub,
-          measurementConsumersStub,
-          certificatesStub,
-          SketchStore(storageClient),
-          EVENT_TEMPLATES_TO_FILTERS_MAP
-        )
-
+      // Run the tests in parallel.
       launch { frontendSimulator.executeReachAndFrequency(flags.runId + "-reach_frequency") }
       launch { frontendSimulator.executeImpression(flags.runId + "-impression") }
       launch { frontendSimulator.executeDuration(flags.runId + "-duration") }
     }
+    logger.info("Correctness test passed")
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
