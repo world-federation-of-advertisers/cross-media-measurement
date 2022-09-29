@@ -328,8 +328,10 @@ class BenchmarkTest {
 
     assertThat(result.size).isEqualTo(2)
     assertThat(result[0])
-      .isEqualTo("replica,startTime,ackTime,endTime,status,msg,reach,freq1,freq2,freq3,freq4,freq5")
-    assertThat(result[1]).isEqualTo("1,0.0,0.0,0.0,success,,4096,0.0,0.0,0.0,0.0,0.0")
+      .isEqualTo(
+        "replica,startTime,ackTime,computeTime,endTime,status,msg,reach,freq1,freq2,freq3,freq4,freq5"
+      )
+    assertThat(result[1]).isEqualTo("1,0.0,0.0,0.0,0.0,success,,4096,0.0,0.0,0.0,0.0,0.0")
   }
 
   @Test
@@ -391,8 +393,9 @@ class BenchmarkTest {
     val result = Files.readAllLines(tempFile)
 
     assertThat(result.size).isEqualTo(2)
-    assertThat(result[0]).isEqualTo("replica,startTime,ackTime,endTime,status,msg,impressions")
-    assertThat(result[1]).isEqualTo("1,0.0,0.0,0.0,success,,0")
+    assertThat(result[0])
+      .isEqualTo("replica,startTime,ackTime,computeTime,endTime,status,msg,impressions")
+    assertThat(result[1]).isEqualTo("1,0.0,0.0,0.0,0.0,success,,0")
   }
 
   @Test
@@ -454,7 +457,8 @@ class BenchmarkTest {
     val result = Files.readAllLines(tempFile)
 
     assertThat(result.size).isEqualTo(2)
-    assertThat(result[0]).isEqualTo("replica,startTime,ackTime,endTime,status,msg,duration")
-    assertThat(result[1]).isEqualTo("1,0.0,0.0,0.0,success,,0")
+    assertThat(result[0])
+      .isEqualTo("replica,startTime,ackTime,computeTime,endTime,status,msg,duration")
+    assertThat(result[1]).isEqualTo("1,0.0,0.0,0.0,0.0,success,,0")
   }
 }
