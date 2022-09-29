@@ -24,6 +24,19 @@ package k8s
 			}]
 		}
 	}
+
+	_ingresses: {
+		gmpManagedCollector: {
+			from: [{
+				namespaceSelector: matchLabels: "kubernetes.io/metadata.name": "gmp-system"
+				podSelector: matchLabels: app:                                 "managed-prometheus-collector"
+			}]
+			ports: [{
+				protocol: "TCP"
+				port:     #OpenTelemetryPrometheusExporterPort
+			}]
+		}
+	}
 }
 
 #ServiceAccountPodSpec: {

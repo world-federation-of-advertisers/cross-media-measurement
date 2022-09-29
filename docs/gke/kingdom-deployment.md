@@ -180,6 +180,10 @@ After creating the cluster, we can configure `kubectl` to be able to access it
 gcloud container clusters get-credentials halo-cmm-kingdom-demo-cluster
 ```
 
+### Add Metrics to the cluster
+
+See [Metrics Deployment](metrics-deployment.md).
+
 ## Step 5. Create K8s service account
 
 In order to use the IAM service account that we created earlier from our
@@ -322,10 +326,12 @@ configuration uses one named `config-files` containing the file
 empty.
 
 ```shell
-touch /tmp/authority_key_identifier_to_principal_map.textproto
 kubectl create configmap config-files \
-  --from-file=/tmp/authority_key_identifier_to_principal_map.textproto
+  --from-file=authority_key_identifier_to_principal_map.textproto=/dev/null
 ```
+
+See [Creating Resources](../operations/creating-resources.md) for information on
+this file format.
 
 ## Step 8. Create the K8s manifest
 
