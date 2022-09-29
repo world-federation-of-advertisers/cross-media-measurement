@@ -73,29 +73,35 @@ The Open Telemetry Operator adds the creation and management of new Open
 Telemetry specific resources. It depends on Cert Manager to run.
 
 ### Deploy Cert Manager
+
 ```shell
 kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.9.1/cert-manager.yaml
 ```
 
 ### Deploy Open Telemetry Operator
+
 ```shell
 kubectl apply -f https://github.com/open-telemetry/opentelemetry-operator/releases/download/v0.60.0/opentelemetry-operator.yaml
 ```
 
 ### Deploy Open Telemetry Resources
-Create an operator instrumentation resource fpr instrumenting the application 
+
+Create an operator instrumentation resource fpr instrumenting the application
 code and an operator collector sidecar resource for collecting the metrics.
+
 ```shell
 bazel run //src/main/k8s/local:open_telemetry_kind
 ```
 
 ### Deploy Prometheus Server
+
 ```shell
 bazel run //src/main/k8s/local:prometheus_kind
 ```
 
-To be able to visit the Prometheus browser GUI at http://localhost:31111/,
-start port-forwarding.
+To be able to visit the Prometheus browser GUI at http://localhost:31111/, start
+port-forwarding.
+
 ```shell
 kubectl port-forward prometheus-pod 31111:9090
 ```
@@ -114,69 +120,36 @@ bazel run //src/main/k8s/local:resource_setup_kind \
   --define=k8s_secret_name=certs-and-configs-k8888kc6gg
 ```
 
-After the resource setup job has completed, you can obtain the created resource
-names from its logs.
+By default, the resource setup job writes all outputs to STDOUT. When the job
+has completed, you can read this by viewing the pod logs:
 
 ```shell
 kubectl logs jobs/resource-setup-job
 ```
 
+Tip: The job will output a `resource-setup.bazelrc` file with `--define` options
+that you can include in your `.bazelrc` file. You can then specify
+`--config=halo-kind` to Bazel commands instead of those individual options.
+
 ### Update `config-files` ConfigMap
 
-After resource-setup-job has completed, we can fill in the config files and
+After the resource setup job has completed, we can fill in the config files and
 update the `config-files` ConfigMap.
 
-Create the file `authority_key_identifier_to_principal_map.textproto` with the
-content below, substituting the appropriate resource names. The Authority Key
-Identifier(AKID) comes from the EDP certificates in
-[secretfiles](../testing/secretfiles). The order of the entries follows the
-lexicographic order of the testing EDP root certificates in the secretfiles
-folder(edp1 through edp6). For example, the first entry is for `edp1_root.pem`
-
-```prototext
-# proto-file: wfa/measurement/config/authority_key_to_principal_map.proto
-# proto-message: AuthorityKeyToPrincipalMap
-entries {
-  authority_key_identifier: "\x90\xC1\xD3\xBD\xE6\x74\x01\x55\xA7\xEF\xE6\x64\x72\xA6\x68\x9C\x41\x5B\x77\x04"
-  principal_resource_name: "dataProviders/OljiQHRz-E4"
-}
-entries {
-  authority_key_identifier: "\xF6\xED\xD1\x90\x2E\xF2\x04\x06\xEB\x16\xC4\x40\xCF\x69\x43\x86\x16\xCC\xAE\x08"
-  principal_resource_name: "dataProviders/Fegw_3Rz-2Y"
-}
-entries {
-  authority_key_identifier: "\xC8\x03\x73\x90\x9E\xBF\x33\x46\xEA\x94\x44\xC4\xAC\x77\x4D\x47\x67\xA1\x81\x94"
-  principal_resource_name: "dataProviders/aeULv4uMBDg"
-}
-entries {
-  authority_key_identifier: "\x95\x42\x02\x4C\xED\x13\x36\xFD\x2E\xB3\xAB\x30\xFE\x2B\x9A\x06\xBE\x19\x17\x54"
-  principal_resource_name: "dataProviders/d2QIG4uMA8s"
-}
-entries {
-  authority_key_identifier: "\x84\xEA\x3D\xFE\xD6\x45\x43\x3F\x5C\xC6\xED\x86\xA2\x83\x3D\xF8\x0D\x5D\x6B\xB7"
-  principal_resource_name: "dataProviders/IjDOL3Rz_PY"
-}
-entries {
-  authority_key_identifier: "\xBB\x12\x20\xA8\xE6\x04\x95\xCF\xA8\x33\x42\x33\x27\xD2\x07\x69\xC2\xBF\x8A\x5A"
-  principal_resource_name: "dataProviders/U8rTiHRz_b4"
-}
-```
-
-If needed, you can use the following OpenSSL CLI command to inspect the AKID of
-each certificate. As a reminder, the byte literals in protobuf text format are
-two hex digits of the AKID output from this command escaping with `\x`
-
-```shell
-openssl x509 -noout -text -in src/main/k8s/testing/secretfiles/edp1_root.pem
-```
-
-Update the ConfigMap, passing the `--from-file` option for each config file.
+The resource setup job will output an
+`authority_key_identifier_to_principal_map.textproto` file with entries for each
+of the test EDPs, using the AKIDs from the test certificates in
+[secretfiles](../testing/secretfiles). You can copy this file and use it to
+replace the ConfigMap:
 
 ```shell
 kubectl create configmap config-files --output=yaml --dry-run=client \
   --from-file=authority_key_identifier_to_principal_map.textproto \
   | kubectl replace -f -
 ```
+
+For more information on the file format, see
+[Creating Resources](../../../../docs/operations/creating-resources.md).
 
 Note: If also want to deploy the Reporting Server in the same cluster, you will
 need more entries in this ConfigMap. See the
@@ -187,16 +160,6 @@ the moment, this is just the public API server.
 
 ```shell
 kubectl rollout restart deployments/v2alpha-public-api-server-deployment
-```
-
-## Re-deploy Kingdom
-
-You now have a fully-deployed Kingdom. If you wish to redeploy the Kingdom, for
-example to pick up new changes, you can do so with the following command:
-
-```shell
-bazel run //src/main/k8s/local:kingdom_kind \
-  --define=k8s_secret_name=certs-and-configs-k8888kc6gg
 ```
 
 ## Deploy Duchies
@@ -262,14 +225,33 @@ entries {
 ```
 
 The ConfigMap also needs an additional file named
-`encryption_key_pair_config.textproto`:
+`encryption_key_pair_config.textproto` listing key pairs
+by `MeasurementConsumer`:
 
 ```prototext
 # proto-file: wfa/measurement/config/reporting/encryption_key_pair_config.proto
 # proto-message: EncryptionKeyPairConfig
-key_pairs {
-  key: "mc_enc_public.tink"
-  value: "mc_enc_private.tink"
+principal_key_pairs {
+  principal: "measurement_consumer1"
+  key_pairs {
+    public_key_file: "mc_enc_public.tink"
+    private_key_file: "mc_enc_private.tink"
+  }
+  key_pairs {
+    public_key_file: "edp1_enc_public.tink"
+    private_key_file: "edp1_enc_private.tink"
+  }
+}
+principal_key_pairs {
+  principal: "measurement_consumer2"
+  key_pairs {
+    public_key_file: "edp2_enc_public.tink"
+    private_key_file: "edp2_enc_private.tink"
+  }
+  key_pairs {
+    public_key_file: "edp3_enc_public.tink"
+    private_key_file: "edp3_enc_private.tink"
+  }
 }
 ```
 

@@ -11,3 +11,5 @@
 
 # VIM swap files
 *.swp
+# VIM undo files
+*.un~
