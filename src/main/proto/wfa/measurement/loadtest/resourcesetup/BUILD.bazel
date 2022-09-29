@@ -1,0 +1,27 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@rules_java//java:defs.bzl", "java_proto_library")
+load("@wfa_common_jvm//build/kt_jvm_proto:defs.bzl", "kt_jvm_proto_library")
+
+package(
+    default_testonly = True,
+    default_visibility = ["//visibility:public"],
+)
+
+IMPORT_PREFIX = "/src/main/proto"
+
+proto_library(
+    name = "resources_proto",
+    srcs = ["resources.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+java_proto_library(
+    name = "resources_java_proto",
+    deps = [":resources_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "resources_kt_jvm_proto",
+    srcs = [":resources_proto"],
+    deps = [":resources_java_proto"],
+)
