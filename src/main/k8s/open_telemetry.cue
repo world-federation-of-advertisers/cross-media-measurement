@@ -14,13 +14,34 @@
 
 package k8s
 
+// K8s custom resource defined by OpenTelemetry Operator used for creating
+// an OpenTelemetry Collector.
+#OpenTelemetryCollector: {
+	_name:                string
+	_config:              string
+	_serviceAccountName?: string
+
+	apiVersion: "opentelemetry.io/v1alpha1"
+	kind:       "OpenTelemetryCollector"
+	metadata: name: string | *"\(_name)-sidecar"
+	spec: {
+		mode:            "deployment" | *"sidecar"
+		config:          "\(_config)"
+		image:           string | *"docker.io/otel/opentelemetry-collector-contrib:0.60.0"
+		imagePullPolicy: "Always"
+		if _serviceAccountName != _|_ {
+			serviceAccount: _serviceAccountName
+		}
+	}
+}
+
 #OpenTelemetry: {
 	objectSets: [
 		openTelemetryCollectors,
 		instrumentations,
 	]
 
-	// Default config for an Open Telemetry Collector
+	// Basic default config for an Open Telemetry Collector
 	#OpenTelemetryCollectorConfig:
 		"""
         receivers:
@@ -29,8 +50,14 @@ package k8s
               grpc:
                 endpoint: 0.0.0.0:\(#OpenTelemetryReceiverPort)
 
+        processors:
+          batch:
+            send_batch_size: 200
+            timeout: 10s
+
         exporters:
           prometheus:
+            send_timestamps: true
             endpoint: 0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)
 
         extensions:
@@ -41,25 +68,18 @@ package k8s
           pipelines:
             metrics:
               receivers: [otlp]
-              processors: []
+              processors: [batch]
               exporters: [prometheus]
         """
 
-	openTelemetryCollectors: [Name=string]: {
-		_name:   Name
-		_config: string | *#OpenTelemetryCollectorConfig
-
-		apiVersion: "opentelemetry.io/v1alpha1"
-		kind:       "OpenTelemetryCollector"
-		metadata: name: "\(_name)-sidecar"
-		spec: {
-			mode:   "sidecar"
-			config: "\(_config)"
-		}
+	openTelemetryCollectors: [Name=string]: #OpenTelemetryCollector & {
+		_name: Name
 	}
 
 	openTelemetryCollectors: {
-		"default": {}
+		"default": {
+			_config: #OpenTelemetryCollectorConfig
+		}
 	}
 
 	instrumentations: {
