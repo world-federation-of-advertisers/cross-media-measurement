@@ -148,7 +148,7 @@ abstract class MillBase(
     logStageMetric(token, CURRENT_RUNTIME_MEMORY_FREE, Runtime.getRuntime().freeMemory())
     val stage = token.computationStage
     val globalId = token.globalComputationId
-    logger.info("@Mill $millId: Processing computation $globalId, stage $stage")
+    logger.info("$globalId@$millId: Processing computation, stage $stage")
 
     try {
       processComputationImpl(token)
@@ -158,7 +158,7 @@ abstract class MillBase(
       val latestToken = getLatestComputationToken(globalId)
       handleExceptions(latestToken, e)
     }
-    logger.info("@Mill $millId: Processed computation $globalId")
+    logger.info("$globalId@$millId: Processed computation ")
   }
 
   private suspend fun handleExceptions(token: ComputationToken, e: Exception) {
