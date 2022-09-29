@@ -27,7 +27,7 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBud
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate.Gender.Value as PrivacyGender
 import org.wfanet.measurement.common.getRuntimePath
 
-val directoryPath: Path =
+private val directoryPath: Path =
   Paths.get(
     "wfa_measurement_system",
     "src",
