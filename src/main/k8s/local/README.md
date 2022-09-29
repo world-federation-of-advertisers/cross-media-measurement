@@ -200,14 +200,13 @@ random VIDs for each edp. You can also use target `edp_simulators_csv_kind`
 which will use `CsvEventQuery` to query VIDs from a CSV file for each edp.
 
 To use `CsvEventQuery`, you need to copy the CSV files you want to use from your
-local machine to the edp containers. First, update `_eventsCsv` in
-`//src/main/k8s/local/edp_simulators_csv.cue`. Then after running the bazel
-command with the target `edp_simulators_csv_kind`, and all six edp deployments
-are in the status `1/1 Running`, run the following command for each edp to copy
-the CSV file from you local machine to the edp container:
+local machine to the edp containers. After running the `bazel run` command with
+the target `edp_simulators_csv_kind`, and each edp deployment is in the status
+`1/1 Running`, run the following command for each edp to copy the CSV file from
+you local machine to the edp container:
 
 ```shell
-kubectl cp </path/to/your/csvfiles> <edp-podname>:/data/csvfiles
+kubectl cp </path/to/your/file.csv> <edp-podname>:/data/csvfiles/synthetic-labelled-events.csv
 ```
 
 You can get `<edp-podname>` by running `kubectl get pods`. The default volume
@@ -243,8 +242,8 @@ entries {
 ```
 
 The ConfigMap also needs an additional file named
-`encryption_key_pair_config.textproto` listing key pairs
-by `MeasurementConsumer`:
+`encryption_key_pair_config.textproto` listing key pairs by
+`MeasurementConsumer`:
 
 ```prototext
 # proto-file: wfa/measurement/config/reporting/encryption_key_pair_config.proto

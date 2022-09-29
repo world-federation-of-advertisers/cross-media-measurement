@@ -58,13 +58,14 @@ class ForwardStorageEdpSimulatorRunner : EdpSimulatorRunner() {
     private set
 
   override fun run() {
+    val eventsCsv = eventsCsv
     val eventQuery: EventQuery =
       if (eventsCsv == null) {
         RandomEventQuery(
           SketchGenerationParams(reach = edpSketchReach, universeSize = edpUniverseSize)
         )
       } else {
-        CsvEventQuery(flags.dataProviderDisplayName, eventsCsv!!)
+        CsvEventQuery(flags.dataProviderDisplayName, eventsCsv)
       }
 
     run(ForwardedStorageFromFlags(forwardedStorageFlags, flags.tlsFlags).storageClient, eventQuery)
