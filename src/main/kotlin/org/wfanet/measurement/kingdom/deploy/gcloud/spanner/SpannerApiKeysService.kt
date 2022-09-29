@@ -64,21 +64,20 @@ class SpannerApiKeysService(
 
   override suspend fun authenticateApiKey(request: AuthenticateApiKeyRequest): MeasurementConsumer {
     if (request.authenticationKeyHash.isEmpty) {
-      failGrpc(Status.UNAUTHENTICATED) { "Authentication Key hash is missing" }
+      failGrpc(Status.INVALID_ARGUMENT) { "authentication_key_hash is missing" }
     }
 
-    val apiKey =
-      MeasurementConsumerApiKeyReader()
-        .readByAuthenticationKeyHash(client.singleUse(), request.authenticationKeyHash)
-        ?.apiKey
-        ?: failGrpc(Status.UNAUTHENTICATED) { "Authentication Key is not valid" }
+    client.readOnlyTransaction().use { txn ->
+      val apiKey =
+        MeasurementConsumerApiKeyReader()
+          .readByAuthenticationKeyHash(txn, request.authenticationKeyHash)
+          ?.apiKey
+          ?: failGrpc(Status.NOT_FOUND) { "ApiKey not found for hash" }
 
-    return MeasurementConsumerReader()
-      .readByExternalMeasurementConsumerId(
-        client.singleUse(),
-        ExternalId(apiKey.externalMeasurementConsumerId)
-      )
-      ?.measurementConsumer
-      ?: failGrpc(Status.NOT_FOUND) { "MeasurementConsumer not found" }
+      return MeasurementConsumerReader()
+        .readByExternalMeasurementConsumerId(txn, ExternalId(apiKey.externalMeasurementConsumerId))
+        ?.measurementConsumer
+        ?: failGrpc(Status.INTERNAL) { "MeasurementConsumer not found for ApiKey" }
+    }
   }
 }
