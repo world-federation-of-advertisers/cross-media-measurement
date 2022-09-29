@@ -39,10 +39,10 @@ val directoryPath: Path =
     "loadtest",
     "dataprovider",
   )
-const val fileName = "CsvEventQueryTestEvents.csv"
-private val FILE: File = File(getRuntimePath(directoryPath.resolve(fileName)).toString())
+private const val FILE_NAME = "CsvEventQueryTestEvents.csv"
+private val FILE: File = File(getRuntimePath(directoryPath.resolve(FILE_NAME)).toString())
 
-private const val EDP1 = "edp1"
+private const val EDP1_DISPLAY_NAME = "edp1"
 private val BANNER_FEMALE = BannerGender.GENDER_FEMALE.ordinal
 private val PRIVACY_35_54 = PrivacyAge.AGE_35_TO_54.ordinal
 private val PRIVACY_MALE = PrivacyGender.GENDER_MALE.ordinal
@@ -60,20 +60,20 @@ private val EMPTY_EVENT_FILTER = eventFilter { expression = "" }
 @RunWith(JUnit4::class)
 class CsvEventQueryTest {
   companion object {
-    @JvmStatic private val eventQuery = CsvEventQuery(EDP1, FILE)
+    private val eventQuery = CsvEventQuery(EDP1_DISPLAY_NAME, FILE)
   }
 
   @Test
   fun `filters when no matching conditions`() {
-    val userVids = eventQuery.getUserVirtualIds(NONMATCHING_EVENT_FILTER)
+    val userVids: Sequence<Long> = eventQuery.getUserVirtualIds(NONMATCHING_EVENT_FILTER)
     assertThat(userVids.toList()).isEmpty()
   }
 
   @Test
   fun `filters matching conditions`() {
     val matchingVids = listOf(1000650L, 1000997L, 1001028L, 1001096L, 1001096L, 1001289L)
-    val userVids = eventQuery.getUserVirtualIds(MATCHING_EVENT_FILTER)
-    assertThat(userVids.toList().sorted()).isEqualTo(matchingVids.sorted())
+    val userVids: Sequence<Long> = eventQuery.getUserVirtualIds(MATCHING_EVENT_FILTER)
+    assertThat(userVids.toList()).containsExactlyElementsIn(matchingVids)
   }
 
   @Test
