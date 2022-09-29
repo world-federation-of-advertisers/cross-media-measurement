@@ -326,10 +326,12 @@ configuration uses one named `config-files` containing the file
 empty.
 
 ```shell
-touch /tmp/authority_key_identifier_to_principal_map.textproto
 kubectl create configmap config-files \
-  --from-file=/tmp/authority_key_identifier_to_principal_map.textproto
+  --from-file=authority_key_identifier_to_principal_map.textproto=/dev/null
 ```
+
+See [Creating Resources](../operations/creating-resources.md) for information on
+this file format.
 
 ## Step 8. Create the K8s manifest
 

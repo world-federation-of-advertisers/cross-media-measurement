@@ -281,62 +281,18 @@ bazel run //src/main/k8s/testing/secretfiles:apply_kustomization
 
 ## Step 7. Create the configmap
 
-Create a `authority_key_identifier_to_principal_map.textproto` file with the
-following content. This file contains all EDPs that are allowed to call this
-duchy to fulfill the requisitions. If there is no EDP registered yet. Just leave
-the file empty.
-
-```prototext
-# proto-file: src/main/proto/wfa/measurement/config/authority_key_to_principal_map.proto
-# proto-message: AuthorityKeyToPrincipalMap
-entries {
-  authority_key_identifier: "\xD6\x65\x86\x86\xD8\x7E\xD2\xC4\xDA\xD8\xDF\x76\x39\x66\x21\x3A\xC2\x92\xCC\xE2"
-  principal_resource_name: "dataProviders/HRL1wWehTSM"
-}
-entries {
-  authority_key_identifier: "\x6F\x57\x36\x3D\x7C\x5A\x49\x7C\xD1\x68\x57\xCD\xA0\x44\xDF\x68\xBA\xD1\xBA\x86"
-  principal_resource_name: "dataProviders/djQdz2ehSSE"
-}
-entries {
-  authority_key_identifier: "\xEE\xB8\x30\x10\x0A\xDB\x8F\xEC\x33\x3B\x0A\x5B\x85\xDF\x4B\x2C\x06\x8F\x8E\x28"
-  principal_resource_name: "dataProviders/SQ99TmehSA8"
-}
-entries {
-  authority_key_identifier: "\x74\x72\x6D\xF6\xC0\x44\x42\x61\x7D\x9F\xF7\x3F\xF7\xB2\xAC\x0F\x9D\xB0\xCA\xCC"
-  principal_resource_name: "dataProviders/TBZkB5heuL0"
-}
-entries {
-  authority_key_identifier: "\xA6\xED\xBA\xEA\x3F\x9A\xE0\x72\x95\xBF\x1E\xD2\xCB\xC8\x6B\x1E\x0B\x39\x47\xE9"
-  principal_resource_name: "dataProviders/HOCBxZheuS8"
-}
-entries {
-  authority_key_identifier: "\xA7\x36\x39\x6B\xDC\xB4\x79\xC3\xFF\x08\xB6\x02\x60\x36\x59\x84\x3B\xDE\xDB\x93"
-  principal_resource_name: "dataProviders/VGExFmehRhY"
-}
-```
-
-Run
+Configuration that may frequently change is stored in a K8s configMap. The `dev`
+configuration uses one named `config-files` containing the file
+`authority_key_identifier_to_principal_map.textproto`. This file is initially
+empty.
 
 ```shell
 kubectl create configmap config-files \
---from-file=path_to_file/authority_key_identifier_to_principal_map.textproto
+  --from-file=authority_key_identifier_to_principal_map.textproto=/dev/null
 ```
 
-Whenever there is a new EDP onboarded to the system, you need to add an entry
-for this EDP. Update this file and run the following command to replace the
-ConfigMap in the cluster
-
-```shell
-kubectl create configmap config-files --output=yaml --dry-run=client \
-  --from-file=path_to_file/authority_key_identifier_to_principal_map.textproto |
-  kubectl replace -f -
-```
-
-You can verify that the config file is successfully update by running
-
-```shell
-kubectl describe configmaps config-files
-```
+See [Creating Resources](../operations/creating-resources.md) for information on
+this file format.
 
 ## Step 8. Create the K8s manifest
 
