@@ -14,12 +14,10 @@
 
 package org.wfanet.measurement.loadtest.panelmatchresourcesetup
 
-import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import com.google.type.Date
 import io.grpc.Channel
 import io.grpc.ManagedChannel
-import java.time.Instant
 import java.time.LocalDate
 import java.util.logging.Logger
 import org.wfanet.measurement.api.Version
@@ -28,15 +26,12 @@ import org.wfanet.measurement.api.v2alpha.ExchangeWorkflow
 import org.wfanet.measurement.api.v2alpha.ModelProviderKey
 import org.wfanet.measurement.api.v2alpha.RecurringExchangeKey
 import org.wfanet.measurement.common.identity.externalIdToApiId
-import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
-import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.DataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RecurringExchange as InternalRecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub
-import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.createRecurringExchangeRequest
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
 import org.wfanet.measurement.internal.kingdom.modelProvider as internalModelProvider
@@ -76,7 +71,6 @@ class PanelMatchResourceSetup(
   /** Process to create resources with actual certificates. */
   suspend fun process(
     dataProviderContent: EntityContent,
-    modelProviderContent: EntityContent,
     exchangeSchedule: String,
     apiVersion: String,
     exchangeWorkflow: ExchangeWorkflow,
@@ -109,39 +103,6 @@ class PanelMatchResourceSetup(
     logger.info("Successfully created Recurring Exchange: $recurringExchangeName.")
   }
 
-  /** Process to create resources. */
-  suspend fun createResourcesForWorkflow(
-    exchangeSchedule: String,
-    apiVersion: String,
-    exchangeWorkflow: ExchangeWorkflow,
-    exchangeDate: Date,
-    runId: String = LocalDate.now().toString(),
-  ): WorkflowResourceKeys {
-    logger.info("Starting with RunID: $runId ...")
-
-    val externalModelProviderId = createModelProvider()
-    val modelProviderKey = ModelProviderKey(externalIdToApiId(externalModelProviderId))
-    logger.info("Successfully created model provider: ${modelProviderKey.toName()}.")
-
-    val externalDataProviderId = createDataProvider()
-    val dataProviderKey = DataProviderKey(externalIdToApiId(externalDataProviderId))
-    logger.info("Successfully created data provider: ${dataProviderKey.toName()}.")
-
-    val externalRecurringExchangeId =
-      createRecurringExchange(
-        externalDataProvider = externalDataProviderId,
-        externalModelProvider = externalModelProviderId,
-        exchangeDate = exchangeDate,
-        exchangeSchedule = exchangeSchedule,
-        publicApiVersion = apiVersion,
-        exchangeWorkflow = exchangeWorkflow
-      )
-    val recurringExchangeKey = RecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId))
-    logger.info("Successfully created Recurring Exchange: ${recurringExchangeKey.toName()}.")
-
-    return WorkflowResourceKeys(dataProviderKey, modelProviderKey, recurringExchangeKey)
-  }
-
   /** Create an internal dataProvider, and return its corresponding public API resource name. */
   suspend fun createDataProvider(dataProviderContent: EntityContent): Long {
     val encryptionPublicKey = dataProviderContent.encryptionPublicKey
@@ -159,30 +120,6 @@ class PanelMatchResourceSetup(
               apiVersion = API_VERSION.string
               publicKey = signedPublicKey.data
               publicKeySignature = signedPublicKey.signature
-            }
-        }
-      )
-      .externalDataProviderId
-  }
-
-  private suspend fun createDataProvider(): Long {
-    // TODO(@yunyeng): Get the certificate and details from client side and verify.
-    return dataProvidersStub
-      .createDataProvider(
-        internalDataProvider {
-          certificate = certificate {
-            notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
-            notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
-            details =
-              CertificateKt.details {
-                x509Der = ByteString.copyFromUtf8("This is a certificate der.")
-              }
-          }
-          details =
-            DataProviderKt.details {
-              apiVersion = "2"
-              publicKey = ByteString.copyFromUtf8("This is a  public key.")
-              publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
             }
         }
       )
@@ -225,9 +162,3 @@ class PanelMatchResourceSetup(
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
-
-data class WorkflowResourceKeys(
-  val dataProviderKey: DataProviderKey,
-  val modelProviderKey: ModelProviderKey,
-  val recurringExchangeKey: RecurringExchangeKey
-)

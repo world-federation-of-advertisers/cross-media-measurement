@@ -36,9 +36,9 @@ internal enum class IdVariable {
 }
 
 internal fun ResourceNameParser.assembleName(idMap: Map<IdVariable, String>): String {
-  return assembleName(idMap.mapKeys { it.key.name.toLowerCase() })
+  return assembleName(idMap.mapKeys { it.key.name.lowercase() })
 }
 
 internal fun ResourceNameParser.parseIdVars(resourceName: String): Map<IdVariable, String>? {
-  return parseIdSegments(resourceName)?.mapKeys { IdVariable.valueOf(it.key.toUpperCase()) }
+  return parseIdSegments(resourceName)?.mapKeys { IdVariable.valueOf(it.key.uppercase()) }
 }

@@ -64,6 +64,7 @@ cue_dump(
     tags = ["manual"],
     deps = [
         ":base_gke",
+        ":config",
         "//src/main/k8s:panel_match_resource_setup",
     ],
 )
