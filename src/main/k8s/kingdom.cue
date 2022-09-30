@@ -58,63 +58,74 @@ package k8s
 		_secretName: _kingdom_secret_name
 		_system:     "kingdom"
 		_container: {
+			_grpcThreadPoolSize?: int32 & >0
+			_commonServerFlags: [
+				"--port=8443",
+				"--health-port=8080",
+				if _grpcThreadPoolSize != _|_ {
+					"--grpc-thread-pool-size=\(_grpcThreadPoolSize)"
+				},
+			]
+
 			image:           _images[_name]
 			imagePullPolicy: _kingdom_image_pull_policy
 		}
 	}
 	deployments: {
 		"gcp-kingdom-data-server": {
-			_container: args: [
-						_duchy_info_config_flag,
-						_duchy_id_config_flag,
-						_kingdom_tls_cert_file_flag,
-						_kingdom_tls_key_file_flag,
-						_kingdom_cert_collection_file_flag,
-						_debug_verbose_grpc_server_logging_flag,
-						"--port=8443",
-						"--health-port=8080",
-			] + _spannerConfig.flags
+			_container: Container={
+				args: [
+					_duchy_info_config_flag,
+					_duchy_id_config_flag,
+					_kingdom_tls_cert_file_flag,
+					_kingdom_tls_key_file_flag,
+					_kingdom_cert_collection_file_flag,
+					_debug_verbose_grpc_server_logging_flag,
+				] + Container._commonServerFlags + _spannerConfig.flags
+			}
 			_updateSchemaContainer: Container=#Container & {
 				image:           _images[Container.name]
 				imagePullPolicy: _container.imagePullPolicy
 				args:            _spannerConfig.flags
 			}
-			spec: template: spec: _initContainers: {
-				"update-kingdom-schema": _updateSchemaContainer
+			spec: template: spec: {
+				_initContainers: {
+					"update-kingdom-schema": _updateSchemaContainer
+				}
 			}
 		}
 
 		"system-api-server": {
-			_container: args: [
-				_debug_verbose_grpc_client_logging_flag,
-				_debug_verbose_grpc_server_logging_flag,
-				_duchy_info_config_flag,
-				_kingdom_tls_cert_file_flag,
-				_kingdom_tls_key_file_flag,
-				_kingdom_cert_collection_file_flag,
-				_internal_api_target_flag,
-				_internal_api_cert_host_flag,
-				"--port=8443",
-				"--health-port=8080",
-			]
+			_container: Container={
+				args: [
+					_debug_verbose_grpc_client_logging_flag,
+					_debug_verbose_grpc_server_logging_flag,
+					_duchy_info_config_flag,
+					_kingdom_tls_cert_file_flag,
+					_kingdom_tls_key_file_flag,
+					_kingdom_cert_collection_file_flag,
+					_internal_api_target_flag,
+					_internal_api_cert_host_flag,
+				] + Container._commonServerFlags
+			}
 			spec: template: spec: _dependencies: ["gcp-kingdom-data-server"]
 		}
 
 		"v2alpha-public-api-server": {
-			_container: args: [
-				_debug_verbose_grpc_client_logging_flag,
-				_debug_verbose_grpc_server_logging_flag,
-				_llv2_protocol_config_config,
-				_kingdom_tls_cert_file_flag,
-				_kingdom_tls_key_file_flag,
-				_kingdom_cert_collection_file_flag,
-				_internal_api_target_flag,
-				_internal_api_cert_host_flag,
-				_akid_to_principal_map_file_flag,
-				_open_id_redirect_uri_flag,
-				"--port=8443",
-				"--health-port=8080",
-			]
+			_container: Container={
+				args: [
+					_debug_verbose_grpc_client_logging_flag,
+					_debug_verbose_grpc_server_logging_flag,
+					_llv2_protocol_config_config,
+					_kingdom_tls_cert_file_flag,
+					_kingdom_tls_key_file_flag,
+					_kingdom_cert_collection_file_flag,
+					_internal_api_target_flag,
+					_internal_api_cert_host_flag,
+					_akid_to_principal_map_file_flag,
+					_open_id_redirect_uri_flag,
+				] + Container._commonServerFlags
+			}
 			spec: template: spec: {
 				_mounts: "config-files": #ConfigMapMount
 				_dependencies: ["gcp-kingdom-data-server"]
