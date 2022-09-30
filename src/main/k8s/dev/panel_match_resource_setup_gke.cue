@@ -16,17 +16,16 @@ package k8s
 
 _secret_name: string @tag("secret_name")
 
-#GloudProject:            "halo-cmm-dev"
-#ContainerRegistry:       "gcr.io"
-#ContainerRegistryPrefix: #ContainerRegistry + "/" + #GloudProject
-
 objectSets: [
-	panel_match_resource_setup_job,
+	job,
 ]
 
-panel_match_resource_setup_job: #PanelMatchResourceSetup & {
+_imageConfig: #ImageConfig & {
+	repoSuffix: "loadtest/panel-match-resource-setup"
+}
+
+job: #PanelMatchResourceSetup & {
 	_edp_display_name:           "edp1"
-	_mp_display_name:            "mp1"
-	_job_image:                  #ContainerRegistryPrefix + "/loadtest/panel-match-resource-setup"
+	_job_image:                  _imageConfig.image
 	_resource_setup_secret_name: _secret_name
 }

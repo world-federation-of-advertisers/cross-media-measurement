@@ -17,6 +17,7 @@ package org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2
 import com.google.protobuf.ByteString
 import java.nio.file.Paths
 import java.time.Clock
+import java.util.logging.Logger
 import kotlin.math.min
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.measurement.api.Version
@@ -174,7 +175,11 @@ class LiquidLegionsV2Mill(
     val stage = token.computationStage.liquidLegionsSketchAggregationV2
     val role = token.computationDetails.liquidLegionsV2.role
     val action = actions[Pair(stage, role)] ?: error("Unexpected stage or role: ($stage, $role)")
-    action(token)
+    val updatedToken = action(token)
+
+    val globalId = token.globalComputationId
+    val updatedStage = updatedToken.computationStage.liquidLegionsSketchAggregationV2
+    logger.info("$globalId@$millId: Stage transitioned from $stage to $updatedStage")
   }
 
   /** Sends requisition params to the kingdom. */
@@ -899,5 +904,6 @@ class LiquidLegionsV2Mill(
         directoryPath = Paths.get("any_sketch_java/src/main/java/org/wfanet/anysketch/crypto")
       )
     }
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

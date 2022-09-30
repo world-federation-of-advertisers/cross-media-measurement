@@ -15,17 +15,21 @@
 package k8s
 
 #SpannerConfig: {
-	project:       string
-	instance:      string
-	database:      string
-	readyTimeout?: string
-	emulatorHost?: string
+	project:                string
+	instance:               string
+	database:               string
+	readyTimeout?:          string
+	transactionTimeout?:    string
+	maxTransactionThreads?: int & >0
+	emulatorHost?:          string
 
 	flags: [
 		"--spanner-project=\(project)",
 		"--spanner-instance=\(instance)",
 		"--spanner-database=\(database)",
 		if readyTimeout != _|_ {"--spanner-ready-timeout=\(readyTimeout)"},
+		if transactionTimeout != _|_ {"--spanner-transaction-timeout=\(transactionTimeout)"},
+		if maxTransactionThreads != _|_ {"--spanner-transaction-max-threads=\(maxTransactionThreads)"},
 		if emulatorHost != _|_ {"--spanner-emulator-host=\(emulatorHost)"},
 	]
 }

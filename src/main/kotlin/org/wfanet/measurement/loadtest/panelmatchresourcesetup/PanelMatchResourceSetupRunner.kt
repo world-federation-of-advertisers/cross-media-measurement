@@ -61,13 +61,6 @@ private fun run(@CommandLine.Mixin flags: PanelMatchResourceSetupFlags) {
       encryptionPublicKey = loadPublicKey(flags.edpEncryptionPublicKeyset).toEncryptionPublicKey()
     )
 
-  val modelProviderContent =
-    EntityContent(
-      displayName = flags.mpDisplayName,
-      signingKey = loadSigningKey(flags.mpCertDerFile, flags.mpKeyDerFile),
-      encryptionPublicKey = loadPublicKey(flags.mpEncryptionPublicKeyset).toEncryptionPublicKey()
-    )
-
   val exchangeWorkflow: ExchangeWorkflow by lazy {
     flags.exchangeWorkflow
       .inputStream()
@@ -80,7 +73,6 @@ private fun run(@CommandLine.Mixin flags: PanelMatchResourceSetupFlags) {
     PanelMatchResourceSetup(kingdomInternalApiChannel)
       .process(
         dataProviderContent = dataProviderContent,
-        modelProviderContent = modelProviderContent,
         exchangeSchedule = SCHEDULE,
         apiVersion = API_VERSION,
         exchangeWorkflow = exchangeWorkflow,
