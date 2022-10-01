@@ -122,31 +122,44 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     }
   private val publicKingdomEventGroupsMock: EventGroupsGrpcKt.EventGroupsCoroutineImplBase =
     mockService {
-      onBlocking { listEventGroups(any()) }.thenReturn(listEventGroupsResponse { eventGroups += EVENT_GROUP })
+      onBlocking { listEventGroups(any()) }
+        .thenReturn(listEventGroupsResponse { eventGroups += EVENT_GROUP })
     }
-  private val publicKingdomEventGroupMetadataDescriptorsMock: EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase =
+  private val publicKingdomEventGroupMetadataDescriptorsMock:
+    EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase =
     mockService {
-      onBlocking { batchGetEventGroupMetadataDescriptors(any()) }.thenReturn(
+      onBlocking { batchGetEventGroupMetadataDescriptors(any()) }
+        .thenReturn(
           batchGetEventGroupMetadataDescriptorsResponse {
             eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR
-          })
+          }
+        )
     }
-  private val publicKingdomMeasurementConsumersMock: MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase =
+  private val publicKingdomMeasurementConsumersMock:
+    MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase =
     mockService {
       onBlocking { getMeasurementConsumer(any()) }.thenReturn(MEASUREMENT_CONSUMER)
     }
   private val publicKingdomMeasurementsMock: MeasurementsGrpcKt.MeasurementsCoroutineImplBase =
     mockService {
-      onBlocking { createMeasurement(any()) }.thenAnswer {
+      onBlocking { createMeasurement(any()) }
+        .thenAnswer {
           MEASUREMENT.copy {
             val measurement = it.getArgument(0, CreateMeasurementRequest::class.java).measurement
             name =
-              MeasurementKey(measurementConsumerId = MeasurementConsumerCertificateKey.fromName(
-                measurement.measurementConsumerCertificate)!!.measurementConsumerId,
-                             measurementId = measurement.measurementReferenceId).toName()
+              MeasurementKey(
+                  measurementConsumerId =
+                    MeasurementConsumerCertificateKey.fromName(
+                        measurement.measurementConsumerCertificate
+                      )!!
+                      .measurementConsumerId,
+                  measurementId = measurement.measurementReferenceId
+                )
+                .toName()
           }
         }
-      onBlocking { getMeasurement(any()) }.thenAnswer {
+      onBlocking { getMeasurement(any()) }
+        .thenAnswer {
           MEASUREMENT.copy { name = it.getArgument(0, GetMeasurementRequest::class.java).name }
         }
     }
@@ -187,9 +200,8 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     )
   }
 
-  @get:Rule val ruleChain: TestRule by lazy {
-    chainRulesSequentially(publicKingdomServer, reportingServer)
-  }
+  @get:Rule
+  val ruleChain: TestRule by lazy { chainRulesSequentially(publicKingdomServer, reportingServer) }
 
   private val publicEventGroupsClient by lazy {
     EventGroupsCoroutineStub(reportingServer.publicApiChannel)
@@ -222,26 +234,33 @@ abstract class InProcessLifeOfAReportIntegrationTest {
   }
 
   private suspend fun listEventGroups(measurementConsumerName: String): ListEventGroupsResponse {
-    return publicEventGroupsClient.withPrincipalName(measurementConsumerName)
-      .listEventGroups(listEventGroupsRequest {
-        parent = "$measurementConsumerName/dataProviders/-"
-      })
+    return publicEventGroupsClient
+      .withPrincipalName(measurementConsumerName)
+      .listEventGroups(
+        listEventGroupsRequest { parent = "$measurementConsumerName/dataProviders/-" }
+      )
   }
 
   suspend fun createReportingSet(runId: String, measurementConsumerName: String): ReportingSet {
     val eventGroupsList = listEventGroups(measurementConsumerName).eventGroupsList
-    return publicReportingSetsClient.withPrincipalName(measurementConsumerName)
-      .createReportingSet(createReportingSetRequest {
-        parent = measurementConsumerName
-        reportingSet = reportingSet {
-          displayName = "reporting-set-$runId"
-          eventGroups += eventGroupsList.map { it.name }
+    return publicReportingSetsClient
+      .withPrincipalName(measurementConsumerName)
+      .createReportingSet(
+        createReportingSetRequest {
+          parent = measurementConsumerName
+          reportingSet = reportingSet {
+            displayName = "reporting-set-$runId"
+            eventGroups += eventGroupsList.map { it.name }
+          }
         }
-      })
+      )
   }
 
-  private suspend fun listReportingSets(measurementConsumerName: String): ListReportingSetsResponse {
-    return publicReportingSetsClient.withPrincipalName(measurementConsumerName)
+  private suspend fun listReportingSets(
+    measurementConsumerName: String
+  ): ListReportingSetsResponse {
+    return publicReportingSetsClient
+      .withPrincipalName(measurementConsumerName)
       .listReportingSets(listReportingSetsRequest { parent = measurementConsumerName })
   }
 
@@ -249,70 +268,91 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     val eventGroupsList = listEventGroups(measurementConsumerName).eventGroupsList
     val reportingSets = listReportingSets(measurementConsumerName).reportingSetsList
     assert(reportingSets.size >= 3)
-    return publicReportsClient.withPrincipalName(measurementConsumerName)
-      .createReport(createReportRequest {
-        parent = measurementConsumerName
-        report = report {
-          measurementConsumer = measurementConsumerName
-          reportIdempotencyKey = runId
-          eventGroupUniverse = ReportKt.eventGroupUniverse {
-            eventGroupsList.forEach {
-              eventGroupEntries += ReportKt.EventGroupUniverseKt.eventGroupEntry {
-                key = it.name
-              }
-            }
-          }
-          periodicTimeInterval = periodicTimeInterval {
-            startTime = timestamp { seconds = 100 }
-            increment = duration { seconds = 5 }
-            intervalCount = 2
-          }
-          metrics += metric {
-            impressionCount = MetricKt.impressionCountParams { maximumFrequencyPerUser = 5 }
-            setOperations += MetricKt.namedSetOperation {
-              uniqueName = "set-operation"
-              setOperation = MetricKt.setOperation {
-                type = Metric.SetOperation.Type.UNION
-                lhs = MetricKt.SetOperationKt.operand {
-                  operation = MetricKt.setOperation {
-                    type = Metric.SetOperation.Type.UNION
-                    lhs = MetricKt.SetOperationKt.operand { reportingSet = reportingSets[0].name }
-                    rhs = MetricKt.SetOperationKt.operand { reportingSet = reportingSets[1].name }
-                  }
+    return publicReportsClient
+      .withPrincipalName(measurementConsumerName)
+      .createReport(
+        createReportRequest {
+          parent = measurementConsumerName
+          report = report {
+            measurementConsumer = measurementConsumerName
+            reportIdempotencyKey = runId
+            eventGroupUniverse =
+              ReportKt.eventGroupUniverse {
+                eventGroupsList.forEach {
+                  eventGroupEntries +=
+                    ReportKt.EventGroupUniverseKt.eventGroupEntry { key = it.name }
                 }
-                rhs = MetricKt.SetOperationKt.operand { reportingSet = reportingSets[2].name }
               }
+            periodicTimeInterval = periodicTimeInterval {
+              startTime = timestamp { seconds = 100 }
+              increment = duration { seconds = 5 }
+              intervalCount = 2
+            }
+            metrics += metric {
+              impressionCount = MetricKt.impressionCountParams { maximumFrequencyPerUser = 5 }
+              setOperations +=
+                MetricKt.namedSetOperation {
+                  uniqueName = "set-operation"
+                  setOperation =
+                    MetricKt.setOperation {
+                      type = Metric.SetOperation.Type.UNION
+                      lhs =
+                        MetricKt.SetOperationKt.operand {
+                          operation =
+                            MetricKt.setOperation {
+                              type = Metric.SetOperation.Type.UNION
+                              lhs =
+                                MetricKt.SetOperationKt.operand {
+                                  reportingSet = reportingSets[0].name
+                                }
+                              rhs =
+                                MetricKt.SetOperationKt.operand {
+                                  reportingSet = reportingSets[1].name
+                                }
+                            }
+                        }
+                      rhs = MetricKt.SetOperationKt.operand { reportingSet = reportingSets[2].name }
+                    }
+                }
             }
           }
         }
-      })
+      )
   }
 
   private suspend fun getReport(reportName: String, measurementConsumerName: String): Report {
-    return publicReportsClient.withPrincipalName(measurementConsumerName)
+    return publicReportsClient
+      .withPrincipalName(measurementConsumerName)
       .getReport(getReportRequest { name = reportName })
   }
 
   private suspend fun listReports(measurementConsumerName: String): ListReportsResponse {
-    return publicReportsClient.withPrincipalName(measurementConsumerName)
+    return publicReportsClient
+      .withPrincipalName(measurementConsumerName)
       .listReports(listReportsRequest { parent = measurementConsumerName })
   }
 
   companion object {
-    private val SECRETS_DIR: File = getRuntimePath(Paths.get(
-      "wfa_measurement_system",
-      "src",
-      "main",
-      "k8s",
-      "testing",
-      "secretfiles",
-    ))!!.toFile()
+    private val SECRETS_DIR: File =
+      getRuntimePath(
+          Paths.get(
+            "wfa_measurement_system",
+            "src",
+            "main",
+            "k8s",
+            "testing",
+            "secretfiles",
+          )
+        )!!
+        .toFile()
 
     private val MC_CERTIFICATE_DER: ByteString =
       readCertificate(SECRETS_DIR.resolve("mc_cs_cert.der").readByteString()).encoded.toByteString()
     private val MC_SIGNING_KEY_HANDLE: SigningKeyHandle =
-      loadSigningKey(SECRETS_DIR.resolve("mc_cs_cert.der"),
-                     SECRETS_DIR.resolve("mc_cs_private.der"))
+      loadSigningKey(
+        SECRETS_DIR.resolve("mc_cs_cert.der"),
+        SECRETS_DIR.resolve("mc_cs_private.der")
+      )
     private val MC_ENCRYPTION_PUBLIC_KEY: EncryptionPublicKey =
       loadPublicKey(SECRETS_DIR.resolve("mc_enc_public.tink")).toEncryptionPublicKey()
     private const val MC_SIGNING_PRIVATE_KEY_PATH = "mc_cs_private.der"
@@ -325,11 +365,14 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     private const val DATA_PROVIDER_CERTIFICATE_NAME =
       "$DATA_PROVIDER_NAME/certificates/AAAAAAAAAHs"
     private val EDP_CERTIFICATE_DER: ByteString =
-      readCertificate(SECRETS_DIR.resolve("edp1_cs_cert.der")
-                        .readByteString()).encoded.toByteString()
+      readCertificate(SECRETS_DIR.resolve("edp1_cs_cert.der").readByteString())
+        .encoded
+        .toByteString()
     private val EDP_SIGNING_KEY_HANDLE: SigningKeyHandle =
-      loadSigningKey(SECRETS_DIR.resolve("edp1_cs_cert.der"),
-                     SECRETS_DIR.resolve("edp1_cs_private.der"))
+      loadSigningKey(
+        SECRETS_DIR.resolve("edp1_cs_cert.der"),
+        SECRETS_DIR.resolve("edp1_cs_private.der")
+      )
 
     private val CERTIFICATE: Certificate = certificate {
       name = DATA_PROVIDER_CERTIFICATE_NAME
@@ -341,8 +384,10 @@ abstract class InProcessLifeOfAReportIntegrationTest {
       certificate = DATA_PROVIDER_CERTIFICATE_NAME
       certificateDer = EDP_CERTIFICATE_DER
       publicKey =
-        signEncryptionPublicKey(loadPublicKey(SECRETS_DIR.resolve("edp1_enc_public.tink")).toEncryptionPublicKey(),
-                                EDP_SIGNING_KEY_HANDLE)
+        signEncryptionPublicKey(
+          loadPublicKey(SECRETS_DIR.resolve("edp1_enc_public.tink")).toEncryptionPublicKey(),
+          EDP_SIGNING_KEY_HANDLE
+        )
     }
 
     private val MEASUREMENT_CONSUMER: MeasurementConsumer = measurementConsumer {
@@ -358,13 +403,14 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     private val MEASUREMENT_SPEC = measurementSpec {
       measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.data
       vidSamplingInterval = MeasurementSpecKt.vidSamplingInterval { width = 1.0f }
-      impression = MeasurementSpecKt.impression {
-        privacyParams = differentialPrivacyParams {
-          epsilon = 1.0
-          delta = 1.0
+      impression =
+        MeasurementSpecKt.impression {
+          privacyParams = differentialPrivacyParams {
+            epsilon = 1.0
+            delta = 1.0
+          }
+          maximumFrequencyPerUser = 5
         }
-        maximumFrequencyPerUser = 5
-      }
       nonceHashes += DATA_PROVIDER_NONCE_HASH
     }
 
@@ -373,28 +419,33 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     private val result =
       MeasurementKt.result { impression = MeasurementKt.ResultKt.impression { value = 100 } }
     private val signedResult: SignedData = signResult(result, EDP_SIGNING_KEY_HANDLE)
-    private val ENCRYPTED_RESULT: ByteString = encryptResult(signedResult,
-                                                             EncryptionPublicKey.parseFrom(
-                                                               MEASUREMENT_SPEC.measurementPublicKey))
+    private val ENCRYPTED_RESULT: ByteString =
+      encryptResult(
+        signedResult,
+        EncryptionPublicKey.parseFrom(MEASUREMENT_SPEC.measurementPublicKey)
+      )
 
     private val MEASUREMENT = measurement {
       name = MEASUREMENT_NAME
       measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
       measurementSpec = signMeasurementSpec(MEASUREMENT_SPEC, MC_SIGNING_KEY_HANDLE)
-      dataProviders += MeasurementKt.dataProviderEntry {
-        key = DATA_PROVIDER_NAME
-        value = MeasurementKt.DataProviderEntryKt.value {
-          dataProviderCertificate = DATA_PROVIDER_CERTIFICATE_NAME
-          dataProviderPublicKey = DATA_PROVIDER.publicKey
-          encryptedRequisitionSpec = ByteString.copyFromUtf8("Fake encrypted requisition spec")
-          nonceHash = DATA_PROVIDER_NONCE_HASH
+      dataProviders +=
+        MeasurementKt.dataProviderEntry {
+          key = DATA_PROVIDER_NAME
+          value =
+            MeasurementKt.DataProviderEntryKt.value {
+              dataProviderCertificate = DATA_PROVIDER_CERTIFICATE_NAME
+              dataProviderPublicKey = DATA_PROVIDER.publicKey
+              encryptedRequisitionSpec = ByteString.copyFromUtf8("Fake encrypted requisition spec")
+              nonceHash = DATA_PROVIDER_NONCE_HASH
+            }
         }
-      }
       measurementReferenceId = "ref_id"
-      results += MeasurementKt.resultPair {
-        certificate = DATA_PROVIDER_CERTIFICATE_NAME
-        encryptedResult = ENCRYPTED_RESULT
-      }
+      results +=
+        MeasurementKt.resultPair {
+          certificate = DATA_PROVIDER_CERTIFICATE_NAME
+          encryptedResult = ENCRYPTED_RESULT
+        }
       state = Measurement.State.SUCCEEDED
     }
 
@@ -412,8 +463,9 @@ abstract class InProcessLifeOfAReportIntegrationTest {
       measurementConsumerPublicKey = MEASUREMENT_CONSUMER.publicKey
       vidModelLines.addAll(VID_MODEL_LINES)
       eventTemplates.addAll(EVENT_TEMPLATES)
-      encryptedMetadata = MC_ENCRYPTION_PUBLIC_KEY.toPublicKeyHandle()
-        .hybridEncrypt(EventGroup.Metadata.getDefaultInstance().toByteString())
+      encryptedMetadata =
+        MC_ENCRYPTION_PUBLIC_KEY.toPublicKeyHandle()
+          .hybridEncrypt(EventGroup.Metadata.getDefaultInstance().toByteString())
     }
 
     private const val EVENT_GROUP_METADATA_DESCRIPTOR_NAME =
