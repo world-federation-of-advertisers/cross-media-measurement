@@ -63,6 +63,9 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 #HealthPort: 8080
 
+#OpenTelemetryReceiverPort:           4317
+#OpenTelemetryPrometheusExporterPort: 8889
+
 #ResourceQuantity: {
 	cpu?:    string
 	memory?: string
@@ -207,6 +210,14 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		"app.kubernetes.io/part-of":   #AppName
 		"app.kubernetes.io/component": _component
 	}
+}
+
+// K8s ConfigMap.
+#ConfigMap: {
+	apiVersion: "v1"
+	kind:       "ConfigMap"
+	metadata:   #ObjectMeta
+	data: {...}
 }
 
 // K8s Service.
@@ -360,7 +371,18 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		replicas?: int32
 		selector: matchLabels: app: _name + "-app"
 		template: {
-			metadata: labels: app: _name + "-app"
+			metadata: {
+				labels: {
+					app:    _name + "-app"
+					scrape: string | *"true"
+				}
+				annotations: {
+					"sidecar.opentelemetry.io/inject":              string | *"default-sidecar"
+					"instrumentation.opentelemetry.io/inject-java": string | *"true"
+					"prometheus.io/port":                           string | *"\(#OpenTelemetryPrometheusExporterPort)"
+					"prometheus.io/scrape":                         string | *"true"
+				}
+			}
 			spec: #PodSpec & {
 				_mounts: "\(_name)-files": {
 					volume: secret: secretName: _secretName
@@ -446,8 +468,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 // allow all traffic from pods matching _sourceMatchLabels to pods matching
 // _destinationMatchLabels.
 #NetworkPolicy: {
-	_name:      string
-	_app_label: string
+	_name:       string
+	_app_label?: string
 	_sourceMatchLabels: [...string]
 	_destinationMatchLabels: [...string]
 	_ingresses: [Name=_]: #IngressRule
@@ -498,7 +520,11 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		}
 	}
 	spec: {
-		podSelector: matchLabels: app: _app_label
+		podSelector: matchLabels: {
+			if _app_label != _|_ {
+				app: _app_label
+			}
+		}
 		policyTypes: ["Ingress", "Egress"]
 		ingress: [ for _, ingress in _ingresses {ingress}]
 		egress: [ for _, egress in _egresses {egress}]

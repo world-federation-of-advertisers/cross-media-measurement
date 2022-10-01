@@ -15,21 +15,23 @@
 package org.wfanet.measurement.duchy.daemon.herald
 
 import io.grpc.Status
+import io.grpc.StatusException
 import java.time.Clock
 import java.time.Duration
+import java.util.logging.Level
 import java.util.logging.Logger
+import kotlin.coroutines.coroutineContext
 import kotlin.math.pow
 import kotlin.random.Random
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import org.wfanet.measurement.common.grpc.grpcStatusCode
-import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.protoTimestamp
-import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.duchy.daemon.utils.MeasurementType
 import org.wfanet.measurement.duchy.daemon.utils.key
 import org.wfanet.measurement.duchy.daemon.utils.toMeasurementType
@@ -75,31 +77,48 @@ class Herald(
   private val clock: Clock,
   private val blobStorageBucket: String = "computation-blob-storage",
   private val maxAttempts: Int = 5,
-  private val maxConcurrency: Int = 5,
+  private val maxStreamingAttempts: Int = 5,
+  maxConcurrency: Int = 5,
   private val retryBackoff: ExponentialBackoff = ExponentialBackoff(),
 ) {
   private val semaphore = Semaphore(maxConcurrency)
 
   /**
    * Syncs the status of computations stored at the kingdom with those stored locally continually in
-   * a forever loop. The [pollingThrottler] is used to limit how often the kingdom and local
-   * computation storage service are polled.
-   *
-   * @param pollingThrottler throttles how often to get active computations from the Global
-   * Computation Service
+   * a forever loop.
    */
-  suspend fun continuallySyncStatuses(pollingThrottler: Throttler) {
-    logger.info("Starting...")
+  suspend fun continuallySyncStatuses() {
+    logger.info("Server starting...")
     // Token signifying the last computation in an active state at the kingdom that was processed by
     // this job. When empty, all active computations at the kingdom will be streamed in the
     // response. The first execution of the loop will then compare all active computations at
     // the kingdom with all active computations locally.
     var lastProcessedContinuationToken = ""
 
-    pollingThrottler.loopOnReady {
-      logAndSuppressExceptionSuspend {
+    // TODO(world-federation-of-advertisers/cross-media-measurement#695): Use gRPC service config
+    // rather than custom retry logic w/backoff.
+    var attemptNumber = 1
+    while (coroutineContext.isActive) {
+      try {
         lastProcessedContinuationToken = syncStatuses(lastProcessedContinuationToken)
+      } catch (e: StreamingException) {
+        when (val statusCode = e.cause.status.code) {
+          Status.Code.UNAVAILABLE,
+          Status.Code.DEADLINE_EXCEEDED -> {
+            if (attemptNumber == maxStreamingAttempts) {
+              throw e
+            }
+            logger.warning { "Sync attempt $attemptNumber failed with $statusCode. Retrying..." }
+            retryBackoff.delay(attemptNumber)
+            attemptNumber++
+            continue
+          }
+          else -> throw e
+        }
       }
+
+      // Reset attempt number due to success.
+      attemptNumber = 1
     }
   }
 
@@ -112,42 +131,56 @@ class Herald(
    * @return the continuation token of the last computation processed in that stream of active
    * computations from the system computation service.
    */
-  suspend fun syncStatuses(continuationToken: String): String = coroutineScope {
+  suspend fun syncStatuses(continuationToken: String): String {
     logger.info("Reading stream of active computations since \"$continuationToken\".")
 
     val streamRequest = streamActiveComputationsRequest {
       this.continuationToken = continuationToken
     }
+
     var lastProcessedContinuationToken = continuationToken
+    coroutineScope {
+      systemComputationsClient
+        .streamActiveComputations(streamRequest)
+        .catch { cause ->
+          if (cause !is StatusException) throw cause
+          throw StreamingException("Error streaming active computations", cause)
+        }
+        .collect { response ->
+          semaphore.acquire()
+          launch {
+            processSystemComputationAndSuppressException(response.computation, MAX_ATTEMPTS)
+          }
+          lastProcessedContinuationToken = response.continuationToken
+        }
+    }
 
-    systemComputationsClient
-      .streamActiveComputations(streamRequest)
-      .onEach { response ->
-        semaphore.acquire()
-        launch { processSystemComputationWithoutExceptions(response.computation, MAX_ATTEMPTS) }
-        lastProcessedContinuationToken = response.continuationToken
-      }
-      .collect()
-
-    return@coroutineScope lastProcessedContinuationToken
+    return lastProcessedContinuationToken
   }
 
-  private suspend fun processSystemComputationWithoutExceptions(
+  private suspend fun processSystemComputationAndSuppressException(
     computation: Computation,
     maxAttempts: Int = 10
   ) {
     var attemptNumber = 0
-    while (true) {
+    while (coroutineContext.isActive) {
       attemptNumber++
       try {
-        processSystemComputationChange(computation)
+        processSystemComputation(computation)
         semaphore.release()
         return
-      } catch (ex: Throwable) {
-        if (!mayBeTransientGrpcError(ex) || attemptNumber >= maxAttempts) {
+      } catch (e: CancellationException) {
+        // Ensure that coroutine cancellation bubbles up immediately.
+        throw e
+      } catch (e: Exception) {
+        // TODO(@renjiezh): Catch StatusException at the RPC site instead, wrapping in a more
+        // specific exception if it needs to be handled at a higher level.
+        if (!mayBeTransientGrpcError(e) || attemptNumber >= maxAttempts) {
+          val globalId: String = computation.key.computationId
+          logger.log(Level.SEVERE, "[id=$globalId] Non-transient error:", e)
           failComputationAtKingdom(
             computation,
-            "Herald failed after $attemptNumber attempt(s). ${ex.message}"
+            "Herald failed after $attemptNumber attempts. ${e.message}"
           )
           failComputationAtDuchy(computation)
           semaphore.release()
@@ -157,26 +190,26 @@ class Herald(
     }
   }
 
-  private suspend fun processSystemComputationChange(computation: Computation) {
+  private suspend fun processSystemComputation(computation: Computation) {
     require(computation.name.isNotEmpty()) { "Resource name not specified" }
     val globalId: String = computation.key.computationId
-    logger.info("[id=$globalId]: Processing updated GlobalComputation")
+    logger.fine("[id=$globalId]: Processing updated GlobalComputation")
     when (val state = computation.state) {
       // Creates a new computation if it is not already present in the database.
-      State.PENDING_REQUISITION_PARAMS -> create(computation)
+      State.PENDING_REQUISITION_PARAMS -> createComputation(computation)
       // Updates a computation for duchy confirmation.
-      State.PENDING_PARTICIPANT_CONFIRMATION -> update(computation)
+      State.PENDING_PARTICIPANT_CONFIRMATION -> confirmParticipant(computation)
       // Starts a computation locally.
-      State.PENDING_COMPUTATION -> start(computation)
+      State.PENDING_COMPUTATION -> startComputing(computation)
       else -> logger.warning("Unexpected global computation state '$state'")
     }
   }
 
   /** Creates a new computation. */
-  private suspend fun create(systemComputation: Computation) {
+  private suspend fun createComputation(systemComputation: Computation) {
     require(systemComputation.name.isNotEmpty()) { "Resource name not specified" }
     val globalId: String = systemComputation.key.computationId
-    logger.info("[id=$globalId] Creating Computation")
+    logger.info("[id=$globalId] Creating Computation...")
     try {
       when (systemComputation.toMeasurementType()) {
         MeasurementType.REACH_AND_FREQUENCY -> {
@@ -189,8 +222,10 @@ class Herald(
         }
       }
       logger.info("[id=$globalId]: Created Computation")
-    } catch (e: Exception) {
-      if (e.grpcStatusCode() == Status.Code.ALREADY_EXISTS) {
+    } catch (e: StatusException) {
+      // TODO(@renjiezh): Catch StatusException at the RPC site instead, wrapping in a more
+      // specific exception if it needs to be handled at a higher level.
+      if (e.status.code == Status.Code.ALREADY_EXISTS) {
         logger.info("[id=$globalId]: Computation already exists")
       } else {
         throw e // rethrow all other exceptions.
@@ -220,26 +255,25 @@ class Herald(
         if (previous.isSuccess) {
           return@fold previous
         }
-
-        logger.info("[id=$globalId] Attempt #$attemptNumber")
         val result = runCatching { block(systemComputation) }
         if (result.isFailure) {
+          logger.info("[id=$globalId] Waiting to retry attempt #${ attemptNumber + 1 }...")
           retryBackoff.delay(attemptNumber)
         }
         result
       }
     return finalResult.getOrElse {
       throw AttemptsExhaustedException(it) {
-        "[id=$globalId] Giving up after $maxAttempts attempts"
+        "[id=$globalId] Attempts reach maximum after $maxAttempts attempts"
       }
     }
   }
 
   /** Attempts to update a new computation from duchy confirmation. */
-  private suspend fun update(systemComputation: Computation) {
+  private suspend fun confirmParticipant(systemComputation: Computation) {
     val globalId = systemComputation.key.computationId
     runWithRetries(systemComputation) {
-      logger.info("[id=$globalId]: Updating Computation")
+      logger.info("[id=$globalId]: Confirming Participant...")
       val token = internalComputationsClient.getComputationToken(globalId.toGetTokenRequest()).token
       when (token.computationDetails.protocolCase) {
         ComputationDetails.ProtocolCase.LIQUID_LEGIONS_V2 ->
@@ -251,20 +285,22 @@ class Herald(
           )
         else -> error { "Unknown or unsupported protocol." }
       }
+      logger.info("[id=$globalId]: Confirmed Computation")
     }
   }
 
   /** Attempts to start a computation that is in WAIT_TO_START. */
-  private suspend fun start(systemComputation: Computation) {
+  private suspend fun startComputing(systemComputation: Computation) {
     val globalId = systemComputation.key.computationId
     runWithRetries(systemComputation) {
-      logger.info("[id=$globalId]: Starting Computation")
+      logger.info("[id=$globalId]: Starting Computation...")
       val token = internalComputationsClient.getComputationToken(globalId.toGetTokenRequest()).token
       when (token.computationDetails.protocolCase) {
         ComputationDetails.ProtocolCase.LIQUID_LEGIONS_V2 ->
           LiquidLegionsV2Starter.startComputation(token, internalComputationsClient)
         else -> error { "Unknown or unsupported protocol." }
       }
+      logger.info("[id=$globalId]: Started Computation")
     }
   }
 
@@ -282,8 +318,8 @@ class Herald(
     }
     try {
       systemComputationParticipantClient.failComputationParticipant(request)
-    } catch (ex: Throwable) {
-      logger.warning("[id=$globalId]: Error when failComputationAtKingdom.\n$ex")
+    } catch (e: StatusException) {
+      logger.log(Level.WARNING, e) { "[id=$globalId]: Error when failComputationAtKingdom" }
     }
   }
 
@@ -293,7 +329,7 @@ class Herald(
     val token =
       try {
         internalComputationsClient.getComputationToken(globalId.toGetTokenRequest()).token
-      } catch (ex: Throwable) {
+      } catch (e: StatusException) {
         null
       } ?: return
 
@@ -308,18 +344,28 @@ class Herald(
     }
     try {
       internalComputationsClient.finishComputation(finishRequest)
-    } catch (ex: Throwable) {
-      logger.warning("[id=$globalId]: Error when failComputationAtDuchy.\n$ex")
+    } catch (e: StatusException) {
+      logger.log(Level.WARNING, e) { "[id=$globalId]: Error when failComputationAtDuchy" }
     }
   }
+
+  private class StreamingException(message: String, override val cause: StatusException) :
+    Exception(message, cause)
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
 
-/** Returns true if the error may be transient, i.e. retrying the request may succeed. */
-fun mayBeTransientGrpcError(error: Throwable): Boolean {
+/**
+ * Returns `true` if the error may be transient, i.e. retrying the request may succeed.
+ *
+ * TODO(world-federation-of-advertisers/cross-media-measurement#695): Use service config to apply
+ * per-method retry logic. Whether a status code indicates that a method is safe to retry depends on
+ * the method. e.g. [DEADLINE_EXCEEDED][Status.Code.DEADLINE_EXCEEDED] is not necessarily safe to
+ * retry if the method is non-idempotent.
+ */
+fun mayBeTransientGrpcError(error: Exception): Boolean {
   val statusCode = error.grpcStatusCode() ?: return false
   return when (statusCode) {
     Status.Code.ABORTED,

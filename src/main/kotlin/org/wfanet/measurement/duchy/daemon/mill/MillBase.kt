@@ -15,6 +15,8 @@
 package org.wfanet.measurement.duchy.daemon.mill
 
 import com.google.protobuf.ByteString
+import io.grpc.Status
+import io.grpc.StatusException
 import java.lang.management.ManagementFactory
 import java.lang.management.ThreadMXBean
 import java.security.cert.X509Certificate
@@ -44,7 +46,6 @@ import org.wfanet.measurement.duchy.db.computation.singleOutputBlobMetadata
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
-import org.wfanet.measurement.internal.duchy.ClaimWorkResponse
 import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
@@ -111,7 +112,7 @@ abstract class MillBase(
    * queue. The polling interval is controlled by the [MinimumIntervalThrottler].
    */
   suspend fun continuallyProcessComputationQueue() {
-    logger.info("Starting...")
+    logger.info("Mill starting...")
     withContext(CoroutineName("Mill $millId")) {
       throttler.loopOnReady {
         // All errors thrown inside the loop should be suppressed such that the mill doesn't crash.
@@ -120,13 +121,25 @@ abstract class MillBase(
     }
   }
 
+  var computationsServerReady = false
   /** Poll and work on the next available computations. */
   suspend fun pollAndProcessNextComputation() {
     logger.fine("@Mill $millId: Polling available computations...")
+
     val claimWorkRequest =
       ClaimWorkRequest.newBuilder().setComputationType(computationType).setOwner(millId).build()
-    val claimWorkResponse: ClaimWorkResponse =
-      dataClients.computationsClient.claimWork(claimWorkRequest)
+    val claimWorkResponse =
+      try {
+        dataClients.computationsClient.claimWork(claimWorkRequest)
+      } catch (ex: StatusException) {
+        if (!computationsServerReady && ex.status.code == Status.Code.UNAVAILABLE) {
+          logger.info("ComputationServer not ready")
+          return
+        }
+        throw ex
+      }
+    computationsServerReady = true
+
     if (claimWorkResponse.hasToken()) {
       val wallDurationLogger = wallDurationLogger()
       val cpuDurationLogger = cpuDurationLogger()
@@ -147,7 +160,7 @@ abstract class MillBase(
     logStageMetric(token, CURRENT_RUNTIME_MEMORY_FREE, Runtime.getRuntime().freeMemory())
     val stage = token.computationStage
     val globalId = token.globalComputationId
-    logger.info("@Mill $millId: Processing computation $globalId, stage $stage")
+    logger.info("$globalId@$millId: Processing computation, stage $stage")
 
     try {
       processComputationImpl(token)
@@ -157,6 +170,7 @@ abstract class MillBase(
       val latestToken = getLatestComputationToken(globalId)
       handleExceptions(latestToken, e)
     }
+    logger.info("$globalId@$millId: Processed computation ")
   }
 
   private suspend fun handleExceptions(token: ComputationToken, e: Exception) {

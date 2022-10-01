@@ -96,7 +96,9 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
         apiKeysStub,
         internalCertificatesStub,
         measurementConsumersStub,
-        flags.runId
+        flags.runId,
+        flags.bazelConfigName,
+        flags.outputDir
       )
       .process(dataProviderContents, measurementConsumerContent, duchyCerts)
   }

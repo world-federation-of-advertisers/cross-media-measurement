@@ -35,13 +35,21 @@ class EncryptionKeyPairMap {
     description = ["Path to the textproto file of EncryptionKeyPairConfig that contains key pairs"],
     required = true
   )
-  private lateinit var keyPairListFile: File
+  private lateinit var keyPairConfigFile: File
 
-  val keyPairs: Map<ByteString, PrivateKeyHandle> by lazy {
-    parseTextProto(keyPairListFile, encryptionKeyPairConfig {}).keyPairsMap.entries.associate {
-      val publicKeyFile = keyFilesDirectory.resolve(it.key)
-      val privateKeyFile = keyFilesDirectory.resolve(it.value)
-      publicKeyFile.readByteString() to loadPrivateKey(privateKeyFile)
+  private fun loadKeyPairs(): Map<String, List<Pair<ByteString, PrivateKeyHandle>>> {
+    val keyPairConfig =
+      parseTextProto(keyPairConfigFile, encryptionKeyPairConfig {}).principalKeyPairsList
+    return keyPairConfig.associate { config ->
+      val keyPairs =
+        config.keyPairsList.map { keyPair ->
+          val publicKey = keyFilesDirectory.resolve(keyPair.publicKeyFile).readByteString()
+          val privateKey = loadPrivateKey(keyFilesDirectory.resolve(keyPair.privateKeyFile))
+          publicKey to privateKey
+        }
+      checkNotNull(config.principal) to keyPairs
     }
   }
+
+  val keyPairs: Map<String, List<Pair<ByteString, PrivateKeyHandle>>> by lazy { loadKeyPairs() }
 }

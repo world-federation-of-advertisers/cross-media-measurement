@@ -95,13 +95,13 @@ The `dev` configuration uses the
 docker images. Enable the Google Container Registry API in the console if you
 haven't done it. If you use other repositories, adjust the commands accordingly.
 
-Assuming a project named `halo-kingdom-demo`, run the following to build the
-images:
+Assuming a project named `halo-kingdom-demo` and an image tag `build-0001`, run
+the following to build the images:
 
 ```shell
 bazel query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
   xargs bazel build -c opt --define container_registry=gcr.io \
-  --define image_repo_prefix=halo-kingdom-demo
+  --define image_repo_prefix=halo-kingdom-demo --define image_tag=build-0001
 ```
 
 and then push them:
@@ -109,11 +109,11 @@ and then push them:
 ```shell
 bazel query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
   xargs -n 1 bazel run -c opt --define container_registry=gcr.io \
-  --define image_repo_prefix=halo-kingdom-demo
+  --define image_repo_prefix=halo-kingdom-demo --define image_tag=build-0001
 ```
 
 You should see output like "Successfully pushed Docker image to
-gcr.io/halo-kingdom-demo/kingdom/data-server:latest"
+gcr.io/halo-kingdom-demo/kingdom/data-server:build-0001"
 
 Tip: If you're using [Hybrid Development](../building.md#hybrid-development) for
 containerized builds, replace `bazel build` with `tools/bazel-container build`
@@ -179,6 +179,10 @@ After creating the cluster, we can configure `kubectl` to be able to access it
 ```shell
 gcloud container clusters get-credentials halo-cmm-kingdom-demo-cluster
 ```
+
+### Add Metrics to the cluster
+
+See [Metrics Deployment](metrics-deployment.md).
 
 ## Step 5. Create K8s service account
 
@@ -322,10 +326,12 @@ configuration uses one named `config-files` containing the file
 empty.
 
 ```shell
-touch /tmp/authority_key_identifier_to_principal_map.textproto
 kubectl create configmap config-files \
-  --from-file=/tmp/authority_key_identifier_to_principal_map.textproto
+  --from-file=authority_key_identifier_to_principal_map.textproto=/dev/null
 ```
+
+See [Creating Resources](../operations/creating-resources.md) for information on
+this file format.
 
 ## Step 8. Create the K8s manifest
 
@@ -351,10 +357,12 @@ You can also modify things such as the memory and CPU request/limit of each pod,
 as well as the number of replicas per deployment.
 
 To generate the YAML manifest from the CUE files, run the following
-(substituting your own secret name):
+(substituting your own secret name and image tag):
 
 ```shell
-bazel build //src/main/k8s/dev:kingdom_gke --define=k8s_kingdom_secret_name=certs-and-configs-abcdedg
+bazel build //src/main/k8s/dev:kingdom_gke \
+  --define=k8s_kingdom_secret_name=certs-and-configs-abcdedg \
+  --define image_tag=build-0001
 ```
 
 You can also do your customization to the generated YAML file rather than to the

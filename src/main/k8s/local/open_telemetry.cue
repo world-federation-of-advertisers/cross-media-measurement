@@ -12,23 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-syntax = "proto3";
+package k8s
 
-package wfa.measurement.config.reporting;
-
-option java_package = "org.wfanet.measurement.config.reporting";
-option java_multiple_files = true;
-
-message EncryptionKeyPairConfig {
-  // Files for a pair of public / private key.
-  message KeyPair {
-    string public_key_file = 1;
-    string private_key_file = 2;
-  }
-  // The list of key pairs for a principal.
-  message PrincipalKeyPairs {
-    string principal = 1;
-    repeated KeyPair key_pairs = 2;
-  }
-  repeated PrincipalKeyPairs principal_key_pairs = 1;
-}
+objectSets: #OpenTelemetry.objectSets
