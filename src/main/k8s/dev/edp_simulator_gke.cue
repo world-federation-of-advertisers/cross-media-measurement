@@ -29,7 +29,7 @@ _cloudStorageBucket: string @tag("cloud_storage_bucket")
 // #DuchyPublicApiTarget:   "public.worker1.dev.halo-cmm.org:8443"
 #BigQueryDataSet:        "demo"
 #BigQueryTable:          "labelled_events"
-#ServiceAccount:         "simulator"
+#ServiceAccount:         "storage"
 
 // DNS name of the public API of the Kingdom.  This is used to poll for
 // new requisition requests.  The default is to look for a Kingdom running
@@ -114,10 +114,10 @@ edp_simulators: {
 }
 
 network_policies: {
-        [for edp in #Edps {
+        [for edp in _edpConfigs {
 		networkPolicies: #NetworkPolicy & {
-       			_name: 	 	edp.display_name
-			_app_label: 	edp.display_name + "-simulator-app"
+       			_name: 	 	edp.displayName
+			_app_label: 	edp.displayName + "-simulator-app"
 			_egresses: {
 				      // Need to send external traffic.
 			  	      any: {}

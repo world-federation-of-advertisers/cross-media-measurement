@@ -640,6 +640,7 @@ class Benchmark(
       print("Trying to retrieve ${task.referenceId} ${task.measurementName}...")
       val measurement =
         runBlocking(Dispatchers.IO) {
+					delay(500L)
           measurementStub
             .withAuthenticationKey(apiAuthenticationKey)
             .getMeasurement(getMeasurementRequest { name = task.measurementName })
