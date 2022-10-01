@@ -18,7 +18,6 @@ import java.io.File
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
-import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.reporting.service.api.v1alpha.PrincipalServerInterceptor.ConfigLookup
 
 /**
@@ -28,7 +27,7 @@ import org.wfanet.measurement.reporting.service.api.v1alpha.PrincipalServerInter
  */
 class TextprotoFileMeasurementConsumerConfigLookup(textprotoFile: File) : ConfigLookup {
   private val map: Map<String, MeasurementConsumerConfig> =
-    parseTextProto(textprotoFile, measurementConsumerConfigs {}).configsMap
+    parseTextProto(textprotoFile, MeasurementConsumerConfigs.getDefaultInstance()).configsMap
 
   override fun get(measurementConsumerName: String): MeasurementConsumerConfig? {
     return map[measurementConsumerName]

@@ -16,9 +16,9 @@ package org.wfanet.measurement.reporting.service.api.v1alpha
 
 import com.google.protobuf.ByteString
 import java.io.File
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.AuthorityKeyToPrincipalMap
-import org.wfanet.measurement.config.authorityKeyToPrincipalMap
 import org.wfanet.measurement.reporting.service.api.v1alpha.PrincipalServerInterceptor.PrincipalLookup
 
 /**
@@ -30,20 +30,25 @@ class TextprotoFilePrincipalLookup(
   textprotoFile: File,
   configLookup: PrincipalServerInterceptor.ConfigLookup
 ) : PrincipalLookup {
-  private val map: Map<ByteString, ReportingPrincipal> =
-    parseTextProto(textprotoFile, authorityKeyToPrincipalMap {})
+  private val map: Map<ByteString, MeasurementConsumerPrincipal> =
+    parseTextProto(textprotoFile, AuthorityKeyToPrincipalMap.getDefaultInstance())
       .entriesList
       .associate { it.authorityKeyIdentifier to it.principalResourceName }
-      .mapValues {
-        requireNotNull(
-          ReportingPrincipal.fromConfigs(
-            it.value,
-            requireNotNull(configLookup.get(it.value)) { "No configs for Principal name" }
-          )
-        ) { "Invalid Principal name: ${it.value}" }
+      .mapValues { MeasurementConsumerKey.fromName(it.value) }
+      .filterNullValues()
+      .mapValues { (_, resourceKey) ->
+        val config =
+          requireNotNull(configLookup.get(resourceKey.toName())) {
+            "No config found for $resourceKey"
+          }
+        MeasurementConsumerPrincipal(resourceKey, config)
       }
 
   override fun get(authorityKeyIdentifier: ByteString): ReportingPrincipal? {
     return map[authorityKeyIdentifier]
   }
+}
+
+private fun <K, V> Map<K, V?>.filterNullValues(): Map<K, V> {
+  @Suppress("UNCHECKED_CAST") return filterValues { it != null } as Map<K, V>
 }

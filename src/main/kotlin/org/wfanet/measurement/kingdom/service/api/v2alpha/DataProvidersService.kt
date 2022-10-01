@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
+import io.grpc.StatusException
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
@@ -32,9 +33,7 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
-import org.wfanet.measurement.internal.kingdom.DataProviderKt.details
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
-import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
 
 private val API_VERSION = Version.V2_ALPHA
@@ -62,11 +61,19 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
       }
     }
 
-    val internalResponse: InternalDataProvider =
-      internalClient.getDataProvider(
-        getDataProviderRequest { externalDataProviderId = apiIdToExternalId(key.dataProviderId) }
-      )
-    return internalResponse.toDataProvider()
+    val internalDataProvider =
+      try {
+        internalClient.getDataProvider(
+          getDataProviderRequest { externalDataProviderId = apiIdToExternalId(key.dataProviderId) }
+        )
+      } catch (ex: StatusException) {
+        when (ex.status.code) {
+          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "DataProvider not found" }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
+      }
+
+    return internalDataProvider.toDataProvider()
   }
 }
 

@@ -12,6 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// This file includes partial CUE definitions for some object types from the
+// Kubernetes API, with some customization for our use cases.
+//
+// TODO(@SanjayVas): Extract the actual definitions from K8s Go packages. See
+// https://cuelang.org/docs/integrations/k8s/#importing-definitions
+
 package k8s
 
 import (
@@ -28,90 +34,229 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 #AppName: "halo-cmms"
 
-#GrpcServicePort: 8443
+#PortNumber: int32 & >0 & <65536
+#IpProtocol: "UDP" | "TCP" | "SCTP"
 
-#ResourceConfig: {
-	replicas?:    int32
-	resources?:   #ResourceRequirements
-
-	// TODO(world-federation-of-advertisers/cross-media-measurement#623): Set heap
-	// size as a percentage instead.
-	jvmHeapSize?: string
+// K8s ContainerPort.
+#ContainerPort: {
+	containerPort: #PortNumber
+	name?:         string
+	protocol?:     #IpProtocol
 }
+
+// K8s ServicePort.
+#ServicePort: {
+	port:        #PortNumber
+	targetPort?: #PortNumber | string
+	protocol?:   #IpProtocol
+	name?:       string
+}
+
+#GrpcPort:          8443
+#GrpcContainerPort: #ContainerPort & {
+	containerPort: #GrpcPort
+}
+#GrpcServicePort: #ServicePort & {
+	name: "grpc-port"
+	port: #GrpcPort
+}
+
+#HealthPort: 8080
 
 #ResourceQuantity: {
 	cpu?:    string
 	memory?: string
 }
 
+// K8s ResourceRequirements.
 #ResourceRequirements: {
 	limits?:   #ResourceQuantity
 	requests?: #ResourceQuantity
 }
 
-#Target: {
-	name:   string
-	_caps:  strings.Replace(strings.ToUpper(name), "-", "_", -1)
-	host: "$(" + _caps + "_SERVICE_HOST)"
-	port: "$(" + _caps + "_SERVICE_PORT)"
-	target: host + ":" + port
+#JavaOptions: {
+	maxRamPercentage?:     float
+	maxDirectMemorySize?:  string
+	maxCachedBufferSize:   uint | *262144 // 256KiB
+	nettyMaxDirectMemory?: int
+
+	_maxRamOptions: [...string]
+	if maxRamPercentage != _|_ {
+		_maxRamOptions: [
+			"-XX:MaxRAMPercentage=\(maxRamPercentage)",
+			"-XX:MinRAMPercentage=\(maxRamPercentage)",
+			"-XX:InitialRAMPercentage=\(maxRamPercentage)",
+		]
+	}
+
+	options: [...string]
+	options: [
+		for item in _maxRamOptions {item},
+		if maxDirectMemorySize != _|_ {
+			"-XX:MaxDirectMemorySize=\(maxDirectMemorySize)"
+		},
+		if nettyMaxDirectMemory != _|_ {
+			"-Dio.netty.maxDirectMemory=\(nettyMaxDirectMemory)"
+		},
+		"-Djdk.nio.maxCachedBufferSize=\(maxCachedBufferSize)",
+	]
 }
 
-#SecretMount: {
-	name:       string
-	secretName: string
-	mountPath:  string | *"/var/run/secrets/files"
+#CommonTarget: {
+	host:   string
+	port:   uint32 | string
+	target: "\(host):\(port)"
 }
 
-#ConfigMapMount: {
-	name:          string
-	configMapName: string | *name
-	mountPath:     string | *"/etc/\(#AppName)/\(name)"
+#ServiceTarget: {
+	#CommonTarget
+
+	serviceName: string
+
+	let ServiceNameVar = strings.Replace(strings.ToUpper(serviceName), "-", "_", -1)
+	host: "$(" + ServiceNameVar + "_SERVICE_HOST)"
+	port: "$(" + ServiceNameVar + "_SERVICE_PORT)"
 }
 
-#GrpcService: {
-	_name:      string
-	_system:    string
-	_type:      *"ClusterIP" | "LoadBalancer"
+#Target: #CommonTarget | *#ServiceTarget | {
+	#ServiceTarget
+
+	name:        string
+	serviceName: name
+}
+
+#GrpcTarget: GrpcTarget={
+	*#CommonTarget | #ServiceTarget
+
+	certificateHost?: string
+
+	targetOption:          string
+	certificateHostOption: string
+
+	args: [
+		"\(targetOption)=\(GrpcTarget.target)",
+		if (certificateHost != _|_) {"\(certificateHostOption)=\(certificateHost)"},
+	]
+}
+
+// K8s Volume.
+#Volume: {
+	name: string
+}
+#Volume: {
+	configMap?: {
+		name: string
+	}
+} | {
+	secret?: {
+		secretName: string
+	}
+} | {
+	emptyDir?: {
+		medium?:    "" | "Memory"
+		sizeLimit?: string
+	}
+}
+
+// K8s VolumeMount.
+#VolumeMount: {
+	name:      string
+	mountPath: string
+	readOnly?: bool
+}
+
+// Configuration for a Volume and a corresponding VolumeMount.
+#Mount: {
+	name: string
+
+	let Name = name
+	volume: #Volume & {
+		name: Name
+	}
+	volumeMount: #VolumeMount & {
+		name:      Name
+		mountPath: string
+	}
+}
+#Mount: {
+	let Name = volumeMount.name
+	volume: configMap: name: string
+	volumeMount: mountPath: _ | *"/etc/\(#AppName)/\(Name)"
+} | {
+	volume: secret: secretName: string
+	volumeMount: mountPath: _ | *"/var/run/secrets/files"
+} | {
+	let Name = volumeMount.name
+	volume: emptyDir: {}
+	volumeMount: mountPath: _ | *"/run/\(Name)"
+}
+#ConfigMapMount: Mount=#Mount & {
+	volume: configMap: name: _ | *Mount.name
+}
+
+// K8s ObjectMeta.
+#ObjectMeta: {
+	_component: string
+
+	name: string
+	labels: [_=string]:      string
+	annotations: [_=string]: string
+
+	labels: {
+		"app.kubernetes.io/name":      name
+		"app.kubernetes.io/part-of":   #AppName
+		"app.kubernetes.io/component": _component
+	}
+}
+
+// K8s Service.
+#Service: {
 	apiVersion: "v1"
 	kind:       "Service"
+	metadata:   Metadata=#ObjectMeta & {
+		annotations: "system": Metadata._component
+	}
+	spec: {
+		selector: app: "\(metadata.name)-app"
+		ports: [...#ServicePort]
+		type?: "ClusterIP" | "LoadBalancer"
+	}
+}
+
+#GrpcService: #Service & {
+	_name:   string
+	_system: string
+	_type:   *"ClusterIP" | "LoadBalancer"
+
 	metadata: {
+		_component: _system
+
 		name: _name
 		annotations: {
-			system:                             _system
-			"cloud.google.com/app-protocols":   '{"grpc-port":"HTTP2"}'
+			"cloud.google.com/app-protocols":   "{\"\(#GrpcServicePort.name)\": \"HTTP2\"}"
 			"kubernetes.io/ingress.allow-http": "false"
-		}
-		labels: {
-			"app.kubernetes.io/name":      _name
-			"app.kubernetes.io/part-of":   #AppName
-			"app.kubernetes.io/component": _system
 		}
 	}
 	spec: {
-		selector: app: _name + "-app"
 		type: _type
-		ports: [{
-			name:       "grpc-port"
-			port:       #GrpcServicePort
-			protocol:   "TCP"
-			targetPort: #GrpcServicePort
-		}]
+		ports: [#GrpcServicePort]
 	}
 }
 
-#PodSpec: PodSpec={
-	_secretMounts: [...#SecretMount]
-	_configMapMounts: [...#ConfigMapMount]
-	_container: #Container & {
-		_secretMounts:    PodSpec._secretMounts
-		_configMapMounts: PodSpec._configMapMounts
-	}
-	_dependencies: [...string]
-	_initContainers: [Name=_]: #Container & {
+// K8s PodSpec.
+#PodSpec: {
+	_mounts: [Name=string]:     #Mount & {name:  Name}
+	_volumes: [Name=string]:    #Volume & {name: Name}
+	_containers: [Name=string]: #Container & {
+		_volumeMounts: {for name, mount in _mounts {"\(name)": mount.volumeMount}}
 		name: Name
 	}
+	_initContainers: [Name=string]: #Container & {
+		name: Name
+	}
+	_dependencies: [...string]
 
+	_volumes: {for name, mount in _mounts {"\(name)": mount.volume}}
 	_initContainers: {
 		for dep in _dependencies {
 			"wait-for-\(dep)": {
@@ -123,176 +268,130 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		}
 	}
 
-	restartPolicy: "Always" | "Never" | "OnFailure"
-	containers: [_container]
-	volumes: [ for secretVolume in _secretMounts {
-		name: secretVolume.name
-		secret: secretName: secretVolume.secretName
-	}] + [ for configVolume in _configMapMounts {
-		name: configVolume.name
-		configMap: name: configVolume.configMapName
-	}]
+	restartPolicy?: "Always" | "Never" | "OnFailure"
+	containers: [ for _, container in _containers {container}]
+	volumes: [ for _, volume in _volumes {volume}]
 	serviceAccountName?: string
 	nodeSelector?: [_=string]: string
 	initContainers: [ for _, initContainer in _initContainers {initContainer}]
-	...
 }
 
+// K8s Pod.
+#Pod: {
+	apiVersion: "v1"
+	kind:       "Pod"
+	metadata:   Metadata=#ObjectMeta & {
+		labels: {
+			"app": "\(Metadata.name)-app"
+		}
+	}
+	spec: #PodSpec
+}
+
+// K8s Probe.
 #Probe: {
-	exec: command: [...string]
+	grpc: {
+		port: uint32
+	}
 	initialDelaySeconds?: uint32
 	periodSeconds?:       uint32
 	timeoutSeconds?:      uint32
 	failureThreshold?:    uint32
-	...
 }
 
 #EnvVar: {
-  name: string
+	name: string
 }
 
 #EnvVar: {
-  value: string
+	value: string
 } | {
-  valueFrom:
-    secretKeyRef: {
-      name: string
-      key:  string
-    }
+	valueFrom:
+		secretKeyRef: {
+			name: string
+			key:  string
+		}
 }
 
 #EnvVarMap: [Name=string]: #EnvVar & {
-    name: Name
+	name: Name
 }
 
+// K8s Container.
 #Container: {
-	_secretMounts: [...#SecretMount]
-	_configMapMounts: [...#ConfigMapMount]
-	_envVars: #EnvVarMap
+	_volumeMounts: [Name=string]: #VolumeMount & {name: Name}
+	_envVars:     #EnvVarMap
+	_javaOptions: #JavaOptions
+
+	_envVars: "JAVA_TOOL_OPTIONS": value: strings.Join(_javaOptions.options, " ")
 
 	name:   string
 	image?: string
 	args: [...string]
-	ports: [...{...}]
+	ports: [...#ContainerPort]
 	imagePullPolicy?: "IfNotPresent" | "Never" | "Always"
 	command?: [...string]
-	volumeMounts: [ for mount in _configMapMounts + _secretMounts {
-		name:      mount.name
-		mountPath: mount.mountPath
-		readOnly:  true
-	}]
+	volumeMounts: [ for _, volumeMount in _volumeMounts {volumeMount}]
 	resources?:      #ResourceRequirements
 	readinessProbe?: #Probe
 	env: [ for _, envVar in _envVars {envVar}]
-	...
 }
 
-#Deployment: Deployment={
+// K8s Deployment.
+#Deployment: {
 	_name:       string
 	_secretName: string
-	_image:      string
-	_args: [...string]
-	_envVars: #EnvVarMap
-	_ports:           [{containerPort: #GrpcServicePort}] | *[]
-	_restartPolicy:   string | *"Always"
-	_imagePullPolicy: string | *"Never"
-	_system:          string
-	_resourceConfig:  #ResourceConfig
-	_dependencies: [...string]
-	_configMapMounts: [...#ConfigMapMount]
-	_secretMounts: [...#SecretMount]
-	_podSpec: #PodSpec & {
-		_secretMounts: [{
-			name:       _name + "-files"
-			secretName: _secretName
-		}] + Deployment._secretMounts
-		_configMapMounts: Deployment._configMapMounts
-		_dependencies:    Deployment._dependencies
-
-		_container: _envVars: Deployment._envVars
-		if _resourceConfig.jvmHeapSize != _|_ {
-			_container: _envVars: "JAVA_TOOL_OPTIONS": {
-				value: "-Xms\(_resourceConfig.jvmHeapSize) -Xmx\(_resourceConfig.jvmHeapSize)"
-			}
-		}
+	_system:     string
+	_container:  #Container & {
+		imagePullPolicy: _ | *"Never"
 	}
 
 	apiVersion: "apps/v1"
 	kind:       "Deployment"
-	metadata: {
-		name: _name + "-deployment"
+	metadata:   #ObjectMeta & {
+		_component: _system
+		name:       _name + "-deployment"
 		labels: {
-			app:                           _name + "-app"
-			"app.kubernetes.io/name":      _name
-			"app.kubernetes.io/part-of":   #AppName
-			"app.kubernetes.io/component": _system
+			app: _name + "-app"
 		}
 		annotations: system: _system
 	}
 	spec: {
+		replicas?: int32
 		selector: matchLabels: app: _name + "-app"
-		replicas?: _resourceConfig.replicas
 		template: {
 			metadata: labels: app: _name + "-app"
-			spec: _podSpec & {
-				containers: [{
-					name:            _name + "-container"
-					image:           _image
-					imagePullPolicy: _imagePullPolicy
-					args:            _args
-					ports:           _ports
-					resources:       _resourceConfig.resources
-				}]
-				restartPolicy: _restartPolicy
+			spec: #PodSpec & {
+				_mounts: "\(_name)-files": {
+					volume: secret: secretName: _secretName
+				}
+				_containers: "\(_name)-container": _container
+				restartPolicy: restartPolicy | *"Always"
 			}
 		}
 	}
 }
 
 #ServerDeployment: #Deployment & {
-	_ports: [{containerPort: #GrpcServicePort}]
-	spec: template: spec: containers: [{
+	_container: {
+		_javaOptions: {
+			nettyMaxDirectMemory: _ | *0 // Use cleaner.
+		}
+		ports: [#GrpcContainerPort]
 		readinessProbe: {
-			exec: command: [
-				"/app/grpc_health_probe/file/grpc-health-probe",
-				"--addr=:\(#GrpcServicePort)",
-				"--tls=true",
-				"--tls-ca-cert=/var/run/secrets/files/all_root_certs.pem",
-				"--tls-client-cert=/var/run/secrets/files/health_probe_tls.pem",
-				"--tls-client-key=/var/run/secrets/files/health_probe_tls.key",
-			]
-			initialDelaySeconds: 30
-			failureThreshold:    10
-		}}]
+			grpc: port: #HealthPort
+			failureThreshold: 12
+			timeoutSeconds:   2
+		}
+	}
 }
 
-#Job: Job={
-	_name:            string
-	_secretName?:     string
-	_image:           string
-	_imagePullPolicy: string | *"Always"
-	_args: [...string]
-	_dependencies: [...string]
-	_resources?:   #ResourceRequirements
-	_jvmHeapSize?: string
-	_jobSpec: {
-		backoffLimit?: uint
-	}
-	_podSpec: #PodSpec & {
-		if _secretName != _|_ {
-			_secretMounts: [{
-				name:       _name + "-files"
-				secretName: _secretName
-			}]
-		}
-		_dependencies: Job._dependencies
-		if _jvmHeapSize != _|_ {
-			_container: _envVars: "JAVA_TOOL_OPTIONS": {
-				value: "-Xms\(_jvmHeapSize) -Xmx\(_jvmHeapSize)"
-			}
-		}
-
-		restartPolicy: string | *"OnFailure"
+// K8s Job.
+#Job: {
+	_name:        string
+	_secretName?: string
+	_container:   #Container & {
+		imagePullPolicy: imagePullPolicy | *"Always"
 	}
 
 	apiVersion: "batch/v1"
@@ -304,43 +403,48 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			"app.kubernetes.io/part-of": #AppName
 		}
 	}
-	spec: _jobSpec & {
+	spec: {
+		backoffLimit?: uint
 		template: {
 			metadata: labels: app: _name + "-app"
-			spec: _podSpec & {
-				containers: [{
-					name:            _name + "-container"
-					image:           _image
-					imagePullPolicy: _imagePullPolicy
-					args:            _args
-					resources?:      _resources
-				}]
+			spec: #PodSpec & {
+				if _secretName != _|_ {
+					_mounts: "\(_name)-files": {
+						volume: secret: secretName: _secretName
+					}
+				}
+				_containers: "\(_name)-container": _container
+
+				restartPolicy: restartPolicy | *"OnFailure"
 			}
 		}
 	}
 }
 
+// K8s NetworkPolicyPort.
 #NetworkPolicyPort: {
-	port?:     uint32 | string
-	protocol?: "TCP" | "UDP" | "SCTP"
+	port?:     #PortNumber
+	protocol?: #IpProtocol
 }
 
+// K8s NetworkPolicyEgressRule.
 #EgressRule: {
 	to: [...]
 	ports: [...#NetworkPolicyPort]
 }
 
+// K8s NetworkPolicyIngressRule.
 #IngressRule: {
 	from: [...]
 	ports: [...#NetworkPolicyPort]
 }
 
-// NetworkPolicy allows for selectively enabling traffic between pods
-// https://kubernetes.io/docs/concepts/services-networking/network-policies/#networkpolicy-resource
+// K8s NetworkPolicy.
 //
-// This structure allows configuring a NetworkPolicy that selects on a pod name and it
-// will allow all traffic from pods matching _sourceMatchLabels to pods matching _destinationMatchLabels
-//
+// This allows for selectively enabling traffic between pods. The structure
+// allows configuring a NetworkPolicy that selects on a pod name and it will
+// allow all traffic from pods matching _sourceMatchLabels to pods matching
+// _destinationMatchLabels.
 #NetworkPolicy: {
 	_name:      string
 	_app_label: string
@@ -366,7 +470,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 				}]
 				ports: [{
 					protocol: "TCP"
-					port:     #GrpcServicePort
+					port:     #GrpcPort
 				}]
 			}
 		}

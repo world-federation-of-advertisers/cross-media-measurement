@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
+import io.grpc.StatusException
 import java.time.LocalDate
 import org.wfanet.measurement.api.v2alpha.AppendLogEntryRequest
 import org.wfanet.measurement.api.v2alpha.ExchangeStepAttempt
@@ -120,7 +121,16 @@ class ExchangeStepAttemptsService(
         }
       debugLogEntries += request.logEntriesList.toInternal()
     }
-    val response = internalExchangeStepAttempts.finishExchangeStepAttempt(internalRequest)
+    val response =
+      try {
+        internalExchangeStepAttempts.finishExchangeStepAttempt(internalRequest)
+      } catch (ex: StatusException) {
+        when (ex.status.code) {
+          Status.Code.INVALID_ARGUMENT ->
+            failGrpc(Status.INVALID_ARGUMENT, ex) { "Date must be provided in the request." }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
+      }
     return try {
       response.toV2Alpha()
     } catch (e: Throwable) {

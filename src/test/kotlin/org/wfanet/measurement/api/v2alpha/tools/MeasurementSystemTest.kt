@@ -20,21 +20,14 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.duration
-import io.grpc.Metadata
 import io.grpc.Server
-import io.grpc.ServerCall
-import io.grpc.ServerCallHandler
-import io.grpc.ServerInterceptor
 import io.grpc.ServerInterceptors
 import io.grpc.ServerServiceDefinition
 import io.grpc.netty.NettyServerBuilder
-import java.io.ByteArrayOutputStream
 import java.io.File
-import java.io.PrintStream
 import java.nio.file.Paths
-import java.security.Permission
+import java.security.cert.X509Certificate
 import java.time.Instant
-import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -48,6 +41,7 @@ import org.wfanet.measurement.api.AccountConstants
 import org.wfanet.measurement.api.ApiKeyConstants
 import org.wfanet.measurement.api.v2alpha.Account
 import org.wfanet.measurement.api.v2alpha.AccountKt
+import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
@@ -56,7 +50,9 @@ import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.frequency
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
@@ -74,14 +70,16 @@ import org.wfanet.measurement.api.v2alpha.activateAccountRequest
 import org.wfanet.measurement.api.v2alpha.authenticateRequest
 import org.wfanet.measurement.api.v2alpha.authenticateResponse
 import org.wfanet.measurement.api.v2alpha.certificate
+import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
-import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
+import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.api.v2alpha.timeInterval
@@ -97,6 +95,9 @@ import org.wfanet.measurement.common.grpc.toServerTlsContext
 import org.wfanet.measurement.common.openid.createRequestUri
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.common.testing.CommandLineTesting.assertExitsWith
+import org.wfanet.measurement.common.testing.CommandLineTesting.capturingSystemOut
+import org.wfanet.measurement.common.testing.HeaderCapturingInterceptor
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
@@ -136,11 +137,11 @@ private val kingdomSigningCerts =
 private const val API_KEY = "nR5QPN7ptx"
 
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/1"
+private val MEASUREMENT_CONSUMER_CERTIFICATE_FILE: File = SECRETS_DIR.resolve("mc_cs_cert.der")
 private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME = "measurementConsumers/1/certificates/1"
-private val MEASUREMENT_CONSUMER_CERTIFICATE_DER =
-  SECRETS_DIR.resolve("mc_cs_cert.der").readByteString()
-private val MEASUREMENT_CONSUMER_CERTIFICATE = readCertificate(MEASUREMENT_CONSUMER_CERTIFICATE_DER)
-private val MEASUREMENT_PUBLIC_KEY = SECRETS_DIR.resolve("mc_enc_public.tink").readByteString()
+private val MEASUREMENT_CONSUMER_PUBLIC_KEY_FILE: File = SECRETS_DIR.resolve("mc_enc_public.pb")
+private val MEASUREMENT_CONSUMER_PUBLIC_KEY_SIG_FILE: File =
+  SECRETS_DIR.resolve("mc_enc_public.pb.sig")
 
 private const val DATA_PROVIDER_NAME = "dataProviders/1"
 private const val DATA_PROVIDER_CERTIFICATE_NAME = "dataProviders/1/certificates/1"
@@ -148,13 +149,6 @@ private val DATA_PROVIDER_PUBLIC_KEY =
   loadPublicKey(SECRETS_DIR.resolve("edp1_enc_public.tink")).toEncryptionPublicKey()
 private val DATA_PROVIDER_PRIVATE_KEY_HANDLE =
   loadPrivateKey(SECRETS_DIR.resolve("edp1_enc_private.tink"))
-
-private val MEASUREMENT_CONSUMER = measurementConsumer {
-  name = MEASUREMENT_CONSUMER_NAME
-  certificateDer = MEASUREMENT_CONSUMER_CERTIFICATE_DER
-  certificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
-  publicKey = signedData { data = MEASUREMENT_PUBLIC_KEY }
-}
 
 private val DATA_PROVIDER = dataProvider {
   name = DATA_PROVIDER_NAME
@@ -184,48 +178,6 @@ private val AGGREGATOR_CERTIFICATE = certificate { x509Der = AGGREGATOR_CERTIFIC
 
 private const val MEASUREMENT_NAME = "$MEASUREMENT_CONSUMER_NAME/measurements/100"
 private val MEASUREMENT = measurement { name = MEASUREMENT_NAME }
-private val SUCCEEDED_MEASUREMENT = measurement {
-  name = MEASUREMENT_NAME
-  state = Measurement.State.SUCCEEDED
-
-  val measurementPublicKey = encryptionPublicKey {
-    format = EncryptionPublicKey.Format.TINK_KEYSET
-    data = MEASUREMENT_PUBLIC_KEY
-  }
-  results += resultPair {
-    val result = result { reach = reach { value = 4096 } }
-    encryptedResult = getEncryptedResult(result, measurementPublicKey)
-    certificate = DATA_PROVIDER_CERTIFICATE_NAME
-  }
-  results += resultPair {
-    val result = result {
-      frequency = frequency {
-        relativeFrequencyDistribution.put(1, 1.0 / 6)
-        relativeFrequencyDistribution.put(2, 3.0 / 6)
-        relativeFrequencyDistribution.put(3, 2.0 / 6)
-      }
-    }
-    encryptedResult = getEncryptedResult(result, measurementPublicKey)
-    certificate = DATA_PROVIDER_CERTIFICATE_NAME
-  }
-  results += resultPair {
-    val result = result { impression = impression { value = 4096 } }
-    encryptedResult = getEncryptedResult(result, measurementPublicKey)
-    certificate = DATA_PROVIDER_CERTIFICATE_NAME
-  }
-  results += resultPair {
-    val result = result {
-      watchDuration = watchDuration {
-        value = duration {
-          seconds = 100
-          nanos = 99
-        }
-      }
-    }
-    encryptedResult = getEncryptedResult(result, measurementPublicKey)
-    certificate = DATA_PROVIDER_CERTIFICATE_NAME
-  }
-}
 
 private val LIST_MEASUREMENT_RESPONSE = listMeasurementsResponse {
   measurement += measurement {
@@ -251,25 +203,29 @@ class MeasurementSystemTest {
   private val accountsServiceMock: AccountsCoroutineImplBase = mockService()
   private val headerInterceptor = HeaderCapturingInterceptor()
 
-  private val measurementConsumersServiceMock:
-    MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase =
-    mockService() { onBlocking { getMeasurementConsumer(any()) }.thenReturn(MEASUREMENT_CONSUMER) }
+  private val measurementConsumersServiceMock: MeasurementConsumersCoroutineImplBase = mockService {
+    onBlocking { getMeasurementConsumer(any()) }.thenReturn(MEASUREMENT_CONSUMER)
+  }
   private val dataProvidersServiceMock: DataProvidersGrpcKt.DataProvidersCoroutineImplBase =
-    mockService() { onBlocking { getDataProvider(any()) }.thenReturn(DATA_PROVIDER) }
+    mockService {
+      onBlocking { getDataProvider(any()) }.thenReturn(DATA_PROVIDER)
+    }
   private val measurementsServiceMock: MeasurementsGrpcKt.MeasurementsCoroutineImplBase =
-    mockService() {
+    mockService {
       onBlocking { createMeasurement(any()) }.thenReturn(MEASUREMENT)
       onBlocking { listMeasurements(any()) }.thenReturn(LIST_MEASUREMENT_RESPONSE)
       onBlocking { getMeasurement(any()) }.thenReturn(SUCCEEDED_MEASUREMENT)
     }
   private val certificatesServiceMock: CertificatesGrpcKt.CertificatesCoroutineImplBase =
-    mockService() { onBlocking { getCertificate(any()) }.thenReturn(AGGREGATOR_CERTIFICATE) }
+    mockService {
+      onBlocking { getCertificate(any()) }.thenReturn(AGGREGATOR_CERTIFICATE)
+    }
 
   val services: List<ServerServiceDefinition> =
     listOf(
       ServerInterceptors.intercept(accountsServiceMock, headerInterceptor),
       ServerInterceptors.intercept(measurementsServiceMock, headerInterceptor),
-      measurementConsumersServiceMock.bindService(),
+      ServerInterceptors.intercept(measurementConsumersServiceMock, headerInterceptor),
       dataProvidersServiceMock.bindService(),
       certificatesServiceMock.bindService(),
     )
@@ -353,7 +309,10 @@ class MeasurementSystemTest {
     val output: String = callCli(args)
 
     assertThat(
-        headerInterceptor.capturedHeaders.single().get(AccountConstants.ID_TOKEN_METADATA_KEY)
+        headerInterceptor
+          .captured(AccountsGrpcKt.activateAccountMethod)
+          .single()
+          .get(AccountConstants.ID_TOKEN_METADATA_KEY)
       )
       .isEqualTo(idToken)
     verifyProtoArgument(accountsServiceMock, AccountsCoroutineImplBase::activateAccount)
@@ -367,7 +326,54 @@ class MeasurementSystemTest {
   }
 
   @Test
-  fun `Create command call public api with valid Measurement`() {
+  fun `measurement-consumers create prints response`() {
+    measurementConsumersServiceMock.stub {
+      onBlocking { createMeasurementConsumer(any()) }.thenReturn(MEASUREMENT_CONSUMER)
+    }
+    val idToken = "fake-id-token"
+    val creationToken = "vzmtXavLdk4"
+    val args =
+      commonArgs +
+        arrayOf(
+          "measurement-consumers",
+          "create",
+          "--id-token=$idToken",
+          "--creation-token=$creationToken",
+          "--certificate=${MEASUREMENT_CONSUMER_CERTIFICATE_FILE.path}",
+          "--public-key=${MEASUREMENT_CONSUMER_PUBLIC_KEY_FILE.path}",
+          "--public-key-signature=${MEASUREMENT_CONSUMER_PUBLIC_KEY_SIG_FILE.path}",
+          "--display-name=${MEASUREMENT_CONSUMER.displayName}",
+        )
+
+    val output: String = callCli(args)
+
+    assertThat(
+        headerInterceptor
+          .captured(MeasurementConsumersGrpcKt.createMeasurementConsumerMethod)
+          .single()
+          .get(AccountConstants.ID_TOKEN_METADATA_KEY)
+      )
+      .isEqualTo(idToken)
+    verifyProtoArgument(
+        measurementConsumersServiceMock,
+        MeasurementConsumersCoroutineImplBase::createMeasurementConsumer
+      )
+      .isEqualTo(
+        createMeasurementConsumerRequest {
+          measurementConsumer =
+            MEASUREMENT_CONSUMER.copy {
+              clearName()
+              clearCertificate()
+              measurementConsumerCreationToken = creationToken
+            }
+        }
+      )
+    assertThat(parseTextProto(output.reader(), MeasurementConsumer.getDefaultInstance()))
+      .isEqualTo(MEASUREMENT_CONSUMER)
+  }
+
+  @Test
+  fun `measurements create calls CreateMeasurement with valid request`() {
     val args =
       commonArgs +
         arrayOf(
@@ -377,7 +383,7 @@ class MeasurementSystemTest {
           "--impression",
           "--impression-privacy-epsilon=0.015",
           "--impression-privacy-delta=0.0",
-          "--max-frequency=1000",
+          "--impression-max-frequency=1000",
           "--vid-sampling-start=0.1",
           "--vid-sampling-width=0.2",
           "--measurement-consumer=measurementConsumers/777",
@@ -404,7 +410,8 @@ class MeasurementSystemTest {
 
     // verify api key
     assertThat(
-        headerInterceptor.capturedHeaders
+        headerInterceptor
+          .captured(MeasurementsGrpcKt.createMeasurementMethod)
           .single()
           .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
       )
@@ -416,21 +423,15 @@ class MeasurementSystemTest {
       }
     val measurement = request.measurement
     // measurementSpec matches
-    val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
-    assertThat(
-        verifyMeasurementSpec(
-          measurement.measurementSpec.signature,
-          measurementSpec,
-          MEASUREMENT_CONSUMER_CERTIFICATE
-        )
-      )
+    assertThat(verifyMeasurementSpec(measurement.measurementSpec, MEASUREMENT_CONSUMER_CERTIFICATE))
       .isTrue()
+    val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
     val nonceHashes = measurement.dataProvidersList.map { it.value.nonceHash }
     assertThat(measurementSpec)
       .comparingExpectedFieldsOnly()
       .isEqualTo(
-        org.wfanet.measurement.api.v2alpha.measurementSpec {
-          measurementPublicKey = MEASUREMENT_PUBLIC_KEY
+        measurementSpec {
+          measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.data
           this.nonceHashes += nonceHashes
         }
       )
@@ -446,7 +447,7 @@ class MeasurementSystemTest {
     val requisitionSpec1 = RequisitionSpec.parseFrom(signedRequisitionSpec1.data)
     assertThat(
         verifyRequisitionSpec(
-          signedRequisitionSpec1.signature,
+          signedRequisitionSpec1,
           requisitionSpec1,
           measurementSpec,
           MEASUREMENT_CONSUMER_CERTIFICATE
@@ -457,7 +458,7 @@ class MeasurementSystemTest {
       .comparingExpectedFieldsOnly()
       .isEqualTo(
         requisitionSpec {
-          measurementPublicKey = MEASUREMENT_PUBLIC_KEY
+          measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.data
           eventGroups +=
             RequisitionSpecKt.eventGroupEntry {
               key = "dataProviders/1/eventGroups/1"
@@ -494,7 +495,7 @@ class MeasurementSystemTest {
     val requisitionSpec2 = RequisitionSpec.parseFrom(signedRequisitionSpec2.data)
     assertThat(
         verifyRequisitionSpec(
-          signedRequisitionSpec2.signature,
+          signedRequisitionSpec2,
           requisitionSpec2,
           measurementSpec,
           MEASUREMENT_CONSUMER_CERTIFICATE
@@ -505,7 +506,7 @@ class MeasurementSystemTest {
       .comparingExpectedFieldsOnly()
       .isEqualTo(
         requisitionSpec {
-          measurementPublicKey = MEASUREMENT_PUBLIC_KEY
+          measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.data
           eventGroups +=
             RequisitionSpecKt.eventGroupEntry {
               key = "dataProviders/2/eventGroups/1"
@@ -536,6 +537,7 @@ class MeasurementSystemTest {
           "--reach-privacy-delta=0.0",
           "--frequency-privacy-epsilon=0.02",
           "--frequency-privacy-delta=0.0",
+          "--reach-max-frequency=1000",
           "--vid-sampling-start=0.1",
           "--vid-sampling-width=0.2",
           "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
@@ -557,7 +559,7 @@ class MeasurementSystemTest {
     assertThat(measurementSpec)
       .comparingExpectedFieldsOnly()
       .isEqualTo(
-        org.wfanet.measurement.api.v2alpha.measurementSpec {
+        measurementSpec {
           reachAndFrequency =
             MeasurementSpecKt.reachAndFrequency {
               reachPrivacyParams = differentialPrivacyParams {
@@ -568,6 +570,7 @@ class MeasurementSystemTest {
                 epsilon = 0.02
                 delta = 0.0
               }
+              maximumFrequencyPerUser = 1000
             }
           vidSamplingInterval =
             MeasurementSpecKt.vidSamplingInterval {
@@ -590,7 +593,7 @@ class MeasurementSystemTest {
           "--impression",
           "--impression-privacy-epsilon=0.015",
           "--impression-privacy-delta=0.0",
-          "--max-frequency=1000",
+          "--impression-max-frequency=1000",
           "--vid-sampling-start=0.1",
           "--vid-sampling-width=0.2",
           "--private-key-der-file=$SECRETS_DIR/mc_cs_private.der",
@@ -612,7 +615,7 @@ class MeasurementSystemTest {
     assertThat(measurementSpec)
       .comparingExpectedFieldsOnly()
       .isEqualTo(
-        org.wfanet.measurement.api.v2alpha.measurementSpec {
+        measurementSpec {
           impression =
             MeasurementSpecKt.impression {
               privacyParams = differentialPrivacyParams {
@@ -664,7 +667,7 @@ class MeasurementSystemTest {
     assertThat(measurementSpec)
       .comparingExpectedFieldsOnly()
       .isEqualTo(
-        org.wfanet.measurement.api.v2alpha.measurementSpec {
+        measurementSpec {
           duration =
             MeasurementSpecKt.duration {
               privacyParams = differentialPrivacyParams {
@@ -696,7 +699,8 @@ class MeasurementSystemTest {
 
     // verify api key
     assertThat(
-        headerInterceptor.capturedHeaders
+        headerInterceptor
+          .captured(MeasurementsGrpcKt.listMeasurementsMethod)
           .single()
           .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
       )
@@ -712,7 +716,7 @@ class MeasurementSystemTest {
   }
 
   @Test
-  fun `Get command call public api with correct request`() {
+  fun `measurements get calls GetMeasurement with valid request`() {
     val args =
       commonArgs +
         arrayOf(
@@ -727,7 +731,8 @@ class MeasurementSystemTest {
 
     // verify api key
     assertThat(
-        headerInterceptor.capturedHeaders
+        headerInterceptor
+          .captured(MeasurementsGrpcKt.getMeasurementMethod)
           .single()
           .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
       )
@@ -741,6 +746,71 @@ class MeasurementSystemTest {
       .comparingExpectedFieldsOnly()
       .isEqualTo(getMeasurementRequest { name = MEASUREMENT_NAME })
   }
+
+  companion object {
+    private val MEASUREMENT_CONSUMER: MeasurementConsumer by lazy {
+      measurementConsumer {
+        name = MEASUREMENT_CONSUMER_NAME
+        certificateDer = MEASUREMENT_CONSUMER_CERTIFICATE_FILE.readByteString()
+        certificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
+        publicKey = signedData {
+          data = MEASUREMENT_CONSUMER_PUBLIC_KEY_FILE.readByteString()
+          signature = MEASUREMENT_CONSUMER_PUBLIC_KEY_SIG_FILE.readByteString()
+        }
+        displayName = "MC Hammer"
+      }
+    }
+
+    private val MEASUREMENT_CONSUMER_CERTIFICATE: X509Certificate by lazy {
+      readCertificate(MEASUREMENT_CONSUMER.certificateDer)
+    }
+
+    private val MEASUREMENT_CONSUMER_ENCRYPTION_PUBLIC_KEY: EncryptionPublicKey by lazy {
+      EncryptionPublicKey.parseFrom(MEASUREMENT_CONSUMER.publicKey.data)
+    }
+
+    private val SUCCEEDED_MEASUREMENT: Measurement by lazy {
+      val measurementPublicKey = MEASUREMENT_CONSUMER_ENCRYPTION_PUBLIC_KEY
+      measurement {
+        name = MEASUREMENT_NAME
+        state = Measurement.State.SUCCEEDED
+
+        results += resultPair {
+          val result = result { reach = reach { value = 4096 } }
+          encryptedResult = getEncryptedResult(result, measurementPublicKey)
+          certificate = DATA_PROVIDER_CERTIFICATE_NAME
+        }
+        results += resultPair {
+          val result = result {
+            frequency = frequency {
+              relativeFrequencyDistribution.put(1, 1.0 / 6)
+              relativeFrequencyDistribution.put(2, 3.0 / 6)
+              relativeFrequencyDistribution.put(3, 2.0 / 6)
+            }
+          }
+          encryptedResult = getEncryptedResult(result, measurementPublicKey)
+          certificate = DATA_PROVIDER_CERTIFICATE_NAME
+        }
+        results += resultPair {
+          val result = result { impression = impression { value = 4096 } }
+          encryptedResult = getEncryptedResult(result, measurementPublicKey)
+          certificate = DATA_PROVIDER_CERTIFICATE_NAME
+        }
+        results += resultPair {
+          val result = result {
+            watchDuration = watchDuration {
+              value = duration {
+                seconds = 100
+                nanos = 99
+              }
+            }
+          }
+          encryptedResult = getEncryptedResult(result, measurementPublicKey)
+          certificate = DATA_PROVIDER_CERTIFICATE_NAME
+        }
+      }
+    }
+  }
 }
 
 private fun getEncryptedResult(
@@ -749,60 +819,4 @@ private fun getEncryptedResult(
 ): ByteString {
   val signedResult = signResult(result, AGGREGATOR_SIGNING_KEY)
   return encryptResult(signedResult, publicKey)
-}
-
-private inline fun capturingSystemOut(block: () -> Unit): String {
-  val originalOut = System.out
-  val outputStream = ByteArrayOutputStream()
-
-  System.setOut(PrintStream(outputStream, true))
-  try {
-    block()
-  } finally {
-    System.setOut(originalOut)
-  }
-
-  return outputStream.toString()
-}
-
-private inline fun assertExitsWith(status: Int, block: () -> Unit) {
-  val exception: ExitException = assertFailsWith {
-    val originalSecurityManager: SecurityManager? = System.getSecurityManager()
-    System.setSecurityManager(
-      object : SecurityManager() {
-        override fun checkPermission(perm: Permission?) {
-          // Allow everything.
-        }
-
-        override fun checkExit(status: Int) {
-          super.checkExit(status)
-          throw ExitException(status)
-        }
-      }
-    )
-
-    try {
-      block()
-    } finally {
-      System.setSecurityManager(originalSecurityManager)
-    }
-  }
-  assertThat(exception.status).isEqualTo(status)
-}
-
-private class ExitException(val status: Int) : RuntimeException()
-
-private class HeaderCapturingInterceptor : ServerInterceptor {
-  override fun <ReqT, RespT> interceptCall(
-    call: ServerCall<ReqT, RespT>,
-    headers: Metadata,
-    next: ServerCallHandler<ReqT, RespT>,
-  ): ServerCall.Listener<ReqT> {
-    _capturedHeaders.add(headers)
-    return next.startCall(call, headers)
-  }
-
-  private val _capturedHeaders = mutableListOf<Metadata>()
-  val capturedHeaders: List<Metadata>
-    get() = _capturedHeaders
 }

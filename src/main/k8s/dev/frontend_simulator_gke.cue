@@ -27,6 +27,7 @@ _cloudStorageBucket: string @tag("cloud_storage_bucket")
 // Example using fully qualified domain name:
 // #KingdomPublicApiTarget: "public.kingdom.dev.halo-cmm.org:8443"
 #KingdomPublicApiTarget:    "v2alpha-public-api-server:8443"
+#ServiceAccount:         "simulator"
 
 // The storage bucket associated with the frontend simulator must be
 // writable by this account.
@@ -48,11 +49,8 @@ frontend_simulator: #FrontendSimulator & {
 	_kingdom_public_api_target: #KingdomPublicApiTarget
 	_simulator_image:           _imageConfig.image
 	_blob_storage_flags:        _cloudStorageConfig.flags
-	_resourceConfig:            #DefaultResourceConfig
-	frontend_simulator_job:     {
-        	_podSpec:       #PodSpec & {
-			serviceAccountName: #InternalServerServiceAccount
-		}
+	job: spec: template: spec: #ServiceAccountPodSpec & {
+		serviceAccountName: #ServiceAccount
 	}
 }
 

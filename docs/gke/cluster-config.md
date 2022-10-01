@@ -38,6 +38,41 @@ gcloud spanner databases add-iam-policy-binding kingdom \
   --member="serviceAccount:kingdom-internal@halo-kingdom-demo.iam.gserviceaccount.com"
 ```
 
+### Granting Cloud SQL instance access
+
+See https://cloud.google.com/sql/docs/postgres/add-manage-iam-users#gcloud
+
+Assuming we have a `dev-postgres` instance and a
+`reporting-internal@halo-cmm-dev.iam.gserviceaccount.com` service account in the
+`halo-cmm-dev` project, follow the steps below:
+
+1.  Grant the "Cloud SQL Instance User" role to the service account
+
+    ```shell
+    gcloud projects add-iam-policy-binding halo-cmm-dev \
+      --member='serviceAccount:reporting-internal@halo-cmm-dev.iam.gserviceaccount.com' \
+      --role=roles/cloudsql.instanceUser
+    ```
+
+1.  Create a Cloud SQL instance user for the service account
+
+    ```shell
+    gcloud sql users create reporting-internal@halo-cmm-dev.iam \
+      --instance=dev-postgres \
+      --type=cloud_iam_service_account
+    ```
+
+1.  Grant the instance user access
+
+    Connect to your instance and run a `GRANT` SQL statement. For example, to
+    grant access to the `reporting` database:
+
+    ```sql
+    GRANT ALL PRIVILEGES ON DATABASE reporting TO "reporting-internal@halo-cmm-dev.iam";
+    ```
+
+    Tip: You can use `gcloud sql connect` to connect via Cloud Shell.
+
 ### Granting Cloud Storage bucket access
 
 Granting a service account access to a Cloud Storage bucket can be done from the
@@ -52,6 +87,26 @@ bucket:
 gsutil iam ch \
   serviceAccount:duchy-storage@halo-worker1-demo.iam.gserviceaccount.com:objectAdmin \
   gs://worker1-duchy
+```
+
+### Granting BigQuery table access
+
+Grant the service account the `roles/bigquery.jobUser` role at the project
+level, and the `roles/bigquery.dataViewer` role at the table level.
+
+This can be done through the Cloud Console, but here are sample commands using
+the `gcloud` and `bq` CLI tools.
+
+```shell
+gcloud projects add-iam-policy-binding halo-cmm-dev \
+  --role=roles/bigquery.jobUser \
+  --member='serviceAccount:simulator@halo-cmm-dev.iam.gserviceaccount.com`
+```
+
+```shell
+bq add-iam-policy-binding --table=true 'demo.labelled_events' \
+  --role=roles/bigquery.dataViewer \
+  --member='serviceAccount:simulator@halo-cmm-dev.iam.gserviceaccount.com'
 ```
 
 ## Network Policy
@@ -72,3 +127,48 @@ KMS. Use the `--database-encryption-key` option if you're creating a cluster
 using the `gcloud` CLI. See
 [Encrypt secrets at the application layer](https://cloud.google.com/kubernetes-engine/docs/how-to/encrypting-secrets)
 for more information.
+
+## Setting Default Resource Requirements
+
+It's a good idea to set default resource requirements for your cluster namespace
+using a `LimitRange`. See the corresponding
+[guide](https://kubernetes.io/docs/tasks/administer-cluster/manage-resources/memory-default-namespace/)
+for more information.
+
+For the `dev` environment, we use
+[resource_requirements.yaml](../../src/main/k8s/testing/secretfiles/resource_requirements.yaml)
+
+## Reserving External IPs
+
+If you already have an IP that was assigned to a `LoadBalancer` service, you can
+reserve the IP address to make it static. You can find the assigned external IP
+using
+
+```shell
+kubectl get services
+```
+
+You can find the entry for that IP in the
+[Cloud Console](https://console.cloud.google.com/networking/addresses/list) and
+click the `RESERVE` button.
+
+### Attaching to Service
+
+If you want to ensure that a service always uses the same static load balancer
+IP, you can specify the `loadBalancerIP` field in its
+[`ServiceSpec`](https://kubernetes.io/docs/reference/kubernetes-api/service-resources/service-v1/#ServiceSpec).
+
+For example, the `ServiceSpec` for the Kingdom public API server might look
+something like
+
+```yaml
+type: LoadBalancer
+loadBalancerIP: 34.123.211.251
+selector:
+  app: v2alpha-public-api-server-app
+ports:
+  - name: grpc-port
+    port: 8443
+    protocol: TCP
+    targetPort: 8443
+```

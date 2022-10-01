@@ -193,6 +193,13 @@ class CreateReportCommand : Runnable {
   )
   private lateinit var measurementConsumerName: String
 
+  @CommandLine.Option(
+    names = ["--idempotency-key"],
+    description = ["Used as the prefix of the idempotency keys of measurements"],
+    required = true,
+  )
+  private lateinit var idempotencyKey: String
+
   class EventGroupInput {
     @CommandLine.Option(
       names = ["--event-group-key"],
@@ -290,6 +297,7 @@ class CreateReportCommand : Runnable {
     val request = createReportRequest {
       parent = measurementConsumerName
       report = report {
+        reportIdempotencyKey = idempotencyKey
         measurementConsumer = measurementConsumerName
         eventGroupUniverse = eventGroupUniverse {
           eventGroups.forEach {
@@ -365,10 +373,8 @@ class ListReportsCommand : Runnable {
 class GetReportCommand : Runnable {
   @CommandLine.ParentCommand private lateinit var parent: ReportsCommand
 
-  @CommandLine.Option(
-    names = ["--name"],
+  @CommandLine.Parameters(
     description = ["API resource name of the Report"],
-    required = true,
   )
   private lateinit var reportName: String
 
@@ -477,6 +483,10 @@ class Reporting : Runnable {
       .withShutdownTimeout(Duration.ofSeconds(1))
   }
   override fun run() {}
+
+  companion object {
+    @JvmStatic fun main(args: Array<String>) = commandLineMain(Reporting(), args)
+  }
 }
 
 /**

@@ -41,8 +41,6 @@ import ("strings")
 	_images: [Name=_]: string
 	_duchy_image_pull_policy: string
 
-	_resource_configs: [Name=_]: #ResourceConfig
-
 	_akid_to_principal_map_file_flag:                   "--authority-key-identifier-to-principal-map-file=/etc/\(#AppName)/config-files/authority_key_identifier_to_principal_map.textproto"
 	_async_computations_control_service_target_flag:    "--async-computation-control-service-target=" + (#Target & {name: "\(_name)-async-computation-control-server"}).target
 	_async_computations_control_service_cert_host_flag: "--async-computation-control-service-cert-host=localhost"
@@ -79,14 +77,15 @@ import ("strings")
 		_name:            _object_prefix + _unprefixed_name
 		_secretName:      _duchy_secret_name
 		_system:          "duchy"
-		_image:           _images[_unprefixed_name]
-		_imagePullPolicy: _duchy_image_pull_policy
-		_resourceConfig:  _resource_configs[_unprefixed_name]
+		_container: {
+			image:           _images[_unprefixed_name]
+			imagePullPolicy: _duchy_image_pull_policy
+		}
 	}
 
 	deployments: {
-		"herald-daemon-deployment": #Deployment & {
-			_args: [
+		"herald-daemon-deployment": {
+			_container: args: [
 				_computations_service_target_flag,
 				_computations_service_cert_host_flag,
 				_duchy_name_flag,
@@ -100,28 +99,29 @@ import ("strings")
 				"--polling-interval=1m",
 			]
 		}
-		"liquid-legions-v2-mill-daemon-deployment": #Deployment & {
-			_args: [
-				_computations_service_target_flag,
-				_computations_service_cert_host_flag,
-				_duchy_name_flag,
-				_duchy_info_config_flag,
-				_duchy_tls_cert_file_flag,
-				_duchy_tls_key_file_flag,
-				_duchy_cert_collection_file_flag,
-				_duchy_cs_cert_file_flag,
-				_duchy_cs_key_file_flag,
-				_duchy_cs_cert_rename_name_flag,
-				_kingdom_system_api_target_flag,
-				_kingdom_system_api_cert_host_flag,
-				"--channel-shutdown-timeout=3s",
-				"--polling-interval=1s",
+		"liquid-legions-v2-mill-daemon-deployment": {
+			_container: args: [
+						_computations_service_target_flag,
+						_computations_service_cert_host_flag,
+						_duchy_name_flag,
+						_duchy_info_config_flag,
+						_duchy_tls_cert_file_flag,
+						_duchy_tls_key_file_flag,
+						_duchy_cert_collection_file_flag,
+						_duchy_cs_cert_file_flag,
+						_duchy_cs_key_file_flag,
+						_duchy_cs_cert_rename_name_flag,
+						_kingdom_system_api_target_flag,
+						_kingdom_system_api_cert_host_flag,
+						"--channel-shutdown-timeout=3s",
+						"--polling-interval=1s",
 			] + _blob_storage_flags + _computation_control_target_flags
-			_jvm_flags: "-Xmx4g -Xms256m"
-			_dependencies: ["\(_name)-spanner-computations-server", "\(_name)-computation-control-server"]
+			spec: template: spec: _dependencies: [
+				"\(_name)-spanner-computations-server", "\(_name)-computation-control-server",
+			]
 		}
 		"async-computation-control-server-deployment": #ServerDeployment & {
-			_args: [
+			_container: args: [
 				_computations_service_target_flag,
 				_computations_service_cert_host_flag,
 				_duchy_name_flag,
@@ -131,61 +131,67 @@ import ("strings")
 				_duchy_cert_collection_file_flag,
 				_debug_verbose_grpc_server_logging_flag,
 				"--port=8443",
+				"--health-port=8080",
 			]
 		}
 		"computation-control-server-deployment": #ServerDeployment & {
-			_args: [
-				_async_computations_control_service_target_flag,
-				_async_computations_control_service_cert_host_flag,
-				_duchy_name_flag,
-				_duchy_info_config_flag,
-				_duchy_tls_cert_file_flag,
-				_duchy_tls_key_file_flag,
-				_duchy_cert_collection_file_flag,
-				_debug_verbose_grpc_server_logging_flag,
-				"--port=8443",
+			_container: args: [
+						_async_computations_control_service_target_flag,
+						_async_computations_control_service_cert_host_flag,
+						_duchy_name_flag,
+						_duchy_info_config_flag,
+						_duchy_tls_cert_file_flag,
+						_duchy_tls_key_file_flag,
+						_duchy_cert_collection_file_flag,
+						_debug_verbose_grpc_server_logging_flag,
+						"--port=8443",
+						"--health-port=8080",
 			] + _blob_storage_flags
 		}
-		"spanner-computations-server-deployment": Deployment=#ServerDeployment & {
-			_args: [
-				_debug_verbose_grpc_server_logging_flag,
-				_duchy_name_flag,
-				_duchy_info_config_flag,
-				_duchy_tls_cert_file_flag,
-				_duchy_tls_key_file_flag,
-				_duchy_cert_collection_file_flag,
-				_kingdom_system_api_target_flag,
-				_kingdom_system_api_cert_host_flag,
-				"--channel-shutdown-timeout=3s",
-				"--port=8443",
+		"spanner-computations-server-deployment": #ServerDeployment & {
+			_container: args: [
+						_debug_verbose_grpc_server_logging_flag,
+						_duchy_name_flag,
+						_duchy_info_config_flag,
+						_duchy_tls_cert_file_flag,
+						_duchy_tls_key_file_flag,
+						_duchy_cert_collection_file_flag,
+						_kingdom_system_api_target_flag,
+						_kingdom_system_api_cert_host_flag,
+						"--channel-shutdown-timeout=3s",
+						"--port=8443",
+						"--health-port=8080",
 			] + _spannerConfig.flags
-
-			_podSpec: _initContainers: {
-				"\(_object_prefix)update-duchy-schema": {
-					image:           _images["update-duchy-schema"]
-					imagePullPolicy: Deployment._imagePullPolicy
-					args:            _spannerConfig.flags
+			_updateSchemaContainer: #Container & {
+				image:           _images["update-duchy-schema"]
+				imagePullPolicy: _container.imagePullPolicy
+				args:            _spannerConfig.flags
+			}
+			spec: template: spec: {
+				_initContainers: {
+					"\(_object_prefix)update-duchy-schema": _updateSchemaContainer
 				}
 			}
 		}
 		"requisition-fulfillment-server-deployment": #ServerDeployment & {
-			_configMapMounts: [{
-				name: "config-files"
-			}]
-			_args: [
-				_debug_verbose_grpc_server_logging_flag,
-				_akid_to_principal_map_file_flag,
-				_duchy_name_flag,
-				_duchy_tls_cert_file_flag,
-				_duchy_tls_key_file_flag,
-				_duchy_cert_collection_file_flag,
-				_computations_service_target_flag,
-				_computations_service_cert_host_flag,
-				_kingdom_system_api_target_flag,
-				_kingdom_system_api_cert_host_flag,
-				"--port=8443",
+			_container: args: [
+						_debug_verbose_grpc_server_logging_flag,
+						_akid_to_principal_map_file_flag,
+						_duchy_name_flag,
+						_duchy_tls_cert_file_flag,
+						_duchy_tls_key_file_flag,
+						_duchy_cert_collection_file_flag,
+						_computations_service_target_flag,
+						_computations_service_cert_host_flag,
+						_kingdom_system_api_target_flag,
+						_kingdom_system_api_cert_host_flag,
+						"--port=8443",
+						"--health-port=8080",
 			] + _blob_storage_flags
-			_dependencies: ["\(_name)-spanner-computations-server"]
+			spec: template: spec: {
+				_mounts: "config-files": #ConfigMapMount
+				_dependencies: ["\(_name)-spanner-computations-server"]
+			}
 		}
 	}
 
@@ -213,7 +219,7 @@ import ("strings")
 				// External API server; allow ingress from anywhere to service port.
 				gRpc: {
 					ports: [{
-						port: #GrpcServicePort
+						port: #GrpcPort
 					}]
 				}
 			}
@@ -237,7 +243,7 @@ import ("strings")
 				// External API server; allow ingress from anywhere to service port.
 				gRpc: {
 					ports: [{
-						port: #GrpcServicePort
+						port: #GrpcPort
 					}]
 				}
 			}

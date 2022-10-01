@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import com.google.gson.JsonParser
 import io.grpc.Status
+import io.grpc.StatusException
 import java.io.IOException
 import java.security.GeneralSecurityException
 import org.wfanet.measurement.api.AccountConstants
@@ -84,7 +85,19 @@ class AccountsService(
       this.externalOwnedMeasurementConsumerId = externalOwnedMeasurementConsumerId
     }
 
-    val result = internalAccountsStub.createAccount(internalCreateAccountRequest)
+    val result =
+      try {
+        internalAccountsStub.createAccount(internalCreateAccountRequest)
+      } catch (ex: StatusException) {
+        when (ex.status.code) {
+          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Creator's Account not found." }
+          Status.Code.PERMISSION_DENIED ->
+            failGrpc(Status.PERMISSION_DENIED, ex) {
+              "Caller does not own the owned measurement consumer."
+            }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
+      }
 
     return result.toAccount()
   }
@@ -119,7 +132,22 @@ class AccountsService(
       identity = openIdConnectIdentity
     }
 
-    val result = internalAccountsStub.activateAccount(internalActivateAccountRequest)
+    val result =
+      try {
+        internalAccountsStub.activateAccount(internalActivateAccountRequest)
+      } catch (ex: StatusException) {
+        when (ex.status.code) {
+          Status.Code.PERMISSION_DENIED ->
+            failGrpc(Status.PERMISSION_DENIED, ex) {
+              "Activation token is not valid for this account."
+            }
+          Status.Code.FAILED_PRECONDITION ->
+            failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition." }
+          Status.Code.NOT_FOUND ->
+            failGrpc(Status.NOT_FOUND, ex) { "Account to activate has not been found." }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
+      }
 
     // method only returns the basic account view so some fields are cleared
     return result.toAccount().copy { clearActivationParams() }
@@ -151,7 +179,17 @@ class AccountsService(
       identity = openIdConnectIdentity
     }
 
-    val result = internalAccountsStub.replaceAccountIdentity(internalReplaceAccountIdentityRequest)
+    val result =
+      try {
+        internalAccountsStub.replaceAccountIdentity(internalReplaceAccountIdentityRequest)
+      } catch (ex: StatusException) {
+        when (ex.status.code) {
+          Status.Code.FAILED_PRECONDITION ->
+            failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition." }
+          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Account was not found." }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
+      }
 
     // method only returns the basic account view so some fields are cleared
     return result.toAccount().copy { clearActivationParams() }

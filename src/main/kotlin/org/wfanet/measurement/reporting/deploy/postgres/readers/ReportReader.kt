@@ -30,6 +30,7 @@ import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.internal.reporting.Measurement
 import org.wfanet.measurement.internal.reporting.Metric
 import org.wfanet.measurement.internal.reporting.Metric.SetOperation
 import org.wfanet.measurement.internal.reporting.MetricKt
@@ -39,6 +40,7 @@ import org.wfanet.measurement.internal.reporting.PeriodicTimeInterval
 import org.wfanet.measurement.internal.reporting.Report
 import org.wfanet.measurement.internal.reporting.StreamReportsRequest
 import org.wfanet.measurement.internal.reporting.TimeIntervals
+import org.wfanet.measurement.internal.reporting.measurement
 import org.wfanet.measurement.internal.reporting.metric
 import org.wfanet.measurement.internal.reporting.periodicTimeInterval
 import org.wfanet.measurement.internal.reporting.report
@@ -76,6 +78,23 @@ class ReportReader {
         WHERE TimeIntervals.MeasurementConsumerReferenceId = Reports.MeasurementConsumerReferenceId
         AND TimeIntervals.ReportId = Reports.ReportId
       ) AS TimeIntervals,
+      ARRAY(
+        SELECT
+          json_build_object(
+            'measurementReferenceId', MeasurementReferenceId,
+            'state', Measurements.State,
+            'failure', encode(Measurements.failure, 'base64'),
+            'result', encode(Measurements.result, 'base64')
+          )
+        FROM (
+          SELECT
+            MeasurementConsumerReferenceId,
+            MeasurementReferenceId
+          FROM ReportMeasurements
+          WHERE ReportMeasurements.ReportId = Reports.ReportId
+        ) AS ReportMeasurements
+          JOIN Measurements USING(MeasurementConsumerReferenceId, MeasurementReferenceId)
+      ) AS Measurements,
       IntervalCount,
       StartSeconds,
       StartNanos,
@@ -320,6 +339,7 @@ class ReportReader {
         timeIntervals = buildTimeIntervals(row["TimeIntervals"])
       }
       metrics += buildMetrics(measurementConsumerReferenceId, row["Metrics"])
+      measurements.putAll(buildMeasurements(measurementConsumerReferenceId, row["Measurements"]))
     }
   }
 
@@ -353,6 +373,36 @@ class ReportReader {
         }
       }
     }
+  }
+
+  private fun buildMeasurements(
+    measurementConsumerReferenceId: String,
+    measurementsArr: Array<String>
+  ): Map<String, Measurement> {
+    return measurementsArr
+      .map { JsonParser.parseString(it).asJsonObject }
+      .associateBy(
+        { it.getAsJsonPrimitive("measurementReferenceId").asString },
+        {
+          measurement {
+            this.measurementConsumerReferenceId = measurementConsumerReferenceId
+            measurementReferenceId = it.getAsJsonPrimitive("measurementReferenceId").asString
+            state = Measurement.State.forNumber(it.getAsJsonPrimitive("state").asInt)
+            if (!it.get("failure").isJsonNull) {
+              failure =
+                Measurement.Failure.parseFrom(
+                  Base64.getDecoder().decode(it.getAsJsonPrimitive("failure").asString)
+                )
+            }
+            if (!it.get("result").isJsonNull) {
+              result =
+                Measurement.Result.parseFrom(
+                  Base64.getDecoder().decode(it.getAsJsonPrimitive("result").asString)
+                )
+            }
+          }
+        }
+      )
   }
 
   private fun buildMetrics(

@@ -23,6 +23,7 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.random.Random
+import kotlin.test.assertFails
 import kotlinx.coroutines.runBlocking
 import org.junit.BeforeClass
 import org.junit.ClassRule
@@ -101,9 +102,10 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.consent.client.common.signMessage
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
+import org.wfanet.measurement.consent.client.duchy.signElgamalPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
+import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup as PrivacyLandscapeAge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Charge
@@ -600,6 +602,60 @@ class EdpSimulatorTest {
         )
     }
   }
+  @Test
+  fun `calculateDirectReachAndFrequency fails with sampling rate 0`() {
+    runBlocking {
+      val vidList = listOf(1L, 1L, 1L, 2L, 2L, 3L, 4L, 5L)
+
+      assertFails { EdpSimulator.calculateDirectReachAndFrequency(vidList, 0.0f) }
+    }
+  }
+
+  @Test
+  fun `calculateDirectReachAndFrequency fails with sampling rate bigger than 1`() {
+    runBlocking {
+      val vidList = listOf(1L, 1L, 1L, 2L, 2L, 3L, 4L, 5L)
+
+      assertFails { EdpSimulator.calculateDirectReachAndFrequency(vidList, 1.1f) }
+    }
+  }
+
+  @Test
+  fun `calculate direct reach and frequency correctly with sampling rate 1`() {
+    runBlocking {
+      val vidList = listOf(1L, 1L, 1L, 2L, 2L, 3L, 4L, 5L)
+      val (reachValue, frequencyMap) = EdpSimulator.calculateDirectReachAndFrequency(vidList, 1.0f)
+
+      // 5 unique people(1, 2, 3, 4, 5) being reached
+      val expectedReachValue = 5
+      // 1 reach -> 0.6(3/5)(VID 3L, 4L, 5L)
+      // 2 reach -> 0.2(1/5)(VID 2L)
+      // 3 reach -> 0.2(1/5)(VID 1L)
+      val expectedFrequencyMap = mapOf(1L to 0.6, 2L to 0.2, 3L to 0.2)
+
+      assertThat(reachValue).isEqualTo(expectedReachValue)
+      frequencyMap.forEach { (frequency, percentage) ->
+        assertThat(percentage).isEqualTo(expectedFrequencyMap[frequency])
+      }
+    }
+  }
+
+  @Test
+  fun `calculate direct reach and frequency correctly with sampling rate smaller than 1`() {
+    runBlocking {
+      val vidList = listOf(1L, 1L, 1L, 2L, 2L, 3L, 4L, 5L)
+      val (reachValue, frequencyMap) = EdpSimulator.calculateDirectReachAndFrequency(vidList, 0.1f)
+
+      // Scale reach by multiplying 1/samplingRate
+      val expectedReachValue = 50
+      val expectedFrequencyMap = mapOf(1L to 0.6, 2L to 0.2, 3L to 0.2)
+
+      assertThat(reachValue).isEqualTo(expectedReachValue)
+      frequencyMap.forEach { (frequency, percentage) ->
+        assertThat(percentage).isEqualTo(expectedFrequencyMap[frequency])
+      }
+    }
+  }
 
   companion object {
     private val MC_SIGNING_KEY =
@@ -633,7 +689,7 @@ class EdpSimulatorTest {
             externalIdToApiId(8L)
           )
           .toName()
-      measurementSpec = signMessage(MEASUREMENT_SPEC, MC_SIGNING_KEY)
+      measurementSpec = signMeasurementSpec(MEASUREMENT_SPEC, MC_SIGNING_KEY)
       encryptedRequisitionSpec = ENCRYPTED_REQUISITION_ONE_SPEC
       protocolConfig = protocolConfig {
         liquidLegionsV2 =
@@ -652,7 +708,8 @@ class EdpSimulatorTest {
         value = value {
           duchyCertificate = externalIdToApiId(6L)
           liquidLegionsV2 = liquidLegionsV2 {
-            elGamalPublicKey = signMessage(CONSENT_SIGNALING_ELGAMAL_PUBLIC_KEY, DUCHY_SIGNING_KEY)
+            elGamalPublicKey =
+              signElgamalPublicKey(CONSENT_SIGNALING_ELGAMAL_PUBLIC_KEY, DUCHY_SIGNING_KEY)
           }
         }
       }

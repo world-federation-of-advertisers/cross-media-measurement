@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
+import io.grpc.StatusException
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.Version
@@ -121,27 +122,33 @@ class RequisitionsService(
       }
     }
 
-    val results: List<InternalRequisition> =
-      internalRequisitionStub
-        .streamRequisitions(
-          listRequisitionsPageToken.toStreamRequisitionsRequest().copy {
-            filter =
-              filter.copy {
-                // Filters for the caller's ID if the caller is an MC.
-                if (this.externalMeasurementConsumerId == 0L) {
-                  this.externalMeasurementConsumerId = externalMeasurementConsumerId
-                }
+    val streamRequest =
+      listRequisitionsPageToken.toStreamRequisitionsRequest().copy {
+        filter =
+          filter.copy {
+            // Filters for the caller's ID if the caller is an MC.
+            if (this.externalMeasurementConsumerId == 0L) {
+              this.externalMeasurementConsumerId = externalMeasurementConsumerId
+            }
 
-                // If no state filter set in public request, include all visible states.
-                if (states.isEmpty()) {
-                  states += InternalState.UNFULFILLED
-                  states += InternalState.FULFILLED
-                  states += InternalState.REFUSED
-                }
-              }
+            // If no state filter set in public request, include all visible states.
+            if (states.isEmpty()) {
+              states += InternalState.UNFULFILLED
+              states += InternalState.FULFILLED
+              states += InternalState.REFUSED
+            }
           }
-        )
-        .toList()
+      }
+    val results: List<InternalRequisition> =
+      try {
+        internalRequisitionStub.streamRequisitions(streamRequest).toList()
+      } catch (ex: StatusException) {
+        when (ex.status.code) {
+          Status.Code.INVALID_ARGUMENT ->
+            failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid." }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
+      }
 
     if (results.isEmpty()) {
       return ListRequisitionsResponse.getDefaultInstance()
@@ -200,7 +207,19 @@ class RequisitionsService(
         }
     }
 
-    val result = internalRequisitionStub.refuseRequisition(refuseRequest)
+    val result =
+      try {
+        internalRequisitionStub.refuseRequisition(refuseRequest)
+      } catch (ex: StatusException) {
+        when (ex.status.code) {
+          Status.Code.INVALID_ARGUMENT ->
+            failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid." }
+          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Requisition not found." }
+          Status.Code.FAILED_PRECONDITION ->
+            failGrpc(Status.FAILED_PRECONDITION, ex) { "Requisition or Measurement state illegal." }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
+      }
 
     return result.toRequisition()
   }
@@ -225,16 +244,28 @@ class RequisitionsService(
       }
     }
 
-    internalRequisitionStub.fulfillRequisition(
-      fulfillRequisitionRequest {
-        externalRequisitionId = apiIdToExternalId(key.requisitionId)
-        nonce = request.nonce
-        directParams = directRequisitionParams {
-          externalDataProviderId = apiIdToExternalId(key.dataProviderId)
-          encryptedData = request.encryptedData
-        }
+    val fulfillRequest = fulfillRequisitionRequest {
+      externalRequisitionId = apiIdToExternalId(key.requisitionId)
+      nonce = request.nonce
+      directParams = directRequisitionParams {
+        externalDataProviderId = apiIdToExternalId(key.dataProviderId)
+        encryptedData = request.encryptedData
       }
-    )
+    }
+    try {
+      internalRequisitionStub.fulfillRequisition(fulfillRequest)
+    } catch (ex: StatusException) {
+      when (ex.status.code) {
+        Status.Code.INVALID_ARGUMENT ->
+          failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid." }
+        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Requisition not found." }
+        Status.Code.FAILED_PRECONDITION ->
+          failGrpc(Status.FAILED_PRECONDITION, ex) {
+            "Requisition or Measurement state illegal, or Duchy not found."
+          }
+        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+      }
+    }
 
     return fulfillDirectRequisitionResponse { state = State.FULFILLED }
   }

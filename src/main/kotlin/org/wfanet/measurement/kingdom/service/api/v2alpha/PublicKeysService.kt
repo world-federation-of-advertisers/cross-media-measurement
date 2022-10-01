@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
+import io.grpc.StatusException
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
@@ -106,23 +107,33 @@ class PublicKeysService(private val internalPublicKeysStub: PublicKeysCoroutineS
       !request.publicKey.publicKey.data.isEmpty && !request.publicKey.publicKey.signature.isEmpty
     ) { "EncryptionPublicKey is unspecified" }
 
-    internalPublicKeysStub.updatePublicKey(
-      updatePublicKeyRequest {
-        when (certificateKey) {
-          is MeasurementConsumerCertificateKey -> {
-            externalMeasurementConsumerId = apiIdToExternalId(certificateKey.measurementConsumerId)
-            externalCertificateId = apiIdToExternalId(certificateKey.certificateId)
-          }
-          is DataProviderCertificateKey -> {
-            externalDataProviderId = apiIdToExternalId(certificateKey.dataProviderId)
-            externalCertificateId = apiIdToExternalId(certificateKey.certificateId)
-          }
+    val updateRequest = updatePublicKeyRequest {
+      when (certificateKey) {
+        is MeasurementConsumerCertificateKey -> {
+          externalMeasurementConsumerId = apiIdToExternalId(certificateKey.measurementConsumerId)
+          externalCertificateId = apiIdToExternalId(certificateKey.certificateId)
         }
-        apiVersion = Version.V2_ALPHA.toString()
-        publicKey = request.publicKey.publicKey.data
-        publicKeySignature = request.publicKey.publicKey.signature
+        is DataProviderCertificateKey -> {
+          externalDataProviderId = apiIdToExternalId(certificateKey.dataProviderId)
+          externalCertificateId = apiIdToExternalId(certificateKey.certificateId)
+        }
       }
-    )
+      apiVersion = Version.V2_ALPHA.toString()
+      publicKey = request.publicKey.publicKey.data
+      publicKeySignature = request.publicKey.publicKey.signature
+    }
+    try {
+      internalPublicKeysStub.updatePublicKey(updateRequest)
+    } catch (ex: StatusException) {
+      when (ex.status.code) {
+        Status.Code.INVALID_ARGUMENT ->
+          failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid" }
+        Status.Code.FAILED_PRECONDITION ->
+          failGrpc(Status.FAILED_PRECONDITION, ex) { "Certificate not found." }
+        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { ex.message ?: "Not found." }
+        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+      }
+    }
 
     return request.publicKey
   }

@@ -14,11 +14,12 @@
 
 package k8s
 
-_reportingSecretName:   string @tag("secret_name")
-_reportingDbSecretName: string @tag("db_secret_name")
+_reportingSecretName:         string @tag("secret_name")
 _reportingMcConfigSecretName: string @tag("mc_config_secret_name")
 
-#ReportingServerResourceConfig: #DefaultResourceConfig & {
+#KingdomApiTarget: #GrpcTarget & {
+	host: "public.kingdom.dev.halo-cmm.org"
+	port: 8443
 }
 
 // Name of K8s service account for the internal API server.
@@ -33,9 +34,9 @@ objectSets: [
 
 _imageSuffixes: [_=string]: string
 _imageSuffixes: {
-	"update-reporting-schema":         "/reporting/postgres-update-schema"
-	"postgres-reporting-data-server":  "/reporting/postgres-data-server"
-	"v1alpha-public-api-server":       "/reporting/v1alpha-public-api"
+	"update-reporting-schema":        "reporting/postgres-update-schema"
+	"postgres-reporting-data-server": "reporting/postgres-data-server"
+	"v1alpha-public-api-server":      "reporting/v1alpha-public-api"
 }
 _imageConfigs: [_=string]: #ImageConfig
 _imageConfigs: {
@@ -46,10 +47,14 @@ _imageConfigs: {
 
 reporting: #Reporting & {
 	_secretName:         _reportingSecretName
-	_dbSecretName:       _reportingDbSecretName
 	_mcConfigSecretName: _reportingMcConfigSecretName
+	_kingdomApiTarget:   #KingdomApiTarget
+	_internalApiTarget: certificateHost: "localhost"
 
-	_postgresConfig: database: "reporting"
+	_postgresConfig: {
+		iamUserLocal: "reporting-internal"
+		database:     "reporting"
+	}
 
 	_images: {
 		for name, config in _imageConfigs {
@@ -57,16 +62,12 @@ reporting: #Reporting & {
 		}
 	}
 
-	_resource_configs: {
-		"postgres-reporting-data-server": #ReportingServerResourceConfig
-		"v1alpha-public-api-server":      #ReportingServerResourceConfig
-	}
-	_imagePullPolicy: "Always"
-	_verboseGrpcServerLogging:  true
+	_imagePullPolicy:          "Always"
+	_verboseGrpcServerLogging: true
 
 	deployments: {
 		"postgres-reporting-data-server": {
-			_podSpec: #ServiceAccountPodSpec & {
+			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #InternalServerServiceAccount
 			}
 		}

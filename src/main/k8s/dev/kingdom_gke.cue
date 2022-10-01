@@ -16,22 +16,12 @@ package k8s
  
 _secret_name: string @tag("secret_name")
 
-#KingdomServerResourceConfig: {
-	replicas: 1
-	resources: {
-		requests: {
-			cpu: "100m"
-		}
-		limits: {
-			cpu:    "400m"
-			memory: "1024Mi"
-		}
-	}
-	jvmHeapSize: "800m"
-}
-
 // Name of K8s service account for the internal API server.
 #InternalServerServiceAccount: "internal-server"
+
+#DataServerResourceRequirements: #ResourceRequirements & {
+	limits: memory: "512Mi"
+}
 
 objectSets: [
 	default_deny_ingress_and_egress,
@@ -40,14 +30,14 @@ objectSets: [
 	kingdom.networkPolicies,
 ]
 
-_imageSuffixes: [_=string]: string
+_imageSuffixes: [string]: string
 _imageSuffixes: {
 	"gcp-kingdom-data-server":   "kingdom/data-server"
 	"system-api-server":         "kingdom/system-api"
 	"v2alpha-public-api-server": "kingdom/v2alpha-public-api"
 	"update-kingdom-schema":     "kingdom/spanner-update-schema"
 }
-_imageConfigs: [_=string]: #ImageConfig
+_imageConfigs: [string]: #ImageConfig
 _imageConfigs: {
 	for name, suffix in _imageSuffixes {
 		"\(name)": {repoSuffix: suffix}
@@ -64,17 +54,16 @@ kingdom: #Kingdom & {
 		}
 	}
 
-	_resource_configs: {
-		"gcp-kingdom-data-server":   #KingdomServerResourceConfig
-		"system-api-server":         #KingdomServerResourceConfig
-		"v2alpha-public-api-server": #KingdomServerResourceConfig
-	}
 	_kingdom_image_pull_policy: "Always"
 	_verboseGrpcServerLogging:  true
 
 	deployments: {
 		"gcp-kingdom-data-server": {
-			_podSpec: #ServiceAccountPodSpec & {
+			_container: {
+				_javaOptions: maxRamPercentage: 40.0
+				resources: #DataServerResourceRequirements
+			}
+			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #InternalServerServiceAccount
 			}
 		}

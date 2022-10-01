@@ -24,8 +24,6 @@ package k8s
 	_kingdom_image_pull_policy: string
 	_kingdom_secret_name:       string
 
-	_resource_configs: [Name=_]: #ResourceConfig
-
 	_duchy_info_config_flag:                 "--duchy-info-config=/var/run/secrets/files/duchy_cert_config.textproto"
 	_duchy_id_config_flag:                   "--duchy-id-config=/var/run/secrets/files/duchy_id_config.textproto"
 	_llv2_protocol_config_config:            "--llv2-protocol-config-config=/var/run/secrets/files/llv2_protocol_config_config.textproto"
@@ -55,37 +53,39 @@ package k8s
 		_name: Name
 	}
 
-	deployments: [Name=_]: #ServerDeployment & {
-		_name:            Name
-		_secretName:      _kingdom_secret_name
-		_system:          "kingdom"
-		_image:           _images[_name]
-		_imagePullPolicy: _kingdom_image_pull_policy
-		_resourceConfig:  _resource_configs[_name]
+	deployments: [Name=string]: #ServerDeployment & {
+		_name:       Name
+		_secretName: _kingdom_secret_name
+		_system:     "kingdom"
+		_container: {
+			image:           _images[_name]
+			imagePullPolicy: _kingdom_image_pull_policy
+		}
 	}
 	deployments: {
-		"gcp-kingdom-data-server": Deployment={
-			_args: [
-				_duchy_info_config_flag,
-				_duchy_id_config_flag,
-				_kingdom_tls_cert_file_flag,
-				_kingdom_tls_key_file_flag,
-				_kingdom_cert_collection_file_flag,
-				_debug_verbose_grpc_server_logging_flag,
-				"--port=8443",
+		"gcp-kingdom-data-server": {
+			_container: args: [
+						_duchy_info_config_flag,
+						_duchy_id_config_flag,
+						_kingdom_tls_cert_file_flag,
+						_kingdom_tls_key_file_flag,
+						_kingdom_cert_collection_file_flag,
+						_debug_verbose_grpc_server_logging_flag,
+						"--port=8443",
+						"--health-port=8080",
 			] + _spannerConfig.flags
-
-			_podSpec: _initContainers: {
-				"update-kingdom-schema": InitContainer={
-					image:           _images[InitContainer.name]
-					imagePullPolicy: Deployment._imagePullPolicy
-					args:            _spannerConfig.flags
-				}
+			_updateSchemaContainer: Container=#Container & {
+				image:           _images[Container.name]
+				imagePullPolicy: _container.imagePullPolicy
+				args:            _spannerConfig.flags
+			}
+			spec: template: spec: _initContainers: {
+				"update-kingdom-schema": _updateSchemaContainer
 			}
 		}
 
 		"system-api-server": {
-			_args: [
+			_container: args: [
 				_debug_verbose_grpc_client_logging_flag,
 				_debug_verbose_grpc_server_logging_flag,
 				_duchy_info_config_flag,
@@ -95,15 +95,13 @@ package k8s
 				_internal_api_target_flag,
 				_internal_api_cert_host_flag,
 				"--port=8443",
+				"--health-port=8080",
 			]
-			_dependencies: ["gcp-kingdom-data-server"]
+			spec: template: spec: _dependencies: ["gcp-kingdom-data-server"]
 		}
 
 		"v2alpha-public-api-server": {
-			_configMapMounts: [{
-				name: "config-files"
-			}]
-			_args: [
+			_container: args: [
 				_debug_verbose_grpc_client_logging_flag,
 				_debug_verbose_grpc_server_logging_flag,
 				_llv2_protocol_config_config,
@@ -115,8 +113,12 @@ package k8s
 				_akid_to_principal_map_file_flag,
 				_open_id_redirect_uri_flag,
 				"--port=8443",
+				"--health-port=8080",
 			]
-			_dependencies: ["gcp-kingdom-data-server"]
+			spec: template: spec: {
+				_mounts: "config-files": #ConfigMapMount
+				_dependencies: ["gcp-kingdom-data-server"]
+			}
 		}
 	}
 
@@ -144,7 +146,7 @@ package k8s
 				// External API server; allow ingress from anywhere to service port.
 				gRpc: {
 					ports: [{
-						port: #GrpcServicePort
+						port: #GrpcPort
 					}]
 				}
 			}
@@ -156,7 +158,7 @@ package k8s
 				// External API server; allow ingress from anywhere to service port.
 				gRpc: {
 					ports: [{
-						port: #GrpcServicePort
+						port: #GrpcPort
 					}]
 				}
 			}

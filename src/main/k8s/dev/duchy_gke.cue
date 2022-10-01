@@ -33,24 +33,13 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 
 #InternalServerServiceAccount: "internal-server"
 #StorageServiceAccount:        "storage"
-#DuchyServerResourceConfig:    #DefaultResourceConfig & {
+#MillResourceRequirements:     #ResourceRequirements & {
+	limits: memory: "4Gi"
 }
-#MillResourceConfig: #DefaultResourceConfig & {
-	replicas: 1
-	resources: {
-		requests: {
-			cpu: "200m"
-		}
-		limits: {
-			cpu:    "800m"
-			memory: "4Gi"
-		}
-	}
-	jvmHeapSize: "3584m"
+#SpannerComputationsResourceRequirements: #ResourceRequirements & {
+	limits: memory: "384Mi"
 }
-#HeraldResourceConfig: #DefaultResourceConfig & {
-	replicas: 1 // We should have 1 and only 1 herald.
-}
+#MillReplicas: 1
 
 objectSets: [
 	default_deny_ingress_and_egress,
@@ -113,35 +102,35 @@ duchy: #Duchy & {
 			"\(name)": config.image
 		}
 	}
-	_resource_configs: {
-		"async-computation-control-server": #DuchyServerResourceConfig
-		"computation-control-server":       #DuchyServerResourceConfig
-		"herald-daemon":                    #HeraldResourceConfig
-		"liquid-legions-v2-mill-daemon":    #MillResourceConfig
-		"requisition-fulfillment-server":   #DuchyServerResourceConfig
-		"spanner-computations-server":      #DuchyServerResourceConfig
-	}
 	_duchy_image_pull_policy: "Always"
 	_verbose_grpc_logging:    "false"
 
 	deployments: {
 		"spanner-computations-server-deployment": {
-			_podSpec: #ServiceAccountPodSpec & {
+			_container: resources: #SpannerComputationsResourceRequirements
+			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #InternalServerServiceAccount
 			}
 		}
 		"liquid-legions-v2-mill-daemon-deployment": {
-			_podSpec: #ServiceAccountPodSpec & {
-				serviceAccountName: #StorageServiceAccount
+			_container: {
+				_javaOptions: maxRamPercentage: 50.0
+				resources: #MillResourceRequirements
+			}
+			spec: {
+				replicas: #MillReplicas
+				template: spec: #ServiceAccountPodSpec & {
+					serviceAccountName: #StorageServiceAccount
+				}
 			}
 		}
 		"computation-control-server-deployment": {
-			_podSpec: #ServiceAccountPodSpec & {
+			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #StorageServiceAccount
 			}
 		}
 		"requisition-fulfillment-server-deployment": {
-			_podSpec: #ServiceAccountPodSpec & {
+			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #StorageServiceAccount
 			}
 		}

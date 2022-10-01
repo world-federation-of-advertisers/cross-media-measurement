@@ -24,6 +24,7 @@ import io.grpc.StatusRuntimeException
 import java.time.Clock
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
@@ -614,6 +615,79 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       )
     }
     assertThat(retrievedReport.state).isEqualTo(Report.State.FAILED)
+  }
+
+  @Test
+  fun `concurrent setMeasurementResults all succeed`() {
+    val createdReport = runBlocking {
+      reportsService.createReport(
+        createReportRequest {
+          measurements +=
+            CreateReportRequestKt.measurementKey {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+              measurementReferenceId = MEASUREMENT_REFERENCE_ID
+            }
+          measurements +=
+            CreateReportRequestKt.measurementKey {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+              measurementReferenceId = MEASUREMENT_REFERENCE_ID_2
+            }
+          report = report {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            reportIdempotencyKey = "1235"
+            periodicTimeInterval = PERIODIC_TIME_INTERVAL
+            metrics += metric {
+              details =
+                MetricKt.details {
+                  frequencyHistogram =
+                    MetricKt.frequencyHistogramParams { maximumFrequencyPerUser = 2 }
+                }
+              namedSetOperations += NAMED_SET_OPERATION
+            }
+          }
+        }
+      )
+    }
+    runBlocking {
+      val result =
+        MeasurementKt.result {
+          reach = MeasurementKt.ResultKt.reach { value = 100L }
+          frequency =
+            MeasurementKt.ResultKt.frequency {
+              relativeFrequencyDistribution[1] = 0.8
+              relativeFrequencyDistribution[2] = 0.2
+            }
+        }
+      val deferredSetMeasurementResult = async {
+        service.setMeasurementResult(
+          setMeasurementResultRequest {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            measurementReferenceId = MEASUREMENT_REFERENCE_ID
+            this.result = result
+          }
+        )
+      }
+      val deferredSetMeasurementResult2 = async {
+        service.setMeasurementResult(
+          setMeasurementResultRequest {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            measurementReferenceId = MEASUREMENT_REFERENCE_ID_2
+            this.result = result
+          }
+        )
+      }
+      deferredSetMeasurementResult.await()
+      deferredSetMeasurementResult2.await()
+
+      val retrievedReport =
+        reportsService.getReport(
+          getReportRequest {
+            measurementConsumerReferenceId = createdReport.measurementConsumerReferenceId
+            externalReportId = createdReport.externalReportId
+          }
+        )
+      assertThat(retrievedReport.details.result).isNotEqualTo(Report.Details.getDefaultInstance())
+    }
   }
 
   companion object {

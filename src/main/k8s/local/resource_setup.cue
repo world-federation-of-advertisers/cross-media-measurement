@@ -25,5 +25,4 @@ resourceSetup: #ResourceSetup & {
 	_job_image_pull_policy:      "Never"
 	_resource_setup_secret_name: _secret_name
 	_dependencies: ["gcp-kingdom-data-server"]
-	_resourceConfig: #DefaultResourceConfig
 }

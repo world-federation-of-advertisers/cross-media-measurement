@@ -24,7 +24,6 @@ import java.util.logging.Logger
 import kotlin.math.min
 import kotlin.random.Random
 import kotlinx.coroutines.delay
-import org.apache.commons.math3.distribution.LaplaceDistribution
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchProtos
@@ -46,6 +45,7 @@ import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Measurement.DataProviderEntry
+import org.wfanet.measurement.api.v2alpha.Measurement.Failure
 import org.wfanet.measurement.api.v2alpha.Measurement.Result
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
@@ -67,7 +67,9 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedData
+import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
@@ -158,13 +160,44 @@ class FrontendSimulator(
     )
   }
 
+  /**
+   * A sequence of operations done in the simulator involving a reach and frequency measurement with
+   * invalid params.
+   */
+  suspend fun executeInvalidReachAndFrequency(runId: String) {
+    // Create a new measurement on behalf of the measurement consumer.
+    val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
+
+    val invalidMeasurement =
+      createMeasurement(measurementConsumer, runId, ::newInvalidReachAndFrequencyMeasurementSpec)
+    logger.info(
+      "Created invalid reach and frequency measurement ${invalidMeasurement.name}, state=${invalidMeasurement.state.name}"
+    )
+
+    var failure = getFailure(invalidMeasurement.name)
+    var attempts = 0
+    while (failure == null) {
+      attempts += 1
+      assertThat(attempts).isLessThan(10)
+      logger.info("Computation not done yet, wait for another 5 seconds...")
+      delay(Duration.ofSeconds(5).toMillis())
+      failure = getFailure(invalidMeasurement.name)
+    }
+    assertThat(failure.message).contains("reach_privacy_params.delta")
+    logger.info("Receive failed Measurement from Kingdom: ${failure.message}. Test passes.")
+  }
+
+  /**
+   * A sequence of operations done in the simulator involving a direct reach and frequency
+   * measurement.
+   */
   suspend fun executeDirectReachAndFrequency(runId: String) {
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     val createdReachAndFrequencyMeasurement =
       createMeasurement(measurementConsumer, runId, ::newReachAndFrequencyMeasurementSpec, 1)
     logger.info(
-      "Created reach and frequency measurement ${createdReachAndFrequencyMeasurement.name}."
+      "Created direct reach and frequency measurement ${createdReachAndFrequencyMeasurement.name}."
     )
 
     // Get the CMMS computed result and compare it with the expected result.
@@ -175,28 +208,23 @@ class FrontendSimulator(
       delay(Duration.ofSeconds(30).toMillis())
       reachAndFrequencyResult = getReachAndFrequencyResult(createdReachAndFrequencyMeasurement.name)
     }
-    logger.info("Got reach and frequency result from Kingdom: $reachAndFrequencyResult")
+    logger.info("Got direct reach and frequency result from Kingdom: $reachAndFrequencyResult")
 
-    // EdpSimulator sets to those values.
-    val reachValue = 1000L
-    val frequencyMap = mapOf(1L to 0.5, 2L to 0.25, 3L to 0.25)
+    // For InProcessLifeOfAMeasurementIntegrationTest, EdpSimulator sets to those values with seeded
+    // random VIDs and Laplace noise.
+    val expectedReachValue = 948L
+    val expectedFrequencyMap =
+      mapOf(
+        1L to 0.947389665261748,
+        2L to 0.04805005905234108,
+        3L to 0.0038138458821366963,
+        4L to 9.558853281715655E-5
+      )
 
-    val laplaceForReach = LaplaceDistribution(0.0, 1 / outputDpParams.epsilon)
-    laplaceForReach.reseedRandomGenerator(1)
-    val laplaceForFrequency = LaplaceDistribution(0.0, 1 / outputDpParams.epsilon)
-    laplaceForFrequency.reseedRandomGenerator(1)
-
-    // EdpSimulator sets to those noised values.
-    val expectedReachNoisedValue = reachValue + laplaceForReach.sample().toInt()
-    val expectedFrequencyNoisedMap = mutableMapOf<Long, Double>()
-    frequencyMap.forEach { (key, frequency) ->
-      expectedFrequencyNoisedMap[key] =
-        (frequency * reachValue.toDouble() + laplaceForFrequency.sample()) / reachValue.toDouble()
-    }
-
-    assertThat(reachAndFrequencyResult.reach.value).isEqualTo(expectedReachNoisedValue)
-    reachAndFrequencyResult.frequency.relativeFrequencyDistributionMap.forEach { (key, frequency) ->
-      assertThat(frequency).isEqualTo(expectedFrequencyNoisedMap[key])
+    assertThat(reachAndFrequencyResult.reach.value).isEqualTo(expectedReachValue)
+    reachAndFrequencyResult.frequency.relativeFrequencyDistributionMap.forEach {
+      (frequency, percentage) ->
+      assertThat(percentage).isEqualTo(expectedFrequencyMap[frequency])
     }
 
     logger.info(
@@ -357,6 +385,19 @@ class FrontendSimulator(
     return parseAndVerifyResult(resultPair)
   }
 
+  /** Gets the failure of an invalid [Measurement] if it is failed */
+  private suspend fun getFailure(measurementName: String): Failure? {
+    val measurement =
+      measurementsClient
+        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+        .getMeasurement(getMeasurementRequest { name = measurementName })
+    logger.info("Current Measurement state is: " + measurement.state)
+    if (measurement.state != Measurement.State.FAILED) {
+      return null
+    }
+    return measurement.failure
+  }
+
   private suspend fun parseAndVerifyResult(resultPair: Measurement.ResultPair): Result {
     val certificate =
       certificateCache.getOrPut(resultPair.certificate) {
@@ -367,13 +408,10 @@ class FrontendSimulator(
 
     val signedResult =
       decryptResult(resultPair.encryptedResult, measurementConsumerData.encryptionKey)
-    @Suppress("BlockingMethodInNonBlockingContext") // Not blocking I/O.
-    val result = Result.parseFrom(signedResult.data)
-
-    if (!verifyResult(signedResult.signature, result, readCertificate(certificate.x509Der))) {
+    if (!verifyResult(signedResult, readCertificate(certificate.x509Der))) {
       error("Signature of the result is invalid.")
     }
-    return result
+    return Result.parseFrom(signedResult.data)
   }
 
   /** Gets the expected result of a [Measurement] using raw sketches. */
@@ -451,6 +489,22 @@ class FrontendSimulator(
         width = 1.0f
       }
       this.nonceHashes += nonceHashes
+    }
+  }
+
+  private fun newInvalidReachAndFrequencyMeasurementSpec(
+    serializedMeasurementPublicKey: ByteString,
+    nonceHashes: List<ByteString>
+  ): MeasurementSpec {
+    return newReachAndFrequencyMeasurementSpec(serializedMeasurementPublicKey, nonceHashes).copy {
+      val invalidPrivacyParams = differentialPrivacyParams {
+        epsilon = 1.0
+        delta = 0.0
+      }
+      reachAndFrequency = reachAndFrequency {
+        reachPrivacyParams = invalidPrivacyParams
+        frequencyPrivacyParams = invalidPrivacyParams
+      }
     }
   }
 

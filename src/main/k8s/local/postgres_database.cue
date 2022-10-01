@@ -16,64 +16,54 @@ package k8s
 
 _dbSecretName: string @tag("db_secret_name")
 
+#ComponentName: "testing"
+
 objectSets: [
-  services,
-  pods,
+	services,
+	pods,
 ]
 
+services: [Name=string]: #Service & {
+	metadata: {
+		_component: #ComponentName
+		name:       Name
+	}
+}
 services: {
 	"postgres": {
-		apiVersion: "v1"
-		kind:       "Service"
-		metadata: {
-			name: "postgres"
-			labels: {
-				"app.kubernetes.io/part-of":   #AppName
-				"app.kubernetes.io/component": "testing"
-			}
-		}
 		spec: {
-			selector: app: "postgres-app"
 			ports: [{
-				name:       "postgresql"
-				port:       5432
-				protocol:   "TCP"
-				targetPort: 5432
+				name: "postgresql"
+				port: 5432
 			}]
 		}
 	}
 }
 
+pods: [Name=string]: #Pod & {
+	metadata: {
+		_component: #ComponentName
+		name:       Name
+	}
+}
 pods: {
-	"postgres-pod": {
-		apiVersion: "v1"
-		kind:       "Pod"
-		metadata: {
-			name: "postgres-pod"
-			labels: {
-				app:                           "postgres-app"
-				"app.kubernetes.io/part-of":   #AppName
-				"app.kubernetes.io/component": "testing"
+	"postgres": {
+		spec: _containers: "postgres": {
+			_envVars: {
+				"POSTGRES_USER": {
+					valueFrom: secretKeyRef: {
+						name: _dbSecretName
+						key:  "username"
+					}
+				}
+				"POSTGRES_PASSWORD": {
+					valueFrom: secretKeyRef: {
+						name: _dbSecretName
+						key:  "password"
+					}
+				}
 			}
-		}
-		spec: containers: [{
-			name:  "postgres"
 			image: "docker.io/postgres:14.4-alpine"
-      env: [{
-        name: "POSTGRES_USER"
-        valueFrom:
-          secretKeyRef: {
-            name: _dbSecretName
-            key:  "username"
-          }
-      }, {
-        name: "POSTGRES_PASSWORD"
-        valueFrom:
-          secretKeyRef: {
-            name: _dbSecretName
-            key:  "password"
-          }
-      }]
-		}]
+		}
 	}
 }
