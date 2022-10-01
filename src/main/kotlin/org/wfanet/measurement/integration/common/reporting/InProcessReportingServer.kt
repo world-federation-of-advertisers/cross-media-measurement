@@ -14,30 +14,30 @@
 
 package org.wfanet.measurement.integration.common.reporting
 
-import io.grpc.Channel
-import java.security.SecureRandom
-import java.util.logging.Logger
-import org.junit.rules.TestRule
-import org.junit.runner.Description
-import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as PublicKingdomCertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub as PublicKingdomDataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub as PublicKingdomEventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as PublicKingdomEventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as PublicKingdomMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as PublicKingdomMeasurementsCoroutineStub
-import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
-import org.wfanet.measurement.common.grpc.withVerboseLogging
-import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.integration.common.reporting.identity.withMetadataPrincipalIdentities
 import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
+import io.grpc.Channel
 import java.io.File
+import java.security.SecureRandom
+import java.util.logging.Logger
+import org.junit.rules.TestRule
+import org.junit.runner.Description
+import org.junit.runners.model.Statement
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
+import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
+import org.wfanet.measurement.integration.common.reporting.identity.withMetadataPrincipalIdentities
 import org.wfanet.measurement.reporting.deploy.common.server.ReportingDataServer
 import org.wfanet.measurement.reporting.deploy.common.server.ReportingDataServer.Companion.toList
 import org.wfanet.measurement.reporting.service.api.v1alpha.EventGroupsService
@@ -96,33 +96,37 @@ class InProcessReportingServer(
 
       val encryptionKeyPairStore =
         InMemoryEncryptionKeyPairStore(
-          encryptionKeyPairConfig.principalKeyPairsList.associateBy({it.principal}, {it.keyPairsList.map { keyPair ->
-            Pair(signingPrivateKeyDir.resolve(keyPair.publicKeyFile).to, loadPrivateKey(signingPrivateKeyDir.resolve(keyPair.privateKeyFile)))
-          }})
+          encryptionKeyPairConfig.principalKeyPairsList.associateBy({ it.principal }, {
+            it.keyPairsList.map { keyPair ->
+              Pair(signingPrivateKeyDir.resolve(keyPair.publicKeyFile).readByteString(),
+                   loadPrivateKey(signingPrivateKeyDir.resolve(keyPair.privateKeyFile)))
+            }
+          })
         )
 
       listOf(
-          EventGroupsService(
-              publicKingdomEventGroupsClient,
-              publicKingdomEventGroupMetadataDescriptorsClient,
-              encryptionKeyPairStore
-            )
-            .withMetadataPrincipalIdentities(measurementConsumerConfig),
-          ReportingSetsService(internalReportingSetsClient).withMetadataPrincipalIdentities(measurementConsumerConfig),
-          ReportsService(
-              internalReportsClient,
-              internalReportingSetsClient,
-              internalMeasurementsClient,
-              publicKingdomDataProvidersClient,
-              publicKingdomMeasurementConsumersClient,
-              publicKingdomMeasurementsClient,
-              publicKingdomCertificatesClient,
-              encryptionKeyPairStore,
-              SecureRandom(),
-              signingPrivateKeyDir
-            )
-            .withMetadataPrincipalIdentities(measurementConsumerConfig)
+        EventGroupsService(
+          publicKingdomEventGroupsClient,
+          publicKingdomEventGroupMetadataDescriptorsClient,
+          encryptionKeyPairStore
         )
+          .withMetadataPrincipalIdentities(measurementConsumerConfig),
+        ReportingSetsService(internalReportingSetsClient).withMetadataPrincipalIdentities(
+          measurementConsumerConfig),
+        ReportsService(
+          internalReportsClient,
+          internalReportingSetsClient,
+          internalMeasurementsClient,
+          publicKingdomDataProvidersClient,
+          publicKingdomMeasurementConsumersClient,
+          publicKingdomMeasurementsClient,
+          publicKingdomCertificatesClient,
+          encryptionKeyPairStore,
+          SecureRandom(),
+          signingPrivateKeyDir
+        )
+          .withMetadataPrincipalIdentities(measurementConsumerConfig)
+      )
         .forEach { addService(it.withVerboseLogging(verboseGrpcLogging)) }
     }
 

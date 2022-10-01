@@ -112,16 +112,19 @@ import org.wfanet.measurement.reporting.v1alpha.reportingSet
 abstract class InProcessLifeOfAReportIntegrationTest {
   abstract val reportingServerDataServices: ReportingDataServer.Services
 
-  private val publicKingdomCertificatesMock: CertificatesGrpcKt.CertificatesCoroutineImplBase = mockService {
-    onBlocking { getCertificate(any()) }.thenReturn(CERTIFICATE)
-  }
-  private val publicKingdomDataProvidersMock: DataProvidersGrpcKt.DataProvidersCoroutineImplBase = mockService {
-    onBlocking { getDataProvider(any()) }.thenReturn(DATA_PROVIDER)
-  }
-  private val publicKingdomEventGroupsMock: EventGroupsGrpcKt.EventGroupsCoroutineImplBase = mockService {
-    onBlocking { listEventGroups(any()) }
-      .thenReturn(listEventGroupsResponse { eventGroups += EVENT_GROUP })
-  }
+  private val publicKingdomCertificatesMock: CertificatesGrpcKt.CertificatesCoroutineImplBase =
+    mockService {
+      onBlocking { getCertificate(any()) }.thenReturn(CERTIFICATE)
+    }
+  private val publicKingdomDataProvidersMock: DataProvidersGrpcKt.DataProvidersCoroutineImplBase =
+    mockService {
+      onBlocking { getDataProvider(any()) }.thenReturn(DATA_PROVIDER)
+    }
+  private val publicKingdomEventGroupsMock: EventGroupsGrpcKt.EventGroupsCoroutineImplBase =
+    mockService {
+      onBlocking { listEventGroups(any()) }
+        .thenReturn(listEventGroupsResponse { eventGroups += EVENT_GROUP })
+    }
   private val publicKingdomEventGroupMetadataDescriptorsMock:
     EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase =
     mockService {
@@ -136,28 +139,29 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     mockService {
       onBlocking { getMeasurementConsumer(any()) }.thenReturn(MEASUREMENT_CONSUMER)
     }
-  private val publicKingdomMeasurementsMock: MeasurementsGrpcKt.MeasurementsCoroutineImplBase = mockService {
-    onBlocking { createMeasurement(any()) }
-      .thenAnswer {
-        MEASUREMENT.copy {
-          val measurement = it.getArgument(0, CreateMeasurementRequest::class.java).measurement
-          name =
-            MeasurementKey(
-              measurementConsumerId =
-              MeasurementConsumerCertificateKey.fromName(
-                measurement.measurementConsumerCertificate
-              )!!
-                .measurementConsumerId,
-              measurementId = measurement.measurementReferenceId
-            )
-              .toName()
+  private val publicKingdomMeasurementsMock: MeasurementsGrpcKt.MeasurementsCoroutineImplBase =
+    mockService {
+      onBlocking { createMeasurement(any()) }
+        .thenAnswer {
+          MEASUREMENT.copy {
+            val measurement = it.getArgument(0, CreateMeasurementRequest::class.java).measurement
+            name =
+              MeasurementKey(
+                measurementConsumerId =
+                MeasurementConsumerCertificateKey.fromName(
+                  measurement.measurementConsumerCertificate
+                )!!
+                  .measurementConsumerId,
+                measurementId = measurement.measurementReferenceId
+              )
+                .toName()
+          }
         }
-      }
-    onBlocking { getMeasurement(any()) }
-      .thenAnswer {
-        MEASUREMENT.copy { name = it.getArgument(0, GetMeasurementRequest::class.java).name }
-      }
-  }
+      onBlocking { getMeasurement(any()) }
+        .thenAnswer {
+          MEASUREMENT.copy { name = it.getArgument(0, GetMeasurementRequest::class.java).name }
+        }
+    }
 
   private val publicKingdomServer = GrpcTestServerRule {
     addService(publicKingdomCertificatesMock)
@@ -253,7 +257,8 @@ abstract class InProcessLifeOfAReportIntegrationTest {
   }
 
   private suspend fun listReportingSets(measurementConsumerName: String): ListReportingSetsResponse {
-    return publicReportingSetsClient.withPrincipalName(measurementConsumerName).listReportingSets(listReportingSetsRequest { parent = measurementConsumerName })
+    return publicReportingSetsClient.withPrincipalName(measurementConsumerName)
+      .listReportingSets(listReportingSetsRequest { parent = measurementConsumerName })
   }
 
   private suspend fun createReport(runId: String, measurementConsumerName: String): Report {
@@ -267,7 +272,11 @@ abstract class InProcessLifeOfAReportIntegrationTest {
           measurementConsumer = measurementConsumerName
           reportIdempotencyKey = runId
           eventGroupUniverse = ReportKt.eventGroupUniverse {
-            eventGroupsList.forEach { eventGroupEntries += ReportKt.EventGroupUniverseKt.eventGroupEntry { key = it.name } }
+            eventGroupsList.forEach {
+              eventGroupEntries += ReportKt.EventGroupUniverseKt.eventGroupEntry {
+                key = it.name
+              }
+            }
           }
           periodicTimeInterval = periodicTimeInterval {
             startTime = timestamp { seconds = 100 }
@@ -297,11 +306,13 @@ abstract class InProcessLifeOfAReportIntegrationTest {
   }
 
   private suspend fun getReport(reportName: String, measurementConsumerName: String): Report {
-    return publicReportsClient.withPrincipalName(measurementConsumerName).getReport(getReportRequest { name = reportName })
+    return publicReportsClient.withPrincipalName(measurementConsumerName)
+      .getReport(getReportRequest { name = reportName })
   }
 
   private suspend fun listReports(measurementConsumerName: String): ListReportsResponse {
-    return publicReportsClient.withPrincipalName(measurementConsumerName).listReports(listReportsRequest { parent = measurementConsumerName })
+    return publicReportsClient.withPrincipalName(measurementConsumerName)
+      .listReports(listReportsRequest { parent = measurementConsumerName })
   }
 
   companion object {
