@@ -82,61 +82,57 @@ class InProcessReportingServer(
   }
   private val internalReportsClient by lazy { InternalReportsCoroutineStub(internalApiChannel) }
 
-  private val internalDataServer =
-    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
-      logger.info("Building Reporting Server's internal Data services")
-      reportingServerDataServices.toList().forEach {
+  private val internalDataServer = GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+    logger.info("Building Reporting Server's internal Data services")
+    reportingServerDataServices.toList().forEach {
+      addService(it.withVerboseLogging(verboseGrpcLogging))
+    }
+  }
+
+  private val publicApiServer = GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
+    logger.info("Building Reporting Server's public API services")
+
+    val encryptionKeyPairStore =
+      InMemoryEncryptionKeyPairStore(encryptionKeyPairConfig.principalKeyPairsList.associateBy({ it.principal },
+                                                                                               {
+                                                                                                 it.keyPairsList.map { keyPair ->
+                                                                                                   Pair(
+                                                                                                     signingPrivateKeyDir.resolve(
+                                                                                                       keyPair.publicKeyFile)
+                                                                                                       .readByteString(),
+                                                                                                     loadPrivateKey(
+                                                                                                       signingPrivateKeyDir.resolve(
+                                                                                                         keyPair.privateKeyFile)))
+                                                                                                 }
+                                                                                               }))
+
+    listOf(EventGroupsService(publicKingdomEventGroupsClient,
+                              publicKingdomEventGroupMetadataDescriptorsClient,
+                              encryptionKeyPairStore).withMetadataPrincipalIdentities(
+        measurementConsumerConfig),
+           ReportingSetsService(internalReportingSetsClient).withMetadataPrincipalIdentities(
+             measurementConsumerConfig),
+           ReportsService(internalReportsClient,
+                          internalReportingSetsClient,
+                          internalMeasurementsClient,
+                          publicKingdomDataProvidersClient,
+                          publicKingdomMeasurementConsumersClient,
+                          publicKingdomMeasurementsClient,
+                          publicKingdomCertificatesClient,
+                          encryptionKeyPairStore,
+                          SecureRandom(),
+                          signingPrivateKeyDir).withMetadataPrincipalIdentities(
+               measurementConsumerConfig)).forEach {
         addService(it.withVerboseLogging(verboseGrpcLogging))
       }
-    }
-
-  private val publicApiServer =
-    GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
-      logger.info("Building Reporting Server's public API services")
-
-      val encryptionKeyPairStore =
-        InMemoryEncryptionKeyPairStore(
-          encryptionKeyPairConfig.principalKeyPairsList.associateBy({ it.principal }, {
-            it.keyPairsList.map { keyPair ->
-              Pair(signingPrivateKeyDir.resolve(keyPair.publicKeyFile).readByteString(),
-                   loadPrivateKey(signingPrivateKeyDir.resolve(keyPair.privateKeyFile)))
-            }
-          })
-        )
-
-      listOf(
-        EventGroupsService(
-          publicKingdomEventGroupsClient,
-          publicKingdomEventGroupMetadataDescriptorsClient,
-          encryptionKeyPairStore
-        )
-          .withMetadataPrincipalIdentities(measurementConsumerConfig),
-        ReportingSetsService(internalReportingSetsClient).withMetadataPrincipalIdentities(
-          measurementConsumerConfig),
-        ReportsService(
-          internalReportsClient,
-          internalReportingSetsClient,
-          internalMeasurementsClient,
-          publicKingdomDataProvidersClient,
-          publicKingdomMeasurementConsumersClient,
-          publicKingdomMeasurementsClient,
-          publicKingdomCertificatesClient,
-          encryptionKeyPairStore,
-          SecureRandom(),
-          signingPrivateKeyDir
-        )
-          .withMetadataPrincipalIdentities(measurementConsumerConfig)
-      )
-        .forEach { addService(it.withVerboseLogging(verboseGrpcLogging)) }
-    }
+  }
 
   /** Provides a gRPC channel to the Reporting Server's public API. */
   val publicApiChannel: Channel
     get() = publicApiServer.channel
 
   override fun apply(statement: Statement, description: Description): Statement {
-    return chainRulesSequentially(internalDataServer, publicApiServer)
-      .apply(statement, description)
+    return chainRulesSequentially(internalDataServer, publicApiServer).apply(statement, description)
   }
 
   companion object {
