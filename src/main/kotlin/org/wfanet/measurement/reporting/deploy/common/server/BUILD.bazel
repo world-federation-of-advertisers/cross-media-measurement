@@ -5,7 +5,10 @@ load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 kt_jvm_library(
     name = "reporting_data_server",
     srcs = ["ReportingDataServer.kt"],
-    visibility = ["//src/main/kotlin/org/wfanet/measurement/reporting/deploy:__subpackages__"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy:__subpackages__",
+    ],
     deps = [
         "//src/main/proto/wfa/measurement/internal/reporting:measurements_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/reporting:reporting_sets_service_kt_jvm_grpc_proto",
