@@ -36,7 +36,7 @@ private const val SEX = "Sex"
 private const val AGE_GROUP = "Age_Group"
 
 /** Fulfill the query with VIDs imported from CSV file. */
-class CsvEventQuery(private val edpDisplayName: String, private val file: File) : EventQuery() {
+class CsvEventQuery(private val publisherId: Int, private val file: File) : EventQuery() {
   private val edpIdIndex = 0
   private val sexIndex = 2
   private val ageGroupIndex = 3
@@ -56,7 +56,7 @@ class CsvEventQuery(private val edpDisplayName: String, private val file: File) 
       csvReader.use { reader ->
         var row = reader.readNext()
         while (row != null) {
-          if (row[edpIdIndex] == edpDisplayName.last().toString()) {
+          if (row[edpIdIndex] == publisherId.toString()) {
             val csvEventMap = mapOf(SEX to row[sexIndex], AGE_GROUP to row[ageGroupIndex])
             this.vidsList.add(row[vidIndex].toInt())
             this.eventsList.add(csvEntryToTestEvent(csvEventMap))

@@ -40,9 +40,9 @@ private val directoryPath: Path =
     "dataprovider",
   )
 private const val FILE_NAME = "CsvEventQueryTestEvents.csv"
-private val FILE: File = File(getRuntimePath(directoryPath.resolve(FILE_NAME)).toString())
+private val FILE: File = getRuntimePath(directoryPath.resolve(FILE_NAME))!!.toFile()
 
-private const val EDP1_DISPLAY_NAME = "edp1"
+private const val PUBLISHER_ID_1 = 1
 private val BANNER_FEMALE = BannerGender.GENDER_FEMALE.ordinal
 private val PRIVACY_35_54 = PrivacyAge.AGE_35_TO_54.ordinal
 private val PRIVACY_MALE = PrivacyGender.GENDER_MALE.ordinal
@@ -60,7 +60,7 @@ private val EMPTY_EVENT_FILTER = eventFilter { expression = "" }
 @RunWith(JUnit4::class)
 class CsvEventQueryTest {
   companion object {
-    private val eventQuery = CsvEventQuery(EDP1_DISPLAY_NAME, FILE)
+    private val eventQuery = CsvEventQuery(PUBLISHER_ID_1, FILE)
   }
 
   @Test
