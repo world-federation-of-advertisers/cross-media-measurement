@@ -31,6 +31,7 @@ import org.wfanet.measurement.internal.reporting.TimeInterval
 import org.wfanet.measurement.internal.reporting.copy
 import org.wfanet.measurement.internal.reporting.measurement
 import org.wfanet.measurement.internal.reporting.timeInterval
+import org.wfanet.measurement.reporting.deploy.postgres.readers.MeasurementReader
 import org.wfanet.measurement.reporting.deploy.postgres.readers.MeasurementResultsReader
 import org.wfanet.measurement.reporting.deploy.postgres.readers.ReportReader
 import org.wfanet.measurement.reporting.service.internal.MeasurementNotFoundException
@@ -49,6 +50,12 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
   data class MeasurementResult(val result: Measurement.Result, val coefficient: Int)
 
   override suspend fun TransactionScope.runTransaction(): Measurement {
+    MeasurementReader()
+      .readMeasurementByReferenceIds(
+        transactionContext,
+        measurementConsumerReferenceId = request.measurementConsumerReferenceId,
+        measurementReferenceId = request.measurementReferenceId
+      )
     val updateMeasurementStatement =
       boundStatement(
         """
@@ -66,7 +73,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
     transactionContext.run {
       val numRowsUpdated = executeStatement(updateMeasurementStatement).numRowsUpdated
       if (numRowsUpdated == 0L) {
-        throw MeasurementNotFoundException()
+        return@run
       }
 
       val measurementResultsMap = mutableMapOf<String, MeasurementResultsReader.Result>()

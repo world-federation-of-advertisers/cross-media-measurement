@@ -19,6 +19,7 @@ import org.wfanet.measurement.internal.reporting.Measurement
 import org.wfanet.measurement.internal.reporting.Report
 import org.wfanet.measurement.internal.reporting.SetMeasurementFailureRequest
 import org.wfanet.measurement.internal.reporting.measurement
+import org.wfanet.measurement.reporting.deploy.postgres.readers.MeasurementReader
 import org.wfanet.measurement.reporting.service.internal.MeasurementNotFoundException
 
 /**
@@ -30,6 +31,12 @@ import org.wfanet.measurement.reporting.service.internal.MeasurementNotFoundExce
 class SetMeasurementFailure(private val request: SetMeasurementFailureRequest) :
   PostgresWriter<Measurement>() {
   override suspend fun TransactionScope.runTransaction(): Measurement {
+    MeasurementReader()
+      .readMeasurementByReferenceIds(
+        transactionContext,
+        measurementConsumerReferenceId = request.measurementConsumerReferenceId,
+        measurementReferenceId = request.measurementReferenceId
+      )
     val updateMeasurementStatement =
       boundStatement(
         """
@@ -66,7 +73,7 @@ class SetMeasurementFailure(private val request: SetMeasurementFailureRequest) :
     transactionContext.run {
       val numRowsUpdated = executeStatement(updateMeasurementStatement).numRowsUpdated
       if (numRowsUpdated == 0L) {
-        throw MeasurementNotFoundException()
+        return@run
       }
       executeStatement(updateReportStatement)
     }
