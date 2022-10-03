@@ -17,6 +17,7 @@ package org.wfanet.measurement.reporting.service.api.v1alpha
 import io.grpc.Status
 import org.projectnessie.cel.Program
 import org.wfanet.measurement.api.v2alpha.DataProviderKey as CmmsDataProviderKey
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor
@@ -81,7 +82,7 @@ class EventGroupsService(
         val measurementConsumerPrivateKey =
           encryptionKeyPairStore.getPrivateKeyHandle(
             principalName,
-            it.measurementConsumerPublicKey.data
+            EncryptionPublicKey.parseFrom(it.measurementConsumerPublicKey.data).data
           )
             ?: failGrpc(Status.FAILED_PRECONDITION) {
               "Public key does not have corresponding private key"

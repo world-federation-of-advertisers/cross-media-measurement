@@ -85,6 +85,7 @@ kt_jvm_library(
     name = "encryption_key_pair_store",
     srcs = ["EncryptionKeyPairStore.kt"],
     deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha:crypto_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
     ],
 )
