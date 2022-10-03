@@ -1271,7 +1271,7 @@ class ReportsService(
             throw Exception("Unable to retrieve the data provider [$dataProviderName].", e)
           }
 
-        key = dataProviderName
+        key = dataProvider.name
         value = dataProviderEntryValue {
           dataProviderCertificate = dataProvider.certificate
           dataProviderPublicKey = dataProvider.publicKey
