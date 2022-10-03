@@ -25,6 +25,7 @@ edpSimulators: {
 		"\(edpConfig.displayName)": {
 			_additional_args: [
 				"--events-csv=\(_eventsCsv)",
+				"--publisher-id=\(edpConfig.publisherId)",
 			]
 			deployment: {
 				_container:

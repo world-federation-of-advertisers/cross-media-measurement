@@ -29,12 +29,16 @@ _secret_name: string @tag("secret_name")
 
 objectSets: [ for simulator in edpSimulators {simulator}]
 
+#EdpConfig: {
+	publisherId: int
+}
+
 _edpConfigs: [...#EdpConfig]
 _edpConfigs: [
 	for i, name in _edpResourceNames {
-		let EdpNum = i + 1
+		publisherId:  i + 1
 		resourceName: name
-		displayName:  "edp\(EdpNum)"
+		displayName:  "edp\(publisherId)"
 	},
 ]
 
