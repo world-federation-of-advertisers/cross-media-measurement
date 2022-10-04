@@ -39,6 +39,11 @@ class MeasurementReader {
 
   fun translate(row: ResultRow): Result = Result(buildMeasurement(row))
 
+  /**
+   * Reads a Measurement using reference IDs.
+   *
+   * @return null when the Measurement is not found.
+   */
   suspend fun readMeasurementByReferenceIds(
     readContext: ReadContext,
     measurementConsumerReferenceId: String,
