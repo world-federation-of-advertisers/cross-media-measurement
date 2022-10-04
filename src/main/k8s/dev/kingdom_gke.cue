@@ -19,7 +19,17 @@ _secret_name: string @tag("secret_name")
 // Name of K8s service account for the internal API server.
 #InternalServerServiceAccount: "internal-server"
 
-#DataServerResourceRequirements: #ResourceRequirements & {
+// Number of gRPC threads for the internal API server.
+#InternalServerGrpcThreads: 7
+
+// Number of gRPC threads for the system API server.
+//
+// This serves long-lived streaming RPCs from each Herald which will each occupy
+// a thread, so this should be greater than the number of Heralds.
+#SystemServerGrpcThreads: 5
+
+#InternalServerResourceRequirements: #ResourceRequirements & {
+	requests: cpu:  "500m"
 	limits: memory: "512Mi"
 }
 
@@ -61,10 +71,16 @@ kingdom: #Kingdom & {
 		"gcp-kingdom-data-server": {
 			_container: {
 				_javaOptions: maxRamPercentage: 40.0
-				resources: #DataServerResourceRequirements
+				_grpcThreadPoolSize: #InternalServerGrpcThreads
+				resources:           #InternalServerResourceRequirements
 			}
 			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #InternalServerServiceAccount
+			}
+		}
+		"system-api-server": {
+			_container: {
+				_grpcThreadPoolSize: #SystemServerGrpcThreads
 			}
 		}
 	}

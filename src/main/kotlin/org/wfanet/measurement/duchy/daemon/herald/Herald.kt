@@ -15,22 +15,23 @@
 package org.wfanet.measurement.duchy.daemon.herald
 
 import io.grpc.Status
+import io.grpc.StatusException
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlin.coroutines.coroutineContext
 import kotlin.math.pow
 import kotlin.random.Random
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import org.wfanet.measurement.common.grpc.grpcStatusCode
-import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.protoTimestamp
-import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.duchy.daemon.utils.MeasurementType
 import org.wfanet.measurement.duchy.daemon.utils.key
 import org.wfanet.measurement.duchy.daemon.utils.toMeasurementType
@@ -76,20 +77,17 @@ class Herald(
   private val clock: Clock,
   private val blobStorageBucket: String = "computation-blob-storage",
   private val maxAttempts: Int = 5,
-  private val maxConcurrency: Int = 5,
+  private val maxStreamingAttempts: Int = 5,
+  maxConcurrency: Int = 5,
   private val retryBackoff: ExponentialBackoff = ExponentialBackoff(),
 ) {
   private val semaphore = Semaphore(maxConcurrency)
 
   /**
    * Syncs the status of computations stored at the kingdom with those stored locally continually in
-   * a forever loop. The [pollingThrottler] is used to limit how often the kingdom and local
-   * computation storage service are polled.
-   *
-   * @param pollingThrottler throttles how often to get active computations from the Global
-   * Computation Service
+   * a forever loop.
    */
-  suspend fun continuallySyncStatuses(pollingThrottler: Throttler) {
+  suspend fun continuallySyncStatuses() {
     logger.info("Server starting...")
     // Token signifying the last computation in an active state at the kingdom that was processed by
     // this job. When empty, all active computations at the kingdom will be streamed in the
@@ -97,10 +95,30 @@ class Herald(
     // the kingdom with all active computations locally.
     var lastProcessedContinuationToken = ""
 
-    pollingThrottler.loopOnReady {
-      logAndSuppressExceptionSuspend {
+    // TODO(world-federation-of-advertisers/cross-media-measurement#695): Use gRPC service config
+    // rather than custom retry logic w/backoff.
+    var attemptNumber = 1
+    while (coroutineContext.isActive) {
+      try {
         lastProcessedContinuationToken = syncStatuses(lastProcessedContinuationToken)
+      } catch (e: StreamingException) {
+        when (val statusCode = e.cause.status.code) {
+          Status.Code.UNAVAILABLE,
+          Status.Code.DEADLINE_EXCEEDED -> {
+            if (attemptNumber == maxStreamingAttempts) {
+              throw e
+            }
+            logger.warning { "Sync attempt $attemptNumber failed with $statusCode. Retrying..." }
+            retryBackoff.delay(attemptNumber)
+            attemptNumber++
+            continue
+          }
+          else -> throw e
+        }
       }
+
+      // Reset attempt number due to success.
+      attemptNumber = 1
     }
   }
 
@@ -113,24 +131,31 @@ class Herald(
    * @return the continuation token of the last computation processed in that stream of active
    * computations from the system computation service.
    */
-  suspend fun syncStatuses(continuationToken: String): String = coroutineScope {
+  suspend fun syncStatuses(continuationToken: String): String {
     logger.info("Reading stream of active computations since \"$continuationToken\".")
 
     val streamRequest = streamActiveComputationsRequest {
       this.continuationToken = continuationToken
     }
+
     var lastProcessedContinuationToken = continuationToken
+    coroutineScope {
+      systemComputationsClient
+        .streamActiveComputations(streamRequest)
+        .catch { cause ->
+          if (cause !is StatusException) throw cause
+          throw StreamingException("Error streaming active computations", cause)
+        }
+        .collect { response ->
+          semaphore.acquire()
+          launch {
+            processSystemComputationAndSuppressException(response.computation, MAX_ATTEMPTS)
+          }
+          lastProcessedContinuationToken = response.continuationToken
+        }
+    }
 
-    systemComputationsClient
-      .streamActiveComputations(streamRequest)
-      .onEach { response ->
-        semaphore.acquire()
-        launch { processSystemComputationAndSuppressException(response.computation, MAX_ATTEMPTS) }
-        lastProcessedContinuationToken = response.continuationToken
-      }
-      .collect()
-
-    return@coroutineScope lastProcessedContinuationToken
+    return lastProcessedContinuationToken
   }
 
   private suspend fun processSystemComputationAndSuppressException(
@@ -138,19 +163,24 @@ class Herald(
     maxAttempts: Int = 10
   ) {
     var attemptNumber = 0
-    while (true) {
+    while (coroutineContext.isActive) {
       attemptNumber++
       try {
         processSystemComputation(computation)
         semaphore.release()
         return
-      } catch (ex: Throwable) {
-        if (!mayBeTransientGrpcError(ex) || attemptNumber >= maxAttempts) {
+      } catch (e: CancellationException) {
+        // Ensure that coroutine cancellation bubbles up immediately.
+        throw e
+      } catch (e: Exception) {
+        // TODO(@renjiezh): Catch StatusException at the RPC site instead, wrapping in a more
+        // specific exception if it needs to be handled at a higher level.
+        if (!mayBeTransientGrpcError(e) || attemptNumber >= maxAttempts) {
           val globalId: String = computation.key.computationId
-          logger.log(Level.SEVERE, "[id=$globalId] Non-transient error:", ex)
+          logger.log(Level.SEVERE, "[id=$globalId] Non-transient error:", e)
           failComputationAtKingdom(
             computation,
-            "Herald failed after $attemptNumber attempts. ${ex.message}"
+            "Herald failed after $attemptNumber attempts. ${e.message}"
           )
           failComputationAtDuchy(computation)
           semaphore.release()
@@ -192,8 +222,10 @@ class Herald(
         }
       }
       logger.info("[id=$globalId]: Created Computation")
-    } catch (e: Exception) {
-      if (e.grpcStatusCode() == Status.Code.ALREADY_EXISTS) {
+    } catch (e: StatusException) {
+      // TODO(@renjiezh): Catch StatusException at the RPC site instead, wrapping in a more
+      // specific exception if it needs to be handled at a higher level.
+      if (e.status.code == Status.Code.ALREADY_EXISTS) {
         logger.info("[id=$globalId]: Computation already exists")
       } else {
         throw e // rethrow all other exceptions.
@@ -286,8 +318,8 @@ class Herald(
     }
     try {
       systemComputationParticipantClient.failComputationParticipant(request)
-    } catch (ex: Throwable) {
-      logger.warning("[id=$globalId]: Error when failComputationAtKingdom.\n$ex")
+    } catch (e: StatusException) {
+      logger.log(Level.WARNING, e) { "[id=$globalId]: Error when failComputationAtKingdom" }
     }
   }
 
@@ -297,7 +329,7 @@ class Herald(
     val token =
       try {
         internalComputationsClient.getComputationToken(globalId.toGetTokenRequest()).token
-      } catch (ex: Throwable) {
+      } catch (e: StatusException) {
         null
       } ?: return
 
@@ -312,18 +344,28 @@ class Herald(
     }
     try {
       internalComputationsClient.finishComputation(finishRequest)
-    } catch (ex: Throwable) {
-      logger.warning("[id=$globalId]: Error when failComputationAtDuchy.\n$ex")
+    } catch (e: StatusException) {
+      logger.log(Level.WARNING, e) { "[id=$globalId]: Error when failComputationAtDuchy" }
     }
   }
+
+  private class StreamingException(message: String, override val cause: StatusException) :
+    Exception(message, cause)
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
 
-/** Returns true if the error may be transient, i.e. retrying the request may succeed. */
-fun mayBeTransientGrpcError(error: Throwable): Boolean {
+/**
+ * Returns `true` if the error may be transient, i.e. retrying the request may succeed.
+ *
+ * TODO(world-federation-of-advertisers/cross-media-measurement#695): Use service config to apply
+ * per-method retry logic. Whether a status code indicates that a method is safe to retry depends on
+ * the method. e.g. [DEADLINE_EXCEEDED][Status.Code.DEADLINE_EXCEEDED] is not necessarily safe to
+ * retry if the method is non-idempotent.
+ */
+fun mayBeTransientGrpcError(error: Exception): Boolean {
   val statusCode = error.grpcStatusCode() ?: return false
   return when (statusCode) {
     Status.Code.ABORTED,
