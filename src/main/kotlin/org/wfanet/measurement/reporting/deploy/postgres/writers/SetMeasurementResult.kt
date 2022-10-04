@@ -35,6 +35,7 @@ import org.wfanet.measurement.reporting.deploy.postgres.readers.MeasurementReade
 import org.wfanet.measurement.reporting.deploy.postgres.readers.MeasurementResultsReader
 import org.wfanet.measurement.reporting.deploy.postgres.readers.ReportReader
 import org.wfanet.measurement.reporting.service.internal.MeasurementNotFoundException
+import org.wfanet.measurement.reporting.service.internal.MeasurementStateInvalidException
 
 private const val NANOS_PER_SECOND = 1_000_000_000
 
@@ -44,18 +45,25 @@ private const val NANOS_PER_SECOND = 1_000_000_000
  *
  * Throws the following on [execute]:
  * * [MeasurementNotFoundException] Measurement not found.
+ * * [MeasurementStateInvalidException] Measurement does not have PENDING state.
  */
 class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
   PostgresWriter<Measurement>() {
   data class MeasurementResult(val result: Measurement.Result, val coefficient: Int)
 
   override suspend fun TransactionScope.runTransaction(): Measurement {
-    MeasurementReader()
+    val measurementResult = MeasurementReader()
       .readMeasurementByReferenceIds(
         transactionContext,
         measurementConsumerReferenceId = request.measurementConsumerReferenceId,
         measurementReferenceId = request.measurementReferenceId
       )
+      ?: throw MeasurementNotFoundException()
+
+    if (measurementResult.measurement.state != Measurement.State.PENDING) {
+      throw MeasurementStateInvalidException()
+    }
+
     val updateMeasurementStatement =
       boundStatement(
         """

@@ -40,4 +40,7 @@ enum ErrorCode {
 
   /** Report with the provided IDs does not exist. */
   REPORT_NOT_FOUND = 6;
+
+  /** Measurement state is not the right state for the operation. */
+  MEASUREMENT_STATE_INVALID =7;
 }

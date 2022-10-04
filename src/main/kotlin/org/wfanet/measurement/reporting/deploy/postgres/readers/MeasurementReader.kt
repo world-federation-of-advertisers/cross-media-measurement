@@ -21,8 +21,6 @@ import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.internal.reporting.Measurement
 import org.wfanet.measurement.internal.reporting.measurement
-import org.wfanet.measurement.reporting.service.internal.MeasurementNotFoundException
-import org.wfanet.measurement.reporting.service.internal.ReportingInternalException
 
 class MeasurementReader {
   data class Result(val measurement: Measurement)
@@ -41,17 +39,11 @@ class MeasurementReader {
 
   fun translate(row: ResultRow): Result = Result(buildMeasurement(row))
 
-  /**
-   * Reads a Measurement using reference IDs.
-   *
-   * Throws a subclass of [ReportingInternalException].
-   * @throws [MeasurementNotFoundException] Measurement not found.
-   */
   suspend fun readMeasurementByReferenceIds(
     readContext: ReadContext,
     measurementConsumerReferenceId: String,
     measurementReferenceId: String
-  ): Result {
+  ): Result? {
     val builder =
       boundStatement(
         baseSql +
@@ -65,7 +57,6 @@ class MeasurementReader {
       }
 
     return readContext.executeQuery(builder).consume(::translate).firstOrNull()
-      ?: throw MeasurementNotFoundException()
   }
 
   private fun buildMeasurement(row: ResultRow): Measurement {
