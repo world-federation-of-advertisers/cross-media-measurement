@@ -33,13 +33,14 @@ import org.wfanet.measurement.reporting.service.internal.MeasurementStateInvalid
 class SetMeasurementFailure(private val request: SetMeasurementFailureRequest) :
   PostgresWriter<Measurement>() {
   override suspend fun TransactionScope.runTransaction(): Measurement {
-    val measurementResult = MeasurementReader()
-      .readMeasurementByReferenceIds(
-        transactionContext,
-        measurementConsumerReferenceId = request.measurementConsumerReferenceId,
-        measurementReferenceId = request.measurementReferenceId
-      )
-      ?: throw MeasurementNotFoundException()
+    val measurementResult =
+      MeasurementReader()
+        .readMeasurementByReferenceIds(
+          transactionContext,
+          measurementConsumerReferenceId = request.measurementConsumerReferenceId,
+          measurementReferenceId = request.measurementReferenceId
+        )
+        ?: throw MeasurementNotFoundException()
 
     if (measurementResult.measurement.state != Measurement.State.PENDING) {
       throw MeasurementStateInvalidException()

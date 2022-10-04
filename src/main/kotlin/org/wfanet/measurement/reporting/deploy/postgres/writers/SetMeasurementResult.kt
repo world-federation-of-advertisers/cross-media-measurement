@@ -52,13 +52,14 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
   data class MeasurementResult(val result: Measurement.Result, val coefficient: Int)
 
   override suspend fun TransactionScope.runTransaction(): Measurement {
-    val measurementResult = MeasurementReader()
-      .readMeasurementByReferenceIds(
-        transactionContext,
-        measurementConsumerReferenceId = request.measurementConsumerReferenceId,
-        measurementReferenceId = request.measurementReferenceId
-      )
-      ?: throw MeasurementNotFoundException()
+    val measurementResult =
+      MeasurementReader()
+        .readMeasurementByReferenceIds(
+          transactionContext,
+          measurementConsumerReferenceId = request.measurementConsumerReferenceId,
+          measurementReferenceId = request.measurementReferenceId
+        )
+        ?: throw MeasurementNotFoundException()
 
     if (measurementResult.measurement.state != Measurement.State.PENDING) {
       throw MeasurementStateInvalidException()

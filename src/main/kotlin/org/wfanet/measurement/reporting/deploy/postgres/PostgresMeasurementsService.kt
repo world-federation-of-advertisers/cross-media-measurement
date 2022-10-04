@@ -43,15 +43,18 @@ class PostgresMeasurementsService(
   }
 
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
-    val measurementResult = SerializableErrors.retrying {
-      MeasurementReader()
-        .readMeasurementByReferenceIds(
-          client.singleUse(),
-          request.measurementConsumerReferenceId,
-          request.measurementReferenceId
-        )
-    }
-      ?: throw MeasurementNotFoundException().throwStatusRuntimeException(Status.NOT_FOUND) { "Measurement not found." }
+    val measurementResult =
+      SerializableErrors.retrying {
+        MeasurementReader()
+          .readMeasurementByReferenceIds(
+            client.singleUse(),
+            request.measurementConsumerReferenceId,
+            request.measurementReferenceId
+          )
+      }
+        ?: throw MeasurementNotFoundException().throwStatusRuntimeException(Status.NOT_FOUND) {
+          "Measurement not found."
+        }
 
     return measurementResult.measurement
   }
@@ -62,7 +65,9 @@ class PostgresMeasurementsService(
     } catch (e: MeasurementNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "Measurement not found." }
     } catch (e: MeasurementStateInvalidException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Measurement has already been updated." }
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+        "Measurement has already been updated."
+      }
     }
   }
 
@@ -72,7 +77,9 @@ class PostgresMeasurementsService(
     } catch (e: MeasurementNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "Measurement not found." }
     } catch (e: MeasurementStateInvalidException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Measurement has already been updated." }
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+        "Measurement has already been updated."
+      }
     }
   }
 }

@@ -105,8 +105,9 @@ class ReportNotFoundException(provideDescription: () -> String = { "Report not f
     get() = emptyMap<String, String>()
 }
 
-class MeasurementStateInvalidException(provideDescription: () -> String = { "Measurement state invalid" }) :
-  ReportingInternalException(ErrorCode.MEASUREMENT_STATE_INVALID, provideDescription) {
-    override val context
-      get() = emptyMap<String, String>()
-  }
+class MeasurementStateInvalidException(
+  provideDescription: () -> String = { "Measurement state invalid" }
+) : ReportingInternalException(ErrorCode.MEASUREMENT_STATE_INVALID, provideDescription) {
+  override val context
+    get() = emptyMap<String, String>()
+}
