@@ -149,7 +149,6 @@ class InProcessDuchy(
 
   private val heraldRule = CloseableResource {
     backgroundScope.launchAsAutoCloseable {
-      val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000))
       val protocolsSetupConfig =
         if (externalDuchyId == LLV2_AGGREGATOR_NAME) {
           AGGREGATOR_PROTOCOLS_SETUP_CONFIG
@@ -166,7 +165,7 @@ class InProcessDuchy(
           protocolsSetupConfig = protocolsSetupConfig,
           clock = Clock.systemUTC(),
         )
-      herald.continuallySyncStatuses(throttler)
+      herald.continuallySyncStatuses()
     }
   }
 
