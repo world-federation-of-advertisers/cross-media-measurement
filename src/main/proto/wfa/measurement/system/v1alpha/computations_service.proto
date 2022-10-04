@@ -41,6 +41,8 @@ service Computations {
   // Since these events are relatively infrequent but also can come in bursts,
   // we use a streaming RPC to avoid frequent polling for rare events, yet
   // still have a prompt reaction when they do occur.
+  //
+  // This is a long-lived stream, and may not complete until cancelled.
   rpc StreamActiveComputations(StreamActiveComputationsRequest)
       returns (stream StreamActiveComputationsResponse);
 
