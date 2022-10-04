@@ -19,8 +19,14 @@ import io.grpc.inprocess.InProcessChannelBuilder
 import io.grpc.testing.GrpcCleanupRule
 import java.time.Clock
 import java.time.Duration
+import java.util.logging.Level
+import java.util.logging.Logger
+import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import org.junit.rules.TestRule
@@ -34,9 +40,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.testing.withMetadataDuchyIdentities
 import org.wfanet.measurement.common.identity.withDuchyId
-import org.wfanet.measurement.common.testing.CloseableResource
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.common.testing.launchAsAutoCloseable
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.duchy.daemon.herald.Herald
 import org.wfanet.measurement.duchy.daemon.mill.Certificate
@@ -73,13 +77,16 @@ class InProcessDuchy(
   val kingdomSystemApiChannel: Channel,
   duchyDependenciesProvider: () -> DuchyDependencies,
   val verboseGrpcLogging: Boolean = true,
+  daemonContext: CoroutineContext = Dispatchers.Default,
 ) : TestRule {
   data class DuchyDependencies(
     val computationsDatabase: ComputationsDatabase,
     val storageClient: StorageClient
   )
 
-  private val backgroundScope = CoroutineScope(Dispatchers.Default)
+  private val daemonScope = CoroutineScope(daemonContext)
+  private lateinit var heraldJob: Job
+  private lateinit var llv2MillJob: Job
 
   private val duchyDependencies by lazy { duchyDependenciesProvider() }
 
@@ -147,62 +154,83 @@ class InProcessDuchy(
     )
   }
 
-  private val heraldRule = CloseableResource {
-    backgroundScope.launchAsAutoCloseable {
-      val protocolsSetupConfig =
-        if (externalDuchyId == LLV2_AGGREGATOR_NAME) {
-          AGGREGATOR_PROTOCOLS_SETUP_CONFIG
-        } else {
-          NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG
-        }
-      val herald =
-        Herald(
-          heraldId = "$externalDuchyId Herald",
-          duchyId = externalDuchyId,
-          internalComputationsClient = computationsClient,
-          systemComputationsClient = systemComputationsClient,
-          systemComputationParticipantClient = systemComputationParticipantsClient,
-          protocolsSetupConfig = protocolsSetupConfig,
-          clock = Clock.systemUTC(),
-        )
-      herald.continuallySyncStatuses()
+  fun startHerald() {
+    heraldJob =
+      daemonScope.launch(
+        CoroutineName("$externalDuchyId Herald") +
+          CoroutineExceptionHandler { _, e ->
+            logger.log(Level.SEVERE, e) { "Error in $externalDuchyId Herald" }
+          }
+      ) {
+        val protocolsSetupConfig =
+          if (externalDuchyId == LLV2_AGGREGATOR_NAME) {
+            AGGREGATOR_PROTOCOLS_SETUP_CONFIG
+          } else {
+            NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG
+          }
+        val herald =
+          Herald(
+            heraldId = "$externalDuchyId Herald",
+            duchyId = externalDuchyId,
+            internalComputationsClient = computationsClient,
+            systemComputationsClient = systemComputationsClient,
+            systemComputationParticipantClient = systemComputationParticipantsClient,
+            protocolsSetupConfig = protocolsSetupConfig,
+            clock = Clock.systemUTC(),
+          )
+        herald.continuallySyncStatuses()
+      }
+  }
+
+  suspend fun stopHerald() {
+    if (this::heraldJob.isInitialized) {
+      heraldJob.cancel("Stopping Herald")
+      heraldJob.join()
     }
   }
 
   fun startLiquidLegionsV2mill(duchyCertMap: Map<String, String>) {
-    backgroundScope.launch {
-      val consentSignal509Cert =
-        readCertificate(loadTestCertDerFile("${externalDuchyId}_cs_cert.der"))
-      val signingKey =
-        SigningKeyHandle(
-          consentSignal509Cert,
-          readPrivateKey(
-            loadTestCertDerFile("${externalDuchyId}_cs_private.der"),
-            consentSignal509Cert.publicKey.algorithm
+    llv2MillJob =
+      daemonScope.launch(CoroutineName("$externalDuchyId LLv2 Mill")) {
+        val consentSignal509Cert =
+          readCertificate(loadTestCertDerFile("${externalDuchyId}_cs_cert.der"))
+        val signingKey =
+          SigningKeyHandle(
+            consentSignal509Cert,
+            readPrivateKey(
+              loadTestCertDerFile("${externalDuchyId}_cs_private.der"),
+              consentSignal509Cert.publicKey.algorithm
+            )
           )
-        )
-      val workerStubs =
-        ALL_DUCHY_NAMES.minus(externalDuchyId).associateWith {
-          val channel = computationControlChannel(it)
-          val stub = SystemComputationControlCoroutineStub(channel).withDuchyId(externalDuchyId)
-          stub
-        }
-      val liquidLegionsV2mill =
-        LiquidLegionsV2Mill(
-          millId = "$externalDuchyId liquidLegionsV2 Mill",
-          duchyId = externalDuchyId,
-          signingKey = signingKey,
-          consentSignalCert = Certificate(duchyCertMap[externalDuchyId]!!, consentSignal509Cert),
-          dataClients = computationDataClients,
-          systemComputationParticipantsClient = systemComputationParticipantsClient,
-          systemComputationsClient = systemComputationsClient,
-          systemComputationLogEntriesClient = systemComputationLogEntriesClient,
-          computationStatsClient = computationStatsClient,
-          throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
-          workerStubs = workerStubs,
-          cryptoWorker = JniLiquidLegionsV2Encryption()
-        )
-      liquidLegionsV2mill.continuallyProcessComputationQueue()
+        val workerStubs =
+          ALL_DUCHY_NAMES.minus(externalDuchyId).associateWith {
+            val channel = computationControlChannel(it)
+            val stub = SystemComputationControlCoroutineStub(channel).withDuchyId(externalDuchyId)
+            stub
+          }
+        val liquidLegionsV2mill =
+          LiquidLegionsV2Mill(
+            millId = "$externalDuchyId liquidLegionsV2 Mill",
+            duchyId = externalDuchyId,
+            signingKey = signingKey,
+            consentSignalCert = Certificate(duchyCertMap[externalDuchyId]!!, consentSignal509Cert),
+            dataClients = computationDataClients,
+            systemComputationParticipantsClient = systemComputationParticipantsClient,
+            systemComputationsClient = systemComputationsClient,
+            systemComputationLogEntriesClient = systemComputationLogEntriesClient,
+            computationStatsClient = computationStatsClient,
+            throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1)),
+            workerStubs = workerStubs,
+            cryptoWorker = JniLiquidLegionsV2Encryption()
+          )
+        liquidLegionsV2mill.continuallyProcessComputationQueue()
+      }
+  }
+
+  suspend fun stopLiquidLegionsV2Mill() {
+    if (this::llv2MillJob.isInitialized) {
+      llv2MillJob.cancel("Stopping LLv2 Mill")
+      llv2MillJob.join()
     }
   }
 
@@ -229,11 +257,14 @@ class InProcessDuchy(
             requisitionFulfillmentServer,
             asyncComputationControlServer,
             computationControlServer,
-            heraldRule,
             channelCloserRule
           )
         combinedRule.apply(statement, description).evaluate()
-        backgroundScope.cancel()
+        daemonScope.cancel()
       }
     }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
+  }
 }

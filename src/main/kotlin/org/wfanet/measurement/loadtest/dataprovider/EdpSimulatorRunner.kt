@@ -65,28 +65,30 @@ abstract class EdpSimulatorRunner : Runnable {
         )
       )
 
-    runBlocking {
-      val edpData =
-        EdpData(
-          flags.dataProviderResourceName,
-          flags.dataProviderDisplayName,
-          loadPrivateKey(flags.edpEncryptionPrivateKeyset),
-          loadSigningKey(flags.edpCsCertificateDerFile, flags.edpCsPrivateKeyDerFile)
-        )
+    val edpData =
+      EdpData(
+        flags.dataProviderResourceName,
+        flags.dataProviderDisplayName,
+        loadPrivateKey(flags.edpEncryptionPrivateKeyset),
+        loadSigningKey(flags.edpCsCertificateDerFile, flags.edpCsPrivateKeyDerFile)
+      )
+    val edpSimulator =
       EdpSimulator(
-          edpData,
-          flags.mcResourceName,
-          certificatesStub,
-          eventGroupsStub,
-          requisitionsStub,
-          requisitionFulfillmentStub,
-          SketchStore(storageClient),
-          eventQuery,
-          MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval),
-          eventTemplateNames = EVENT_TEMPLATES_TO_FILTERS_MAP.keys.toList(),
-          createNoOpPrivacyBudgetManager()
-        )
-        .process()
+        edpData,
+        flags.mcResourceName,
+        certificatesStub,
+        eventGroupsStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        SketchStore(storageClient),
+        eventQuery,
+        MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval),
+        eventTemplateNames = EVENT_TEMPLATES_TO_FILTERS_MAP.keys.toList(),
+        createNoOpPrivacyBudgetManager()
+      )
+    runBlocking {
+      edpSimulator.createEventGroup()
+      edpSimulator.run()
     }
   }
 }
