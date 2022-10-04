@@ -30,23 +30,31 @@ import picocli.CommandLine
 class ForwardStorageEdpSimulatorRunner : EdpSimulatorRunner() {
   @CommandLine.Mixin private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags
 
-  @CommandLine.Option(
-    names = ["--events-csv"],
-    description =
-      [
-        "A filepath to a CSV file specifying the event data that will be returned by this simulator." +
-          "If not specified, RandomEventQuery will be used"
-      ],
-  )
-  var eventsCsv: File? = null
+  @CommandLine.ArgGroup(exclusive = false)
+  var csvDependent: CsvDependent? = null
     private set
 
-  @set:CommandLine.Option(
-    names = ["--publisher-id"],
-    description = ["ID of the publisher within the test dataset"],
-  )
-  var publisherId by Delegates.notNull<Int>()
-    private set
+  class CsvDependent {
+    @CommandLine.Option(
+      names = ["--events-csv"],
+      description =
+        [
+          "A filepath to a CSV file specifying the event data that will be returned by this simulator." +
+            "If not specified, RandomEventQuery will be used"
+        ],
+      required = true,
+    )
+    lateinit var eventsCsv: File
+      private set
+
+    @set:CommandLine.Option(
+      names = ["--publisher-id"],
+      description = ["ID of the publisher within the test dataset"],
+      required = true
+    )
+    var publisherId by Delegates.notNull<Int>()
+      private set
+  }
 
   @set:CommandLine.Option(
     names = ["--edp-sketch-reach"],
@@ -65,14 +73,14 @@ class ForwardStorageEdpSimulatorRunner : EdpSimulatorRunner() {
     private set
 
   override fun run() {
-    val eventsCsv: File? = eventsCsv
+    val csvDependent: CsvDependent? = csvDependent
     val eventQuery: EventQuery =
-      if (eventsCsv == null) {
+      if (csvDependent == null) {
         RandomEventQuery(
           SketchGenerationParams(reach = edpSketchReach, universeSize = edpUniverseSize)
         )
       } else {
-        CsvEventQuery(publisherId, eventsCsv)
+        CsvEventQuery(csvDependent.publisherId, csvDependent.eventsCsv)
       }
 
     run(ForwardedStorageFromFlags(forwardedStorageFlags, flags.tlsFlags).storageClient, eventQuery)

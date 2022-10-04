@@ -13,9 +13,9 @@
  */
 package org.wfanet.measurement.loadtest.dataprovider
 
-import com.google.protobuf.Message
 import com.opencsv.CSVReaderBuilder
 import java.io.File
+import java.io.IOException
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplate.Gender as BannerGender
@@ -35,45 +35,40 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 private const val SEX = "Sex"
 private const val AGE_GROUP = "Age_Group"
 
+private const val EDP_ID_INDEX = 0
+private const val SEX_INDEX = 2
+private const val AGE_GROUP_INDEX = 3
+private const val VID_INDEX = 7
+
+data class VidAndEvent(val vid: Int, val event: TestEvent)
+
 /** Fulfill the query with VIDs imported from CSV file. */
 class CsvEventQuery(private val publisherId: Int, private val file: File) : EventQuery() {
-  private val edpIdIndex = 0
-  private val sexIndex = 2
-  private val ageGroupIndex = 3
-  private val vidIndex = 7
+  private val vidAndEventList: List<VidAndEvent> by lazy { readCsvFile() }
 
-  private lateinit var vidsList: MutableList<Int>
-  private lateinit var eventsList: MutableList<TestEvent>
+  @Throws(IOException::class)
+  private fun readCsvFile(): List<VidAndEvent> {
+    val vidsAndEvents: MutableList<VidAndEvent> = mutableListOf()
 
-  private fun readCsvFile() {
-    this.vidsList = mutableListOf()
-    this.eventsList = mutableListOf()
-
-    logger.info("Reading data from CSV file $file...")
-
+    logger.info("Reading data from CSV file: $file...")
     file.reader().use { fileReader ->
       val csvReader = CSVReaderBuilder(fileReader).withSkipLines(1).build()
-      csvReader.use { reader ->
-        var row = reader.readNext()
-        while (row != null) {
-          if (row[edpIdIndex] == publisherId.toString()) {
-            val csvEventMap = mapOf(SEX to row[sexIndex], AGE_GROUP to row[ageGroupIndex])
-            this.vidsList.add(row[vidIndex].toInt())
-            this.eventsList.add(csvEntryToTestEvent(csvEventMap))
-          }
-
-          row = reader.readNext()
+      csvReader.forEach { row ->
+        if (row[EDP_ID_INDEX].toInt() == publisherId) {
+          val csvEventMap = mapOf(SEX to row[SEX_INDEX], AGE_GROUP to row[AGE_GROUP_INDEX])
+          vidsAndEvents.add(VidAndEvent(row[VID_INDEX].toInt(), csvEntryToTestEvent(csvEventMap)))
         }
       }
     }
+
     logger.info("Finished reading data from CSV file")
+    return vidsAndEvents
   }
 
   /** Generates Ids by applying filter on events */
   override fun getUserVirtualIds(eventFilter: EventFilter): Sequence<Long> {
-    if (!this::vidsList.isInitialized) readCsvFile()
-
     logger.info("Querying and filtering VIDs from CsvEventQuery...")
+
     val program =
       EventFilters.compileProgram(
         eventFilter.expression,
@@ -81,9 +76,9 @@ class CsvEventQuery(private val publisherId: Int, private val file: File) : Even
       )
 
     return sequence {
-      this@CsvEventQuery.eventsList.zip(this@CsvEventQuery.vidsList) { event, vid ->
-        if (EventFilters.matches(event as Message, program)) {
-          yield(vid.toLong())
+      vidAndEventList.forEach { vidAndEvent ->
+        if (EventFilters.matches(vidAndEvent.event, program)) {
+          yield(vidAndEvent.vid.toLong())
         }
       }
     }
