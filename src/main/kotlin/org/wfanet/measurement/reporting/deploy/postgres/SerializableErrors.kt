@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.single
 
 object SerializableErrors {
   private const val SERIALIZABLE_ERROR_CODE = "40001"
+  private const val IN_FAILED_SQL_TRANSACTION_ERROR_CODE = "25P02"
   @OptIn(ExperimentalTime::class) private val SERIALIZABLE_RETRY_DURATION = 120.seconds
 
   suspend fun <T> retrying(block: suspend () -> T): T {
@@ -35,10 +36,14 @@ object SerializableErrors {
   @OptIn(ExperimentalTime::class)
   fun <T> Flow<T>.withSerializableErrorRetries(): Flow<T> {
     val retryLimit: TimeMark = TimeSource.Monotonic.markNow().plus(SERIALIZABLE_RETRY_DURATION)
+    // Coroutines are used to speed up some queries. If the serializable error doesn't propagate in
+    // time to other coroutines, the failed transaction will be used and the in failed sql
+    // transaction error will be thrown instead. Therefore, retries will occur for both errors.
     return this.retry { e ->
       (retryLimit.hasNotPassedNow() &&
         e is PostgresqlException &&
-        e.errorDetails.code == SERIALIZABLE_ERROR_CODE)
+        (e.errorDetails.code == SERIALIZABLE_ERROR_CODE ||
+          e.errorDetails.code == IN_FAILED_SQL_TRANSACTION_ERROR_CODE))
     }
   }
 }
