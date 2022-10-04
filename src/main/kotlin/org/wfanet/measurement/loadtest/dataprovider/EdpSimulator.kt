@@ -15,20 +15,15 @@
 package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.protobuf.ByteString
-import com.google.protobuf.Timestamp
 import com.google.protobuf.duration
+import io.grpc.StatusException
 import java.nio.file.Paths
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
 import java.util.logging.Level
 import java.util.logging.Logger
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import org.apache.commons.math3.distribution.LaplaceDistribution
-import org.projectnessie.cel.common.types.pb.ProtoTypeRegistry
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
@@ -51,6 +46,7 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCorouti
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKt.eventTemplate
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
@@ -74,7 +70,6 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
@@ -86,7 +81,6 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.loadLibrary
-import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.consent.client.common.toPublicKeyHandle
 import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
@@ -101,9 +95,6 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Referenc
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper
 import org.wfanet.measurement.loadtest.config.EventFilters.VID_SAMPLER_HASH_FUNCTION
 import org.wfanet.measurement.loadtest.storage.SketchStore
-
-private const val EVENT_TEMPLATE_CLASS_NAME =
-  "wfanet.measurement.api.v2alpha.event_templates.testing"
 
 data class EdpData(
   /** The EDP's public API resource name. */
@@ -132,27 +123,28 @@ class EdpSimulator(
 ) {
 
   /** A sequence of operations done in the simulator. */
-  suspend fun process() {
-    createEventGroup()
-    throttler.loopOnReady {
-      logAndSuppressExceptionSuspend { executeRequisitionFulfillingWorkflow() }
-    }
+  suspend fun run() {
+    throttler.loopOnReady { executeRequisitionFulfillingWorkflow() }
   }
 
   /** Creates an eventGroup for the MC. */
-  suspend fun createEventGroup() {
+  suspend fun createEventGroup(): EventGroup {
+    val request = createEventGroupRequest {
+      parent = edpData.name
+      eventGroup = eventGroup {
+        measurementConsumer = measurementConsumerName
+        eventGroupReferenceId = "001"
+        eventTemplates += eventTemplateNames.map { eventTemplate { type = it } }
+      }
+    }
     val eventGroup =
-      eventGroupsStub.createEventGroup(
-        createEventGroupRequest {
-          parent = edpData.name
-          eventGroup = eventGroup {
-            measurementConsumer = measurementConsumerName
-            eventGroupReferenceId = "001"
-            eventTemplates += eventTemplateNames.map { eventTemplate { type = it } }
-          }
-        }
-      )
+      try {
+        eventGroupsStub.createEventGroup(request)
+      } catch (e: StatusException) {
+        throw Exception("Error creating event group", e)
+      }
     logger.info("Successfully created eventGroup ${eventGroup.name}...")
+    return eventGroup
   }
 
   /** Executes the requisition fulfillment workflow. */
@@ -263,7 +255,7 @@ class EdpSimulator(
       .forEach { anySketch.insert(it, mapOf("frequency" to 1L)) }
   }
 
-  suspend fun chargePrivacyBudget(
+  private suspend fun chargePrivacyBudget(
     requisitionName: String,
     measurementSpec: MeasurementSpec,
     requisitionSpec: RequisitionSpec
@@ -318,7 +310,7 @@ class EdpSimulator(
     sketch: Sketch,
     combinedPublicKey: AnySketchElGamalPublicKey,
     protocolConfig: ProtocolConfig.LiquidLegionsV2
-  ): Flow<ByteString> {
+  ): ByteString {
     logger.info("Encrypting Sketch...")
     val request =
       EncryptSketchRequest.newBuilder()
@@ -335,7 +327,7 @@ class EdpSimulator(
     val response =
       EncryptSketchResponse.parseFrom(SketchEncrypterAdapter.EncryptSketch(request.toByteArray()))
 
-    return response.encryptedSketch.asBufferedFlow(1024)
+    return response.encryptedSketch
   }
 
   /**
@@ -364,14 +356,15 @@ class EdpSimulator(
         return
       }
 
+    logger.info("Writing sketch to storage")
     sketchStore.write(requisition, sketch.toByteString())
-    val sketchChunks: Flow<ByteString> =
+    val encryptedSketch =
       encryptSketch(sketch, combinedPublicKey, requisition.protocolConfig.liquidLegionsV2)
     fulfillRequisition(
       requisition.name,
       requisitionFingerprint,
       requisitionSpec.nonce,
-      sketchChunks
+      encryptedSketch
     )
   }
 
@@ -379,7 +372,7 @@ class EdpSimulator(
     requisitionName: String,
     requisitionFingerprint: ByteString,
     nonce: Long,
-    data: Flow<ByteString>
+    data: ByteString,
   ) {
     logger.info("Fulfilling requisition $requisitionName...")
     requisitionFulfillmentStub.fulfillRequisition(
@@ -393,7 +386,11 @@ class EdpSimulator(
             }
           }
         )
-        emitAll(data.map { fulfillRequisitionRequest { bodyChunk = bodyChunk { this.data = it } } })
+        emitAll(
+          data.asBufferedFlow(RPC_CHUNK_SIZE_BYTES).map {
+            fulfillRequisitionRequest { bodyChunk = bodyChunk { this.data = it } }
+          }
+        )
       }
     )
   }
@@ -536,11 +533,9 @@ class EdpSimulator(
   }
 
   companion object {
+    private const val RPC_CHUNK_SIZE_BYTES = 32 * 1024 // 32 KiB
+
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-    val celProtoTypeRegistry: ProtoTypeRegistry =
-      ProtoTypeRegistry.newRegistry(
-        TestVideoTemplate.getDefaultInstance(),
-      )
 
     init {
       loadLibrary(
@@ -629,8 +624,3 @@ private fun LiquidLegionsSketchParams.toSketchConfig(): SketchConfig {
     }
   }
 }
-
-private fun Timestamp.toLocalDate(timeZone: String): LocalDate =
-  Instant.ofEpochSecond(this.getSeconds(), this.getNanos().toLong())
-    .atZone(ZoneId.of(timeZone))
-    .toLocalDate()

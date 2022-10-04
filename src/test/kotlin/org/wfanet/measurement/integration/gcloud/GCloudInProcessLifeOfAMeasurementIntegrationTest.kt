@@ -15,6 +15,8 @@
 package org.wfanet.measurement.integration.gcloud
 
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
+import kotlinx.coroutines.debug.junit4.CoroutinesTimeout
+import org.junit.Rule
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.InProcessLifeOfAMeasurementIntegrationTest
@@ -26,6 +28,8 @@ import org.wfanet.measurement.storage.StorageClient
  */
 class GCloudInProcessLifeOfAMeasurementIntegrationTest :
   InProcessLifeOfAMeasurementIntegrationTest() {
+
+  @get:Rule val timeout = CoroutinesTimeout.seconds(60)
 
   override val kingdomDataServicesRule by lazy { KingdomDataServicesProviderRule() }
   override val duchyDependenciesRule by lazy { DuchyDependencyProviderRule(ALL_DUCHY_NAMES) }
