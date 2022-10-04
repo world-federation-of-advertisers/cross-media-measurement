@@ -40,6 +40,7 @@ import ("strings")
 
 	_images: [Name=_]: string
 	_duchy_image_pull_policy: string
+	_millPollingInterval?:    string
 
 	_akid_to_principal_map_file_flag:                   "--authority-key-identifier-to-principal-map-file=/etc/\(#AppName)/config-files/authority_key_identifier_to_principal_map.textproto"
 	_async_computations_control_service_target_flag:    "--async-computation-control-service-target=" + (#Target & {name: "\(_name)-async-computation-control-server"}).target
@@ -95,8 +96,7 @@ import ("strings")
 				_duchy_protocols_setup_config_flag,
 				_kingdom_system_api_target_flag,
 				_kingdom_system_api_cert_host_flag,
-				"--channel-shutdown-timeout=3s",
-				"--polling-interval=1m",
+				_debug_verbose_grpc_client_logging_flag,
 			]
 		}
 		"liquid-legions-v2-mill-daemon-deployment": {
@@ -113,8 +113,7 @@ import ("strings")
 						_duchy_cs_cert_rename_name_flag,
 						_kingdom_system_api_target_flag,
 						_kingdom_system_api_cert_host_flag,
-						"--channel-shutdown-timeout=3s",
-						"--polling-interval=1s",
+						if (_millPollingInterval != _|_) {"--polling-interval=\(_millPollingInterval)"},
 			] + _blob_storage_flags + _computation_control_target_flags
 			spec: template: spec: _dependencies: [
 				"\(_name)-spanner-computations-server", "\(_name)-computation-control-server",
