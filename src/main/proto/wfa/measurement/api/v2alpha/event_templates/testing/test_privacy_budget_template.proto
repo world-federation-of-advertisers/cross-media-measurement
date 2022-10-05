@@ -35,9 +35,10 @@ message TestPrivacyBudgetTemplate {
     };
 
     enum Value {
-      AGE_18_TO_24 = 0;
-      AGE_35_TO_54 = 1;
-      AGE_OVER_54 = 2;
+      AGE_RANGE_UNSPECIFIED = 0;
+      AGE_18_TO_34 = 1;
+      AGE_35_TO_54 = 2;
+      AGE_OVER_54 = 3;
     }
     Value value = 1;
   }
@@ -48,8 +49,9 @@ message TestPrivacyBudgetTemplate {
     };
 
     enum Value {
-      GENDER_MALE = 0;
-      GENDER_FEMALE = 1;
+      GENDER_UNSPECIFIED = 0;
+      GENDER_MALE = 1;
+      GENDER_FEMALE = 2;
     }
     Value value = 1;
   }
