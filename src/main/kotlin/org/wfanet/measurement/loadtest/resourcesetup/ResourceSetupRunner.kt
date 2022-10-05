@@ -14,7 +14,7 @@
 
 package org.wfanet.measurement.loadtest.resourcesetup
 
-import io.grpc.ManagedChannel
+import io.grpc.Channel
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt.ApiKeysCoroutineStub
@@ -24,6 +24,7 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
@@ -43,18 +44,19 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
       privateKeyFile = flags.tlsFlags.privateKeyFile,
       trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
     )
-  val v2alphaPublicApiChannel: ManagedChannel =
+  val v2alphaPublicApiChannel: Channel =
     buildMutualTlsChannel(
       flags.kingdomPublicApiFlags.target,
       clientCerts,
       flags.kingdomPublicApiFlags.certHost
     )
-  val kingdomInternalApiChannel: ManagedChannel =
+  val kingdomInternalApiChannel: Channel =
     buildMutualTlsChannel(
-      flags.kingdomInternalApiFlags.target,
-      clientCerts,
-      flags.kingdomInternalApiFlags.certHost
-    )
+        flags.kingdomInternalApiFlags.target,
+        clientCerts,
+        flags.kingdomInternalApiFlags.certHost
+      )
+      .withDefaultDeadline(flags.kingdomInternalApiFlags.defaultDeadlineDuration)
   val internalDataProvidersStub = InternalDataProvidersCoroutineStub(kingdomInternalApiChannel)
   val internalAccountsStub = InternalAccountsCoroutineStub(kingdomInternalApiChannel)
   val measurementConsumersStub = MeasurementConsumersCoroutineStub(v2alphaPublicApiChannel)

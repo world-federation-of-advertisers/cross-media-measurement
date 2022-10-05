@@ -20,6 +20,7 @@ import kotlin.properties.Delegates
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.DuchyInfoFlags
@@ -63,6 +64,7 @@ fun runKingdomApiServer(
         kingdomApiServerFlags.internalApiFlags.certHost
       )
       .withVerboseLogging(kingdomApiServerFlags.debugVerboseGrpcClientLogging)
+      .withDefaultDeadline(kingdomApiServerFlags.internalApiFlags.defaultDeadlineDuration)
   val service = serviceFactory(channel).map { it.withDuchyIdentities() }
 
   CommonServer.fromFlags(commonServerFlags, serverName, service).start().blockUntilShutdown()
