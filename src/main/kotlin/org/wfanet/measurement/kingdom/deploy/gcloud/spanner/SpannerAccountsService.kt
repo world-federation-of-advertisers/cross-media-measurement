@@ -151,12 +151,12 @@ class SpannerAccountsService(
           request.identity.issuer,
           request.identity.subject
         )
-        ?: failGrpc(Status.PERMISSION_DENIED) { "Account not found" }
+        ?: failGrpc(Status.NOT_FOUND) { "Identity not found" }
 
     return AccountReader()
       .readByInternalAccountId(client.singleUse(), identityResult.accountId)
       ?.account
-      ?: failGrpc(Status.PERMISSION_DENIED) { "Account not found" }
+      ?: failGrpc(Status.NOT_FOUND) { "Account not found" }
   }
 
   override suspend fun generateOpenIdRequestParams(
