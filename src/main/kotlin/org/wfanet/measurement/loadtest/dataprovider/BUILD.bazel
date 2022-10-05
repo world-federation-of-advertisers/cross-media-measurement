@@ -17,6 +17,7 @@ kt_jvm_library(
     name = "edp_simulator",
     srcs = [
         "BigQueryEventQuery.kt",
+        "CsvEventQuery.kt",
         "EdpSimulator.kt",
         "EdpSimulatorFlags.kt",
         "EdpSimulatorRunner.kt",
@@ -54,6 +55,7 @@ kt_jvm_library(
         "@any_sketch_java//src/main/java/org/wfanet/anysketch/crypto:sketch_encrypter_adapter",
         "@any_sketch_java//src/main/java/org/wfanet/sampling:vid_sampler",
         "@wfa_common_jvm//imports/java/com/google/cloud/bigquery",
+        "@wfa_common_jvm//imports/java/com/opencsv",
         "@wfa_common_jvm//imports/java/org/apache/commons:math3",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
@@ -90,6 +92,8 @@ java_binary(
 
 java_image(
     name = "forwarded_storage_edp_simulator_runner_image",
+    #Use java_debug_image_base which has TAR binary to run kubectl cp
+    base = "@java_debug_image_base//image",
     main_class = "org.wfanet.measurement.loadtest.dataprovider.ForwardStorageEdpSimulatorRunnerKt",
     target_compatible_with = DISTROLESS_JAVA,
     visibility = ["//src:docker_image_deployment"],
