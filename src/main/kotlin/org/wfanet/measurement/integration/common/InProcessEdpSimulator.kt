@@ -17,6 +17,11 @@ package org.wfanet.measurement.integration.common
 import io.grpc.Channel
 import java.time.Clock
 import java.time.Duration
+import java.util.logging.Level
+import java.util.logging.Logger
+import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -42,55 +47,59 @@ import org.wfanet.measurement.storage.StorageClient
 /** An in process EDP simulator. */
 class InProcessEdpSimulator(
   val displayName: String,
-  private val storageClient: StorageClient,
+  resourceName: String,
+  mcResourceName: String,
+  storageClient: StorageClient,
   kingdomPublicApiChannel: Channel,
   duchyPublicApiChannel: Channel,
-  private val eventTemplateNames: List<String>
+  eventTemplateNames: List<String>,
+  coroutineContext: CoroutineContext = Dispatchers.Default,
 ) {
-  private val backgroundScope = CoroutineScope(Dispatchers.Default)
+  private val loggingName = "${javaClass.simpleName} $displayName"
+  private val backgroundScope =
+    CoroutineScope(
+      coroutineContext +
+        CoroutineName(loggingName) +
+        CoroutineExceptionHandler { _, e ->
+          logger.log(Level.SEVERE, e) { "Error in $loggingName" }
+        }
+    )
 
-  private val eventGroupsClient by lazy { EventGroupsCoroutineStub(kingdomPublicApiChannel) }
-  private val certificatesClient by lazy { CertificatesCoroutineStub(kingdomPublicApiChannel) }
-  private val requisitionsClient by lazy { RequisitionsCoroutineStub(kingdomPublicApiChannel) }
-  private val requisitionFulfillmentClient by lazy {
-    RequisitionFulfillmentCoroutineStub(duchyPublicApiChannel).withPrincipalName(edpName)
-  }
+  private val delegate =
+    EdpSimulator(
+      edpData = createEdpData(displayName, resourceName),
+      measurementConsumerName = mcResourceName,
+      certificatesStub =
+        CertificatesCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
+      eventGroupsStub =
+        EventGroupsCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
+      requisitionsStub =
+        RequisitionsCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
+      requisitionFulfillmentStub =
+        RequisitionFulfillmentCoroutineStub(duchyPublicApiChannel).withPrincipalName(resourceName),
+      sketchStore = SketchStore(storageClient),
+      eventQuery = RandomEventQuery(SketchGenerationParams(reach = 1000, universeSize = 10_000)),
+      throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+      eventTemplateNames = eventTemplateNames,
+      PrivacyBudgetManager(
+        PrivacyBucketFilter(TestPrivacyBucketMapper()),
+        InMemoryBackingStore(),
+        100.0f,
+        100.0f
+      )
+    )
 
   private lateinit var edpJob: Job
-  private lateinit var edpName: String
 
-  fun start(edpName: String, mcName: String) {
-    this.edpName = edpName
-    edpJob =
-      backgroundScope.launch {
-        val edpData = createEdpData(displayName, edpName)
-
-        EdpSimulator(
-            edpData = edpData,
-            measurementConsumerName = mcName,
-            certificatesStub = certificatesClient.withPrincipalName(edpData.name),
-            eventGroupsStub = eventGroupsClient.withPrincipalName(edpData.name),
-            requisitionsStub = requisitionsClient.withPrincipalName(edpData.name),
-            requisitionFulfillmentStub = requisitionFulfillmentClient,
-            sketchStore = SketchStore(storageClient),
-            eventQuery =
-              RandomEventQuery(SketchGenerationParams(reach = 1000, universeSize = 10_000)),
-            throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
-            eventTemplateNames = eventTemplateNames,
-            PrivacyBudgetManager(
-              PrivacyBucketFilter(TestPrivacyBucketMapper()),
-              InMemoryBackingStore(),
-              100.0f,
-              100.0f
-            )
-          )
-          .process()
-      }
+  fun start() {
+    edpJob = backgroundScope.launch { delegate.run() }
   }
 
   suspend fun stop() {
     edpJob.cancelAndJoin()
   }
+
+  suspend fun createEventGroup() = delegate.createEventGroup()
 
   /** Builds a [EdpData] object for the Edp with a certain [displayName] and [resourceName]. */
   private fun createEdpData(displayName: String, resourceName: String) =
@@ -100,4 +109,8 @@ class InProcessEdpSimulator(
       encryptionKey = loadEncryptionPrivateKey("${displayName}_enc_private.tink"),
       signingKey = loadSigningKey("${displayName}_cs_cert.der", "${displayName}_cs_private.der")
     )
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
+  }
 }

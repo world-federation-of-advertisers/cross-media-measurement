@@ -30,5 +30,6 @@ spanner_emulator_test(
     deps = [
         ":gcloud",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_components",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/debug",
     ],
 )
