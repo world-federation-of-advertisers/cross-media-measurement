@@ -15,6 +15,7 @@
 package org.wfanet.measurement.loadtest.frontend
 
 import java.io.File
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -99,5 +100,13 @@ class FrontendSimulatorFlags {
     required = true
   )
   lateinit var apiAuthenticationKey: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--result-polling-delay"],
+    description = ["Duration to delay when polling for Measurement result"],
+    defaultValue = "30s",
+  )
+  lateinit var resultPollingDelay: Duration
     private set
 }
