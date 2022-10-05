@@ -75,12 +75,14 @@ kt_jvm_library(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:context_keys",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:measurement_principal",
+        "//src/main/kotlin/org/wfanet/measurement/common/api/grpc",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/proto/wfa/measurement/api/v2alpha:duchy_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:model_provider_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/io/grpc:context",
+        "@wfa_common_jvm//imports/kotlin/io/grpc/kotlin:stub",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
     ],
@@ -111,14 +113,14 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "textproto_file_principal_lookup",
+    name = "akid_principal_lookup",
     srcs = [
-        "TextprotoFilePrincipalLookup.kt",
+        "AkidPrincipalLookup.kt",
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:measurement_principal",
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:principal_server_interceptor",
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/common/api:akid_config_lookup",
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/proto/wfa/measurement/config:authority_key_to_principal_map_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",

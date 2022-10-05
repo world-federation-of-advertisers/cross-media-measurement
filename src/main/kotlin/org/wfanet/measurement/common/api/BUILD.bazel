@@ -8,16 +8,41 @@ package(default_visibility = [
 kt_jvm_library(
     name = "resource_key",
     srcs = ["ResourceKey.kt"],
-    deps = [
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-    ],
 )
 
 kt_jvm_library(
     name = "principal",
     srcs = ["Principal.kt"],
+    deps = [":resource_key"],
+)
+
+kt_jvm_library(
+    name = "resource_lookup",
+    srcs = [
+        "ResourceKeyLookup.kt",
+        "ResourceNameLookup.kt",
+    ],
+    deps = [":resource_key"],
+)
+
+kt_jvm_library(
+    name = "memoizing_principal_lookup",
+    srcs = ["MemoizingPrincipalLookup.kt"],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common/api:resource_key",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        ":principal",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
+    name = "akid_config_lookup",
+    srcs = [
+        "AkidConfigPrincipalLookup.kt",
+        "AkidConfigResourceNameLookup.kt",
+    ],
+    deps = [
+        ":principal",
+        ":resource_lookup",
+        "//src/main/proto/wfa/measurement/config:authority_key_to_principal_map_kt_jvm_proto",
     ],
 )

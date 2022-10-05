@@ -19,3 +19,7 @@ interface Principal
 interface ResourcePrincipal : Principal {
   val resourceKey: ResourceKey
 }
+
+interface PrincipalLookup<T : Principal, K> {
+  suspend fun getPrincipal(lookupKey: K): T?
+}

@@ -15,7 +15,7 @@
 package org.wfanet.measurement.duchy.deploy.common.server
 
 import java.io.File
-import org.wfanet.measurement.api.v2alpha.TextprotoFilePrincipalLookup
+import org.wfanet.measurement.api.v2alpha.AkidPrincipalLookup
 import org.wfanet.measurement.api.v2alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
@@ -61,7 +61,7 @@ abstract class RequisitionFulfillmentServer : Runnable {
         )
         .withDuchyId(flags.duchy.duchyName)
 
-    val principalLookup = TextprotoFilePrincipalLookup(flags.authorityKeyIdentifierToPrincipalMap)
+    val principalLookup = AkidPrincipalLookup(flags.authorityKeyIdentifierToPrincipalMap)
     val service =
       RequisitionFulfillmentService(
           systemRequisitionsClient,

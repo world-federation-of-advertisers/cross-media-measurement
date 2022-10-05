@@ -29,13 +29,10 @@ import org.wfanet.measurement.api.v2alpha.ContextKeys
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.grpc.failGrpc
 
-private val AUTHORITY_KEY_IDENTIFIERS_CONTEXT_KEY: Context.Key<List<ByteString>> =
-  Context.key("authority-key-identifiers")
-
 /** Returns an [X509Certificate] installed in the current [io.grpc.Context]. */
 val authorityKeyIdentifiersFromCurrentContext: List<ByteString>
   get() =
-    AUTHORITY_KEY_IDENTIFIERS_CONTEXT_KEY.get()
+    AuthorityKeyServerInterceptor.AUTHORITY_KEY_IDENTIFIERS_CONTEXT_KEY.get()
       ?: failGrpc(Status.UNAUTHENTICATED) { "No authority keys available" }
 
 /**
@@ -76,5 +73,10 @@ class AuthorityKeyServerInterceptor : ServerInterceptor {
 
     val context = Context.current().withValue(AUTHORITY_KEY_IDENTIFIERS_CONTEXT_KEY, authorityKeys)
     return Contexts.interceptCall(context, call, headers, next)
+  }
+
+  companion object {
+    val AUTHORITY_KEY_IDENTIFIERS_CONTEXT_KEY: Context.Key<List<ByteString>> =
+      Context.key("authority-key-identifiers")
   }
 }

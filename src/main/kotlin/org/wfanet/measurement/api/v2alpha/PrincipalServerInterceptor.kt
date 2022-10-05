@@ -17,18 +17,13 @@ package org.wfanet.measurement.api.v2alpha
 import com.google.protobuf.ByteString
 import io.grpc.BindableService
 import io.grpc.Context
-import io.grpc.Contexts
-import io.grpc.Metadata
-import io.grpc.ServerCall
-import io.grpc.ServerCallHandler
-import io.grpc.ServerInterceptor
 import io.grpc.ServerInterceptors
 import io.grpc.ServerServiceDefinition
 import io.grpc.Status
+import org.wfanet.measurement.common.api.PrincipalLookup
+import org.wfanet.measurement.common.api.grpc.AkidPrincipalServerInterceptor
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.AuthorityKeyServerInterceptor
-import org.wfanet.measurement.common.identity.DuchyInfo
-import org.wfanet.measurement.common.identity.authorityKeyIdentifiersFromCurrentContext
 
 /**
  * Returns a [MeasurementPrincipal] in the current gRPC context. Requires
@@ -85,72 +80,17 @@ fun Context.withPrincipal(principal: MeasurementPrincipal): Context {
   return withValue(ContextKeys.PRINCIPAL_CONTEXT_KEY, principal)
 }
 
-/**
- * gRPC [ServerInterceptor] to extract a [MeasurementPrincipal] from a request.
- *
- * If the [MeasurementPrincipal] has already been set in the context, this does nothing. Otherwise,
- * this derives the [MeasurementPrincipal] from an X509 cert's authority key identifier. A
- * [MeasurementPrincipal] derived from the authority key identifier is one of [DataProvider],
- * [ModelProvider], or [Duchy].
- *
- * TODO: Extract a base class as there's common code between this and the reporting version.
- */
-class PrincipalServerInterceptor(private val principalLookup: PrincipalLookup) : ServerInterceptor {
-
-  interface PrincipalLookup {
-    fun get(authorityKeyIdentifier: ByteString): MeasurementPrincipal?
-  }
-
-  override fun <ReqT, RespT> interceptCall(
-    call: ServerCall<ReqT, RespT>,
-    headers: Metadata,
-    next: ServerCallHandler<ReqT, RespT>
-  ): ServerCall.Listener<ReqT> {
-    if (ContextKeys.PRINCIPAL_CONTEXT_KEY.get() != null) {
-      return Contexts.interceptCall(Context.current(), call, headers, next)
-    }
-
-    val authorityKeyIdentifiers: List<ByteString> = authorityKeyIdentifiersFromCurrentContext
-    val principals = authorityKeyIdentifiers.map(principalLookup::get)
-    return when (principals.size) {
-      0 -> {
-        for (authorityKeyIdentifier in authorityKeyIdentifiers) {
-          val duchyInfo = DuchyInfo.getByRootCertificateSkid(authorityKeyIdentifier) ?: continue
-
-          val context =
-            Context.current()
-              .withValue(
-                ContextKeys.PRINCIPAL_CONTEXT_KEY,
-                DuchyPrincipal(DuchyKey(duchyInfo.duchyId))
-              )
-          return Contexts.interceptCall(context, call, headers, next)
-        }
-        unauthenticatedError(call, "No MeasurementPrincipal found")
-      }
-      1 -> {
-        val context =
-          Context.current().withValue(ContextKeys.PRINCIPAL_CONTEXT_KEY, principals.single())
-        Contexts.interceptCall(context, call, headers, next)
-      }
-      else -> unauthenticatedError(call, "More than one principal found")
-    }
-  }
-
-  private fun <ReqT> unauthenticatedError(
-    call: ServerCall<*, *>,
-    message: String
-  ): ServerCall.Listener<ReqT> {
-    call.close(Status.UNAUTHENTICATED.withDescription(message), Metadata())
-    return object : ServerCall.Listener<ReqT>() {}
-  }
-}
-
-/** Convenience helper for [PrincipalServerInterceptor]. */
+/** Convenience helper for [AkidPrincipalServerInterceptor]. */
 fun BindableService.withPrincipalsFromX509AuthorityKeyIdentifiers(
-  principalLookup: PrincipalServerInterceptor.PrincipalLookup
-): ServerServiceDefinition =
-  ServerInterceptors.interceptForward(
+  akidPrincipalLookup: PrincipalLookup<MeasurementPrincipal, ByteString>
+): ServerServiceDefinition {
+  return ServerInterceptors.interceptForward(
     this,
     AuthorityKeyServerInterceptor(),
-    PrincipalServerInterceptor(principalLookup)
+    AkidPrincipalServerInterceptor(
+      ContextKeys.PRINCIPAL_CONTEXT_KEY,
+      AuthorityKeyServerInterceptor.AUTHORITY_KEY_IDENTIFIERS_CONTEXT_KEY,
+      akidPrincipalLookup
+    )
   )
+}

@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.reporting.deploy.common.server
 
+import com.google.protobuf.ByteString
 import io.grpc.Channel
 import io.grpc.ServerServiceDefinition
 import java.io.File
@@ -24,6 +25,8 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.Ev
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as KingdomEventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as KingdomMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as KingdomMeasurementsCoroutineStub
+import org.wfanet.measurement.common.api.PrincipalLookup
+import org.wfanet.measurement.common.api.memoizing
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
@@ -34,12 +37,12 @@ import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSe
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
 import org.wfanet.measurement.reporting.deploy.common.EncryptionKeyPairMap
 import org.wfanet.measurement.reporting.deploy.common.KingdomApiFlags
+import org.wfanet.measurement.reporting.service.api.v1alpha.AkidPrincipalLookup
 import org.wfanet.measurement.reporting.service.api.v1alpha.EventGroupsService
 import org.wfanet.measurement.reporting.service.api.v1alpha.InMemoryEncryptionKeyPairStore
+import org.wfanet.measurement.reporting.service.api.v1alpha.ReportingPrincipal
 import org.wfanet.measurement.reporting.service.api.v1alpha.ReportingSetsService
 import org.wfanet.measurement.reporting.service.api.v1alpha.ReportsService
-import org.wfanet.measurement.reporting.service.api.v1alpha.TextprotoFileMeasurementConsumerConfigLookup
-import org.wfanet.measurement.reporting.service.api.v1alpha.TextprotoFilePrincipalLookup
 import org.wfanet.measurement.reporting.service.api.v1alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
 import picocli.CommandLine
 
@@ -76,14 +79,12 @@ private fun run(
     buildMutualTlsChannel(kingdomApiFlags.target, clientCerts, kingdomApiFlags.target)
       .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
 
-  val configLookup =
-    TextprotoFileMeasurementConsumerConfigLookup(v1AlphaFlags.measurementConsumerConfigFile)
-
-  val principalLookup =
-    TextprotoFilePrincipalLookup(
-      v1AlphaFlags.authorityKeyIdentifierToPrincipalMapFile,
-      configLookup
-    )
+  val principalLookup: PrincipalLookup<ReportingPrincipal, ByteString> =
+    AkidPrincipalLookup(
+        v1AlphaFlags.authorityKeyIdentifierToPrincipalMapFile,
+        v1AlphaFlags.measurementConsumerConfigFile
+      )
+      .memoizing()
 
   val services: List<ServerServiceDefinition> =
     listOf(

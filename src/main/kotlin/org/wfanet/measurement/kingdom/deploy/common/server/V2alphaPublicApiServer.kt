@@ -16,7 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.common.server
 
 import io.grpc.ServerServiceDefinition
 import java.io.File
-import org.wfanet.measurement.api.v2alpha.TextprotoFilePrincipalLookup
+import org.wfanet.measurement.api.v2alpha.AkidPrincipalLookup
 import org.wfanet.measurement.api.v2alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -83,8 +83,7 @@ private fun run(
       )
       .withVerboseLogging(kingdomApiServerFlags.debugVerboseGrpcClientLogging)
 
-  val principalLookup =
-    TextprotoFilePrincipalLookup(v2alphaFlags.authorityKeyIdentifierToPrincipalMapFile)
+  val principalLookup = AkidPrincipalLookup(v2alphaFlags.authorityKeyIdentifierToPrincipalMapFile)
 
   val internalAccountsCoroutineStub = InternalAccountsCoroutineStub(channel)
   val internalApiKeysCoroutineStub = InternalApiKeysCoroutineStub(channel)
