@@ -29,7 +29,7 @@ import org.wfanet.measurement.storage.StorageClient
 class GCloudInProcessLifeOfAMeasurementIntegrationTest :
   InProcessLifeOfAMeasurementIntegrationTest() {
 
-  @get:Rule val timeout = CoroutinesTimeout.seconds(60)
+  @get:Rule val timeout = CoroutinesTimeout.seconds(90)
 
   override val kingdomDataServicesRule by lazy { KingdomDataServicesProviderRule() }
   override val duchyDependenciesRule by lazy { DuchyDependencyProviderRule(ALL_DUCHY_NAMES) }
