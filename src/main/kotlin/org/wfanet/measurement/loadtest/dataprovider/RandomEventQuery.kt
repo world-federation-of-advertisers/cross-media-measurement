@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import java.util.logging.Logger
 import kotlin.random.Random
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
 
@@ -32,10 +33,16 @@ class RandomEventQuery(private val sketchGenerationParams: SketchGenerationParam
 
     val random = Random(1)
 
+    logger.info("Generating random VIDs from RandomEventQuery...")
+
     return sequence {
       for (i in 1..sketchGenerationParams.reach) {
         yield(random.nextInt(1, sketchGenerationParams.universeSize + 1).toLong())
       }
     }
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
