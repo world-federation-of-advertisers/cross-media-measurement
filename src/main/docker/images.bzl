@@ -28,7 +28,7 @@ COMMON_IMAGES = [
     ),
     struct(
         name = "duchy_herald_daemon_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/herald:herald_daemon_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/daemon/herald:spanner_herald_daemon_image",
         repository = _PREFIX + "/duchy/herald",
     ),
     struct(

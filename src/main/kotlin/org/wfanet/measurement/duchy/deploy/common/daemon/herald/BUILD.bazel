@@ -5,6 +5,7 @@ load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 kt_jvm_library(
     name = "herald_daemon",
     srcs = ["HeraldDaemon.kt"],
+    visibility = ["//src/main/kotlin/org/wfanet/measurement/duchy/deploy:__subpackages__"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/herald",
@@ -18,17 +19,4 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
     ],
-)
-
-java_binary(
-    name = "HeraldDaemon",
-    main_class = "org.wfanet.measurement.duchy.deploy.common.daemon.herald.HeraldDaemonKt",
-    runtime_deps = [":herald_daemon"],
-)
-
-java_image(
-    name = "herald_daemon_image",
-    main_class = "org.wfanet.measurement.duchy.deploy.common.daemon.herald.HeraldDaemonKt",
-    visibility = ["//src:docker_image_deployment"],
-    runtime_deps = [":herald_daemon"],
 )

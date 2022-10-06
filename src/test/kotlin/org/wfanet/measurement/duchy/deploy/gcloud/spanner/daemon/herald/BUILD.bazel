@@ -1,0 +1,14 @@
+load("@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl", "spanner_emulator_test")
+
+spanner_emulator_test(
+    name = "SpannerContinuationTokenStore",
+    srcs = ["SpannerContinuationTokenStoreTest.kt"],
+    test_class = "org.wfanet.measurement.duchy.deploy.gcloud.spanner.daemon.herald.SpannerContinuationTokenStoreTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/daemon/herald:spanner_continuation_token",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/testing",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)

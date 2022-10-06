@@ -1,0 +1,17 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "spanner_continuation_token",
+    srcs = glob(["*.kt"]),
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/herald",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computation",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+    ],
+)

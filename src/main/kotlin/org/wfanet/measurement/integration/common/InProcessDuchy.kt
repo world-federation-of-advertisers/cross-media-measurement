@@ -63,6 +63,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.Computa
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub as SystemRequisitionsCoroutineStub
+import org.wfanet.measurement.duchy.daemon.herald.testing.InMemoryContinuationTokenStore
 
 /**
  * TestRule that starts and stops all Duchy gRPC services and daemons.
@@ -175,6 +176,7 @@ class InProcessDuchy(
             internalComputationsClient = computationsClient,
             systemComputationsClient = systemComputationsClient,
             systemComputationParticipantClient = systemComputationParticipantsClient,
+            continuationTokenStore = InMemoryContinuationTokenStore(),
             protocolsSetupConfig = protocolsSetupConfig,
             clock = Clock.systemUTC(),
           )

@@ -124,6 +124,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/identity:principal_identity",
         "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/herald",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/herald/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill/liquidlegionsv2:liquid_legions_v2_mill",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/testing",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:duchy_ids",

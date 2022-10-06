@@ -52,6 +52,7 @@ import org.wfanet.measurement.duchy.service.internal.computations.newEmptyOutput
 import org.wfanet.measurement.duchy.service.internal.computations.newInputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computations.newPassThroughBlobMetadata
 import org.wfanet.measurement.duchy.toProtocolStage
+import org.wfanet.measurement.duchy.daemon.herald.testing.InMemoryContinuationTokenStore
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase as DuchyComputationsCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub as DuchyComputationsCoroutineStub
@@ -90,7 +91,6 @@ import org.wfanet.measurement.system.v1alpha.failComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.streamActiveComputationsResponse
 
 private const val PUBLIC_API_VERSION = "v2alpha"
-private const val EMPTY_TOKEN = ""
 private const val DUCHY_ONE = "BOHEMIA"
 private const val DUCHY_TWO = "SALZBURG"
 private const val DUCHY_THREE = "AUSTRIA"
@@ -235,11 +235,15 @@ class HeraldTest {
     SystemComputationParticipantsCoroutineStub(grpcTestServerRule.channel)
   }
 
+  private lateinit var aggregatorContinuationTokenStore: InMemoryContinuationTokenStore
+  private lateinit var nonAggregatorContinuationTokenStore: InMemoryContinuationTokenStore
+
   private lateinit var aggregatorHerald: Herald
   private lateinit var nonAggregatorHerald: Herald
 
   @Before
   fun initHerald() {
+    aggregatorContinuationTokenStore = InMemoryContinuationTokenStore()
     aggregatorHerald =
       Herald(
         AGGREGATOR_HERALD_ID,
@@ -247,9 +251,11 @@ class HeraldTest {
         internalComputationsStub,
         systemComputationsStub,
         systemComputationParticipantsStub,
+        aggregatorContinuationTokenStore,
         AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
         Clock.systemUTC(),
       )
+    nonAggregatorContinuationTokenStore = InMemoryContinuationTokenStore()
     nonAggregatorHerald =
       Herald(
         NON_AGGREGATOR_HERALD_ID,
@@ -257,6 +263,7 @@ class HeraldTest {
         internalComputationsStub,
         systemComputationsStub,
         systemComputationParticipantsStub,
+        nonAggregatorContinuationTokenStore,
         NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
         Clock.systemUTC(),
       )
@@ -265,7 +272,11 @@ class HeraldTest {
   @Test
   fun `syncStatuses on empty stream retains same computation token`() = runTest {
     mockStreamActiveComputationsToReturn() // No items in stream.
-    assertThat(nonAggregatorHerald.syncStatuses("TOKEN_OF_LAST_ITEM"))
+    nonAggregatorContinuationTokenStore.latestContinuationToken = "TOKEN_OF_LAST_ITEM"
+
+    nonAggregatorHerald.syncStatuses()
+
+    assertThat(nonAggregatorContinuationTokenStore.latestContinuationToken)
       .isEqualTo("TOKEN_OF_LAST_ITEM")
     assertThat(fakeComputationStorage).isEmpty()
   }
@@ -294,7 +305,9 @@ class HeraldTest {
       blobs = listOf(newInputBlobMetadata(0L, "input-blob"), newEmptyOutputBlobMetadata(1L))
     )
 
-    assertThat(aggregatorHerald.syncStatuses(EMPTY_TOKEN))
+    aggregatorHerald.syncStatuses()
+
+    assertThat(aggregatorContinuationTokenStore.latestContinuationToken)
       .isEqualTo(confirmingUnknown.continuationToken())
     assertThat(
         fakeComputationStorage.mapValues { (_, fakeComputation) ->
@@ -458,7 +471,9 @@ class HeraldTest {
         )
     )
 
-    assertThat(aggregatorHerald.syncStatuses(EMPTY_TOKEN))
+    aggregatorHerald.syncStatuses()
+
+    assertThat(aggregatorContinuationTokenStore.latestContinuationToken)
       .isEqualTo(waitingRequisitionsAndKeySet.continuationToken())
 
     val duchyComputationToken = fakeComputationStorage.readComputationToken(globalId)!!
@@ -534,7 +549,9 @@ class HeraldTest {
         listOf(newInputBlobMetadata(0L, "inputs-to-add-noise"), newEmptyOutputBlobMetadata(1L))
     )
 
-    assertThat(aggregatorHerald.syncStatuses(EMPTY_TOKEN))
+    aggregatorHerald.syncStatuses()
+
+    assertThat(aggregatorContinuationTokenStore.latestContinuationToken)
       .isEqualTo(addingNoise.continuationToken())
     assertThat(
         fakeComputationStorage.mapValues { (_, fakeComputation) ->
@@ -575,7 +592,7 @@ class HeraldTest {
       blobs = listOf(newInputBlobMetadata(0L, "local-copy-of-sketches"))
     )
 
-    val syncResult = async { nonAggregatorHerald.syncStatuses(EMPTY_TOKEN) }
+    val syncResult = async { nonAggregatorHerald.syncStatuses() }
 
     // Verify that after first attempt, computation is still in INITIALIZATION_PHASE.
     streamActiveComputationsJob.join()
@@ -607,6 +624,7 @@ class HeraldTest {
 
   @Test
   fun `syncStatuses gives up on starting computations`() = runTest {
+    val continuationTokenStore = InMemoryContinuationTokenStore()
     val heraldWithOneRetry =
       Herald(
         NON_AGGREGATOR_HERALD_ID,
@@ -614,6 +632,7 @@ class HeraldTest {
         internalComputationsStub,
         systemComputationsStub,
         systemComputationParticipantsStub,
+        continuationTokenStore,
         NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
         Clock.systemUTC(),
         maxAttempts = 2
@@ -630,7 +649,9 @@ class HeraldTest {
       blobs = listOf(newInputBlobMetadata(0L, "local-copy-of-sketches"))
     )
 
-    assertThat(heraldWithOneRetry.syncStatuses("")).isEqualTo("token_for_$COMPUTATION_GLOBAL_ID")
+    heraldWithOneRetry.syncStatuses()
+
+    assertThat(continuationTokenStore.latestContinuationToken).isEqualTo("token_for_$COMPUTATION_GLOBAL_ID")
     verifyProtoArgument(
         systemComputationParticipants,
         SystemComputationParticipantsCoroutineImplBase::failComputationParticipant
@@ -657,7 +678,7 @@ class HeraldTest {
         .copy { measurementSpec = "".toByteStringUtf8() }
     mockStreamActiveComputationsToReturn(invalidComputation)
 
-    nonAggregatorHerald.syncStatuses(EMPTY_TOKEN)
+    nonAggregatorHerald.syncStatuses()
 
     val failRequest =
       captureFirst<FailComputationParticipantRequest> {
@@ -692,6 +713,7 @@ class HeraldTest {
         mockInternalComputationsStub,
         systemComputationsStub,
         systemComputationParticipantsStub,
+        InMemoryContinuationTokenStore(),
         AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
         Clock.systemUTC(),
       )
@@ -700,7 +722,7 @@ class HeraldTest {
       buildComputationAtKingdom(COMPUTATION_GLOBAL_ID, Computation.State.PENDING_REQUISITION_PARAMS)
     mockStreamActiveComputationsToReturn(computation)
 
-    mockHerald.syncStatuses(EMPTY_TOKEN)
+    mockHerald.syncStatuses()
 
     val failRequest =
       captureFirst<FailComputationParticipantRequest> {
@@ -739,7 +761,8 @@ class HeraldTest {
       }
     mockStreamActiveComputationsToReturn(*computations.toTypedArray())
 
-    assertThat(aggregatorHerald.syncStatuses(EMPTY_TOKEN)).isNotEmpty()
+    aggregatorHerald.syncStatuses()
+    assertThat(aggregatorContinuationTokenStore.latestContinuationToken).isNotEmpty()
   }
 
   /**
