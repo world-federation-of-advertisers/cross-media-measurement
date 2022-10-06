@@ -31,7 +31,7 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.Event
 class EventFiltersTest {
   private fun exampleEventWithAge(): Message {
     return testEvent {
-      videoAd = testVideoTemplate { age = ageRange { value = AgeRange.Value.AGE_18_TO_24 } }
+      videoAd = testVideoTemplate { age = ageRange { value = AgeRange.Value.AGE_18_TO_34 } }
     }
   }
 
