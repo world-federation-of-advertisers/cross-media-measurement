@@ -331,4 +331,19 @@ CREATE TABLE ComputationStats (
 ) PRIMARY KEY (ComputationId, ComputationStage, Attempt, MetricName),
   INTERLEAVE IN PARENT ComputationStageAttempts ON DELETE CASCADE;
 
+CREATe TABLE HeraldContinuationTokens (
+  -- Name of the Duchy that the Herald belongs to.
+  DuchyName STRING(MAX) NOT NULL,
+
+  -- The content of the latest ContinuationToken
+  ContinuationToken STRING(MAX) NOT NULL,
+
+  -- Time when the row was inserted.
+  CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
+
+  -- Last time the ContinuationToken was modified.
+  UpdateTime TIMESTAMP OPTIONS (allow_commit_timestamp = true),
+
+) PRIMARY KEY (DuchyName);
+
 RUN BATCH;

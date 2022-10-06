@@ -52,6 +52,7 @@ import org.wfanet.measurement.system.v1alpha.streamActiveComputationsRequest
 // Number of attempts that herald would retry processSystemComputationChange() when catch transient
 // exceptions.
 private const val MAX_ATTEMPTS = 3
+private const val EMPTY_MESSAGE = ""
 
 /**
  * The Herald looks to the kingdom for status of computations.
@@ -73,6 +74,7 @@ class Herald(
   private val internalComputationsClient: ComputationsCoroutineStub,
   private val systemComputationsClient: SystemComputationsCoroutineStub,
   private val systemComputationParticipantClient: SystemComputationParticipantsCoroutineStub,
+  private val continuationTokenManager: ContinuationTokenManager,
   private val protocolsSetupConfig: ProtocolsSetupConfig,
   private val clock: Clock,
   private val blobStorageBucket: String = "computation-blob-storage",
@@ -89,18 +91,13 @@ class Herald(
    */
   suspend fun continuallySyncStatuses() {
     logger.info("Server starting...")
-    // Token signifying the last computation in an active state at the kingdom that was processed by
-    // this job. When empty, all active computations at the kingdom will be streamed in the
-    // response. The first execution of the loop will then compare all active computations at
-    // the kingdom with all active computations locally.
-    var lastProcessedContinuationToken = ""
 
     // TODO(world-federation-of-advertisers/cross-media-measurement#695): Use gRPC service config
     // rather than custom retry logic w/backoff.
     var attemptNumber = 1
     while (coroutineContext.isActive) {
       try {
-        lastProcessedContinuationToken = syncStatuses(lastProcessedContinuationToken)
+        syncStatuses()
       } catch (e: StreamingException) {
         when (val statusCode = e.cause.status.code) {
           Status.Code.UNAVAILABLE,
@@ -131,14 +128,18 @@ class Herald(
    * @return the continuation token of the last computation processed in that stream of active
    * computations from the system computation service.
    */
-  suspend fun syncStatuses(continuationToken: String): String {
+  suspend fun syncStatuses() {
+    // Continuation token signifying the last computation in an active state at the kingdom that
+    // was processed by this job. It has updateTimeSince and lastSeenExternalComputationId to
+    // specify where to continue. When empty, all active computations at the kingdom will be
+    // streamed in the response.
+    val continuationToken = continuationTokenManager.getContinuationToken()
     logger.info("Reading stream of active computations since \"$continuationToken\".")
 
     val streamRequest = streamActiveComputationsRequest {
       this.continuationToken = continuationToken
     }
 
-    var lastProcessedContinuationToken = continuationToken
     coroutineScope {
       systemComputationsClient
         .streamActiveComputations(streamRequest)
@@ -149,13 +150,12 @@ class Herald(
         .collect { response ->
           semaphore.acquire()
           launch {
-            processSystemComputationAndSuppressException(response.computation, MAX_ATTEMPTS)
+            continuationTokenManager.syncContinuationToken(response.continuationToken) {
+              processSystemComputationAndSuppressException(response.computation, MAX_ATTEMPTS)
+            }
           }
-          lastProcessedContinuationToken = response.continuationToken
         }
     }
-
-    return lastProcessedContinuationToken
   }
 
   private suspend fun processSystemComputationAndSuppressException(
@@ -201,6 +201,9 @@ class Herald(
       State.PENDING_PARTICIPANT_CONFIRMATION -> confirmParticipant(computation)
       // Starts a computation locally.
       State.PENDING_COMPUTATION -> startComputing(computation)
+      // Confirm failure at Kingdom
+      State.FAILED,
+      State.CANCELLED -> failComputationAtDuchy(computation)
       else -> logger.warning("Unexpected global computation state '$state'")
     }
   }
@@ -347,6 +350,7 @@ class Herald(
     } catch (e: StatusException) {
       logger.log(Level.WARNING, e) { "[id=$globalId]: Error when failComputationAtDuchy" }
     }
+    // TODO(@renjiez): Clean intermediate data at Duchy
   }
 
   private class StreamingException(message: String, override val cause: StatusException) :
