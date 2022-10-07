@@ -15,8 +15,6 @@
 package org.wfanet.measurement.duchy.daemon.mill
 
 import com.google.protobuf.ByteString
-import io.grpc.Status
-import io.grpc.StatusException
 import java.lang.management.ManagementFactory
 import java.lang.management.ThreadMXBean
 import java.security.cert.X509Certificate
@@ -121,7 +119,6 @@ abstract class MillBase(
     }
   }
 
-  var computationsServerReady = false
   /** Poll and work on the next available computations. */
   suspend fun pollAndProcessNextComputation() {
     logger.fine("@Mill $millId: Polling available computations...")
@@ -129,16 +126,7 @@ abstract class MillBase(
     val claimWorkRequest =
       ClaimWorkRequest.newBuilder().setComputationType(computationType).setOwner(millId).build()
     val claimWorkResponse =
-      try {
-        dataClients.computationsClient.claimWork(claimWorkRequest)
-      } catch (ex: StatusException) {
-        if (!computationsServerReady && ex.status.code == Status.Code.UNAVAILABLE) {
-          logger.info("ComputationServer not ready")
-          return
-        }
-        throw ex
-      }
-    computationsServerReady = true
+      dataClients.computationsClient.withWaitForReady().claimWork(claimWorkRequest)
 
     if (claimWorkResponse.hasToken()) {
       val wallDurationLogger = wallDurationLogger()
