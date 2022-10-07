@@ -28,6 +28,7 @@ import org.wfanet.measurement.reporting.deploy.postgres.writers.SetMeasurementFa
 import org.wfanet.measurement.reporting.deploy.postgres.writers.SetMeasurementResult
 import org.wfanet.measurement.reporting.service.internal.MeasurementAlreadyExistsException
 import org.wfanet.measurement.reporting.service.internal.MeasurementNotFoundException
+import org.wfanet.measurement.reporting.service.internal.MeasurementStateInvalidException
 
 class PostgresMeasurementsService(
   private val idGenerator: IdGenerator,
@@ -42,7 +43,7 @@ class PostgresMeasurementsService(
   }
 
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
-    return try {
+    val measurementResult =
       SerializableErrors.retrying {
         MeasurementReader()
           .readMeasurementByReferenceIds(
@@ -50,11 +51,12 @@ class PostgresMeasurementsService(
             request.measurementConsumerReferenceId,
             request.measurementReferenceId
           )
-          .measurement
       }
-    } catch (e: MeasurementNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Measurement not found." }
-    }
+        ?: throw MeasurementNotFoundException().throwStatusRuntimeException(Status.NOT_FOUND) {
+          "Measurement not found."
+        }
+
+    return measurementResult.measurement
   }
 
   override suspend fun setMeasurementResult(request: SetMeasurementResultRequest): Measurement {
@@ -62,6 +64,10 @@ class PostgresMeasurementsService(
       SetMeasurementResult(request).execute(client, idGenerator)
     } catch (e: MeasurementNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "Measurement not found." }
+    } catch (e: MeasurementStateInvalidException) {
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+        "Measurement has already been updated."
+      }
     }
   }
 
@@ -70,6 +76,10 @@ class PostgresMeasurementsService(
       SetMeasurementFailure(request).execute(client, idGenerator)
     } catch (e: MeasurementNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "Measurement not found." }
+    } catch (e: MeasurementStateInvalidException) {
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+        "Measurement has already been updated."
+      }
     }
   }
 }
