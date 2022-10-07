@@ -97,7 +97,7 @@ kt_jvm_library(
     visibility = ["//src/main/kotlin/org/wfanet/measurement/duchy/deploy:__subpackages__"],
     runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:textproto_file_principal_lookup",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:akid_principal_lookup",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common:flags",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/api/v2alpha:requisition_fulfillment_service",
