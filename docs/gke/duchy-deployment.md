@@ -149,7 +149,7 @@ gcloud container clusters create worker1-duchy \
   --enable-network-policy --workload-pool=halo-worker1-demo.svc.id.goog \
   --service-account="gke-cluster@halo-worker1-demo.iam.gserviceaccount.com" \
   --database-encryption-key=projects/halo-worker1-demo/locations/us-central1/keyRings/test-key-ring/cryptoKeys/k8s-secret \
-  --num-nodes=3 --enable-autoscaling --min-nodes=2 --max-nodes=5 \
+  --num-nodes=2 --enable-autoscaling --min-nodes=2 --max-nodes=4 \
   --machine-type=e2-standard-2 -cluster-version=1.24.2-gke.1900
 ```
 
