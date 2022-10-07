@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.integration.common.reporting
 
+import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.duration
@@ -212,25 +213,35 @@ abstract class InProcessLifeOfAReportIntegrationTest {
   private val publicReportsClient by lazy { ReportsCoroutineStub(reportingServer.publicApiChannel) }
 
   @Test
-  fun `create multiple Reports and check the results match the expected results`() = runBlocking {
+  fun `create Report and get the expected result successfully`() = runBlocking {
+    createReportingSet("1", MEASUREMENT_CONSUMER_NAME)
+    createReportingSet("2", MEASUREMENT_CONSUMER_NAME)
+    createReportingSet("3", MEASUREMENT_CONSUMER_NAME)
+
+    val createdReport = createReport("1234", MEASUREMENT_CONSUMER_NAME)
+    val reports = listReports(MEASUREMENT_CONSUMER_NAME)
+    assertThat(reports.reportsList).hasSize(1)
+    val reportResult = getReportResult(createdReport)
+    assertThat(reportResult).isEqualTo(200.0)
+  }
+
+  @Test
+  fun `create multiple Reports concurrently successfully`() = runBlocking {
     createReportingSet("1", MEASUREMENT_CONSUMER_NAME)
     createReportingSet("2", MEASUREMENT_CONSUMER_NAME)
     createReportingSet("3", MEASUREMENT_CONSUMER_NAME)
     for (i in 1..10) {
-      launch { checkReportResults("$i", MEASUREMENT_CONSUMER_NAME) }
+      launch { createReport("$i", MEASUREMENT_CONSUMER_NAME) }
     }
   }
 
-  private suspend fun checkReportResults(runId: String, measurementConsumerName: String) {
-    val createdReport = createReport(runId, measurementConsumerName)
-    val reports = listReports(measurementConsumerName)
-    assert(reports.reportsList.size >= 1)
-    val completedReport = getReport(createdReport.name, measurementConsumerName)
+  private suspend fun getReportResult(report: Report): Double {
+    val completedReport = getReport(report.name, report.measurementConsumer)
     var sum = 0.0
     completedReport.result.scalarTable.columnsList.forEach { column ->
       column.setOperationsList.forEach { sum += it }
     }
-    assert(sum == 200.0)
+    return sum
   }
 
   private suspend fun listEventGroups(measurementConsumerName: String): ListEventGroupsResponse {
@@ -267,7 +278,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
   private suspend fun createReport(runId: String, measurementConsumerName: String): Report {
     val eventGroupsList = listEventGroups(measurementConsumerName).eventGroupsList
     val reportingSets = listReportingSets(measurementConsumerName).reportingSetsList
-    assert(reportingSets.size >= 3)
+    assertThat(reportingSets.size).isAtLeast(3)
     return publicReportsClient
       .withPrincipalName(measurementConsumerName)
       .createReport(
