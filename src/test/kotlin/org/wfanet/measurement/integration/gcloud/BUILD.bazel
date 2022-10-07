@@ -26,6 +26,7 @@ spanner_emulator_test(
     name = "GCloudInProcessLifeOfAMeasurementIntegrationTest",
     size = "large",
     srcs = ["GCloudInProcessLifeOfAMeasurementIntegrationTest.kt"],
+    tags = ["cpu:2"],
     test_class = "org.wfanet.measurement.integration.gcloud.GCloudInProcessLifeOfAMeasurementIntegrationTest",
     deps = [
         ":gcloud",
