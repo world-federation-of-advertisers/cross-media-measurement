@@ -91,31 +91,13 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "textproto_file_measurement_consumer_config_lookup",
-    srcs = [
-        "TextprotoFileMeasurementConsumerConfigLookup.kt",
-    ],
+    name = "akid_principal_lookup",
+    srcs = ["AkidPrincipalLookup.kt"],
     deps = [
-        ":principal_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/common/api:akid_config_lookup",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:reporting_principal",
         "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",
-        "@wfa_common_jvm//imports/java/com/google/protobuf",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-    ],
-)
-
-kt_jvm_library(
-    name = "textproto_file_principal_lookup",
-    srcs = [
-        "TextprotoFilePrincipalLookup.kt",
-    ],
-    deps = [
-        ":principal_server_interceptor",
-        ":reporting_principal",
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
-        "//src/main/proto/wfa/measurement/config:authority_key_to_principal_map_kt_jvm_proto",
-        "@wfa_common_jvm//imports/java/com/google/protobuf",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
 
@@ -153,10 +135,11 @@ kt_jvm_library(
     name = "principal_server_interceptor",
     srcs = ["PrincipalServerInterceptor.kt"],
     deps = [
+        "context_keys",
+        ":reporting_principal",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/common/api/grpc",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:context_keys",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:reporting_principal",
-        "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/io/grpc:context",
