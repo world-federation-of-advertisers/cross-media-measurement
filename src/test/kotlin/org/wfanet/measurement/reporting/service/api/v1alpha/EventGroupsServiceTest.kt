@@ -21,7 +21,6 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.DescriptorProtos.FileDescriptorSet
 import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.Descriptors.FileDescriptor
-import com.google.protobuf.kotlin.toByteString
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.nio.file.Path
@@ -43,6 +42,7 @@ import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsResponse
+import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessageKt.age
@@ -53,8 +53,6 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testParen
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse as cmmsListEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.signedData
-import org.wfanet.measurement.common.crypto.SigningKeyHandle
-import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.crypto.tink.TinkPublicKeyHandle
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
@@ -81,7 +79,6 @@ private val SECRET_FILES_PATH: Path =
   )
 private val ENCRYPTION_PRIVATE_KEY = loadEncryptionPrivateKey("mc_enc_private.tink")
 private val ENCRYPTION_PUBLIC_KEY = loadEncryptionPublicKey("mc_enc_public.tink")
-private val EDP_SIGNING_KEY = loadSigningKey("edp1_cs_cert.der", "edp1_cs_private.der")
 private const val MEASUREMENT_CONSUMER_REFERENCE_ID = "measurementConsumerRefId"
 private val MEASUREMENT_CONSUMER_NAME =
   MeasurementConsumerKey(MEASUREMENT_CONSUMER_REFERENCE_ID).toName()
@@ -97,12 +94,14 @@ private val TEST_MESSAGE = testMetadataMessage {
   age = age { value = 15 }
   duration = duration { value = 20 }
 }
-private val CMMS_EVENT_GROUP_ID = "AAAAAAAAAHs"
+private const val CMMS_EVENT_GROUP_ID = "AAAAAAAAAHs"
 private val CMMS_EVENT_GROUP = cmmsEventGroup {
   name = "$DATA_PROVIDER_NAME/eventGroups/$CMMS_EVENT_GROUP_ID"
   measurementConsumer = MEASUREMENT_CONSUMER_NAME
   eventGroupReferenceId = EVENT_GROUP_REFERENCE_ID
-  measurementConsumerPublicKey = signedData { data = ENCRYPTION_PUBLIC_KEY.toByteString() }
+  measurementConsumerPublicKey = signedData {
+    data = ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey().toByteString()
+  }
   encryptedMetadata =
     encryptMetadata(
       CmmsEventGroup.metadata {
@@ -117,12 +116,14 @@ private val TEST_MESSAGE_2 = testMetadataMessage {
   age = age { value = 5 }
   duration = duration { value = 20 }
 }
-private val CMMS_EVENT_GROUP_ID_2 = "AAAAAAAAAGs"
+private const val CMMS_EVENT_GROUP_ID_2 = "AAAAAAAAAGs"
 private val CMMS_EVENT_GROUP_2 = cmmsEventGroup {
   name = "$DATA_PROVIDER_NAME/eventGroups/$CMMS_EVENT_GROUP_ID_2"
   measurementConsumer = MEASUREMENT_CONSUMER_NAME
   eventGroupReferenceId = "id2"
-  measurementConsumerPublicKey = signedData { data = ENCRYPTION_PUBLIC_KEY.toByteString() }
+  measurementConsumerPublicKey = signedData {
+    data = ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey().toByteString()
+  }
   encryptedMetadata =
     encryptMetadata(
       CmmsEventGroup.metadata {
@@ -311,7 +312,9 @@ class EventGroupsServiceTest {
       name = "$DATA_PROVIDER_NAME/eventGroups/$CMMS_EVENT_GROUP_ID"
       measurementConsumer = MEASUREMENT_CONSUMER_NAME
       eventGroupReferenceId = "id1"
-      measurementConsumerPublicKey = signedData { data = ENCRYPTION_PUBLIC_KEY.toByteString() }
+      measurementConsumerPublicKey = signedData {
+        data = ENCRYPTION_PUBLIC_KEY.toEncryptionPublicKey().toByteString()
+      }
       encryptedMetadata =
         encryptMetadata(
           CmmsEventGroup.metadata {
@@ -358,7 +361,9 @@ class EventGroupsServiceTest {
       name = "$DATA_PROVIDER_NAME/eventGroups/$CMMS_EVENT_GROUP_ID"
       measurementConsumer = MEASUREMENT_CONSUMER_NAME
       eventGroupReferenceId = "id1"
-      measurementConsumerPublicKey = signedData { data = ByteString.copyFromUtf8("consumerkey") }
+      measurementConsumerPublicKey = signedData {
+        data = encryptionPublicKey { data = ByteString.copyFromUtf8("consumerkey") }.toByteString()
+      }
       encryptedMetadata =
         encryptMetadata(
           CmmsEventGroup.metadata {
@@ -389,7 +394,7 @@ class EventGroupsServiceTest {
           runBlocking {
             eventGroupsService.listEventGroups(
               listEventGroupsRequest {
-                parent = DATA_PROVIDER_NAME
+                parent = EVENT_GROUP_PARENT
                 filter = "age.value > 10"
               }
             )
@@ -439,7 +444,7 @@ class EventGroupsServiceTest {
         runBlocking {
           eventGroupsService.listEventGroups(
             listEventGroupsRequest {
-              parent = DATA_PROVIDER_NAME
+              parent = EVENT_GROUP_PARENT
               filter = "age.value > 10"
             }
           )
@@ -473,11 +478,4 @@ fun loadEncryptionPrivateKey(fileName: String): TinkPrivateKeyHandle {
 
 fun loadEncryptionPublicKey(fileName: String): TinkPublicKeyHandle {
   return loadPublicKey(SECRET_FILES_PATH.resolve(fileName).toFile())
-}
-
-fun loadSigningKey(certDerFileName: String, privateKeyDerFileName: String): SigningKeyHandle {
-  return loadSigningKey(
-    SECRET_FILES_PATH.resolve(certDerFileName).toFile(),
-    SECRET_FILES_PATH.resolve(privateKeyDerFileName).toFile()
-  )
 }

@@ -25,7 +25,7 @@ on:
 jobs:
   build-test:
     name: Build and test
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     steps:
       - name: Check out revision
         uses: actions/checkout@v2
@@ -34,5 +34,7 @@ jobs:
         uses: world-federation-of-advertisers/actions/bazel-build-test@v1
         with:
           workspace-path: .
+          cache-version: 1
           build-options: |
-            --host_platform=//build/platforms:ubuntu_18_04
+            --compilation_mode=opt
+            --host_platform=//build/platforms:ubuntu_20_04

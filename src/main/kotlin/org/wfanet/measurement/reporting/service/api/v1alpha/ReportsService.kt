@@ -840,7 +840,7 @@ class ReportsService(
         val encryptionPrivateKeyHandle =
           encryptionKeyPairStore.getPrivateKeyHandle(
             principalName,
-            measurementSpec.measurementPublicKey
+            EncryptionPublicKey.parseFrom(measurementSpec.measurementPublicKey).data
           )
             ?: failGrpc(Status.PERMISSION_DENIED) { "Encryption private key not found" }
 

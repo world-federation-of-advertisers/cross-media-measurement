@@ -23,7 +23,7 @@ import java.time.ZoneOffset
 import java.util.logging.Logger
 import kotlin.math.min
 import kotlin.random.Random
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.time.delay
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchProtos
@@ -119,8 +119,9 @@ class FrontendSimulator(
   private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
   private val certificatesClient: CertificatesCoroutineStub,
   private val sketchStore: SketchStore,
+  private val resultPollingDelay: Duration,
   /** Map of event template names to filter expressions. */
-  private val eventTemplateFilters: Map<String, String> = emptyMap()
+  private val eventTemplateFilters: Map<String, String> = emptyMap(),
 ) {
   /** Cache of resource name to [Certificate]. */
   private val certificateCache = mutableMapOf<String, Certificate>()
@@ -136,12 +137,8 @@ class FrontendSimulator(
     )
 
     // Get the CMMS computed result and compare it with the expected result.
-    var reachAndFrequencyResult =
+    val reachAndFrequencyResult: Result = pollForResult {
       getReachAndFrequencyResult(createdReachAndFrequencyMeasurement.name)
-    while (reachAndFrequencyResult == null) {
-      logger.info("Computation not done yet, wait for another 30 seconds.")
-      delay(Duration.ofSeconds(30).toMillis())
-      reachAndFrequencyResult = getReachAndFrequencyResult(createdReachAndFrequencyMeasurement.name)
     }
     logger.info("Got reach and frequency result from Kingdom: $reachAndFrequencyResult")
 
@@ -155,9 +152,7 @@ class FrontendSimulator(
       reachAndFrequencyResult,
       liquidLegionV2Protocol.maximumFrequency.toLong()
     )
-    logger.info(
-      "Reach and frequency result is equal to the expected result. Correctness Test passes."
-    )
+    logger.info("Reach and frequency result is equal to the expected result")
   }
 
   /**
@@ -180,7 +175,7 @@ class FrontendSimulator(
       attempts += 1
       assertThat(attempts).isLessThan(10)
       logger.info("Computation not done yet, wait for another 5 seconds...")
-      delay(Duration.ofSeconds(5).toMillis())
+      delay(Duration.ofSeconds(5))
       failure = getFailure(invalidMeasurement.name)
     }
     assertThat(failure.message).contains("reach_privacy_params.delta")
@@ -201,12 +196,8 @@ class FrontendSimulator(
     )
 
     // Get the CMMS computed result and compare it with the expected result.
-    var reachAndFrequencyResult =
+    val reachAndFrequencyResult = pollForResult {
       getReachAndFrequencyResult(createdReachAndFrequencyMeasurement.name)
-    while (reachAndFrequencyResult == null) {
-      logger.info("Computation not done yet, wait for another 30 seconds.")
-      delay(Duration.ofSeconds(30).toMillis())
-      reachAndFrequencyResult = getReachAndFrequencyResult(createdReachAndFrequencyMeasurement.name)
     }
     logger.info("Got direct reach and frequency result from Kingdom: $reachAndFrequencyResult")
 
@@ -227,10 +218,7 @@ class FrontendSimulator(
       assertThat(percentage).isEqualTo(expectedFrequencyMap[frequency])
     }
 
-    logger.info(
-      "Direct reach and frequency result is equal to the expected result. " +
-        "Correctness Test passes."
-    )
+    logger.info("Direct reach and frequency result is equal to the expected result")
   }
 
   /** A sequence of operations done in the simulator involving a reach-only measurement. */
@@ -247,7 +235,7 @@ class FrontendSimulator(
     while (reachOnlyResult == null && (nAttempts < 4)) {
       nAttempts++
       logger.info("Computation not done yet, wait for another 30 seconds.  Attempt $nAttempts")
-      delay(Duration.ofSeconds(30).toMillis())
+      delay(Duration.ofSeconds(30))
       reachOnlyResult = getReachAndFrequencyResult(createdReachOnlyMeasurement.name)
     }
     checkNotNull(reachOnlyResult) { "Timed out waiting for response to reach-only request" }
@@ -279,11 +267,8 @@ class FrontendSimulator(
       createMeasurement(measurementConsumer, runId, ::newImpressionMeasurementSpec)
     logger.info("Created impression measurement ${createdImpressionMeasurement.name}.")
 
-    var impressionResults = getImpressionResults(createdImpressionMeasurement.name)
-    while (impressionResults.isEmpty()) {
-      logger.info("Fulfillment not done yet, wait for another 30 seconds.")
-      delay(Duration.ofSeconds(30).toMillis())
-      impressionResults = getImpressionResults(createdImpressionMeasurement.name)
+    val impressionResults = pollForResults {
+      getImpressionResults(createdImpressionMeasurement.name)
     }
 
     impressionResults.forEach {
@@ -294,7 +279,7 @@ class FrontendSimulator(
           apiIdToExternalId(DataProviderCertificateKey.fromName(it.certificate)!!.dataProviderId)
         )
     }
-    logger.info("Impression result is equal to the expected result. Correctness Test passes.")
+    logger.info("Impression result is equal to the expected result")
   }
 
   /** A sequence of operations done in the simulator involving a duration measurement. */
@@ -305,12 +290,7 @@ class FrontendSimulator(
       createMeasurement(measurementConsumer, runId, ::newDurationMeasurementSpec)
     logger.info("Created duration measurement ${createdDurationMeasurement.name}.")
 
-    var durationResults = getDurationResults(createdDurationMeasurement.name)
-    while (durationResults.isEmpty()) {
-      logger.info("Fulfillment not done yet, wait for another 30 seconds.")
-      delay(Duration.ofSeconds(30).toMillis())
-      durationResults = getDurationResults(createdDurationMeasurement.name)
-    }
+    val durationResults = pollForResults { getDurationResults(createdDurationMeasurement.name) }
 
     durationResults.forEach {
       val result = parseAndVerifyResult(it)
@@ -320,7 +300,7 @@ class FrontendSimulator(
           apiIdToExternalId(DataProviderCertificateKey.fromName(it.certificate)!!.dataProviderId)
         )
     }
-    logger.info("Duration result is equal to the expected result. Correctness Test passes.")
+    logger.info("Duration result is equal to the expected result")
   }
 
   /** Compare two [Result]s within the differential privacy error range. */
@@ -677,6 +657,30 @@ class FrontendSimulator(
             )
           this.nonceHash = nonceHash
         }
+    }
+  }
+
+  private suspend inline fun pollForResult(getResult: () -> Result?): Result {
+    while (true) {
+      val result = getResult()
+      if (result != null) {
+        return result
+      }
+
+      logger.info("Result not yet available. Waiting for ${resultPollingDelay.seconds} seconds.")
+      delay(resultPollingDelay)
+    }
+  }
+
+  private suspend inline fun <T> pollForResults(getResults: () -> List<T>): List<T> {
+    while (true) {
+      val result = getResults()
+      if (result.isNotEmpty()) {
+        return result
+      }
+
+      logger.info("Result not yet available. Waiting for ${resultPollingDelay.seconds} seconds.")
+      delay(resultPollingDelay)
     }
   }
 

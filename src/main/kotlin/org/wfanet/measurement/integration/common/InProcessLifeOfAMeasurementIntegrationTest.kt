@@ -14,7 +14,7 @@
 
 package org.wfanet.measurement.integration.common
 
-import com.google.common.truth.Truth.assertThat
+import java.time.Duration
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -26,18 +26,15 @@ import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub a
 import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt.ApiKeysCoroutineStub as PublicApiKeysCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub as PublicCertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub as PublicDataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as PublicEventGroupsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as PublicMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as PublicMeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub as PublicRequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
-import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
-import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.common.testing.pollFor
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
@@ -54,6 +51,7 @@ private val OUTPUT_DP_PARAMS = differentialPrivacyParams {
   delta = 1.0
 }
 private const val REDIRECT_URI = "https://localhost:2048"
+private val RESULT_POLLING_DELAY = Duration.ofSeconds(10)
 
 /**
  * Test that everything is wired up properly.
@@ -62,7 +60,6 @@ private const val REDIRECT_URI = "https://localhost:2048"
  * easily.
  */
 abstract class InProcessLifeOfAMeasurementIntegrationTest {
-
   abstract val kingdomDataServicesRule: ProviderRule<DataServices>
 
   /** Provides a function from Duchy to the dependencies needed to start the Duchy to the test. */
@@ -92,13 +89,15 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
   }
 
   private val edpSimulators: List<InProcessEdpSimulator> by lazy {
-    ALL_EDP_DISPLAY_NAMES.map {
+    edpDisplayNameToResourceNameMap.map { (displayName, resourceName) ->
       InProcessEdpSimulator(
-        displayName = it,
+        displayName = displayName,
+        resourceName = resourceName,
+        mcResourceName = mcResourceName,
         storageClient = storageClient,
         kingdomPublicApiChannel = kingdom.publicApiChannel,
         duchyPublicApiChannel = duchies[1].publicApiChannel,
-        eventTemplateNames = EVENT_TEMPLATES_TO_FILTERS_MAP.keys.toList()
+        eventTemplateNames = EVENT_TEMPLATES_TO_FILTERS_MAP.keys.toList(),
       )
     }
   }
@@ -139,6 +138,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
   private lateinit var edpDisplayNameToResourceNameMap: Map<String, String>
   private lateinit var duchyCertMap: Map<String, String>
   private lateinit var frontendSimulator: FrontendSimulator
+  private lateinit var eventGroups: List<EventGroup>
 
   private suspend fun createAllResources() {
     val resourceSetup =
@@ -189,31 +189,39 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
         publicMeasurementConsumersClient,
         publicCertificatesClient,
         SketchStore(storageClient),
-        EVENT_TEMPLATES_TO_FILTERS_MAP
+        RESULT_POLLING_DELAY,
+        EVENT_TEMPLATES_TO_FILTERS_MAP,
       )
   }
 
   @Before
-  fun createResourcesAndStartMillsAndDataProviders() = runBlocking {
+  fun startDaemons() = runBlocking {
     // Create all resources
     createAllResources()
+    eventGroups = edpSimulators.map { it.createEventGroup() }
 
-    // Start all Mills and all EDPs, which can only be started after the resources are created.
-    duchies.forEach { it.startLiquidLegionsV2mill(duchyCertMap) }
-    edpSimulators.forEach {
-      it.start(edpDisplayNameToResourceNameMap.getValue(it.displayName), mcResourceName)
+    // Start daemons. Mills and EDP simulators can only be started after resources have been
+    // created.
+    duchies.forEach {
+      it.startHerald()
+      it.startLiquidLegionsV2mill(duchyCertMap)
     }
+    edpSimulators.forEach { it.start() }
   }
 
-  @After fun stopAllEdpSimulators() = runBlocking { edpSimulators.forEach { it.stop() } }
+  @After fun stopEdpSimulators() = runBlocking { edpSimulators.forEach { it.stop() } }
+
+  @After
+  fun stopDuchyDaemons() = runBlocking {
+    for (duchy in duchies) {
+      duchy.stopHerald()
+      duchy.stopLiquidLegionsV2Mill()
+    }
+  }
 
   @Test
   fun `create a RF measurement and check the result is equal to the expected result`() =
     runBlocking {
-      // Wait until all EDPs finish creating eventGroups before the test starts.
-      val eventGroupList = pollForEventGroups()
-      assertThat(eventGroupList).isNotNull()
-
       // Use frontend simulator to create a reach and frequency measurement and verify its result.
       frontendSimulator.executeReachAndFrequency("1234")
     }
@@ -221,10 +229,6 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
   @Test
   fun `create a direct RF measurement and check the result is equal to the expected result`() =
     runBlocking {
-      // Wait until all EDPs finish creating eventGroups before the test starts.
-      val eventGroupList = pollForEventGroups()
-      assertThat(eventGroupList).isNotNull()
-
       // Use frontend simulator to create a direct reach and frequency measurement and verify its
       // result.
       frontendSimulator.executeDirectReachAndFrequency("1234")
@@ -233,10 +237,6 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
   @Test
   fun `create a reach-only measurement and check the result is equal to the expected result`() =
     runBlocking {
-      // Wait until all EDPs finish creating eventGroups before the test starts.
-      val eventGroupList = pollForEventGroups()
-      assertThat(eventGroupList).isNotNull()
-
       // Use frontend simulator to create a reach and frequency measurement and verify its result.
       frontendSimulator.executeReachOnly("1234")
     }
@@ -244,10 +244,6 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
   @Test
   fun `create an impression measurement and check the result is equal to the expected result`() =
     runBlocking {
-      // Wait until all EDPs finish creating eventGroups before the test starts.
-      val eventGroupList = pollForEventGroups()
-      assertThat(eventGroupList).isNotNull()
-
       // Use frontend simulator to create an impression measurement and verify its result.
       frontendSimulator.executeImpression("1234")
     }
@@ -255,10 +251,6 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
   @Test
   fun `create a duration measurement and check the result is equal to the expected result`() =
     runBlocking {
-      // Wait until all EDPs finish creating eventGroups before the test starts.
-      val eventGroupList = pollForEventGroups()
-      assertThat(eventGroupList).isNotNull()
-
       // Use frontend simulator to create a duration measurement and verify its result.
       frontendSimulator.executeDuration("1234")
     }
@@ -266,30 +258,10 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
   @Test
   fun `create a RF measurement of invalid params and check the result contains error info`() =
     runBlocking {
-      // Wait until all EDPs finish creating eventGroups before the test starts.
-      val eventGroupList = pollForEventGroups()
-      assertThat(eventGroupList).isNotNull()
-
       // Use frontend simulator to create an invalid reach and frequency measurement and verify
       // its error info.
       frontendSimulator.executeInvalidReachAndFrequency("1234")
     }
-
-  private suspend fun pollForEventGroups() {
-    pollFor(timeoutMillis = 10_000) {
-      val eventGroups =
-        publicEventGroupsClient
-          .withAuthenticationKey(apiAuthenticationKey)
-          .listEventGroups(
-            listEventGroupsRequest {
-              parent = "dataProviders/-"
-              filter = ListEventGroupsRequestKt.filter { measurementConsumers += mcResourceName }
-            }
-          )
-          .eventGroupsList
-      if (eventGroups.size == ALL_EDP_DISPLAY_NAMES.size) eventGroups else null
-    }
-  }
 
   companion object {
     private val MC_ENTITY_CONTENT: EntityContent = createEntityContent(MC_DISPLAY_NAME)
