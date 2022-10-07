@@ -16,6 +16,7 @@ package org.wfanet.measurement.loadtest.frontend
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import io.grpc.StatusException
 import java.nio.file.Paths
 import java.time.Duration
 import java.time.LocalDate
@@ -128,13 +129,14 @@ class FrontendSimulator(
 
   /** A sequence of operations done in the simulator involving a reach and frequency measurement. */
   suspend fun executeReachAndFrequency(runId: String) {
+    logger.info { "Creating reach and frequency Measurement..." }
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     val createdReachAndFrequencyMeasurement =
       createMeasurement(measurementConsumer, runId, ::newReachAndFrequencyMeasurementSpec)
-    logger.info(
-      "Created reach and frequency measurement ${createdReachAndFrequencyMeasurement.name}."
-    )
+    logger.info {
+      "Created reach and frequency Measurement ${createdReachAndFrequencyMeasurement.name}"
+    }
 
     // Get the CMMS computed result and compare it with the expected result.
     val reachAndFrequencyResult: Result = pollForResult {
@@ -261,11 +263,12 @@ class FrontendSimulator(
 
   /** A sequence of operations done in the simulator involving an impression measurement. */
   suspend fun executeImpression(runId: String) {
+    logger.info { "Creating impression Measurement..." }
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     val createdImpressionMeasurement =
       createMeasurement(measurementConsumer, runId, ::newImpressionMeasurementSpec)
-    logger.info("Created impression measurement ${createdImpressionMeasurement.name}.")
+    logger.info("Created impression Measurement ${createdImpressionMeasurement.name}.")
 
     val impressionResults = pollForResults {
       getImpressionResults(createdImpressionMeasurement.name)
@@ -284,11 +287,12 @@ class FrontendSimulator(
 
   /** A sequence of operations done in the simulator involving a duration measurement. */
   suspend fun executeDuration(runId: String) {
+    logger.info { "Creating duration Measurement..." }
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
     val createdDurationMeasurement =
       createMeasurement(measurementConsumer, runId, ::newDurationMeasurementSpec)
-    logger.info("Created duration measurement ${createdDurationMeasurement.name}.")
+    logger.info("Created duration Measurement ${createdDurationMeasurement.name}.")
 
     val durationResults = pollForResults { getDurationResults(createdDurationMeasurement.name) }
 
@@ -351,49 +355,44 @@ class FrontendSimulator(
         this.measurementReferenceId = runId
       }
     }
-    return measurementsClient
-      .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-      .createMeasurement(request)
+    try {
+      return measurementsClient
+        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+        .createMeasurement(request)
+    } catch (e: StatusException) {
+      throw Exception("Error creating Measurement", e)
+    }
   }
 
   /** Gets the result of a [Measurement] if it is succeeded. */
   private suspend fun getImpressionResults(measurementName: String): List<Measurement.ResultPair> {
-    val measurement =
-      measurementsClient
-        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-        .getMeasurement(getMeasurementRequest { name = measurementName })
+    val measurement = getMeasurement(measurementName)
     logger.info("Current Measurement state is: " + measurement.state)
     if (measurement.state == Measurement.State.FAILED) {
-      logger.warning("Failure reason: " + measurement.failure.reason)
-      logger.warning("Failure message: " + measurement.failure.message)
+      val failure: Failure = measurement.failure
+      throw Exception("Measurement failed with reason ${failure.reason}: ${failure.message}")
     }
     return measurement.resultsList.toList()
   }
 
   /** Gets the result of a [Measurement] if it is succeeded. */
   private suspend fun getDurationResults(measurementName: String): List<Measurement.ResultPair> {
-    val measurement =
-      measurementsClient
-        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-        .getMeasurement(getMeasurementRequest { name = measurementName })
+    val measurement = getMeasurement(measurementName)
     logger.info("Current Measurement state is: " + measurement.state)
     if (measurement.state == Measurement.State.FAILED) {
-      logger.warning("Failure reason: " + measurement.failure.reason)
-      logger.warning("Failure message: " + measurement.failure.message)
+      val failure: Failure = measurement.failure
+      throw Exception("Measurement failed with reason ${failure.reason}: ${failure.message}")
     }
     return measurement.resultsList.toList()
   }
 
   /** Gets the result of a [Measurement] if it is succeeded. */
   private suspend fun getReachAndFrequencyResult(measurementName: String): Result? {
-    val measurement =
-      measurementsClient
-        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-        .getMeasurement(getMeasurementRequest { name = measurementName })
+    val measurement = getMeasurement(measurementName)
     logger.info("Current Measurement state is: " + measurement.state)
     if (measurement.state == Measurement.State.FAILED) {
-      logger.warning("Failure reason: " + measurement.failure.reason)
-      logger.warning("Failure message: " + measurement.failure.message)
+      val failure: Failure = measurement.failure
+      throw Exception("Measurement failed with reason ${failure.reason}: ${failure.message}")
     }
     if (measurement.state != Measurement.State.SUCCEEDED) {
       return null
@@ -403,12 +402,18 @@ class FrontendSimulator(
     return parseAndVerifyResult(resultPair)
   }
 
-  /** Gets the failure of an invalid [Measurement] if it is failed */
-  private suspend fun getFailure(measurementName: String): Failure? {
-    val measurement =
+  private suspend fun getMeasurement(measurementName: String) =
+    try {
       measurementsClient
         .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
         .getMeasurement(getMeasurementRequest { name = measurementName })
+    } catch (e: StatusException) {
+      throw Exception("Error fetching measurement $measurementName", e)
+    }
+
+  /** Gets the failure of an invalid [Measurement] if it is failed */
+  private suspend fun getFailure(measurementName: String): Failure? {
+    val measurement = getMeasurement(measurementName)
     logger.info("Current Measurement state is: " + measurement.state)
     if (measurement.state != Measurement.State.FAILED) {
       return null
@@ -419,9 +424,13 @@ class FrontendSimulator(
   private suspend fun parseAndVerifyResult(resultPair: Measurement.ResultPair): Result {
     val certificate =
       certificateCache.getOrPut(resultPair.certificate) {
-        certificatesClient
-          .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-          .getCertificate(getCertificateRequest { name = resultPair.certificate })
+        try {
+          certificatesClient
+            .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+            .getCertificate(getCertificateRequest { name = resultPair.certificate })
+        } catch (e: StatusException) {
+          throw Exception("Error fetching certificate ${resultPair.certificate}", e)
+        }
       }
 
     val signedResult =
@@ -487,9 +496,13 @@ class FrontendSimulator(
 
   private suspend fun getMeasurementConsumer(name: String): MeasurementConsumer {
     val request = getMeasurementConsumerRequest { this.name = name }
-    return measurementConsumersClient
-      .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-      .getMeasurementConsumer(request)
+    try {
+      return measurementConsumersClient
+        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+        .getMeasurementConsumer(request)
+    } catch (e: StatusException) {
+      throw Exception("Error getting MC $name", e)
+    }
   }
 
   private fun newReachAndFrequencyMeasurementSpec(
@@ -578,10 +591,14 @@ class FrontendSimulator(
       parent = DATA_PROVIDER_WILDCARD
       filter = ListEventGroupsRequestKt.filter { measurementConsumers += measurementConsumer }
     }
-    return eventGroupsClient
-      .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-      .listEventGroups(request)
-      .eventGroupsList
+    try {
+      return eventGroupsClient
+        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+        .listEventGroups(request)
+        .eventGroupsList
+    } catch (e: StatusException) {
+      throw Exception("Error listing event groups for MC $measurementConsumer", e)
+    }
   }
 
   private suspend fun listRequisitions(measurement: String): List<Requisition> {
@@ -589,10 +606,14 @@ class FrontendSimulator(
       parent = DATA_PROVIDER_WILDCARD
       filter = ListRequisitionsRequestKt.filter { this.measurement = measurement }
     }
-    return requisitionsClient
-      .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-      .listRequisitions(request)
-      .requisitionsList
+    try {
+      return requisitionsClient
+        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+        .listRequisitions(request)
+        .requisitionsList
+    } catch (e: StatusException) {
+      throw Exception("Error listing requisitions for measurement $measurement", e)
+    }
   }
 
   private fun extractDataProviderName(eventGroupName: String): String {
@@ -602,9 +623,13 @@ class FrontendSimulator(
 
   private suspend fun getDataProvider(name: String): DataProvider {
     val request = GetDataProviderRequest.newBuilder().also { it.name = name }.build()
-    return dataProvidersClient
-      .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-      .getDataProvider(request)
+    try {
+      return dataProvidersClient
+        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+        .getDataProvider(request)
+    } catch (e: StatusException) {
+      throw Exception("Error fetching DataProvider $name", e)
+    }
   }
 
   private fun createFilterExpression(): String = eventTemplateFilters.values.joinToString(" && ")
