@@ -111,6 +111,19 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
+  fun `getMeasurement fails when the measurement doesn't exist`() {
+    val request = getMeasurementRequest {
+      measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+      measurementReferenceId = MEASUREMENT_REFERENCE_ID
+    }
+
+    val exception = runBlocking {
+      assertFailsWith<StatusRuntimeException> { service.getMeasurement(request) }
+    }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
   fun `setMeasurementResult stores the result and the succeeded state for a measurement`() {
     val createdMeasurement = runBlocking {
       service.createMeasurement(
@@ -147,7 +160,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
-  fun `setMeasurementResult fails when the meaurement doesn't exist`() {
+  fun `setMeasurementResult fails when the measurement doesn't exist`() {
     val request = setMeasurementResultRequest {
       measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
       measurementReferenceId = MEASUREMENT_REFERENCE_ID
@@ -158,6 +171,31 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       assertFailsWith<StatusRuntimeException> { service.setMeasurementResult(request) }
     }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `setMeasurementResult fails when the meaurement state isn't PENDING`() {
+    val createdMeasurement = runBlocking {
+      service.createMeasurement(
+        measurement {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+          measurementReferenceId = MEASUREMENT_REFERENCE_ID
+        }
+      )
+    }
+    val request = setMeasurementResultRequest {
+      measurementConsumerReferenceId = createdMeasurement.measurementConsumerReferenceId
+      measurementReferenceId = createdMeasurement.measurementReferenceId
+      result = MeasurementKt.result { reach = MeasurementKt.ResultKt.reach { value = 100L } }
+    }
+
+    val exception = runBlocking {
+      assertFailsWith<StatusRuntimeException> {
+        service.setMeasurementResult(request)
+        service.setMeasurementResult(request)
+      }
+    }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
   }
 
   @Test
@@ -568,6 +606,36 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       assertFailsWith<StatusRuntimeException> { service.setMeasurementFailure(request) }
     }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `setMeasurementFailure fails when the measurement state is not PENDING`() {
+    val createdMeasurement = runBlocking {
+      service.createMeasurement(
+        measurement {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+          measurementReferenceId = MEASUREMENT_REFERENCE_ID
+        }
+      )
+    }
+
+    val request = setMeasurementFailureRequest {
+      measurementConsumerReferenceId = createdMeasurement.measurementConsumerReferenceId
+      measurementReferenceId = createdMeasurement.measurementReferenceId
+      failure =
+        MeasurementKt.failure {
+          reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
+          message = "Failure"
+        }
+    }
+
+    val exception = runBlocking {
+      assertFailsWith<StatusRuntimeException> {
+        service.setMeasurementFailure(request)
+        service.setMeasurementFailure(request)
+      }
+    }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
   }
 
   @Test
