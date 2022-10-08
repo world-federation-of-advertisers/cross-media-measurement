@@ -483,13 +483,13 @@ abstract class AccountsServiceTest<T : AccountsCoroutineImplBase> {
   }
 
   @Test
-  fun `authenticateAccount throws PERMISSION_DENIED when identity doesn't exist`() = runBlocking {
+  fun `authenticateAccount throws NOT_FOUND when identity doesn't exist`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         service.authenticateAccount(authenticateAccountRequest {})
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
 
   @Test

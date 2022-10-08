@@ -136,7 +136,7 @@ abstract class MillBase(
           logger.info("ComputationServer not ready")
           return
         }
-        throw ex
+        throw Exception("Error claiming work", ex)
       }
     computationsServerReady = true
 

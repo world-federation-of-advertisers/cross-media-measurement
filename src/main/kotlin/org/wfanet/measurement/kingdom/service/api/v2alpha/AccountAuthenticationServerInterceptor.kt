@@ -25,15 +25,14 @@ import io.grpc.ServerInterceptors
 import io.grpc.ServerServiceDefinition
 import io.grpc.Status
 import io.grpc.StatusException
-import io.grpc.StatusRuntimeException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import java.security.GeneralSecurityException
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.api.AccountConstants
 import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.AccountPrincipal
 import org.wfanet.measurement.api.v2alpha.withPrincipal
-import org.wfanet.measurement.common.grpc.DeferredForwardingListener
+import org.wfanet.measurement.common.grpc.SuspendableServerInterceptor
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub
@@ -42,54 +41,46 @@ import org.wfanet.measurement.internal.kingdom.authenticateAccountRequest
 /** gRPC [ServerInterceptor] to check [Account] credentials coming in from a request. */
 class AccountAuthenticationServerInterceptor(
   private val internalAccountsClient: AccountsCoroutineStub,
-  private val redirectUri: String
-) : ServerInterceptor {
+  private val redirectUri: String,
+  coroutineContext: CoroutineContext = EmptyCoroutineContext
+) : SuspendableServerInterceptor(coroutineContext) {
 
-  override fun <ReqT, RespT> interceptCall(
+  override suspend fun <ReqT : Any, RespT : Any> interceptCallSuspending(
     call: ServerCall<ReqT, RespT>,
     headers: Metadata,
     next: ServerCallHandler<ReqT, RespT>
   ): ServerCall.Listener<ReqT> {
-    val idToken = headers.get(AccountConstants.ID_TOKEN_METADATA_KEY)
-
     var context = Context.current()
+    val idToken =
+      headers.get(AccountConstants.ID_TOKEN_METADATA_KEY)
+        ?: return Contexts.interceptCall(context, call, headers, next)
+    context = context.withValue(AccountConstants.CONTEXT_ID_TOKEN_KEY, idToken)
 
-    // it might be a request that doesn't require an ID token so can't close it
-    if (idToken == null) {
-      return Contexts.interceptCall(context, call, headers, next)
-    } else {
-      context = context.withValue(AccountConstants.CONTEXT_ID_TOKEN_KEY, idToken)
-
-      val deferredForwardingListener = DeferredForwardingListener<ReqT>()
-
-      CoroutineScope(Dispatchers.IO).launch {
-        try {
-          val account = authenticateAccountCredentials(idToken)
-          context =
-            context
-              .withPrincipal(
-                AccountPrincipal(AccountKey(externalIdToApiId(account.externalAccountId)))
-              )
-              .withValue(AccountConstants.CONTEXT_ACCOUNT_KEY, account)
-        } catch (e: Exception) {
-          when (e) {
-            // it might be a request that has an ID token but doesn't require authentication
-            // so can't close it
-            is StatusRuntimeException,
-            is StatusException -> {}
-            else ->
-              call.close(
-                Status.UNKNOWN.withDescription("Unknown error when authenticating"),
-                headers
-              )
+    try {
+      val account = authenticateAccountCredentials(idToken)
+      context =
+        context
+          .withPrincipal(AccountPrincipal(AccountKey(externalIdToApiId(account.externalAccountId))))
+          .withValue(AccountConstants.CONTEXT_ACCOUNT_KEY, account)
+    } catch (e: GeneralSecurityException) {
+      call.close(Status.UNAUTHENTICATED.withCause(e), headers)
+    } catch (e: StatusException) {
+      val status =
+        when (e.status.code) {
+          Status.Code.NOT_FOUND -> {
+            // The request might not require authentication, so this is fine.
+            Status.OK
           }
+          Status.Code.CANCELLED -> Status.CANCELLED
+          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          else -> Status.UNKNOWN
         }
-
-        deferredForwardingListener.setDelegate(Contexts.interceptCall(context, call, headers, next))
+      if (!status.isOk) {
+        call.close(status, headers)
       }
-
-      return deferredForwardingListener
     }
+
+    return Contexts.interceptCall(context, call, headers, next)
   }
 
   private suspend fun authenticateAccountCredentials(idToken: String): Account {

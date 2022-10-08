@@ -687,14 +687,14 @@ class GcpSpannerComputationsDatabaseTransactor<
         readWriteTransactionBlock(ctx)
       } else {
         val tokenTime = Instant.ofEpochMilli(tokenTimeMillis)
-        error {
+        error(
           """
           Failed to update because of editVersion mismatch.
             Token's editVersion: $tokenTimeMillis ($tokenTime)
             Computations table's UpdateTime: $updateTimeMillis ($updateTime)
             Difference: ${Duration.between(tokenTime, updateTime)}
           """.trimIndent()
-        }
+        )
       }
     }
   }

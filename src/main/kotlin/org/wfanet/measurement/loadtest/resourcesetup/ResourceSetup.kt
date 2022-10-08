@@ -23,6 +23,7 @@ import java.io.File
 import java.time.Clock
 import java.util.logging.Logger
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.retry
 import kotlinx.coroutines.flow.single
@@ -228,18 +229,22 @@ class ResourceSetup(
     val signedPublicKey =
       signEncryptionPublicKey(encryptionPublicKey, dataProviderContent.signingKey)
     val internalDataProvider =
-      internalDataProvidersClient.createDataProvider(
-        internalDataProvider {
-          certificate =
-            parseCertificateDer(dataProviderContent.signingKey.certificate.encoded.toByteString())
-          details =
-            InternalDataProviderKt.details {
-              apiVersion = API_VERSION.string
-              publicKey = signedPublicKey.data
-              publicKeySignature = signedPublicKey.signature
-            }
-        }
-      )
+      try {
+        internalDataProvidersClient.createDataProvider(
+          internalDataProvider {
+            certificate =
+              parseCertificateDer(dataProviderContent.signingKey.certificate.encoded.toByteString())
+            details =
+              InternalDataProviderKt.details {
+                apiVersion = API_VERSION.string
+                publicKey = signedPublicKey.data
+                publicKeySignature = signedPublicKey.signature
+              }
+          }
+        )
+      } catch (e: StatusException) {
+        throw Exception("Error creating DataProvider", e)
+      }
     return DataProviderKey(externalIdToApiId(internalDataProvider.externalDataProviderId)).toName()
   }
 
@@ -249,7 +254,7 @@ class ResourceSetup(
     // This is to allow the Kingdom more time to start up.
 
     fun isRetriable(e: Throwable) =
-      (e is StatusException) && (e.getStatus().getCode() == Status.Code.UNAVAILABLE)
+      (e is StatusException) && (e.status.code == Status.Code.UNAVAILABLE)
 
     // TODO(@SanjayVas):  Remove this polling behavior after the readiness probe for the Kingdom
     // is fixed.
@@ -268,6 +273,12 @@ class ResourceSetup(
             }
           }
         }
+        .catch { cause ->
+          if (cause is StatusException) {
+            throw Exception("Error creating account", cause)
+          }
+          throw cause
+        }
         .single()
     return internalAccount
   }
@@ -279,25 +290,39 @@ class ResourceSetup(
     val accountName = AccountKey(externalIdToApiId(internalAccount.externalAccountId)).toName()
     val accountActivationToken = externalIdToApiId(internalAccount.activationToken)
     val mcCreationToken =
-      externalIdToApiId(
-        internalAccountsClient
-          .createMeasurementConsumerCreationToken(createMeasurementConsumerCreationTokenRequest {})
-          .measurementConsumerCreationToken
-      )
+      try {
+        externalIdToApiId(
+          internalAccountsClient
+            .createMeasurementConsumerCreationToken(
+              createMeasurementConsumerCreationTokenRequest {}
+            )
+            .measurementConsumerCreationToken
+        )
+      } catch (e: StatusException) {
+        throw Exception("Error creating MC creation token", e)
+      }
 
     // Account activation and MC creation are done via the public API.
     val authenticationResponse =
-      accountsClient.authenticate(authenticateRequest { issuer = "https://self-issued.me" })
+      try {
+        accountsClient.authenticate(authenticateRequest { issuer = "https://self-issued.me" })
+      } catch (e: StatusException) {
+        throw Exception("Error authenticating account", e)
+      }
     val idToken =
       generateIdToken(authenticationResponse.authenticationRequestUri, Clock.systemUTC())
-    accountsClient
-      .withIdToken(idToken)
-      .activateAccount(
-        activateAccountRequest {
-          name = accountName
-          activationToken = accountActivationToken
-        }
-      )
+    try {
+      accountsClient
+        .withIdToken(idToken)
+        .activateAccount(
+          activateAccountRequest {
+            name = accountName
+            activationToken = accountActivationToken
+          }
+        )
+    } catch (e: StatusException) {
+      throw Exception("Error activating account $accountName", e)
+    }
 
     val request = createMeasurementConsumerRequest {
       measurementConsumer = measurementConsumer {
@@ -312,31 +337,43 @@ class ResourceSetup(
       }
     }
     val measurementConsumer =
-      measurementConsumersClient.withIdToken(idToken).createMeasurementConsumer(request)
+      try {
+        measurementConsumersClient.withIdToken(idToken).createMeasurementConsumer(request)
+      } catch (e: StatusException) {
+        throw Exception("Error creating MC", e)
+      }
 
     // API key for MC is created to act as MC caller
     val apiAuthenticationKey =
-      apiKeysClient
-        .withIdToken(idToken)
-        .createApiKey(
-          createApiKeyRequest {
-            parent = measurementConsumer.name
-            apiKey = apiKey { nickname = "test_key" }
-          }
-        )
-        .authenticationKey
+      try {
+        apiKeysClient
+          .withIdToken(idToken)
+          .createApiKey(
+            createApiKeyRequest {
+              parent = measurementConsumer.name
+              apiKey = apiKey { nickname = "test_key" }
+            }
+          )
+          .authenticationKey
+      } catch (e: StatusException) {
+        throw Exception("Error creating API key for ${measurementConsumer.name}", e)
+      }
 
     return MeasurementConsumerAndKey(measurementConsumer, apiAuthenticationKey)
   }
 
   suspend fun createDuchyCertificate(duchyCert: DuchyCert): Certificate {
     val internalCertificate =
-      internalCertificatesClient.createCertificate(
-        internalCertificate {
-          fillCertificateFromDer(duchyCert.consentSignalCertificateDer)
-          externalDuchyId = duchyCert.duchyId
-        }
-      )
+      try {
+        internalCertificatesClient.createCertificate(
+          internalCertificate {
+            fillCertificateFromDer(duchyCert.consentSignalCertificateDer)
+            externalDuchyId = duchyCert.duchyId
+          }
+        )
+      } catch (e: StatusException) {
+        throw Exception("Error creating certificate for Duchy ${duchyCert.duchyId}", e)
+      }
 
     return certificate {
       name =
