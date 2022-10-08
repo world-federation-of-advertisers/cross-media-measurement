@@ -158,6 +158,7 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
       internalEventGroupsStub.createEventGroup(createRequest).toEventGroup()
     } catch (ex: StatusException) {
       when (ex.status.code) {
+        Status.Code.DEADLINE_EXCEEDED -> throw Status.DEADLINE_EXCEEDED.asRuntimeException()
         Status.Code.FAILED_PRECONDITION ->
           failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition" }
         Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "DataProvider not found." }
@@ -254,9 +255,18 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
     }
 
     val results: List<InternalEventGroup> =
-      internalEventGroupsStub
-        .streamEventGroups(listEventGroupsPageToken.toStreamEventGroupsRequest())
-        .toList()
+      try {
+        internalEventGroupsStub
+          .streamEventGroups(listEventGroupsPageToken.toStreamEventGroupsRequest())
+          .toList()
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+            else -> Status.UNKNOWN
+          }
+          .withCause(e)
+          .asRuntimeException()
+      }
 
     if (results.isEmpty()) {
       return ListEventGroupsResponse.getDefaultInstance()

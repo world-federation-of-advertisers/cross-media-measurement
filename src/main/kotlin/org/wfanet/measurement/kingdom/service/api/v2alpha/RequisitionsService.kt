@@ -143,11 +143,14 @@ class RequisitionsService(
       try {
         internalRequisitionStub.streamRequisitions(streamRequest).toList()
       } catch (ex: StatusException) {
-        when (ex.status.code) {
-          Status.Code.INVALID_ARGUMENT ->
-            failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid." }
-          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
-        }
+        throw when (ex.status.code) {
+            Status.Code.INVALID_ARGUMENT ->
+              Status.INVALID_ARGUMENT.withDescription("Required field unspecified or invalid")
+            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+            else -> Status.UNKNOWN
+          }
+          .withCause(ex)
+          .asRuntimeException()
       }
 
     if (results.isEmpty()) {
@@ -217,6 +220,7 @@ class RequisitionsService(
           Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Requisition not found." }
           Status.Code.FAILED_PRECONDITION ->
             failGrpc(Status.FAILED_PRECONDITION, ex) { "Requisition or Measurement state illegal." }
+          Status.Code.DEADLINE_EXCEEDED -> throw ex.status.withCause(ex).asRuntimeException()
           else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
         }
       }
@@ -254,17 +258,19 @@ class RequisitionsService(
     }
     try {
       internalRequisitionStub.fulfillRequisition(fulfillRequest)
-    } catch (ex: StatusException) {
-      when (ex.status.code) {
-        Status.Code.INVALID_ARGUMENT ->
-          failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid." }
-        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "Requisition not found." }
-        Status.Code.FAILED_PRECONDITION ->
-          failGrpc(Status.FAILED_PRECONDITION, ex) {
-            "Requisition or Measurement state illegal, or Duchy not found."
-          }
-        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
-      }
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND.withDescription("Requisition not found")
+          Status.Code.INVALID_ARGUMENT ->
+            Status.INVALID_ARGUMENT.withDescription("Required field unspecified or invalid")
+          Status.Code.FAILED_PRECONDITION ->
+            Status.FAILED_PRECONDITION.withDescription(
+              "Requisition or Measurement state illegal, or Duchy not found"
+            )
+          else -> Status.UNKNOWN
+        }
+        .withCause(e)
+        .asRuntimeException()
     }
 
     return fulfillDirectRequisitionResponse { state = State.FULFILLED }
