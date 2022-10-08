@@ -30,6 +30,7 @@ package k8s
 	_kingdom_tls_cert_file_flag:             "--tls-cert-file=/var/run/secrets/files/kingdom_tls.pem"
 	_kingdom_tls_key_file_flag:              "--tls-key-file=/var/run/secrets/files/kingdom_tls.key"
 	_kingdom_cert_collection_file_flag:      "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
+	_kingdom_root_cert_file_flag:            "--cert-collection-file=/var/run/secrets/files/kingdom_root.pem"
 	_akid_to_principal_map_file_flag:        "--authority-key-identifier-to-principal-map-file=/etc/\(#AppName)/config-files/authority_key_identifier_to_principal_map.textproto"
 	_debug_verbose_grpc_client_logging_flag: "--debug-verbose-grpc-client-logging=\(_verboseGrpcClientLogging)"
 	_debug_verbose_grpc_server_logging_flag: "--debug-verbose-grpc-server-logging=\(_verboseGrpcServerLogging)"
@@ -79,7 +80,8 @@ package k8s
 					_duchy_id_config_flag,
 					_kingdom_tls_cert_file_flag,
 					_kingdom_tls_key_file_flag,
-					_kingdom_cert_collection_file_flag,
+					// Internal Kingdom API server should only trust Kingdom certs.
+					_kingdom_root_cert_file_flag,
 					_debug_verbose_grpc_server_logging_flag,
 				] + Container._commonServerFlags + _spannerConfig.flags
 			}
