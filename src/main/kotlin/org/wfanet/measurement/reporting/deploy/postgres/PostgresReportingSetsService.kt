@@ -18,6 +18,7 @@ import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
+import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.internal.reporting.GetReportingSetRequest
@@ -45,19 +46,20 @@ class PostgresReportingSetsService(
   }
 
   override suspend fun getReportingSet(request: GetReportingSetRequest): ReportingSet {
-    return try {
-      SerializableErrors.retrying {
+    val reportingSetResult =
+      SerializableErrors.retryingRead(client) { readContext: ReadContext ->
         ReportingSetReader()
           .readReportingSetByExternalId(
-            client.singleUse(),
+            readContext,
             request.measurementConsumerReferenceId,
             ExternalId(request.externalReportingSetId)
           )
-          .reportingSet
       }
-    } catch (e: ReportingSetNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Reporting Set not found" }
-    }
+        ?: ReportingSetNotFoundException().throwStatusRuntimeException(Status.NOT_FOUND) {
+          "Reporting Set not found."
+        }
+
+    return reportingSetResult.reportingSet
   }
 
   override fun streamReportingSets(request: StreamReportingSetsRequest): Flow<ReportingSet> {

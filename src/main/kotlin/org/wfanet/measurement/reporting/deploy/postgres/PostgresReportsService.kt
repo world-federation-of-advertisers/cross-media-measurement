@@ -18,6 +18,7 @@ import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
+import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.internal.reporting.CreateReportRequest
 import org.wfanet.measurement.internal.reporting.GetReportByIdempotencyKeyRequest
@@ -49,37 +50,39 @@ class PostgresReportsService(
   }
 
   override suspend fun getReport(request: GetReportRequest): Report {
-    try {
-      return SerializableErrors.retrying {
+    val reportResult =
+      SerializableErrors.retryingRead(client) { readContext: ReadContext ->
         ReportReader()
           .getReportByExternalId(
-            client.singleUse(),
+            readContext,
             request.measurementConsumerReferenceId,
             request.externalReportId
           )
-          .report
       }
-    } catch (e: ReportNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Report not found" }
-    }
+        ?: ReportNotFoundException().throwStatusRuntimeException(Status.NOT_FOUND) {
+          "Report not found."
+        }
+
+    return reportResult.report
   }
 
   override suspend fun getReportByIdempotencyKey(
     request: GetReportByIdempotencyKeyRequest
   ): Report {
-    try {
-      return SerializableErrors.retrying {
+    val reportResult =
+      SerializableErrors.retryingRead(client) { readContext: ReadContext ->
         ReportReader()
           .getReportByIdempotencyKey(
-            client.singleUse(),
+            readContext,
             request.measurementConsumerReferenceId,
             request.reportIdempotencyKey
           )
-          .report
       }
-    } catch (e: ReportNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Report not found" }
-    }
+        ?: ReportNotFoundException().throwStatusRuntimeException(Status.NOT_FOUND) {
+          "Report not found."
+        }
+
+    return reportResult.report
   }
 
   override fun streamReports(request: StreamReportsRequest): Flow<Report> {

@@ -36,6 +36,7 @@ import org.wfanet.measurement.reporting.deploy.postgres.readers.MeasurementResul
 import org.wfanet.measurement.reporting.deploy.postgres.readers.ReportReader
 import org.wfanet.measurement.reporting.service.internal.MeasurementNotFoundException
 import org.wfanet.measurement.reporting.service.internal.MeasurementStateInvalidException
+import org.wfanet.measurement.reporting.service.internal.ReportNotFoundException
 
 private const val NANOS_PER_SECOND = 1_000_000_000
 
@@ -46,6 +47,7 @@ private const val NANOS_PER_SECOND = 1_000_000_000
  * Throws the following on [execute]:
  * * [MeasurementNotFoundException] Measurement not found.
  * * [MeasurementStateInvalidException] Measurement does not have PENDING state.
+ * * [ReportNotFoundException] Report not found.
  */
 class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
   PostgresWriter<Measurement>() {
@@ -111,6 +113,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
         val reportResult =
           ReportReader()
             .getReportById(transactionContext, request.measurementConsumerReferenceId, it)
+            ?: throw ReportNotFoundException()
 
         val updatedDetails =
           reportResult.report.details.copy {

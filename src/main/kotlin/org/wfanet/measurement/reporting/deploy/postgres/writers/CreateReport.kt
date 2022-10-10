@@ -432,6 +432,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
               measurementConsumerReferenceId,
               ExternalId(setOperation.lhs.reportingSetId.externalReportingSetId)
             )
+            ?: throw ReportingSetNotFoundException()
         lhsReportingSetId = reportingSetResult.reportingSetId.value
       }
       SetOperation.Operand.OperandCase.OPERATION -> {
@@ -461,6 +462,7 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
               measurementConsumerReferenceId,
               ExternalId(setOperation.rhs.reportingSetId.externalReportingSetId)
             )
+            ?: throw ReportingSetNotFoundException()
         rhsReportingSetId = reportingSetResult.reportingSetId.value
       }
       SetOperation.Operand.OperandCase.OPERATION -> {

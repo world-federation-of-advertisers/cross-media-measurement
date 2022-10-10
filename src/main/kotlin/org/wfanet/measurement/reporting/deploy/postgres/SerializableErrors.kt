@@ -23,10 +23,35 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.retry
 import kotlinx.coroutines.flow.single
+import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
+import org.wfanet.measurement.common.db.r2dbc.ReadContext
 
 object SerializableErrors {
   private const val SERIALIZABLE_ERROR_CODE = "40001"
   @OptIn(ExperimentalTime::class) private val SERIALIZABLE_RETRY_DURATION = 120.seconds
+
+  suspend fun <T> retryingRead(
+    client: DatabaseClient,
+    readQuery: suspend (readContext: ReadContext) -> T
+  ): T {
+    val readContext = client.readTransaction()
+    return try {
+      retrying {
+        try {
+          readQuery(readContext)
+        } catch (e: Exception) {
+          if (e is PostgresqlException) {
+            readContext.rollback()
+          }
+          throw (e)
+        }
+      }
+    } finally {
+      try {
+        readContext.close()
+      } catch (_: Exception) {}
+    }
+  }
 
   suspend fun <T> retrying(block: suspend () -> T): T {
     return flow { emit(block()) }.withSerializableErrorRetries().single()

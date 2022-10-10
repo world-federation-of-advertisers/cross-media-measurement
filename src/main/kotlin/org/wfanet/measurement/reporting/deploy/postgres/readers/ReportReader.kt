@@ -46,7 +46,6 @@ import org.wfanet.measurement.internal.reporting.periodicTimeInterval
 import org.wfanet.measurement.internal.reporting.report
 import org.wfanet.measurement.internal.reporting.timeInterval
 import org.wfanet.measurement.internal.reporting.timeIntervals
-import org.wfanet.measurement.reporting.service.internal.ReportNotFoundException
 
 class ReportReader {
   data class Result(
@@ -215,13 +214,13 @@ class ReportReader {
   /**
    * Gets the report by external report id.
    *
-   * @throws [ReportNotFoundException]
+   * @return null when the Report is not found.
    */
   suspend fun getReportByExternalId(
     readContext: ReadContext,
     measurementConsumerReferenceId: String,
     externalReportId: Long
-  ): Result {
+  ): Result? {
     val statement =
       boundStatement(
         (baseSql +
@@ -235,19 +234,18 @@ class ReportReader {
       }
 
     return readContext.executeQuery(statement).consume(::translate).singleOrNull()
-      ?: throw ReportNotFoundException()
   }
 
   /**
    * Gets the report by report id.
    *
-   * @throws [ReportNotFoundException]
+   * @return when the Report is not found.
    */
   suspend fun getReportById(
     readContext: ReadContext,
     measurementConsumerReferenceId: String,
     reportId: Long
-  ): Result {
+  ): Result? {
     val statement =
       boundStatement(
         (baseSql +
@@ -261,19 +259,18 @@ class ReportReader {
       }
 
     return readContext.executeQuery(statement).consume(::translate).singleOrNull()
-      ?: throw ReportNotFoundException()
   }
 
   /**
    * Gets the report by report idempotency key.
    *
-   * @throws [ReportNotFoundException]
+   * @return null when the Report is not found.
    */
   suspend fun getReportByIdempotencyKey(
     readContext: ReadContext,
     measurementConsumerReferenceId: String,
     reportIdempotencyKey: String
-  ): Result {
+  ): Result? {
     val statement =
       boundStatement(
         (baseSql +
@@ -287,7 +284,6 @@ class ReportReader {
       }
 
     return readContext.executeQuery(statement).consume(::translate).singleOrNull()
-      ?: throw ReportNotFoundException()
   }
 
   fun listReports(
@@ -319,7 +315,9 @@ class ReportReader {
       try {
         emitAll(readContext.executeQuery(statement).consume(::translate))
       } finally {
-        readContext.close()
+        try {
+          readContext.close()
+        } catch (_: Exception) {}
       }
     }
   }

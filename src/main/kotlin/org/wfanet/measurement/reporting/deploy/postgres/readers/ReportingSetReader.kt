@@ -31,8 +31,6 @@ import org.wfanet.measurement.internal.reporting.ReportingSet.EventGroupKey
 import org.wfanet.measurement.internal.reporting.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.StreamReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.reportingSet
-import org.wfanet.measurement.reporting.service.internal.ReportingInternalException
-import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 
 class ReportingSetReader {
   data class Result(
@@ -72,14 +70,13 @@ class ReportingSetReader {
   /**
    * Reads a Reporting Set using external ID.
    *
-   * Throws a subclass of [ReportingInternalException].
-   * @throws [ReportingSetNotFoundException] Reporting Set not found.
+   * @return null when the Reporting Set is not found.
    */
   suspend fun readReportingSetByExternalId(
     readContext: ReadContext,
     measurementConsumerReferenceId: String,
     externalReportingSetId: ExternalId
-  ): Result {
+  ): Result? {
     val statement =
       boundStatement(
         baseSql +
@@ -93,7 +90,6 @@ class ReportingSetReader {
       }
 
     return readContext.executeQuery(statement).consume(::translate).firstOrNull()
-      ?: throw ReportingSetNotFoundException()
   }
 
   fun listReportingSets(
@@ -125,7 +121,9 @@ class ReportingSetReader {
       try {
         emitAll(readContext.executeQuery(statement).consume(::translate))
       } finally {
-        readContext.close()
+        try {
+          readContext.close()
+        } catch (_: Exception) {}
       }
     }
   }
