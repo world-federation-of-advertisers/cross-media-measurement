@@ -206,10 +206,7 @@ class EdpSimulator(
         )
       }
 
-      if (
-        !requisition.hasProtocolConfig() ||
-          requisition.protocolConfig.protocolsList.last().hasDirect()
-      ) {
+      if (requisition.protocolConfig.protocolsList.last().hasDirect()) {
         when (measurementSpec.measurementTypeCase) {
           MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
             fulfillDirectReachAndFrequencyMeasurement(requisition, requisitionSpec, measurementSpec)

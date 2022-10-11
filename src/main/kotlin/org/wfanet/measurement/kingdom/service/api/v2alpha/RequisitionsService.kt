@@ -14,6 +14,10 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
+import org.wfanet.measurement.internal.kingdom.Requisition.Refusal as InternalRefusal
+import org.wfanet.measurement.internal.kingdom.Requisition.State as InternalState
+import org.wfanet.measurement.internal.kingdom.RequisitionKt as InternalRequisitionKt
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.math.min
@@ -60,12 +64,7 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.common.Provider
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.directRequisitionParams
-import org.wfanet.measurement.internal.kingdom.ProtocolConfig
-import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.Requisition.DuchyValue
-import org.wfanet.measurement.internal.kingdom.Requisition.Refusal as InternalRefusal
-import org.wfanet.measurement.internal.kingdom.Requisition.State as InternalState
-import org.wfanet.measurement.internal.kingdom.RequisitionKt as InternalRequisitionKt
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
@@ -307,9 +306,7 @@ private fun InternalRequisition.toRequisition(): Requisition {
       data = parentMeasurement.measurementSpec
       signature = parentMeasurement.measurementSpecSignature
     }
-    if (
-      parentMeasurement.protocolConfig.protocolCase != ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
-    ) {
+    if (parentMeasurement.hasProtocolConfig()) {
       protocolConfig =
         try {
           parentMeasurement.protocolConfig.toProtocolConfig()
@@ -470,12 +467,16 @@ private fun ListRequisitionsRequest.toListRequisitionsPageToken(): ListRequisiti
 
       grpcRequire(
         states.containsAll(requisitionsStatesList) && requisitionsStatesList.containsAll(states)
-      ) { "Arguments must be kept the same when using a page token" }
+      ) {
+        "Arguments must be kept the same when using a page token"
+      }
 
       grpcRequire(
         measurementStates.containsAll(measurementsStatesList) &&
           measurementsStatesList.containsAll(measurementStates)
-      ) { "Arguments must be kept the same when using a page token" }
+      ) {
+        "Arguments must be kept the same when using a page token"
+      }
 
       if (source.pageSize in MIN_PAGE_SIZE..MAX_PAGE_SIZE) {
         pageSize = source.pageSize

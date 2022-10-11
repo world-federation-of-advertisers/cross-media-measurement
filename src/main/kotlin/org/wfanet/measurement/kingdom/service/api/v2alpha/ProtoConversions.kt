@@ -14,6 +14,17 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import org.wfanet.measurement.internal.kingdom.DifferentialPrivacyParams as InternalDifferentialPrivacyParams
+import org.wfanet.measurement.internal.kingdom.Exchange as InternalExchange
+import org.wfanet.measurement.internal.kingdom.ExchangeStep as InternalExchangeStep
+import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt as InternalExchangeStepAttempt
+import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow as InternalExchangeWorkflow
+import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
+import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt.direct as internalDirect
+import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt.protocol as internalProtocol
+import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
+import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -54,24 +65,13 @@ import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toLocalDate
-import org.wfanet.measurement.internal.kingdom.DifferentialPrivacyParams as InternalDifferentialPrivacyParams
-import org.wfanet.measurement.internal.kingdom.Exchange as InternalExchange
-import org.wfanet.measurement.internal.kingdom.ExchangeStep as InternalExchangeStep
-import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt as InternalExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetailsKt
-import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow as InternalExchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflowKt
-import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.details
-import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
-import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt.direct as internalDirect
-import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt.protocol as internalProtocol
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.exchangeWorkflow
-import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
-import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 
 /** Converts an internal [InternalMeasurement.State] to a public [State]. */
@@ -144,6 +144,9 @@ fun InternalProtocolConfig.toProtocolConfig(): ProtocolConfig {
           ProtocolConfig.MeasurementType.MEASUREMENT_TYPE_UNSPECIFIED
         InternalProtocolConfig.MeasurementType.REACH_AND_FREQUENCY ->
           ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
+        InternalProtocolConfig.MeasurementType.IMPRESSION ->
+          ProtocolConfig.MeasurementType.IMPRESSION
+        InternalProtocolConfig.MeasurementType.DURATION -> ProtocolConfig.MeasurementType.DURATION
         InternalProtocolConfig.MeasurementType.UNRECOGNIZED ->
           error("MeasurementType unrecognized.")
       }
@@ -199,10 +202,7 @@ fun InternalMeasurement.toMeasurement(): Measurement {
     }
     dataProviders +=
       source.dataProvidersMap.entries.map(Map.Entry<Long, DataProviderValue>::toDataProviderEntry)
-    if (
-      source.details.protocolConfig.protocolCase !=
-        InternalProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
-    ) {
+    if (source.details.hasProtocolConfig()) {
       protocolConfig = source.details.protocolConfig.toProtocolConfig()
     }
     state = source.state.toState()
@@ -299,8 +299,22 @@ fun Measurement.toInternal(
             liquidLegionsV2 = Llv2ProtocolConfig.duchyProtocolConfig
           }
         }
-        MeasurementSpec.MeasurementTypeCase.IMPRESSION,
-        MeasurementSpec.MeasurementTypeCase.DURATION -> {}
+        MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {
+          protocolConfig = internalProtocolConfig {
+            externalProtocolConfigId = "impression"
+            measurementType = InternalProtocolConfig.MeasurementType.IMPRESSION
+
+            protocols += internalProtocol { direct = internalDirect {} }
+          }
+        }
+        MeasurementSpec.MeasurementTypeCase.DURATION -> {
+          protocolConfig = internalProtocolConfig {
+            externalProtocolConfigId = "duration"
+            measurementType = InternalProtocolConfig.MeasurementType.DURATION
+
+            protocols += internalProtocol { direct = internalDirect {} }
+          }
+        }
         MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
           error("MeasurementType not set.")
       }

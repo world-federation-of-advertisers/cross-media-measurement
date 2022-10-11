@@ -392,9 +392,14 @@ class MeasurementsServiceTest {
           details =
             details.copy {
               clearFailure()
-              clearProtocolConfig()
               clearDuchyProtocolConfig()
               measurementSpec = request.measurement.measurementSpec.data
+              protocolConfig = internalProtocolConfig {
+                externalProtocolConfigId = "impression"
+                measurementType = InternalProtocolConfig.MeasurementType.IMPRESSION
+                protocols +=
+                  InternalProtocolConfigKt.protocol { direct = InternalProtocolConfigKt.direct {} }
+              }
             }
           results.clear()
         }
@@ -449,9 +454,14 @@ class MeasurementsServiceTest {
           details =
             details.copy {
               clearFailure()
-              clearProtocolConfig()
               clearDuchyProtocolConfig()
               measurementSpec = request.measurement.measurementSpec.data
+              protocolConfig = internalProtocolConfig {
+                externalProtocolConfigId = "duration"
+                measurementType = InternalProtocolConfig.MeasurementType.DURATION
+                protocols +=
+                  InternalProtocolConfigKt.protocol { direct = InternalProtocolConfigKt.direct {} }
+              }
             }
           results.clear()
         }
