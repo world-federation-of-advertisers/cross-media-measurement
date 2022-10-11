@@ -47,3 +47,13 @@ package k8s
 		"iam.gke.io/gke-metadata-server-enabled": "true"
 	}
 }
+
+#SpotVmPodSpec: {
+	#PodSpec
+
+	_tolerations: "cloud.google.com/gke-spot": {
+		operator: "Equal"
+		value:    "true"
+		effect:   "NoSchedule"
+	}
+}

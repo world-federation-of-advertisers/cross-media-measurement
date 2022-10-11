@@ -163,10 +163,10 @@ the Kingdom, running under the `gke-cluster` service account in the
 ```shell
 gcloud container clusters create halo-cmm-kingdom-demo-cluster \
   --enable-network-policy --workload-pool=halo-kingdom-demo.svc.id.goog \
-  --service-account="gke-cluster@halo-kingdom-demo.iam.gserviceaccount.com" \
+  --service-account='gke-cluster@halo-kingdom-demo.iam.gserviceaccount.com' \
   --database-encryption-key=projects/halo-cmm-dev/locations/us-central1/keyRings/test-key-ring/cryptoKeys/k8s-secret \
-  --num-nodes=2 --enable-autoscaling --min-nodes=1 --max-nodes=5 \
-  --machine-type=e2-highcpu-2 --cluster-version=1.24.2-gke.1900
+  --num-nodes=3 --enable-autoscaling --min-nodes=3 --max-nodes=6 \
+  --machine-type=e2-highcpu-2 --cluster-version='1.24.2-gke.1900'
 ```
 
 Adjust the number of nodes and machine type according to your expected usage.
