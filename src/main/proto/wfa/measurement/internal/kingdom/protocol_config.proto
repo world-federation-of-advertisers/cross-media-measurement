@@ -30,6 +30,8 @@ message ProtocolConfig {
   enum MeasurementType {
     MEASUREMENT_TYPE_UNSPECIFIED = 0;
     REACH_AND_FREQUENCY = 1;
+    IMPRESSION = 2;
+    DURATION = 3;
   }
   // The type of measurement that this protocol computes.
   MeasurementType measurement_type = 2;
