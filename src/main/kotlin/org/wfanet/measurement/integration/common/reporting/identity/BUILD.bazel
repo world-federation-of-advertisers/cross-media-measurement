@@ -1,0 +1,34 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+
+package(
+    default_testonly = True,
+    default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting:__pkg__",
+    ],
+)
+
+kt_jvm_library(
+    name = "metadata_principal_interceptor",
+    srcs = ["MetadataPrincipalServerInterceptor.kt"],
+    deps = [
+        ":reporting_principal_identity",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:context_keys",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:context_keys",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:principal_server_interceptor",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:reporting_principal",
+        "//src/main/proto/wfa/measurement/config:duchy_cert_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/io/grpc/stub",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)
+
+kt_jvm_library(
+    name = "reporting_principal_identity",
+    srcs = ["ReportingPrincipalIdentity.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/io/grpc/stub",
+    ],
+)
