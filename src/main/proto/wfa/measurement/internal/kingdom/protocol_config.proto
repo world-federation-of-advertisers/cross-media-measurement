@@ -53,13 +53,31 @@ message ProtocolConfig {
     int32 maximum_frequency = 4;
   }
 
-  // Configuration for the specific protocol.
+  // Protocol for direct measurement
+  message Direct {}
+
+  message Protocol {
+    // Configuration for the specific protocol.
+    oneof protocol {
+      // Liquid Legions v2 config.
+      //
+      // May only be set when the measurement type is REACH_AND_FREQUENCY.
+      LiquidLegionsV2 liquid_legions_v2 = 1;
+
+      Direct direct = 2;
+    }
+  }
+
+  // Configuration for the specific protocol. Required. Immutable.
   oneof protocol {
     // Liquid Legions v2 config.
     //
-    // May only be set when the measurement type is REACH_AND_FREQUENCY.
-    LiquidLegionsV2 liquid_legions_v2 = 3;
+    // May only be set when `measurement_type` is `REACH_AND_FREQUENCY`.
+    LiquidLegionsV2 liquid_legions_v2 = 3 [deprecated = true];
   }
+
+  // List of protocols the EDP may use
+  repeated Protocol protocols = 4;
 }
 
 // Parameters for a Liquid Legions sketch.
