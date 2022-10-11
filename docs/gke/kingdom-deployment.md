@@ -235,7 +235,6 @@ First, prepare all the files we want to include in the Kubernetes secret. The
     *   All EDPs
     *   All MC reporting tools (frontends)
     *   The Kingdom's itself (for traffic between Kingdom servers)
-    *   The health probe
 
     Supposing your root certs are all in a single folder and end with
     `_root.pem`, you can concatenate them all with a simple shell command:
@@ -244,29 +243,23 @@ First, prepare all the files we want to include in the Kubernetes secret. The
     cat *_root.pem > all_root_certs.pem
     ```
 
-2.  `kingdom_tls.pem`
+    Note: This assumes that all your root certificate PEM files end in newline.
+
+1.  `kingdom_tls.pem`
 
     The Kingdom's TLS certificate.
 
-3.  `kingdom_tls.key`
+1.  `kingdom_tls.key`
 
     The private key for the Kingdom's TLS certificate.
 
-4.  `health_probe_tls.pem`
-
-    The health probe's TLS certificate.
-
-5.  `health_probe_tls.key`
-
-    The private key for the health probe's TLS certificate.
-
-6.  `duchy_cert_config.textproto`
+1.  `duchy_cert_config.textproto`
 
     Configuration mapping Duchy root certificates to the corresponding Duchy ID.
 
     -   [Example](../../src/main/k8s/testing/secretfiles/duchy_cert_config.textproto)
 
-7.  `llv2_protocol_config_config.textproto`
+1.  `llv2_protocol_config_config.textproto`
 
     Configuration for the Liquid Legions v2 protocol.
 
@@ -286,8 +279,6 @@ secretGenerator:
   - all_root_certs.pem
   - kingdom_tls.key
   - kingdom_tls.pem
-  - health_probe_tls.pem
-  - health_probe_tls.key
   - duchy_cert_config.textproto
   - llv2_protocol_config_config.textproto
 ```
