@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
 import com.google.protobuf.ByteString
 import com.google.protobuf.duration
 import io.grpc.StatusException
@@ -33,7 +34,6 @@ import org.wfanet.anysketch.SketchConfigKt.valueSpec
 import org.wfanet.anysketch.SketchProtos
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
-import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
 import org.wfanet.anysketch.crypto.EncryptSketchRequest
 import org.wfanet.anysketch.crypto.EncryptSketchResponse
 import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
@@ -206,10 +206,12 @@ class EdpSimulator(
         )
       }
 
-      if (!requisition.hasProtocolConfig()) {
+      if (
+        !requisition.hasProtocolConfig() ||
+          requisition.protocolConfig.protocolsList.last().hasDirect()
+      ) {
         when (measurementSpec.measurementTypeCase) {
           MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
-            // Direct R/F measurement(single EDP) will not have protocolConfig
             fulfillDirectReachAndFrequencyMeasurement(requisition, requisitionSpec, measurementSpec)
           }
           MeasurementSpec.MeasurementTypeCase.IMPRESSION ->

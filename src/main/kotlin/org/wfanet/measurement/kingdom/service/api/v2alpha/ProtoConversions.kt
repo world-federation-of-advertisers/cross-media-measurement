@@ -40,7 +40,9 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKey
+import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
+import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.protocol
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.exchange
 import org.wfanet.measurement.api.v2alpha.exchangeStep
@@ -64,6 +66,8 @@ import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasuremen
 import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.details
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
+import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt.direct as internalDirect
+import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt.protocol as internalProtocol
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.exchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
@@ -159,6 +163,13 @@ fun InternalProtocolConfig.toProtocolConfig(): ProtocolConfig {
         ellipticCurveId = source.liquidLegionsV2.ellipticCurveId
         maximumFrequency = source.liquidLegionsV2.maximumFrequency
       }
+    }
+
+    source.protocolsList.forEach { sourceProtocol ->
+      if (sourceProtocol.hasLiquidLegionsV2()) {
+        protocols += protocol { liquidLegionsV2 = this@protocolConfig.liquidLegionsV2 }
+      }
+      if (sourceProtocol.hasDirect()) protocols += protocol { direct = direct {} }
     }
   }
 }
@@ -275,19 +286,19 @@ fun Measurement.toInternal(
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (measurementSpecProto.measurementTypeCase) {
         MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
-          // For single EDP direct R/F measurement, don't generate internal protocolConfig
-          if (dataProvidersCount > 1) {
-            protocolConfig = internalProtocolConfig {
-              externalProtocolConfigId = Llv2ProtocolConfig.name
-              measurementType = InternalProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
-              liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
-            }
-            duchyProtocolConfig = duchyProtocolConfig {
-              liquidLegionsV2 = Llv2ProtocolConfig.duchyProtocolConfig
-            }
+          protocolConfig = internalProtocolConfig {
+            externalProtocolConfigId = Llv2ProtocolConfig.name
+            measurementType = InternalProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
+            liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
+            protocols += internalProtocol { liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig }
+            // For single EDP direct R/F measurement, add direct protocol
+            if (dataProvidersCount == 1)
+              protocols += internalProtocol { direct = internalDirect {} }
+          }
+          duchyProtocolConfig = duchyProtocolConfig {
+            liquidLegionsV2 = Llv2ProtocolConfig.duchyProtocolConfig
           }
         }
-        // No protocol for impression or duration type.
         MeasurementSpec.MeasurementTypeCase.IMPRESSION,
         MeasurementSpec.MeasurementTypeCase.DURATION -> {}
         MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
