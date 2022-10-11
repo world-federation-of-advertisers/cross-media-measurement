@@ -702,6 +702,8 @@ class EdpSimulatorTest {
             ellipticCurveId = 415
             maximumFrequency = 12
           }
+        protocols +=
+          ProtocolConfigKt.protocol { liquidLegionsV2 = this@protocolConfig.liquidLegionsV2 }
       }
       duchies += duchyEntry {
         key = DUCHIES_MAP_KEY
