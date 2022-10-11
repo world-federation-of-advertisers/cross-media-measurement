@@ -57,6 +57,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
+import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.cancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.copy
@@ -249,8 +250,13 @@ class MeasurementsServiceTest {
           details =
             details.copy {
               clearFailure()
-              clearProtocolConfig()
-              clearDuchyProtocolConfig()
+              protocolConfig =
+                protocolConfig.copy {
+                  protocols +=
+                    InternalProtocolConfigKt.protocol {
+                      direct = InternalProtocolConfigKt.direct {}
+                    }
+                }
             }
           results.clear()
         }
@@ -1377,6 +1383,10 @@ class MeasurementsServiceTest {
             delta = 3.3
           }
         }
+      protocols +=
+        InternalProtocolConfigKt.protocol {
+          liquidLegionsV2 = this@internalProtocolConfig.liquidLegionsV2
+        }
     }
 
     private val PUBLIC_PROTOCOL_CONFIG = protocolConfig {
@@ -1393,6 +1403,8 @@ class MeasurementsServiceTest {
           delta = 3.3
         }
       }
+      protocols +=
+        ProtocolConfigKt.protocol { liquidLegionsV2 = this@protocolConfig.liquidLegionsV2 }
     }
 
     private val DUCHY_PROTOCOL_CONFIG = duchyProtocolConfig {
