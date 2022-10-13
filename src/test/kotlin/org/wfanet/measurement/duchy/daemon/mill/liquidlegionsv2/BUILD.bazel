@@ -5,6 +5,7 @@ kt_jvm_test(
     srcs = ["LiquidLegionsV2MillTest.kt"],
     test_class = "org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.LiquidLegionsV2MillTest",
     deps = [
+        "//imports/java/io/opentelemetry/sdk:testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill/liquidlegionsv2:liquid_legions_v2_mill",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",

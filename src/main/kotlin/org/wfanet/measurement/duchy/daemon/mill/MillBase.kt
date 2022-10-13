@@ -63,6 +63,14 @@ import org.wfanet.measurement.system.v1alpha.ComputationLogEntry.ErrorDetails.Ty
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
+import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.metrics.DoubleHistogram
+import io.opentelemetry.api.metrics.Meter
+import kotlin.time.DurationUnit
+import kotlin.time.ExperimentalTime
+import kotlin.time.TimeSource
 import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
 import org.wfanet.measurement.system.v1alpha.FailComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.setComputationResultRequest
@@ -104,8 +112,34 @@ abstract class MillBase(
   private val requestChunkSizeBytes: Int,
   private val maximumAttempts: Int,
   private val clock: Clock,
+  openTelemetry: OpenTelemetry,
 ) {
   abstract val endingStage: ComputationStage
+
+  private val meter: Meter =
+    openTelemetry.getMeter(MillBase::class.java.name)
+
+  init {
+    meter
+      .gaugeBuilder("active_non_daemon_thread_count")
+      .ofLongs()
+      .buildWithCallback { it.record((threadBean.threadCount - threadBean.daemonThreadCount).toLong()) }
+  }
+
+  private val jniWallClockDurationHistogram: DoubleHistogram =
+    meter
+      .histogramBuilder("jni_wall_clock_duration_histogram_minutes")
+      .build()
+
+  private val stageWallClockDurationHistogram: DoubleHistogram =
+    meter
+      .histogramBuilder("stage_wall_clock_duration_histogram_minutes")
+      .build()
+
+  private val stageCpuTimeDurationHistogram: DoubleHistogram =
+    meter
+      .histogramBuilder("stage_cpu_time_duration_histogram_minutes")
+      .build()
 
   /**
    * The main function of the mill. Continually poll and work on available computations from the
@@ -123,6 +157,7 @@ abstract class MillBase(
 
   var computationsServerReady = false
   /** Poll and work on the next available computations. */
+  @OptIn(ExperimentalTime::class)
   suspend fun pollAndProcessNextComputation() {
     logger.fine("@Mill $millId: Polling available computations...")
 
@@ -143,8 +178,12 @@ abstract class MillBase(
     if (claimWorkResponse.hasToken()) {
       val wallDurationLogger = wallDurationLogger()
       val cpuDurationLogger = cpuDurationLogger()
+      val timeMark = TimeSource.Monotonic.markNow()
       val token = claimWorkResponse.token
+      stageWallClockDurationHistogram.record(timeMark.elapsedNow().toDouble(DurationUnit.MINUTES))
+      stageCpuTimeDurationHistogram.record(getCpuTimeMillis() / 60000.0)
       processComputation(token)
+
       wallDurationLogger.logStageDurationMetric(token, STAGE_WALL_CLOCK_DURATION)
       cpuDurationLogger.logStageDurationMetric(token, STAGE_CPU_DURATION)
     } else {
@@ -354,6 +393,7 @@ abstract class MillBase(
   /**
    * Fetches the cached result if available, otherwise compute the new result by executing [block].
    */
+  @OptIn(ExperimentalTime::class)
   protected suspend fun existingOutputOr(
     token: ComputationToken,
     block: suspend () -> ByteString
@@ -365,7 +405,9 @@ abstract class MillBase(
     val newResult: ByteString =
       try {
         val wallDurationLogger = wallDurationLogger()
+        val timeMark = TimeSource.Monotonic.markNow()
         val result = block()
+        jniWallClockDurationHistogram.record(timeMark.elapsedNow().toDouble(DurationUnit.MINUTES))
         wallDurationLogger.logStageDurationMetric(token, JNI_WALL_CLOCK_DURATION)
         result
       } catch (error: Throwable) {

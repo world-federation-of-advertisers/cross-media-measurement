@@ -120,6 +120,7 @@ kt_jvm_library(
         ":all_cmms_services",
         ":configs",
         ":in_process_kingdom",
+        "//imports/java/io/opentelemetry/sdk:testing",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/common/identity:principal_identity",
         "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",

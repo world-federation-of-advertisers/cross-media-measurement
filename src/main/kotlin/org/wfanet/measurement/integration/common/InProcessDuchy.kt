@@ -63,6 +63,8 @@ import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.Computa
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub as SystemRequisitionsCoroutineStub
+import io.opentelemetry.sdk.testing.junit4.OpenTelemetryRule
+import org.junit.Rule
 
 /**
  * TestRule that starts and stops all Duchy gRPC services and daemons.
@@ -121,6 +123,10 @@ class InProcessDuchy(
       )
       addService(ComputationStatsService(duchyDependencies.computationsDatabase))
     }
+
+  @get:Rule
+  val openTelemetryRule: OpenTelemetryRule = OpenTelemetryRule.create()
+
   private val requisitionFulfillmentServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       addService(
@@ -221,7 +227,8 @@ class InProcessDuchy(
             computationStatsClient = computationStatsClient,
             throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1)),
             workerStubs = workerStubs,
-            cryptoWorker = JniLiquidLegionsV2Encryption()
+            cryptoWorker = JniLiquidLegionsV2Encryption(),
+            openTelemetry = openTelemetryRule.openTelemetry
           )
         liquidLegionsV2mill.continuallyProcessComputationQueue()
       }

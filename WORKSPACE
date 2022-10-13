@@ -34,6 +34,11 @@ ADDITIONAL_MAVEN_ARTIFACTS = artifacts.dict_to_list({
     "org.projectnessie.cel:cel-core": "0.2.4",
     "org.projectnessie.cel:cel-tools": "0.2.4",
     "org.projectnessie.cel:cel-generated-pb": "0.2.4",
+    "io.opentelemetry:opentelemetry-api": "1.19.0",
+    "io.opentelemetry:opentelemetry-sdk": "1.19.0",
+    "io.opentelemetry:opentelemetry-sdk-testing": "1.19.0",
+    "io.opentelemetry:opentelemetry-exporter-otlp": "1.19.0",
+    "io.opentelemetry:opentelemetry-semconv": "1.19.0-alpha",
 })
 
 maven_install(

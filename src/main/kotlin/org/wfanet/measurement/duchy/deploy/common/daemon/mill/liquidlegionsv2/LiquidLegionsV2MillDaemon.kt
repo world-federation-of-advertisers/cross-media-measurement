@@ -37,7 +37,24 @@ import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.Computatio
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub as SystemComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.exporter.otlp.metrics.OtlpGrpcMetricExporter
+import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.metrics.Aggregation
+import io.opentelemetry.sdk.metrics.InstrumentSelector
+import io.opentelemetry.sdk.metrics.InstrumentType
+import io.opentelemetry.sdk.metrics.SdkMeterProvider
+import io.opentelemetry.sdk.metrics.View
+import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
+import io.opentelemetry.sdk.resources.Resource
+import io.opentelemetry.semconv.resource.attributes.ResourceAttributes
+import java.time.Duration
 import picocli.CommandLine
+
+private const val OTEL_EXPORTER_OTLP_ENDPOINT = "OTEL_EXPORTER_OTLP_ENDPOINT"
+private const val OTEL_SERVICE_NAME = "OTEL_SERVICE_NAME"
 
 abstract class LiquidLegionsV2MillDaemon : Runnable {
   @CommandLine.Mixin
@@ -112,6 +129,36 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
     // included in mill logs to help debugging.
     val millId = System.getenv("HOSTNAME")
 
+    val otlpEndpoint: String? = System.getenv(OTEL_EXPORTER_OTLP_ENDPOINT)
+    val otelServiceName: String? = System.getenv(OTEL_SERVICE_NAME)
+    val openTelemetry: OpenTelemetry =
+      if (otlpEndpoint == null || otelServiceName == null) {
+        GlobalOpenTelemetry.get()
+      } else {
+        val resource: Resource = Resource.getDefault()
+          .merge(Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME,
+                                               otelServiceName)))
+        val meterProvider =
+          SdkMeterProvider.builder()
+            .setResource(resource)
+            .registerMetricReader(PeriodicMetricReader.builder(OtlpGrpcMetricExporter.builder()
+                                                                 .setTimeout(Duration.ofSeconds(30L))
+                                                                 .setEndpoint(otlpEndpoint)
+                                                                 .build())
+                                    .build())
+            .registerView(InstrumentSelector.builder()
+                                   .setType(InstrumentType.HISTOGRAM)
+                                   .build(),
+                          View.builder()
+                                   .setAggregation(
+                                       Aggregation.explicitBucketHistogram(listOf(0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0, 60.0)))
+               .build())
+            .build()
+        OpenTelemetrySdk.builder()
+          .setMeterProvider(meterProvider)
+          .build()
+      }
+
     val mill =
       LiquidLegionsV2Mill(
         millId = millId,
@@ -126,7 +173,8 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
         workerStubs = computationControlClientMap,
         cryptoWorker = JniLiquidLegionsV2Encryption(),
         throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval),
-        requestChunkSizeBytes = flags.requestChunkSizeBytes
+        requestChunkSizeBytes = flags.requestChunkSizeBytes,
+        openTelemetry = openTelemetry
       )
 
     runBlocking { mill.continuallyProcessComputationQueue() }

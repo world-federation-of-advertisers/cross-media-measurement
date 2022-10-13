@@ -140,6 +140,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.Compu
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineImplBase as SystemComputationsCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
+import io.opentelemetry.sdk.testing.junit4.OpenTelemetryRule
 import org.wfanet.measurement.system.v1alpha.ConfirmComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.FailComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
@@ -506,6 +507,9 @@ class LiquidLegionsV2MillTest {
 
   @get:Rule val ruleChain = chainRulesSequentially(tempDirectory, grpcTestServerRule)
 
+  @get:Rule
+  val openTelemetryRule: OpenTelemetryRule = OpenTelemetryRule.create()
+
   private val workerStub: ComputationControlCoroutineStub by lazy {
     ComputationControlCoroutineStub(grpcTestServerRule.channel)
   }
@@ -584,7 +588,8 @@ class LiquidLegionsV2MillTest {
         cryptoWorker = mockCryptoWorker,
         throttler = throttler,
         requestChunkSizeBytes = 20,
-        maximumAttempts = 2
+        maximumAttempts = 2,
+        openTelemetry = openTelemetryRule.openTelemetry,
       )
     nonAggregatorMill =
       LiquidLegionsV2Mill(
@@ -601,8 +606,9 @@ class LiquidLegionsV2MillTest {
         cryptoWorker = mockCryptoWorker,
         throttler = throttler,
         requestChunkSizeBytes = 20,
-        maximumAttempts = 2
-      )
+        maximumAttempts = 2,
+        openTelemetry = openTelemetryRule.openTelemetry,
+        )
   }
 
   @Test

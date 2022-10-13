@@ -1,0 +1,26 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "testing",
+    actual = "@maven//:io_opentelemetry_opentelemetry_sdk_testing",
+)
+
+alias(
+    name = "otlp_exporter",
+    actual = "@maven//:io_opentelemetry_opentelemetry_exporter_otlp",
+)
+
+alias(
+    name = "sdk",
+    actual = "@maven//:io_opentelemetry_opentelemetry_sdk",
+)
+
+alias(
+    name = "sdk_common",
+    actual = "@maven//:io_opentelemetry_opentelemetry_sdk_common",
+)
+
+alias(
+    name = "sdk_metrics",
+    actual = "@maven//:io_opentelemetry_opentelemetry_sdk_metrics",
+)

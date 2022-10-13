@@ -99,22 +99,25 @@ import ("strings")
 				_debug_verbose_grpc_client_logging_flag,
 			]
 		}
-		"liquid-legions-v2-mill-daemon-deployment": {
-			_container: args: [
-						_computations_service_target_flag,
-						_computations_service_cert_host_flag,
-						_duchy_name_flag,
-						_duchy_info_config_flag,
-						_duchy_tls_cert_file_flag,
-						_duchy_tls_key_file_flag,
-						_duchy_cert_collection_file_flag,
-						_duchy_cs_cert_file_flag,
-						_duchy_cs_key_file_flag,
-						_duchy_cs_cert_rename_name_flag,
-						_kingdom_system_api_target_flag,
-						_kingdom_system_api_cert_host_flag,
-						if (_millPollingInterval != _|_) {"--polling-interval=\(_millPollingInterval)"},
-			] + _blob_storage_flags + _computation_control_target_flags
+		"liquid-legions-v2-mill-daemon-deployment": Deployment={
+			_container: {
+				args: [
+					_computations_service_target_flag,
+					_computations_service_cert_host_flag,
+					_duchy_name_flag,
+					_duchy_info_config_flag,
+					_duchy_tls_cert_file_flag,
+					_duchy_tls_key_file_flag,
+					_duchy_cert_collection_file_flag,
+					_duchy_cs_cert_file_flag,
+					_duchy_cs_key_file_flag,
+					_duchy_cs_cert_rename_name_flag,
+					_kingdom_system_api_target_flag,
+					_kingdom_system_api_cert_host_flag,
+					if (_millPollingInterval != _|_) {"--polling-interval=\(_millPollingInterval)"},
+				] + _blob_storage_flags + _computation_control_target_flags
+				_envVars: "OTEL_SERVICE_NAME": value: "\(Deployment.metadata.name)"
+			}
 			spec: template: spec: _dependencies: [
 				"\(_name)-spanner-computations-server", "\(_name)-computation-control-server",
 			]
