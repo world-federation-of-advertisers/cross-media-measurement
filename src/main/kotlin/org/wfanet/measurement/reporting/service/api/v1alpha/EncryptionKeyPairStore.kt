@@ -16,6 +16,7 @@ package org.wfanet.measurement.reporting.service.api.v1alpha
 
 import com.google.common.hash.Hashing.goodFastHash
 import com.google.protobuf.ByteString
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 
 private const val DEFAULT_HASH_MINIMUM_BITS = 128
@@ -36,6 +37,12 @@ class InMemoryEncryptionKeyPairStore(
       keyPairs.associate { (publicKey, privateKey) -> fingerprint(publicKey) to privateKey }
     }
 
+  /**
+   * Retrieves the corresponding [PrivateKeyHandle] for a serialized public key.
+   *
+   * @param principal resource name the public key belongs to
+   * @param publicKey `data` field of an [EncryptionPublicKey]
+   */
   override suspend fun getPrivateKeyHandle(
     principal: String,
     publicKey: ByteString

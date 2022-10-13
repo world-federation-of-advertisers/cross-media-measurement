@@ -20,6 +20,7 @@ import io.grpc.StatusException
 import java.nio.file.Paths
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -49,6 +50,7 @@ import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKt.eventTemplate
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
 import org.wfanet.measurement.api.v2alpha.LiquidLegionsSketchParams
@@ -159,9 +161,13 @@ class EdpSimulator(
     for (requisition in requisitions) {
       logger.info("Processing requisition ${requisition.name}...")
       val measurementConsumerCertificate =
-        certificatesStub.getCertificate(
-          getCertificateRequest { name = requisition.measurementConsumerCertificate }
-        )
+        try {
+          certificatesStub.getCertificate(
+            getCertificateRequest { name = requisition.measurementConsumerCertificate }
+          )
+        } catch (e: StatusException) {
+          throw Exception("Error fetching cert ${requisition.measurementConsumerCertificate}", e)
+        }
       val measurementConsumerCertificateX509 =
         readCertificate(measurementConsumerCertificate.x509Der)
 
@@ -229,15 +235,19 @@ class EdpSimulator(
     justification: Requisition.Refusal.Justification,
     message: String
   ): Requisition {
-    return requisitionsStub.refuseRequisition(
-      refuseRequisitionRequest {
-        name = requisitionName
-        refusal = refusal {
-          this.justification = justification
-          this.message = message
+    try {
+      return requisitionsStub.refuseRequisition(
+        refuseRequisitionRequest {
+          name = requisitionName
+          refusal = refusal {
+            this.justification = justification
+            this.message = message
+          }
         }
-      }
-    )
+      )
+    } catch (e: StatusException) {
+      throw Exception("Error refusing requisition $requisitionName", e)
+    }
   }
 
   private fun populateAnySketch(
@@ -375,24 +385,27 @@ class EdpSimulator(
     data: ByteString,
   ) {
     logger.info("Fulfilling requisition $requisitionName...")
-    requisitionFulfillmentStub.fulfillRequisition(
-      flow {
-        emit(
-          fulfillRequisitionRequest {
-            header = header {
-              name = requisitionName
-              this.requisitionFingerprint = requisitionFingerprint
-              this.nonce = nonce
-            }
+    val requests: Flow<FulfillRequisitionRequest> = flow {
+      emit(
+        fulfillRequisitionRequest {
+          header = header {
+            name = requisitionName
+            this.requisitionFingerprint = requisitionFingerprint
+            this.nonce = nonce
           }
-        )
-        emitAll(
-          data.asBufferedFlow(RPC_CHUNK_SIZE_BYTES).map {
-            fulfillRequisitionRequest { bodyChunk = bodyChunk { this.data = it } }
-          }
-        )
-      }
-    )
+        }
+      )
+      emitAll(
+        data.asBufferedFlow(RPC_CHUNK_SIZE_BYTES).map {
+          fulfillRequisitionRequest { bodyChunk = bodyChunk { this.data = it } }
+        }
+      )
+    }
+    try {
+      requisitionFulfillmentStub.fulfillRequisition(requests)
+    } catch (e: StatusException) {
+      throw Exception("Error fulfilling requisition $requisitionName", e)
+    }
   }
 
   private fun Requisition.getCombinedPublicKey(curveId: Int): AnySketchElGamalPublicKey {
@@ -421,7 +434,11 @@ class EdpSimulator(
       }
     }
 
-    return requisitionsStub.listRequisitions(request).requisitionsList
+    try {
+      return requisitionsStub.listRequisitions(request).requisitionsList
+    } catch (e: StatusException) {
+      throw Exception("Error listing requisitions", e)
+    }
   }
 
   /**
@@ -523,13 +540,17 @@ class EdpSimulator(
     val encryptedData =
       measurementEncryptionPublicKey.toPublicKeyHandle().hybridEncrypt(signedData.toByteString())
 
-    requisitionsStub.fulfillDirectRequisition(
-      fulfillDirectRequisitionRequest {
-        name = requisition.name
-        this.encryptedData = encryptedData
-        nonce = requisitionSpec.nonce
-      }
-    )
+    try {
+      requisitionsStub.fulfillDirectRequisition(
+        fulfillDirectRequisitionRequest {
+          name = requisition.name
+          this.encryptedData = encryptedData
+          nonce = requisitionSpec.nonce
+        }
+      )
+    } catch (e: StatusException) {
+      throw Exception("Error fulfilling direct requisition ${requisition.name}", e)
+    }
   }
 
   companion object {

@@ -234,19 +234,19 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
   }
 
   @Test
-  fun `authenticateApiKey throws UNAUTHENTICATED when authentication key hash is missing`() =
+  fun `authenticateApiKey throws INVALID_ARGUMENT when authentication key hash is missing`() =
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
           apiKeysService.authenticateApiKey(authenticateApiKeyRequest {})
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-      assertThat(exception).hasMessageThat().contains("Authentication Key hash is missing")
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("authentication_key_hash")
     }
 
   @Test
-  fun `authenticateApiKey throws UNAUTHENTICATED when authentication key hash doesn't match`() =
+  fun `authenticateApiKey throws NOT_FOUND when authentication key hash doesn't match`() =
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
@@ -255,12 +255,12 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
           )
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-      assertThat(exception).hasMessageThat().contains("Authentication Key is not valid")
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+      assertThat(exception).hasMessageThat().contains("ApiKey")
     }
 
   @Test
-  fun `authenticateApiKey throws UNAUTHENTICATED when api key has been deleted`() = runBlocking {
+  fun `authenticateApiKey throws NOT_FOUND when api key has been deleted`() = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
     val apiKey =
@@ -285,7 +285,7 @@ abstract class ApiKeysServiceTest<T : ApiKeysCoroutineImplBase> {
         )
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-    assertThat(exception).hasMessageThat().contains("Authentication Key is not valid")
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("ApiKey")
   }
 }

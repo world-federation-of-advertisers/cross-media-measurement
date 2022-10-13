@@ -5,7 +5,10 @@ load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 kt_jvm_library(
     name = "reporting_data_server",
     srcs = ["ReportingDataServer.kt"],
-    visibility = ["//src/main/kotlin/org/wfanet/measurement/reporting/deploy:__subpackages__"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy:__subpackages__",
+    ],
     deps = [
         "//src/main/proto/wfa/measurement/internal/reporting:measurements_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/reporting:reporting_sets_service_kt_jvm_grpc_proto",
@@ -30,14 +33,14 @@ kt_jvm_library(
     runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [
         ":reporting_api_server_flags",
+        "//src/main/kotlin/org/wfanet/measurement/common/api:memoizing_principal_lookup",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/common:encryption_key_pair_map",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/common:kingdom_flags",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:akid_principal_lookup",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:encryption_key_pair_store",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:event_groups_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:reporting_sets_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:reports_service",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:textproto_file_measurement_consumer_config_lookup",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:textproto_file_principal_lookup",
         "//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:data_providers_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_metadata_descriptors_service_kt_jvm_grpc_proto",

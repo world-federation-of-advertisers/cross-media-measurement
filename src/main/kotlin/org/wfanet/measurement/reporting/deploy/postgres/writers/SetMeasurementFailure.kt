@@ -19,17 +19,33 @@ import org.wfanet.measurement.internal.reporting.Measurement
 import org.wfanet.measurement.internal.reporting.Report
 import org.wfanet.measurement.internal.reporting.SetMeasurementFailureRequest
 import org.wfanet.measurement.internal.reporting.measurement
+import org.wfanet.measurement.reporting.deploy.postgres.readers.MeasurementReader
 import org.wfanet.measurement.reporting.service.internal.MeasurementNotFoundException
+import org.wfanet.measurement.reporting.service.internal.MeasurementStateInvalidException
 
 /**
  * Update a [Measurement] to be in a failure state along with any dependent [Report].
  *
  * Throws the following on [execute]:
  * * [MeasurementNotFoundException] Measurement not found.
+ * * [MeasurementStateInvalidException] Measurement does not have PENDING state.
  */
 class SetMeasurementFailure(private val request: SetMeasurementFailureRequest) :
   PostgresWriter<Measurement>() {
   override suspend fun TransactionScope.runTransaction(): Measurement {
+    val measurementResult =
+      MeasurementReader()
+        .readMeasurementByReferenceIds(
+          transactionContext,
+          measurementConsumerReferenceId = request.measurementConsumerReferenceId,
+          measurementReferenceId = request.measurementReferenceId
+        )
+        ?: throw MeasurementNotFoundException()
+
+    if (measurementResult.measurement.state != Measurement.State.PENDING) {
+      throw MeasurementStateInvalidException()
+    }
+
     val updateMeasurementStatement =
       boundStatement(
         """
@@ -66,7 +82,7 @@ class SetMeasurementFailure(private val request: SetMeasurementFailureRequest) :
     transactionContext.run {
       val numRowsUpdated = executeStatement(updateMeasurementStatement).numRowsUpdated
       if (numRowsUpdated == 0L) {
-        throw MeasurementNotFoundException()
+        return@run
       }
       executeStatement(updateReportStatement)
     }
