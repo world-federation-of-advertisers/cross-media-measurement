@@ -123,13 +123,13 @@ abstract class MillBase(
   }
 
   private val jniWallClockDurationHistogram: DoubleHistogram =
-    meter.histogramBuilder("jni_wall_clock_duration_histogram_minutes").build()
+    meter.histogramBuilder("jni_wall_clock_duration_histogram_seconds").build()
 
   private val stageWallClockDurationHistogram: DoubleHistogram =
-    meter.histogramBuilder("stage_wall_clock_duration_histogram_minutes").build()
+    meter.histogramBuilder("stage_wall_clock_duration_histogram_seconds").build()
 
   private val stageCpuTimeDurationHistogram: DoubleHistogram =
-    meter.histogramBuilder("stage_cpu_time_duration_histogram_minutes").build()
+    meter.histogramBuilder("stage_cpu_time_duration_histogram_seconds").build()
 
   /**
    * The main function of the mill. Continually poll and work on available computations from the
@@ -145,7 +145,7 @@ abstract class MillBase(
     }
   }
 
-  var computationsServerReady = false
+  private var computationsServerReady = false
   /** Poll and work on the next available computations. */
   @OptIn(ExperimentalTime::class)
   suspend fun pollAndProcessNextComputation() {
@@ -170,12 +170,11 @@ abstract class MillBase(
       val cpuDurationLogger = cpuDurationLogger()
       val timeMark = TimeSource.Monotonic.markNow()
       val token = claimWorkResponse.token
-      stageWallClockDurationHistogram.record(timeMark.elapsedNow().toDouble(DurationUnit.MINUTES))
-      stageCpuTimeDurationHistogram.record(getCpuTimeMillis() / 60000.0)
-      processComputation(token)
 
+      processComputation(token)
+      stageWallClockDurationHistogram.record(timeMark.elapsedNow().toDouble(DurationUnit.SECONDS))
+      stageCpuTimeDurationHistogram.record(cpuDurationLogger.logStageDurationMetric(token, STAGE_CPU_DURATION) / 1000.0)
       wallDurationLogger.logStageDurationMetric(token, STAGE_WALL_CLOCK_DURATION)
-      cpuDurationLogger.logStageDurationMetric(token, STAGE_CPU_DURATION)
     } else {
       logger.fine("@Mill $millId: No computation available, waiting for the next poll...")
     }
@@ -397,7 +396,7 @@ abstract class MillBase(
         val wallDurationLogger = wallDurationLogger()
         val timeMark = TimeSource.Monotonic.markNow()
         val result = block()
-        jniWallClockDurationHistogram.record(timeMark.elapsedNow().toDouble(DurationUnit.MINUTES))
+        jniWallClockDurationHistogram.record(timeMark.elapsedNow().toDouble(DurationUnit.SECONDS))
         wallDurationLogger.logStageDurationMetric(token, JNI_WALL_CLOCK_DURATION)
         result
       } catch (error: Throwable) {
@@ -466,9 +465,10 @@ abstract class MillBase(
 
   private inner class DurationLogger(private val getTimeMillis: () -> Long) {
     private val start = getTimeMillis()
-    suspend fun logStageDurationMetric(token: ComputationToken, metricName: String) {
+    suspend fun logStageDurationMetric(token: ComputationToken, metricName: String): Long {
       val time = getTimeMillis() - start
       logStageDurationMetric(token, metricName, time)
+      return time
     }
   }
   private fun cpuDurationLogger(): DurationLogger = DurationLogger(this::getCpuTimeMillis)
