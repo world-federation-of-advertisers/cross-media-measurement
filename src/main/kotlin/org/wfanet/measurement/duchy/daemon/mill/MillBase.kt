@@ -173,7 +173,9 @@ abstract class MillBase(
 
       processComputation(token)
       stageWallClockDurationHistogram.record(timeMark.elapsedNow().toDouble(DurationUnit.SECONDS))
-      stageCpuTimeDurationHistogram.record(cpuDurationLogger.logStageDurationMetric(token, STAGE_CPU_DURATION) / 1000.0)
+      stageCpuTimeDurationHistogram.record(
+        cpuDurationLogger.logStageDurationMetric(token, STAGE_CPU_DURATION) / 1000.0
+      )
       wallDurationLogger.logStageDurationMetric(token, STAGE_WALL_CLOCK_DURATION)
     } else {
       logger.fine("@Mill $millId: No computation available, waiting for the next poll...")
