@@ -17,6 +17,9 @@ package org.wfanet.measurement.duchy.daemon.mill
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
+import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.api.metrics.DoubleHistogram
+import io.opentelemetry.api.metrics.Meter
 import java.lang.management.ManagementFactory
 import java.lang.management.ThreadMXBean
 import java.security.cert.X509Certificate
@@ -26,6 +29,9 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.math.pow
 import kotlin.random.Random
+import kotlin.time.DurationUnit
+import kotlin.time.ExperimentalTime
+import kotlin.time.TimeSource
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -63,14 +69,6 @@ import org.wfanet.measurement.system.v1alpha.ComputationLogEntry.ErrorDetails.Ty
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
-import io.opentelemetry.api.OpenTelemetry
-import io.opentelemetry.api.common.AttributeKey
-import io.opentelemetry.api.common.Attributes
-import io.opentelemetry.api.metrics.DoubleHistogram
-import io.opentelemetry.api.metrics.Meter
-import kotlin.time.DurationUnit
-import kotlin.time.ExperimentalTime
-import kotlin.time.TimeSource
 import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
 import org.wfanet.measurement.system.v1alpha.FailComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.setComputationResultRequest
@@ -116,30 +114,22 @@ abstract class MillBase(
 ) {
   abstract val endingStage: ComputationStage
 
-  private val meter: Meter =
-    openTelemetry.getMeter(MillBase::class.java.name)
+  private val meter: Meter = openTelemetry.getMeter(MillBase::class.java.name)
 
   init {
-    meter
-      .gaugeBuilder("active_non_daemon_thread_count")
-      .ofLongs()
-      .buildWithCallback { it.record((threadBean.threadCount - threadBean.daemonThreadCount).toLong()) }
+    meter.gaugeBuilder("active_non_daemon_thread_count").ofLongs().buildWithCallback {
+      it.record((threadBean.threadCount - threadBean.daemonThreadCount).toLong())
+    }
   }
 
   private val jniWallClockDurationHistogram: DoubleHistogram =
-    meter
-      .histogramBuilder("jni_wall_clock_duration_histogram_minutes")
-      .build()
+    meter.histogramBuilder("jni_wall_clock_duration_histogram_minutes").build()
 
   private val stageWallClockDurationHistogram: DoubleHistogram =
-    meter
-      .histogramBuilder("stage_wall_clock_duration_histogram_minutes")
-      .build()
+    meter.histogramBuilder("stage_wall_clock_duration_histogram_minutes").build()
 
   private val stageCpuTimeDurationHistogram: DoubleHistogram =
-    meter
-      .histogramBuilder("stage_cpu_time_duration_histogram_minutes")
-      .build()
+    meter.histogramBuilder("stage_cpu_time_duration_histogram_minutes").build()
 
   /**
    * The main function of the mill. Continually poll and work on available computations from the

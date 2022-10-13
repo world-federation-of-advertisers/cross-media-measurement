@@ -17,6 +17,7 @@ package org.wfanet.measurement.integration.common
 import io.grpc.Channel
 import io.grpc.inprocess.InProcessChannelBuilder
 import io.grpc.testing.GrpcCleanupRule
+import io.opentelemetry.sdk.testing.junit4.OpenTelemetryRule
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Level
@@ -29,6 +30,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import org.junit.Rule
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
@@ -63,8 +65,6 @@ import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.Computa
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub as SystemRequisitionsCoroutineStub
-import io.opentelemetry.sdk.testing.junit4.OpenTelemetryRule
-import org.junit.Rule
 
 /**
  * TestRule that starts and stops all Duchy gRPC services and daemons.
@@ -124,8 +124,7 @@ class InProcessDuchy(
       addService(ComputationStatsService(duchyDependencies.computationsDatabase))
     }
 
-  @get:Rule
-  val openTelemetryRule: OpenTelemetryRule = OpenTelemetryRule.create()
+  @get:Rule val openTelemetryRule: OpenTelemetryRule = OpenTelemetryRule.create()
 
   private val requisitionFulfillmentServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {

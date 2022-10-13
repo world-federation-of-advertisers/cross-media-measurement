@@ -30,6 +30,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import io.grpc.Status
+import io.opentelemetry.sdk.testing.junit4.OpenTelemetryRule
 import java.time.Clock
 import java.time.Duration
 import java.util.Base64
@@ -140,7 +141,6 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.Compu
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineImplBase as SystemComputationsCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
-import io.opentelemetry.sdk.testing.junit4.OpenTelemetryRule
 import org.wfanet.measurement.system.v1alpha.ConfirmComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.FailComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2
@@ -507,8 +507,7 @@ class LiquidLegionsV2MillTest {
 
   @get:Rule val ruleChain = chainRulesSequentially(tempDirectory, grpcTestServerRule)
 
-  @get:Rule
-  val openTelemetryRule: OpenTelemetryRule = OpenTelemetryRule.create()
+  @get:Rule val openTelemetryRule: OpenTelemetryRule = OpenTelemetryRule.create()
 
   private val workerStub: ComputationControlCoroutineStub by lazy {
     ComputationControlCoroutineStub(grpcTestServerRule.channel)
@@ -608,7 +607,7 @@ class LiquidLegionsV2MillTest {
         requestChunkSizeBytes = 20,
         maximumAttempts = 2,
         openTelemetry = openTelemetryRule.openTelemetry,
-        )
+      )
   }
 
   @Test

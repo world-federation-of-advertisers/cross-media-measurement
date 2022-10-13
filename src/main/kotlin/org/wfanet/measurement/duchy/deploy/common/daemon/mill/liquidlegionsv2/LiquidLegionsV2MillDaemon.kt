@@ -15,7 +15,21 @@
 package org.wfanet.measurement.duchy.deploy.common.daemon.mill.liquidlegionsv2
 
 import com.google.protobuf.ByteString
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.exporter.otlp.metrics.OtlpGrpcMetricExporter
+import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.metrics.Aggregation
+import io.opentelemetry.sdk.metrics.InstrumentSelector
+import io.opentelemetry.sdk.metrics.InstrumentType
+import io.opentelemetry.sdk.metrics.SdkMeterProvider
+import io.opentelemetry.sdk.metrics.View
+import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
+import io.opentelemetry.sdk.resources.Resource
+import io.opentelemetry.semconv.resource.attributes.ResourceAttributes
 import java.time.Clock
+import java.time.Duration
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -37,20 +51,6 @@ import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.Computatio
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub as SystemComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
-import io.opentelemetry.api.GlobalOpenTelemetry
-import io.opentelemetry.api.OpenTelemetry
-import io.opentelemetry.api.common.Attributes
-import io.opentelemetry.exporter.otlp.metrics.OtlpGrpcMetricExporter
-import io.opentelemetry.sdk.OpenTelemetrySdk
-import io.opentelemetry.sdk.metrics.Aggregation
-import io.opentelemetry.sdk.metrics.InstrumentSelector
-import io.opentelemetry.sdk.metrics.InstrumentType
-import io.opentelemetry.sdk.metrics.SdkMeterProvider
-import io.opentelemetry.sdk.metrics.View
-import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
-import io.opentelemetry.sdk.resources.Resource
-import io.opentelemetry.semconv.resource.attributes.ResourceAttributes
-import java.time.Duration
 import picocli.CommandLine
 
 private const val OTEL_EXPORTER_OTLP_ENDPOINT = "OTEL_EXPORTER_OTLP_ENDPOINT"
@@ -135,28 +135,33 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
       if (otlpEndpoint == null || otelServiceName == null) {
         GlobalOpenTelemetry.get()
       } else {
-        val resource: Resource = Resource.getDefault()
-          .merge(Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME,
-                                               otelServiceName)))
+        val resource: Resource =
+          Resource.getDefault()
+            .merge(Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME, otelServiceName)))
         val meterProvider =
           SdkMeterProvider.builder()
             .setResource(resource)
-            .registerMetricReader(PeriodicMetricReader.builder(OtlpGrpcMetricExporter.builder()
-                                                                 .setTimeout(Duration.ofSeconds(30L))
-                                                                 .setEndpoint(otlpEndpoint)
-                                                                 .build())
-                                    .build())
-            .registerView(InstrumentSelector.builder()
-                                   .setType(InstrumentType.HISTOGRAM)
-                                   .build(),
-                          View.builder()
-                                   .setAggregation(
-                                       Aggregation.explicitBucketHistogram(listOf(0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0, 60.0)))
-               .build())
+            .registerMetricReader(
+              PeriodicMetricReader.builder(
+                  OtlpGrpcMetricExporter.builder()
+                    .setTimeout(Duration.ofSeconds(30L))
+                    .setEndpoint(otlpEndpoint)
+                    .build()
+                )
+                .build()
+            )
+            .registerView(
+              InstrumentSelector.builder().setType(InstrumentType.HISTOGRAM).build(),
+              View.builder()
+                .setAggregation(
+                  Aggregation.explicitBucketHistogram(
+                    listOf(0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0, 60.0)
+                  )
+                )
+                .build()
+            )
             .build()
-        OpenTelemetrySdk.builder()
-          .setMeterProvider(meterProvider)
-          .build()
+        OpenTelemetrySdk.builder().setMeterProvider(meterProvider).build()
       }
 
     val mill =

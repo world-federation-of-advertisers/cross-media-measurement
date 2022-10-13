@@ -151,8 +151,7 @@ class LiquidLegionsV2Mill(
     clock,
     openTelemetry
   ) {
-  private val meter: Meter =
-    openTelemetry.getMeter(LiquidLegionsV2Mill::class.java.name)
+  private val meter: Meter = openTelemetry.getMeter(LiquidLegionsV2Mill::class.java.name)
 
   private val initializationPhaseCryptoCpuTimeDurationHistogram: DoubleHistogram =
     meter
@@ -160,19 +159,13 @@ class LiquidLegionsV2Mill(
       .build()
 
   private val setupPhaseCryptoCpuTimeDurationHistogram: DoubleHistogram =
-    meter
-      .histogramBuilder("setup_phase_crypto_cpu_time_duration_histogram_minutes")
-      .build()
+    meter.histogramBuilder("setup_phase_crypto_cpu_time_duration_histogram_minutes").build()
 
   private val executionPhaseOneCryptoCpuTimeDurationHistogram: DoubleHistogram =
-    meter
-      .histogramBuilder("execution_phase_one_crypto_cpu_time_duration_histogram_minutes")
-      .build()
+    meter.histogramBuilder("execution_phase_one_crypto_cpu_time_duration_histogram_minutes").build()
 
   private val executionPhaseTwoCryptoCpuTimeDurationHistogram: DoubleHistogram =
-    meter
-      .histogramBuilder("execution_phase_two_crypto_cpu_time_duration_histogram_minutes")
-      .build()
+    meter.histogramBuilder("execution_phase_two_crypto_cpu_time_duration_histogram_minutes").build()
 
   private val executionPhaseThreeCryptoCpuTimeDurationHistogram: DoubleHistogram =
     meter
@@ -262,7 +255,9 @@ class LiquidLegionsV2Mill(
             .apply { curveId = ellipticCurveId.toLong() }
             .build()
         val cryptoResult = cryptoWorker.completeInitializationPhase(request)
-        initializationPhaseCryptoCpuTimeDurationHistogram.record(cryptoResult.elapsedCpuTimeMillis / 60000.0)
+        initializationPhaseCryptoCpuTimeDurationHistogram.record(
+          cryptoResult.elapsedCpuTimeMillis / 60000.0
+        )
         logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
 
         // Updates the newly generated localElgamalKey to the ComputationDetails.
@@ -545,7 +540,9 @@ class LiquidLegionsV2Mill(
         }
         val cryptoResult: CompleteExecutionPhaseOneAtAggregatorResponse =
           cryptoWorker.completeExecutionPhaseOneAtAggregator(requestBuilder.build())
-        executionPhaseOneCryptoCpuTimeDurationHistogram.record(cryptoResult.elapsedCpuTimeMillis / 60000.0)
+        executionPhaseOneCryptoCpuTimeDurationHistogram.record(
+          cryptoResult.elapsedCpuTimeMillis / 60000.0
+        )
         logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
         cryptoResult.flagCountTuples
       }
@@ -586,7 +583,9 @@ class LiquidLegionsV2Mill(
               }
               .build()
           )
-        executionPhaseOneCryptoCpuTimeDurationHistogram.record(cryptoResult.elapsedCpuTimeMillis / 60000.0)
+        executionPhaseOneCryptoCpuTimeDurationHistogram.record(
+          cryptoResult.elapsedCpuTimeMillis / 60000.0
+        )
         logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
         cryptoResult.combinedRegisterVector
       }
@@ -657,7 +656,9 @@ class LiquidLegionsV2Mill(
 
         val cryptoResult: CompleteExecutionPhaseTwoAtAggregatorResponse =
           cryptoWorker.completeExecutionPhaseTwoAtAggregator(requestBuilder.build())
-        executionPhaseTwoCryptoCpuTimeDurationHistogram.record(cryptoResult.elapsedCpuTimeMillis / 60000.0)
+        executionPhaseTwoCryptoCpuTimeDurationHistogram.record(
+          cryptoResult.elapsedCpuTimeMillis / 60000.0
+        )
         logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
         reach = cryptoResult.reach
         cryptoResult.sameKeyAggregatorMatrix
@@ -736,7 +737,9 @@ class LiquidLegionsV2Mill(
 
         val cryptoResult: CompleteExecutionPhaseTwoResponse =
           cryptoWorker.completeExecutionPhaseTwo(requestBuilder.build())
-        executionPhaseTwoCryptoCpuTimeDurationHistogram.record(cryptoResult.elapsedCpuTimeMillis / 60000.0)
+        executionPhaseTwoCryptoCpuTimeDurationHistogram.record(
+          cryptoResult.elapsedCpuTimeMillis / 60000.0
+        )
         logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
         cryptoResult.flagCountTuples
       }
@@ -788,7 +791,9 @@ class LiquidLegionsV2Mill(
         }
         val cryptoResult: CompleteExecutionPhaseThreeAtAggregatorResponse =
           cryptoWorker.completeExecutionPhaseThreeAtAggregator(requestBuilder.build())
-        executionPhaseThreeCryptoCpuTimeDurationHistogram.record(cryptoResult.elapsedCpuTimeMillis / 60000.0)
+        executionPhaseThreeCryptoCpuTimeDurationHistogram.record(
+          cryptoResult.elapsedCpuTimeMillis / 60000.0
+        )
         logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
         cryptoResult.toByteString()
       }
@@ -819,7 +824,9 @@ class LiquidLegionsV2Mill(
               }
               .build()
           )
-        executionPhaseThreeCryptoCpuTimeDurationHistogram.record(cryptoResult.elapsedCpuTimeMillis / 60000.0)
+        executionPhaseThreeCryptoCpuTimeDurationHistogram.record(
+          cryptoResult.elapsedCpuTimeMillis / 60000.0
+        )
         logStageDurationMetric(token, CRYPTO_LIB_CPU_DURATION, cryptoResult.elapsedCpuTimeMillis)
         cryptoResult.sameKeyAggregatorMatrix
       }
