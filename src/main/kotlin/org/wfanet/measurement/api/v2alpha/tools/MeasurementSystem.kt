@@ -22,6 +22,7 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import io.grpc.ManagedChannel
 import java.io.File
+import io.grpc.StatusException
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.time.Clock
@@ -35,6 +36,7 @@ import org.wfanet.measurement.api.v2alpha.Account
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt.ApiKeysCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
@@ -64,6 +66,8 @@ import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
+import org.wfanet.measurement.api.v2alpha.createApiKeyRequest
+import org.wfanet.measurement.api.v2alpha.apiKey
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.signedData
@@ -108,6 +112,7 @@ private val CHANNEL_SHUTDOWN_TIMEOUT = systemDuration.ofSeconds(30)
       Accounts::class,
       MeasurementConsumers::class,
       Measurements::class,
+      ApiKeys::class,
     ]
 )
 class MeasurementSystem private constructor() : Runnable {
@@ -162,6 +167,59 @@ class MeasurementSystem private constructor() : Runnable {
   }
 }
 
+////////////////
+
+@Command(
+  name = "apiKeys",
+)
+private class ApiKeys {
+  @ParentCommand
+  lateinit var parentCommand: MeasurementSystem
+    private set
+
+  private val apiKeysClient: ApiKeysCoroutineStub by lazy {
+    ApiKeysCoroutineStub(parentCommand.kingdomChannel)
+  }
+
+  @Command
+  fun create(
+    @Option(
+      names = ["--id-token"],
+      description = ["Id token"],
+      required = true,
+    )
+    idToken: String
+  ) {
+    // TODO(remkop/picocli#882): Use built-in Picocli functionality once available.
+    // val idToken: String = idTokenOption ?: String(System.console().readPassword("ID Token: "))
+    val measurementConsumerName = "measurementConsumers/KPURqM5kOys"
+    // API key for MC is created to act as MC caller
+    val apiAuthenticationKey =
+      try {
+      runBlocking(parentCommand.rpcDispatcher) {
+          apiKeysClient
+            .withIdToken(idToken)
+            .createApiKey(
+              createApiKeyRequest {
+                parent = measurementConsumerName
+                apiKey = apiKey { nickname = "test_key" }
+              }
+            )
+        }
+      } catch (e: StatusException) {
+        throw Exception("Error creating API key for ${measurementConsumerName}", e)
+      }
+
+    // return MeasurementConsumerAndKey(measurementConsumer, apiAuthenticationKey)
+    println("ApiKey: $apiAuthenticationKey")
+  }
+}
+
+
+
+
+
+///////////////
 @Command(
   name = "accounts",
 )
