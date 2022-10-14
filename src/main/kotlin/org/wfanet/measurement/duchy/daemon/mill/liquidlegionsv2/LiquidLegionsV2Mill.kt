@@ -154,9 +154,7 @@ class LiquidLegionsV2Mill(
   private val meter: Meter = openTelemetry.getMeter(LiquidLegionsV2Mill::class.java.name)
 
   private val initializationPhaseCryptoCpuTimeDurationHistogram: DoubleHistogram =
-    meter
-      .histogramBuilder("initialization_phase_crypto_cpu_time_duration_seconds")
-      .build()
+    meter.histogramBuilder("initialization_phase_crypto_cpu_time_duration_seconds").build()
 
   private val setupPhaseCryptoCpuTimeDurationHistogram: DoubleHistogram =
     meter.histogramBuilder("setup_phase_crypto_cpu_time_duration_seconds").build()
@@ -168,9 +166,7 @@ class LiquidLegionsV2Mill(
     meter.histogramBuilder("execution_phase_two_crypto_cpu_time_duration_seconds").build()
 
   private val executionPhaseThreeCryptoCpuTimeDurationHistogram: DoubleHistogram =
-    meter
-      .histogramBuilder("execution_phase_three_crypto_cpu_time_duration_seconds")
-      .build()
+    meter.histogramBuilder("execution_phase_three_crypto_cpu_time_duration_seconds").build()
 
   override val endingStage: ComputationStage =
     ComputationStage.newBuilder()
