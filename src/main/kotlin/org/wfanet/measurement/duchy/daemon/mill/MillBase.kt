@@ -123,13 +123,13 @@ abstract class MillBase(
   }
 
   private val jniWallClockDurationHistogram: DoubleHistogram =
-    meter.histogramBuilder("jni_wall_clock_duration_histogram_seconds").build()
+    meter.histogramBuilder("jni_wall_clock_duration_seconds").build()
 
   private val stageWallClockDurationHistogram: DoubleHistogram =
-    meter.histogramBuilder("stage_wall_clock_duration_histogram_seconds").build()
+    meter.histogramBuilder("stage_wall_clock_duration_seconds").build()
 
   private val stageCpuTimeDurationHistogram: DoubleHistogram =
-    meter.histogramBuilder("stage_cpu_time_duration_histogram_seconds").build()
+    meter.histogramBuilder("stage_cpu_time_duration_seconds").build()
 
   /**
    * The main function of the mill. Continually poll and work on available computations from the

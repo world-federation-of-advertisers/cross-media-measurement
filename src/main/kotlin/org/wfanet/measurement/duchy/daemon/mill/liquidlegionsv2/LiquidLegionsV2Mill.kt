@@ -155,21 +155,21 @@ class LiquidLegionsV2Mill(
 
   private val initializationPhaseCryptoCpuTimeDurationHistogram: DoubleHistogram =
     meter
-      .histogramBuilder("initialization_phase_crypto_cpu_time_duration_histogram_seconds")
+      .histogramBuilder("initialization_phase_crypto_cpu_time_duration_seconds")
       .build()
 
   private val setupPhaseCryptoCpuTimeDurationHistogram: DoubleHistogram =
-    meter.histogramBuilder("setup_phase_crypto_cpu_time_duration_histogram_seconds").build()
+    meter.histogramBuilder("setup_phase_crypto_cpu_time_duration_seconds").build()
 
   private val executionPhaseOneCryptoCpuTimeDurationHistogram: DoubleHistogram =
-    meter.histogramBuilder("execution_phase_one_crypto_cpu_time_duration_histogram_seconds").build()
+    meter.histogramBuilder("execution_phase_one_crypto_cpu_time_duration_seconds").build()
 
   private val executionPhaseTwoCryptoCpuTimeDurationHistogram: DoubleHistogram =
-    meter.histogramBuilder("execution_phase_two_crypto_cpu_time_duration_histogram_seconds").build()
+    meter.histogramBuilder("execution_phase_two_crypto_cpu_time_duration_seconds").build()
 
   private val executionPhaseThreeCryptoCpuTimeDurationHistogram: DoubleHistogram =
     meter
-      .histogramBuilder("execution_phase_three_crypto_cpu_time_duration_histogram_seconds")
+      .histogramBuilder("execution_phase_three_crypto_cpu_time_duration_seconds")
       .build()
 
   override val endingStage: ComputationStage =
