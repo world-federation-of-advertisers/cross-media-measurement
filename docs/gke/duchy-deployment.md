@@ -197,7 +197,6 @@ files are required in a Duchy:
     -   All other Duchies
     -   EDPs that select to fulfill requisitions at this Duchy
     -   This Duchy's own CA certificate (for Duchy internal traffic)
-    -   A certificate used for health check purposes
 
     Supposing your root certs are all in a single folder and end with
     `_root.pem`, you can concatenate them all with a simple shell command:
@@ -206,31 +205,23 @@ files are required in a Duchy:
     cat *_root.pem > all_root_certs.pem
     ```
 
-2.  `worker1_tls.pem`
+1.  `worker1_tls.pem`
 
     The `worker1` Duchy's TLS certificate in PEM format.
 
-3.  `worker1_tls.key`
+1.  `worker1_tls.key`
 
     The private key for the TLS certificate in PEM format.
 
-4.  `health_probe_tls.pem`
-
-    The client TLS certificate used by the health probe in PEM format.
-
-5.  `health_probe_tls.key`
-
-    The private key for the health probe TLS certificate in PEM format.
-
-6.  `worker1_cs_cert.der`
+1.  `worker1_cs_cert.der`
 
     The `worker1` Duchy's consent signaling certificate in DER format.
 
-7.  `worker1_cs_private.der`
+1.  `worker1_cs_private.der`
 
     The private key for the Duchy's consent signaling certificate in DER format.
 
-8.  `xxx_protocols_setup_config.textproto` (replace xxx with the role)
+1.  `xxx_protocols_setup_config.textproto` (replace xxx with the role)
 
     -   This contains information about the protocols run in the duchy
     -   Set the role (aggregator or non_aggregator) in the config appropriately
@@ -246,8 +237,6 @@ secretGenerator:
   - all_root_certs.pem
   - worker1_tls.pem
   - worker1_tls.key
-  - health_probe_tls.pem
-  - health_probe_tls.key
   - worker1_cs_cert.der
   - worker1_cs_private.der
   - protocols_setup_config.textproto

@@ -198,7 +198,6 @@ First, prepare all the files we want to include in the Kubernetes secret. The
     *   All Measurement Consumers
     *   The Kingdom
     *   The Reporting server itself (for internal traffic)
-    *   The health probe
 
     Supposing your root certs are all in a single folder and end with
     `_root.pem`, you can concatenate them all with a simple shell command:
@@ -207,6 +206,8 @@ First, prepare all the files we want to include in the Kubernetes secret. The
     cat *_root.pem > all_root_certs.pem
     ```
 
+    Note: This assumes that all your root certificate PEM files end in newline.
+
 1.  `reporting_tls.pem`
 
     The Reporting server's TLS certificate.
@@ -214,14 +215,6 @@ First, prepare all the files we want to include in the Kubernetes secret. The
 1.  `reporting_tls.key`
 
     The private key for the Reporting server's TLS certificate.
-
-1.  `health_probe_tls.pem`
-
-    The health probe's TLS certificate.
-
-1.  `health_probe_tls.key`
-
-    The private key for the health probe's TLS certificate.
 
 In addition, you'll need to include the encryption and signing private keys for
 the Measurement Consumers that this Reporting server instance needs to act on
@@ -259,8 +252,6 @@ secretGenerator:
   - all_root_certs.pem
   - reporting_tls.key
   - reporting_tls.pem
-  - health_probe_tls.pem
-  - health_probe_tls.key
   - mc_enc_public.tink
   - mc_enc_private.tink
   - mc_cs_private.der

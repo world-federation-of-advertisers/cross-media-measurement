@@ -2,7 +2,7 @@
 # proto-message: Llv2ProtocolConfigConfig
 protocol_config {
   sketch_params {
-    decay_rate: 12.0
+    decay_rate: 7.75
     max_size: 100000
     sampling_indicator_size: 10000000
   }
