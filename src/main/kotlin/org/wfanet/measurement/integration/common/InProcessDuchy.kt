@@ -17,7 +17,7 @@ package org.wfanet.measurement.integration.common
 import io.grpc.Channel
 import io.grpc.inprocess.InProcessChannelBuilder
 import io.grpc.testing.GrpcCleanupRule
-import io.opentelemetry.sdk.testing.junit4.OpenTelemetryRule
+import io.opentelemetry.api.GlobalOpenTelemetry
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Level
@@ -30,7 +30,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import org.junit.Rule
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
@@ -123,9 +122,6 @@ class InProcessDuchy(
       )
       addService(ComputationStatsService(duchyDependencies.computationsDatabase))
     }
-
-  @get:Rule val openTelemetryRule: OpenTelemetryRule = OpenTelemetryRule.create()
-
   private val requisitionFulfillmentServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       addService(
@@ -227,7 +223,7 @@ class InProcessDuchy(
             throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1)),
             workerStubs = workerStubs,
             cryptoWorker = JniLiquidLegionsV2Encryption(),
-            openTelemetry = openTelemetryRule.openTelemetry
+            openTelemetry = GlobalOpenTelemetry.get()
           )
         liquidLegionsV2mill.continuallyProcessComputationQueue()
       }

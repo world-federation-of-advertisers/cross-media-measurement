@@ -1,11 +1,6 @@
 package(default_visibility = ["//visibility:public"])
 
 alias(
-    name = "testing",
-    actual = "@maven//:io_opentelemetry_opentelemetry_sdk_testing",
-)
-
-alias(
     name = "otlp_exporter",
     actual = "@maven//:io_opentelemetry_opentelemetry_exporter_otlp",
 )

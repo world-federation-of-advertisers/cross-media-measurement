@@ -148,6 +148,7 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
                     .setEndpoint(otlpEndpoint)
                     .build()
                 )
+                .setInterval(Duration.ofSeconds(60L))
                 .build()
             )
             .registerView(

@@ -30,7 +30,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import io.grpc.Status
-import io.opentelemetry.sdk.testing.junit4.OpenTelemetryRule
+import io.opentelemetry.api.GlobalOpenTelemetry
 import java.time.Clock
 import java.time.Duration
 import java.util.Base64
@@ -507,8 +507,6 @@ class LiquidLegionsV2MillTest {
 
   @get:Rule val ruleChain = chainRulesSequentially(tempDirectory, grpcTestServerRule)
 
-  @get:Rule val openTelemetryRule: OpenTelemetryRule = OpenTelemetryRule.create()
-
   private val workerStub: ComputationControlCoroutineStub by lazy {
     ComputationControlCoroutineStub(grpcTestServerRule.channel)
   }
@@ -588,7 +586,7 @@ class LiquidLegionsV2MillTest {
         throttler = throttler,
         requestChunkSizeBytes = 20,
         maximumAttempts = 2,
-        openTelemetry = openTelemetryRule.openTelemetry,
+        openTelemetry = GlobalOpenTelemetry.get(),
       )
     nonAggregatorMill =
       LiquidLegionsV2Mill(
@@ -606,7 +604,7 @@ class LiquidLegionsV2MillTest {
         throttler = throttler,
         requestChunkSizeBytes = 20,
         maximumAttempts = 2,
-        openTelemetry = openTelemetryRule.openTelemetry,
+        openTelemetry = GlobalOpenTelemetry.get(),
       )
   }
 
