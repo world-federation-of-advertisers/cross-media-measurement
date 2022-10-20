@@ -18,7 +18,6 @@ import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
-import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.internal.reporting.GetReportingSetRequest
@@ -47,10 +46,10 @@ class PostgresReportingSetsService(
 
   override suspend fun getReportingSet(request: GetReportingSetRequest): ReportingSet {
     val reportingSetResult =
-      SerializableErrors.retryingRead(client) { readContext: ReadContext ->
+      SerializableErrors.retrying {
         ReportingSetReader()
           .readReportingSetByExternalId(
-            readContext,
+            client.singleUse(),
             request.measurementConsumerReferenceId,
             ExternalId(request.externalReportingSetId)
           )

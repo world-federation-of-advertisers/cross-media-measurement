@@ -74,6 +74,9 @@ abstract class PostgresWriter<T> {
     try {
       return SerializableErrors.retrying { runTransaction(transactionContext, idGenerator) }
     } finally {
+      // The underlying ReactorNettyClient has both a close and an onComplete method.
+      // Occasionally, the onComplete throws an exception when it has already been closed because
+      // of the close method. This discards that.
       try {
         transactionContext.close()
       } catch (_: Exception) {}

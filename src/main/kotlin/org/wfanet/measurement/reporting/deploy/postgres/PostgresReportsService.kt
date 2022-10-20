@@ -18,7 +18,6 @@ import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
-import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.internal.reporting.CreateReportRequest
 import org.wfanet.measurement.internal.reporting.GetReportByIdempotencyKeyRequest
@@ -51,10 +50,10 @@ class PostgresReportsService(
 
   override suspend fun getReport(request: GetReportRequest): Report {
     val reportResult =
-      SerializableErrors.retryingRead(client) { readContext: ReadContext ->
+      SerializableErrors.retrying {
         ReportReader()
           .getReportByExternalId(
-            readContext,
+            client.singleUse(),
             request.measurementConsumerReferenceId,
             request.externalReportId
           )
@@ -70,10 +69,10 @@ class PostgresReportsService(
     request: GetReportByIdempotencyKeyRequest
   ): Report {
     val reportResult =
-      SerializableErrors.retryingRead(client) { readContext: ReadContext ->
+      SerializableErrors.retrying {
         ReportReader()
           .getReportByIdempotencyKey(
-            readContext,
+            client.singleUse(),
             request.measurementConsumerReferenceId,
             request.reportIdempotencyKey
           )

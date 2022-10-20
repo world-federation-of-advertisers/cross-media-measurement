@@ -16,7 +16,6 @@ package org.wfanet.measurement.reporting.deploy.postgres
 
 import io.grpc.Status
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
-import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.internal.reporting.GetMeasurementRequest
 import org.wfanet.measurement.internal.reporting.Measurement
@@ -45,10 +44,10 @@ class PostgresMeasurementsService(
 
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
     val measurementResult =
-      SerializableErrors.retryingRead(client) { readContext: ReadContext ->
+      SerializableErrors.retrying {
         MeasurementReader()
           .readMeasurementByReferenceIds(
-            readContext,
+            client.singleUse(),
             request.measurementConsumerReferenceId,
             request.measurementReferenceId
           )

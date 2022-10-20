@@ -121,6 +121,9 @@ class ReportingSetReader {
       try {
         emitAll(readContext.executeQuery(statement).consume(::translate))
       } finally {
+        // The underlying ReactorNettyClient has both a close and an onComplete method.
+        // Occasionally, the onComplete throws an exception when it has already been closed because
+        // of the close method. This discards that.
         try {
           readContext.close()
         } catch (_: Exception) {}
