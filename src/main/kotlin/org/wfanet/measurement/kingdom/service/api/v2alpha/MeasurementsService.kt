@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
+import org.wfanet.measurement.internal.kingdom.Measurement.View as InternalMeasurementView
 import com.google.protobuf.InvalidProtocolBufferException
 import io.grpc.Status
 import io.grpc.StatusException
@@ -49,9 +51,7 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
-import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
-import org.wfanet.measurement.internal.kingdom.Measurement.View as InternalMeasurementView
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
@@ -106,7 +106,9 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
     val measurementConsumerCertificateKey =
       grpcRequireNotNull(
         MeasurementConsumerCertificateKey.fromName(measurement.measurementConsumerCertificate)
-      ) { "Measurement Consumer Certificate resource name is either unspecified or invalid" }
+      ) {
+        "Measurement Consumer Certificate resource name is either unspecified or invalid"
+      }
 
     if (
       authenticatedMeasurementConsumerKey.measurementConsumerId !=
@@ -353,7 +355,9 @@ private fun ListMeasurementsRequest.toListMeasurementsPageToken(): ListMeasureme
 
       grpcRequire(
         measurementStatesList.containsAll(states) && states.containsAll(measurementStatesList)
-      ) { "Arguments must be kept the same when using a page token" }
+      ) {
+        "Arguments must be kept the same when using a page token"
+      }
 
       if (source.pageSize in 1..MAX_PAGE_SIZE) {
         pageSize = source.pageSize
