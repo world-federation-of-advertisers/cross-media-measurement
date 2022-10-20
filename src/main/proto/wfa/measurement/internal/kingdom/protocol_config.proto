@@ -75,6 +75,8 @@ message ProtocolConfig {
     // Liquid Legions v2 config.
     //
     // May only be set when `measurement_type` is `REACH_AND_FREQUENCY`.
+    //
+    // Deprecated and replace with protocols.
     LiquidLegionsV2 liquid_legions_v2 = 3 [deprecated = true];
   }
 

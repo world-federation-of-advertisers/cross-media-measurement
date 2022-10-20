@@ -14,17 +14,6 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
-import org.wfanet.measurement.internal.kingdom.DifferentialPrivacyParams as InternalDifferentialPrivacyParams
-import org.wfanet.measurement.internal.kingdom.Exchange as InternalExchange
-import org.wfanet.measurement.internal.kingdom.ExchangeStep as InternalExchangeStep
-import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt as InternalExchangeStepAttempt
-import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow as InternalExchangeWorkflow
-import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
-import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
-import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt.direct as internalDirect
-import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt.protocol as internalProtocol
-import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
-import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -50,6 +39,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig.Direct
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKey
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
@@ -65,13 +55,23 @@ import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toLocalDate
+import org.wfanet.measurement.internal.kingdom.DifferentialPrivacyParams as InternalDifferentialPrivacyParams
+import org.wfanet.measurement.internal.kingdom.Exchange as InternalExchange
+import org.wfanet.measurement.internal.kingdom.ExchangeStep as InternalExchangeStep
+import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt as InternalExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetailsKt
+import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow as InternalExchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflowKt
+import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.details
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
+import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt as InternalProtocolConfigs
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.exchangeWorkflow
+import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
+import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 
 /** Converts an internal [InternalMeasurement.State] to a public [State]. */
@@ -202,9 +202,32 @@ fun InternalMeasurement.toMeasurement(): Measurement {
     }
     dataProviders +=
       source.dataProvidersMap.entries.map(Map.Entry<Long, DataProviderValue>::toDataProviderEntry)
+
     if (source.details.hasProtocolConfig()) {
       protocolConfig = source.details.protocolConfig.toProtocolConfig()
+    } else {
+      // For backward compatibility. If old direct/impression/duration measurements persisted in DB
+      // don't have protocolConfig, generate here.
+
+      val parsedMeasurementSpec = MeasurementSpec.parseFrom(this.measurementSpec.data)
+      protocolConfig = protocolConfig {
+        name = ProtocolConfigKey(Direct.getDescriptor().name).toName()
+
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+        measurementType =
+          when (parsedMeasurementSpec.measurementTypeCase) {
+            MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
+              ProtocolConfig.MeasurementType.MEASUREMENT_TYPE_UNSPECIFIED
+            MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
+              ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
+            MeasurementSpec.MeasurementTypeCase.IMPRESSION ->
+              ProtocolConfig.MeasurementType.IMPRESSION
+            MeasurementSpec.MeasurementTypeCase.DURATION -> ProtocolConfig.MeasurementType.DURATION
+          }
+        protocols += protocol { direct = direct {} }
+      }
     }
+
     state = source.state.toState()
     results +=
       source.resultsList.map {
@@ -290,10 +313,14 @@ fun Measurement.toInternal(
             externalProtocolConfigId = Llv2ProtocolConfig.name
             measurementType = InternalProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
             liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
-            protocols += internalProtocol { liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig }
+            protocols +=
+              InternalProtocolConfigs.protocol {
+                liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
+              }
             // For single EDP direct R/F measurement, add direct protocol
             if (dataProvidersCount == 1)
-              protocols += internalProtocol { direct = internalDirect {} }
+              protocols +=
+                InternalProtocolConfigs.protocol { direct = InternalProtocolConfigs.direct {} }
           }
           duchyProtocolConfig = duchyProtocolConfig {
             liquidLegionsV2 = Llv2ProtocolConfig.duchyProtocolConfig
@@ -301,18 +328,20 @@ fun Measurement.toInternal(
         }
         MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {
           protocolConfig = internalProtocolConfig {
-            externalProtocolConfigId = "impression"
+            externalProtocolConfigId = Direct.getDescriptor().name
             measurementType = InternalProtocolConfig.MeasurementType.IMPRESSION
 
-            protocols += internalProtocol { direct = internalDirect {} }
+            protocols +=
+              InternalProtocolConfigs.protocol { direct = InternalProtocolConfigs.direct {} }
           }
         }
         MeasurementSpec.MeasurementTypeCase.DURATION -> {
           protocolConfig = internalProtocolConfig {
-            externalProtocolConfigId = "duration"
+            externalProtocolConfigId = Direct.getDescriptor().name
             measurementType = InternalProtocolConfig.MeasurementType.DURATION
 
-            protocols += internalProtocol { direct = internalDirect {} }
+            protocols +=
+              InternalProtocolConfigs.protocol { direct = InternalProtocolConfigs.direct {} }
           }
         }
         MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
