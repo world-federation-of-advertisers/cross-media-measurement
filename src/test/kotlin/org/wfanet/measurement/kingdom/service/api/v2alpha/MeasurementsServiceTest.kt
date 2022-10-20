@@ -350,7 +350,21 @@ class MeasurementsServiceTest {
   fun `createMeasurement with impression type returns measurement with resource name set`() {
     runBlocking {
       whenever(internalMeasurementsMock.createMeasurement(any()))
-        .thenReturn(INTERNAL_MEASUREMENT.copy { details = details.copy { clearProtocolConfig() } })
+        .thenReturn(
+          INTERNAL_MEASUREMENT.copy {
+            details =
+              details.copy {
+                protocolConfig = internalProtocolConfig {
+                  externalProtocolConfigId = ProtocolConfig.Direct.getDescriptor().name
+                  measurementType = InternalProtocolConfig.MeasurementType.IMPRESSION
+                  protocols +=
+                    InternalProtocolConfigKt.protocol {
+                      direct = InternalProtocolConfigKt.direct {}
+                    }
+                }
+              }
+          }
+        )
     }
 
     val request = createMeasurementRequest {
@@ -379,7 +393,14 @@ class MeasurementsServiceTest {
         runBlocking { service.createMeasurement(request) }
       }
 
-    val expected = MEASUREMENT.copy { clearProtocolConfig() }
+    val expected =
+      MEASUREMENT.copy {
+        protocolConfig = protocolConfig {
+          name = "protocolConfigs/Direct"
+          measurementType = ProtocolConfig.MeasurementType.IMPRESSION
+          protocols += ProtocolConfigKt.protocol { direct = ProtocolConfigKt.direct {} }
+        }
+      }
 
     verifyProtoArgument(
         internalMeasurementsMock,
@@ -395,7 +416,7 @@ class MeasurementsServiceTest {
               clearDuchyProtocolConfig()
               measurementSpec = request.measurement.measurementSpec.data
               protocolConfig = internalProtocolConfig {
-                externalProtocolConfigId = "impression"
+                externalProtocolConfigId = ProtocolConfig.Direct.getDescriptor().name
                 measurementType = InternalProtocolConfig.MeasurementType.IMPRESSION
                 protocols +=
                   InternalProtocolConfigKt.protocol { direct = InternalProtocolConfigKt.direct {} }
@@ -412,7 +433,21 @@ class MeasurementsServiceTest {
   fun `createMeasurement with duration type returns measurement with resource name set`() {
     runBlocking {
       whenever(internalMeasurementsMock.createMeasurement(any()))
-        .thenReturn(INTERNAL_MEASUREMENT.copy { details = details.copy { clearProtocolConfig() } })
+        .thenReturn(
+          INTERNAL_MEASUREMENT.copy {
+            details =
+              details.copy {
+                protocolConfig = internalProtocolConfig {
+                  externalProtocolConfigId = ProtocolConfig.Direct.getDescriptor().name
+                  measurementType = InternalProtocolConfig.MeasurementType.DURATION
+                  protocols +=
+                    InternalProtocolConfigKt.protocol {
+                      direct = InternalProtocolConfigKt.direct {}
+                    }
+                }
+              }
+          }
+        )
     }
 
     val request = createMeasurementRequest {
@@ -441,7 +476,14 @@ class MeasurementsServiceTest {
         runBlocking { service.createMeasurement(request) }
       }
 
-    val expected = MEASUREMENT.copy { clearProtocolConfig() }
+    val expected =
+      MEASUREMENT.copy {
+        protocolConfig = protocolConfig {
+          name = "protocolConfigs/Direct"
+          measurementType = ProtocolConfig.MeasurementType.DURATION
+          protocols += ProtocolConfigKt.protocol { direct = ProtocolConfigKt.direct {} }
+        }
+      }
 
     verifyProtoArgument(
         internalMeasurementsMock,
@@ -456,8 +498,9 @@ class MeasurementsServiceTest {
               clearFailure()
               clearDuchyProtocolConfig()
               measurementSpec = request.measurement.measurementSpec.data
+
               protocolConfig = internalProtocolConfig {
-                externalProtocolConfigId = "duration"
+                externalProtocolConfigId = ProtocolConfig.Direct.getDescriptor().name
                 measurementType = InternalProtocolConfig.MeasurementType.DURATION
                 protocols +=
                   InternalProtocolConfigKt.protocol { direct = InternalProtocolConfigKt.direct {} }
