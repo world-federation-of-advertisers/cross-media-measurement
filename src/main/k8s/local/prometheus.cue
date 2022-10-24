@@ -73,11 +73,25 @@ configMaps: [#ConfigMap & {
 		name:       "prometheus"
 	}
 	data: {
+		"recording.rules": """
+			  groups:
+			    - name: rpc
+			      interval: 5m
+			      rules:
+			        - record: rpc_client_request_rate_per_second
+			          expr: rate(rpc_client_duration_count[5m])
+			        - record: rpc_client_request_error_rate_per_second
+			          expr: sum by (instance, job, rpc_service, rpc_method) (rpc_client_request_rate_per_second unless rpc_client_request_rate_per_second{rpc_grpc_status_code="0"})
+			"""
+
 		"prometheus.yaml": """
 			global:
 			  scrape_interval: 30s
 			  scrape_timeout: 10s
 			  evaluation_interval: 30s
+
+			rule_files:
+			  - "recording.rules"
 
 			scrape_configs:
 			  - job_name: otel-collector
