@@ -14,15 +14,17 @@
 
 package org.wfanet.measurement.kingdom.deploy.common
 
+import java.time.Duration
 import picocli.CommandLine
 
 class InternalApiFlags {
-  @set:CommandLine.Option(
+  @CommandLine.Option(
     names = ["--internal-api-target"],
     description = ["gRPC target (authority) of the Kingdom internal API server"],
     required = true,
   )
   lateinit var target: String
+    private set
 
   @CommandLine.Option(
     names = ["--internal-api-cert-host"],
@@ -34,5 +36,13 @@ class InternalApiFlags {
     required = false,
   )
   var certHost: String? = null
+    private set
+
+  @CommandLine.Option(
+    names = ["--internal-api-default-deadline"],
+    description = ["Default deadline duration for RPCs to internal API"],
+    defaultValue = "30s"
+  )
+  lateinit var defaultDeadlineDuration: Duration
     private set
 }

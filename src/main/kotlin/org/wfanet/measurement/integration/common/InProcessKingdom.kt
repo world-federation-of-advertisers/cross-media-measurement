@@ -15,13 +15,14 @@
 package org.wfanet.measurement.integration.common
 
 import io.grpc.Channel
+import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.testing.withMetadataPrincipalIdentities
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
-import org.wfanet.measurement.common.grpc.withVerboseLogging
+import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.identity.testing.withMetadataDuchyIdentities
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
@@ -68,7 +69,12 @@ class InProcessKingdom(
 ) : TestRule {
   private val kingdomDataServices by lazy { dataServicesProvider() }
 
-  private val internalApiChannel by lazy { internalDataServer.channel }
+  private val internalApiChannel by lazy {
+    internalDataServer.channel.withDefaultDeadline(
+      DEFAULT_INTERNAL_DEADLINE_MILLIS,
+      TimeUnit.MILLISECONDS
+    )
+  }
   private val internalApiKeysClient by lazy { InternalApiKeysCoroutineStub(internalApiChannel) }
   private val internalMeasurementsClient by lazy {
     InternalMeasurementsCoroutineStub(internalApiChannel)
@@ -102,9 +108,7 @@ class InProcessKingdom(
   private val internalDataServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
       logger.info("Building Kingdom's internal Data services")
-      kingdomDataServices.buildDataServices().toList().forEach {
-        addService(it.withVerboseLogging(verboseGrpcLogging))
-      }
+      kingdomDataServices.buildDataServices().toList().forEach { addService(it) }
     }
   private val systemApiServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
@@ -115,9 +119,7 @@ class InProcessKingdom(
           systemComputationParticipantsService(internalComputationParticipantsClient),
           systemRequisitionsService(internalRequisitionsClient)
         )
-        .forEach {
-          addService(it.withMetadataDuchyIdentities().withVerboseLogging(verboseGrpcLogging))
-        }
+        .forEach { addService(it.withMetadataDuchyIdentities()) }
     }
   private val publicApiServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
@@ -151,11 +153,7 @@ class InProcessKingdom(
             .withAccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri)
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient)
         )
-        .forEach {
-          // TODO(@wangyaopw): set up all public services to use the appropriate principal
-          // interceptors.
-          addService(it.withVerboseLogging(verboseGrpcLogging))
-        }
+        .forEach { addService(it) }
 
       listOf(
           ExchangeStepAttemptsService(
@@ -165,9 +163,7 @@ class InProcessKingdom(
           ExchangeStepsService(internalExchangeStepsClient),
           ExchangesService(internalExchangesClient)
         )
-        .forEach {
-          addService(it.withMetadataPrincipalIdentities().withVerboseLogging(verboseGrpcLogging))
-        }
+        .forEach { addService(it.withMetadataPrincipalIdentities()) }
     }
 
   /** Provides a gRPC channel to the Kingdom's public API. */
@@ -192,5 +188,8 @@ class InProcessKingdom(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    /** Default deadline for RPCs to internal server in milliseconds. */
+    private const val DEFAULT_INTERNAL_DEADLINE_MILLIS = 30_000L
   }
 }
