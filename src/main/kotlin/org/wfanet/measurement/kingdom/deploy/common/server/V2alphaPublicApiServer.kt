@@ -22,6 +22,7 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ApiKeysGrpcKt.ApiKeysCoroutineStub as InternalApiKeysCoroutineStub
@@ -82,6 +83,7 @@ private fun run(
         kingdomApiServerFlags.internalApiFlags.certHost
       )
       .withVerboseLogging(kingdomApiServerFlags.debugVerboseGrpcClientLogging)
+      .withDefaultDeadline(kingdomApiServerFlags.internalApiFlags.defaultDeadlineDuration)
 
   val principalLookup = AkidPrincipalLookup(v2alphaFlags.authorityKeyIdentifierToPrincipalMapFile)
 

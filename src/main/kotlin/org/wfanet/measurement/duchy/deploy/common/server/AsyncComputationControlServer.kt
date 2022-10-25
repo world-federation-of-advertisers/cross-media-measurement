@@ -14,11 +14,12 @@
 
 package org.wfanet.measurement.duchy.deploy.common.server
 
-import io.grpc.ManagedChannel
+import io.grpc.Channel
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
@@ -64,12 +65,13 @@ private fun run(@CommandLine.Mixin flags: AsyncComputationControlServiceFlags) {
       trustedCertCollectionFile = flags.server.tlsFlags.certCollectionFile
     )
 
-  val channel: ManagedChannel =
+  val channel: Channel =
     buildMutualTlsChannel(
-      flags.computationsServiceFlags.target,
-      clientCerts,
-      flags.computationsServiceFlags.certHost
-    )
+        flags.computationsServiceFlags.target,
+        clientCerts,
+        flags.computationsServiceFlags.certHost
+      )
+      .withDefaultDeadline(flags.computationsServiceFlags.defaultDeadlineDuration)
 
   CommonServer.fromFlags(
       flags.server,

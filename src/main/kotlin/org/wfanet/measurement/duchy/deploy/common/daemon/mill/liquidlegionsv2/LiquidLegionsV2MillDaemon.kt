@@ -15,6 +15,7 @@
 package org.wfanet.measurement.duchy.deploy.common.daemon.mill.liquidlegionsv2
 
 import com.google.protobuf.ByteString
+import io.grpc.Channel
 import io.opentelemetry.api.GlobalOpenTelemetry
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.common.Attributes
@@ -36,6 +37,7 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.identity.withDuchyId
@@ -69,13 +71,14 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
         trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
       )
 
-    val computationsServiceChannel =
+    val computationsServiceChannel: Channel =
       buildMutualTlsChannel(
           flags.computationsServiceFlags.target,
           clientCerts,
           flags.computationsServiceFlags.certHost
         )
         .withShutdownTimeout(flags.channelShutdownTimeout)
+        .withDefaultDeadline(flags.computationsServiceFlags.defaultDeadlineDuration)
     val dataClients =
       ComputationDataClients(
         ComputationsCoroutineStub(computationsServiceChannel).withDuchyId(duchyName),
