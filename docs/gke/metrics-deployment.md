@@ -243,14 +243,14 @@ See [kubelet](https://cloud.google.com/stackdriver/docs/managed-prometheus/setup
 
 ### Mill Metrics
 - active_non_daemon_thread_count
-- jni_wall_clock_duration_seconds
-- stage_wall_clock_duration_seconds
-- stage_cpu_time_duration_seconds
-- initialization_phase_crypto_cpu_time_duration_seconds
-- setup_phase_crypto_cpu_time_duration_seconds
-- execution_phase_one_crypto_cpu_time_duration_seconds
-- execution_phase_two_crypto_cpu_time_duration_seconds
-- execution_phase_three_crypto_cpu_time_duration_seconds
+- jni_wall_clock_duration_millis
+- stage_wall_clock_duration_millis
+- stage_cpu_time_duration_millis
+- initialization_phase_crypto_cpu_time_duration_millis
+- setup_phase_crypto_cpu_time_duration_millis
+- execution_phase_one_crypto_cpu_time_duration_millis
+- execution_phase_two_crypto_cpu_time_duration_millis
+- execution_phase_three_crypto_cpu_time_duration_millis
 
 ### Additional Metrics Created using Existing Metrics
 

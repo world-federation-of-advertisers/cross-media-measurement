@@ -4,8 +4,3 @@ alias(
     name = "api",
     actual = "@maven//:io_opentelemetry_opentelemetry_api",
 )
-
-alias(
-    name = "semconv",
-    actual = "@maven//:io_opentelemetry_opentelemetry_semconv",
-)

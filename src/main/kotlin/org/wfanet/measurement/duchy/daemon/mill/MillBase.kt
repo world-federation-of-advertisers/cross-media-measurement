@@ -69,6 +69,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationLogEntry.ErrorDetails.Ty
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
+import io.opentelemetry.api.metrics.LongHistogram
 import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
 import org.wfanet.measurement.system.v1alpha.FailComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.setComputationResultRequest
@@ -122,14 +123,14 @@ abstract class MillBase(
     }
   }
 
-  private val jniWallClockDurationHistogram: DoubleHistogram =
-    meter.histogramBuilder("jni_wall_clock_duration_seconds").build()
+  private val jniWallClockDurationHistogram: LongHistogram =
+    meter.histogramBuilder("jni_wall_clock_duration_millis").ofLongs().build()
 
-  private val stageWallClockDurationHistogram: DoubleHistogram =
-    meter.histogramBuilder("stage_wall_clock_duration_seconds").build()
+  private val stageWallClockDurationHistogram: LongHistogram =
+    meter.histogramBuilder("stage_wall_clock_duration_millis").ofLongs().build()
 
-  private val stageCpuTimeDurationHistogram: DoubleHistogram =
-    meter.histogramBuilder("stage_cpu_time_duration_seconds").build()
+  private val stageCpuTimeDurationHistogram: LongHistogram =
+    meter.histogramBuilder("stage_cpu_time_duration_millis").ofLongs().build()
 
   /**
    * The main function of the mill. Continually poll and work on available computations from the
@@ -172,9 +173,9 @@ abstract class MillBase(
       val token = claimWorkResponse.token
 
       processComputation(token)
-      stageWallClockDurationHistogram.record(timeMark.elapsedNow().toDouble(DurationUnit.SECONDS))
+      stageWallClockDurationHistogram.record(timeMark.elapsedNow().inWholeMilliseconds)
       stageCpuTimeDurationHistogram.record(
-        cpuDurationLogger.logStageDurationMetric(token, STAGE_CPU_DURATION) / 1000.0
+        cpuDurationLogger.logStageDurationMetric(token, STAGE_CPU_DURATION)
       )
       wallDurationLogger.logStageDurationMetric(token, STAGE_WALL_CLOCK_DURATION)
     } else {
@@ -398,7 +399,7 @@ abstract class MillBase(
         val wallDurationLogger = wallDurationLogger()
         val timeMark = TimeSource.Monotonic.markNow()
         val result = block()
-        jniWallClockDurationHistogram.record(timeMark.elapsedNow().toDouble(DurationUnit.SECONDS))
+        jniWallClockDurationHistogram.record(timeMark.elapsedNow().inWholeMilliseconds)
         wallDurationLogger.logStageDurationMetric(token, JNI_WALL_CLOCK_DURATION)
         result
       } catch (error: Throwable) {
