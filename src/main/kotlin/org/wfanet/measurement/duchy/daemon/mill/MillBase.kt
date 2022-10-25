@@ -18,7 +18,6 @@ import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.OpenTelemetry
-import io.opentelemetry.api.metrics.DoubleHistogram
 import io.opentelemetry.api.metrics.Meter
 import java.lang.management.ManagementFactory
 import java.lang.management.ThreadMXBean
@@ -29,7 +28,6 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.math.pow
 import kotlin.random.Random
-import kotlin.time.DurationUnit
 import kotlin.time.ExperimentalTime
 import kotlin.time.TimeSource
 import kotlinx.coroutines.CoroutineName
@@ -69,7 +67,6 @@ import org.wfanet.measurement.system.v1alpha.ComputationLogEntry.ErrorDetails.Ty
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
-import io.opentelemetry.api.metrics.LongHistogram
 import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
 import org.wfanet.measurement.system.v1alpha.FailComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.setComputationResultRequest
