@@ -15,10 +15,10 @@ kt_jvm_library(
     deps = [
         "//imports/java/io/opentelemetry/api",
         "//imports/java/io/opentelemetry/exporter/otlp",
-        "//imports/java/io/opentelemetry/semconv",
         "//imports/java/io/opentelemetry/sdk",
         "//imports/java/io/opentelemetry/sdk:common",
         "//imports/java/io/opentelemetry/sdk:metrics",
+        "//imports/java/io/opentelemetry/semconv",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill/liquidlegionsv2:liquid_legions_v2_mill",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
