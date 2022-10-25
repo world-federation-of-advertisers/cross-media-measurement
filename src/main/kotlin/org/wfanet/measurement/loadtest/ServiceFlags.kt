@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.loadtest
 
+import java.time.Duration
 import picocli.CommandLine
 
 class KingdomPublicApiFlags {
@@ -80,5 +81,13 @@ class KingdomInternalApiFlags {
     required = false,
   )
   var certHost: String? = null
+    private set
+
+  @CommandLine.Option(
+    names = ["--kingdom-internal-api-default-deadline"],
+    description = ["Default deadline duration for RPCs to Kingdom internal API"],
+    defaultValue = "30s"
+  )
+  lateinit var defaultDeadlineDuration: Duration
     private set
 }
