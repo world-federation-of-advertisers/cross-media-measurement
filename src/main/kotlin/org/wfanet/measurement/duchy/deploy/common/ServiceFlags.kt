@@ -14,12 +14,13 @@
 
 package org.wfanet.measurement.duchy.deploy.common
 
+import java.time.Duration
 import picocli.CommandLine
 
 class ComputationsServiceFlags {
   @CommandLine.Option(
     names = ["--computations-service-target"],
-    description = ["Address and port of the duchy ComputationsService"],
+    description = ["gRPC target (authority) of the Duchy internal Computations API server"],
     required = true,
   )
   lateinit var target: String
@@ -27,10 +28,19 @@ class ComputationsServiceFlags {
 
   @CommandLine.Option(
     names = ["--computations-service-cert-host"],
-    description = ["The expected hostname in the duchy ComputationsServer's TLS certificate."],
+    description =
+      ["The expected hostname in the Duchy internal Computations server TLS certificate"],
     required = true,
   )
   lateinit var certHost: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--computations-default-deadline"],
+    description = ["Default deadline duration for RPCs to Duchy internal Computations API"],
+    defaultValue = "30s"
+  )
+  lateinit var defaultDeadlineDuration: Duration
     private set
 }
 

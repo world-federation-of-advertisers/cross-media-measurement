@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.duchy.deploy.common.daemon.herald
 
+import io.grpc.Channel
 import java.io.File
 import java.time.Clock
 import java.time.Duration
@@ -23,6 +24,7 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.withDuchyId
@@ -102,13 +104,14 @@ private fun run(@CommandLine.Mixin flags: Flags) {
     SystemComputationParticipantsCoroutineStub(systemServiceChannel)
       .withDuchyId(flags.duchy.duchyName)
 
-  val internalComputationsChannel =
+  val internalComputationsChannel: Channel =
     buildMutualTlsChannel(
         flags.computationsServiceFlags.target,
         clientCerts,
         flags.computationsServiceFlags.certHost
       )
       .withShutdownTimeout(flags.channelShutdownTimeout)
+      .withDefaultDeadline(flags.computationsServiceFlags.defaultDeadlineDuration)
       .withVerboseLogging(flags.verboseGrpcClientLogging)
   val internalComputationsClient = ComputationsCoroutineStub(internalComputationsChannel)
   // This will be the name of the pod when deployed to Kubernetes.
