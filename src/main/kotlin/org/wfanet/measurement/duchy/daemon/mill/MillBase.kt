@@ -18,6 +18,7 @@ import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.api.metrics.LongHistogram
 import io.opentelemetry.api.metrics.Meter
 import java.lang.management.ManagementFactory
 import java.lang.management.ThreadMXBean
