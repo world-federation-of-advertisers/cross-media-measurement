@@ -101,8 +101,7 @@ class LiquidLegionsV2MillFlags {
   lateinit var csCertificateDerFile: File
     private set
 
-  @CommandLine.ArgGroup(exclusive = false)
-  lateinit var openTelemetryOptions: OpenTelemetryOptions
+  @CommandLine.ArgGroup(exclusive = false) lateinit var openTelemetryOptions: OpenTelemetryOptions
 
   class OpenTelemetryOptions {
     @CommandLine.Option(

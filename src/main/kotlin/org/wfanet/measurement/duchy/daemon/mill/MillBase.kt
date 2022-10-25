@@ -168,8 +168,16 @@ abstract class MillBase(
       val cpuDurationLogger = cpuDurationLogger()
       val token = claimWorkResponse.token
       processComputation(token)
-      wallDurationLogger.logStageDurationMetric(token, STAGE_WALL_CLOCK_DURATION, stageWallClockDurationHistogram)
-      cpuDurationLogger.logStageDurationMetric(token, STAGE_CPU_DURATION, stageCpuTimeDurationHistogram)
+      wallDurationLogger.logStageDurationMetric(
+        token,
+        STAGE_WALL_CLOCK_DURATION,
+        stageWallClockDurationHistogram
+      )
+      cpuDurationLogger.logStageDurationMetric(
+        token,
+        STAGE_CPU_DURATION,
+        stageCpuTimeDurationHistogram
+      )
     } else {
       logger.fine("@Mill $millId: No computation available, waiting for the next poll...")
     }
@@ -289,8 +297,8 @@ abstract class MillBase(
   }
 
   /**
-   * Writes stage duration metric to the [Logger], records the metric in a histogram, and also
-   * sends to the ComputationStatsService.
+   * Writes stage duration metric to the [Logger], records the metric in a histogram, and also sends
+   * to the ComputationStatsService.
    */
   protected suspend fun logStageDurationMetric(
     token: ComputationToken,
@@ -394,7 +402,11 @@ abstract class MillBase(
       try {
         val wallDurationLogger = wallDurationLogger()
         val result = block()
-        wallDurationLogger.logStageDurationMetric(token, JNI_WALL_CLOCK_DURATION, jniWallClockDurationHistogram)
+        wallDurationLogger.logStageDurationMetric(
+          token,
+          JNI_WALL_CLOCK_DURATION,
+          jniWallClockDurationHistogram
+        )
         result
       } catch (error: Throwable) {
         // All errors from block() are permanent and would cause the computation to FAIL
@@ -462,7 +474,11 @@ abstract class MillBase(
 
   private inner class CpuDurationLogger(private val getTimeMillis: () -> Long) {
     private val start = getTimeMillis()
-    suspend fun logStageDurationMetric(token: ComputationToken, metricName: String, histogram: LongHistogram) {
+    suspend fun logStageDurationMetric(
+      token: ComputationToken,
+      metricName: String,
+      histogram: LongHistogram
+    ) {
       val time = getTimeMillis() - start
       logStageDurationMetric(token, metricName, time, histogram)
     }
@@ -472,7 +488,11 @@ abstract class MillBase(
   @OptIn(ExperimentalTime::class)
   private inner class WallDurationLogger() {
     private val timeMark = TimeSource.Monotonic.markNow()
-    suspend fun logStageDurationMetric(token: ComputationToken, metricName: String, histogram: LongHistogram) {
+    suspend fun logStageDurationMetric(
+      token: ComputationToken,
+      metricName: String,
+      histogram: LongHistogram
+    ) {
       val time = timeMark.elapsedNow().inWholeMilliseconds
       logStageDurationMetric(token, metricName, time, histogram)
     }

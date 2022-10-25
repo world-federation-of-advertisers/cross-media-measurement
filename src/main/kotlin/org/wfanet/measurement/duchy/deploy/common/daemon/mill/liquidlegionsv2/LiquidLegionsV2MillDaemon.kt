@@ -156,8 +156,20 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
               View.builder()
                 .setAggregation(
                   Aggregation.explicitBucketHistogram(
-                    listOf(1000.0, 2000.0, 4000.0, 8000.0, 16000.0, 32000.0, 64000.0, 128000.0, 256000.0, 512000.0, 1024000.0)
-                   )
+                    listOf(
+                      1000.0,
+                      2000.0,
+                      4000.0,
+                      8000.0,
+                      16000.0,
+                      32000.0,
+                      64000.0,
+                      128000.0,
+                      256000.0,
+                      512000.0,
+                      1024000.0
+                    )
+                  )
                 )
                 .build()
             )
