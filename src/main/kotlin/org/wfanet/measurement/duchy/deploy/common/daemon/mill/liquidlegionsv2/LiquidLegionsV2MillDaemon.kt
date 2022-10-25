@@ -53,9 +53,6 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.Compu
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
 import picocli.CommandLine
 
-private const val OTEL_EXPORTER_OTLP_ENDPOINT = "OTEL_EXPORTER_OTLP_ENDPOINT"
-private const val OTEL_SERVICE_NAME = "OTEL_SERVICE_NAME"
-
 abstract class LiquidLegionsV2MillDaemon : Runnable {
   @CommandLine.Mixin
   protected lateinit var flags: LiquidLegionsV2MillFlags
@@ -129,15 +126,15 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
     // included in mill logs to help debugging.
     val millId = System.getenv("HOSTNAME")
 
-    val otlpEndpoint: String? = System.getenv(OTEL_EXPORTER_OTLP_ENDPOINT)
-    val otelServiceName: String? = System.getenv(OTEL_SERVICE_NAME)
+    val endpoint = flags.openTelemetryOptions.otelExporterOtlpEndpoint
+    val serviceName = flags.openTelemetryOptions.otelServiceName
     val openTelemetry: OpenTelemetry =
-      if (otlpEndpoint == null || otelServiceName == null) {
+      if (endpoint.isBlank() || serviceName.isBlank()) {
         GlobalOpenTelemetry.get()
       } else {
         val resource: Resource =
           Resource.getDefault()
-            .merge(Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME, otelServiceName)))
+            .merge(Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME, serviceName)))
         val meterProvider =
           SdkMeterProvider.builder()
             .setResource(resource)
@@ -145,7 +142,7 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
               PeriodicMetricReader.builder(
                   OtlpGrpcMetricExporter.builder()
                     .setTimeout(Duration.ofSeconds(30L))
-                    .setEndpoint(otlpEndpoint)
+                    .setEndpoint(endpoint)
                     .build()
                 )
                 .setInterval(Duration.ofSeconds(60L))
@@ -156,8 +153,8 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
               View.builder()
                 .setAggregation(
                   Aggregation.explicitBucketHistogram(
-                    listOf(0.5, 1.0, 15.0, 30.0, 60.0, 120.0, 180.0, 240.0, 300.0, 600.0, 1200.0)
-                  )
+                    listOf(1000.0, 2000.0, 4000.0, 8000.0, 16000.0, 32000.0, 64000.0, 128000.0, 256000.0, 512000.0, 1024000.0)
+                   )
                 )
                 .build()
             )

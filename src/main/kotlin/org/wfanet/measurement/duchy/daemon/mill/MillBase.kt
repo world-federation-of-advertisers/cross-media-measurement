@@ -146,7 +146,6 @@ abstract class MillBase(
 
   private var computationsServerReady = false
   /** Poll and work on the next available computations. */
-  @OptIn(ExperimentalTime::class)
   suspend fun pollAndProcessNextComputation() {
     logger.fine("@Mill $millId: Polling available computations...")
 
@@ -167,15 +166,10 @@ abstract class MillBase(
     if (claimWorkResponse.hasToken()) {
       val wallDurationLogger = wallDurationLogger()
       val cpuDurationLogger = cpuDurationLogger()
-      val timeMark = TimeSource.Monotonic.markNow()
       val token = claimWorkResponse.token
-
       processComputation(token)
-      stageWallClockDurationHistogram.record(timeMark.elapsedNow().inWholeMilliseconds)
-      stageCpuTimeDurationHistogram.record(
-        cpuDurationLogger.logStageDurationMetric(token, STAGE_CPU_DURATION)
-      )
-      wallDurationLogger.logStageDurationMetric(token, STAGE_WALL_CLOCK_DURATION)
+      wallDurationLogger.logStageDurationMetric(token, STAGE_WALL_CLOCK_DURATION, stageWallClockDurationHistogram)
+      cpuDurationLogger.logStageDurationMetric(token, STAGE_CPU_DURATION, stageCpuTimeDurationHistogram)
     } else {
       logger.fine("@Mill $millId: No computation available, waiting for the next poll...")
     }
@@ -294,12 +288,17 @@ abstract class MillBase(
     sendComputationStats(token, metricName, metricValue)
   }
 
-  /** Writes stage duration metric to the [Logger] and also sends to the ComputationStatsService. */
+  /**
+   * Writes stage duration metric to the [Logger], records the metric in a histogram, and also
+   * sends to the ComputationStatsService.
+   */
   protected suspend fun logStageDurationMetric(
     token: ComputationToken,
     metricName: String,
-    metricValue: Long
+    metricValue: Long,
+    histogram: LongHistogram,
   ) {
+    histogram.record(metricValue)
     logger.info(
       "@Mill $millId, ${token.globalComputationId}/${token.computationStage.name}/$metricName:" +
         " ${metricValue.toHumanFriendlyDuration()}"
@@ -383,7 +382,6 @@ abstract class MillBase(
   /**
    * Fetches the cached result if available, otherwise compute the new result by executing [block].
    */
-  @OptIn(ExperimentalTime::class)
   protected suspend fun existingOutputOr(
     token: ComputationToken,
     block: suspend () -> ByteString
@@ -395,10 +393,8 @@ abstract class MillBase(
     val newResult: ByteString =
       try {
         val wallDurationLogger = wallDurationLogger()
-        val timeMark = TimeSource.Monotonic.markNow()
         val result = block()
-        jniWallClockDurationHistogram.record(timeMark.elapsedNow().inWholeMilliseconds)
-        wallDurationLogger.logStageDurationMetric(token, JNI_WALL_CLOCK_DURATION)
+        wallDurationLogger.logStageDurationMetric(token, JNI_WALL_CLOCK_DURATION, jniWallClockDurationHistogram)
         result
       } catch (error: Throwable) {
         // All errors from block() are permanent and would cause the computation to FAIL
@@ -464,16 +460,24 @@ abstract class MillBase(
     return cpuTime.toMillis()
   }
 
-  private inner class DurationLogger(private val getTimeMillis: () -> Long) {
+  private inner class CpuDurationLogger(private val getTimeMillis: () -> Long) {
     private val start = getTimeMillis()
-    suspend fun logStageDurationMetric(token: ComputationToken, metricName: String): Long {
+    suspend fun logStageDurationMetric(token: ComputationToken, metricName: String, histogram: LongHistogram) {
       val time = getTimeMillis() - start
-      logStageDurationMetric(token, metricName, time)
-      return time
+      logStageDurationMetric(token, metricName, time, histogram)
     }
   }
-  private fun cpuDurationLogger(): DurationLogger = DurationLogger(this::getCpuTimeMillis)
-  private fun wallDurationLogger(): DurationLogger = DurationLogger(System::currentTimeMillis)
+  private fun cpuDurationLogger(): CpuDurationLogger = CpuDurationLogger(this::getCpuTimeMillis)
+
+  @OptIn(ExperimentalTime::class)
+  private inner class WallDurationLogger() {
+    private val timeMark = TimeSource.Monotonic.markNow()
+    suspend fun logStageDurationMetric(token: ComputationToken, metricName: String, histogram: LongHistogram) {
+      val time = timeMark.elapsedNow().inWholeMilliseconds
+      logStageDurationMetric(token, metricName, time, histogram)
+    }
+  }
+  private fun wallDurationLogger(): WallDurationLogger = WallDurationLogger()
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)

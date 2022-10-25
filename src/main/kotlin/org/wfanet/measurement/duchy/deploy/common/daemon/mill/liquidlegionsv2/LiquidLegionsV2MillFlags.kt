@@ -100,4 +100,27 @@ class LiquidLegionsV2MillFlags {
   )
   lateinit var csCertificateDerFile: File
     private set
+
+  @CommandLine.ArgGroup(exclusive = false)
+  lateinit var openTelemetryOptions: OpenTelemetryOptions
+
+  class OpenTelemetryOptions {
+    @CommandLine.Option(
+      names = ["--otel-exporter-otlp-endpoint"],
+      description = ["Endpoint for OpenTelemetry Collector."],
+      required = true,
+      defaultValue = ""
+    )
+    lateinit var otelExporterOtlpEndpoint: String
+      private set
+
+    @CommandLine.Option(
+      names = ["--otel-service-name"],
+      description = ["Service name to be label duchy metrics with."],
+      required = true,
+      defaultValue = ""
+    )
+    lateinit var otelServiceName: String
+      private set
+  }
 }
