@@ -377,7 +377,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 					scrape: string | *"true"
 				}
 				annotations: {
-					"sidecar.opentelemetry.io/inject":              string | *"default-sidecar"
+					"sidecar.opentelemetry.io/inject":              string | "default-sidecar" | *"false"
 					"instrumentation.opentelemetry.io/inject-java": string | *"true"
 					"prometheus.io/port":                           string | *"\(#OpenTelemetryPrometheusExporterPort)"
 					"prometheus.io/scrape":                         string | *"true"

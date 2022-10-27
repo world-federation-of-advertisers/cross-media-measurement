@@ -14,8 +14,8 @@
 
 package k8s
 
-// Name of K8s service account for the internal API server.
-#InternalServerServiceAccount: "internal-server"
+// Name of K8s service account for reading from Cloud Spanner.
+#CloudSpannerServiceAccount: "cloud-spanner-reader"
 
 objectSets: [networkPolicies] + #OpenTelemetry.objectSets
 
@@ -27,7 +27,7 @@ objectSets: [networkPolicies] + #OpenTelemetry.objectSets
 
 	openTelemetryCollectors: {
 		"deployment": {
-			_serviceAccountName: #InternalServerServiceAccount
+			_serviceAccountName: #CloudSpannerServiceAccount
 			_config:             """
                 receivers:
                   googlecloudspanner:

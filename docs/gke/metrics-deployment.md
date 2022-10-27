@@ -20,12 +20,21 @@ free to use whichever you prefer.
         - opentelemetry-collector-pod-monitor
     - 1 GMP PodMonitoring
       - collector-pod-monitor
+    - 1 GMP Rules
+      - recording-rules
     - 2 OpenTelemetry Operator OpenTelemetryCollector
       - default-sidecar
       - deployment
     - 1 OpenTelemetry Operator Instrumentation
       - open-telemetry-java-agent
-    - 1 Kubernetes NetworkPolicy
+  - 2 Kubernetes ConfigMaps
+      - default-side-collector
+      - deployment-collector
+    - 1 Kubernetes Deployment
+      - deployment-collector
+    - 1 Kubernetes Service
+      - deployment-collector-monitoring
+    - 3 Kubernetes NetworkPolicies
       - opentelemetry-collector-network-policy
 
 ## Before you start
@@ -81,9 +90,12 @@ Spanner, so nothing here would be used. The contents of
 be swapped with the local version:
 [`open_telemetry.cue`](../../src/main/k8s/local/open_telemetry.cue).
 
-If desired, you can modify the filtering of the OpenTelemetry metrics. The 
-config is found in the base version:
-[`open_telemetry.cue`](../../src/main/k8s/open_telemetry.cue).
+If desired, you can modify the filtering of the metrics by adding relabeling
+to [`prometheus_gke.cue`](../../src/main/k8s/dev/prometheus_gke.cue). The doc
+for it is found 
+[here](https://github.com/GoogleCloudPlatform/prometheus-engine/blob/v0.4.3-gke.0/doc/api.md#relabelingrule).
+There is also an example sidecar for use with manual instrumentation of metrics.
+Some additional processing can be done using it.
 
 To generate the YAML manifests from the CUE files, run the following:
 
@@ -119,11 +131,27 @@ kubectl get -n gmp-system podmonitorings
 ```
 
 ```shell
+kubectl get rules
+```
+
+```shell
 kubectl get opentelemetrycollectors
 ```
 
 ```shell
 kubectl get instrumentations
+```
+
+```shell
+kubectl get configmaps
+```
+
+```shell
+kubectl get deployments
+```
+
+```shell
+kubectl get services
 ```
 
 ```shell
@@ -144,6 +172,11 @@ collector-pod-monitor   5m12s
 ```
 
 ```
+NAME              AGE
+recording-rules   3m4s
+```
+
+```
 NAME              MODE         VERSION   AGE
 default-sidecar   sidecar      0.60.0    4h7m
 deployment        deployment   0.60.0    131m
@@ -155,33 +188,24 @@ open-telemetry-java-agent   68s
 ```
 
 ```
+NAME                        DATA   AGE
+default-sidecar-collector   1      60s
+deployment-collector        1      60s
+```
+
+```
+NAME                                   READY   UP-TO-DATE   AVAILABLE   AGE
+deployment-collector                   1/1     1            1           7m4s
+```
+
+```
+NAME                              TYPE           CLUSTER-IP     EXTERNAL-IP   PORT(S)          AGE
+deployment-collector-monitoring   ClusterIP      10.108.6.18    <none>        8888/TCP         3m18s
+```
+
+```
 NAME                                     POD-SELECTOR                                  AGE
 opentelemetry-collector-network-policy   app.kubernetes.io/name=deployment-collector   51m
-```
-
-## Apply K8s namespace annotations
-
-This ensures every pod can have metrics.
-
-```shell
-kubectl annotate namespaces default 'sidecar.opentelemetry.io/inject'=default-sidecar
-kubectl annotate namespaces default 'instrumentation.opentelemetry.io/inject-java'=true
-```
-
-You can verify by running
-
-```shell
-kubectl describe namespace default
-```
-
-You should see something like the following:
-
-```
-Name:         default
-Labels:       kubernetes.io/metadata.name=default
-Annotations:  instrumentation.opentelemetry.io/inject-java: true
-              sidecar.opentelemetry.io/inject: default-sidecar
-Status:       Active
 ```
 
 ## Restart Deployments to Start Collecting Metrics
@@ -218,7 +242,7 @@ See [kubelet](https://cloud.google.com/stackdriver/docs/managed-prometheus/setup
 
 ## List of OpenTelemetry Metrics on Prometheus Dashboard
 
-###OpenTelemetry Auto Instrumented RPC and JVM Metrics
+### OpenTelemetry Auto Instrumented RPC and JVM Metrics
 
 - rpc_client_duration_bucket
 - rpc_client_duration_count
@@ -241,7 +265,12 @@ See [kubelet](https://cloud.google.com/stackdriver/docs/managed-prometheus/setup
 - process_runtime_jvm_system_cpu_utilization
 - process_runtime_jvm_threads_count
 
-###Cloud Spanner Metrics Exported using OpenTelemetry Receiver
+### Additional Metrics Created using Existing Metrics
+
+- rpc_client_request_rate_per_second
+- rpc_client_request_error_rate_per_second
+
+### Cloud Spanner Metrics Exported using OpenTelemetry Receiver
 
 - database_spanner_active_queries_summary_active_count
 - database_spanner_active_queries_summary_count_older_than_100s

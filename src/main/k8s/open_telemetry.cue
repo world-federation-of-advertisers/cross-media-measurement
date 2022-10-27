@@ -93,20 +93,17 @@ package k8s
 						name:  "OTEL_TRACES_EXPORTER"
 						value: "none"
 					}, {
-						name:  "OTEL_EXPORTER_OTLP_ENDPOINT"
-						value: "http://0.0.0.0:\(#OpenTelemetryReceiverPort)"
-					}, {
-						name:  "OTEL_EXPORTER_OTLP_TIMEOUT"
-						value: "20000"
-					}, {
-						name:  "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL"
-						value: "grpc"
-					}, {
 						name:  "OTEL_METRICS_EXPORTER"
-						value: "otlp"
+						value: "prometheus"
 					}, {
 						name:  "OTEL_METRIC_EXPORT_INTERVAL"
 						value: "30000"
+					}, {
+						name:  "OTEL_EXPORTER_PROMETHEUS_PORT"
+						value: "\(#OpenTelemetryPrometheusExporterPort)"
+					}, {
+						name:  "OTEL_EXPORTER_PROMETHEUS_HOST"
+						value: "0.0.0.0"
 					},
 				]
 				java: image: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:1.18.0"
