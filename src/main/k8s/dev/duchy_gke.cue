@@ -26,7 +26,8 @@ _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 #InternalServerServiceAccount: "internal-server"
 #StorageServiceAccount:        "storage"
 #MillResourceRequirements:     #ResourceRequirements & {
-	limits: memory: "4Gi"
+	requests: cpu:  "800m"
+	limits: memory: "2Gi"
 }
 #SpannerComputationsResourceRequirements: #ResourceRequirements & {
 	limits: memory: "384Mi"
@@ -90,6 +91,9 @@ duchy: #Duchy & {
 				serviceAccountName: #InternalServerServiceAccount
 			}
 		}
+		"herald-daemon-deployment": {
+			spec: template: spec: #SpotVmPodSpec
+		}
 		"liquid-legions-v2-mill-daemon-deployment": {
 			_container: {
 				_javaOptions: maxRamPercentage: 50.0
@@ -97,7 +101,7 @@ duchy: #Duchy & {
 			}
 			spec: {
 				replicas: #MillReplicas
-				template: spec: #ServiceAccountPodSpec & {
+				template: spec: #ServiceAccountPodSpec & #SpotVmPodSpec & {
 					serviceAccountName: #StorageServiceAccount
 				}
 			}

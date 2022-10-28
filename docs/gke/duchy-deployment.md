@@ -149,14 +149,15 @@ gcloud container clusters create worker1-duchy \
   --enable-network-policy --workload-pool=halo-worker1-demo.svc.id.goog \
   --service-account="gke-cluster@halo-worker1-demo.iam.gserviceaccount.com" \
   --database-encryption-key=projects/halo-worker1-demo/locations/us-central1/keyRings/test-key-ring/cryptoKeys/k8s-secret \
-  --num-nodes=3 --enable-autoscaling --min-nodes=2 --max-nodes=5 \
+  --num-nodes=2 --enable-autoscaling --min-nodes=2 --max-nodes=4 \
   --machine-type=e2-standard-2 -cluster-version=1.24.2-gke.1900
 ```
 
-Adjust the node pool based on your expected usage. Due to the differences in CPU
-vs. memory requirements for each pod, it may be more efficient to have multiple
-node pools with different machine types and/or to use GKE's auto-scaling and
-provisioning features.
+Adjust the node pools based on your expected usage. You may wish to use GKE
+features such as autoscaling or multiple node pools with different
+machine/scheduling types. The default Mill and Herald configuration include a
+toleration for running on
+[Spot VMs](https://cloud.google.com/kubernetes-engine/docs/how-to/spot-vms#use_taints_and_tolerations_for).
 
 The GKE version should be no older than `1.24.0` in order to support built-in
 gRPC health probe.
