@@ -272,6 +272,15 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	}
 }
 
+// K8s Toleration.
+#Toleration: {
+	key:                string
+	operator?:          "Equal" | "Exists"
+	value?:             string
+	effect?:            "NoSchedule" | "PreferNoSchedule" | "NoExecute"
+	tolerationSeconds?: int64
+}
+
 // K8s PodSpec.
 #PodSpec: {
 	_mounts: [Name=string]:     #Mount & {name:  Name}
@@ -282,6 +291,9 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	}
 	_initContainers: [Name=string]: #Container & {
 		name: Name
+	}
+	_tolerations: [Key=string]: #Toleration & {
+		key: Key
 	}
 	_dependencies: [...string]
 
@@ -303,6 +315,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	serviceAccountName?: string
 	nodeSelector?: [_=string]: string
 	initContainers: [ for _, initContainer in _initContainers {initContainer}]
+	tolerations: [ for _, toleration in _tolerations {toleration}]
 }
 
 // K8s Pod.
