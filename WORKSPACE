@@ -34,6 +34,8 @@ ADDITIONAL_MAVEN_ARTIFACTS = artifacts.dict_to_list({
     "org.projectnessie.cel:cel-core": "0.2.4",
     "org.projectnessie.cel:cel-tools": "0.2.4",
     "org.projectnessie.cel:cel-generated-pb": "0.2.4",
+    "io.kubernetes:client-java": "16.0.0",
+    "io.kubernetes:client-java-extended": "16.0.0",
 })
 
 maven_install(
