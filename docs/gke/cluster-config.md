@@ -136,7 +136,7 @@ using a `LimitRange`. See the corresponding
 for more information.
 
 For the `dev` environment, we use
-[resource_requirements.yaml](../../src/main/k8s/testing/secretfiles/resource_requirements.yaml)
+[resource_requirements.yaml](../../src/main/k8s/dev/resource_requirements.yaml)
 
 ## Reserving External IPs
 

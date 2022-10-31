@@ -23,9 +23,10 @@ def wfa_measurement_system_repositories():
 
     wfa_repo_archive(
         name = "wfa_common_jvm",
+        # DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#169): Use version once released.
+        commit = "585cd6f65c4efecf972795c6615005f8d93d6b4c",
         repo = "common-jvm",
-        sha256 = "87a0170b283c342e57e903bf816b7ad49e145b179ec61690a54b3978dd6dca61",
-        version = "0.46.0",
+        sha256 = "291c7f464ccf5bc16b059bd02a28cf05543a9ba23bceb96d7c95f662f7f85354",
     )
 
     wfa_repo_archive(
