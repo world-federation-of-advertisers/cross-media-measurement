@@ -132,7 +132,7 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
     val endpoint = flags.openTelemetryOptions.otelExporterOtlpEndpoint
     val serviceName = flags.openTelemetryOptions.otelServiceName
     val openTelemetry: OpenTelemetry =
-      if (endpoint.isBlank() || serviceName.isBlank()) {
+      if (endpoint == null || serviceName == null) {
         GlobalOpenTelemetry.get()
       } else {
         val resource: Resource =

@@ -103,23 +103,22 @@ class LiquidLegionsV2MillFlags {
 
   @CommandLine.ArgGroup(exclusive = false) lateinit var openTelemetryOptions: OpenTelemetryOptions
 
+  // All options here must be present or none of them must be present.
   class OpenTelemetryOptions {
     @CommandLine.Option(
       names = ["--otel-exporter-otlp-endpoint"],
       description = ["Endpoint for OpenTelemetry Collector."],
       required = true,
-      defaultValue = ""
     )
-    lateinit var otelExporterOtlpEndpoint: String
+    var otelExporterOtlpEndpoint: String? = null
       private set
 
     @CommandLine.Option(
       names = ["--otel-service-name"],
       description = ["Service name to be label duchy metrics with."],
       required = true,
-      defaultValue = ""
     )
-    lateinit var otelServiceName: String
+    var otelServiceName: String? = null
       private set
   }
 }
