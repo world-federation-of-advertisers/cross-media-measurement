@@ -222,6 +222,12 @@ files are required in a Duchy:
 
     The private key for the Duchy's consent signaling certificate in DER format.
 
+1.  `duchy_cert_config.textproto`
+
+    Configuration mapping Duchy root certificates to the corresponding Duchy ID.
+
+    -   [Example](../../src/main/k8s/testing/secretfiles/duchy_cert_config.textproto)
+
 1.  `xxx_protocols_setup_config.textproto` (replace xxx with the role)
 
     -   This contains information about the protocols run in the duchy
@@ -229,7 +235,8 @@ files are required in a Duchy:
     -   [Example](../../src/main/k8s/testing/secretfiles/aggregator_protocols_setup_config.textproto)
 
 Put all above files in the same folder (anywhere in your local machine), and
-create a file named `kustomization.yaml` with the following content:
+create a file named `kustomization.yaml` with the following content,
+substituting the appropriate version of protocols setup config:
 
 ```yaml
 secretGenerator:
@@ -240,7 +247,8 @@ secretGenerator:
   - worker1_tls.key
   - worker1_cs_cert.der
   - worker1_cs_private.der
-  - protocols_setup_config.textproto
+  - duchy_cert_config.textproto
+  - xxx_protocols_setup_config.textproto
 ```
 
 and run
