@@ -22,6 +22,7 @@ import io.kubernetes.client.openapi.Configuration
 import io.kubernetes.client.openapi.models.V1Deployment
 import io.kubernetes.client.openapi.models.V1Pod
 import java.io.File
+import java.net.InetSocketAddress
 import java.nio.charset.StandardCharsets
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -29,7 +30,10 @@ import java.security.Security
 import java.time.Duration
 import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.time.delay
 import kotlinx.coroutines.withContext
 import org.jetbrains.annotations.Blocking
 import org.junit.AfterClass
@@ -58,7 +62,6 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.k8s.KubernetesClient
 import org.wfanet.measurement.common.k8s.testing.KindCluster
 import org.wfanet.measurement.common.k8s.testing.PortForwarder
-import org.wfanet.measurement.common.testing.pollFor
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.MC_DISPLAY_NAME
 import org.wfanet.measurement.integration.common.createEntityContent
@@ -400,13 +403,13 @@ class CorrectnessTest {
       val storageForwarder = PortForwarder(forwardedStoragePod, SERVER_PORT)
       portForwarders.add(storageForwarder)
 
-      val publicApiPort: Int = publicApiForwarder.start()
+      val publicApiAddress: InetSocketAddress = publicApiForwarder.start()
       val publicApiChannel: ManagedChannel =
-        buildMutualTlsChannel("localhost:$publicApiPort", measurementConsumerSigningCerts)
+        buildMutualTlsChannel(publicApiAddress.toTarget(), measurementConsumerSigningCerts)
       channels.add(publicApiChannel)
-      val storagePort: Int = storageForwarder.start()
+      val storageAddress: InetSocketAddress = storageForwarder.start()
       val storageChannel: ManagedChannel =
-        buildMutualTlsChannel("localhost:$storagePort", kingdomSigningCerts)
+        buildMutualTlsChannel(storageAddress.toTarget(), kingdomSigningCerts)
       channels.add(storageChannel)
       val storageClient = ForwardedStorageClient(ForwardedStorageCoroutineStub(storageChannel))
       val eventGroupsClient = EventGroupsCoroutineStub(publicApiChannel)
@@ -475,14 +478,16 @@ class CorrectnessTest {
             .first()
 
         PortForwarder(kingdomInternalPod, SERVER_PORT).use { internalForward ->
-          val internalPort: Int = withContext(Dispatchers.IO) { internalForward.start() }
+          val internalAddress: InetSocketAddress =
+            withContext(Dispatchers.IO) { internalForward.start() }
           val internalChannel =
-            buildMutualTlsChannel("localhost:$internalPort", kingdomSigningCerts)
+            buildMutualTlsChannel(internalAddress.toTarget(), kingdomSigningCerts)
           PortForwarder(kingdomPublicPod, SERVER_PORT)
             .use { publicForward ->
-              val publicPort = withContext(Dispatchers.IO) { publicForward.start() }
+              val publicAddress: InetSocketAddress =
+                withContext(Dispatchers.IO) { publicForward.start() }
               val publicChannel =
-                buildMutualTlsChannel("localhost:$publicPort", kingdomSigningCerts)
+                buildMutualTlsChannel(publicAddress.toTarget(), kingdomSigningCerts)
               val resourceSetup =
                 ResourceSetup(
                   InternalAccountsCoroutineStub(internalChannel),
@@ -526,7 +531,7 @@ class CorrectnessTest {
       apiKey: String
     ) {
       logger.info { "Waiting for all event groups to be created..." }
-      pollFor(timeoutMillis = Long.MAX_VALUE, delayMillis = 1_000) {
+      while (currentCoroutineContext().isActive) {
         val eventGroups =
           withAuthenticationKey(apiKey)
             .listEventGroups(
@@ -537,11 +542,16 @@ class CorrectnessTest {
               }
             )
             .eventGroupsList
+
         // Each EDP simulator creates one event group, so we wait until there are as many event
         // groups as EDP simulators.
-        if (eventGroups.size == NUM_DATA_PROVIDERS) eventGroups else null
+        if (eventGroups.size == NUM_DATA_PROVIDERS) {
+          logger.info { "All event groups created" }
+          return
+        }
+
+        delay(Duration.ofSeconds(1))
       }
-      logger.info { "All event groups created" }
     }
 
     @Blocking
@@ -582,4 +592,8 @@ class CorrectnessTest {
       }
     }
   }
+}
+
+private fun InetSocketAddress.toTarget(): String {
+  return "$hostName:$port"
 }

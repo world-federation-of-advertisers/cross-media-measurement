@@ -12,6 +12,7 @@ kt_jvm_library(
         "//imports/java/io/kubernetes/client",
         "@wfa_common_jvm//imports/java/org/jetbrains/annotations",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
 
