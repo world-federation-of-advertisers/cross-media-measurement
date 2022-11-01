@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
 import com.google.protobuf.ByteString
 import com.google.protobuf.duration
 import io.grpc.StatusException
@@ -33,7 +34,6 @@ import org.wfanet.anysketch.SketchConfigKt.valueSpec
 import org.wfanet.anysketch.SketchProtos
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
-import org.wfanet.anysketch.crypto.ElGamalPublicKey as AnySketchElGamalPublicKey
 import org.wfanet.anysketch.crypto.EncryptSketchRequest
 import org.wfanet.anysketch.crypto.EncryptSketchResponse
 import org.wfanet.anysketch.crypto.SketchEncrypterAdapter
@@ -206,7 +206,10 @@ class EdpSimulator(
         )
       }
 
-      if (requisition.protocolConfig.protocolsList.any { protocol -> protocol.hasDirect() }) {
+      if (
+        !requisition.hasProtocolConfig() ||
+          requisition.protocolConfig.protocolsList.any { protocol -> protocol.hasDirect() }
+      ) {
         when (measurementSpec.measurementTypeCase) {
           MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
             fulfillDirectReachAndFrequencyMeasurement(requisition, requisitionSpec, measurementSpec)
@@ -349,9 +352,12 @@ class EdpSimulator(
     requisitionFingerprint: ByteString,
     requisitionSpec: RequisitionSpec
   ) {
-    val combinedPublicKey =
-      requisition.getCombinedPublicKey(requisition.protocolConfig.liquidLegionsV2.ellipticCurveId)
-    val sketchConfig = requisition.protocolConfig.liquidLegionsV2.sketchParams.toSketchConfig()
+    val liquidLegionsV2: ProtocolConfig.LiquidLegionsV2 =
+      requisition.protocolConfig.protocolsList
+        .find { protocol -> protocol.hasLiquidLegionsV2() }!!
+        .liquidLegionsV2
+    val combinedPublicKey = requisition.getCombinedPublicKey(liquidLegionsV2.ellipticCurveId)
+    val sketchConfig = liquidLegionsV2.sketchParams.toSketchConfig()
 
     val sketch =
       try {
@@ -367,8 +373,8 @@ class EdpSimulator(
 
     logger.info("Writing sketch to storage")
     sketchStore.write(requisition, sketch.toByteString())
-    val encryptedSketch =
-      encryptSketch(sketch, combinedPublicKey, requisition.protocolConfig.liquidLegionsV2)
+
+    val encryptedSketch = encryptSketch(sketch, combinedPublicKey, liquidLegionsV2)
     fulfillRequisition(
       requisition.name,
       requisitionFingerprint,

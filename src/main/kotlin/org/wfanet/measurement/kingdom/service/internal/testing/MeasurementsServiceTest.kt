@@ -715,6 +715,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
                 liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
                 measurementType = ProtocolConfig.MeasurementType.MEASUREMENT_TYPE_UNSPECIFIED
               }
+              dataProvidersCount = 1
             }
             details = details {
               dataProviderPublicKey = dataProviderValue.dataProviderPublicKey

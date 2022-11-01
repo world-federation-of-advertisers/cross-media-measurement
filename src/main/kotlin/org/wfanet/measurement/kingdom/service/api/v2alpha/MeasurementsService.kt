@@ -65,8 +65,10 @@ private const val MAX_PAGE_SIZE = 1000
 
 private const val MISSING_RESOURCE_NAME_ERROR = "Resource name is either unspecified or invalid"
 
-class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoroutineStub) :
-  MeasurementsCoroutineImplBase() {
+class MeasurementsService(
+  private val internalMeasurementsStub: MeasurementsCoroutineStub,
+  private val allowMpcProtocolsForSingleDataProvider: Boolean,
+) : MeasurementsCoroutineImplBase() {
 
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
     val authenticatedMeasurementConsumerKey = getAuthenticatedMeasurementConsumerKey()
@@ -95,7 +97,7 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
         }
       }
 
-    return internalMeasurement.toMeasurement()
+    return internalMeasurement.toMeasurement(allowMpcProtocolsForSingleDataProvider)
   }
 
   override suspend fun createMeasurement(request: CreateMeasurementRequest): Measurement {
@@ -168,7 +170,7 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
         }
       }
 
-    return internalMeasurement.toMeasurement()
+    return internalMeasurement.toMeasurement(allowMpcProtocolsForSingleDataProvider)
   }
 
   override suspend fun listMeasurements(
@@ -198,9 +200,10 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
 
     return listMeasurementsResponse {
       measurement +=
-        results
-          .subList(0, min(results.size, listMeasurementsPageToken.pageSize))
-          .map(InternalMeasurement::toMeasurement)
+        results.subList(0, min(results.size, listMeasurementsPageToken.pageSize))
+          .map { internalMeasurement ->
+            internalMeasurement.toMeasurement(allowMpcProtocolsForSingleDataProvider)
+          }
       if (results.size > listMeasurementsPageToken.pageSize) {
         val pageToken =
           listMeasurementsPageToken.copy {
@@ -244,7 +247,7 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
         }
       }
 
-    return internalMeasurement.toMeasurement()
+    return internalMeasurement.toMeasurement(allowMpcProtocolsForSingleDataProvider)
   }
 }
 

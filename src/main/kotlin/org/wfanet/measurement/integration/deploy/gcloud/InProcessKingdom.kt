@@ -22,6 +22,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.SpannerDataServices
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.Schemata
 
 private const val REDIRECT_URI = "https://localhost:2048"
+private const val ALLOW_MPC_PROTOCOLS_FOR_SINGLE_DATA_PROVIDER = true
 
 fun buildKingdomSpannerEmulatorDatabaseRule(): SpannerEmulatorDatabaseRule {
   return SpannerEmulatorDatabaseRule(Schemata.KINGDOM_CHANGELOG_PATH)
@@ -37,6 +38,7 @@ fun buildSpannerInProcessKingdom(
       SpannerDataServices(clock, RandomIdGenerator(clock), databaseRule.databaseClient)
     },
     verboseGrpcLogging = verboseGrpcLogging,
-    REDIRECT_URI
+    REDIRECT_URI,
+    ALLOW_MPC_PROTOCOLS_FOR_SINGLE_DATA_PROVIDER
   )
 }

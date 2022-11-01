@@ -14,6 +14,13 @@
 
 package org.wfanet.measurement.kingdom.service.internal.testing
 
+import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase as AccountsCoroutineService
+import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase as CertificatesCoroutineService
+import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase as ComputationParticipantsCoroutineService
+import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase as DataProvidersCoroutineService
+import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase as MeasurementConsumersCoroutineService
+import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as MeasurementsCoroutineService
+import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase as RequisitionsCoroutineService
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.kotlin.toByteStringUtf8
@@ -33,23 +40,16 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase as AccountsCoroutineService
 import org.wfanet.measurement.internal.kingdom.Certificate
-import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase as CertificatesCoroutineService
-import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase as ComputationParticipantsCoroutineService
-import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase as DataProvidersCoroutineService
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.computedRequisitionParams
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.directRequisitionParams
 import org.wfanet.measurement.internal.kingdom.Measurement
-import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase as MeasurementConsumersCoroutineService
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
-import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as MeasurementsCoroutineService
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionKt
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.refusal
-import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase as RequisitionsCoroutineService
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest
@@ -575,6 +575,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         protocolConfig = protocolConfig {
           liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
         }
+        dataProvidersCount = 1
       }
     }
     assertThat(requisition)
@@ -649,6 +650,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         measurementSpecSignature = measurement.details.measurementSpecSignature
         state = Measurement.State.PENDING_REQUISITION_FULFILLMENT
         protocolConfig = protocolConfig {}
+        dataProvidersCount = 1
       }
     }
     assertThat(requisition)
