@@ -14,6 +14,15 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import org.wfanet.measurement.internal.kingdom.DifferentialPrivacyParams as InternalDifferentialPrivacyParams
+import org.wfanet.measurement.internal.kingdom.Exchange as InternalExchange
+import org.wfanet.measurement.internal.kingdom.ExchangeStep as InternalExchangeStep
+import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt as InternalExchangeStepAttempt
+import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow as InternalExchangeWorkflow
+import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
+import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
+import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
@@ -55,23 +64,13 @@ import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toLocalDate
-import org.wfanet.measurement.internal.kingdom.DifferentialPrivacyParams as InternalDifferentialPrivacyParams
-import org.wfanet.measurement.internal.kingdom.Exchange as InternalExchange
-import org.wfanet.measurement.internal.kingdom.ExchangeStep as InternalExchangeStep
-import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt as InternalExchangeStepAttempt
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetails
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttemptDetailsKt
-import org.wfanet.measurement.internal.kingdom.ExchangeWorkflow as InternalExchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.ExchangeWorkflowKt
-import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.details
-import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
-import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt as InternalProtocolConfigs
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.exchangeWorkflow
-import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
-import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 
 /** Converts an internal [InternalMeasurement.State] to a public [State]. */
@@ -133,22 +132,28 @@ fun InternalDifferentialPrivacyParams.toDifferentialPrivacyParams(): Differentia
 }
 
 /** @throws [IllegalStateException] if MeasurementType not specified */
-fun InternalProtocolConfig.toProtocolConfig(): ProtocolConfig {
+fun InternalProtocolConfig.toProtocolConfig(
+  parsedMeasurementSpec: MeasurementSpec,
+  dataProviderCount: Int,
+  allowMpcProtocolsForSingleDataProvider: Boolean,
+): ProtocolConfig {
   val source = this
+
   return protocolConfig {
-    name = ProtocolConfigKey(source.externalProtocolConfigId).toName()
+    name =
+      if (source.externalProtocolConfigId.isNotEmpty())
+        ProtocolConfigKey(source.externalProtocolConfigId).toName()
+      else ProtocolConfigKey(Direct.getDescriptor().name).toName()
+
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     measurementType =
-      when (source.measurementType) {
-        InternalProtocolConfig.MeasurementType.MEASUREMENT_TYPE_UNSPECIFIED ->
+      when (parsedMeasurementSpec.measurementTypeCase) {
+        MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
           ProtocolConfig.MeasurementType.MEASUREMENT_TYPE_UNSPECIFIED
-        InternalProtocolConfig.MeasurementType.REACH_AND_FREQUENCY ->
+        MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
           ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
-        InternalProtocolConfig.MeasurementType.IMPRESSION ->
-          ProtocolConfig.MeasurementType.IMPRESSION
-        InternalProtocolConfig.MeasurementType.DURATION -> ProtocolConfig.MeasurementType.DURATION
-        InternalProtocolConfig.MeasurementType.UNRECOGNIZED ->
-          error("MeasurementType unrecognized.")
+        MeasurementSpec.MeasurementTypeCase.IMPRESSION -> ProtocolConfig.MeasurementType.IMPRESSION
+        MeasurementSpec.MeasurementTypeCase.DURATION -> ProtocolConfig.MeasurementType.DURATION
       }
     if (source.hasLiquidLegionsV2()) {
       liquidLegionsV2 = liquidLegionsV2 {
@@ -168,17 +173,32 @@ fun InternalProtocolConfig.toProtocolConfig(): ProtocolConfig {
       }
     }
 
-    source.protocolsList.forEach { sourceProtocol ->
-      if (sourceProtocol.hasLiquidLegionsV2()) {
-        protocols += protocol { liquidLegionsV2 = this@protocolConfig.liquidLegionsV2 }
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+    when (parsedMeasurementSpec.measurementTypeCase) {
+      MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
+        if (dataProviderCount > 1)
+          protocols += protocol { liquidLegionsV2 = this@protocolConfig.liquidLegionsV2 }
+        if (dataProviderCount == 1) {
+          protocols += protocol { direct = direct {} }
+          if (allowMpcProtocolsForSingleDataProvider)
+            protocols += protocol { liquidLegionsV2 = this@protocolConfig.liquidLegionsV2 }
+        }
       }
-      if (sourceProtocol.hasDirect()) protocols += protocol { direct = direct {} }
+      MeasurementSpec.MeasurementTypeCase.IMPRESSION,
+      MeasurementSpec.MeasurementTypeCase.DURATION,
+      -> {
+        protocols += protocol { direct = direct {} }
+      }
+      MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
+        error("MeasurementType not set.")
     }
   }
 }
 
 /** Converts an internal [InternalMeasurement] to a public [Measurement]. */
-fun InternalMeasurement.toMeasurement(): Measurement {
+fun InternalMeasurement.toMeasurement(
+  allowMpcProtocolsForSingleDataProvider: Boolean,
+): Measurement {
   val source = this
   check(Version.fromString(source.details.apiVersion) == Version.V2_ALPHA) {
     "Incompatible API version ${source.details.apiVersion}"
@@ -186,9 +206,9 @@ fun InternalMeasurement.toMeasurement(): Measurement {
   return measurement {
     name =
       MeasurementKey(
-          externalIdToApiId(source.externalMeasurementConsumerId),
-          externalIdToApiId(source.externalMeasurementId)
-        )
+        externalIdToApiId(source.externalMeasurementConsumerId),
+        externalIdToApiId(source.externalMeasurementId)
+      )
         .toName()
     measurementConsumerCertificate =
       MeasurementConsumerCertificateKey(
@@ -203,30 +223,14 @@ fun InternalMeasurement.toMeasurement(): Measurement {
     dataProviders +=
       source.dataProvidersMap.entries.map(Map.Entry<Long, DataProviderValue>::toDataProviderEntry)
 
-    if (source.details.hasProtocolConfig()) {
-      protocolConfig = source.details.protocolConfig.toProtocolConfig()
-    } else {
-      // For backward compatibility. If old direct/impression/duration measurements persisted in DB
-      // don't have protocolConfig, generate here.
+    val parsedMeasurementSpec = MeasurementSpec.parseFrom(this.measurementSpec.data)
 
-      val parsedMeasurementSpec = MeasurementSpec.parseFrom(this.measurementSpec.data)
-      protocolConfig = protocolConfig {
-        name = ProtocolConfigKey(Direct.getDescriptor().name).toName()
-
-        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-        measurementType =
-          when (parsedMeasurementSpec.measurementTypeCase) {
-            MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
-              ProtocolConfig.MeasurementType.MEASUREMENT_TYPE_UNSPECIFIED
-            MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
-              ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
-            MeasurementSpec.MeasurementTypeCase.IMPRESSION ->
-              ProtocolConfig.MeasurementType.IMPRESSION
-            MeasurementSpec.MeasurementTypeCase.DURATION -> ProtocolConfig.MeasurementType.DURATION
-          }
-        protocols += protocol { direct = direct {} }
-      }
-    }
+    protocolConfig =
+      source.details.protocolConfig.toProtocolConfig(
+        parsedMeasurementSpec,
+        dataProvidersCount,
+        allowMpcProtocolsForSingleDataProvider
+      )
 
     state = source.state.toState()
     results +=
@@ -313,36 +317,15 @@ fun Measurement.toInternal(
             externalProtocolConfigId = Llv2ProtocolConfig.name
             measurementType = InternalProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
             liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
-            protocols +=
-              InternalProtocolConfigs.protocol {
-                liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
-              }
-            // For single EDP direct R/F measurement, add direct protocol
-            if (dataProvidersCount == 1)
-              protocols +=
-                InternalProtocolConfigs.protocol { direct = InternalProtocolConfigs.direct {} }
           }
           duchyProtocolConfig = duchyProtocolConfig {
             liquidLegionsV2 = Llv2ProtocolConfig.duchyProtocolConfig
           }
         }
-        MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {
-          protocolConfig = internalProtocolConfig {
-            externalProtocolConfigId = Direct.getDescriptor().name
-            measurementType = InternalProtocolConfig.MeasurementType.IMPRESSION
-
-            protocols +=
-              InternalProtocolConfigs.protocol { direct = InternalProtocolConfigs.direct {} }
-          }
-        }
-        MeasurementSpec.MeasurementTypeCase.DURATION -> {
-          protocolConfig = internalProtocolConfig {
-            externalProtocolConfigId = Direct.getDescriptor().name
-            measurementType = InternalProtocolConfig.MeasurementType.DURATION
-
-            protocols +=
-              InternalProtocolConfigs.protocol { direct = InternalProtocolConfigs.direct {} }
-          }
+        // No protocol for impression or duration type.
+        MeasurementSpec.MeasurementTypeCase.IMPRESSION,
+        MeasurementSpec.MeasurementTypeCase.DURATION,
+        -> {
         }
         MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
           error("MeasurementType not set.")

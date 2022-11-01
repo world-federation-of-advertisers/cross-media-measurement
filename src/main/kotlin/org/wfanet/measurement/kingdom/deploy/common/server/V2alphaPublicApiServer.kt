@@ -14,16 +14,6 @@
 
 package org.wfanet.measurement.kingdom.deploy.common.server
 
-import io.grpc.ServerServiceDefinition
-import java.io.File
-import org.wfanet.measurement.api.v2alpha.AkidPrincipalLookup
-import org.wfanet.measurement.api.v2alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
-import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.common.crypto.SigningCerts
-import org.wfanet.measurement.common.grpc.CommonServer
-import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
-import org.wfanet.measurement.common.grpc.withDefaultDeadline
-import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ApiKeysGrpcKt.ApiKeysCoroutineStub as InternalApiKeysCoroutineStub
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
@@ -36,6 +26,17 @@ import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.Measur
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.PublicKeysGrpcKt.PublicKeysCoroutineStub as InternalPublicKeysCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub as InternalRequisitionsCoroutineStub
+import io.grpc.ServerServiceDefinition
+import java.io.File
+import kotlin.properties.Delegates
+import org.wfanet.measurement.api.v2alpha.AkidPrincipalLookup
+import org.wfanet.measurement.api.v2alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
+import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.grpc.CommonServer
+import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withDefaultDeadline
+import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfigFlags
 import org.wfanet.measurement.kingdom.service.api.v2alpha.AccountsService
@@ -115,17 +116,20 @@ private fun run(
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
       EventGroupMetadataDescriptorsService(
           InternalEventGroupMetadataDescriptorsCoroutineStub(channel)
-        )
+      )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
       ExchangeStepAttemptsService(
-          InternalExchangeStepAttemptsCoroutineStub(channel),
-          internalExchangeStepsCoroutineStub
-        )
+        InternalExchangeStepAttemptsCoroutineStub(channel),
+        internalExchangeStepsCoroutineStub
+      )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       ExchangeStepsService(internalExchangeStepsCoroutineStub)
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-      MeasurementsService(InternalMeasurementsCoroutineStub(channel))
+      MeasurementsService(
+        InternalMeasurementsCoroutineStub(channel),
+        v2alphaFlags.allowMpcProtocolsForSingleDataProvider
+      )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
       MeasurementConsumersService(InternalMeasurementConsumersCoroutineStub(channel))
@@ -138,7 +142,10 @@ private fun run(
       PublicKeysService(InternalPublicKeysCoroutineStub(channel))
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
-      RequisitionsService(InternalRequisitionsCoroutineStub(channel))
+      RequisitionsService(
+        v2alphaFlags.allowMpcProtocolsForSingleDataProvider,
+        InternalRequisitionsCoroutineStub(channel)
+      )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub)
     )
@@ -163,5 +170,13 @@ private class V2alphaFlags {
     required = true
   )
   lateinit var redirectUri: String
+    private set
+
+  @set:CommandLine.Option(
+    names = ["--allow-mpc-protocols-for-single-data-provider"],
+    description = ["Enable mpc-based reach and frequency calculation for single-EDP measurement"],
+    defaultValue = "true"
+  )
+  var allowMpcProtocolsForSingleDataProvider by Delegates.notNull<Boolean>()
     private set
 }

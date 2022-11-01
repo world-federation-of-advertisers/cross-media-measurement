@@ -14,6 +14,10 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate.AgeRange as PrivacyAgeRange
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplateKt.ageRange as privacyAgeRange
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup as PrivacyLandscapeAge
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Gender as PrivacyLandscapeGender
 import com.google.common.truth.Correspondence
 import com.google.common.truth.Truth.assertThat
 import java.nio.file.Path
@@ -73,8 +77,6 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemp
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplateKt.gender
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate.AgeRange as PrivacyAgeRange
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplateKt.ageRange as privacyAgeRange
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testBannerTemplate
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testPrivacyBudgetTemplate
@@ -107,9 +109,7 @@ import org.wfanet.measurement.consent.client.duchy.signElgamalPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup as PrivacyLandscapeAge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Charge
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Gender as PrivacyLandscapeGender
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketGroup
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetBalanceEntry
@@ -692,18 +692,19 @@ class EdpSimulatorTest {
       measurementSpec = signMeasurementSpec(MEASUREMENT_SPEC, MC_SIGNING_KEY)
       encryptedRequisitionSpec = ENCRYPTED_REQUISITION_ONE_SPEC
       protocolConfig = protocolConfig {
-        liquidLegionsV2 =
-          ProtocolConfigKt.liquidLegionsV2 {
-            sketchParams = liquidLegionsSketchParams {
-              decayRate = LLV2_DECAY_RATE
-              maxSize = LLV2_MAX_SIZE
-              samplingIndicatorSize = 10_000_000
-            }
-            ellipticCurveId = 415
-            maximumFrequency = 12
-          }
         protocols +=
-          ProtocolConfigKt.protocol { liquidLegionsV2 = this@protocolConfig.liquidLegionsV2 }
+          ProtocolConfigKt.protocol {
+            liquidLegionsV2 =
+              ProtocolConfigKt.liquidLegionsV2 {
+                sketchParams = liquidLegionsSketchParams {
+                  decayRate = LLV2_DECAY_RATE
+                  maxSize = LLV2_MAX_SIZE
+                  samplingIndicatorSize = 10_000_000
+                }
+                ellipticCurveId = 415
+                maximumFrequency = 12
+              }
+          }
       }
       duchies += duchyEntry {
         key = DUCHIES_MAP_KEY
