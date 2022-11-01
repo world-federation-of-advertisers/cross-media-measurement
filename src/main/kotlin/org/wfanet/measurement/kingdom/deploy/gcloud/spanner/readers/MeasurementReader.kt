@@ -150,7 +150,8 @@ class MeasurementReader(private val view: Measurement.View) :
       Measurements
       JOIN MeasurementConsumers USING (MeasurementConsumerId)
       JOIN MeasurementConsumerCertificates USING(MeasurementConsumerId, CertificateId)
-    """.trimIndent()
+    """
+        .trimIndent()
 
     private val computationViewBaseSql =
       """
@@ -243,7 +244,8 @@ class MeasurementReader(private val view: Measurement.View) :
       Measurements
       JOIN MeasurementConsumers USING (MeasurementConsumerId)
       JOIN MeasurementConsumerCertificates USING(MeasurementConsumerId, CertificateId)
-    """.trimIndent()
+    """
+        .trimIndent()
   }
 }
 
@@ -306,10 +308,13 @@ private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {
 
 private fun MeasurementKt.Dsl.fillComputationView(struct: Struct) {
   fillMeasurementCommon(struct)
+  val requisitionsStructs = struct.getStructList("Requisitions")
+  val dataProvidersCount = requisitionsStructs.size
 
   if (struct.isNull("ExternalComputationId")) {
-    for (requisitionStruct in struct.getStructList("Requisitions")) {
-      requisitions += RequisitionReader.buildRequisition(struct, requisitionStruct, mapOf())
+    for (requisitionStruct in requisitionsStructs) {
+      requisitions +=
+        RequisitionReader.buildRequisition(struct, requisitionStruct, mapOf(), dataProvidersCount)
     }
     return
   }
@@ -337,8 +342,13 @@ private fun MeasurementKt.Dsl.fillComputationView(struct: Struct) {
       )
   }
 
-  for (requisitionStruct in struct.getStructList("Requisitions")) {
+  for (requisitionStruct in requisitionsStructs) {
     requisitions +=
-      RequisitionReader.buildRequisition(struct, requisitionStruct, participantStructs)
+      RequisitionReader.buildRequisition(
+        struct,
+        requisitionStruct,
+        participantStructs,
+        dataProvidersCount
+      )
   }
 }

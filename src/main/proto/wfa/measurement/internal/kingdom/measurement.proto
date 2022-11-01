@@ -278,6 +278,8 @@ message Requisition {
     ProtocolConfig protocol_config = 5;
 
     Measurement.State state = 6;
+
+    int32 data_providers_count = 7;
   }
   // Denormalized fields from the parent Measurement. Output-only.
   ParentMeasurement parent_measurement = 12;

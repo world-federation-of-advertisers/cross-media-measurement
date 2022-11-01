@@ -14,8 +14,20 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
+import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
+import org.wfanet.measurement.internal.kingdom.Requisition.Refusal as InternalRefusal
+import org.wfanet.measurement.internal.kingdom.Requisition.State as InternalState
+import org.wfanet.measurement.internal.kingdom.RequisitionKt as InternalRequisitionKt
+import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
+import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest as internalFulfillRequisitionRequest
+import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
+import org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest as internalRefuseRequisitionRequest
+import org.wfanet.measurement.internal.kingdom.requisition as internalRequisition
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
 import com.google.protobuf.kotlin.toByteStringUtf8
 import io.grpc.Status
@@ -41,7 +53,9 @@ import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
+import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.Requisition.Refusal
 import org.wfanet.measurement.api.v2alpha.Requisition.State
@@ -51,10 +65,12 @@ import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
+import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.requisition
@@ -73,12 +89,6 @@ import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.liquidLegionsV2Details
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.directRequisitionParams
-import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
-import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
-import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
-import org.wfanet.measurement.internal.kingdom.Requisition.Refusal as InternalRefusal
-import org.wfanet.measurement.internal.kingdom.Requisition.State as InternalState
-import org.wfanet.measurement.internal.kingdom.RequisitionKt as InternalRequisitionKt
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.details
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.duchyValue
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
@@ -86,12 +96,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCo
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
-import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.copy
-import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest as internalFulfillRequisitionRequest
-import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
-import org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest as internalRefuseRequisitionRequest
-import org.wfanet.measurement.internal.kingdom.requisition as internalRequisition
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 
 private val UPDATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
@@ -134,23 +139,24 @@ private val VISIBLE_REQUISITION_STATES: Set<InternalRequisition.State> =
     InternalRequisition.State.REFUSED
   )
 
+private const val ALLOW_MPC_PROTOCOLS_FOR_SINGLE_DATA_PROVIDER = true
+
 @RunWith(JUnit4::class)
 class RequisitionsServiceTest {
-  private val internalRequisitionMock: RequisitionsCoroutineImplBase =
-    mockService() {
-      onBlocking { refuseRequisition(any()) }
-        .thenReturn(
-          INTERNAL_REQUISITION.copy {
-            state = InternalState.REFUSED
-            details = details {
-              refusal =
-                InternalRequisitionKt.refusal {
-                  justification = InternalRefusal.Justification.UNFULFILLABLE
-                }
-            }
+  private val internalRequisitionMock: RequisitionsCoroutineImplBase = mockService {
+    onBlocking { refuseRequisition(any()) }
+      .thenReturn(
+        INTERNAL_REQUISITION.copy {
+          state = InternalState.REFUSED
+          details = details {
+            refusal =
+              InternalRequisitionKt.refusal {
+                justification = InternalRefusal.Justification.UNFULFILLABLE
+              }
           }
-        )
-    }
+        }
+      )
+  }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalRequisitionMock) }
 
@@ -158,7 +164,11 @@ class RequisitionsServiceTest {
 
   @Before
   fun initService() {
-    service = RequisitionsService(RequisitionsCoroutineStub(grpcTestServerRule.channel))
+    service =
+      RequisitionsService(
+        ALLOW_MPC_PROTOCOLS_FOR_SINGLE_DATA_PROVIDER,
+        RequisitionsCoroutineStub(grpcTestServerRule.channel)
+      )
   }
 
   @Test
@@ -204,11 +214,7 @@ class RequisitionsServiceTest {
   fun `listRequisitions with requisition for direct measurement in response returns requisition`() {
     whenever(internalRequisitionMock.streamRequisitions(any()))
       .thenReturn(
-        flowOf(
-          INTERNAL_REQUISITION.copy {
-            parentMeasurement = parentMeasurement.copy { clearProtocolConfig() }
-          }
-        )
+        flowOf(INTERNAL_REQUISITION.copy { parentMeasurement = parentMeasurement.copy {} })
       )
 
     val request = listRequisitionsRequest { parent = DATA_PROVIDER_NAME }
@@ -218,9 +224,7 @@ class RequisitionsServiceTest {
         runBlocking { service.listRequisitions(request) }
       }
 
-    val expected = listRequisitionsResponse {
-      requisitions += REQUISITION.copy { clearProtocolConfig() }
-    }
+    val expected = listRequisitionsResponse { requisitions += REQUISITION.copy {} }
 
     val streamRequisitionRequest =
       captureFirst<StreamRequisitionsRequest> {
@@ -797,7 +801,6 @@ class RequisitionsServiceTest {
                   justification = InternalRefusal.Justification.UNFULFILLABLE
                 }
             }
-            parentMeasurement = parentMeasurement.copy { clearProtocolConfig() }
           }
         )
 
@@ -815,7 +818,6 @@ class RequisitionsServiceTest {
         REQUISITION.copy {
           state = State.REFUSED
           refusal = refusal { justification = Refusal.Justification.UNFULFILLABLE }
-          clearProtocolConfig()
         }
 
       verifyProtoArgument(internalRequisitionMock, RequisitionsCoroutineImplBase::refuseRequisition)
@@ -951,6 +953,23 @@ class RequisitionsServiceTest {
   }
 
   companion object {
+    private val MEASUREMENT_SPEC = measurementSpec {
+      measurementPublicKey = UPDATE_TIME.toByteString()
+      reachAndFrequency =
+        MeasurementSpecKt.reachAndFrequency {
+          reachPrivacyParams = differentialPrivacyParams {
+            epsilon = 1.0
+            delta = 1.0
+          }
+          frequencyPrivacyParams = differentialPrivacyParams {
+            epsilon = 1.0
+            delta = 1.0
+          }
+        }
+      vidSamplingInterval = MeasurementSpecKt.vidSamplingInterval { width = 1.0f }
+      nonceHashes += ByteString.copyFromUtf8("foo")
+    }
+
     private val INTERNAL_REQUISITION: InternalRequisition = internalRequisition {
       externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
       externalMeasurementId = EXTERNAL_MEASUREMENT_ID
@@ -974,11 +993,13 @@ class RequisitionsServiceTest {
       parentMeasurement = parentMeasurement {
         apiVersion = Version.V2_ALPHA.string
         externalMeasurementConsumerCertificateId = 8L
+        measurementSpec = MEASUREMENT_SPEC.toByteString()
         protocolConfig = internalProtocolConfig {
           externalProtocolConfigId = "llv2"
           liquidLegionsV2 = InternalProtocolConfig.LiquidLegionsV2.getDefaultInstance()
         }
         state = InternalMeasurement.State.PENDING_REQUISITION_FULFILLMENT
+        dataProvidersCount = 1
       }
     }
 
@@ -1010,7 +1031,12 @@ class RequisitionsServiceTest {
       }
       protocolConfig = protocolConfig {
         name = "protocolConfigs/llv2"
+        measurementType = ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
         liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
+        protocols += ProtocolConfigKt.protocol { direct = ProtocolConfigKt.direct {} }
+        if (ALLOW_MPC_PROTOCOLS_FOR_SINGLE_DATA_PROVIDER)
+          protocols +=
+            ProtocolConfigKt.protocol { liquidLegionsV2 = this@protocolConfig.liquidLegionsV2 }
       }
       dataProviderCertificate =
         DataProviderCertificateKey(

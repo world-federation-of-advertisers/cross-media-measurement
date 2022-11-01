@@ -38,6 +38,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.Requisition.DuchyEntry
@@ -79,8 +80,9 @@ private const val MAX_PAGE_SIZE = 100
 private const val WILDCARD = "-"
 
 class RequisitionsService(
+  private val allowMpcProtocolsForSingleDataProvider: Boolean,
   private val internalRequisitionStub: RequisitionsCoroutineStub,
-  private val callIdentityProvider: () -> Provider = ::getProviderFromContext
+  private val callIdentityProvider: () -> Provider = ::getProviderFromContext,
 ) : RequisitionsCoroutineImplBase() {
 
   override suspend fun listRequisitions(
@@ -158,9 +160,11 @@ class RequisitionsService(
 
     return listRequisitionsResponse {
       requisitions +=
-        results
-          .subList(0, min(results.size, listRequisitionsPageToken.pageSize))
-          .map(InternalRequisition::toRequisition)
+        results.subList(0, min(results.size, listRequisitionsPageToken.pageSize))
+          .map { internalRequisition ->
+            internalRequisition.toRequisition(allowMpcProtocolsForSingleDataProvider)
+          }
+
       if (results.size > listRequisitionsPageToken.pageSize) {
         val pageToken =
           listRequisitionsPageToken.copy {
@@ -224,7 +228,7 @@ class RequisitionsService(
         }
       }
 
-    return result.toRequisition()
+    return result.toRequisition(allowMpcProtocolsForSingleDataProvider)
   }
 
   override suspend fun fulfillDirectRequisition(
@@ -277,7 +281,9 @@ class RequisitionsService(
 }
 
 /** Converts an internal [Requisition] to a public [Requisition]. */
-private fun InternalRequisition.toRequisition(): Requisition {
+private fun InternalRequisition.toRequisition(
+  allowMpcProtocolsForSingleDataProvider: Boolean,
+): Requisition {
   check(Version.fromString(parentMeasurement.apiVersion) == Version.V2_ALPHA) {
     "Incompatible API version ${parentMeasurement.apiVersion}"
   }
@@ -285,9 +291,9 @@ private fun InternalRequisition.toRequisition(): Requisition {
   return requisition {
     name =
       RequisitionKey(
-          externalIdToApiId(externalDataProviderId),
-          externalIdToApiId(externalRequisitionId)
-        )
+        externalIdToApiId(externalDataProviderId),
+        externalIdToApiId(externalRequisitionId)
+      )
         .toName()
 
     measurement =
@@ -298,29 +304,34 @@ private fun InternalRequisition.toRequisition(): Requisition {
         .toName()
     measurementConsumerCertificate =
       MeasurementConsumerCertificateKey(
-          externalIdToApiId(externalMeasurementConsumerId),
-          externalIdToApiId(parentMeasurement.externalMeasurementConsumerCertificateId)
-        )
+        externalIdToApiId(externalMeasurementConsumerId),
+        externalIdToApiId(parentMeasurement.externalMeasurementConsumerCertificateId)
+      )
         .toName()
     measurementSpec = signedData {
       data = parentMeasurement.measurementSpec
       signature = parentMeasurement.measurementSpecSignature
     }
-    if (parentMeasurement.hasProtocolConfig()) {
-      protocolConfig =
-        try {
-          parentMeasurement.protocolConfig.toProtocolConfig()
-        } catch (e: Throwable) {
-          failGrpc(Status.INVALID_ARGUMENT) { e.message ?: "Failed to convert ProtocolConfig" }
-        }
-    }
+
+    val parsedMeasurementSpec = MeasurementSpec.parseFrom(parentMeasurement.measurementSpec)
+    protocolConfig =
+      try {
+        parentMeasurement.protocolConfig.toProtocolConfig(
+          parsedMeasurementSpec,
+          parentMeasurement.dataProvidersCount,
+          allowMpcProtocolsForSingleDataProvider
+        )
+      } catch (e: Throwable) {
+        failGrpc(Status.INVALID_ARGUMENT) { e.message ?: "Failed to convert ProtocolConfig" }
+      }
+
     encryptedRequisitionSpec = details.encryptedRequisitionSpec
 
     dataProviderCertificate =
       DataProviderCertificateKey(
-          externalIdToApiId(externalDataProviderId),
-          externalIdToApiId(this@toRequisition.dataProviderCertificate.externalCertificateId)
-        )
+        externalIdToApiId(externalDataProviderId),
+        externalIdToApiId(this@toRequisition.dataProviderCertificate.externalCertificateId)
+      )
         .toName()
     dataProviderPublicKey = signedData {
       data = details.dataProviderPublicKey
