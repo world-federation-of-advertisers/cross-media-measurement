@@ -129,12 +129,12 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
     // included in mill logs to help debugging.
     val millId = System.getenv("HOSTNAME")
 
-    val endpoint = flags.openTelemetryOptions.otelExporterOtlpEndpoint
-    val serviceName = flags.openTelemetryOptions.otelServiceName
     val openTelemetry: OpenTelemetry =
-      if (endpoint == null || serviceName == null) {
+      if (flags.openTelemetryOptions == null) {
         GlobalOpenTelemetry.get()
       } else {
+        val endpoint = flags.openTelemetryOptions!!.otelExporterOtlpEndpoint
+        val serviceName = flags.openTelemetryOptions!!.otelServiceName
         val resource: Resource =
           Resource.getDefault()
             .merge(Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME, serviceName)))

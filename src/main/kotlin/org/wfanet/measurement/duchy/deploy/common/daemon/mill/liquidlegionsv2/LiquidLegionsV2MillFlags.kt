@@ -101,8 +101,7 @@ class LiquidLegionsV2MillFlags {
   lateinit var csCertificateDerFile: File
     private set
 
-  @CommandLine.ArgGroup(exclusive = false) lateinit var openTelemetryOptions: OpenTelemetryOptions
-
+  @CommandLine.ArgGroup(exclusive = false) var openTelemetryOptions: OpenTelemetryOptions? = null
   // All options here must be present or none of them must be present.
   class OpenTelemetryOptions {
     @CommandLine.Option(
@@ -110,7 +109,7 @@ class LiquidLegionsV2MillFlags {
       description = ["Endpoint for OpenTelemetry Collector."],
       required = true,
     )
-    var otelExporterOtlpEndpoint: String? = null
+    lateinit var otelExporterOtlpEndpoint: String
       private set
 
     @CommandLine.Option(
@@ -118,7 +117,7 @@ class LiquidLegionsV2MillFlags {
       description = ["Service name to be label duchy metrics with."],
       required = true,
     )
-    var otelServiceName: String? = null
+    lateinit var otelServiceName: String
       private set
   }
 }
