@@ -30,6 +30,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import io.grpc.Status
+import io.opentelemetry.api.GlobalOpenTelemetry
 import java.time.Clock
 import java.time.Duration
 import java.util.Base64
@@ -584,7 +585,8 @@ class LiquidLegionsV2MillTest {
         cryptoWorker = mockCryptoWorker,
         throttler = throttler,
         requestChunkSizeBytes = 20,
-        maximumAttempts = 2
+        maximumAttempts = 2,
+        openTelemetry = GlobalOpenTelemetry.get(),
       )
     nonAggregatorMill =
       LiquidLegionsV2Mill(
@@ -601,7 +603,8 @@ class LiquidLegionsV2MillTest {
         cryptoWorker = mockCryptoWorker,
         throttler = throttler,
         requestChunkSizeBytes = 20,
-        maximumAttempts = 2
+        maximumAttempts = 2,
+        openTelemetry = GlobalOpenTelemetry.get(),
       )
   }
 

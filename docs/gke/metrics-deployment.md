@@ -218,7 +218,7 @@ See [kubelet](https://cloud.google.com/stackdriver/docs/managed-prometheus/setup
 
 ## List of OpenTelemetry Metrics on Prometheus Dashboard
 
-###OpenTelemetry Auto Instrumented RPC and JVM Metrics
+### OpenTelemetry Auto Instrumented RPC and JVM Metrics
 
 - rpc_client_duration_bucket
 - rpc_client_duration_count
@@ -241,7 +241,23 @@ See [kubelet](https://cloud.google.com/stackdriver/docs/managed-prometheus/setup
 - process_runtime_jvm_system_cpu_utilization
 - process_runtime_jvm_threads_count
 
-###Cloud Spanner Metrics Exported using OpenTelemetry Receiver
+### Mill Metrics
+- active_non_daemon_thread_count
+- jni_wall_clock_duration_millis
+- stage_wall_clock_duration_millis
+- stage_cpu_time_duration_millis
+- initialization_phase_crypto_cpu_time_duration_millis
+- setup_phase_crypto_cpu_time_duration_millis
+- execution_phase_one_crypto_cpu_time_duration_millis
+- execution_phase_two_crypto_cpu_time_duration_millis
+- execution_phase_three_crypto_cpu_time_duration_millis
+
+### Additional Metrics Created using Existing Metrics
+
+- rpc_client_request_rate_per_second
+- rpc_client_request_error_rate_per_second
+
+### Cloud Spanner Metrics Exported using OpenTelemetry Receiver
 
 - database_spanner_active_queries_summary_active_count
 - database_spanner_active_queries_summary_count_older_than_100s

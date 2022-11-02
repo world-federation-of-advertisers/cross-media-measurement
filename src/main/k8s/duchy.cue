@@ -61,6 +61,7 @@ import ("strings")
 	_debug_verbose_grpc_client_logging_flag:            "--debug-verbose-grpc-client-logging=\(_verbose_grpc_logging)"
 	_debug_verbose_grpc_server_logging_flag:            "--debug-verbose-grpc-server-logging=\(_verbose_grpc_logging)"
 	_computation_control_target_flags: [ for duchyId, target in _computation_control_targets {"--duchy-computation-control-target=\(duchyId)=\(target)"}]
+	_otlpEndpoint: "--otel-exporter-otlp-endpoint=http://0.0.0.0:\(#OpenTelemetryReceiverPort)"
 
 	services: [Name=_]: #GrpcService & {
 		_name:   _object_prefix + Name
@@ -99,7 +100,7 @@ import ("strings")
 				_debug_verbose_grpc_client_logging_flag,
 			]
 		}
-		"liquid-legions-v2-mill-daemon-deployment": {
+		"liquid-legions-v2-mill-daemon-deployment": Deployment={
 			_container: args: [
 						_computations_service_target_flag,
 						_computations_service_cert_host_flag,
@@ -114,6 +115,8 @@ import ("strings")
 						_kingdom_system_api_target_flag,
 						_kingdom_system_api_cert_host_flag,
 						if (_millPollingInterval != _|_) {"--polling-interval=\(_millPollingInterval)"},
+						_otlpEndpoint,
+						"--otel-service-name=\(Deployment.metadata.name)",
 			] + _blob_storage_flags + _computation_control_target_flags
 			spec: template: spec: _dependencies: [
 				"\(_name)-spanner-computations-server", "\(_name)-computation-control-server",

@@ -16,7 +16,21 @@ package org.wfanet.measurement.duchy.deploy.common.daemon.mill.liquidlegionsv2
 
 import com.google.protobuf.ByteString
 import io.grpc.Channel
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.exporter.otlp.metrics.OtlpGrpcMetricExporter
+import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.metrics.Aggregation
+import io.opentelemetry.sdk.metrics.InstrumentSelector
+import io.opentelemetry.sdk.metrics.InstrumentType
+import io.opentelemetry.sdk.metrics.SdkMeterProvider
+import io.opentelemetry.sdk.metrics.View
+import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
+import io.opentelemetry.sdk.resources.Resource
+import io.opentelemetry.semconv.resource.attributes.ResourceAttributes
 import java.time.Clock
+import java.time.Duration
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -115,6 +129,54 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
     // included in mill logs to help debugging.
     val millId = System.getenv("HOSTNAME")
 
+    val openTelemetry: OpenTelemetry =
+      if (flags.openTelemetryOptions == null) {
+        GlobalOpenTelemetry.get()
+      } else {
+        val endpoint = flags.openTelemetryOptions!!.otelExporterOtlpEndpoint
+        val serviceName = flags.openTelemetryOptions!!.otelServiceName
+        val resource: Resource =
+          Resource.getDefault()
+            .merge(Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME, serviceName)))
+        val meterProvider =
+          SdkMeterProvider.builder()
+            .setResource(resource)
+            .registerMetricReader(
+              PeriodicMetricReader.builder(
+                  OtlpGrpcMetricExporter.builder()
+                    .setTimeout(Duration.ofSeconds(30L))
+                    .setEndpoint(endpoint)
+                    .build()
+                )
+                .setInterval(Duration.ofSeconds(60L))
+                .build()
+            )
+            .registerView(
+              InstrumentSelector.builder().setType(InstrumentType.HISTOGRAM).build(),
+              View.builder()
+                .setAggregation(
+                  Aggregation.explicitBucketHistogram(
+                    listOf(
+                      1000.0,
+                      2000.0,
+                      4000.0,
+                      8000.0,
+                      16000.0,
+                      32000.0,
+                      64000.0,
+                      128000.0,
+                      256000.0,
+                      512000.0,
+                      1024000.0
+                    )
+                  )
+                )
+                .build()
+            )
+            .build()
+        OpenTelemetrySdk.builder().setMeterProvider(meterProvider).build()
+      }
+
     val mill =
       LiquidLegionsV2Mill(
         millId = millId,
@@ -129,7 +191,8 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
         workerStubs = computationControlClientMap,
         cryptoWorker = JniLiquidLegionsV2Encryption(),
         throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval),
-        requestChunkSizeBytes = flags.requestChunkSizeBytes
+        requestChunkSizeBytes = flags.requestChunkSizeBytes,
+        openTelemetry = openTelemetry
       )
 
     runBlocking { mill.continuallyProcessComputationQueue() }
