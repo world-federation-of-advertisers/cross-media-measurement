@@ -94,19 +94,11 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
         )
       }
       insertMeasurements(request.measurementsList)
-      val timeIntervalMap = insertTimeIntervals(
-        report.measurementConsumerReferenceId,
-        internalReportId,
-        timeIntervals
-      )
+      val timeIntervalMap =
+        insertTimeIntervals(report.measurementConsumerReferenceId, internalReportId, timeIntervals)
 
       report.metricsList.forEach {
-        insertMetric(
-          report.measurementConsumerReferenceId,
-          internalReportId,
-          timeIntervalMap,
-          it
-        )
+        insertMetric(report.measurementConsumerReferenceId, internalReportId, timeIntervalMap, it)
       }
       insertReportMeasurements(request.measurementsList, internalReportId)
     }
