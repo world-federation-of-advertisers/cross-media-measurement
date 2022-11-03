@@ -256,7 +256,9 @@ minutes you should be seeing results for every target that is up.
 
 Grafana has some core configuration settings. The settings can be found in
 [`grafana.cue`](../../src/main/k8s/grafana.cue) under `grafana.ini`. Parts of
-this need to be configured, like the security section.
+this need to be configured, like the security section. Documentation can be
+found 
+[here](https://grafana.com/docs/grafana/latest/setup-grafana/configure-grafana).
 
 ## Adding Additional Metrics
 
