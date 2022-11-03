@@ -43,13 +43,13 @@ import software.amazon.awssdk.services.acmpca.model.Validity
 const val AWS_CERTIFICATE_TEMPLATE_ARN =
   "arn:aws:acm-pca:::template/BlankSubordinateCACertificate_PathLen0_APIPassthrough/V1"
 
-val AWS_CERTIFICATE_SIGNING_ALGORITHM = SigningAlgorithm.SHA256_WITHECDSA
+val AWS_CERTIFICATE_SIGNING_ALGORITHM = SigningAlgorithm.SHA256_WITHRSA
 
 class CertificateAuthority(
   private val context: CertificateAuthority.Context,
   private val certificateAuthorityArn: String,
   private val client: CreateCertificateClient,
-  private val generateKeyPair: () -> KeyPair = { generateKeyPair("EC") }
+  private val generateKeyPair: () -> KeyPair = { generateKeyPair("RSA") }
 ) : CertificateAuthority {
 
   private val certificateParams =

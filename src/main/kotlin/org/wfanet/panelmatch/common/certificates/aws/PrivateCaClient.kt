@@ -30,7 +30,15 @@ class PrivateCaClient : CreateCertificateClient, AutoCloseable {
   }
 
   override suspend fun getCertificate(request: GetCertificateRequest): GetCertificateResponse {
-    return client.getCertificate(request)
+    val waiterResponse = client.waiter().waitUntilCertificateIssued(request)
+    if (waiterResponse.matched().response().isPresent) {
+      return waiterResponse.matched().response().get()
+    } else {
+      throw waiterResponse
+        .matched()
+        .exception()
+        .orElse(IllegalStateException("Get Certificate call neither failed nor returned a value."))
+    }
   }
 
   override fun close() {
