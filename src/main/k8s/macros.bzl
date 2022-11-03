@@ -16,7 +16,7 @@
 
 load("@wfa_rules_cue//cue:defs.bzl", "cue_export")
 
-def cue_dump(name, srcs, deps = None, cue_tags = None, **kwargs):
+def cue_dump(name, srcs = None, deps = None, cue_tags = None, **kwargs):
     cue_export(
         name = name,
         srcs = srcs,
