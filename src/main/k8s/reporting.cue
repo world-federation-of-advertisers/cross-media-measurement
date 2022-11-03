@@ -128,6 +128,7 @@ package k8s
 				"v1alpha-public-api-server-app",
 			]
 			_egresses: {
+				// Needs to call out to Postgres server.
 				any: {}
 			}
 		}
@@ -140,6 +141,10 @@ package k8s
 						port: #GrpcPort
 					}]
 				}
+			}
+			_egresses: {
+				// Needs to call out to Kingdom.
+				any: {}
 			}
 		}
 	}
