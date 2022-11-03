@@ -91,11 +91,13 @@ The main files for the `dev` Metrics are
 [`grafana_gke.cue`](../../src/main/k8s/dev/grafana_gke.cue).
 
 Both [`open_telemetry_gke.cue`](../../src/main/k8s/dev/open_telemetry_gke.cue) 
-and [`config.cue`](../../src/main/k8s/dev/config.cue) need to be modified to 
-work with the right Spanner database. For example, if this is for a kingdom 
-cluster, the files need to be modified to work with the Spanner instance and 
-database the kingdom cluster is using. A reporting server cluster doesn't use 
-Spanner, so nothing here would be used. The contents of
+and [`prometheus_gke.cue`](../../src/main/k8s/dev/prometheus_gke.cue) need to be
+modified to work with the right service account(s), and 
+[`config.cue`](../../src/main/k8s/dev/config.cue) need to be modified to work 
+with the right Spanner database. For example, if this is for a kingdom cluster, 
+the files need to be modified to work with the Spanner instance and database the 
+kingdom cluster is using. A reporting server cluster doesn't use Spanner, so 
+nothing here would be used. The contents of
 [`open_telemetry_gke.cue`](../../src/main/k8s/dev/open_telemetry_gke.cue) should 
 be swapped with the local version:
 [`open_telemetry.cue`](../../src/main/k8s/local/open_telemetry.cue).
