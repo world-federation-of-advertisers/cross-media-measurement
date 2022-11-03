@@ -1,7 +1,12 @@
 # Local Kubernetes Deployment
 
 How to deploy system components to a local Kubernetes cluster running in
-[KiND](https://kind.sigs.k8s.io/).
+[KinD](https://kind.sigs.k8s.io/).
+
+Note that if you just want to run the Correctness Test and not leave the cluster
+running, you can use the
+`//src/test/kotlin/org/wfanet/measurement/integration/k8s:CorrectnessTest` Bazel
+test target instead of following this guide.
 
 This assumes that you have `kubectl` installed and configured to point to a
 local KiND cluster. You should have some familiarity with Kubernetes and
@@ -9,7 +14,7 @@ local KiND cluster. You should have some familiarity with Kubernetes and
 
 Minimum Version Required:
 
--   KiND: v0.13.0
+-   KinD: v0.14.0
 -   kubernetes server: v1.24.0
 -   kubectl: compatible with kubernetes server
 
@@ -21,12 +26,6 @@ simulators -- have requirements regarding the version of glibc in the build
 environment. See [Building](../../../../docs/building.md).
 
 ## Initial Setup
-
-### Set Default Resource Requirements
-
-```shell
-kubectl apply -f src/main/k8s/testing/secretfiles/resource_requirements.yaml
-```
 
 ### Create Empty `config-files` ConfigMap
 
