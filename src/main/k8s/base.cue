@@ -392,9 +392,6 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		}
 		imagePullPolicy: _ | *"Never"
 	}
-	_sidecarContainers: [Name=string]: #Container & {
-		name: Name
-	}
 
 	apiVersion: "apps/v1"
 	kind:       "Deployment"
@@ -423,15 +420,15 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 				}
 			}
 			spec: #PodSpec & {
-				if _secretName != _|_ {
-					_mounts: "\(_name)-files": {
-						volume: secret: secretName: _secretName
+				_mounts: {
+					if _secretName != _|_ {
+            "\(_name)-files": {
+              volume: secret: secretName: _secretName
+            }
 					}
+					"heap-dumps": volume: emptyDir: {}
 				}
 				_containers: "\(_name)-container": _container
-				for name, sidecarContainer in _sidecarContainers {
-					_containers: name: sidecarContainer
-				}
 				restartPolicy: restartPolicy | *"Always"
 			}
 		}
