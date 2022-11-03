@@ -109,10 +109,6 @@ configMaps: [#ConfigMap & {
 			        action: replace
 			        regex: "([^:]+)(?::\\\\d+)?;(\\\\d+)"
 			        replacement: $1:$2
-			      - source_labels: [__meta_kubernetes_pod_name]
-			        target_label: instance
-			        regex: "(.*)"
-			        action: replace
 			"""
 	}
 }]
