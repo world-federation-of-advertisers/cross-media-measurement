@@ -15,9 +15,6 @@
 package org.wfanet.measurement.reporting.deploy.postgres.writers
 
 import com.google.protobuf.util.Timestamps
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.internal.reporting.CreateReportRequest
@@ -89,41 +86,29 @@ class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Re
 
     transactionContext.run {
       executeStatement(statement)
-      val timeIntervalMap =
-        coroutineScope {
-            if (isPeriodic) {
-              launch {
-                insertPeriodicTimeInterval(
-                  report.measurementConsumerReferenceId,
-                  internalReportId,
-                  report.periodicTimeInterval
-                )
-              }
-            }
-            launch { insertMeasurements(request.measurementsList) }
-            async {
-              insertTimeIntervals(
-                report.measurementConsumerReferenceId,
-                internalReportId,
-                timeIntervals
-              )
-            }
-          }
-          .await()
-
-      coroutineScope {
-        report.metricsList.forEach {
-          launch {
-            insertMetric(
-              report.measurementConsumerReferenceId,
-              internalReportId,
-              timeIntervalMap,
-              it
-            )
-          }
-        }
-        launch { insertReportMeasurements(request.measurementsList, internalReportId) }
+      if (isPeriodic) {
+        insertPeriodicTimeInterval(
+          report.measurementConsumerReferenceId,
+          internalReportId,
+          report.periodicTimeInterval
+        )
       }
+      insertMeasurements(request.measurementsList)
+      val timeIntervalMap = insertTimeIntervals(
+        report.measurementConsumerReferenceId,
+        internalReportId,
+        timeIntervals
+      )
+
+      report.metricsList.forEach {
+        insertMetric(
+          report.measurementConsumerReferenceId,
+          internalReportId,
+          timeIntervalMap,
+          it
+        )
+      }
+      insertReportMeasurements(request.measurementsList, internalReportId)
     }
 
     return report.copy {
