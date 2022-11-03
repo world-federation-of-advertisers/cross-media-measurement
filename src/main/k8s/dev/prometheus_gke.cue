@@ -14,10 +14,16 @@
 
 package k8s
 
+// Name of K8s service account for reading from the MonitoringAPI.
+#MonitoringServiceAccount: "monitoring-viewer"
+
 objectSets: [
 	clusterPodMonitorings,
 	podMonitorings,
 	rules,
+	networkPolicies,
+	services,
+	deployments,
 ]
 
 clusterPodMonitorings: {
@@ -88,5 +94,77 @@ rules: {
 				expr:   "sum by (instance, rpc_service, rpc_method) (rpc_client_request_rate_per_second unless rpc_client_request_rate_per_second{rpc_grpc_status_code=\"0\"})"
 			}]
 		}]
+	}
+}
+
+services: [Name=_]: #Service & {
+	metadata: {
+		name:       Name
+		_component: "prometheus"
+	}
+}
+services: {
+	"prometheus-frontend": {
+		spec: {
+			ports: [{
+				name: "prometheus-frontend"
+				port: 9090
+			}]
+			type: "ClusterIP"
+		}
+	}
+}
+
+deployments: [Name=string]: #Deployment & {
+	_name:   Name
+	_system: "prometheus"
+}
+
+deployments: {
+	"prometheus-frontend": {
+		_container: {
+			image:           "gke.gcr.io/prometheus-engine/frontend:v0.4.3-gke.0"
+			imagePullPolicy: "Always"
+			args: [
+				"--web.listen-address=:\(#PrometheusFrontendPort)",
+				"--query.project-id=\(#GCloudProject)",
+			]
+		}
+		spec: template: {
+			metadata: {
+				labels: {
+					scrape: "false"
+				}
+				annotations: {
+					"sidecar.opentelemetry.io/inject":              "false"
+					"instrumentation.opentelemetry.io/inject-java": "false"
+					"prometheus.io/scrape":                         "false"
+				}
+			}
+			spec: #ServiceAccountPodSpec & {
+				serviceAccountName: #MonitoringServiceAccount
+			}
+		}
+	}
+}
+
+networkPolicies: [Name=_]: #NetworkPolicy & {
+	_name: Name
+}
+networkPolicies: {
+	"prometheus-frontend": {
+		_app_label: "prometheus-frontend-app"
+		_ingresses: "grafana": {
+			from: [{
+				podSelector: matchLabels: app: "grafana-app"
+			}]
+			ports: [{
+				port:     #PrometheusFrontendPort
+				protocol: "TCP"
+			}]
+		}
+		_egresses: {
+			any: {}
+		}
 	}
 }

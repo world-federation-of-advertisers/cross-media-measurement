@@ -99,11 +99,24 @@ bazel run //src/main/k8s/local:open_telemetry_kind
 bazel run //src/main/k8s/local:prometheus_kind
 ```
 
-To be able to visit the Prometheus browser GUI at http://localhost:31111/, start
+To be able to visit Prometheus in the browser at http://localhost:31111/, start
 port-forwarding.
 
 ```shell
 kubectl port-forward prometheus-pod 31111:9090
+```
+
+### Deploy Grafana
+
+```shell
+bazel run //src/main/k8s/local:grafana_kind
+```
+
+To be able to visit Grafana in the browser at http://localhost:31112/, start
+port-forwarding.
+
+```shell
+kubectl port-forward service/grafana 31112:3000
 ```
 
 ## Resource Setup

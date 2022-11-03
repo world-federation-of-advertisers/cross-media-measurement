@@ -178,6 +178,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	name:      string
 	mountPath: string
 	readOnly?: bool
+	subPath:   string | *""
 }
 
 // Configuration for a Volume and a corresponding VolumeMount.
@@ -381,15 +382,18 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 // K8s Deployment.
 #Deployment: {
-	_name:       string
-	_secretName: string
-	_system:     string
-	_container:  #Container & {
+	_name:        string
+	_secretName?: string
+	_system:      string
+	_container:   #Container & {
 		_javaOptions: {
 			heapDumpOnOutOfMemory: true
 			heapDumpPath:          "/run/heap-dumps"
 		}
 		imagePullPolicy: _ | *"Never"
+	}
+	_sidecarContainers: [Name=string]: #Container & {
+		name: Name
 	}
 
 	apiVersion: "apps/v1"
@@ -419,13 +423,15 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 				}
 			}
 			spec: #PodSpec & {
-				_mounts: {
-					"\(_name)-files": {
+				if _secretName != _|_ {
+					_mounts: "\(_name)-files": {
 						volume: secret: secretName: _secretName
 					}
-					"heap-dumps": volume: emptyDir: {}
 				}
 				_containers: "\(_name)-container": _container
+				for name, sidecarContainer in _sidecarContainers {
+					_containers: name: sidecarContainer
+				}
 				restartPolicy: restartPolicy | *"Always"
 			}
 		}

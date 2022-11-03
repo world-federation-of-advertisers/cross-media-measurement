@@ -192,7 +192,6 @@ cue_dump(
     srcs = ["open_telemetry_gke.cue"],
     tags = ["manual"],
     deps = [
-        ":base_gke",
         ":config",
         "//src/main/k8s:open_telemetry",
     ],
@@ -202,5 +201,18 @@ cue_dump(
     name = "prometheus_gke",
     srcs = ["prometheus_gke.cue"],
     tags = ["manual"],
-    deps = ["//src/main/k8s:base"],
+    deps = [
+        ":base_gke",
+        ":config",
+    ],
+)
+
+cue_dump(
+    name = "grafana_gke",
+    srcs = ["grafana_gke.cue"],
+    tags = ["manual"],
+    deps = [
+        ":config",
+        "//src/main/k8s:grafana",
+    ],
 )

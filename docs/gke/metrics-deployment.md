@@ -20,13 +20,31 @@ free to use whichever you prefer.
         - opentelemetry-collector-pod-monitor
     - 1 GMP PodMonitoring
       - collector-pod-monitor
+    - 1 GMP Rules
+      - recording-rules
     - 2 OpenTelemetry Operator OpenTelemetryCollector
       - default-sidecar
       - deployment
     - 1 OpenTelemetry Operator Instrumentation
       - open-telemetry-java-agent
-    - 1 Kubernetes NetworkPolicy
+    - 5 Kubernetes ConfigMaps
+      - default-side-collector
+      - deployment-collector
+      - grafana-config
+      - grafana-datasource
+      - grafana-dashboard-providers
+    - 3 Kubernetes Deployments
+      - deployment-collector
+      - grafana-deployment
+      - prometheus-frontend-deployment
+    - 3 Kubernetes Services
+      - deployment-collector-monitoring 
+      - grafana
+      - prometheus-frontend
+    - 3 Kubernetes NetworkPolicies
       - opentelemetry-collector-network-policy
+      - grafana-network-policy
+      - prometheus-frontend-network-policy
 
 ## Before you start
 
@@ -68,8 +86,9 @@ YAML file that is generated from files written in [CUE](https://cuelang.org/)
 using Bazel rules.
 
 The main files for the `dev` Metrics are
-[`prometheus_gke.cue`](../../src/main/k8s/dev/prometheus_gke.cue) and
-[`open_telemetry_gke.cue`](../../src/main/k8s/dev/open_telemetry_gke.cue).
+[`prometheus_gke.cue`](../../src/main/k8s/dev/prometheus_gke.cue), 
+[`open_telemetry_gke.cue`](../../src/main/k8s/dev/open_telemetry_gke.cue), and
+[`grafana_gke.cue`](../../src/main/k8s/dev/grafana_gke.cue).
 
 Both [`open_telemetry_gke.cue`](../../src/main/k8s/dev/open_telemetry_gke.cue) 
 and [`config.cue`](../../src/main/k8s/dev/config.cue) need to be modified to 
@@ -85,11 +104,14 @@ If desired, you can modify the filtering of the OpenTelemetry metrics. The
 config is found in the base version:
 [`open_telemetry.cue`](../../src/main/k8s/open_telemetry.cue).
 
+For Grafana config, see [grafana config](metrics-deployment.md#Grafana)
+
 To generate the YAML manifests from the CUE files, run the following:
 
 ```shell
 bazel build //src/main/k8s/dev:prometheus_gke
 bazel build //src/main/k8s/dev:open_telemetry_gke
+bazel build //src/main/k8s/dev:grafana_gke
 ```
 
 You can also do your customization to the generated YAML file rather than to the
@@ -103,6 +125,7 @@ apply the manifests is
 ```shell
 kubectl apply -f bazel-bin/src/main/k8s/dev/prometheus_gke.yaml
 kubectl apply -f bazel-bin/src/main/k8s/dev/open_telemetry_gke.yaml
+kubectl apply -f bazel-bin/src/main/k8s/dev/grafana_gke.yaml
 ```
 
 Substitute the paths if you're using different K8s manifests.
@@ -119,11 +142,27 @@ kubectl get -n gmp-system podmonitorings
 ```
 
 ```shell
+kubectl get rules
+```
+
+```shell
 kubectl get opentelemetrycollectors
 ```
 
 ```shell
 kubectl get instrumentations
+```
+
+```shell
+kubectl get configmaps
+```
+
+```shell
+kubectl get deployments
+```
+
+```shell
+kubectl get services
 ```
 
 ```shell
@@ -144,6 +183,11 @@ collector-pod-monitor   5m12s
 ```
 
 ```
+NAME              AGE
+recording-rules   3m4s
+```
+
+```
 NAME              MODE         VERSION   AGE
 default-sidecar   sidecar      0.60.0    4h7m
 deployment        deployment   0.60.0    131m
@@ -155,33 +199,33 @@ open-telemetry-java-agent   68s
 ```
 
 ```
+NAME                         DATA   AGE
+default-sidecar-collector    1      60s
+deployment-collector         1      60s
+grafana-config               1      43s
+grafana-dashboard-providers  1      43s
+grafana-datasource           1      43s
+```
+
+```
+NAME                                   READY   UP-TO-DATE   AVAILABLE   AGE
+deployment-collector                   1/1     1            1           7m4s
+grafana-deployment                     1/1     1            1           6m46s
+prometheus-frontend-deployment         1/1     1            1           7m21s
+```
+
+```
+NAME                              TYPE           CLUSTER-IP     EXTERNAL-IP   PORT(S)          AGE
+deployment-collector-monitoring   ClusterIP      10.108.6.18    <none>        8888/TCP         3m18s
+grafana                           ClusterIP      10.108.8.178   <none>        3000/TCP         3m
+prometheus-frontend               ClusterIP      10.108.3.88    <none>        9090/TCP         3m35s
+```
+
+```
 NAME                                     POD-SELECTOR                                  AGE
+grafana-network-policy                   app=grafana-app                               5m56s
 opentelemetry-collector-network-policy   app.kubernetes.io/name=deployment-collector   51m
-```
-
-## Apply K8s namespace annotations
-
-This ensures every pod can have metrics.
-
-```shell
-kubectl annotate namespaces default 'sidecar.opentelemetry.io/inject'=default-sidecar
-kubectl annotate namespaces default 'instrumentation.opentelemetry.io/inject-java'=true
-```
-
-You can verify by running
-
-```shell
-kubectl describe namespace default
-```
-
-You should see something like the following:
-
-```
-Name:         default
-Labels:       kubernetes.io/metadata.name=default
-Annotations:  instrumentation.opentelemetry.io/inject-java: true
-              sidecar.opentelemetry.io/inject: default-sidecar
-Status:       Active
+prometheus-frontend-network-policy       app=prometheus-frontend-app                   6m29s
 ```
 
 ## Restart Deployments to Start Collecting Metrics
@@ -198,13 +242,19 @@ that add the label then apply the updated manifests before restarting.
 
 ## Verify Managed Prometheus can Scrape Metrics
 
-Visit the [Managed Prometheus](https://console.cloud.google.com/monitoring/prometheus) page
-in Cloud Console. Query `up` and `scrape_samples_scraped`. 
+Visit the [Managed Prometheus](https://console.cloud.google.com/monitoring/prometheus) 
+page in Cloud Console. Query `up` and `scrape_samples_scraped`. 
 
 The first one tells you which targets it can find and whether they are up, and 
 the latter is a good way to check that scraping is occurring. If it 
 hasn't been long enough, the latter might show all 0's, but after a couple of
 minutes you should be seeing results for every target that is up.
+
+## Grafana
+
+Grafana has some core configuration settings. The settings can be found in
+[`grafana.cue`](../../src/main/k8s/grafana.cue) under `grafana.ini`. Parts of
+this need to be configured, like the security section.
 
 ## Adding Additional Metrics
 

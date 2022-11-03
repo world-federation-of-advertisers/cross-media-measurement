@@ -172,6 +172,13 @@ cue_dump(
     deps = ["//src/main/k8s:open_telemetry"],
 )
 
+cue_dump(
+    name = "grafana",
+    srcs = ["grafana.cue"],
+    tags = ["manual"],
+    deps = ["//src/main/k8s:grafana"],
+)
+
 [kind_load_image(
     name = "load_" + image.name,
     image_archive = image.image + ".tar",
@@ -351,5 +358,11 @@ k8s_apply(
 k8s_apply(
     name = "open_telemetry_kind",
     src = ":open_telemetry",
+    tags = ["manual"],
+)
+
+k8s_apply(
+    name = "grafana_kind",
+    src = ":grafana",
     tags = ["manual"],
 )
