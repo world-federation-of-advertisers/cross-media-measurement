@@ -22,3 +22,10 @@ package k8s
 	let EmulatorTarget = #ServiceTarget & {serviceName: "spanner-emulator"}
 	emulatorHost: EmulatorTarget.target
 }
+
+#JavaOptions: {
+	initialHeapSize:       _ | *"32M"
+	maxHeapSize:           _ | *"96M"
+	reservedCodeCacheSize: _ | *"64M"
+	maxDirectMemorySize:   _ | *"32M"
+}

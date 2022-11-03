@@ -16,6 +16,7 @@
 
 set -eEu -o pipefail
 
+readonly HOST_BAZEL="${BAZEL:-bazel}"
 readonly IMAGE="${IMAGE:-docker.io/wfameasurement/bazel@sha256:0568ae6e1fbc9e23822a649f6fe43618ad04371d76fb3bb47e63c54b8609f6eb}"
 readonly DOCKER="${DOCKER:-docker}"
 readonly DOCKER_HOST="${DOCKER_HOST:-unix:///var/run/docker.sock}"
@@ -25,6 +26,10 @@ readonly OUTPUT_BASE="${PWD}/bazel-container-output"
 readonly OUTPUT_USER_ROOT="${CONTAINER_HOME}/.cache/bazel/_bazel_${CONTAINER_USER}"
 readonly BAZELISK_HOME="${CONTAINER_HOME}/.cache/bazelisk"
 readonly GCLOUD_SDK_CONFIG="${CONTAINER_HOME}/.config/gcloud"
+
+command_exists() {
+  type "$1" >/dev/null 2>&1
+}
 
 check_bash_version() {
   if [[ "${BASH_VERSINFO:-0}" -lt 5 ]]; then
@@ -101,6 +106,12 @@ ensure_host_bazelisk_cache_dir() {
   echo "${bazelisk_cache_dir}"
 }
 
+get_host_install_base() {
+  command_exists "${HOST_BAZEL}" || return
+
+  ${HOST_BAZEL} info install_base
+}
+
 main() {
   check_bash_version
   check_docker_is_podman
@@ -113,6 +124,10 @@ main() {
   host_output_user_root="$(get_host_output_user_root)"
   readonly host_output_user_root
   mkdir -p "${host_output_user_root}"
+
+  local install_base
+  install_base="$(get_host_install_base)"
+  readonly install_base
 
   local host_bazelisk_cache_dir
   host_bazelisk_cache_dir="$(ensure_host_bazelisk_cache_dir)"
@@ -192,6 +207,15 @@ main() {
     "--output_user_root=${OUTPUT_USER_ROOT}"
     "--output_base=${OUTPUT_BASE}"
   )
+  if [[ -n "${install_base}" ]]; then
+    docker_options+=(
+      '--mount'
+        "type=bind,source=${install_base},target=${install_base}"
+    )
+    startup_options+=(
+      "--install_base=${install_base}"
+    )
+  fi
   while [[ "$1" =~ [[:space:]]*-.* ]]; do
     startup_options+=("$1")
     shift 1
