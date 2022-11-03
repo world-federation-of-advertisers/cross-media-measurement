@@ -21,12 +21,17 @@ import org.wfanet.panelmatch.common.secrets.SecretMap
  * Wraps a [SecretMap] to provide [StorageDetails].
  *
  * @param secretMap map from recurring exchange ids to serialized [StorageDetails] protos.
+ * @param detailsType is a string used only for debugging strings.
  */
-class StorageDetailsProvider(private val secretMap: MutableSecretMap) {
+class StorageDetailsProvider(
+  private val secretMap: MutableSecretMap,
+) {
   suspend fun get(recurringExchangeId: String): StorageDetails {
     val serializedStorageDetails =
       secretMap.get(recurringExchangeId)
-        ?: throw BlobNotFoundException("Private storage for RecurringExchange $recurringExchangeId")
+        ?: throw BlobNotFoundException(
+          "storage details not found for RecurringExchange $recurringExchangeId"
+        )
 
     @Suppress("BlockingMethodInNonBlockingContext") // This is in-memory.
     return StorageDetails.parseFrom(serializedStorageDetails)
