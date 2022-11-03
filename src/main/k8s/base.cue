@@ -422,9 +422,9 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			spec: #PodSpec & {
 				_mounts: {
 					if _secretName != _|_ {
-            "\(_name)-files": {
-              volume: secret: secretName: _secretName
-            }
+						"\(_name)-files": {
+							volume: secret: secretName: _secretName
+						}
 					}
 					"heap-dumps": volume: emptyDir: {}
 				}
