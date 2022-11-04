@@ -14,17 +14,6 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
-import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
-import org.wfanet.measurement.internal.kingdom.Measurement.State as InternalState
-import org.wfanet.measurement.internal.kingdom.MeasurementKt as InternalMeasurementKt
-import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
-import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt as InternalProtocolConfigKt
-import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest as internalCancelMeasurementRequest
-import org.wfanet.measurement.internal.kingdom.differentialPrivacyParams as internalDifferentialPrivacyParams
-import org.wfanet.measurement.internal.kingdom.getMeasurementRequest as internalGetMeasurementRequest
-import org.wfanet.measurement.internal.kingdom.liquidLegionsSketchParams as internalLiquidLegionsSketchParams
-import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
-import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
@@ -95,12 +84,22 @@ import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
+import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
+import org.wfanet.measurement.internal.kingdom.Measurement.State as InternalState
+import org.wfanet.measurement.internal.kingdom.MeasurementKt as InternalMeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
+import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt as InternalProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
+import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest as internalCancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.differentialPrivacyParams as internalDifferentialPrivacyParams
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
+import org.wfanet.measurement.internal.kingdom.getMeasurementRequest as internalGetMeasurementRequest
+import org.wfanet.measurement.internal.kingdom.liquidLegionsSketchParams as internalLiquidLegionsSketchParams
+import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
+import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 
@@ -330,9 +329,9 @@ class MeasurementsServiceTest {
       }
 
     verifyProtoArgument(
-      internalMeasurementsMock,
-      MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement
-    )
+        internalMeasurementsMock,
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement
+      )
       .isEqualTo(
         INTERNAL_MEASUREMENT.copy {
           clearUpdateTime()
@@ -363,15 +362,15 @@ class MeasurementsServiceTest {
                 clearProtocolConfig()
                 measurementSpec =
                   MEASUREMENT_SPEC.copy {
-                    clearReachAndFrequency()
-                    impression = impression {
-                      privacyParams = differentialPrivacyParams {
-                        epsilon = 1.0
-                        delta = 0.0
+                      clearReachAndFrequency()
+                      impression = impression {
+                        privacyParams = differentialPrivacyParams {
+                          epsilon = 1.0
+                          delta = 0.0
+                        }
+                        maximumFrequencyPerUser = 1
                       }
-                      maximumFrequencyPerUser = 1
                     }
-                  }
                     .toByteString()
               }
           }
@@ -409,15 +408,15 @@ class MeasurementsServiceTest {
         measurementSpec = signedData {
           data =
             MEASUREMENT_SPEC.copy {
-              clearReachAndFrequency()
-              impression = impression {
-                privacyParams = differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 0.0
+                clearReachAndFrequency()
+                impression = impression {
+                  privacyParams = differentialPrivacyParams {
+                    epsilon = 1.0
+                    delta = 0.0
+                  }
+                  maximumFrequencyPerUser = 1
                 }
-                maximumFrequencyPerUser = 1
               }
-            }
               .toByteString()
           signature = UPDATE_TIME.toByteString()
         }
@@ -461,15 +460,15 @@ class MeasurementsServiceTest {
                 clearProtocolConfig()
                 measurementSpec =
                   MEASUREMENT_SPEC.copy {
-                    clearReachAndFrequency()
-                    duration = duration {
-                      privacyParams = differentialPrivacyParams {
-                        epsilon = 1.0
-                        delta = 0.0
+                      clearReachAndFrequency()
+                      duration = duration {
+                        privacyParams = differentialPrivacyParams {
+                          epsilon = 1.0
+                          delta = 0.0
+                        }
+                        maximumWatchDurationPerUser = 1
                       }
-                      maximumWatchDurationPerUser = 1
                     }
-                  }
                     .toByteString()
               }
           }
@@ -507,15 +506,15 @@ class MeasurementsServiceTest {
         measurementSpec = signedData {
           data =
             MEASUREMENT_SPEC.copy {
-              clearReachAndFrequency()
-              duration = duration {
-                privacyParams = differentialPrivacyParams {
-                  epsilon = 1.0
-                  delta = 0.0
+                clearReachAndFrequency()
+                duration = duration {
+                  privacyParams = differentialPrivacyParams {
+                    epsilon = 1.0
+                    delta = 0.0
+                  }
+                  maximumWatchDurationPerUser = 1
                 }
-                maximumWatchDurationPerUser = 1
               }
-            }
               .toByteString()
           signature = UPDATE_TIME.toByteString()
         }
@@ -1459,7 +1458,6 @@ class MeasurementsServiceTest {
 
     private val INTERNAL_PROTOCOL_CONFIG = internalProtocolConfig {
       externalProtocolConfigId = "llv2"
-      measurementType = InternalProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
       liquidLegionsV2 =
         InternalProtocolConfigKt.liquidLegionsV2 {
           sketchParams = internalLiquidLegionsSketchParams {

@@ -14,10 +14,6 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
-import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
-import org.wfanet.measurement.internal.kingdom.Requisition.Refusal as InternalRefusal
-import org.wfanet.measurement.internal.kingdom.Requisition.State as InternalState
-import org.wfanet.measurement.internal.kingdom.RequisitionKt as InternalRequisitionKt
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.math.min
@@ -65,7 +61,11 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.common.Provider
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.directRequisitionParams
+import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.Requisition.DuchyValue
+import org.wfanet.measurement.internal.kingdom.Requisition.Refusal as InternalRefusal
+import org.wfanet.measurement.internal.kingdom.Requisition.State as InternalState
+import org.wfanet.measurement.internal.kingdom.RequisitionKt as InternalRequisitionKt
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
@@ -160,10 +160,10 @@ class RequisitionsService(
 
     return listRequisitionsResponse {
       requisitions +=
-        results.subList(0, min(results.size, listRequisitionsPageToken.pageSize))
-          .map { internalRequisition ->
-            internalRequisition.toRequisition(allowMpcProtocolsForSingleDataProvider)
-          }
+        results.subList(0, min(results.size, listRequisitionsPageToken.pageSize)).map {
+          internalRequisition ->
+          internalRequisition.toRequisition(allowMpcProtocolsForSingleDataProvider)
+        }
 
       if (results.size > listRequisitionsPageToken.pageSize) {
         val pageToken =
@@ -291,9 +291,9 @@ private fun InternalRequisition.toRequisition(
   return requisition {
     name =
       RequisitionKey(
-        externalIdToApiId(externalDataProviderId),
-        externalIdToApiId(externalRequisitionId)
-      )
+          externalIdToApiId(externalDataProviderId),
+          externalIdToApiId(externalRequisitionId)
+        )
         .toName()
 
     measurement =
@@ -304,20 +304,21 @@ private fun InternalRequisition.toRequisition(
         .toName()
     measurementConsumerCertificate =
       MeasurementConsumerCertificateKey(
-        externalIdToApiId(externalMeasurementConsumerId),
-        externalIdToApiId(parentMeasurement.externalMeasurementConsumerCertificateId)
-      )
+          externalIdToApiId(externalMeasurementConsumerId),
+          externalIdToApiId(parentMeasurement.externalMeasurementConsumerCertificateId)
+        )
         .toName()
     measurementSpec = signedData {
       data = parentMeasurement.measurementSpec
       signature = parentMeasurement.measurementSpecSignature
     }
 
-    val parsedMeasurementSpec = MeasurementSpec.parseFrom(parentMeasurement.measurementSpec)
+    val measurementTypeCase =
+      MeasurementSpec.parseFrom(parentMeasurement.measurementSpec).measurementTypeCase
     protocolConfig =
       try {
         parentMeasurement.protocolConfig.toProtocolConfig(
-          parsedMeasurementSpec,
+          measurementTypeCase,
           parentMeasurement.dataProvidersCount,
           allowMpcProtocolsForSingleDataProvider
         )
@@ -329,9 +330,9 @@ private fun InternalRequisition.toRequisition(
 
     dataProviderCertificate =
       DataProviderCertificateKey(
-        externalIdToApiId(externalDataProviderId),
-        externalIdToApiId(this@toRequisition.dataProviderCertificate.externalCertificateId)
-      )
+          externalIdToApiId(externalDataProviderId),
+          externalIdToApiId(this@toRequisition.dataProviderCertificate.externalCertificateId)
+        )
         .toName()
     dataProviderPublicKey = signedData {
       data = details.dataProviderPublicKey

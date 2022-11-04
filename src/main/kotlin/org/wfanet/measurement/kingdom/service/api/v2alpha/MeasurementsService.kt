@@ -14,8 +14,6 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
-import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
-import org.wfanet.measurement.internal.kingdom.Measurement.View as InternalMeasurementView
 import com.google.protobuf.InvalidProtocolBufferException
 import io.grpc.Status
 import io.grpc.StatusException
@@ -51,7 +49,9 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
+import org.wfanet.measurement.internal.kingdom.Measurement.View as InternalMeasurementView
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
@@ -200,10 +200,10 @@ class MeasurementsService(
 
     return listMeasurementsResponse {
       measurement +=
-        results.subList(0, min(results.size, listMeasurementsPageToken.pageSize))
-          .map { internalMeasurement ->
-            internalMeasurement.toMeasurement(allowMpcProtocolsForSingleDataProvider)
-          }
+        results.subList(0, min(results.size, listMeasurementsPageToken.pageSize)).map {
+          internalMeasurement ->
+          internalMeasurement.toMeasurement(allowMpcProtocolsForSingleDataProvider)
+        }
       if (results.size > listMeasurementsPageToken.pageSize) {
         val pageToken =
           listMeasurementsPageToken.copy {
