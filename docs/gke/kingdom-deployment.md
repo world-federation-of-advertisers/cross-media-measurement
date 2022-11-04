@@ -166,13 +166,19 @@ gcloud container clusters create halo-cmm-kingdom-demo-cluster \
   --service-account='gke-cluster@halo-kingdom-demo.iam.gserviceaccount.com' \
   --database-encryption-key=projects/halo-cmm-dev/locations/us-central1/keyRings/test-key-ring/cryptoKeys/k8s-secret \
   --num-nodes=3 --enable-autoscaling --min-nodes=3 --max-nodes=6 \
-  --machine-type=e2-highcpu-2 --cluster-version='1.24.2-gke.1900'
+  --machine-type=e2-highcpu-2 --release-channel=regular \
+  --cluster-version='1.24.5-gke.600'
 ```
 
 Adjust the number of nodes and machine type according to your expected usage.
 
-The GKE version should be no older than `1.24.0` in order to support built-in
-gRPC health probe.
+The cluster version should be no older than `1.24.0` in order to support
+built-in gRPC health probe. You can use the following command to determine what
+versions are supported for each release channel:
+
+```shell
+gcloud container get-server-config
+```
 
 After creating the cluster, we can configure `kubectl` to be able to access it
 
