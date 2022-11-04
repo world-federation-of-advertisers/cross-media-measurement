@@ -206,10 +206,7 @@ class EdpSimulator(
         )
       }
 
-      if (
-        !requisition.hasProtocolConfig() ||
-          requisition.protocolConfig.protocolsList.any { protocol -> protocol.hasDirect() }
-      ) {
+      if (requisition.protocolConfig.protocolsList.any { protocol -> protocol.hasDirect() }) {
         when (measurementSpec.measurementTypeCase) {
           MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
             fulfillDirectReachAndFrequencyMeasurement(requisition, requisitionSpec, measurementSpec)
@@ -352,10 +349,13 @@ class EdpSimulator(
     requisitionFingerprint: ByteString,
     requisitionSpec: RequisitionSpec
   ) {
-    val liquidLegionsV2: ProtocolConfig.LiquidLegionsV2 =
-      requisition.protocolConfig.protocolsList
-        .find { protocol -> protocol.hasLiquidLegionsV2() }!!
-        .liquidLegionsV2
+    val llv2Protocol: ProtocolConfig.Protocol =
+      requireNotNull(
+        requisition.protocolConfig.protocolsList.find { protocol -> protocol.hasLiquidLegionsV2() }
+      ) {
+        "Protocol with LiquidLegionsV2 is missing"
+      }
+    val liquidLegionsV2: ProtocolConfig.LiquidLegionsV2 = llv2Protocol.liquidLegionsV2
     val combinedPublicKey = requisition.getCombinedPublicKey(liquidLegionsV2.ellipticCurveId)
     val sketchConfig = liquidLegionsV2.sketchParams.toSketchConfig()
 
