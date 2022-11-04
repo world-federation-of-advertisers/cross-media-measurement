@@ -60,15 +60,10 @@ private val BASE_SQL =
         count(ExternalDataProviderId),
       FROM
         Requisitions
-        JOIN DataProviders USING (DataProviderId)
-        JOIN DataProviderCertificates ON (
-          DataProviderCertificates.DataProviderId = Requisitions.DataProviderId
-          AND DataProviderCertificates.CertificateId = Requisitions.DataProviderCertificateId
-        )
       WHERE
         Requisitions.MeasurementConsumerId = Measurements.MeasurementConsumerId
         AND Requisitions.MeasurementId = Measurements.MeasurementId
-    ) AS DataProvidersCount,
+    ) AS MeasurementRequisitionCount,
     ARRAY(
       SELECT AS STRUCT
         ComputationParticipants.DuchyId,
@@ -181,7 +176,7 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
             "Duchy with internal ID $duchyId not found"
           }
         }
-      val dataProvidersCount = struct.getLong("DataProvidersCount")
+      val dataProvidersCount = struct.getLong("MeasurementRequisitionCount")
 
       return buildRequisition(struct, struct, participantStructs, dataProvidersCount.toInt())
     }

@@ -14,17 +14,6 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
-import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
-import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
-import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
-import org.wfanet.measurement.internal.kingdom.Requisition.Refusal as InternalRefusal
-import org.wfanet.measurement.internal.kingdom.Requisition.State as InternalState
-import org.wfanet.measurement.internal.kingdom.RequisitionKt as InternalRequisitionKt
-import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
-import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest as internalFulfillRequisitionRequest
-import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
-import org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest as internalRefuseRequisitionRequest
-import org.wfanet.measurement.internal.kingdom.requisition as internalRequisition
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
@@ -89,6 +78,12 @@ import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantKt.liquidLegionsV2Details
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.directRequisitionParams
+import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
+import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
+import org.wfanet.measurement.internal.kingdom.Requisition.Refusal as InternalRefusal
+import org.wfanet.measurement.internal.kingdom.Requisition.State as InternalState
+import org.wfanet.measurement.internal.kingdom.RequisitionKt as InternalRequisitionKt
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.details
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.duchyValue
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
@@ -96,7 +91,12 @@ import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCo
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
+import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest as internalFulfillRequisitionRequest
+import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
+import org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest as internalRefuseRequisitionRequest
+import org.wfanet.measurement.internal.kingdom.requisition as internalRequisition
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 
 private val UPDATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()

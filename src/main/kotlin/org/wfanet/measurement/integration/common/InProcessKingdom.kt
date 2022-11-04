@@ -14,6 +14,17 @@
 
 package org.wfanet.measurement.integration.common
 
+import io.grpc.Channel
+import java.util.concurrent.TimeUnit
+import java.util.logging.Logger
+import org.junit.rules.TestRule
+import org.junit.runner.Description
+import org.junit.runners.model.Statement
+import org.wfanet.measurement.api.v2alpha.testing.withMetadataPrincipalIdentities
+import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.withDefaultDeadline
+import org.wfanet.measurement.common.identity.testing.withMetadataDuchyIdentities
+import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ApiKeysGrpcKt.ApiKeysCoroutineStub as InternalApiKeysCoroutineStub
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
@@ -28,21 +39,6 @@ import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.Measu
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.PublicKeysGrpcKt.PublicKeysCoroutineStub as InternalPublicKeysCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub as InternalRequisitionsCoroutineStub
-import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationLogEntriesService as systemComputationLogEntriesService
-import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationParticipantsService as systemComputationParticipantsService
-import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationsService as systemComputationsService
-import org.wfanet.measurement.kingdom.service.system.v1alpha.RequisitionsService as systemRequisitionsService
-import io.grpc.Channel
-import java.util.concurrent.TimeUnit
-import java.util.logging.Logger
-import org.junit.rules.TestRule
-import org.junit.runner.Description
-import org.junit.runners.model.Statement
-import org.wfanet.measurement.api.v2alpha.testing.withMetadataPrincipalIdentities
-import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
-import org.wfanet.measurement.common.grpc.withDefaultDeadline
-import org.wfanet.measurement.common.identity.testing.withMetadataDuchyIdentities
-import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.deploy.common.service.toList
 import org.wfanet.measurement.kingdom.service.api.v2alpha.AccountsService
@@ -59,6 +55,10 @@ import org.wfanet.measurement.kingdom.service.api.v2alpha.PublicKeysService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.RequisitionsService
 import org.wfanet.measurement.kingdom.service.api.v2alpha.withAccountAuthenticationServerInterceptor
 import org.wfanet.measurement.kingdom.service.api.v2alpha.withApiKeyAuthenticationServerInterceptor
+import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationLogEntriesService as systemComputationLogEntriesService
+import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationParticipantsService as systemComputationParticipantsService
+import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationsService as systemComputationsService
+import org.wfanet.measurement.kingdom.service.system.v1alpha.RequisitionsService as systemRequisitionsService
 
 /** TestRule that starts and stops all Kingdom gRPC services. */
 class InProcessKingdom(
@@ -127,29 +127,29 @@ class InProcessKingdom(
       logger.info("Building Kingdom's public API services")
 
       listOf(
-        ApiKeysService(internalApiKeysClient)
+          ApiKeysService(internalApiKeysClient)
             .withAccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri),
-        CertificatesService(internalCertificatesClient)
+          CertificatesService(internalCertificatesClient)
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-        DataProvidersService(internalDataProvidersClient)
+          DataProvidersService(internalDataProvidersClient)
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-        EventGroupsService(internalEventGroupsClient)
+          EventGroupsService(internalEventGroupsClient)
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-        MeasurementsService(internalMeasurementsClient, allowMpcProtocolsForSingleDataProvider)
+          MeasurementsService(internalMeasurementsClient, allowMpcProtocolsForSingleDataProvider)
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-        PublicKeysService(internalPublicKeysClient)
+          PublicKeysService(internalPublicKeysClient)
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-        RequisitionsService(allowMpcProtocolsForSingleDataProvider, internalRequisitionsClient)
+          RequisitionsService(allowMpcProtocolsForSingleDataProvider, internalRequisitionsClient)
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-        AccountsService(internalAccountsClient, redirectUri)
+          AccountsService(internalAccountsClient, redirectUri)
             .withAccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri),
-        MeasurementConsumersService(internalMeasurementConsumersClient)
+          MeasurementConsumersService(internalMeasurementConsumersClient)
             .withMetadataPrincipalIdentities()
             .withAccountAuthenticationServerInterceptor(internalAccountsClient, redirectUri)
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient)
