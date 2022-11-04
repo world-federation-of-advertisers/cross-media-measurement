@@ -143,10 +143,19 @@ gcloud container clusters create reporting \
   --service-account="gke-cluster@halo-cmm-dev.iam.gserviceaccount.com" \
   --database-encryption-key=projects/halo-cmm-dev/locations/us-central1/keyRings/test-key-ring/cryptoKeys/k8s-secret \
   --num-nodes=3 --enable-autoscaling --min-nodes=2 --max-nodes=4 \
-  --machine-type=e2-small
+  --machine-type=e2-small --release-channel=regular \
+  --cluster-version='1.24.5-gke.600'
 ```
 
 Adjust the number of nodes and machine type according to your expected usage.
+
+The cluster version should be no older than `1.24.0` in order to support
+built-in gRPC health probe. You can use the following command to determine what
+versions are supported for each release channel:
+
+```shell
+gcloud container get-server-config
+```
 
 ## Create the K8s ServiceAccount
 
