@@ -38,6 +38,8 @@ ADDITIONAL_MAVEN_ARTIFACTS = artifacts.dict_to_list({
     "io.opentelemetry:opentelemetry-sdk": "1.19.0",
     "io.opentelemetry:opentelemetry-exporter-otlp": "1.19.0",
     "io.opentelemetry:opentelemetry-semconv": "1.19.0-alpha",
+    "io.kubernetes:client-java": "16.0.0",
+    "io.kubernetes:client-java-extended": "16.0.0",
 })
 
 maven_install(
