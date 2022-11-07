@@ -420,6 +420,7 @@ class ListEventGroups : Runnable {
     names = ["--filter"],
     description = ["Result filter in format of raw CEL expression"],
     required = false,
+    defaultValue = ""
   )
   private lateinit var celFilter: String
 
@@ -430,7 +431,7 @@ class ListEventGroups : Runnable {
       parent = dataProviderName
       pageSize = pageParams.pageSize
       pageToken = pageParams.pageToken
-      this.filter = celFilter
+      filter = celFilter
     }
 
     val response = runBlocking(Dispatchers.IO) { parent.eventGroupStub.listEventGroups(request) }
