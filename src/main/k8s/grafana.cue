@@ -24,21 +24,9 @@ package k8s
 		}
 	}
 	configmaps: {
-		"grafana-config": {
+		"grafana-datasource-and-dashboard-provider": {
 			data: {
-				"grafana.ini": """
-					  [security]
-					  admin_user = user
-					  admin_password = password
-
-					  [users]
-					  allow_sign_up = false
-					"""
-			}
-		}
-		"grafana-dashboard-providers": {
-			data: {
-				"dashboards.yaml": """
+				"dashboard_provider.yaml": """
 					  apiVersion: 1
 
 					  providers:
@@ -51,26 +39,23 @@ package k8s
 					        path: /etc/grafana/dashboards
 					        foldersFromFilesStructure: true
 					"""
-			}
-		}
-		"grafana-datasource": {
-			data: {
-				"datasource.yaml": """
-		      apiVersion: 1
 
-		      datasources:
-		        - name: prometheus
-		          type: prometheus
-		          access: proxy
-		          uid: prometheus
-		          url: \(_prometheus_url)
-		          basicAuth: false
-		          isDefault: true
-		          jsonData:
-		            timeInterval: '30s'
-		          version: 1
-		          editable: true
-		    """
+					"datasource.yaml": """
+            apiVersion: 1
+
+            datasources:
+              - name: prometheus
+                type: prometheus
+                access: proxy
+                uid: prometheus
+                url: \(_prometheus_url)
+                basicAuth: false
+                isDefault: true
+                jsonData:
+                  timeInterval: '30s'
+                version: 1
+                editable: false
+          """
 			}
 		}
 	}
@@ -115,16 +100,31 @@ package k8s
 					}
 				}
 				spec: _mounts: {
-					"grafana-config": #ConfigMapMount & {
+					"grafana-config": #Mount & {
+					  volume: secret: secretName: "grafana-config"
 						volumeMount: {
 							mountPath: "/etc/grafana/grafana.ini"
 							subPath:   "grafana.ini"
 						}
 					}
-					"grafana-dashboard-providers": #ConfigMapMount & {
-						volumeMount: mountPath: "/etc/grafana/provisioning/dashboards"
+					"grafana-dashboard-provider": #Mount & {
+					  volume: configMap: {
+              name: "grafana-datasource-and-dashboard-provider"
+              items: [{
+                key: "dashboard_provider.yaml"
+                path: "dashboard_provider.yaml"
+              }]
+            }
+            volumeMount: mountPath: "/etc/grafana/provisioning/dashboards"
 					}
-					"grafana-datasource": #ConfigMapMount & {
+					"grafana-datasource": #Mount & {
+					  volume: configMap: {
+              name: "grafana-datasource-and-dashboard-provider"
+              items: [{
+                key: "datasource.yaml"
+                path: "datasource.yaml"
+              }]
+            }
 						volumeMount: mountPath: "/etc/grafana/provisioning/datasources"
 					}
 				}

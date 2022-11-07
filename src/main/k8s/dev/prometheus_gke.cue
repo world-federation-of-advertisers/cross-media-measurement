@@ -14,8 +14,9 @@
 
 package k8s
 
-// Name of K8s service account for reading from the MonitoringAPI.
-#MonitoringServiceAccount: "monitoring-viewer"
+// Name of K8s service account for access to WorkloadIdentity to read from the
+// MonitoringAPI.
+#MonitoringServiceAccount: "prometheus-frontend"
 
 objectSets: [
 	clusterPodMonitorings,

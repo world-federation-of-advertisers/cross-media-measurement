@@ -15,7 +15,7 @@
 package k8s
 
 // Name of K8s service account for reading from Cloud Spanner.
-#CloudSpannerServiceAccount: "cloud-spanner-reader"
+#CloudSpannerServiceAccount: "otel-collector"
 
 objectSets: [networkPolicies] + #OpenTelemetry.objectSets
 

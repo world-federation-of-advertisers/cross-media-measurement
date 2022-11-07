@@ -108,6 +108,15 @@ kubectl port-forward prometheus-pod 31111:9090
 
 ### Deploy Grafana
 
+Create a Secret containing the example Grafana configuration.
+
+```shell
+kubectl create secret generic grafana-config \
+  --from-file=src/main/k8s/testing/grafana/grafana.ini
+```
+
+Deploy the Grafana server.
+
 ```shell
 bazel run //src/main/k8s/local:grafana_kind
 ```

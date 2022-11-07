@@ -154,6 +154,12 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	]
 }
 
+// K8s KeyToPath
+#KeyToPath: {
+  key: string
+  path: string
+}
+
 // K8s Volume.
 #Volume: {
 	name: string
@@ -161,6 +167,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 #Volume: {
 	configMap?: {
 		name: string
+		items?: [...#KeyToPath]
 	}
 } | {
 	secret?: {
@@ -178,7 +185,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	name:      string
 	mountPath: string
 	readOnly?: bool
-	subPath:   string | *""
+	subPath?:  string
 }
 
 // Configuration for a Volume and a corresponding VolumeMount.
