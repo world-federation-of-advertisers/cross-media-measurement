@@ -40,7 +40,7 @@ package k8s
 					        foldersFromFilesStructure: true
 					"""
 
-					"datasource.yaml": """
+				"datasource.yaml": """
             apiVersion: 1
 
             datasources:
@@ -101,30 +101,30 @@ package k8s
 				}
 				spec: _mounts: {
 					"grafana-config": #Mount & {
-					  volume: secret: secretName: "grafana-config"
+						volume: secret: secretName: "grafana-config"
 						volumeMount: {
 							mountPath: "/etc/grafana/grafana.ini"
 							subPath:   "grafana.ini"
 						}
 					}
 					"grafana-dashboard-provider": #Mount & {
-					  volume: configMap: {
-              name: "grafana-datasource-and-dashboard-provider"
-              items: [{
-                key: "dashboard_provider.yaml"
-                path: "dashboard_provider.yaml"
-              }]
-            }
-            volumeMount: mountPath: "/etc/grafana/provisioning/dashboards"
+						volume: configMap: {
+							name: "grafana-datasource-and-dashboard-provider"
+							items: [{
+								key:  "dashboard_provider.yaml"
+								path: "dashboard_provider.yaml"
+							}]
+						}
+						volumeMount: mountPath: "/etc/grafana/provisioning/dashboards"
 					}
 					"grafana-datasource": #Mount & {
-					  volume: configMap: {
-              name: "grafana-datasource-and-dashboard-provider"
-              items: [{
-                key: "datasource.yaml"
-                path: "datasource.yaml"
-              }]
-            }
+						volume: configMap: {
+							name: "grafana-datasource-and-dashboard-provider"
+							items: [{
+								key:  "datasource.yaml"
+								path: "datasource.yaml"
+							}]
+						}
 						volumeMount: mountPath: "/etc/grafana/provisioning/datasources"
 					}
 				}

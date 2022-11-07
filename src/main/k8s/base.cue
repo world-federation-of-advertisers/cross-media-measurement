@@ -156,8 +156,8 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 // K8s KeyToPath
 #KeyToPath: {
-  key: string
-  path: string
+	key:  string
+	path: string
 }
 
 // K8s Volume.
