@@ -6,6 +6,7 @@ load(
     "KINGDOM_K8S_SETTINGS",
     "REPORTING_K8S_SETTINGS",
     "SIMULATOR_K8S_SETTINGS",
+    "GRAFANA_K8S_SETTINGS",
 )
 load("//src/main/k8s:macros.bzl", "cue_dump")
 
@@ -210,6 +211,9 @@ cue_dump(
 cue_dump(
     name = "grafana_gke",
     srcs = ["grafana_gke.cue"],
+    cue_tags = {
+        "secret_name": GRAFANA_K8S_SETTINGS.secret_name,
+    },
     tags = ["manual"],
     deps = [
         ":config",

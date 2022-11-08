@@ -15,7 +15,8 @@
 package k8s
 
 #Grafana: {
-	_prometheus_url: string
+	_prometheusUrl: string
+	_secretName: string
 
 	configmaps: [Name=_]: #ConfigMap & {
 		metadata: {
@@ -48,7 +49,7 @@ package k8s
                 type: prometheus
                 access: proxy
                 uid: prometheus
-                url: \(_prometheus_url)
+                url: \(_prometheusUrl)
                 basicAuth: false
                 isDefault: true
                 jsonData:
@@ -87,6 +88,20 @@ package k8s
 			_container: {
 				image:           "docker.io/grafana/grafana-oss:9.2.1"
 				imagePullPolicy: "Always"
+				_envVars: {
+          "GF_SECURITY_ADMIN_USER": {
+            valueFrom: secretKeyRef: {
+              name: _secretName
+              key:  "user"
+            }
+          }
+          "GF_SECURITY_ADMIN_PASSWORD": {
+            valueFrom: secretKeyRef: {
+              name: _secretName
+              key:  "password"
+            }
+          }
+        }
 			}
 			spec: template: {
 				metadata: {
@@ -102,8 +117,7 @@ package k8s
 				spec: _mounts: {
 					// /etc/grafana is an existing directory with required files so a
 					// subPath is required here in order to not overwrite it.
-					"grafana-config": #Mount & {
-						volume: secret: secretName: "grafana-config"
+					"grafana-config": #ConfigMapMount & {
 						volumeMount: {
 							mountPath: "/etc/grafana/grafana.ini"
 							subPath:   "grafana.ini"

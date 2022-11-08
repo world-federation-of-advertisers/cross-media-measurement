@@ -108,17 +108,32 @@ kubectl port-forward prometheus-pod 31111:9090
 
 ### Deploy Grafana
 
-Create a Secret containing the example Grafana configuration.
+Create a ConfigMap containing the example Grafana configuration.
 
 ```shell
-kubectl create secret generic grafana-config \
+kubectl create configmap grafana-config \
   --from-file=src/main/k8s/testing/grafana/grafana.ini
 ```
 
-Deploy the Grafana server.
+Create a Secret containing the Grafana basic auth credentials.
+
+You can use `kubectl` to create the `db-auth` secret. To reduce the likelihood
+of leaking your password, we read it in from STDIN.
+
+Tip: Ctrl+D is the usual key combination for closing the input stream.
+
+Assuming the database username is `user`, run:
 
 ```shell
-bazel run //src/main/k8s/local:grafana_kind
+kubectl create secret generic grafana-auth --type='kubernetes.io/basic/auth' \
+  --append-hash --from-file=password=/dev/stdin --from-literal=user=user
+```
+
+Deploy the Grafana server using the Secret name.
+
+```shell
+bazel run //src/main/k8s/local:grafana_kind \
+  --define=grafana_secret_name=grafana-auth-dmg429kb29
 ```
 
 To be able to visit Grafana in the browser at http://localhost:31112/, start

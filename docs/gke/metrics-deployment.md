@@ -27,12 +27,13 @@ free to use whichever you prefer.
       - deployment
     - 1 OpenTelemetry Operator Instrumentation
       - open-telemetry-java-agent
-    - 3 Kubernetes ConfigMaps
+    - 4 Kubernetes ConfigMaps
       - default-side-collector
       - deployment-collector
+      - grafana-config
       - grafana-datasource-and-dashboard-provider
     - 1 Kubernetes Secret
-      - grafana-config
+      - grafana-auth
     - 3 Kubernetes Deployments
       - deployment-collector
       - grafana-deployment
@@ -122,12 +123,27 @@ config is found in the base version:
 
 For Grafana config, see [grafana config](metrics-deployment.md#Grafana)
 
-To generate the YAML manifests from the CUE files, run the following:
+To generate the YAML manifests from the CUE files:
+
+You can use `kubectl` to create the `db-auth` secret. To reduce the likelihood
+of leaking your password, we read it in from STDIN.
+
+Tip: Ctrl+D is the usual key combination for closing the input stream.
+
+Assuming the database username is `user`, run:
+
+```shell
+kubectl create secret generic grafana-auth --type='kubernetes.io/basic/auth' \
+  --append-hash --from-file=password=/dev/stdin --from-literal=user=user
+```
+
+Then use the secret name here:
 
 ```shell
 bazel build //src/main/k8s/dev:prometheus_gke
 bazel build //src/main/k8s/dev:open_telemetry_gke
-bazel build //src/main/k8s/dev:grafana_gke
+bazel build //src/main/k8s/dev:grafana_gke \
+  --define=grafana_secret_name=grafana-auth-dmg429kb29
 ```
 
 You can also do your customization to the generated YAML file rather than to the
@@ -139,7 +155,7 @@ Run the following first for the Grafana examples, or replace the contents first
 for customization.
 
 ```shell
-kubectl create secret generic grafana-config \
+kubectl create configmap grafana-config \
   --from-file=src/main/k8s/testing/grafana/grafana.ini
 ```
 
@@ -230,12 +246,13 @@ open-telemetry-java-agent   68s
 NAME                                         DATA   AGE
 default-sidecar-collector                    1      60s
 deployment-collector                         1      60s
+grafana-config                               1      43s
 grafana-datasource-and-dashboard-provider    1      43s
 ```
 
 ```
-NAME                           TYPE     DATA   AGE
-grafana-config                 Opaque   1      66m
+NAME                           TYPE                       DATA   AGE
+grafana-auth-dmg429kb29        kubernetes.io/basic/auth   2      42s
 ```
 
 ```

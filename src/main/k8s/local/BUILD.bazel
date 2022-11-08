@@ -175,6 +175,9 @@ cue_dump(
 cue_dump(
     name = "grafana",
     srcs = ["grafana.cue"],
+    cue_tags = {
+        "secret_name": TEST_K8S_SETTINGS.grafana_secret_name,
+    },
     tags = ["manual"],
     deps = ["//src/main/k8s:grafana"],
 )

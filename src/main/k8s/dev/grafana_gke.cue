@@ -14,6 +14,8 @@
 
 package k8s
 
+_grafanaSecretName:         string @tag("secret_name")
+
 objectSets: [
 	networkPolicies,
 	grafana.configmaps,
@@ -22,7 +24,8 @@ objectSets: [
 ]
 
 grafana: #Grafana & {
-	_prometheus_url: "http://prometheus-frontend.default.svc:\(#PrometheusFrontendPort)"
+	_prometheusUrl: "http://prometheus-frontend.default.svc:\(#PrometheusFrontendPort)"
+	_secretName:         _grafanaSecretName
 
 	deployments: {
 		"grafana": {
