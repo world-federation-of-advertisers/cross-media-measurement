@@ -20,6 +20,8 @@ import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.duration
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.timestamp
+import io.grpc.Status
+import io.grpc.StatusException
 import java.io.File
 import java.nio.file.Paths
 import kotlinx.coroutines.launch
@@ -41,9 +43,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
-import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
@@ -146,22 +146,20 @@ abstract class InProcessLifeOfAReportIntegrationTest {
       onBlocking { createMeasurement(any()) }
         .thenAnswer {
           MEASUREMENT.copy {
-            val measurement = it.getArgument(0, CreateMeasurementRequest::class.java).measurement
-            name =
-              MeasurementKey(
-                  measurementConsumerId =
-                    MeasurementConsumerCertificateKey.fromName(
-                        measurement.measurementConsumerCertificate
-                      )!!
-                      .measurementConsumerId,
-                  measurementId = measurement.measurementReferenceId
-                )
-                .toName()
+            val measurementReferenceId = it.getArgument(0, CreateMeasurementRequest::class.java).measurement.measurementReferenceId
+            name += measurementReferenceId
           }
         }
       onBlocking { getMeasurement(any()) }
         .thenAnswer {
-          MEASUREMENT.copy { name = it.getArgument(0, GetMeasurementRequest::class.java).name }
+          val name = it.getArgument(0, GetMeasurementRequest::class.java).name
+          if (name.startsWith(MEASUREMENT.name) && name.length > MEASUREMENT.name.length) {
+            MEASUREMENT.copy {
+              this.name = name
+            }
+          } else {
+            throw StatusException(Status.NOT_FOUND)
+          }
         }
     }
 

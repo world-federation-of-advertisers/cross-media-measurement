@@ -1284,6 +1284,9 @@ class ReportsServiceTest {
         SUCCEEDED_WATCH_DURATION_MEASUREMENT,
         SUCCEEDED_FREQUENCY_HISTOGRAM_MEASUREMENT,
       )
+
+    onBlocking { createMeasurement(any()) }
+      .thenReturn(BASE_REACH_MEASUREMENT)
   }
 
   private val measurementConsumersMock: MeasurementConsumersCoroutineImplBase = mockService {

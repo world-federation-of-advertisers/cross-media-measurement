@@ -270,7 +270,8 @@ class ReportsService(
   )
 
   private data class WeightedMeasurementInfo(
-    val measurementReferenceId: String,
+    var kingdomMeasurementId: String,
+    val reportingMeasurementId: String,
     val weightedMeasurement: WeightedMeasurement,
     val timeInterval: TimeInterval,
   )
@@ -469,7 +470,7 @@ class ReportsService(
     val existingInternalMeasurement: InternalMeasurement? =
       getInternalMeasurement(
         reportInfo.measurementConsumerReferenceId,
-        weightedMeasurementInfo.measurementReferenceId
+        weightedMeasurementInfo.reportingMeasurementId
       )
 
     if (existingInternalMeasurement != null) return
@@ -486,15 +487,16 @@ class ReportsService(
         measurementConsumer,
         dataProviderNameToInternalEventGroupEntriesList,
         internalMetricDetails,
-        weightedMeasurementInfo.measurementReferenceId,
+        weightedMeasurementInfo.reportingMeasurementId,
         apiAuthenticationKey,
         signingConfig,
       )
 
     try {
-      measurementsStub
+      val measurement = measurementsStub
         .withAuthenticationKey(apiAuthenticationKey)
         .createMeasurement(createMeasurementRequest)
+      weightedMeasurementInfo.kingdomMeasurementId = MeasurementKey.fromName(measurement.name)!!.measurementId
     } catch (e: StatusException) {
       throw Exception(
         "Unable to create the measurement [${createMeasurementRequest.measurement.name}].",
@@ -502,11 +504,12 @@ class ReportsService(
       )
     }
 
+
     try {
       internalMeasurementsStub.createMeasurement(
         internalMeasurement {
           this.measurementConsumerReferenceId = reportInfo.measurementConsumerReferenceId
-          this.measurementReferenceId = weightedMeasurementInfo.measurementReferenceId
+          this.measurementReferenceId = weightedMeasurementInfo.kingdomMeasurementId
           state = InternalMeasurement.State.PENDING
         }
       )
@@ -584,7 +587,7 @@ class ReportsService(
             index,
           )
 
-        WeightedMeasurementInfo(measurementReferenceId, weightedMeasurement, timeInterval)
+        WeightedMeasurementInfo(kingdomMeasurementId = "placeholder", reportingMeasurementId = measurementReferenceId, weightedMeasurement, timeInterval)
       }
     }
   }
@@ -1090,7 +1093,7 @@ class ReportsService(
         this.timeInterval = weightedMeasurementInfo.timeInterval.toInternal()
 
         weightedMeasurements += internalWeightedMeasurement {
-          this.measurementReferenceId = weightedMeasurementInfo.measurementReferenceId
+          this.measurementReferenceId = weightedMeasurementInfo.kingdomMeasurementId
           coefficient = weightedMeasurementInfo.weightedMeasurement.coefficient
         }
       }
