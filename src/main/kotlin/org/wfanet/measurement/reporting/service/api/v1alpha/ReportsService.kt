@@ -498,7 +498,7 @@ class ReportsService(
           .withAuthenticationKey(apiAuthenticationKey)
           .createMeasurement(createMeasurementRequest)
       weightedMeasurementInfo.kingdomMeasurementId =
-        MeasurementKey.fromName(measurement.name)!!.measurementId
+        checkNotNull(MeasurementKey.fromName(measurement.name)).measurementId
     } catch (e: StatusException) {
       throw Exception(
         "Unable to create the measurement [${createMeasurementRequest.measurement.name}].",

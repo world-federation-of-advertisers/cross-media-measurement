@@ -21,7 +21,6 @@ import com.google.protobuf.duration
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.timestamp
 import io.grpc.Status
-import io.grpc.StatusException
 import java.io.File
 import java.nio.file.Paths
 import kotlinx.coroutines.launch
@@ -160,7 +159,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
           if (name.startsWith(MEASUREMENT.name) && name.length > MEASUREMENT.name.length) {
             MEASUREMENT.copy { this.name = name }
           } else {
-            throw StatusException(Status.NOT_FOUND)
+            throw Status.NOT_FOUND.asRuntimeException()
           }
         }
     }
