@@ -100,8 +100,8 @@ package k8s
 					}
 				}
 				spec: _mounts: {
-				  // /etc/grafana is an existing directory with required files so a
-				  // subPath is required here in order to not overwrite it.
+					// /etc/grafana is an existing directory with required files so a
+					// subPath is required here in order to not overwrite it.
 					"grafana-config": #Mount & {
 						volume: secret: secretName: "grafana-config"
 						volumeMount: {
