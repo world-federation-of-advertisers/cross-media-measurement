@@ -22,7 +22,8 @@ import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 /** Deals with stage specific details for a computation protocol. */
 object ComputationProtocolStageDetails :
   ComputationProtocolStageDetailsHelper<
-    ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails> {
+    ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails
+  > {
 
   override fun validateRoleForStage(
     stage: ComputationStage,

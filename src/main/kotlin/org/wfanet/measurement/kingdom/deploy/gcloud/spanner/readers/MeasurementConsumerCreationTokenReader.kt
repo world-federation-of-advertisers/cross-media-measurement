@@ -35,7 +35,8 @@ class MeasurementConsumerCreationTokenReader :
       MeasurementConsumerCreationTokens.MeasurementConsumerCreationTokenHash,
       MeasurementConsumerCreationTokens.CreateTime,
     FROM MeasurementConsumerCreationTokens
-    """.trimIndent()
+    """
+      .trimIndent()
 
   override suspend fun translate(struct: Struct): Result =
     Result(
@@ -52,7 +53,8 @@ class MeasurementConsumerCreationTokenReader :
           """
           WHERE MeasurementConsumerCreationTokens.MeasurementConsumerCreationTokenHash
             = @measurementConsumerCreationTokenHash
-          """.trimIndent()
+          """
+            .trimIndent()
         )
         bind(
           "measurementConsumerCreationTokenHash" to

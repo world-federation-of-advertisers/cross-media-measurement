@@ -171,7 +171,8 @@ class FinishExchangeStepAttempt(
       WHERE ExchangeSteps.RecurringExchangeId = @recurring_exchange_id
         AND ExchangeSteps.Date = @date
       ORDER BY ExchangeSteps.StepIndex
-      """.trimIndent()
+      """
+        .trimIndent()
     val statement: Statement =
       statement(sql) {
         bind("recurring_exchange_id" to recurringExchangeId.value)
@@ -204,7 +205,8 @@ class FinishExchangeStepAttempt(
             AND ExchangeStepAttempts.Date = @date
             AND ExchangeStepAttempts.StepIndex = @step_index
             AND ExchangeStepAttempts.AttemptIndex = @attempt_index
-          """.trimIndent()
+          """
+            .trimIndent()
         )
         bind("external_recurring_exchange_id" to externalRecurringExchangeId.value)
         bind("date" to exchangeDate.toCloudDate())
@@ -271,7 +273,8 @@ class FinishExchangeStepAttempt(
       WHERE ExchangeSteps.RecurringExchangeId = @recurring_exchange_id
         AND ExchangeSteps.Date = @date
         AND ExchangeSteps.State != @state
-      """.trimIndent()
+      """
+        .trimIndent()
 
     val statement: Statement =
       statement(sql) {

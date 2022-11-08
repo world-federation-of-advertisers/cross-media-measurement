@@ -48,7 +48,8 @@ class ExchangeStepReader(exchangeStepsIndex: Index = Index.NONE) :
     JOIN RecurringExchanges USING (RecurringExchangeId)
     JOIN ModelProviders ON (RecurringExchanges.ModelProviderId = ModelProviders.ModelProviderId)
     JOIN DataProviders ON (RecurringExchanges.DataProviderId = DataProviders.DataProviderId)
-    """.trimIndent()
+    """
+      .trimIndent()
 
   override suspend fun translate(struct: Struct): Result {
     return Result(

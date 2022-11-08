@@ -36,7 +36,8 @@ class OpenIdConnectIdentityReader : SpannerReader<OpenIdConnectIdentityReader.Re
       OpenIdConnectIdentities.Subject,
       OpenIdConnectIdentities.AccountId,
     FROM OpenIdConnectIdentities
-    """.trimIndent()
+    """
+      .trimIndent()
 
   override suspend fun translate(struct: Struct) =
     Result(
@@ -67,7 +68,8 @@ class OpenIdConnectIdentityReader : SpannerReader<OpenIdConnectIdentityReader.Re
         appendClause(
           """
           WHERE OpenIdConnectIdentities.Issuer = @issuer AND OpenIdConnectIdentities.Subject = @subject
-          """.trimIndent()
+          """
+            .trimIndent()
         )
         bind("issuer").to(issuer)
         bind("subject").to(subject)

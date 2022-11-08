@@ -150,7 +150,8 @@ class MeasurementReader(private val view: Measurement.View) :
       Measurements
       JOIN MeasurementConsumers USING (MeasurementConsumerId)
       JOIN MeasurementConsumerCertificates USING(MeasurementConsumerId, CertificateId)
-    """.trimIndent()
+    """
+        .trimIndent()
 
     private val computationViewBaseSql =
       """
@@ -243,7 +244,8 @@ class MeasurementReader(private val view: Measurement.View) :
       Measurements
       JOIN MeasurementConsumers USING (MeasurementConsumerId)
       JOIN MeasurementConsumerCertificates USING(MeasurementConsumerId, CertificateId)
-    """.trimIndent()
+    """
+        .trimIndent()
   }
 }
 

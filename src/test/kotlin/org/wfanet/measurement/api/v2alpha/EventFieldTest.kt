@@ -37,6 +37,8 @@ class EventFieldTest {
     assertFailsWith(
       IllegalArgumentException::class,
       "Descriptor does not have EventField annotation"
-    ) { EventField(TestVideoTemplate.getDescriptor()) }
+    ) {
+      EventField(TestVideoTemplate.getDescriptor())
+    }
   }
 }

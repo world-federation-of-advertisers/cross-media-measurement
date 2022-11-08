@@ -45,7 +45,8 @@ class MeasurementConsumerReader : SpannerReader<MeasurementConsumerReader.Result
     FROM MeasurementConsumers
     JOIN MeasurementConsumerCertificates USING (MeasurementConsumerId)
     JOIN Certificates USING (CertificateId)
-    """.trimIndent()
+    """
+      .trimIndent()
 
   override suspend fun translate(struct: Struct): Result =
     Result(buildMeasurementConsumer(struct), struct.getLong("MeasurementConsumerId"))

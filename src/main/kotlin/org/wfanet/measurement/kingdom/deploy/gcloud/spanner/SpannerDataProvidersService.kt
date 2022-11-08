@@ -35,7 +35,9 @@ class SpannerDataProvidersService(
       request.details.apiVersion.isNotEmpty() &&
         !request.details.publicKey.isEmpty &&
         !request.details.publicKeySignature.isEmpty
-    ) { "Details field of DataProvider is missing fields." }
+    ) {
+      "Details field of DataProvider is missing fields."
+    }
     return CreateDataProvider(request).execute(client, idGenerator)
   }
   override suspend fun getDataProvider(request: GetDataProviderRequest): DataProvider {

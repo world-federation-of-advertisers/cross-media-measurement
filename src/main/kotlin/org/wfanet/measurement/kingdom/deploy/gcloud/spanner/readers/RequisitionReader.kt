@@ -76,7 +76,8 @@ private val BASE_SQL =
     JOIN DataProviderCertificates
       ON (DataProviderCertificates.CertificateId = Requisitions.DataProviderCertificateId)
     JOIN Certificates ON (Certificates.CertificateId = DataProviderCertificates.CertificateId)
-  """.trimIndent()
+  """
+    .trimIndent()
 
 private object Params {
   const val EXTERNAL_MEASUREMENT_CONSUMER_ID = "externalMeasurementConsumerId"
@@ -124,7 +125,8 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
           WHERE
             ExternalRequisitionId = @${Params.EXTERNAL_REQUISITION_ID}
             AND ExternalDataProviderId = @${Params.EXTERNAL_DATA_PROVIDER_ID}
-          """.trimIndent()
+          """
+            .trimIndent()
         )
         bind(Params.EXTERNAL_DATA_PROVIDER_ID to externalDataProviderId)
         bind(Params.EXTERNAL_REQUISITION_ID to externalRequisitionId)
@@ -144,7 +146,8 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
           WHERE
             ExternalComputationId = @${Params.EXTERNAL_COMPUTATION_ID}
             AND ExternalRequisitionId = @${Params.EXTERNAL_REQUISITION_ID}
-          """.trimIndent()
+          """
+            .trimIndent()
         )
         bind(Params.EXTERNAL_COMPUTATION_ID to externalComputationId)
         bind(Params.EXTERNAL_REQUISITION_ID to externalRequisitionId)

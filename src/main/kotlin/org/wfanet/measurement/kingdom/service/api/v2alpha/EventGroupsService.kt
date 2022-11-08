@@ -144,7 +144,9 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
     grpcRequire(
       request.eventGroup.encryptedMetadata.isEmpty ||
         request.eventGroup.hasMeasurementConsumerPublicKey()
-    ) { "measurement_consumer_public_key must be specified if encrypted_metadata is specified" }
+    ) {
+      "measurement_consumer_public_key must be specified if encrypted_metadata is specified"
+    }
     grpcRequire(
       !request.eventGroup.hasMeasurementConsumerPublicKey() ||
         request.eventGroup.measurementConsumerCertificate.isNotBlank()
@@ -191,7 +193,9 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
     grpcRequire(
       request.eventGroup.encryptedMetadata.isEmpty ||
         request.eventGroup.hasMeasurementConsumerPublicKey()
-    ) { "measurement_consumer_public_key must be specified if encrypted_metadata is specified" }
+    ) {
+      "measurement_consumer_public_key must be specified if encrypted_metadata is specified"
+    }
     grpcRequire(
       !request.eventGroup.hasMeasurementConsumerPublicKey() ||
         request.eventGroup.measurementConsumerCertificate.isNotBlank()
@@ -378,7 +382,9 @@ private fun ListEventGroupsRequest.toListEventGroupPageToken(): ListEventGroupsP
   grpcRequire(
     (source.filter.measurementConsumersCount > 0 && parentKey.dataProviderId == WILDCARD) ||
       parentKey.dataProviderId != WILDCARD
-  ) { "Either parent data provider or measurement consumers filter must be provided" }
+  ) {
+    "Either parent data provider or measurement consumers filter must be provided"
+  }
 
   var externalDataProviderId = 0L
   if (parentKey.dataProviderId != WILDCARD) {
@@ -402,7 +408,9 @@ private fun ListEventGroupsRequest.toListEventGroupPageToken(): ListEventGroupsP
       grpcRequire(
         externalMeasurementConsumerIdsList.containsAll(externalMeasurementConsumerIds) &&
           externalMeasurementConsumerIds.containsAll(externalMeasurementConsumerIdsList)
-      ) { "Arguments must be kept the same when using a page token" }
+      ) {
+        "Arguments must be kept the same when using a page token"
+      }
 
       if (
         source.pageSize != 0 && source.pageSize >= MIN_PAGE_SIZE && source.pageSize <= MAX_PAGE_SIZE

@@ -53,7 +53,8 @@ private constructor(
   Map<Long, ComputationToken> by tokens,
   ComputationsDatabase,
   ComputationProtocolStagesEnumHelper<
-    ComputationType, ComputationStage> by ComputationProtocolStages {
+    ComputationType, ComputationStage
+  > by ComputationProtocolStages {
 
   constructor() : this(tokens = mutableMapOf(), requisitionMap = mutableMapOf())
 

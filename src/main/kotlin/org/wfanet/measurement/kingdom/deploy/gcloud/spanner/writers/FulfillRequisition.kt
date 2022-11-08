@@ -69,7 +69,9 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
         ExternalId(requisition.externalMeasurementConsumerId),
         ExternalId(requisition.externalMeasurementId),
         measurementState
-      ) { "Expected ${Measurement.State.PENDING_REQUISITION_FULFILLMENT}, got $measurementState" }
+      ) {
+        "Expected ${Measurement.State.PENDING_REQUISITION_FULFILLMENT}, got $measurementState"
+      }
     }
 
     val updatedDetails =
@@ -169,7 +171,8 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
           MeasurementConsumerId = @${Params.MEASUREMENT_CONSUMER_ID}
           AND MeasurementId = @${Params.MEASUREMENT_ID}
           AND State != @${Params.REQUISITION_STATE}
-        """.trimIndent()
+        """
+          .trimIndent()
       val query =
         statement(sql) {
           bind(Params.MEASUREMENT_CONSUMER_ID to measurementConsumerId)

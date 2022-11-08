@@ -179,7 +179,8 @@ object ComputationProtocolStages :
 
 class ProtocolStageDetailsHelper :
   ComputationProtocolStageDetailsHelper<
-    FakeProtocol, FakeProtocolStages, FakeProtocolStageDetails, FakeComputationDetails> {
+    FakeProtocol, FakeProtocolStages, FakeProtocolStageDetails, FakeComputationDetails
+  > {
 
   override fun setEndingState(
     details: FakeComputationDetails,
@@ -242,7 +243,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
 
   private lateinit var database:
     GcpSpannerComputationsDatabaseTransactor<
-      FakeProtocol, FakeProtocolStages, FakeProtocolStageDetails, FakeComputationDetails>
+      FakeProtocol, FakeProtocolStages, FakeProtocolStageDetails, FakeComputationDetails
+    >
 
   @Before
   fun initDatabase() {
@@ -283,7 +285,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
              LockExpirationTime, ComputationDetails, ComputationDetailsJSON
       FROM Computations
       ORDER BY ComputationId DESC
-      """.trimIndent(),
+      """
+        .trimIndent(),
       Struct.newBuilder()
         .apply {
           set("ComputationId").to(localId1)
@@ -317,7 +320,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
              EndTime, Details, DetailsJSON
       FROM ComputationStages
       ORDER BY ComputationId DESC
-      """.trimIndent(),
+      """
+        .trimIndent(),
       Struct.newBuilder()
         .apply {
           set("ComputationId").to(localId1)
@@ -454,7 +458,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
              ComputationDetails, ComputationDetailsJSON
       FROM Computations
       ORDER BY ComputationId
-      """.trimIndent(),
+      """
+        .trimIndent(),
       Struct.newBuilder()
         .apply {
           set("ComputationId").to(token.localId)
@@ -608,7 +613,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
       """
       SELECT Attempt, BeginTime, EndTime, Details FROM ComputationStageAttempts
       WHERE ComputationId = 66 AND ComputationStage = 0
-      """.trimIndent(),
+      """
+        .trimIndent(),
       Struct.newBuilder()
         .apply {
           set("Attempt").to(1)
@@ -626,7 +632,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
       """
       SELECT Attempt, BeginTime, EndTime, Details FROM ComputationStageAttempts
       WHERE ComputationId = 555 AND ComputationStage = 0
-      """.trimIndent(),
+      """
+        .trimIndent(),
       Struct.newBuilder()
         .apply {
           set("Attempt").to(1)
@@ -714,7 +721,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
       SELECT Attempt, BeginTime, EndTime, Details FROM ComputationStageAttempts
       WHERE ComputationId = 111 AND ComputationStage = 0
       ORDER BY Attempt
-      """.trimIndent(),
+      """
+        .trimIndent(),
       Struct.newBuilder()
         .apply {
           set("Attempt").to(1)
@@ -810,7 +818,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
       """
       SELECT ComputationId, ComputationStage, UpdateTime
       FROM Computations
-      """.trimIndent(),
+      """
+        .trimIndent(),
       Struct.newBuilder()
         .apply {
           set("ComputationId").to(token.localId)
@@ -827,7 +836,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
              Details
       FROM ComputationStages
       ORDER BY ComputationStage
-      """.trimIndent(),
+      """
+        .trimIndent(),
       Struct.newBuilder()
         .apply {
           set("ComputationId").to(token.localId)
@@ -877,7 +887,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
       SELECT ComputationId, ComputationStage, Attempt, BeginTime, EndTime, Details
       FROM ComputationStageAttempts
       ORDER BY ComputationStage, Attempt
-      """.trimIndent(),
+      """
+        .trimIndent(),
       Struct.newBuilder()
         .apply {
           set("ComputationId").to(token.localId)
@@ -928,7 +939,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
       SELECT ComputationId, ComputationStage, Attempt, BeginTime, EndTime, Details
       FROM ComputationStageAttempts
       ORDER BY ComputationStage, Attempt
-      """.trimIndent(),
+      """
+        .trimIndent(),
       Struct.newBuilder()
         .apply {
           set("ComputationId").to(token.localId)
@@ -969,7 +981,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
       SELECT ComputationId, ComputationStage, Attempt, BeginTime, EndTime, Details
       FROM ComputationStageAttempts
       ORDER BY ComputationStage, Attempt
-      """.trimIndent(),
+      """
+        .trimIndent(),
       Struct.newBuilder()
         .apply {
           set("ComputationId").to(token.localId)
@@ -1078,7 +1091,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
       FROM ComputationBlobReferences AS b
       JOIN Computations AS c USING(ComputationId)
       ORDER BY ComputationStage, BlobId
-      """.trimIndent(),
+      """
+          .trimIndent(),
         Struct.newBuilder()
           .apply {
             set("ComputationId").to(token.localId)
@@ -1151,7 +1165,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
              LockExpirationTime, ComputationDetails, ComputationDetailsJSON
       FROM Computations
       ORDER BY ComputationId DESC
-      """.trimIndent(),
+      """
+        .trimIndent(),
       Struct.newBuilder()
         .apply {
           set("ComputationId").to(token.localId)
@@ -1245,7 +1260,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
              LockExpirationTime, ComputationDetails, ComputationDetailsJSON
       FROM Computations
       ORDER BY ComputationId DESC
-      """.trimIndent(),
+      """
+        .trimIndent(),
       Struct.newBuilder()
         .apply {
           set("ComputationId").to(token.localId)
@@ -1267,7 +1283,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
       FROM Requisitions AS r
       JOIN Computations AS c USING(ComputationId)
       ORDER BY RequisitionId
-      """.trimIndent(),
+      """
+        .trimIndent(),
       struct {
         set("ComputationId").to(token.localId)
         set("RequisitionId").to(1)
@@ -1350,7 +1367,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
       FROM Requisitions AS r
       JOIN Computations AS c USING(ComputationId)
       ORDER BY RequisitionId
-      """.trimIndent(),
+      """
+        .trimIndent(),
       struct {
         set("ComputationId").to(token.localId)
         set("RequisitionId").to(1)
@@ -1381,7 +1399,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
       FROM Requisitions AS r
       JOIN Computations AS c USING(ComputationId)
       ORDER BY RequisitionId
-      """.trimIndent(),
+      """
+        .trimIndent(),
       struct {
         set("ComputationId").to(token.localId)
         set("RequisitionId").to(1)
@@ -1462,7 +1481,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
              LockExpirationTime, ComputationDetails, ComputationDetailsJSON
       FROM Computations
       ORDER BY ComputationId DESC
-      """.trimIndent(),
+      """
+        .trimIndent(),
       Struct.newBuilder()
         .apply {
           set("ComputationId").to(token.localId)
@@ -1483,7 +1503,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
       SELECT ComputationId, ComputationStage, Attempt, BeginTime, EndTime, Details
       FROM ComputationStageAttempts
       ORDER BY ComputationStage, Attempt
-      """.trimIndent(),
+      """
+        .trimIndent(),
       Struct.newBuilder()
         .apply {
           set("ComputationId").to(token.localId)
@@ -1569,7 +1590,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
              LockExpirationTime, ComputationDetails, ComputationDetailsJSON
       FROM Computations
       ORDER BY ComputationId DESC
-      """.trimIndent(),
+      """
+        .trimIndent(),
       Struct.newBuilder()
         .apply {
           set("ComputationId").to(token.localId)
@@ -1589,7 +1611,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
       SELECT ComputationId, ComputationStage, Attempt, BeginTime, EndTime, Details
       FROM ComputationStageAttempts
       ORDER BY ComputationStage, Attempt
-      """.trimIndent(),
+      """
+        .trimIndent(),
       Struct.newBuilder()
         .apply {
           set("ComputationId").to(token.localId)
@@ -1669,7 +1692,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
       """
       SELECT ComputationId, ComputationStage, Attempt, MetricName, MetricValue
       FROM ComputationStats
-      """.trimIndent(),
+      """
+        .trimIndent(),
       Struct.newBuilder()
         .apply {
           set("ComputationId").to(localId)

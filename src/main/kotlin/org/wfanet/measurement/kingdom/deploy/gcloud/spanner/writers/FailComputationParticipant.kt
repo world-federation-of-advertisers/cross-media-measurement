@@ -87,7 +87,9 @@ class FailComputationParticipant(private val request: FailComputationParticipant
           ExternalId(computationParticipant.externalMeasurementConsumerId),
           ExternalId(computationParticipant.externalMeasurementId),
           measurementState
-        ) { "Unexpected Measurement state $measurementState (${measurementState.number})" }
+        ) {
+          "Unexpected Measurement state $measurementState (${measurementState.number})"
+        }
       }
     }
 

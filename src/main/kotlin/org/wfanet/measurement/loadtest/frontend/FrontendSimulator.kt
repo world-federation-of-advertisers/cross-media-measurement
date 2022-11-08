@@ -328,8 +328,7 @@ class FrontendSimulator(
     runId: String,
     newMeasurementSpec:
       (
-        serializedMeasurementPublicKey: ByteString,
-        nonceHashes: MutableList<ByteString>
+        serializedMeasurementPublicKey: ByteString, nonceHashes: MutableList<ByteString>
       ) -> MeasurementSpec,
     numberOfEdp: Int = 20,
   ): Measurement {

@@ -64,7 +64,8 @@ class PostgresBackingStoreTest : AbstractPrivacyBudgetLedgerStoreTest() {
           DROP TABLE IF EXISTS PrivacyBucketCharges CASCADE;
           DROP TYPE IF EXISTS Gender CASCADE;
           DROP TYPE IF EXISTS AgeGroup CASCADE;
-        """.trimIndent()
+        """
+            .trimIndent()
         )
         statement.executeUpdate(schema)
       }

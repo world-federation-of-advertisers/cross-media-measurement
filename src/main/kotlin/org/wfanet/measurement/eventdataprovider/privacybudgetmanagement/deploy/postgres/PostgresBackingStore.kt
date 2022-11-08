@@ -100,7 +100,8 @@ class PostgresBackingStoreTransactionContext(
           MeasurementConsumerId = ? AND ReferenceId = ?
         Order by CreateTime DESC
         Limit 1
-      """.trimIndent()
+      """
+        .trimIndent()
     connection.prepareStatement(selectSql).use { statement: PreparedStatement ->
       statement.setString(1, measurementConsumerId)
       statement.setString(2, referenceId)
@@ -140,7 +141,8 @@ class PostgresBackingStoreTransactionContext(
           AND AgeGroup = CAST(? AS AgeGroup)
           AND Gender = CAST(? AS Gender)
           and VidStart = ?
-      """.trimIndent()
+      """
+        .trimIndent()
     connection.prepareStatement(selectBucketSql).use { statement: PreparedStatement ->
       statement.setString(1, privacyBucketGroup.measurementConsumerId)
       statement.setObject(2, privacyBucketGroup.startingDate)
@@ -177,7 +179,8 @@ class PostgresBackingStoreTransactionContext(
           ?,
           ?,
           NOW())
-      """.trimIndent()
+      """
+        .trimIndent()
     connection.prepareStatement(insertEntrySql).use { statement: PreparedStatement ->
       statement.setString(1, privacyReference.measurementConsumerId)
       statement.setString(2, privacyReference.referenceId)
@@ -221,7 +224,8 @@ class PostgresBackingStoreTransactionContext(
           Epsilon)
       DO
          UPDATE SET RepetitionCount = ? + PrivacyBucketCharges.RepetitionCount;
-      """.trimIndent()
+      """
+        .trimIndent()
 
     val statement: PreparedStatement = connection.prepareStatement(insertEntrySql)
 

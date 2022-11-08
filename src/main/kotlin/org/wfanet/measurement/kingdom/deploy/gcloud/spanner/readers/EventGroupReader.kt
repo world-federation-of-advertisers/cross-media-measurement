@@ -41,7 +41,8 @@ private val BASE_SQL =
     FROM EventGroups
     JOIN MeasurementConsumers USING (MeasurementConsumerId)
     JOIN DataProviders USING (DataProviderId)
-    """.trimIndent()
+    """
+    .trimIndent()
 
 class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
   data class Result(
@@ -64,7 +65,8 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
         """
         WHERE EventGroups.DataProviderId = @data_provider_id
         AND EventGroups.ProvidedEventGroupId = @provided_event_group_id
-        """.trimIndent()
+        """
+          .trimIndent()
       )
       bind("data_provider_id" to dataProviderId)
       bind("provided_event_group_id" to providedEventGroupId)
@@ -85,7 +87,8 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
           WHERE
             ExternalEventGroupId = @$externalEventGroupIdParam
             AND ExternalDataProviderId = @$externalDataProviderIdParam
-          """.trimIndent()
+          """
+            .trimIndent()
         )
         bind(externalEventGroupIdParam to externalEventGroupId)
         bind(externalDataProviderIdParam to externalDataProviderId)

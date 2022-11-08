@@ -106,7 +106,9 @@ class MeasurementsService(private val internalMeasurementsStub: MeasurementsCoro
     val measurementConsumerCertificateKey =
       grpcRequireNotNull(
         MeasurementConsumerCertificateKey.fromName(measurement.measurementConsumerCertificate)
-      ) { "Measurement Consumer Certificate resource name is either unspecified or invalid" }
+      ) {
+        "Measurement Consumer Certificate resource name is either unspecified or invalid"
+      }
 
     if (
       authenticatedMeasurementConsumerKey.measurementConsumerId !=
@@ -353,7 +355,9 @@ private fun ListMeasurementsRequest.toListMeasurementsPageToken(): ListMeasureme
 
       grpcRequire(
         measurementStatesList.containsAll(states) && states.containsAll(measurementStatesList)
-      ) { "Arguments must be kept the same when using a page token" }
+      ) {
+        "Arguments must be kept the same when using a page token"
+      }
 
       if (source.pageSize in 1..MAX_PAGE_SIZE) {
         pageSize = source.pageSize

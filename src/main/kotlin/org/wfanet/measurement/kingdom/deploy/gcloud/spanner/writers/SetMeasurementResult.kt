@@ -52,7 +52,9 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
         .readByExternalComputationId(transactionContext, ExternalId(request.externalComputationId))
         ?: throw MeasurementNotFoundByComputationException(
           ExternalId(request.externalComputationId)
-        ) { "Measurement for external computation ID ${request.externalComputationId} not found" }
+        ) {
+          "Measurement for external computation ID ${request.externalComputationId} not found"
+        }
     val aggregatorDuchyId =
       DuchyIds.getInternalId(request.externalAggregatorDuchyId)
         ?: throw DuchyNotFoundException(request.externalAggregatorDuchyId) {
@@ -67,7 +69,9 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
         ?: throw DuchyCertificateNotFoundException(
           request.externalAggregatorDuchyId,
           ExternalId(request.externalAggregatorCertificateId)
-        ) { "Aggregator certificate ${request.externalAggregatorCertificateId} not found" }
+        ) {
+          "Aggregator certificate ${request.externalAggregatorCertificateId} not found"
+        }
 
     transactionContext.bufferInsertMutation("DuchyMeasurementResults") {
       set("MeasurementConsumerId" to measurementConsumerId)

@@ -29,7 +29,8 @@ import org.wfanet.measurement.internal.duchy.RequisitionEntry
 interface ComputationsDatabase :
   ComputationsDatabaseReader,
   ComputationsDatabaseTransactor<
-    ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails>,
+    ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails
+  >,
   ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
 
 /** Performs read operations on a relational database of computations. */

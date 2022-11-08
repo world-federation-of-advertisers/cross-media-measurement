@@ -49,6 +49,8 @@ fun validateRequestProvider(requestParent: String): Provider {
   val contextProvider = getProviderFromContext()
   grpcRequire(
     contextProvider == MeasurementPrincipal.fromName(requestParent)?.resourceKey?.toProvider()
-  ) { "Principal from authentication does not match request" }
+  ) {
+    "Principal from authentication does not match request"
+  }
   return contextProvider
 }

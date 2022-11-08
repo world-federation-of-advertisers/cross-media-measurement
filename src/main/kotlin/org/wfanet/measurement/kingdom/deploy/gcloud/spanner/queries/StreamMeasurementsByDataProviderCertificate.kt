@@ -33,7 +33,8 @@ class StreamMeasurementsByDataProviderCertificate(
         WHERE Requisitions.DataProviderCertificateId = @dataProviderCertificateId
           AND Requisitions.State in UNNEST(@requisitionStates)
           AND Measurements.State in UNNEST(@pendingStates)
-        """.trimIndent()
+        """
+          .trimIndent()
       )
       bind("dataProviderCertificateId").to(dataProviderCertificateId.value)
       bind("requisitionStates")

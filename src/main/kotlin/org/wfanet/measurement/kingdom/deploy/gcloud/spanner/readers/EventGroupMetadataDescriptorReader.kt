@@ -34,7 +34,8 @@ private val BASE_SQL =
       DataProviders.ExternalDataProviderId
     FROM EventGroupMetadataDescriptors
     JOIN DataProviders USING (DataProviderId)
-    """.trimIndent()
+    """
+    .trimIndent()
 
 class EventGroupMetadataDescriptorReader :
   BaseSpannerReader<EventGroupMetadataDescriptorReader.Result>() {
@@ -61,7 +62,8 @@ class EventGroupMetadataDescriptorReader :
         """
         WHERE EventGroupMetadataDescriptors.DataProviderId = @data_provider_id
         AND EventGroupMetadataDescriptors.ExternalEventGroupMetadataDescriptorId = @external_descriptor_id
-        """.trimIndent()
+        """
+          .trimIndent()
       )
       bind("data_provider_id" to dataProviderId)
       bind("external_descriptor_id" to externalDescriptorId)
@@ -82,7 +84,8 @@ class EventGroupMetadataDescriptorReader :
           WHERE
             ExternalDataProviderId = @$externalDataProviderIdParam
             AND ExternalEventGroupMetadataDescriptorId = @$externalDescriptorIdParam
-          """.trimIndent()
+          """
+            .trimIndent()
         )
         bind(externalDataProviderIdParam to externalDataProviderId)
         bind(externalDescriptorIdParam to externalDescriptorId)

@@ -54,7 +54,9 @@ class RefuseRequisition(private val request: RefuseRequisitionRequest) :
         ExternalId(requisition.externalMeasurementConsumerId),
         ExternalId(requisition.externalMeasurementId),
         measurementState
-      ) { "Expected ${Measurement.State.PENDING_REQUISITION_FULFILLMENT}, got $measurementState" }
+      ) {
+        "Expected ${Measurement.State.PENDING_REQUISITION_FULFILLMENT}, got $measurementState"
+      }
     }
 
     val updatedDetails = requisition.details.copy { refusal = request.refusal }

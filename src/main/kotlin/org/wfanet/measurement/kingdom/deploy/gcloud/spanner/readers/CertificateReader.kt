@@ -85,7 +85,8 @@ class CertificateReader(private val parentType: ParentType) :
         WHERE
           ${parentType.idColumnName} = @parentId
           AND ${parentType.externalCertificateIdColumnName} = @externalCertificateId
-        """.trimIndent()
+        """
+          .trimIndent()
       )
       bind("parentId" to parentId)
       bind("externalCertificateId" to externalCertificateId)
@@ -102,7 +103,8 @@ class CertificateReader(private val parentType: ParentType) :
         WHERE
           ${parentType.externalIdColumnName} = @externalParentId
           AND ${parentType.externalCertificateIdColumnName} = @externalCertificateId
-        """.trimIndent()
+        """
+          .trimIndent()
       )
       bind("externalParentId" to externalParentId)
       bind("externalCertificateId" to externalCertificateId)
@@ -217,7 +219,8 @@ class CertificateReader(private val parentType: ParentType) :
         ${parentType.certificatesTableName}
         JOIN ${parentType.tableName!!} USING (${parentType.idColumnName})
         JOIN Certificates USING (CertificateId)
-      """.trimIndent()
+      """
+        .trimIndent()
 
     /** Builds base SQL when internal ID of parent is known. */
     private fun buildInternalIdSql(parentType: ParentType): String =
@@ -237,7 +240,8 @@ class CertificateReader(private val parentType: ParentType) :
       FROM
         ${parentType.certificatesTableName}
         JOIN Certificates USING (CertificateId)
-      """.trimIndent()
+      """
+        .trimIndent()
 
     fun buildDataProviderCertificate(struct: Struct) = certificate {
       fillCommon(struct)

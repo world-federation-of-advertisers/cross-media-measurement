@@ -39,7 +39,8 @@ class MeasurementConsumerApiKeyReader : SpannerReader<MeasurementConsumerApiKeyR
     FROM MeasurementConsumerApiKeys
     LEFT JOIN MeasurementConsumers
       ON (MeasurementConsumerApiKeys.MeasurementConsumerId = MeasurementConsumers.MeasurementConsumerId)
-    """.trimIndent()
+    """
+      .trimIndent()
 
   override suspend fun translate(struct: Struct): Result =
     Result(buildApiKey(struct), struct.getLong("ApiKeyId"))

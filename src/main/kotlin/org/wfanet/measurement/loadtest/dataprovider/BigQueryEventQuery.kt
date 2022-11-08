@@ -94,7 +94,8 @@ class BigQueryEventQuery(
       FROM `$datasetName.$tableName`
       WHERE publisher_id = $publisher
       AND date BETWEEN @begin_date AND @end_date
-      """.trimIndent()
+      """
+        .trimIndent()
     if (sex != null) {
       query += " AND sex = \"${sex.string}\" "
     }

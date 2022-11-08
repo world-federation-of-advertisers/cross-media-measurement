@@ -104,7 +104,8 @@ class ComputationsSchemaTest : UsingSpannerEmulator(Schemata.DUCHY_CHANGELOG_PAT
       """
         SELECT ComputationId, RequisitionId, PathToBlob, RequisitionDetails, RequisitionDetailsJSON
         FROM Requisitions
-      """.trimIndent(),
+      """
+        .trimIndent(),
       Struct.newBuilder()
         .set("ComputationId")
         .to(computationId)

@@ -80,7 +80,8 @@ private val BASE_SQL =
       USING (DuchyId, CertificateId)
     JOIN Measurements USING (MeasurementConsumerId, MeasurementId)
     JOIN MeasurementConsumers USING (MeasurementConsumerId)
-  """.trimIndent()
+  """
+    .trimIndent()
 
 class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantReader.Result>() {
   data class Result(
@@ -110,7 +111,8 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
         WHERE
           ExternalComputationId = @externalComputationId
           AND DuchyId = @duchyId
-        """.trimIndent()
+        """
+          .trimIndent()
       )
       bind("externalComputationId" to externalComputationId)
       bind("duchyId" to duchyId)
@@ -231,7 +233,9 @@ suspend fun readComputationParticipantState(
       measurementConsumerId,
       measurementConsumerId,
       duchyId
-    ) { "ComputationParticipant not found $duchyId" }
+    ) {
+      "ComputationParticipant not found $duchyId"
+    }
 }
 
 suspend fun computationParticipantsInState(

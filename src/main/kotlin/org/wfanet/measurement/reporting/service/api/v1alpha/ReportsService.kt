@@ -1300,7 +1300,9 @@ class ReportsService(
 
     grpcRequire(
       reportingSetKey.measurementConsumerId == reportInfo.measurementConsumerReferenceId
-    ) { "No access to the reporting set [$reportingSetName]." }
+    ) {
+      "No access to the reporting set [$reportingSetName]."
+    }
 
     val internalReportingSet =
       try {
