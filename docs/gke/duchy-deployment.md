@@ -150,7 +150,8 @@ gcloud container clusters create worker1-duchy \
   --service-account="gke-cluster@halo-worker1-demo.iam.gserviceaccount.com" \
   --database-encryption-key=projects/halo-worker1-demo/locations/us-central1/keyRings/test-key-ring/cryptoKeys/k8s-secret \
   --num-nodes=2 --enable-autoscaling --min-nodes=2 --max-nodes=4 \
-  --machine-type=e2-standard-2 -cluster-version=1.24.2-gke.1900
+  --machine-type=e2-standard-2 --release-channel=regular \
+  --cluster-version='1.24.5-gke.600'
 ```
 
 Adjust the node pools based on your expected usage. You may wish to use GKE
@@ -159,8 +160,13 @@ machine/scheduling types. The default Mill and Herald configuration include a
 toleration for running on
 [Spot VMs](https://cloud.google.com/kubernetes-engine/docs/how-to/spot-vms#use_taints_and_tolerations_for).
 
-The GKE version should be no older than `1.24.0` in order to support built-in
-gRPC health probe.
+The cluster version should be no older than `1.24.0` in order to support
+built-in gRPC health probe. You can use the following command to determine what
+versions are supported for each release channel:
+
+```shell
+gcloud container get-server-config
+```
 
 To configure `kubectl` to access this cluster, run
 
@@ -222,6 +228,12 @@ files are required in a Duchy:
 
     The private key for the Duchy's consent signaling certificate in DER format.
 
+1.  `duchy_cert_config.textproto`
+
+    Configuration mapping Duchy root certificates to the corresponding Duchy ID.
+
+    -   [Example](../../src/main/k8s/testing/secretfiles/duchy_cert_config.textproto)
+
 1.  `xxx_protocols_setup_config.textproto` (replace xxx with the role)
 
     -   This contains information about the protocols run in the duchy
@@ -229,7 +241,8 @@ files are required in a Duchy:
     -   [Example](../../src/main/k8s/testing/secretfiles/aggregator_protocols_setup_config.textproto)
 
 Put all above files in the same folder (anywhere in your local machine), and
-create a file named `kustomization.yaml` with the following content:
+create a file named `kustomization.yaml` with the following content,
+substituting the appropriate version of protocols setup config:
 
 ```yaml
 secretGenerator:
@@ -240,7 +253,8 @@ secretGenerator:
   - worker1_tls.key
   - worker1_cs_cert.der
   - worker1_cs_private.der
-  - protocols_setup_config.textproto
+  - duchy_cert_config.textproto
+  - xxx_protocols_setup_config.textproto
 ```
 
 and run

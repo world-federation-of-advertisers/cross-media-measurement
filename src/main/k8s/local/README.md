@@ -249,25 +249,21 @@ The ConfigMap also needs an additional file named
 # proto-file: wfa/measurement/config/reporting/encryption_key_pair_config.proto
 # proto-message: EncryptionKeyPairConfig
 principal_key_pairs {
-  principal: "measurement_consumer1"
+  principal: "measurementConsumers/G7laM7LMIAA"
   key_pairs {
     public_key_file: "mc_enc_public.tink"
     private_key_file: "mc_enc_private.tink"
   }
   key_pairs {
-    public_key_file: "edp1_enc_public.tink"
-    private_key_file: "edp1_enc_private.tink"
+    public_key_file: "mc_enc_public_2.tink"
+    private_key_file: "mc_enc_private_2.tink"
   }
 }
 principal_key_pairs {
-  principal: "measurement_consumer2"
+  principal: "measurementConsumers/FS1n8aTrck0"
   key_pairs {
-    public_key_file: "edp2_enc_public.tink"
-    private_key_file: "edp2_enc_private.tink"
-  }
-  key_pairs {
-    public_key_file: "edp3_enc_public.tink"
-    private_key_file: "edp3_enc_private.tink"
+    public_key_file: "mc2_enc_public.tink"
+    private_key_file: "mc2_enc_private.tink"
   }
 }
 ```
