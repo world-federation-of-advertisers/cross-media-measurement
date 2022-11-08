@@ -1285,8 +1285,7 @@ class ReportsServiceTest {
         SUCCEEDED_FREQUENCY_HISTOGRAM_MEASUREMENT,
       )
 
-    onBlocking { createMeasurement(any()) }
-      .thenReturn(BASE_REACH_MEASUREMENT)
+    onBlocking { createMeasurement(any()) }.thenReturn(BASE_REACH_MEASUREMENT)
   }
 
   private val measurementConsumersMock: MeasurementConsumersCoroutineImplBase = mockService {

@@ -146,7 +146,11 @@ abstract class InProcessLifeOfAReportIntegrationTest {
       onBlocking { createMeasurement(any()) }
         .thenAnswer {
           MEASUREMENT.copy {
-            val measurementReferenceId = it.getArgument(0, CreateMeasurementRequest::class.java).measurement.measurementReferenceId
+            val measurementReferenceId =
+              it
+                .getArgument(0, CreateMeasurementRequest::class.java)
+                .measurement
+                .measurementReferenceId
             name += measurementReferenceId
           }
         }
@@ -154,9 +158,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
         .thenAnswer {
           val name = it.getArgument(0, GetMeasurementRequest::class.java).name
           if (name.startsWith(MEASUREMENT.name) && name.length > MEASUREMENT.name.length) {
-            MEASUREMENT.copy {
-              this.name = name
-            }
+            MEASUREMENT.copy { this.name = name }
           } else {
             throw StatusException(Status.NOT_FOUND)
           }

@@ -493,17 +493,18 @@ class ReportsService(
       )
 
     try {
-      val measurement = measurementsStub
-        .withAuthenticationKey(apiAuthenticationKey)
-        .createMeasurement(createMeasurementRequest)
-      weightedMeasurementInfo.kingdomMeasurementId = MeasurementKey.fromName(measurement.name)!!.measurementId
+      val measurement =
+        measurementsStub
+          .withAuthenticationKey(apiAuthenticationKey)
+          .createMeasurement(createMeasurementRequest)
+      weightedMeasurementInfo.kingdomMeasurementId =
+        MeasurementKey.fromName(measurement.name)!!.measurementId
     } catch (e: StatusException) {
       throw Exception(
         "Unable to create the measurement [${createMeasurementRequest.measurement.name}].",
         e
       )
     }
-
 
     try {
       internalMeasurementsStub.createMeasurement(
@@ -588,7 +589,12 @@ class ReportsService(
           )
 
         // kingdomMeasurementId will be updated after the kingdom measurement is created.
-        WeightedMeasurementInfo(kingdomMeasurementId = "placeholder", reportingMeasurementId = measurementReferenceId, weightedMeasurement, timeInterval)
+        WeightedMeasurementInfo(
+          kingdomMeasurementId = "placeholder",
+          reportingMeasurementId = measurementReferenceId,
+          weightedMeasurement,
+          timeInterval
+        )
       }
     }
   }
