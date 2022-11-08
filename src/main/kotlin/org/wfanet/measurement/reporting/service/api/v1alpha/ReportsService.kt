@@ -587,6 +587,7 @@ class ReportsService(
             index,
           )
 
+        // kingdomMeasurementId will be updated after the kingdom measurement is created.
         WeightedMeasurementInfo(kingdomMeasurementId = "placeholder", reportingMeasurementId = measurementReferenceId, weightedMeasurement, timeInterval)
       }
     }
