@@ -467,14 +467,6 @@ class ReportsService(
     apiAuthenticationKey: String,
     signingConfig: SigningConfig,
   ) {
-    val existingInternalMeasurement: InternalMeasurement? =
-      getInternalMeasurement(
-        reportInfo.measurementConsumerReferenceId,
-        weightedMeasurementInfo.reportingMeasurementId
-      )
-
-    if (existingInternalMeasurement != null) return
-
     val dataProviderNameToInternalEventGroupEntriesList =
       aggregateInternalEventGroupEntryByDataProviderName(
         weightedMeasurementInfo.weightedMeasurement.reportingSets,
