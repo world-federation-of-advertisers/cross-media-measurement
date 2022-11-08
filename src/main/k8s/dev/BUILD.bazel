@@ -2,11 +2,11 @@ load("@wfa_rules_cue//cue:defs.bzl", "cue_library")
 load(
     "//build:variables.bzl",
     "DUCHY_K8S_SETTINGS",
+    "GRAFANA_K8S_SETTINGS",
     "IMAGE_REPOSITORY_SETTINGS",
     "KINGDOM_K8S_SETTINGS",
     "REPORTING_K8S_SETTINGS",
     "SIMULATOR_K8S_SETTINGS",
-    "GRAFANA_K8S_SETTINGS",
 )
 load("//src/main/k8s:macros.bzl", "cue_dump")
 
