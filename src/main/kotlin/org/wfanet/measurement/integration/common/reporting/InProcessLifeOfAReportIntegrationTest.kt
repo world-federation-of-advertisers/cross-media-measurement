@@ -142,10 +142,12 @@ abstract class InProcessLifeOfAReportIntegrationTest {
   private val publicKingdomMeasurementsMock: MeasurementsGrpcKt.MeasurementsCoroutineImplBase =
     mockService {
       onBlocking { createMeasurement(any()) }
-        .thenReturn(MEASUREMENT.copy { name = MEASUREMENT_NAME_SET.first() },
-                    *MEASUREMENT_NAME_SET.filter { it != MEASUREMENT_NAME_SET.first() }
-                      .map { MEASUREMENT.copy { name = it } }
-                      .toTypedArray())
+        .thenReturn(
+          MEASUREMENT.copy { name = MEASUREMENT_NAME_SET.first() },
+          *MEASUREMENT_NAME_SET.filter { it != MEASUREMENT_NAME_SET.first() }
+            .map { MEASUREMENT.copy { name = it } }
+            .toTypedArray()
+        )
 
       onBlocking { getMeasurement(any()) }
         .thenAnswer {
@@ -418,17 +420,18 @@ abstract class InProcessLifeOfAReportIntegrationTest {
       nonceHashes += DATA_PROVIDER_NONCE_HASH
     }
 
-    private val MEASUREMENT_NAME_SET = setOf(
-      "$MEASUREMENT_CONSUMER_NAME/measurements/AAAAAAAAAHs",
-      "$MEASUREMENT_CONSUMER_NAME/measurements/BBBBBBBBBHs",
-      "$MEASUREMENT_CONSUMER_NAME/measurements/CCCCCCCCCHs",
-      "$MEASUREMENT_CONSUMER_NAME/measurements/DDDDDDDDDHs",
-      "$MEASUREMENT_CONSUMER_NAME/measurements/EEEEEEEEEHs",
-      "$MEASUREMENT_CONSUMER_NAME/measurements/FFFFFFFFFHs",
-      "$MEASUREMENT_CONSUMER_NAME/measurements/GGGGGGGGGHs",
-      "$MEASUREMENT_CONSUMER_NAME/measurements/HHHHHHHHHHs",
-      "$MEASUREMENT_CONSUMER_NAME/measurements/IIIIIIIIIHs",
-      "$MEASUREMENT_CONSUMER_NAME/measurements/JJJJJJJJJHs",
+    private val MEASUREMENT_NAME_SET =
+      setOf(
+        "$MEASUREMENT_CONSUMER_NAME/measurements/AAAAAAAAAHs",
+        "$MEASUREMENT_CONSUMER_NAME/measurements/BBBBBBBBBHs",
+        "$MEASUREMENT_CONSUMER_NAME/measurements/CCCCCCCCCHs",
+        "$MEASUREMENT_CONSUMER_NAME/measurements/DDDDDDDDDHs",
+        "$MEASUREMENT_CONSUMER_NAME/measurements/EEEEEEEEEHs",
+        "$MEASUREMENT_CONSUMER_NAME/measurements/FFFFFFFFFHs",
+        "$MEASUREMENT_CONSUMER_NAME/measurements/GGGGGGGGGHs",
+        "$MEASUREMENT_CONSUMER_NAME/measurements/HHHHHHHHHHs",
+        "$MEASUREMENT_CONSUMER_NAME/measurements/IIIIIIIIIHs",
+        "$MEASUREMENT_CONSUMER_NAME/measurements/JJJJJJJJJHs",
       )
 
     private val result =
