@@ -270,10 +270,10 @@ class ReportsService(
   )
 
   private data class WeightedMeasurementInfo(
-    var kingdomMeasurementId: String,
     val reportingMeasurementId: String,
     val weightedMeasurement: WeightedMeasurement,
     val timeInterval: TimeInterval,
+    var kingdomMeasurementId: String? = null,
   )
 
   private data class SetOperationResult(
@@ -510,7 +510,7 @@ class ReportsService(
       internalMeasurementsStub.createMeasurement(
         internalMeasurement {
           this.measurementConsumerReferenceId = reportInfo.measurementConsumerReferenceId
-          this.measurementReferenceId = weightedMeasurementInfo.kingdomMeasurementId
+          this.measurementReferenceId = weightedMeasurementInfo.kingdomMeasurementId!!
           state = InternalMeasurement.State.PENDING
         }
       )
@@ -588,10 +588,8 @@ class ReportsService(
             index,
           )
 
-        // kingdomMeasurementId will be updated after the kingdom measurement is created.
         WeightedMeasurementInfo(
-          kingdomMeasurementId = "placeholder",
-          reportingMeasurementId = measurementReferenceId,
+          measurementReferenceId,
           weightedMeasurement,
           timeInterval
         )
@@ -1100,7 +1098,7 @@ class ReportsService(
         this.timeInterval = weightedMeasurementInfo.timeInterval.toInternal()
 
         weightedMeasurements += internalWeightedMeasurement {
-          this.measurementReferenceId = weightedMeasurementInfo.kingdomMeasurementId
+          this.measurementReferenceId = weightedMeasurementInfo.kingdomMeasurementId!!
           coefficient = weightedMeasurementInfo.weightedMeasurement.coefficient
         }
       }
