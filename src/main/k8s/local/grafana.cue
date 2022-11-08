@@ -14,11 +14,11 @@
 
 package k8s
 
-_grafanaSecretName:         string @tag("secret_name")
+_grafanaSecretName: string @tag("secret_name")
 
 objectSets: [ for objectSet in grafana {objectSet}]
 
 grafana: #Grafana & {
 	_prometheusUrl: "http://prometheus.default.svc.cluster.local:9090"
-	_secretName: _grafanaSecretName
+	_secretName:    _grafanaSecretName
 }

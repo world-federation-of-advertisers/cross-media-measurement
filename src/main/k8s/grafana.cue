@@ -16,7 +16,7 @@ package k8s
 
 #Grafana: {
 	_prometheusUrl: string
-	_secretName: string
+	_secretName:    string
 
 	configmaps: [Name=_]: #ConfigMap & {
 		metadata: {
@@ -89,19 +89,19 @@ package k8s
 				image:           "docker.io/grafana/grafana-oss:9.2.1"
 				imagePullPolicy: "Always"
 				_envVars: {
-          "GF_SECURITY_ADMIN_USER": {
-            valueFrom: secretKeyRef: {
-              name: _secretName
-              key:  "user"
-            }
-          }
-          "GF_SECURITY_ADMIN_PASSWORD": {
-            valueFrom: secretKeyRef: {
-              name: _secretName
-              key:  "password"
-            }
-          }
-        }
+					"GF_SECURITY_ADMIN_USER": {
+						valueFrom: secretKeyRef: {
+							name: _secretName
+							key:  "user"
+						}
+					}
+					"GF_SECURITY_ADMIN_PASSWORD": {
+						valueFrom: secretKeyRef: {
+							name: _secretName
+							key:  "password"
+						}
+					}
+				}
 			}
 			spec: template: {
 				metadata: {
