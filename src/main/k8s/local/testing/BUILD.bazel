@@ -1,0 +1,98 @@
+load("//build/k8s:defs.bzl", "k8s_kustomize", "kustomization_dir")
+load("//src/main/docker:images.bzl", "COMMON_IMAGES", "LOCAL_IMAGES")
+load("//src/main/k8s:macros.bzl", "cue_dump")
+
+SECRET_NAME = "certs-and-configs"
+
+package(
+    default_testonly = True,
+    default_visibility = [
+        "//src/test/kotlin/org/wfanet/measurement/integration/k8s:__pkg__",
+    ],
+)
+
+filegroup(
+    name = "cmms_image_archives",
+    srcs = [image.image + ".tar" for image in COMMON_IMAGES + LOCAL_IMAGES],
+)
+
+kustomization_dir(
+    name = "emulators",
+    srcs = [
+        "//src/main/k8s/local:emulators",
+    ],
+    generate_kustomization = True,
+    deps = ["//src/main/k8s/testing/secretfiles:kustomization"],
+)
+
+k8s_kustomize(
+    name = "emulators_config",
+    srcs = [":emulators"],
+)
+
+kustomization_dir(
+    name = "config_files",
+    srcs = [
+        "authority_key_identifier_to_principal_map.textproto",
+        "config_files_kustomization.yaml",
+    ],
+    renames = {"config_files_kustomization.yaml": "kustomization.yaml"},
+)
+
+kustomization_dir(
+    name = "kingdom",
+    srcs = [
+        "//src/main/k8s/local:kingdom",
+    ],
+    generate_kustomization = True,
+    deps = [
+        ":config_files",
+        "//src/main/k8s/testing/secretfiles:kustomization",
+    ],
+)
+
+k8s_kustomize(
+    name = "kingdom_config",
+    srcs = [":kingdom"],
+)
+
+cue_dump(
+    name = "duchies",
+    cue_tags = {
+        "secret_name": SECRET_NAME,
+        "aggregator_cert_name": "{aggregator_cert_name}",
+        "worker1_cert_name": "{worker1_cert_name}",
+        "worker2_cert_name": "{worker2_cert_name}",
+    },
+    deps = ["//src/main/k8s/local:duchies_cue"],
+)
+
+cue_dump(
+    name = "edp_simulators",
+    cue_tags = {
+        "secret_name": SECRET_NAME,
+        "mc_name": "{mc_name}",
+        "edp1_name": "{edp1_name}",
+        "edp2_name": "{edp2_name}",
+        "edp3_name": "{edp3_name}",
+        "edp4_name": "{edp4_name}",
+        "edp5_name": "{edp5_name}",
+        "edp6_name": "{edp6_name}",
+    },
+    deps = ["//src/main/k8s/local:edp_simulators_cue"],
+)
+
+kustomization_dir(
+    name = "duchies_and_edps",
+    srcs = [
+        ":duchies",
+        ":edp_simulators",
+    ],
+    generate_kustomization = True,
+    deps = ["//src/main/k8s/testing/secretfiles:kustomization"],
+)
+
+k8s_kustomize(
+    name = "duchies_and_edps_config",
+    srcs = [":duchies_and_edps"],
+)
