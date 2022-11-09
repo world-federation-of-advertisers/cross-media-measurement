@@ -55,6 +55,15 @@ private val BASE_SQL =
     CertificateDetails,
     Measurements.State AS MeasurementState,
     MeasurementDetails,
+    (
+      SELECT
+        count(ExternalDataProviderId),
+      FROM
+        Requisitions
+      WHERE
+        Requisitions.MeasurementConsumerId = Measurements.MeasurementConsumerId
+        AND Requisitions.MeasurementId = Measurements.MeasurementId
+    ) AS MeasurementRequisitionCount,
     ARRAY(
       SELECT AS STRUCT
         ComputationParticipants.DuchyId,
@@ -76,7 +85,8 @@ private val BASE_SQL =
     JOIN DataProviderCertificates
       ON (DataProviderCertificates.CertificateId = Requisitions.DataProviderCertificateId)
     JOIN Certificates ON (Certificates.CertificateId = DataProviderCertificates.CertificateId)
-  """.trimIndent()
+  """
+    .trimIndent()
 
 private object Params {
   const val EXTERNAL_MEASUREMENT_CONSUMER_ID = "externalMeasurementConsumerId"
@@ -124,7 +134,8 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
           WHERE
             ExternalRequisitionId = @${Params.EXTERNAL_REQUISITION_ID}
             AND ExternalDataProviderId = @${Params.EXTERNAL_DATA_PROVIDER_ID}
-          """.trimIndent()
+          """
+            .trimIndent()
         )
         bind(Params.EXTERNAL_DATA_PROVIDER_ID to externalDataProviderId)
         bind(Params.EXTERNAL_REQUISITION_ID to externalRequisitionId)
@@ -144,7 +155,8 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
           WHERE
             ExternalComputationId = @${Params.EXTERNAL_COMPUTATION_ID}
             AND ExternalRequisitionId = @${Params.EXTERNAL_REQUISITION_ID}
-          """.trimIndent()
+          """
+            .trimIndent()
         )
         bind(Params.EXTERNAL_COMPUTATION_ID to externalComputationId)
         bind(Params.EXTERNAL_REQUISITION_ID to externalRequisitionId)
@@ -164,14 +176,16 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
             "Duchy with internal ID $duchyId not found"
           }
         }
+      val dataProvidersCount = struct.getLong("MeasurementRequisitionCount")
 
-      return buildRequisition(struct, struct, participantStructs)
+      return buildRequisition(struct, struct, participantStructs, dataProvidersCount.toInt())
     }
 
     fun buildRequisition(
       measurementStruct: Struct,
       requisitionStruct: Struct,
-      participantStructs: Map<String, Struct>
+      participantStructs: Map<String, Struct>,
+      dataProviderCount: Int,
     ) = requisition {
       externalMeasurementConsumerId = measurementStruct.getLong("ExternalMeasurementConsumerId")
       externalMeasurementId = measurementStruct.getLong("ExternalMeasurementId")
@@ -195,7 +209,8 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
       details =
         requisitionStruct.getProtoMessage("RequisitionDetails", Requisition.Details.parser())
       dataProviderCertificate = CertificateReader.buildDataProviderCertificate(requisitionStruct)
-      parentMeasurement = buildParentMeasurement(measurementStruct)
+
+      parentMeasurement = buildParentMeasurement(measurementStruct, dataProviderCount)
     }
 
     /**
@@ -220,7 +235,7 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
       }
     }
 
-    private fun buildParentMeasurement(struct: Struct) = parentMeasurement {
+    private fun buildParentMeasurement(struct: Struct, dataProviderCount: Int) = parentMeasurement {
       val measurementDetails =
         struct.getProtoMessage("MeasurementDetails", Measurement.Details.parser())
       apiVersion = measurementDetails.apiVersion
@@ -230,6 +245,7 @@ class RequisitionReader : BaseSpannerReader<RequisitionReader.Result>() {
       measurementSpecSignature = measurementDetails.measurementSpecSignature
       protocolConfig = measurementDetails.protocolConfig
       state = struct.getProtoEnum("MeasurementState", Measurement.State::forNumber)
+      dataProvidersCount = dataProviderCount
     }
   }
 }

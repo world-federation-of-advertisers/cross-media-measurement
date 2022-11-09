@@ -66,6 +66,7 @@ class InProcessKingdom(
   val verboseGrpcLogging: Boolean = true,
   /** The open id client redirect uri when creating the authentication uri. */
   private val redirectUri: String,
+  private val allowMpcProtocolsForSingleDataProvider: Boolean,
 ) : TestRule {
   private val kingdomDataServices by lazy { dataServicesProvider() }
 
@@ -137,13 +138,13 @@ class InProcessKingdom(
           EventGroupsService(internalEventGroupsClient)
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-          MeasurementsService(internalMeasurementsClient)
+          MeasurementsService(internalMeasurementsClient, allowMpcProtocolsForSingleDataProvider)
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
           PublicKeysService(internalPublicKeysClient)
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-          RequisitionsService(internalRequisitionsClient)
+          RequisitionsService(allowMpcProtocolsForSingleDataProvider, internalRequisitionsClient)
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
           AccountsService(internalAccountsClient, redirectUri)

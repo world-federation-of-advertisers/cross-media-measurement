@@ -34,6 +34,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.Requisition.DuchyEntry
@@ -60,7 +61,6 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.common.Provider
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.directRequisitionParams
-import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.Requisition.DuchyValue
 import org.wfanet.measurement.internal.kingdom.Requisition.Refusal as InternalRefusal
@@ -80,8 +80,9 @@ private const val MAX_PAGE_SIZE = 100
 private const val WILDCARD = "-"
 
 class RequisitionsService(
+  private val allowMpcProtocolsForSingleDataProvider: Boolean,
   private val internalRequisitionStub: RequisitionsCoroutineStub,
-  private val callIdentityProvider: () -> Provider = ::getProviderFromContext
+  private val callIdentityProvider: () -> Provider = ::getProviderFromContext,
 ) : RequisitionsCoroutineImplBase() {
 
   override suspend fun listRequisitions(
@@ -159,9 +160,11 @@ class RequisitionsService(
 
     return listRequisitionsResponse {
       requisitions +=
-        results
-          .subList(0, min(results.size, listRequisitionsPageToken.pageSize))
-          .map(InternalRequisition::toRequisition)
+        results.subList(0, min(results.size, listRequisitionsPageToken.pageSize)).map {
+          internalRequisition ->
+          internalRequisition.toRequisition(allowMpcProtocolsForSingleDataProvider)
+        }
+
       if (results.size > listRequisitionsPageToken.pageSize) {
         val pageToken =
           listRequisitionsPageToken.copy {
@@ -225,7 +228,7 @@ class RequisitionsService(
         }
       }
 
-    return result.toRequisition()
+    return result.toRequisition(allowMpcProtocolsForSingleDataProvider)
   }
 
   override suspend fun fulfillDirectRequisition(
@@ -278,7 +281,9 @@ class RequisitionsService(
 }
 
 /** Converts an internal [Requisition] to a public [Requisition]. */
-private fun InternalRequisition.toRequisition(): Requisition {
+private fun InternalRequisition.toRequisition(
+  allowMpcProtocolsForSingleDataProvider: Boolean,
+): Requisition {
   check(Version.fromString(parentMeasurement.apiVersion) == Version.V2_ALPHA) {
     "Incompatible API version ${parentMeasurement.apiVersion}"
   }
@@ -307,16 +312,20 @@ private fun InternalRequisition.toRequisition(): Requisition {
       data = parentMeasurement.measurementSpec
       signature = parentMeasurement.measurementSpecSignature
     }
-    if (
-      parentMeasurement.protocolConfig.protocolCase != ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
-    ) {
-      protocolConfig =
-        try {
-          parentMeasurement.protocolConfig.toProtocolConfig()
-        } catch (e: Throwable) {
-          failGrpc(Status.INVALID_ARGUMENT) { e.message ?: "Failed to convert ProtocolConfig" }
-        }
-    }
+
+    val measurementTypeCase =
+      MeasurementSpec.parseFrom(parentMeasurement.measurementSpec).measurementTypeCase
+    protocolConfig =
+      try {
+        parentMeasurement.protocolConfig.toProtocolConfig(
+          measurementTypeCase,
+          parentMeasurement.dataProvidersCount,
+          allowMpcProtocolsForSingleDataProvider
+        )
+      } catch (e: Throwable) {
+        failGrpc(Status.INVALID_ARGUMENT) { e.message ?: "Failed to convert ProtocolConfig" }
+      }
+
     encryptedRequisitionSpec = details.encryptedRequisitionSpec
 
     dataProviderCertificate =
@@ -470,12 +479,16 @@ private fun ListRequisitionsRequest.toListRequisitionsPageToken(): ListRequisiti
 
       grpcRequire(
         states.containsAll(requisitionsStatesList) && requisitionsStatesList.containsAll(states)
-      ) { "Arguments must be kept the same when using a page token" }
+      ) {
+        "Arguments must be kept the same when using a page token"
+      }
 
       grpcRequire(
         measurementStates.containsAll(measurementsStatesList) &&
           measurementsStatesList.containsAll(measurementStates)
-      ) { "Arguments must be kept the same when using a page token" }
+      ) {
+        "Arguments must be kept the same when using a page token"
+      }
 
       if (source.pageSize in MIN_PAGE_SIZE..MAX_PAGE_SIZE) {
         pageSize = source.pageSize

@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.common.server
 
 import io.grpc.ServerServiceDefinition
 import java.io.File
+import kotlin.properties.Delegates
 import org.wfanet.measurement.api.v2alpha.AkidPrincipalLookup
 import org.wfanet.measurement.api.v2alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
 import org.wfanet.measurement.common.commandLineMain
@@ -125,7 +126,10 @@ private fun run(
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       ExchangeStepsService(internalExchangeStepsCoroutineStub)
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
-      MeasurementsService(InternalMeasurementsCoroutineStub(channel))
+      MeasurementsService(
+          InternalMeasurementsCoroutineStub(channel),
+          v2alphaFlags.allowMpcProtocolsForSingleDataProvider
+        )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
       MeasurementConsumersService(InternalMeasurementConsumersCoroutineStub(channel))
@@ -138,7 +142,10 @@ private fun run(
       PublicKeysService(InternalPublicKeysCoroutineStub(channel))
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
-      RequisitionsService(InternalRequisitionsCoroutineStub(channel))
+      RequisitionsService(
+          v2alphaFlags.allowMpcProtocolsForSingleDataProvider,
+          InternalRequisitionsCoroutineStub(channel)
+        )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub)
     )
@@ -163,5 +170,13 @@ private class V2alphaFlags {
     required = true
   )
   lateinit var redirectUri: String
+    private set
+
+  @set:CommandLine.Option(
+    names = ["--allow-mpc-protocols-for-single-data-provider"],
+    description = ["Enable mpc-based reach and frequency calculation for single-EDP measurement"],
+    defaultValue = "true"
+  )
+  var allowMpcProtocolsForSingleDataProvider by Delegates.notNull<Boolean>()
     private set
 }

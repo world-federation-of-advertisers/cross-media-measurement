@@ -206,10 +206,9 @@ class EdpSimulator(
         )
       }
 
-      if (!requisition.hasProtocolConfig()) {
+      if (requisition.protocolConfig.protocolsList.any { protocol -> protocol.hasDirect() }) {
         when (measurementSpec.measurementTypeCase) {
           MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
-            // Direct R/F measurement(single EDP) will not have protocolConfig
             fulfillDirectReachAndFrequencyMeasurement(requisition, requisitionSpec, measurementSpec)
           }
           MeasurementSpec.MeasurementTypeCase.IMPRESSION ->
@@ -350,9 +349,15 @@ class EdpSimulator(
     requisitionFingerprint: ByteString,
     requisitionSpec: RequisitionSpec
   ) {
-    val combinedPublicKey =
-      requisition.getCombinedPublicKey(requisition.protocolConfig.liquidLegionsV2.ellipticCurveId)
-    val sketchConfig = requisition.protocolConfig.liquidLegionsV2.sketchParams.toSketchConfig()
+    val llv2Protocol: ProtocolConfig.Protocol =
+      requireNotNull(
+        requisition.protocolConfig.protocolsList.find { protocol -> protocol.hasLiquidLegionsV2() }
+      ) {
+        "Protocol with LiquidLegionsV2 is missing"
+      }
+    val liquidLegionsV2: ProtocolConfig.LiquidLegionsV2 = llv2Protocol.liquidLegionsV2
+    val combinedPublicKey = requisition.getCombinedPublicKey(liquidLegionsV2.ellipticCurveId)
+    val sketchConfig = liquidLegionsV2.sketchParams.toSketchConfig()
 
     val sketch =
       try {
@@ -368,8 +373,8 @@ class EdpSimulator(
 
     logger.info("Writing sketch to storage")
     sketchStore.write(requisition, sketch.toByteString())
-    val encryptedSketch =
-      encryptSketch(sketch, combinedPublicKey, requisition.protocolConfig.liquidLegionsV2)
+
+    val encryptedSketch = encryptSketch(sketch, combinedPublicKey, liquidLegionsV2)
     fulfillRequisition(
       requisition.name,
       requisitionFingerprint,

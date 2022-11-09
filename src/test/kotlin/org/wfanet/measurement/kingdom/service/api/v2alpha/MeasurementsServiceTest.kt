@@ -57,6 +57,8 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig.MeasurementType
+import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.cancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.copy
@@ -87,7 +89,6 @@ import org.wfanet.measurement.internal.kingdom.Measurement.State as InternalStat
 import org.wfanet.measurement.internal.kingdom.MeasurementKt as InternalMeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
-import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt as InternalProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
@@ -124,6 +125,7 @@ private val DUCHY_CERTIFICATE_NAME = "duchies/AAAAAAAAAHs/certificates/AAAAAAAAA
 private val DATA_PROVIDER_NONCE_HASH: ByteString =
   HexString("97F76220FEB39EE6F262B1F0C8D40F221285EEDE105748AE98F7DC241198D69F").bytes
 private val UPDATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
+private const val ALLOW_MPC_PROTOCOLS_FOR_SINGLE_DATA_PROVIDER = true
 
 @RunWith(JUnit4::class)
 class MeasurementsServiceTest {
@@ -155,7 +157,10 @@ class MeasurementsServiceTest {
   @Before
   fun initService() {
     service =
-      MeasurementsService(MeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel))
+      MeasurementsService(
+        MeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
+        ALLOW_MPC_PROTOCOLS_FOR_SINGLE_DATA_PROVIDER
+      )
   }
 
   @Test
@@ -246,12 +251,7 @@ class MeasurementsServiceTest {
         INTERNAL_MEASUREMENT.copy {
           clearUpdateTime()
           clearExternalMeasurementId()
-          details =
-            details.copy {
-              clearFailure()
-              clearProtocolConfig()
-              clearDuchyProtocolConfig()
-            }
+          details = details.copy { clearFailure() }
           results.clear()
         }
       )
@@ -315,7 +315,18 @@ class MeasurementsServiceTest {
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
         runBlocking { service.createMeasurement(request) }
       }
-    val expected = measurementWithTwoEdp
+
+    val expected =
+      measurementWithTwoEdp.copy {
+        protocolConfig =
+          protocolConfig.copy {
+            protocols.clear()
+            protocols +=
+              ProtocolConfigKt.protocol {
+                liquidLegionsV2 = MEASUREMENT.protocolConfig.liquidLegionsV2
+              }
+          }
+      }
 
     verifyProtoArgument(
         internalMeasurementsMock,
@@ -344,7 +355,26 @@ class MeasurementsServiceTest {
   fun `createMeasurement with impression type returns measurement with resource name set`() {
     runBlocking {
       whenever(internalMeasurementsMock.createMeasurement(any()))
-        .thenReturn(INTERNAL_MEASUREMENT.copy { details = details.copy { clearProtocolConfig() } })
+        .thenReturn(
+          INTERNAL_MEASUREMENT.copy {
+            details =
+              details.copy {
+                clearProtocolConfig()
+                measurementSpec =
+                  MEASUREMENT_SPEC.copy {
+                      clearReachAndFrequency()
+                      impression = impression {
+                        privacyParams = differentialPrivacyParams {
+                          epsilon = 1.0
+                          delta = 0.0
+                        }
+                        maximumFrequencyPerUser = 1
+                      }
+                    }
+                    .toByteString()
+              }
+          }
+        )
     }
 
     val request = createMeasurementRequest {
@@ -373,7 +403,29 @@ class MeasurementsServiceTest {
         runBlocking { service.createMeasurement(request) }
       }
 
-    val expected = MEASUREMENT.copy { clearProtocolConfig() }
+    val expected =
+      MEASUREMENT.copy {
+        measurementSpec = signedData {
+          data =
+            MEASUREMENT_SPEC.copy {
+                clearReachAndFrequency()
+                impression = impression {
+                  privacyParams = differentialPrivacyParams {
+                    epsilon = 1.0
+                    delta = 0.0
+                  }
+                  maximumFrequencyPerUser = 1
+                }
+              }
+              .toByteString()
+          signature = UPDATE_TIME.toByteString()
+        }
+        protocolConfig = protocolConfig {
+          name = "protocolConfigs/Direct"
+          measurementType = MeasurementType.IMPRESSION
+          protocols += ProtocolConfigKt.protocol { direct = ProtocolConfigKt.direct {} }
+        }
+      }
 
     verifyProtoArgument(
         internalMeasurementsMock,
@@ -401,7 +453,26 @@ class MeasurementsServiceTest {
   fun `createMeasurement with duration type returns measurement with resource name set`() {
     runBlocking {
       whenever(internalMeasurementsMock.createMeasurement(any()))
-        .thenReturn(INTERNAL_MEASUREMENT.copy { details = details.copy { clearProtocolConfig() } })
+        .thenReturn(
+          INTERNAL_MEASUREMENT.copy {
+            details =
+              details.copy {
+                clearProtocolConfig()
+                measurementSpec =
+                  MEASUREMENT_SPEC.copy {
+                      clearReachAndFrequency()
+                      duration = duration {
+                        privacyParams = differentialPrivacyParams {
+                          epsilon = 1.0
+                          delta = 0.0
+                        }
+                        maximumWatchDurationPerUser = 1
+                      }
+                    }
+                    .toByteString()
+              }
+          }
+        )
     }
 
     val request = createMeasurementRequest {
@@ -430,7 +501,29 @@ class MeasurementsServiceTest {
         runBlocking { service.createMeasurement(request) }
       }
 
-    val expected = MEASUREMENT.copy { clearProtocolConfig() }
+    val expected =
+      MEASUREMENT.copy {
+        measurementSpec = signedData {
+          data =
+            MEASUREMENT_SPEC.copy {
+                clearReachAndFrequency()
+                duration = duration {
+                  privacyParams = differentialPrivacyParams {
+                    epsilon = 1.0
+                    delta = 0.0
+                  }
+                  maximumWatchDurationPerUser = 1
+                }
+              }
+              .toByteString()
+          signature = UPDATE_TIME.toByteString()
+        }
+        protocolConfig = protocolConfig {
+          name = "protocolConfigs/Direct"
+          measurementType = MeasurementType.DURATION
+          protocols += ProtocolConfigKt.protocol { direct = ProtocolConfigKt.direct {} }
+        }
+      }
 
     verifyProtoArgument(
         internalMeasurementsMock,
@@ -453,6 +546,7 @@ class MeasurementsServiceTest {
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
+
   @Test
   fun `createMeasurement throws INVALID_ARGUMENT when certificate resource name is missing`() {
     val exception =
@@ -1364,7 +1458,6 @@ class MeasurementsServiceTest {
 
     private val INTERNAL_PROTOCOL_CONFIG = internalProtocolConfig {
       externalProtocolConfigId = "llv2"
-      measurementType = InternalProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
       liquidLegionsV2 =
         InternalProtocolConfigKt.liquidLegionsV2 {
           sketchParams = internalLiquidLegionsSketchParams {
@@ -1393,6 +1486,9 @@ class MeasurementsServiceTest {
           delta = 3.3
         }
       }
+      protocols +=
+        ProtocolConfigKt.protocol { liquidLegionsV2 = this@protocolConfig.liquidLegionsV2 }
+      protocols += ProtocolConfigKt.protocol { direct = ProtocolConfigKt.direct {} }
     }
 
     private val DUCHY_PROTOCOL_CONFIG = duchyProtocolConfig {
