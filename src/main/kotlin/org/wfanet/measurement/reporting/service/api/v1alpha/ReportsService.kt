@@ -132,7 +132,6 @@ import org.wfanet.measurement.internal.reporting.StreamReportsRequestKt.filter
 import org.wfanet.measurement.internal.reporting.TimeInterval as InternalTimeInterval
 import org.wfanet.measurement.internal.reporting.TimeIntervals as InternalTimeIntervals
 import org.wfanet.measurement.internal.reporting.createReportRequest as internalCreateReportRequest
-import org.wfanet.measurement.internal.reporting.getMeasurementRequest as getInternalMeasurementRequest
 import org.wfanet.measurement.internal.reporting.getReportByIdempotencyKeyRequest
 import org.wfanet.measurement.internal.reporting.getReportRequest as getInternalReportRequest
 import org.wfanet.measurement.internal.reporting.getReportingSetRequest
@@ -1093,30 +1092,6 @@ class ReportsService(
     }
   }
 
-  /** Gets an [InternalMeasurement]. */
-  private suspend fun getInternalMeasurement(
-    measurementConsumerReferenceId: String,
-    measurementReferenceId: String
-  ): InternalMeasurement? {
-    return try {
-      internalMeasurementsStub.getMeasurement(
-        getInternalMeasurementRequest {
-          this.measurementConsumerReferenceId = measurementConsumerReferenceId
-          this.measurementReferenceId = measurementReferenceId
-        }
-      )
-    } catch (e: StatusException) {
-      if (e.status.code != Status.Code.NOT_FOUND) {
-        throw Exception(
-          "Unable to retrieve the measurement [$measurementReferenceId] from the reporting " +
-            "database.",
-          e
-        )
-      }
-      null
-    }
-  }
-
   /** Builds a [CreateMeasurementRequest]. */
   private suspend fun buildCreateMeasurementRequest(
     measurementConsumer: MeasurementConsumer,
@@ -1434,15 +1409,6 @@ private fun TimeInterval.toMeasurementTimeInterval(): MeasurementTimeInterval {
   }
 }
 
-/** Converts an [InternalTimeInterval] to a [MeasurementTimeInterval] for measurement request. */
-private fun InternalTimeInterval.toMeasurementTimeInterval(): MeasurementTimeInterval {
-  val source = this
-  return measurementTimeInterval {
-    startTime = source.startTime
-    endTime = source.endTime
-  }
-}
-
 /** Builds a unique ID for a [SetOperation]. */
 private fun buildSetOperationId(
   reportIdempotencyKey: String,
@@ -1652,34 +1618,12 @@ private fun PeriodicTimeInterval.toTimeIntervalsList(): List<TimeInterval> {
   }
 }
 
-/** Convert an [InternalPeriodicTimeInterval] to a list of [InternalTimeInterval]s. */
-private fun InternalPeriodicTimeInterval.toInternalTimeIntervalsList(): List<InternalTimeInterval> {
-  val source = this
-  var startTime = checkNotNull(source.startTime)
-  return (0 until source.intervalCount).map {
-    internalTimeInterval {
-      this.startTime = startTime
-      this.endTime = Timestamps.add(startTime, source.increment)
-      startTime = this.endTime
-    }
-  }
-}
-
 /** Builds a row header in String from an [TimeInterval]. */
 private fun buildRowHeader(timeInterval: TimeInterval): String {
   val startTimeInstant =
     Instant.ofEpochSecond(timeInterval.startTime.seconds, timeInterval.startTime.nanos.toLong())
   val endTimeInstant =
     Instant.ofEpochSecond(timeInterval.endTime.seconds, timeInterval.endTime.nanos.toLong())
-  return "$startTimeInstant-$endTimeInstant"
-}
-
-/** Converts an [InternalTimeInterval] to a row header in String. */
-private fun InternalTimeInterval.toRowHeader(): String {
-  val source = this
-  val startTimeInstant =
-    Instant.ofEpochSecond(source.startTime.seconds, source.startTime.nanos.toLong())
-  val endTimeInstant = Instant.ofEpochSecond(source.endTime.seconds, source.endTime.nanos.toLong())
   return "$startTimeInstant-$endTimeInstant"
 }
 
