@@ -141,7 +141,6 @@ import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineI
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.StreamReportsRequestKt.filter
 import org.wfanet.measurement.internal.reporting.copy
-import org.wfanet.measurement.internal.reporting.getMeasurementRequest as getInternalMeasurementRequest
 import org.wfanet.measurement.internal.reporting.getReportByIdempotencyKeyRequest
 import org.wfanet.measurement.internal.reporting.getReportRequest as getInternalReportRequest
 import org.wfanet.measurement.internal.reporting.getReportingSetRequest
@@ -1284,6 +1283,8 @@ class ReportsServiceTest {
         SUCCEEDED_WATCH_DURATION_MEASUREMENT,
         SUCCEEDED_FREQUENCY_HISTOGRAM_MEASUREMENT,
       )
+
+    onBlocking { createMeasurement(any()) }.thenReturn(BASE_REACH_MEASUREMENT)
   }
 
   private val measurementConsumersMock: MeasurementConsumersCoroutineImplBase = mockService {
@@ -1394,17 +1395,6 @@ class ReportsServiceTest {
         }
       )
 
-    // Verify proto argument of InternalMeasurementsCoroutineImplBase::getMeasurement
-    verifyProtoArgument(
-        internalMeasurementsMock,
-        InternalMeasurementsCoroutineImplBase::getMeasurement
-      )
-      .isEqualTo(
-        getInternalMeasurementRequest {
-          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-          measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
-        }
-      )
     // Verify proto argument of MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
     verifyProtoArgument(
         measurementConsumersMock,
@@ -1796,29 +1786,6 @@ class ReportsServiceTest {
       val expectedExceptionDescription =
         "Unable to retrieve a report from the reporting database using the provided " +
           "reportIdempotencyKey [${PENDING_REACH_REPORT.reportIdempotencyKey}]."
-      assertThat(exception.message).isEqualTo(expectedExceptionDescription)
-    }
-
-  @Test
-  fun `createReport throws exception from internal getMeasurement when status isn't NOT_FOUND`() =
-    runBlocking {
-      whenever(internalMeasurementsMock.getMeasurement(any()))
-        .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
-
-      val request = createReportRequest {
-        parent = MEASUREMENT_CONSUMER_NAMES[0]
-        report = PENDING_REACH_REPORT.copy { clearState() }
-      }
-
-      val exception =
-        assertFailsWith(Exception::class) {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
-            runBlocking { service.createReport(request) }
-          }
-        }
-      val expectedExceptionDescription =
-        "Unable to retrieve the measurement [$REACH_MEASUREMENT_REFERENCE_ID] from the reporting " +
-          "database."
       assertThat(exception.message).isEqualTo(expectedExceptionDescription)
     }
 

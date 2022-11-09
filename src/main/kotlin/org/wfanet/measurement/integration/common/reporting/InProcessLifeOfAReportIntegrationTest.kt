@@ -20,6 +20,7 @@ import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.duration
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.timestamp
+import io.grpc.Status
 import java.io.File
 import java.nio.file.Paths
 import kotlinx.coroutines.launch
@@ -30,7 +31,6 @@ import org.junit.rules.TestRule
 import org.mockito.kotlin.any
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
-import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
@@ -41,9 +41,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
-import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
@@ -144,24 +142,19 @@ abstract class InProcessLifeOfAReportIntegrationTest {
   private val publicKingdomMeasurementsMock: MeasurementsGrpcKt.MeasurementsCoroutineImplBase =
     mockService {
       onBlocking { createMeasurement(any()) }
-        .thenAnswer {
-          MEASUREMENT.copy {
-            val measurement = it.getArgument(0, CreateMeasurementRequest::class.java).measurement
-            name =
-              MeasurementKey(
-                  measurementConsumerId =
-                    MeasurementConsumerCertificateKey.fromName(
-                        measurement.measurementConsumerCertificate
-                      )!!
-                      .measurementConsumerId,
-                  measurementId = measurement.measurementReferenceId
-                )
-                .toName()
-          }
+        .apply {
+          var chain = this
+          MEASUREMENT_NAME_SET.forEach { chain = chain.thenReturn(MEASUREMENT.copy { name = it }) }
         }
+
       onBlocking { getMeasurement(any()) }
         .thenAnswer {
-          MEASUREMENT.copy { name = it.getArgument(0, GetMeasurementRequest::class.java).name }
+          val name = it.getArgument(0, GetMeasurementRequest::class.java).name
+          if (MEASUREMENT_NAME_SET.contains(name)) {
+            MEASUREMENT.copy { this.name = name }
+          } else {
+            throw Status.NOT_FOUND.asRuntimeException()
+          }
         }
     }
 
@@ -230,7 +223,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     createReportingSet("1", MEASUREMENT_CONSUMER_NAME)
     createReportingSet("2", MEASUREMENT_CONSUMER_NAME)
     createReportingSet("3", MEASUREMENT_CONSUMER_NAME)
-    for (i in 1..10) {
+    for (i in 1..5) {
       launch { createReport("$i", MEASUREMENT_CONSUMER_NAME) }
     }
   }
@@ -425,7 +418,19 @@ abstract class InProcessLifeOfAReportIntegrationTest {
       nonceHashes += DATA_PROVIDER_NONCE_HASH
     }
 
-    private const val MEASUREMENT_NAME = "$MEASUREMENT_CONSUMER_NAME/measurements/AAAAAAAAAHs"
+    private val MEASUREMENT_NAME_SET =
+      setOf(
+        "$MEASUREMENT_CONSUMER_NAME/measurements/AAAAAAAAAHs",
+        "$MEASUREMENT_CONSUMER_NAME/measurements/BBBBBBBBBHs",
+        "$MEASUREMENT_CONSUMER_NAME/measurements/CCCCCCCCCHs",
+        "$MEASUREMENT_CONSUMER_NAME/measurements/DDDDDDDDDHs",
+        "$MEASUREMENT_CONSUMER_NAME/measurements/EEEEEEEEEHs",
+        "$MEASUREMENT_CONSUMER_NAME/measurements/FFFFFFFFFHs",
+        "$MEASUREMENT_CONSUMER_NAME/measurements/GGGGGGGGGHs",
+        "$MEASUREMENT_CONSUMER_NAME/measurements/HHHHHHHHHHs",
+        "$MEASUREMENT_CONSUMER_NAME/measurements/IIIIIIIIIHs",
+        "$MEASUREMENT_CONSUMER_NAME/measurements/JJJJJJJJJHs",
+      )
 
     private val result =
       MeasurementKt.result { impression = MeasurementKt.ResultKt.impression { value = 100 } }
@@ -437,7 +442,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
       )
 
     private val MEASUREMENT = measurement {
-      name = MEASUREMENT_NAME
+      name = MEASUREMENT_NAME_SET.first()
       measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
       measurementSpec = signMeasurementSpec(MEASUREMENT_SPEC, MC_SIGNING_KEY_HANDLE)
       dataProviders +=
