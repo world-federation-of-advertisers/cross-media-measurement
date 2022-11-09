@@ -52,7 +52,7 @@ class PostgresMeasurementsService(
             request.measurementReferenceId
           )
       }
-        ?: throw MeasurementNotFoundException().throwStatusRuntimeException(Status.NOT_FOUND) {
+        ?: MeasurementNotFoundException().throwStatusRuntimeException(Status.NOT_FOUND) {
           "Measurement not found."
         }
 
