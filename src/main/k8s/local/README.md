@@ -99,11 +99,48 @@ bazel run //src/main/k8s/local:open_telemetry_kind
 bazel run //src/main/k8s/local:prometheus_kind
 ```
 
-To be able to visit the Prometheus browser GUI at http://localhost:31111/, start
+To be able to visit Prometheus in the browser at http://localhost:31111/, start
 port-forwarding.
 
 ```shell
 kubectl port-forward prometheus-pod 31111:9090
+```
+
+### Deploy Grafana
+
+Create a ConfigMap containing the example Grafana configuration.
+
+```shell
+kubectl create configmap grafana-config \
+  --from-file=src/main/k8s/testing/grafana/grafana.ini
+```
+
+Create a Secret containing the Grafana basic auth credentials.
+
+You can use `kubectl` to create the `db-auth` secret. To reduce the likelihood
+of leaking your password, we read it in from STDIN.
+
+Tip: Ctrl+D is the usual key combination for closing the input stream.
+
+Assuming the database username is `user`, run:
+
+```shell
+kubectl create secret generic grafana-auth --type='kubernetes.io/basic/auth' \
+  --append-hash --from-file=password=/dev/stdin --from-literal=user=user
+```
+
+Deploy the Grafana server using the Secret name.
+
+```shell
+bazel run //src/main/k8s/local:grafana_kind \
+  --define=grafana_secret_name=grafana-auth-dmg429kb29
+```
+
+To be able to visit Grafana in the browser at http://localhost:31112/, start
+port-forwarding.
+
+```shell
+kubectl port-forward service/grafana 31112:3000
 ```
 
 ## Resource Setup
