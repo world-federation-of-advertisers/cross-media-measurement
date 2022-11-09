@@ -141,12 +141,11 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     }
   private val publicKingdomMeasurementsMock: MeasurementsGrpcKt.MeasurementsCoroutineImplBase =
     mockService {
-      onBlocking { createMeasurement(any()) }.apply {
-        var chain = this
-        MEASUREMENT_NAME_SET.forEach {
-          chain = chain.thenReturn(MEASUREMENT.copy { name = it } )
+      onBlocking { createMeasurement(any()) }
+        .apply {
+          var chain = this
+          MEASUREMENT_NAME_SET.forEach { chain = chain.thenReturn(MEASUREMENT.copy { name = it }) }
         }
-      }
 
       onBlocking { getMeasurement(any()) }
         .thenAnswer {
