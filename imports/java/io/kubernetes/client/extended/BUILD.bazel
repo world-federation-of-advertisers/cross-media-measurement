@@ -1,0 +1,6 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "extended",
+    actual = "@maven//:io_kubernetes_client_java_extended",
+)
