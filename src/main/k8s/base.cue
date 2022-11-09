@@ -154,6 +154,12 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	]
 }
 
+// K8s KeyToPath
+#KeyToPath: {
+	key:  string
+	path: string
+}
+
 // K8s Volume.
 #Volume: {
 	name: string
@@ -161,6 +167,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 #Volume: {
 	configMap?: {
 		name: string
+		items?: [...#KeyToPath]
 	}
 } | {
 	secret?: {
@@ -178,6 +185,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	name:      string
 	mountPath: string
 	readOnly?: bool
+	subPath?:  string
 }
 
 // Configuration for a Volume and a corresponding VolumeMount.
@@ -381,10 +389,10 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 // K8s Deployment.
 #Deployment: {
-	_name:       string
-	_secretName: string
-	_system:     string
-	_container:  #Container & {
+	_name:        string
+	_secretName?: string
+	_system:      string
+	_container:   #Container & {
 		_javaOptions: {
 			heapDumpOnOutOfMemory: true
 			heapDumpPath:          "/run/heap-dumps"
@@ -420,8 +428,10 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			}
 			spec: #PodSpec & {
 				_mounts: {
-					"\(_name)-files": {
-						volume: secret: secretName: _secretName
+					if _secretName != _|_ {
+						"\(_name)-files": {
+							volume: secret: secretName: _secretName
+						}
 					}
 					"heap-dumps": volume: emptyDir: {}
 				}
