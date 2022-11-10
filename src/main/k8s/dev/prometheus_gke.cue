@@ -88,6 +88,9 @@ rules: {
 			name:     "rpc"
 			interval: "5m"
 			rules: [{
+				record: "rpc_server_response_rate_per_second"
+				expr:   "rate(rpc_server_duration_count[5m])"
+			}, {
 				record: "rpc_client_request_rate_per_second"
 				expr:   "rate(rpc_client_duration_count[5m])"
 			}, {

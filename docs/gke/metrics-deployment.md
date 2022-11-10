@@ -27,11 +27,12 @@ free to use whichever you prefer.
       - deployment
     - 1 OpenTelemetry Operator Instrumentation
       - open-telemetry-java-agent
-    - 4 Kubernetes ConfigMaps
+    - 5 Kubernetes ConfigMaps
       - default-side-collector
       - deployment-collector
       - grafana-config
       - grafana-datasource-and-dashboard-provider
+      - grafana-provisioning
     - 1 Kubernetes Secret
       - grafana-auth
     - 3 Kubernetes Deployments
@@ -155,6 +156,12 @@ Run the following first for the Grafana examples, or replace the contents first
 for customization.
 
 ```shell
+kubectl create configmap grafana-provisioning \
+  --from-file=src/main/k8s/testing/grafana/alerting.json \
+  --from-file=src/main/k8s/testing/grafana/dashboard.json \
+  --from-file=src/main/k8s/testing/grafana/contact_points.yaml \
+  --from-file=src/main/k8s/testing/grafana/notification_policies.yaml
+
 kubectl create configmap grafana-config \
   --from-file=src/main/k8s/testing/grafana/grafana.ini
 ```
@@ -248,6 +255,7 @@ default-sidecar-collector                    1      60s
 deployment-collector                         1      60s
 grafana-config                               1      43s
 grafana-datasource-and-dashboard-provider    1      43s
+grafana-provisioning                         1      43s
 ```
 
 ```
@@ -300,7 +308,66 @@ minutes you should be seeing results for every target that is up.
 
 ## Grafana
 
-Grafana has some core configuration settings. The example can be found in
+The Grafana server deployed using the cue files only has some examples. The
+dashboards and alerting rules can be configured using the browser, which can be
+accessed through port-forwarding or exposed externally. It is recommended to 
+export the dashboards and the alerting rules. The exported configuration files 
+can be used to recreate the dashboards and alerting rules on startup as well as
+be version controlled for future changes.
+
+### Exporting Dashboards
+
+The dashboard can be exported in the top left corner. There are two buttons to
+the right of the dashboard name. One of them is a share button, which can be
+used to export. Note: if exporting a new dashboard for the first time, the
+datasource variable inside {} needs to be replaced with `prometheus` in the
+JSON file.
+
+### Exporting Alerting Rules
+
+Exporting alerting rules requires a few extra steps. In the bottom left corner,
+there is a settings button that has an API Keys option. Use that to create an
+API key with admin permissions that is short-lived (minutes). There is an
+example curl call that is shown:
+
+```shell
+curl \
+  -H "Authorization: Bearer eyJrIjoiNXJwd3c2T3h4aEtjcUhjRUprM3N2TmFzc0cyRE5nS0QiLCJuIjoiQWRtaW4iLCJpZCI6MX0=" \
+  http://localhost:31112/api/dashboards/home
+```
+
+When viewing the alerting rule to export, get the ID from the URL in the browser
+address bar and replace the curl URL using that ID.
+
+```shell
+curl \
+  -H "Authorization: Bearer eyJrIjoiNXJwd3c2T3h4aEtjcUhjRUprM3N2TmFzc0cyRE5nS0QiLCJuIjoiQWRtaW4iLCJpZCI6MX0=" \
+   http://localhost:31112/api/v1/provisioning/alert-rules/K42WlaD4z
+```
+
+This returns a JSON response that contains the alerting rule, but a few things
+need to be done to make it work. 
+[`alerting.json`](../../src/main/k8s/testing/grafana/alerting.json) has the
+format that needs to be used. Each alerting rule is an element in the rules 
+array. The data, condition, title, and for fields in the JSON response 
+corresponds to the same fields in the example. The ruleGroup field corresponds 
+to the name field in the elements of the group array. The folderUID field isn't 
+used, instead use the folder name for the folder field. The interval field in
+the example is the evaluation interval. It doesn't show up in the JSON response
+so the evaluation interval will have to be retrieved from the browser.
+
+### Provisioning Notification Policies and Contact Points
+
+Notification policies and contact points for managing alerts can be found in
+[`notification_policies.yaml`](../../src/main/k8s/testing/grafana/notification_policies.yaml) 
+and 
+[`contact_points.yaml`](../../src/main/k8s/testing/grafana/contact_points.yaml).
+Documentation can be found 
+[here](https://grafana.com/docs/grafana/latest/administration/provisioning/#contact-points).
+
+### Grafana Configuration
+
+Grafana also has some core configuration settings. The example can be found in
 [`grafana.ini`](../../src/main/k8s/testing/grafana/grafana.ini). This needs
 to be configured as well. Documentation can be found
 [here](https://grafana.com/docs/grafana/latest/setup-grafana/configure-grafana).

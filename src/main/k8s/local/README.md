@@ -108,9 +108,15 @@ kubectl port-forward prometheus-pod 31111:9090
 
 ### Deploy Grafana
 
-Create a ConfigMap containing the example Grafana configuration.
+Create ConfigMaps containing the example Grafana configuration.
 
 ```shell
+kubectl create configmap grafana-provisioning \
+  --from-file=src/main/k8s/testing/grafana/alerting.json \
+  --from-file=src/main/k8s/testing/grafana/dashboard.json \
+  --from-file=src/main/k8s/testing/grafana/contact_points.yaml \
+  --from-file=src/main/k8s/testing/grafana/notification_policies.yaml
+
 kubectl create configmap grafana-config \
   --from-file=src/main/k8s/testing/grafana/grafana.ini
 ```

@@ -123,6 +123,32 @@ package k8s
 							subPath:   "grafana.ini"
 						}
 					}
+					"grafana-alerting": #Mount & {
+						volume: configMap: {
+							name: "grafana-provisioning"
+							items: [{
+								key:  "alerting.json"
+								path: "alerting/alerting.json"
+							}, {
+								key:  "contact_points.yaml"
+								path: "alerting/contact_points.yaml"
+							}, {
+								key:  "notification_policies.yaml"
+								path: "alerting/notification_policies.yaml"
+							}]
+						}
+						volumeMount: mountPath: "/etc/grafana/provisioning"
+					}
+					"grafana-dashboards": #Mount & {
+						volume: configMap: {
+							name: "grafana-provisioning"
+							items: [{
+								key:  "dashboard.json"
+								path: "dashboard.json"
+							}]
+						}
+						volumeMount: mountPath: "/etc/grafana/dashboards"
+					}
 					"grafana-dashboard-provider": #Mount & {
 						volume: configMap: {
 							name: "grafana-datasource-and-dashboard-provider"

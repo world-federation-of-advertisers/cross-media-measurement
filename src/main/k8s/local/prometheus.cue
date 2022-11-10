@@ -78,6 +78,8 @@ configMaps: [#ConfigMap & {
 			    - name: rpc
 			      interval: 5m
 			      rules:
+			        - record: rpc_server_response_rate_per_second
+			          expr: rate(rpc_server_duration_count[5m])
 			        - record: rpc_client_request_rate_per_second
 			          expr: rate(rpc_client_duration_count[5m])
 			        - record: rpc_client_request_error_rate_per_second
@@ -109,6 +111,10 @@ configMaps: [#ConfigMap & {
 			        action: replace
 			        regex: "([^:]+)(?::\\\\d+)?;(\\\\d+)"
 			        replacement: $1:$2
+			      - source_labels: [__meta_kubernetes_pod_name]
+			        target_label: instance
+			        regex: "(.*)"
+			        action: replace
 			"""
 	}
 }]
