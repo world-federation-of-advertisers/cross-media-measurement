@@ -33,7 +33,6 @@ IMAGE_REPOSITORY_SETTINGS = struct(
 
 # Settings for test Kubernetes deployments.
 TEST_K8S_SETTINGS = struct(
-    secret_name = "$(k8s_secret_name)",
     # Resource name of the aggregator Duchy's Certificate.
     aggregator_cert_name = "$(aggregator_cert_name)",
     # Resource name of the 1st worker Duchy's Certificate.
