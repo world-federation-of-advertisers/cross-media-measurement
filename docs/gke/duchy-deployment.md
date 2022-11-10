@@ -328,8 +328,9 @@ _computation_control_targets: {
 }
 ```
 
-You can also modify things such as the memory and CPU request/limit of each pod,
-as well as the number of replicas per deployment.
+You can also modify things such as the number of replicas per deployment, the
+memory and CPU requirements of each container, and the JVM options of each
+container.
 
 To generate the YAML manifest from the CUE files, run the following
 (substituting your own values for the `--define` options):
