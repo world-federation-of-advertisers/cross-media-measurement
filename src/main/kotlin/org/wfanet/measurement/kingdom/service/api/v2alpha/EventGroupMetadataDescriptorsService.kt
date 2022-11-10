@@ -137,7 +137,9 @@ class EventGroupMetadataDescriptorsService(
     val eventGroupMetadataDescriptorKey =
       grpcRequireNotNull(
         EventGroupMetadataDescriptorKey.fromName(request.eventGroupMetadataDescriptor.name)
-      ) { "EventGroupMetadataDescriptor name is either unspecified or invalid" }
+      ) {
+        "EventGroupMetadataDescriptor name is either unspecified or invalid"
+      }
 
     when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
       is DataProviderPrincipal -> {

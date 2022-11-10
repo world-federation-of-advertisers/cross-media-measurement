@@ -47,7 +47,8 @@ class SpannerExchangesService(
           WHERE RecurringExchanges.ExternalRecurringExchangeId = @external_recurring_exchange_id
             AND Exchanges.Date = @date
             AND ${providerFilter(request.provider)}
-          """.trimIndent()
+          """
+            .trimIndent()
         )
         bind("external_recurring_exchange_id" to request.externalRecurringExchangeId)
         bind("date" to request.date.toCloudDate())

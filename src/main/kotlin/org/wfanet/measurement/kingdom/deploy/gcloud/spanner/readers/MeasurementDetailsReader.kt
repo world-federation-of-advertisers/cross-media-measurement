@@ -36,7 +36,8 @@ class MeasurementDetailsReader() : SpannerReader<MeasurementDetailsReader.Result
       Measurements.MeasurementDetails,
     FROM
       Measurements
-    """.trimIndent()
+    """
+      .trimIndent()
 
   override suspend fun translate(struct: Struct): Result =
     Result(

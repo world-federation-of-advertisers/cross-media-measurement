@@ -69,7 +69,8 @@ class StreamRequisitions(requestFilter: StreamRequisitionsRequest.Filter, limit:
           (ExternalDataProviderId > @$EXTERNAL_DATA_PROVIDER_ID_AFTER
           OR (ExternalDataProviderId = @$EXTERNAL_DATA_PROVIDER_ID_AFTER
           AND ExternalRequisitionId > @$EXTERNAL_REQUISITION_ID_AFTER))
-        """.trimIndent()
+        """
+          .trimIndent()
       )
       bind(EXTERNAL_DATA_PROVIDER_ID_AFTER).to(filter.externalDataProviderIdAfter)
       bind(EXTERNAL_REQUISITION_ID_AFTER).to(filter.externalRequisitionIdAfter)
