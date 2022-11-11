@@ -97,13 +97,16 @@ package k8s
 						value: "http://0.0.0.0:\(#OpenTelemetryReceiverPort)"
 					}, {
 						name:  "OTEL_EXPORTER_OTLP_TIMEOUT"
-						value: "20"
+						value: "20000"
 					}, {
 						name:  "OTEL_EXPORTER_OTLP_METRICS_PROTOCOL"
 						value: "grpc"
 					}, {
 						name:  "OTEL_METRICS_EXPORTER"
 						value: "otlp"
+					}, {
+						name:  "OTEL_METRIC_EXPORT_INTERVAL"
+						value: "30000"
 					},
 				]
 				java: image: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:1.18.0"

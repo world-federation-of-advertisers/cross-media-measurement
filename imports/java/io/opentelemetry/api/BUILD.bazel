@@ -1,0 +1,6 @@
+package(default_visibility = ["//visibility:public"])
+
+alias(
+    name = "api",
+    actual = "@maven//:io_opentelemetry_opentelemetry_api",
+)

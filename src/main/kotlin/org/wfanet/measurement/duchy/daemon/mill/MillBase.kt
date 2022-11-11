@@ -17,6 +17,9 @@ package org.wfanet.measurement.duchy.daemon.mill
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
+import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.api.metrics.LongHistogram
+import io.opentelemetry.api.metrics.Meter
 import java.lang.management.ManagementFactory
 import java.lang.management.ThreadMXBean
 import java.security.cert.X509Certificate
@@ -26,6 +29,8 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.math.pow
 import kotlin.random.Random
+import kotlin.time.ExperimentalTime
+import kotlin.time.TimeSource
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -104,8 +109,26 @@ abstract class MillBase(
   private val requestChunkSizeBytes: Int,
   private val maximumAttempts: Int,
   private val clock: Clock,
+  openTelemetry: OpenTelemetry,
 ) {
   abstract val endingStage: ComputationStage
+
+  private val meter: Meter = openTelemetry.getMeter(MillBase::class.java.name)
+
+  init {
+    meter.gaugeBuilder("active_non_daemon_thread_count").ofLongs().buildWithCallback {
+      it.record((threadBean.threadCount - threadBean.daemonThreadCount).toLong())
+    }
+  }
+
+  private val jniWallClockDurationHistogram: LongHistogram =
+    meter.histogramBuilder("jni_wall_clock_duration_millis").ofLongs().build()
+
+  private val stageWallClockDurationHistogram: LongHistogram =
+    meter.histogramBuilder("stage_wall_clock_duration_millis").ofLongs().build()
+
+  private val stageCpuTimeDurationHistogram: LongHistogram =
+    meter.histogramBuilder("stage_cpu_time_duration_millis").ofLongs().build()
 
   /**
    * The main function of the mill. Continually poll and work on available computations from the
@@ -121,7 +144,7 @@ abstract class MillBase(
     }
   }
 
-  var computationsServerReady = false
+  private var computationsServerReady = false
   /** Poll and work on the next available computations. */
   suspend fun pollAndProcessNextComputation() {
     logger.fine("@Mill $millId: Polling available computations...")
@@ -136,7 +159,7 @@ abstract class MillBase(
           logger.info("ComputationServer not ready")
           return
         }
-        throw ex
+        throw Exception("Error claiming work", ex)
       }
     computationsServerReady = true
 
@@ -145,8 +168,16 @@ abstract class MillBase(
       val cpuDurationLogger = cpuDurationLogger()
       val token = claimWorkResponse.token
       processComputation(token)
-      wallDurationLogger.logStageDurationMetric(token, STAGE_WALL_CLOCK_DURATION)
-      cpuDurationLogger.logStageDurationMetric(token, STAGE_CPU_DURATION)
+      wallDurationLogger.logStageDurationMetric(
+        token,
+        STAGE_WALL_CLOCK_DURATION,
+        stageWallClockDurationHistogram
+      )
+      cpuDurationLogger.logStageDurationMetric(
+        token,
+        STAGE_CPU_DURATION,
+        stageCpuTimeDurationHistogram
+      )
     } else {
       logger.fine("@Mill $millId: No computation available, waiting for the next poll...")
     }
@@ -265,12 +296,17 @@ abstract class MillBase(
     sendComputationStats(token, metricName, metricValue)
   }
 
-  /** Writes stage duration metric to the [Logger] and also sends to the ComputationStatsService. */
+  /**
+   * Writes stage duration metric to the [Logger], records the metric in a histogram, and also sends
+   * to the ComputationStatsService.
+   */
   protected suspend fun logStageDurationMetric(
     token: ComputationToken,
     metricName: String,
-    metricValue: Long
+    metricValue: Long,
+    histogram: LongHistogram,
   ) {
+    histogram.record(metricValue)
     logger.info(
       "@Mill $millId, ${token.globalComputationId}/${token.computationStage.name}/$metricName:" +
         " ${metricValue.toHumanFriendlyDuration()}"
@@ -366,7 +402,11 @@ abstract class MillBase(
       try {
         val wallDurationLogger = wallDurationLogger()
         val result = block()
-        wallDurationLogger.logStageDurationMetric(token, JNI_WALL_CLOCK_DURATION)
+        wallDurationLogger.logStageDurationMetric(
+          token,
+          JNI_WALL_CLOCK_DURATION,
+          jniWallClockDurationHistogram
+        )
         result
       } catch (error: Throwable) {
         // All errors from block() are permanent and would cause the computation to FAIL
@@ -432,15 +472,32 @@ abstract class MillBase(
     return cpuTime.toMillis()
   }
 
-  private inner class DurationLogger(private val getTimeMillis: () -> Long) {
+  private inner class CpuDurationLogger(private val getTimeMillis: () -> Long) {
     private val start = getTimeMillis()
-    suspend fun logStageDurationMetric(token: ComputationToken, metricName: String) {
+    suspend fun logStageDurationMetric(
+      token: ComputationToken,
+      metricName: String,
+      histogram: LongHistogram
+    ) {
       val time = getTimeMillis() - start
-      logStageDurationMetric(token, metricName, time)
+      logStageDurationMetric(token, metricName, time, histogram)
     }
   }
-  private fun cpuDurationLogger(): DurationLogger = DurationLogger(this::getCpuTimeMillis)
-  private fun wallDurationLogger(): DurationLogger = DurationLogger(System::currentTimeMillis)
+  private fun cpuDurationLogger(): CpuDurationLogger = CpuDurationLogger(this::getCpuTimeMillis)
+
+  @OptIn(ExperimentalTime::class)
+  private inner class WallDurationLogger() {
+    private val timeMark = TimeSource.Monotonic.markNow()
+    suspend fun logStageDurationMetric(
+      token: ComputationToken,
+      metricName: String,
+      histogram: LongHistogram
+    ) {
+      val time = timeMark.elapsedNow().inWholeMilliseconds
+      logStageDurationMetric(token, metricName, time, histogram)
+    }
+  }
+  private fun wallDurationLogger(): WallDurationLogger = WallDurationLogger()
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)

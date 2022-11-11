@@ -41,9 +41,9 @@ package k8s
 		"--mc-encryption-public-keyset=/var/run/secrets/files/mc_enc_public.tink",
 	]
 	_tls_cert_key_files_flags: [
-		"--tls-cert-file=/var/run/secrets/files/mc_tls.pem",
-		"--tls-key-file=/var/run/secrets/files/mc_tls.key",
-		"--cert-collection-file=/var/run/secrets/files/all_root_certs.pem",
+		"--tls-cert-file=/var/run/secrets/files/kingdom_tls.pem",
+		"--tls-key-file=/var/run/secrets/files/kingdom_tls.key",
+		"--cert-collection-file=/var/run/secrets/files/kingdom_root.pem",
 	]
 	_duchy_cs_cert_files_flags: [
 		for d in _duchy_ids {

@@ -29,12 +29,16 @@ _secret_name: string @tag("secret_name")
 
 objectSets: [ for simulator in edpSimulators {simulator}]
 
+#EdpConfig: {
+	publisherId: int
+}
+
 _edpConfigs: [...#EdpConfig]
 _edpConfigs: [
 	for i, name in _edpResourceNames {
-		let EdpNum = i + 1
+		publisherId:  i + 1
 		resourceName: name
-		displayName:  "edp\(EdpNum)"
+		displayName:  "edp\(publisherId)"
 	},
 ]
 
@@ -52,6 +56,13 @@ edpSimulators: {
 			]
 			_edp_simulator_image:         "bazel/src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:forwarded_storage_edp_simulator_runner_image"
 			_simulator_image_pull_policy: "Never"
+
+			deployment: spec: template: spec: {
+				_dependencies: [
+					"v2alpha-public-api-server",
+					"worker1-requisition-fulfillment-server",
+				]
+			}
 		}
 	}
 }

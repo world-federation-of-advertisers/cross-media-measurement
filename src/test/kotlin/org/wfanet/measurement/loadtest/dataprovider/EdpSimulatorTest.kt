@@ -303,7 +303,7 @@ class EdpSimulatorTest {
       }
 
       val nonMatchingTestPrivacyTemplate = testPrivacyBudgetTemplate {
-        age = privacyAgeRange { value = PrivacyAgeRange.Value.AGE_18_TO_24 }
+        age = privacyAgeRange { value = PrivacyAgeRange.Value.AGE_18_TO_34 }
       }
       val nonMatchingTestBannerTemplate = testBannerTemplate {
         gender = gender { value = Gender.Value.GENDER_MALE }
@@ -692,15 +692,18 @@ class EdpSimulatorTest {
       measurementSpec = signMeasurementSpec(MEASUREMENT_SPEC, MC_SIGNING_KEY)
       encryptedRequisitionSpec = ENCRYPTED_REQUISITION_ONE_SPEC
       protocolConfig = protocolConfig {
-        liquidLegionsV2 =
-          ProtocolConfigKt.liquidLegionsV2 {
-            sketchParams = liquidLegionsSketchParams {
-              decayRate = LLV2_DECAY_RATE
-              maxSize = LLV2_MAX_SIZE
-              samplingIndicatorSize = 10_000_000
-            }
-            ellipticCurveId = 415
-            maximumFrequency = 12
+        protocols +=
+          ProtocolConfigKt.protocol {
+            liquidLegionsV2 =
+              ProtocolConfigKt.liquidLegionsV2 {
+                sketchParams = liquidLegionsSketchParams {
+                  decayRate = LLV2_DECAY_RATE
+                  maxSize = LLV2_MAX_SIZE
+                  samplingIndicatorSize = 10_000_000
+                }
+                ellipticCurveId = 415
+                maximumFrequency = 12
+              }
           }
       }
       duchies += duchyEntry {

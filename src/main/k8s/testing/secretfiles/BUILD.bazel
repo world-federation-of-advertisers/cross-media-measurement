@@ -70,8 +70,7 @@ genrule(
 
 SECRET_FILES = [
     "all_root_certs.pem",
-    "health_probe_tls.key",
-    "health_probe_tls.pem",
+    "kingdom_root.pem",
     "kingdom_tls.key",
     "kingdom_tls.pem",
     "aggregator_tls.key",

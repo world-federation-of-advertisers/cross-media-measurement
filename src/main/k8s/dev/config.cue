@@ -70,3 +70,5 @@ import "strings"
 	instance: "dev-postgres"
 	region:   "us-central1"
 }
+
+#PrometheusFrontendPort: 9090

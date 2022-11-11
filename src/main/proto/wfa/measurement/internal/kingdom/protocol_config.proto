@@ -22,17 +22,12 @@ option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
 message ProtocolConfig {
+  reserved 2;
+
   // The ID is reserved for future potential usage.
   // Currently, we directly embed the protocolConfig into `Requisition` and
   // `Measurement`.
   string external_protocol_config_id = 1;
-
-  enum MeasurementType {
-    MEASUREMENT_TYPE_UNSPECIFIED = 0;
-    REACH_AND_FREQUENCY = 1;
-  }
-  // The type of measurement that this protocol computes.
-  MeasurementType measurement_type = 2;
 
   // Configuration for the Liquid Legions v2 R/F protocol.
   message LiquidLegionsV2 {

@@ -30,7 +30,7 @@ import picocli.CommandLine
 private const val SERVER_NAME = "SystemApiServer"
 
 @CommandLine.Command(
-  name = "SystemApiServer",
+  name = SERVER_NAME,
   description = ["Server daemon for Kingdom system API services."],
   mixinStandardHelpOptions = true,
   showDefaultValues = true

@@ -82,6 +82,9 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	maxDirectMemorySize?:  string
 	maxCachedBufferSize:   uint | *262144 // 256KiB
 	nettyMaxDirectMemory?: int
+	loggingConfigFile?:    string
+	heapDumpOnOutOfMemory: bool | *false
+	heapDumpPath?:         string
 
 	_maxRamOptions: [...string]
 	if maxRamPercentage != _|_ {
@@ -102,6 +105,15 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			"-Dio.netty.maxDirectMemory=\(nettyMaxDirectMemory)"
 		},
 		"-Djdk.nio.maxCachedBufferSize=\(maxCachedBufferSize)",
+		if loggingConfigFile != _|_ {
+			"-Djava.util.logging.config.file=\(loggingConfigFile)"
+		},
+		if heapDumpOnOutOfMemory {
+			"-XX:+HeapDumpOnOutOfMemoryError"
+		},
+		if heapDumpPath != _|_ {
+			"-XX:HeapDumpPath=\(heapDumpPath)"
+		},
 	]
 }
 
@@ -142,6 +154,12 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	]
 }
 
+// K8s KeyToPath
+#KeyToPath: {
+	key:  string
+	path: string
+}
+
 // K8s Volume.
 #Volume: {
 	name: string
@@ -149,6 +167,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 #Volume: {
 	configMap?: {
 		name: string
+		items?: [...#KeyToPath]
 	}
 } | {
 	secret?: {
@@ -166,6 +185,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	name:      string
 	mountPath: string
 	readOnly?: bool
+	subPath?:  string
 }
 
 // Configuration for a Volume and a corresponding VolumeMount.
@@ -184,10 +204,16 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 #Mount: {
 	let Name = volumeMount.name
 	volume: configMap: name: string
-	volumeMount: mountPath: _ | *"/etc/\(#AppName)/\(Name)"
+	volumeMount: {
+		mountPath: _ | *"/etc/\(#AppName)/\(Name)"
+		readOnly:  true
+	}
 } | {
 	volume: secret: secretName: string
-	volumeMount: mountPath: _ | *"/var/run/secrets/files"
+	volumeMount: {
+		mountPath: _ | *"/var/run/secrets/files"
+		readOnly:  true
+	}
 } | {
 	let Name = volumeMount.name
 	volume: emptyDir: {}
@@ -254,6 +280,15 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	}
 }
 
+// K8s Toleration.
+#Toleration: {
+	key:                string
+	operator?:          "Equal" | "Exists"
+	value?:             string
+	effect?:            "NoSchedule" | "PreferNoSchedule" | "NoExecute"
+	tolerationSeconds?: int64
+}
+
 // K8s PodSpec.
 #PodSpec: {
 	_mounts: [Name=string]:     #Mount & {name:  Name}
@@ -264,6 +299,9 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	}
 	_initContainers: [Name=string]: #Container & {
 		name: Name
+	}
+	_tolerations: [Key=string]: #Toleration & {
+		key: Key
 	}
 	_dependencies: [...string]
 
@@ -285,6 +323,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	serviceAccountName?: string
 	nodeSelector?: [_=string]: string
 	initContainers: [ for _, initContainer in _initContainers {initContainer}]
+	tolerations: [ for _, toleration in _tolerations {toleration}]
 }
 
 // K8s Pod.
@@ -350,10 +389,14 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 // K8s Deployment.
 #Deployment: {
-	_name:       string
-	_secretName: string
-	_system:     string
-	_container:  #Container & {
+	_name:        string
+	_secretName?: string
+	_system:      string
+	_container:   #Container & {
+		_javaOptions: {
+			heapDumpOnOutOfMemory: true
+			heapDumpPath:          "/run/heap-dumps"
+		}
 		imagePullPolicy: _ | *"Never"
 	}
 
@@ -384,8 +427,13 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 				}
 			}
 			spec: #PodSpec & {
-				_mounts: "\(_name)-files": {
-					volume: secret: secretName: _secretName
+				_mounts: {
+					if _secretName != _|_ {
+						"\(_name)-files": {
+							volume: secret: secretName: _secretName
+						}
+					}
+					"heap-dumps": volume: emptyDir: {}
 				}
 				_containers: "\(_name)-container": _container
 				restartPolicy: restartPolicy | *"Always"

@@ -157,7 +157,7 @@ class AccountsServiceTest {
   @Test
   fun `createAccount throws UNAUTHENTICATED when credentials are invalid`() = runBlocking {
     whenever(internalAccountsMock.authenticateAccount(any()))
-      .thenThrow(StatusRuntimeException(Status.UNAUTHENTICATED))
+      .thenThrow(StatusRuntimeException(Status.NOT_FOUND))
 
     val request = createAccountRequest {}
 
@@ -289,7 +289,7 @@ class AccountsServiceTest {
   @Test
   fun `replaceAccountIdentity throws UNAUTHENTICATED when credentials are invalid`() = runBlocking {
     whenever(internalAccountsMock.authenticateAccount(any()))
-      .thenThrow(StatusRuntimeException(Status.UNAUTHENTICATED))
+      .thenThrow(StatusRuntimeException(Status.NOT_FOUND))
 
     val request = replaceAccountIdentityRequest {}
 

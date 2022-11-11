@@ -69,7 +69,17 @@ class ComputationsService(
       GetMeasurementByComputationIdRequest.newBuilder()
         .apply { externalComputationId = apiIdToExternalId(computationKey.computationId) }
         .build()
-    return measurementsClient.getMeasurementByComputationId(internalRequest).toSystemComputation()
+    try {
+      return measurementsClient.getMeasurementByComputationId(internalRequest).toSystemComputation()
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          Status.Code.CANCELLED -> Status.CANCELLED
+          else -> Status.UNKNOWN
+        }
+        .withCause(e)
+        .asRuntimeException()
+    }
   }
 
   override fun streamActiveComputations(
@@ -139,7 +149,17 @@ class ComputationsService(
       externalAggregatorCertificateId = apiIdToExternalId(aggregatorCertificateKey.certificateId)
       encryptedResult = request.encryptedResult
     }
-    return measurementsClient.setMeasurementResult(internalRequest).toSystemComputation()
+    try {
+      return measurementsClient.setMeasurementResult(internalRequest).toSystemComputation()
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          Status.Code.CANCELLED -> Status.CANCELLED
+          else -> Status.UNKNOWN
+        }
+        .withCause(e)
+        .asRuntimeException()
+    }
   }
 
   private fun streamMeasurements(
@@ -154,7 +174,17 @@ class ComputationsService(
       }
       measurementView = Measurement.View.COMPUTATION
     }
-    return measurementsClient.streamMeasurements(request)
+    try {
+      return measurementsClient.streamMeasurements(request)
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          Status.Code.CANCELLED -> Status.CANCELLED
+          else -> Status.UNKNOWN
+        }
+        .withCause(e)
+        .asRuntimeException()
+    }
   }
 
   companion object {

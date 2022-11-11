@@ -575,6 +575,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         protocolConfig = protocolConfig {
           liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
         }
+        dataProvidersCount = 1
       }
     }
     assertThat(requisition)
@@ -649,6 +650,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         measurementSpecSignature = measurement.details.measurementSpecSignature
         state = Measurement.State.PENDING_REQUISITION_FULFILLMENT
         protocolConfig = protocolConfig {}
+        dataProvidersCount = 1
       }
     }
     assertThat(requisition)

@@ -17,6 +17,7 @@ package org.wfanet.measurement.integration.common
 import io.grpc.Channel
 import io.grpc.inprocess.InProcessChannelBuilder
 import io.grpc.testing.GrpcCleanupRule
+import io.opentelemetry.api.GlobalOpenTelemetry
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Level
@@ -223,7 +224,8 @@ class InProcessDuchy(
             computationStatsClient = computationStatsClient,
             throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1)),
             workerStubs = workerStubs,
-            cryptoWorker = JniLiquidLegionsV2Encryption()
+            cryptoWorker = JniLiquidLegionsV2Encryption(),
+            openTelemetry = GlobalOpenTelemetry.get()
           )
         liquidLegionsV2mill.continuallyProcessComputationQueue()
       }

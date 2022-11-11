@@ -149,17 +149,24 @@ gcloud container clusters create worker1-duchy \
   --enable-network-policy --workload-pool=halo-worker1-demo.svc.id.goog \
   --service-account="gke-cluster@halo-worker1-demo.iam.gserviceaccount.com" \
   --database-encryption-key=projects/halo-worker1-demo/locations/us-central1/keyRings/test-key-ring/cryptoKeys/k8s-secret \
-  --num-nodes=3 --enable-autoscaling --min-nodes=2 --max-nodes=5 \
-  --machine-type=e2-standard-2 -cluster-version=1.24.2-gke.1900
+  --num-nodes=2 --enable-autoscaling --min-nodes=2 --max-nodes=4 \
+  --machine-type=e2-standard-2 --release-channel=regular \
+  --cluster-version='1.24.5-gke.600'
 ```
 
-Adjust the node pool based on your expected usage. Due to the differences in CPU
-vs. memory requirements for each pod, it may be more efficient to have multiple
-node pools with different machine types and/or to use GKE's auto-scaling and
-provisioning features.
+Adjust the node pools based on your expected usage. You may wish to use GKE
+features such as autoscaling or multiple node pools with different
+machine/scheduling types. The default Mill and Herald configuration include a
+toleration for running on
+[Spot VMs](https://cloud.google.com/kubernetes-engine/docs/how-to/spot-vms#use_taints_and_tolerations_for).
 
-The GKE version should be no older than `1.24.0` in order to support built-in
-gRPC health probe.
+The cluster version should be no older than `1.24.0` in order to support
+built-in gRPC health probe. You can use the following command to determine what
+versions are supported for each release channel:
+
+```shell
+gcloud container get-server-config
+```
 
 To configure `kubectl` to access this cluster, run
 
@@ -197,7 +204,6 @@ files are required in a Duchy:
     -   All other Duchies
     -   EDPs that select to fulfill requisitions at this Duchy
     -   This Duchy's own CA certificate (for Duchy internal traffic)
-    -   A certificate used for health check purposes
 
     Supposing your root certs are all in a single folder and end with
     `_root.pem`, you can concatenate them all with a simple shell command:
@@ -206,38 +212,37 @@ files are required in a Duchy:
     cat *_root.pem > all_root_certs.pem
     ```
 
-2.  `worker1_tls.pem`
+1.  `worker1_tls.pem`
 
     The `worker1` Duchy's TLS certificate in PEM format.
 
-3.  `worker1_tls.key`
+1.  `worker1_tls.key`
 
     The private key for the TLS certificate in PEM format.
 
-4.  `health_probe_tls.pem`
-
-    The client TLS certificate used by the health probe in PEM format.
-
-5.  `health_probe_tls.key`
-
-    The private key for the health probe TLS certificate in PEM format.
-
-6.  `worker1_cs_cert.der`
+1.  `worker1_cs_cert.der`
 
     The `worker1` Duchy's consent signaling certificate in DER format.
 
-7.  `worker1_cs_private.der`
+1.  `worker1_cs_private.der`
 
     The private key for the Duchy's consent signaling certificate in DER format.
 
-8.  `xxx_protocols_setup_config.textproto` (replace xxx with the role)
+1.  `duchy_cert_config.textproto`
+
+    Configuration mapping Duchy root certificates to the corresponding Duchy ID.
+
+    -   [Example](../../src/main/k8s/testing/secretfiles/duchy_cert_config.textproto)
+
+1.  `xxx_protocols_setup_config.textproto` (replace xxx with the role)
 
     -   This contains information about the protocols run in the duchy
     -   Set the role (aggregator or non_aggregator) in the config appropriately
     -   [Example](../../src/main/k8s/testing/secretfiles/aggregator_protocols_setup_config.textproto)
 
 Put all above files in the same folder (anywhere in your local machine), and
-create a file named `kustomization.yaml` with the following content:
+create a file named `kustomization.yaml` with the following content,
+substituting the appropriate version of protocols setup config:
 
 ```yaml
 secretGenerator:
@@ -246,11 +251,10 @@ secretGenerator:
   - all_root_certs.pem
   - worker1_tls.pem
   - worker1_tls.key
-  - health_probe_tls.pem
-  - health_probe_tls.key
   - worker1_cs_cert.der
   - worker1_cs_private.der
-  - protocols_setup_config.textproto
+  - duchy_cert_config.textproto
+  - xxx_protocols_setup_config.textproto
 ```
 
 and run

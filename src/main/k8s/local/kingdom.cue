@@ -17,7 +17,7 @@ package k8s
 _secret_name: string @tag("secret_name")
 
 #DataServerResourceRequirements: #ResourceRequirements & {
-	limits: memory: "2048Mi"
+	limits: memory: "512Mi"
 }
 
 objectSets: [ for objectSet in kingdom {objectSet}]

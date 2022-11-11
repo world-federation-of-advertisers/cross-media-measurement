@@ -28,10 +28,10 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.testPrivacyBud
 
 private val NONMATCHING_BANNER_GENDER = Gender.Value.GENDER_MALE
 private val MATCHING_BANNER_GENDER = Gender.Value.GENDER_FEMALE
-private val NONMATCHING_PRIVACY_AGE_RANGE = AgeRange.Value.AGE_18_TO_24
+private val NONMATCHING_PRIVACY_AGE_RANGE = AgeRange.Value.AGE_18_TO_34
 private val MATCHING_PRIVACY_AGE_RANGE = AgeRange.Value.AGE_35_TO_54
 private val MATCHING_EVENT_FILTER = eventFilter {
-  expression = "privacy_budget.age.value == 1 || banner_ad.gender.value == 2"
+  expression = "privacy_budget.age.value == 2 || banner_ad.gender.value == 2"
 }
 
 @RunWith(JUnit4::class)

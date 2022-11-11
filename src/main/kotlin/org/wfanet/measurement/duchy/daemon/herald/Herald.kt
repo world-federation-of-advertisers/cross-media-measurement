@@ -288,7 +288,7 @@ class Herald(
             systemComputation,
             protocolsSetupConfig.liquidLegionsV2.externalAggregatorDuchyId
           )
-        else -> error { "Unknown or unsupported protocol." }
+        else -> error("Unknown or unsupported protocol.")
       }
       logger.info("[id=$globalId]: Confirmed Computation")
     }
@@ -303,7 +303,7 @@ class Herald(
       when (token.computationDetails.protocolCase) {
         ComputationDetails.ProtocolCase.LIQUID_LEGIONS_V2 ->
           LiquidLegionsV2Starter.startComputation(token, internalComputationsClient)
-        else -> error { "Unknown or unsupported protocol." }
+        else -> error("Unknown or unsupported protocol.")
       }
       logger.info("[id=$globalId]: Started Computation")
     }

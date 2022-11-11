@@ -50,6 +50,7 @@ TEST_K8S_SETTINGS = struct(
     edp6_name = "$(edp6_name)",
     db_secret_name = "$(k8s_db_secret_name)",
     mc_config_secret_name = "$(k8s_mc_config_secret_name)",
+    grafana_secret_name = "$(k8s_grafana_secret_name)",
 )
 
 # Settings for Kingdom Kubernetes deployments.
@@ -82,4 +83,9 @@ SIMULATOR_K8S_SETTINGS = struct(
 REPORTING_K8S_SETTINGS = struct(
     secret_name = "$(k8s_reporting_secret_name)",
     mc_config_secret_name = "$(k8s_reporting_mc_config_secret_name)",
+)
+
+# Settings for Grafana Kubernetes deployments.
+GRAFANA_K8S_SETTINGS = struct(
+    secret_name = "$(k8s_grafana_secret_name)",
 )

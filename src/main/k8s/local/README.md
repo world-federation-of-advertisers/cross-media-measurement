@@ -99,11 +99,48 @@ bazel run //src/main/k8s/local:open_telemetry_kind
 bazel run //src/main/k8s/local:prometheus_kind
 ```
 
-To be able to visit the Prometheus browser GUI at http://localhost:31111/, start
+To be able to visit Prometheus in the browser at http://localhost:31111/, start
 port-forwarding.
 
 ```shell
 kubectl port-forward prometheus-pod 31111:9090
+```
+
+### Deploy Grafana
+
+Create a ConfigMap containing the example Grafana configuration.
+
+```shell
+kubectl create configmap grafana-config \
+  --from-file=src/main/k8s/testing/grafana/grafana.ini
+```
+
+Create a Secret containing the Grafana basic auth credentials.
+
+You can use `kubectl` to create the `db-auth` secret. To reduce the likelihood
+of leaking your password, we read it in from STDIN.
+
+Tip: Ctrl+D is the usual key combination for closing the input stream.
+
+Assuming the database username is `user`, run:
+
+```shell
+kubectl create secret generic grafana-auth --type='kubernetes.io/basic/auth' \
+  --append-hash --from-file=password=/dev/stdin --from-literal=user=user
+```
+
+Deploy the Grafana server using the Secret name.
+
+```shell
+bazel run //src/main/k8s/local:grafana_kind \
+  --define=grafana_secret_name=grafana-auth-dmg429kb29
+```
+
+To be able to visit Grafana in the browser at http://localhost:31112/, start
+port-forwarding.
+
+```shell
+kubectl port-forward service/grafana 31112:3000
 ```
 
 ## Resource Setup
@@ -195,6 +232,23 @@ bazel run //src/main/k8s/local:edp_simulators_kind \
   --define=edp6_name=dataProviders/U8rTiHRz_b4
 ```
 
+The target `edp_simulators_kind` uses `RandomEventQuery` which will generate
+random VIDs for each edp. You can also use target `edp_simulators_csv_kind`
+which will use `CsvEventQuery` to query VIDs from a CSV file for each edp.
+
+To use `CsvEventQuery`, you need to copy the CSV files you want to use from your
+local machine to the edp containers. After running the `bazel run` command with
+the target `edp_simulators_csv_kind`, and each edp deployment is in the status
+`1/1 Running`, run the following command for each edp to copy the CSV file from
+you local machine to the edp container:
+
+```shell
+kubectl cp </path/to/your/file.csv> <edp-podname>:/data/csvfiles/synthetic-labelled-events.csv
+```
+
+You can get `<edp-podname>` by running `kubectl get pods`. The default volume
+mountPath in the container is `/data/csvfiles`.
+
 ## Deploy MC Frontend Simulator
 
 This is a job that tests correctness by creating a Measurement and validating
@@ -225,32 +279,28 @@ entries {
 ```
 
 The ConfigMap also needs an additional file named
-`encryption_key_pair_config.textproto` listing key pairs
-by `MeasurementConsumer`:
+`encryption_key_pair_config.textproto` listing key pairs by
+`MeasurementConsumer`:
 
 ```prototext
 # proto-file: wfa/measurement/config/reporting/encryption_key_pair_config.proto
 # proto-message: EncryptionKeyPairConfig
 principal_key_pairs {
-  principal: "measurement_consumer1"
+  principal: "measurementConsumers/G7laM7LMIAA"
   key_pairs {
     public_key_file: "mc_enc_public.tink"
     private_key_file: "mc_enc_private.tink"
   }
   key_pairs {
-    public_key_file: "edp1_enc_public.tink"
-    private_key_file: "edp1_enc_private.tink"
+    public_key_file: "mc_enc_public_2.tink"
+    private_key_file: "mc_enc_private_2.tink"
   }
 }
 principal_key_pairs {
-  principal: "measurement_consumer2"
+  principal: "measurementConsumers/FS1n8aTrck0"
   key_pairs {
-    public_key_file: "edp2_enc_public.tink"
-    private_key_file: "edp2_enc_private.tink"
-  }
-  key_pairs {
-    public_key_file: "edp3_enc_public.tink"
-    private_key_file: "edp3_enc_private.tink"
+    public_key_file: "mc2_enc_public.tink"
+    private_key_file: "mc2_enc_private.tink"
   }
 }
 ```

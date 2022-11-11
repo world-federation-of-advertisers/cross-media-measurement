@@ -39,8 +39,11 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig.Direct
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKey
+import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
+import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.protocol
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.exchange
 import org.wfanet.measurement.api.v2alpha.exchangeStep
@@ -129,19 +132,28 @@ fun InternalDifferentialPrivacyParams.toDifferentialPrivacyParams(): Differentia
 }
 
 /** @throws [IllegalStateException] if MeasurementType not specified */
-fun InternalProtocolConfig.toProtocolConfig(): ProtocolConfig {
+fun InternalProtocolConfig.toProtocolConfig(
+  measurementTypeCase: MeasurementSpec.MeasurementTypeCase,
+  dataProviderCount: Int,
+  allowMpcProtocolsForSingleDataProvider: Boolean,
+): ProtocolConfig {
   val source = this
+
   return protocolConfig {
-    name = ProtocolConfigKey(source.externalProtocolConfigId).toName()
+    name =
+      if (source.externalProtocolConfigId.isNotEmpty())
+        ProtocolConfigKey(source.externalProtocolConfigId).toName()
+      else ProtocolConfigKey(Direct.getDescriptor().name).toName()
+
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     measurementType =
-      when (source.measurementType) {
-        InternalProtocolConfig.MeasurementType.MEASUREMENT_TYPE_UNSPECIFIED ->
+      when (measurementTypeCase) {
+        MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
           ProtocolConfig.MeasurementType.MEASUREMENT_TYPE_UNSPECIFIED
-        InternalProtocolConfig.MeasurementType.REACH_AND_FREQUENCY ->
+        MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
           ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
-        InternalProtocolConfig.MeasurementType.UNRECOGNIZED ->
-          error("MeasurementType unrecognized.")
+        MeasurementSpec.MeasurementTypeCase.IMPRESSION -> ProtocolConfig.MeasurementType.IMPRESSION
+        MeasurementSpec.MeasurementTypeCase.DURATION -> ProtocolConfig.MeasurementType.DURATION
       }
     if (source.hasLiquidLegionsV2()) {
       liquidLegionsV2 = liquidLegionsV2 {
@@ -160,11 +172,32 @@ fun InternalProtocolConfig.toProtocolConfig(): ProtocolConfig {
         maximumFrequency = source.liquidLegionsV2.maximumFrequency
       }
     }
+
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
+    when (measurementTypeCase) {
+      MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
+        if (dataProviderCount > 1)
+          protocols += protocol { liquidLegionsV2 = this@protocolConfig.liquidLegionsV2 }
+        if (dataProviderCount == 1) {
+          protocols += protocol { direct = direct {} }
+          if (allowMpcProtocolsForSingleDataProvider)
+            protocols += protocol { liquidLegionsV2 = this@protocolConfig.liquidLegionsV2 }
+        }
+      }
+      MeasurementSpec.MeasurementTypeCase.IMPRESSION,
+      MeasurementSpec.MeasurementTypeCase.DURATION, -> {
+        protocols += protocol { direct = direct {} }
+      }
+      MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
+        error("MeasurementType not set.")
+    }
   }
 }
 
 /** Converts an internal [InternalMeasurement] to a public [Measurement]. */
-fun InternalMeasurement.toMeasurement(): Measurement {
+fun InternalMeasurement.toMeasurement(
+  allowMpcProtocolsForSingleDataProvider: Boolean,
+): Measurement {
   val source = this
   check(Version.fromString(source.details.apiVersion) == Version.V2_ALPHA) {
     "Incompatible API version ${source.details.apiVersion}"
@@ -188,12 +221,17 @@ fun InternalMeasurement.toMeasurement(): Measurement {
     }
     dataProviders +=
       source.dataProvidersMap.entries.map(Map.Entry<Long, DataProviderValue>::toDataProviderEntry)
-    if (
-      source.details.protocolConfig.protocolCase !=
-        InternalProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
-    ) {
-      protocolConfig = source.details.protocolConfig.toProtocolConfig()
-    }
+
+    val measurementTypeCase =
+      MeasurementSpec.parseFrom(this.measurementSpec.data).measurementTypeCase
+
+    protocolConfig =
+      source.details.protocolConfig.toProtocolConfig(
+        measurementTypeCase,
+        dataProvidersCount,
+        allowMpcProtocolsForSingleDataProvider
+      )
+
     state = source.state.toState()
     results +=
       source.resultsList.map {
@@ -275,21 +313,16 @@ fun Measurement.toInternal(
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (measurementSpecProto.measurementTypeCase) {
         MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
-          // For single EDP direct R/F measurement, don't generate internal protocolConfig
-          if (dataProvidersCount > 1) {
-            protocolConfig = internalProtocolConfig {
-              externalProtocolConfigId = Llv2ProtocolConfig.name
-              measurementType = InternalProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
-              liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
-            }
-            duchyProtocolConfig = duchyProtocolConfig {
-              liquidLegionsV2 = Llv2ProtocolConfig.duchyProtocolConfig
-            }
+          protocolConfig = internalProtocolConfig {
+            externalProtocolConfigId = Llv2ProtocolConfig.name
+            liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
+          }
+          duchyProtocolConfig = duchyProtocolConfig {
+            liquidLegionsV2 = Llv2ProtocolConfig.duchyProtocolConfig
           }
         }
-        // No protocol for impression or duration type.
         MeasurementSpec.MeasurementTypeCase.IMPRESSION,
-        MeasurementSpec.MeasurementTypeCase.DURATION -> {}
+        MeasurementSpec.MeasurementTypeCase.DURATION, -> {}
         MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
           error("MeasurementType not set.")
       }

@@ -68,9 +68,18 @@ cue_dump(
     ],
 )
 
+cue_library(
+    name = "edp_simulators_library",
+    srcs = ["edp_simulators.cue"],
+    deps = [
+        ":config",
+        "//src/main/k8s:edp_simulator",
+    ],
+)
+
 cue_dump(
     name = "edp_simulators",
-    srcs = ["edp_simulators.cue"],
+    srcs = None,
     cue_tags = {
         "secret_name": TEST_K8S_SETTINGS.secret_name,
         "mc_name": TEST_K8S_SETTINGS.mc_name,
@@ -83,8 +92,26 @@ cue_dump(
     },
     tags = ["manual"],
     deps = [
-        ":config",
-        "//src/main/k8s:edp_simulator",
+        ":edp_simulators_library",
+    ],
+)
+
+cue_dump(
+    name = "edp_simulators_csv",
+    srcs = ["edp_simulators_csv.cue"],
+    cue_tags = {
+        "secret_name": TEST_K8S_SETTINGS.secret_name,
+        "mc_name": TEST_K8S_SETTINGS.mc_name,
+        "edp1_name": TEST_K8S_SETTINGS.edp1_name,
+        "edp2_name": TEST_K8S_SETTINGS.edp2_name,
+        "edp3_name": TEST_K8S_SETTINGS.edp3_name,
+        "edp4_name": TEST_K8S_SETTINGS.edp4_name,
+        "edp5_name": TEST_K8S_SETTINGS.edp5_name,
+        "edp6_name": TEST_K8S_SETTINGS.edp6_name,
+    },
+    tags = ["manual"],
+    deps = [
+        ":edp_simulators_library",
     ],
 )
 
@@ -143,6 +170,16 @@ cue_dump(
     srcs = ["open_telemetry.cue"],
     tags = ["manual"],
     deps = ["//src/main/k8s:open_telemetry"],
+)
+
+cue_dump(
+    name = "grafana",
+    srcs = ["grafana.cue"],
+    cue_tags = {
+        "secret_name": TEST_K8S_SETTINGS.grafana_secret_name,
+    },
+    tags = ["manual"],
+    deps = ["//src/main/k8s:grafana"],
 )
 
 [kind_load_image(
@@ -257,6 +294,14 @@ k8s_apply(
     tags = ["manual"],
 )
 
+k8s_apply(
+    name = "edp_simulators_csv_kind",
+    src = ":edp_simulators_csv",
+    delete_selector = "app.kubernetes.io/part-of=halo-cmms,app.kubernetes.io/component=simulator",
+    imports = EDP_SIMULATOR_IMAGE_IMPORTS,
+    tags = ["manual"],
+)
+
 FRONTEND_SIMULATOR_IMAGE_IMPORTS = [
     ":load_forwarded_storage_frontend_simulator_runner_image",
 ]
@@ -316,5 +361,11 @@ k8s_apply(
 k8s_apply(
     name = "open_telemetry_kind",
     src = ":open_telemetry",
+    tags = ["manual"],
+)
+
+k8s_apply(
+    name = "grafana_kind",
+    src = ":grafana",
     tags = ["manual"],
 )

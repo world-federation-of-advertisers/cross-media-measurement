@@ -16,7 +16,6 @@ package org.wfanet.measurement.reporting.deploy.postgres.writers
 
 import io.r2dbc.spi.R2dbcDataIntegrityViolationException
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
@@ -38,9 +37,7 @@ class CreateReportingSet(private val request: ReportingSet) : PostgresWriter<Rep
     insertReportingSet(internalReportingSetId, externalReportingSetId)
     coroutineScope {
       for (i in 0 until request.eventGroupKeysList.size) {
-        launch {
-          insertReportingSetEventGroup(request.eventGroupKeysList[i], internalReportingSetId)
-        }
+        insertReportingSetEventGroup(request.eventGroupKeysList[i], internalReportingSetId)
       }
     }
 

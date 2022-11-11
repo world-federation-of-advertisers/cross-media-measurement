@@ -163,16 +163,22 @@ the Kingdom, running under the `gke-cluster` service account in the
 ```shell
 gcloud container clusters create halo-cmm-kingdom-demo-cluster \
   --enable-network-policy --workload-pool=halo-kingdom-demo.svc.id.goog \
-  --service-account="gke-cluster@halo-kingdom-demo.iam.gserviceaccount.com" \
+  --service-account='gke-cluster@halo-kingdom-demo.iam.gserviceaccount.com' \
   --database-encryption-key=projects/halo-cmm-dev/locations/us-central1/keyRings/test-key-ring/cryptoKeys/k8s-secret \
-  --num-nodes=2 --enable-autoscaling --min-nodes=1 --max-nodes=5 \
-  --machine-type=e2-highcpu-2 --cluster-version=1.24.2-gke.1900
+  --num-nodes=3 --enable-autoscaling --min-nodes=3 --max-nodes=6 \
+  --machine-type=e2-highcpu-2 --release-channel=regular \
+  --cluster-version='1.24.5-gke.600'
 ```
 
 Adjust the number of nodes and machine type according to your expected usage.
 
-The GKE version should be no older than `1.24.0` in order to support built-in
-gRPC health probe.
+The cluster version should be no older than `1.24.0` in order to support
+built-in gRPC health probe. You can use the following command to determine what
+versions are supported for each release channel:
+
+```shell
+gcloud container get-server-config
+```
 
 After creating the cluster, we can configure `kubectl` to be able to access it
 
@@ -235,7 +241,6 @@ First, prepare all the files we want to include in the Kubernetes secret. The
     *   All EDPs
     *   All MC reporting tools (frontends)
     *   The Kingdom's itself (for traffic between Kingdom servers)
-    *   The health probe
 
     Supposing your root certs are all in a single folder and end with
     `_root.pem`, you can concatenate them all with a simple shell command:
@@ -244,29 +249,23 @@ First, prepare all the files we want to include in the Kubernetes secret. The
     cat *_root.pem > all_root_certs.pem
     ```
 
-2.  `kingdom_tls.pem`
+    Note: This assumes that all your root certificate PEM files end in newline.
+
+1.  `kingdom_tls.pem`
 
     The Kingdom's TLS certificate.
 
-3.  `kingdom_tls.key`
+1.  `kingdom_tls.key`
 
     The private key for the Kingdom's TLS certificate.
 
-4.  `health_probe_tls.pem`
-
-    The health probe's TLS certificate.
-
-5.  `health_probe_tls.key`
-
-    The private key for the health probe's TLS certificate.
-
-6.  `duchy_cert_config.textproto`
+1.  `duchy_cert_config.textproto`
 
     Configuration mapping Duchy root certificates to the corresponding Duchy ID.
 
     -   [Example](../../src/main/k8s/testing/secretfiles/duchy_cert_config.textproto)
 
-7.  `llv2_protocol_config_config.textproto`
+1.  `llv2_protocol_config_config.textproto`
 
     Configuration for the Liquid Legions v2 protocol.
 
@@ -286,8 +285,6 @@ secretGenerator:
   - all_root_certs.pem
   - kingdom_tls.key
   - kingdom_tls.pem
-  - health_probe_tls.pem
-  - health_probe_tls.key
   - duchy_cert_config.textproto
   - llv2_protocol_config_config.textproto
 ```
