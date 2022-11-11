@@ -95,7 +95,7 @@ have read access to the Spanner database. See
 for how to make sure this service account has the appropriate role.
 
 [`prometheus_gke.cue`](../../src/main/k8s/dev/prometheus_gke.cue) also requires 
-a service account, but with the role `roles/iam.workloadIdentityUser` instead.
+a service account, but with the role `roles/monitoring.viewer` instead.
 
 ## Create the K8s manifest
 

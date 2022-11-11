@@ -15,12 +15,10 @@
 apiVersion: 1
 
 contactPoints:
-- name: rpc_contact_point
+- name: rpc-contact-point
   receivers:
-  - uid: rpc_email
-    type: email
+  - uid: rpc_slack
+    type: slack
     settings:
-      addresses: email@email.com
-      singleEmail: true
-      subject: |
-        {{ template "default.title" . }}
+      recipient: general
+      token: api-token

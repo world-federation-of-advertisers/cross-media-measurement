@@ -15,11 +15,16 @@
 apiVersion: 1
 
 policies:
-- receiver: rpc_contact_point
+- receiver: grafana-default-email
   group_by: ['alertname', 'instance']
-  matchers:
-  - alertname = rpc-client-request-error-rate
-  - severity =~ "warning|critical"
   group_wait: 30s
   group_interval: 5m
   repeat_interval: 3h
+  routes:
+  - receiver: rpc-contact-point
+    matchers:
+    - alertname = rpc-client-request-error-rate
+    - severity =~ "warning|critical"
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 3h
