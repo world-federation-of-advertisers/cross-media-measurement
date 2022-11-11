@@ -173,24 +173,4 @@ package k8s
 			}
 		}
 	}
-
-	networkPolicies: [Name=_]: #NetworkPolicy & {
-		_name: Name
-	}
-	networkPolicies: {
-		"grafana": {
-			_app_label: "grafana-app"
-			_ingresses: {
-				"http": {
-					ports: [{
-						port:     3000
-						protocol: "TCP"
-					}]
-				}
-			}
-			_egresses: {
-				any: {}
-			}
-		}
-	}
 }

@@ -42,14 +42,16 @@ networkPolicies: [Name=_]: #NetworkPolicy & {
 networkPolicies: {
 	"grafana": {
 		_app_label: "grafana-app"
-		_egresses: "prometheus-frontend": {
-			to: [{
-				podSelector: matchLabels: app: "prometheus-frontend-app"
-			}]
-			ports: [{
-				port:     #PrometheusFrontendPort
-				protocol: "TCP"
-			}]
+		_ingresses: {
+      "http": {
+        ports: [{
+          port:     3000
+          protocol: "TCP"
+        }]
+      }
+    }
+		_egresses: {
+			any: {}
 		}
 	}
 }

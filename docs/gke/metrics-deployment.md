@@ -422,6 +422,7 @@ See [kubelet](https://cloud.google.com/stackdriver/docs/managed-prometheus/setup
 
 - rpc_client_request_rate_per_second
 - rpc_client_request_error_rate_per_second
+- rpc_server_response_rate_per_second
 
 ### Cloud Spanner Metrics Exported using OpenTelemetry Receiver
 
