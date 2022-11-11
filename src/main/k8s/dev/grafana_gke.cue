@@ -43,13 +43,13 @@ networkPolicies: {
 	"grafana": {
 		_app_label: "grafana-app"
 		_ingresses: {
-      "http": {
-        ports: [{
-          port:     3000
-          protocol: "TCP"
-        }]
-      }
-    }
+			"http": {
+				ports: [{
+					port:     3000
+					protocol: "TCP"
+				}]
+			}
+		}
 		_egresses: {
 			any: {}
 		}
