@@ -154,7 +154,7 @@ import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest
 import org.wfanet.measurement.internal.reporting.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInterval
 import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest
-import org.wfanet.measurement.reporting.v1alpha.Metric
+import org.wfanet.measurement.reporting.v1alpha.Metric.SetOperation
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.SetOperationKt
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.frequencyHistogramParams
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.impressionCountParams
@@ -169,6 +169,7 @@ import org.wfanet.measurement.reporting.v1alpha.ReportKt.ResultKt.HistogramTable
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.ResultKt.column
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.ResultKt.histogramTable
 import org.wfanet.measurement.reporting.v1alpha.ReportKt.ResultKt.scalarTable
+import org.wfanet.measurement.reporting.v1alpha.ReportKt.eventGroupUniverse
 import org.wfanet.measurement.reporting.v1alpha.copy
 import org.wfanet.measurement.reporting.v1alpha.createReportRequest
 import org.wfanet.measurement.reporting.v1alpha.getReportRequest
@@ -177,6 +178,8 @@ import org.wfanet.measurement.reporting.v1alpha.listReportsResponse
 import org.wfanet.measurement.reporting.v1alpha.metric
 import org.wfanet.measurement.reporting.v1alpha.periodicTimeInterval
 import org.wfanet.measurement.reporting.v1alpha.report
+import org.wfanet.measurement.reporting.v1alpha.timeInterval
+import org.wfanet.measurement.reporting.v1alpha.timeIntervals
 
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
@@ -538,20 +541,20 @@ private val INTERNAL_SET_OPERATION =
   }
 
 private val SET_OPERATION = setOperation {
-  type = Metric.SetOperation.Type.UNION
+  type = SetOperation.Type.UNION
   lhs = SetOperationKt.operand { reportingSet = REPORTING_SET_NAMES[0] }
   rhs = SetOperationKt.operand { reportingSet = REPORTING_SET_NAMES[1] }
 }
 private val DATA_PROVIDER_INDICES_IN_SET_OPERATION = listOf(0, 1)
 
 private val SET_OPERATION_WITH_INVALID_REPORTING_SET = setOperation {
-  type = Metric.SetOperation.Type.UNION
+  type = SetOperation.Type.UNION
   lhs = SetOperationKt.operand { reportingSet = INVALID_REPORTING_SET_NAME }
   rhs = SetOperationKt.operand { reportingSet = REPORTING_SET_NAMES[1] }
 }
 
 private val SET_OPERATION_WITH_INACCESSIBLE_REPORTING_SET = setOperation {
-  type = Metric.SetOperation.Type.UNION
+  type = SetOperation.Type.UNION
   lhs = SetOperationKt.operand { reportingSet = REPORTING_SET_NAME_FOR_MC_2 }
   rhs = SetOperationKt.operand { reportingSet = REPORTING_SET_NAMES[1] }
 }
@@ -1179,7 +1182,7 @@ private val EVENT_GROUP_UNIVERSE_ENTRIES =
   }
 
 private val EVENT_GROUP_UNIVERSE =
-  ReportKt.eventGroupUniverse { eventGroupEntries += EVENT_GROUP_UNIVERSE_ENTRIES }
+  eventGroupUniverse { eventGroupEntries += EVENT_GROUP_UNIVERSE_ENTRIES }
 
 // Public reports with running states
 // Reports of reach
@@ -1479,6 +1482,24 @@ class ReportsServiceTest {
   }
 
   @Test
+  fun `createReport succeeds when the internal createMeasurement throws ALREADY_EXISTS`() =
+    runBlocking {
+      whenever(internalMeasurementsMock.createMeasurement(any()))
+        .thenThrow(StatusRuntimeException(Status.ALREADY_EXISTS))
+
+      val request = createReportRequest {
+        parent = MEASUREMENT_CONSUMER_NAMES[0]
+        report = PENDING_REACH_REPORT.copy { clearState() }
+      }
+
+      val report =
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+            runBlocking { service.createReport(request) }
+          }
+      assertThat(report.state).isEqualTo(Report.State.RUNNING)
+    }
+
+  @Test
   fun `createReport throws UNAUTHENTICATED when no principal is found`() {
     val request = createReportRequest {
       parent = MEASUREMENT_CONSUMER_NAMES[0]
@@ -1610,6 +1631,50 @@ class ReportsServiceTest {
   }
 
   @Test
+  fun `createReport throws INVALID_ARGUMENT when eventGroupUniverse entries list is empty`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearState()
+          eventGroupUniverse = eventGroupUniverse {
+            eventGroupEntries.clear()
+          }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when eventGroupUniverse entry is missing key`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearState()
+          eventGroupUniverse = eventGroupUniverse {
+            eventGroupEntries += EventGroupUniverseKt.eventGroupEntry { }
+          }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
   fun `createReport throws INVALID_ARGUMENT when setOperationName duplicate for same metricType`() {
     val request = createReportRequest {
       parent = MEASUREMENT_CONSUMER_NAMES[0]
@@ -1653,6 +1718,187 @@ class ReportsServiceTest {
   }
 
   @Test
+  fun `createReport throws INVALID_ARGUMENT when TimeIntervals timeIntervalsList is empty`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearState()
+          clearTime()
+          timeIntervals = timeIntervals {  }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when TimeInterval startTime is unspecified`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearState()
+          clearTime()
+          timeIntervals = timeIntervals {
+            timeIntervals += timeInterval {
+              endTime = timestamp { seconds = 5 }
+            }
+          }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when TimeInterval endTime is unspecified`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearState()
+          clearTime()
+          timeIntervals = timeIntervals {
+            timeIntervals += timeInterval {
+              startTime = timestamp { seconds = 5 }
+            }
+          }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when TimeInterval endTime is before startTime`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearState()
+          clearTime()
+          timeIntervals = timeIntervals {
+            timeIntervals += timeInterval {
+              startTime = timestamp {
+                seconds = 5
+                nanos = 5
+              }
+              endTime = timestamp {
+                seconds = 5
+                nanos = 1
+              }
+            }
+          }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when PeriodicTimeInterval startTime is unspecified`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearState()
+          clearTime()
+          periodicTimeInterval = periodicTimeInterval {
+            increment = duration { seconds = 5 }
+            intervalCount = 3
+          }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when PeriodicTimeInterval increment is unspecified`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearState()
+          clearTime()
+          periodicTimeInterval = periodicTimeInterval {
+            startTime = timestamp {
+              seconds = 5
+              nanos = 5
+            }
+            intervalCount = 3
+          }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when PeriodicTimeInterval intervalCount is 0`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearState()
+          clearTime()
+          periodicTimeInterval = periodicTimeInterval {
+            startTime = timestamp {
+              seconds = 5
+              nanos = 5
+            }
+            increment = duration { seconds = 5 }
+          }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
   fun `createReport throws INVALID_ARGUMENT when any metric type in Report is unspecified`() {
     val request = createReportRequest {
       parent = MEASUREMENT_CONSUMER_NAMES[0]
@@ -1673,6 +1919,117 @@ class ReportsServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description)
       .isEqualTo("The metric type in Report is not specified.")
+  }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when metrics list is empty`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearState()
+          metrics.clear()
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when namedSetOperation uniqueName is unspecified`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearState()
+          metrics.clear()
+          metrics += metric {
+            reach = reachParams {  }
+            setOperations += namedSetOperation {
+              setOperation = setOperation {
+                type = SetOperation.Type.UNION
+                lhs = SetOperationKt.operand {
+                  reportingSet = REPORTING_SET_NAMES[0]
+                }
+              }
+            }
+          }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when setOperation type is unspecified`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearState()
+          metrics.clear()
+          metrics += metric {
+            reach = reachParams {  }
+            setOperations += namedSetOperation {
+              uniqueName = "name"
+              setOperation = setOperation {
+                lhs = SetOperationKt.operand {
+                  reportingSet = REPORTING_SET_NAMES[0]
+                }
+              }
+            }
+          }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createReport throws INVALID_ARGUMENT when setOperation lhs is unspecified`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearState()
+          metrics.clear()
+          metrics += metric {
+            reach = reachParams {  }
+            setOperations += namedSetOperation {
+              uniqueName = "name"
+              setOperation = setOperation {
+                type = SetOperation.Type.UNION
+              }
+            }
+          }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
