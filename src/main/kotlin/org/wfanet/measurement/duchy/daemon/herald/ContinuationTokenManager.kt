@@ -24,8 +24,8 @@ interface ContinuationTokenStore {
 }
 
 class ContinuationTokenManager(
-    val duchyName: String,
-    private val continuationTokenStore: ContinuationTokenStore
+  val duchyName: String,
+  private val continuationTokenStore: ContinuationTokenStore
 ) {
   private data class TokenEntry(val token: String, var state: State) {
     enum class State {
@@ -36,7 +36,7 @@ class ContinuationTokenManager(
 
   // Items are in Pairs of (continuationToken: String, processed: Boolean).
   private val continuationTokenList: MutableList<TokenEntry> =
-      Collections.synchronizedList(mutableListOf())
+    Collections.synchronizedList(mutableListOf())
 
   // Note: Also clear the continuationTokenList for an incoming streaming.
   suspend fun getLatestContinuationToken(): String {
@@ -55,13 +55,13 @@ class ContinuationTokenManager(
 
     continuationTokenList[index].state = TokenEntry.State.PROCESSED
     val firstUnprocessedIndex =
-        continuationTokenList.indexOfFirst { it.state == TokenEntry.State.UNPROCESSED }
+      continuationTokenList.indexOfFirst { it.state == TokenEntry.State.UNPROCESSED }
     val lastProcessedIndex =
-        if (firstUnprocessedIndex == -1) {
-          continuationTokenList.lastIndex
-        } else {
-          firstUnprocessedIndex - 1
-        }
+      if (firstUnprocessedIndex == -1) {
+        continuationTokenList.lastIndex
+      } else {
+        firstUnprocessedIndex - 1
+      }
     if (lastProcessedIndex >= 0) {
       val lastProcessedToken = continuationTokenList[lastProcessedIndex].token
       continuationTokenStore.updateContinuationToken(lastProcessedToken)

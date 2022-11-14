@@ -35,7 +35,7 @@ class SpannerContinuationTokenStoreTest {
   @Before
   fun init() {
     continuationTokenStore =
-        SpannerContinuationTokenStore(spannerDatabase.databaseClient, DUCHY_NAME)
+      SpannerContinuationTokenStore(spannerDatabase.databaseClient, DUCHY_NAME)
   }
 
   @Test

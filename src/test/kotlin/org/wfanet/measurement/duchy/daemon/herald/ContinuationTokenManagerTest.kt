@@ -46,19 +46,19 @@ class ContinuationTokenManagerTest {
 
   @Test
   fun `getLatestContinuationToken returns the latest token when all computation processed`() =
-      runBlocking {
-        continuationTokenManager.getLatestContinuationToken()
-        val index1 = continuationTokenManager.addContinuationToken(CONTINUATION_TOKEN_1)
-        val index2 = continuationTokenManager.addContinuationToken(CONTINUATION_TOKEN_2)
-        continuationTokenManager.updateContinuationToken(index1)
-        val index3 = continuationTokenManager.addContinuationToken(CONTINUATION_TOKEN_3)
-        continuationTokenManager.updateContinuationToken(index2)
-        continuationTokenManager.updateContinuationToken(index3)
+    runBlocking {
+      continuationTokenManager.getLatestContinuationToken()
+      val index1 = continuationTokenManager.addContinuationToken(CONTINUATION_TOKEN_1)
+      val index2 = continuationTokenManager.addContinuationToken(CONTINUATION_TOKEN_2)
+      continuationTokenManager.updateContinuationToken(index1)
+      val index3 = continuationTokenManager.addContinuationToken(CONTINUATION_TOKEN_3)
+      continuationTokenManager.updateContinuationToken(index2)
+      continuationTokenManager.updateContinuationToken(index3)
 
-        val token = continuationTokenManager.getLatestContinuationToken()
+      val token = continuationTokenManager.getLatestContinuationToken()
 
-        assertThat(token).isEqualTo(CONTINUATION_TOKEN_3)
-      }
+      assertThat(token).isEqualTo(CONTINUATION_TOKEN_3)
+    }
 
   @Test
   fun `getLatestContinuationToken returns processed token`() = runBlocking {

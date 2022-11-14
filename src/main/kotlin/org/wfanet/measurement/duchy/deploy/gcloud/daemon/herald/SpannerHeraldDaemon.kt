@@ -23,10 +23,11 @@ import org.wfanet.measurement.gcloud.spanner.usingSpanner
 import picocli.CommandLine
 
 @CommandLine.Command(
-    name = "SpannerHeraldDaemon",
-    description = ["Herald Daemon"],
-    mixinStandardHelpOptions = true,
-    showDefaultValues = true)
+  name = "SpannerHeraldDaemon",
+  description = ["Herald Daemon"],
+  mixinStandardHelpOptions = true,
+  showDefaultValues = true
+)
 class SpannerHeraldDaemon : HeraldDaemon() {
   @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
 
@@ -34,7 +35,7 @@ class SpannerHeraldDaemon : HeraldDaemon() {
     spannerFlags.usingSpanner { spanner ->
       val databaseClient = spanner.databaseClient
       val continuationTokenStore =
-          SpannerContinuationTokenStore(databaseClient, flags.duchy.duchyName)
+        SpannerContinuationTokenStore(databaseClient, flags.duchy.duchyName)
       run(continuationTokenStore)
     }
   }

@@ -43,6 +43,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
+import org.wfanet.measurement.duchy.daemon.herald.testing.InMemoryContinuationTokenStore
 import org.wfanet.measurement.duchy.daemon.testing.TestRequisition
 import org.wfanet.measurement.duchy.daemon.utils.key
 import org.wfanet.measurement.duchy.daemon.utils.toDuchyEncryptionPublicKey
@@ -52,7 +53,6 @@ import org.wfanet.measurement.duchy.service.internal.computations.newEmptyOutput
 import org.wfanet.measurement.duchy.service.internal.computations.newInputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computations.newPassThroughBlobMetadata
 import org.wfanet.measurement.duchy.toProtocolStage
-import org.wfanet.measurement.duchy.daemon.herald.testing.InMemoryContinuationTokenStore
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase as DuchyComputationsCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub as DuchyComputationsCoroutineStub
@@ -651,7 +651,8 @@ class HeraldTest {
 
     heraldWithOneRetry.syncStatuses()
 
-    assertThat(continuationTokenStore.latestContinuationToken).isEqualTo("token_for_$COMPUTATION_GLOBAL_ID")
+    assertThat(continuationTokenStore.latestContinuationToken)
+      .isEqualTo("token_for_$COMPUTATION_GLOBAL_ID")
     verifyProtoArgument(
         systemComputationParticipants,
         SystemComputationParticipantsCoroutineImplBase::failComputationParticipant

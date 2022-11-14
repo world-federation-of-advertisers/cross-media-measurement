@@ -24,12 +24,12 @@ import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.SqlBasedQu
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 
 class SpannerContinuationTokenStore(
-    val databaseClient: AsyncDatabaseClient,
-    val duchyName: String
+  val databaseClient: AsyncDatabaseClient,
+  val duchyName: String
 ) : SqlBasedQuery<ContinuationTokenReaderResult>, ContinuationTokenStore {
   companion object {
     private const val parameterizedQueryString =
-        """
+      """
       SELECT DuchyName, ContinuationToken
       FROM HeraldContinuationTokens
       WHERE DuchyName = @duchyName
@@ -37,12 +37,13 @@ class SpannerContinuationTokenStore(
     """
   }
   override val sql: Statement =
-      Statement.newBuilder(parameterizedQueryString).bind("duchyName").to(duchyName).build()
+    Statement.newBuilder(parameterizedQueryString).bind("duchyName").to(duchyName).build()
 
   override fun asResult(struct: Struct): ContinuationTokenReaderResult =
-      ContinuationTokenReaderResult(
-          duchyName = struct.getString("DuchyName"),
-          continuationToken = struct.getString("ContinuationToken"))
+    ContinuationTokenReaderResult(
+      duchyName = struct.getString("DuchyName"),
+      continuationToken = struct.getString("ContinuationToken")
+    )
 
   override suspend fun readContinuationToken(): String {
     return execute(databaseClient).singleOrNull()?.continuationToken ?: ""
