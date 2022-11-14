@@ -38,7 +38,8 @@ message TimeInterval {
 // A list of time intervals with different start times and end times.
 message TimeIntervals {
   // A list of time intervals.
-  repeated TimeInterval time_intervals = 1;
+  repeated TimeInterval time_intervals = 1
+      [(google.api.field_behavior) = REQUIRED];
 }
 
 // A series of time intervals with the same length.
@@ -56,5 +57,6 @@ message PeriodicTimeInterval {
       [(google.api.field_behavior) = REQUIRED];
 
   // Number of intervals.
-  int32 interval_count = 3;
+  int32 interval_count = 3
+      [(google.api.field_behavior) = REQUIRED];
 }
