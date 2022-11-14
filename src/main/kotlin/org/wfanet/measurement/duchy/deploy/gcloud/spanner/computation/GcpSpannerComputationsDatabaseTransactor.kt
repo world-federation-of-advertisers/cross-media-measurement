@@ -266,7 +266,8 @@ class GcpSpannerComputationsDatabaseTransactor<
         """
         Cannot transition computation for $token to stage $nextStage, all outputs have not been written.
         Outputs not written for blob ids (${unwrittenOutputs.keys})
-        """.trimIndent()
+        """
+          .trimIndent()
       }
       val writeTime = clock.gcloudTimestamp()
 
@@ -693,7 +694,8 @@ class GcpSpannerComputationsDatabaseTransactor<
             Token's editVersion: $tokenTimeMillis ($tokenTime)
             Computations table's UpdateTime: $updateTimeMillis ($updateTime)
             Difference: ${Duration.between(tokenTime, updateTime)}
-          """.trimIndent()
+          """
+            .trimIndent()
         )
       }
     }

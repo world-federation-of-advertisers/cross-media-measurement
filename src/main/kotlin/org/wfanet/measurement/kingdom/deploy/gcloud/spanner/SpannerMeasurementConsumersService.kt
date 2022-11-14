@@ -48,7 +48,9 @@ class SpannerMeasurementConsumersService(
       measurementConsumer.details.apiVersion.isNotEmpty() &&
         !measurementConsumer.details.publicKey.isEmpty &&
         !measurementConsumer.details.publicKeySignature.isEmpty
-    ) { "Details field of MeasurementConsumer is missing fields." }
+    ) {
+      "Details field of MeasurementConsumer is missing fields."
+    }
     try {
       return CreateMeasurementConsumer(
           measurementConsumer,

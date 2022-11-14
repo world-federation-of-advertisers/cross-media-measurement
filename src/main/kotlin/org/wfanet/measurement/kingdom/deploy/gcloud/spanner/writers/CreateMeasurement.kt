@@ -278,7 +278,8 @@ class CreateMeasurement(private val measurement: Measurement) :
       """
       WHERE MeasurementConsumerId = @${params.MEASUREMENT_CONSUMER_ID}
         AND ProvidedMeasurementId = @${params.PROVIDED_MEASUREMENT_ID}
-      """.trimIndent()
+      """
+        .trimIndent()
 
     return MeasurementReader(Measurement.View.DEFAULT)
       .fillStatementBuilder {

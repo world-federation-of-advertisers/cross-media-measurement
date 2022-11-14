@@ -101,11 +101,15 @@ class PublicKeysService(private val internalPublicKeysStub: PublicKeysCoroutineS
         (publicKeyKey is DataProviderPublicKeyKey &&
           certificateKey is DataProviderCertificateKey &&
           publicKeyKey.dataProviderId == certificateKey.dataProviderId)
-    ) { "Resource name does not have same parent as Certificate name" }
+    ) {
+      "Resource name does not have same parent as Certificate name"
+    }
 
     grpcRequire(
       !request.publicKey.publicKey.data.isEmpty && !request.publicKey.publicKey.signature.isEmpty
-    ) { "EncryptionPublicKey is unspecified" }
+    ) {
+      "EncryptionPublicKey is unspecified"
+    }
 
     val updateRequest = updatePublicKeyRequest {
       when (certificateKey) {

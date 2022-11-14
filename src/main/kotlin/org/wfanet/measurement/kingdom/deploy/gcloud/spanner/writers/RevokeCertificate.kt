@@ -76,7 +76,9 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
             ?: throw DataProviderCertificateNotFoundException(
               externalDataProviderId,
               externalCertificateId
-            ) { "Certificate not found." }
+            ) {
+              "Certificate not found."
+            }
         }
         RevokeCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> {
           val externalMeasurementConsumerId = ExternalId(request.externalMeasurementConsumerId)
@@ -87,7 +89,9 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
             ?: throw MeasurementConsumerCertificateNotFoundException(
               externalMeasurementConsumerId,
               externalCertificateId
-            ) { "Certificate not found." }
+            ) {
+              "Certificate not found."
+            }
         }
         RevokeCertificateRequest.ParentCase.EXTERNAL_MODEL_PROVIDER_ID -> {
           val externalModelProviderId = ExternalId(request.externalModelProviderId)
@@ -98,7 +102,9 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
             ?: throw ModelProviderCertificateNotFoundException(
               externalModelProviderId,
               externalCertificateId
-            ) { "Certificate not found." }
+            ) {
+              "Certificate not found."
+            }
         }
         RevokeCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> {
           val duchyId =
@@ -113,7 +119,9 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
             ?: throw DuchyCertificateNotFoundException(
               request.externalDuchyId,
               externalCertificateId
-            ) { "Certificate not found." }
+            ) {
+              "Certificate not found."
+            }
         }
         RevokeCertificateRequest.ParentCase.PARENT_NOT_SET ->
           throw IllegalStateException("RevokeCertificateRequest is missing parent field.")

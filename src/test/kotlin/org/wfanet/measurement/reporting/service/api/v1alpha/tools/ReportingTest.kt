@@ -301,7 +301,8 @@ class ReportingTest {
         }
       }
     }
-    """.trimIndent()
+    """
+        .trimIndent()
     val args =
       arrayOf(
         "--tls-cert-file=$SECRETS_DIR/mc_tls.pem",
@@ -377,7 +378,8 @@ class ReportingTest {
         }
       }
     }
-    """.trimIndent()
+    """
+        .trimIndent()
 
     val args =
       arrayOf(
