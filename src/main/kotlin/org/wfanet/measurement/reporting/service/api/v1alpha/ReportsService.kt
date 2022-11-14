@@ -99,9 +99,9 @@ import org.wfanet.measurement.internal.reporting.Metric.NamedSetOperation as Int
 import org.wfanet.measurement.internal.reporting.Metric.SetOperation as InternalSetOperation
 import org.wfanet.measurement.internal.reporting.Metric.SetOperation.Operand as InternalOperand
 import org.wfanet.measurement.internal.reporting.Metric.WatchDurationParams as InternalWatchDurationParams
+import org.wfanet.measurement.internal.reporting.MetricKt as InternalMetricKt
 import org.wfanet.measurement.internal.reporting.MetricKt.MeasurementCalculationKt
 import org.wfanet.measurement.internal.reporting.MetricKt.SetOperationKt as InternalSetOperationKt
-import org.wfanet.measurement.internal.reporting.MetricKt as InternalMetricKt
 import org.wfanet.measurement.internal.reporting.PeriodicTimeInterval as InternalPeriodicTimeInterval
 import org.wfanet.measurement.internal.reporting.Report as InternalReport
 import org.wfanet.measurement.internal.reporting.ReportKt as InternalReportKt
@@ -212,17 +212,18 @@ private const val WATCH_DURATION_EPSILON = 0.001
 
 private const val DIFFERENTIAL_PRIVACY_DELTA = 1e-12
 
-private val REACH_ONLY_MEASUREMENT_SPEC = MeasurementSpecKt.reachAndFrequency {
-  reachPrivacyParams = differentialPrivacyParams {
-    epsilon = REACH_ONLY_REACH_EPSILON
-    delta = DIFFERENTIAL_PRIVACY_DELTA
+private val REACH_ONLY_MEASUREMENT_SPEC =
+  MeasurementSpecKt.reachAndFrequency {
+    reachPrivacyParams = differentialPrivacyParams {
+      epsilon = REACH_ONLY_REACH_EPSILON
+      delta = DIFFERENTIAL_PRIVACY_DELTA
+    }
+    frequencyPrivacyParams = differentialPrivacyParams {
+      epsilon = REACH_ONLY_FREQUENCY_EPSILON
+      delta = DIFFERENTIAL_PRIVACY_DELTA
+    }
+    maximumFrequencyPerUser = REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER
   }
-  frequencyPrivacyParams = differentialPrivacyParams {
-    epsilon = REACH_ONLY_FREQUENCY_EPSILON
-    delta = DIFFERENTIAL_PRIVACY_DELTA
-  }
-  maximumFrequencyPerUser = REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER
-}
 
 class ReportsService(
   private val internalReportsStub: InternalReportsCoroutineStub,
@@ -296,11 +297,19 @@ class ReportsService(
     request.report.metricsList.forEach {
       grpcRequire(it.setOperationsList.isNotEmpty()) { "Metric setOperationsList cannot be empty." }
       it.setOperationsList.forEach { namedSetOperation ->
-        grpcRequire(namedSetOperation.uniqueName.isNotBlank()) { "NamedSetOperation uniqueName is unspecified." }
-        grpcRequire(!namedSetOperation.setOperation.lhs.operandCase.equals(Operand.OperandCase.OPERAND_NOT_SET)) {
+        grpcRequire(namedSetOperation.uniqueName.isNotBlank()) {
+          "NamedSetOperation uniqueName is unspecified."
+        }
+        grpcRequire(
+          !namedSetOperation.setOperation.lhs.operandCase.equals(
+            Operand.OperandCase.OPERAND_NOT_SET
+          )
+        ) {
           "NamedSetOperation SetOperation Operand is unspecified."
         }
-        grpcRequire(!namedSetOperation.setOperation.type.equals(SetOperation.Type.TYPE_UNSPECIFIED)) {
+        grpcRequire(
+          !namedSetOperation.setOperation.type.equals(SetOperation.Type.TYPE_UNSPECIFIED)
+        ) {
           "NamedSetOperation SetOperation Type is unspecified."
         }
       }
@@ -408,7 +417,9 @@ class ReportsService(
 
     val eventGroupFilters =
       request.report.eventGroupUniverse.eventGroupEntriesList.associate {
-        grpcRequireNotNull(EventGroupKey.fromName(it.key)) { "EventGroupEntry key is not specified or invalid." }
+        grpcRequireNotNull(EventGroupKey.fromName(it.key)) {
+          "EventGroupEntry key is not specified or invalid."
+        }
         it.key to it.value
       }
 
@@ -964,9 +975,8 @@ class ReportsService(
         }
       }
 
-      details = InternalReportKt.details {
-        this.eventGroupFilters.putAll(reportInfo.eventGroupFilters)
-      }
+      details =
+        InternalReportKt.details { this.eventGroupFilters.putAll(reportInfo.eventGroupFilters) }
 
       this.reportIdempotencyKey = reportInfo.reportIdempotencyKey
     }
@@ -1066,10 +1076,11 @@ class ReportsService(
             .reportingSetId
 
         InternalSetOperationKt.operand {
-          this.reportingSetId = InternalSetOperationKt.reportingSetKey {
-            this.measurementConsumerReferenceId = measurementConsumerReferenceId
-            externalReportingSetId = apiIdToExternalId(reportingSetId)
-          }
+          this.reportingSetId =
+            InternalSetOperationKt.reportingSetKey {
+              this.measurementConsumerReferenceId = measurementConsumerReferenceId
+              externalReportingSetId = apiIdToExternalId(reportingSetId)
+            }
         }
       }
       Operand.OperandCase.OPERAND_NOT_SET -> InternalSetOperationKt.operand {}
@@ -1087,10 +1098,11 @@ class ReportsService(
       InternalMetricKt.measurementCalculation {
         this.timeInterval = weightedMeasurementInfo.timeInterval.toInternal()
 
-        weightedMeasurements += MeasurementCalculationKt.weightedMeasurement {
-          this.measurementReferenceId = weightedMeasurementInfo.kingdomMeasurementId!!
-          coefficient = weightedMeasurementInfo.weightedMeasurement.coefficient
-        }
+        weightedMeasurements +=
+          MeasurementCalculationKt.weightedMeasurement {
+            this.measurementReferenceId = weightedMeasurementInfo.kingdomMeasurementId!!
+            coefficient = weightedMeasurementInfo.weightedMeasurement.coefficient
+          }
       }
     }
   }
@@ -1201,18 +1213,19 @@ class ReportsService(
         ) +=
           RequisitionSpecKt.eventGroupEntry {
             key = eventGroupName
-            value = RequisitionSpecKt.EventGroupEntryKt.value {
-              collectionInterval = timeInterval
+            value =
+              RequisitionSpecKt.EventGroupEntryKt.value {
+                collectionInterval = timeInterval
 
-              val filter =
-                combineEventGroupFilters(
-                  internalReportingSet.filter,
-                  eventGroupFilters[eventGroupName]
-                )
-              if (filter != null) {
-                this.filter = RequisitionSpecKt.eventFilter { expression = filter }
+                val filter =
+                  combineEventGroupFilters(
+                    internalReportingSet.filter,
+                    eventGroupFilters[eventGroupName]
+                  )
+                if (filter != null) {
+                  this.filter = RequisitionSpecKt.eventFilter { expression = filter }
+                }
               }
-            }
           }
       }
     }
@@ -1246,16 +1259,17 @@ class ReportsService(
           }
 
         key = dataProvider.name
-        value = DataProviderEntryKt.value {
-          dataProviderCertificate = dataProvider.certificate
-          dataProviderPublicKey = dataProvider.publicKey
-          encryptedRequisitionSpec =
-            encryptRequisitionSpec(
-              signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
-              EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
-            )
-          nonceHash = hashSha256(requisitionSpec.nonce)
-        }
+        value =
+          DataProviderEntryKt.value {
+            dataProviderCertificate = dataProvider.certificate
+            dataProviderPublicKey = dataProvider.publicKey
+            encryptedRequisitionSpec =
+              encryptRequisitionSpec(
+                signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
+                EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
+              )
+            nonceHash = hashSha256(requisitionSpec.nonce)
+          }
       }
     }
   }
@@ -1370,17 +1384,25 @@ private fun Report.timeIntervalsList(): List<TimeInterval> {
         grpcRequire(it.endTime.seconds > 0 || it.endTime.nanos > 0) {
           "TimeInterval endTime is unspecified."
         }
-        grpcRequire(it.endTime.seconds > it.startTime.seconds || it.endTime.nanos > it.startTime.nanos) {
+        grpcRequire(
+          it.endTime.seconds > it.startTime.seconds || it.endTime.nanos > it.startTime.nanos
+        ) {
           "TimeInterval endTime is not later than startTime."
         }
       }
       source.timeIntervals.timeIntervalsList.map { it }
     }
     Report.TimeCase.PERIODIC_TIME_INTERVAL -> {
-      grpcRequire(source.periodicTimeInterval.startTime.seconds > 0 || source.periodicTimeInterval.startTime.nanos > 0) {
+      grpcRequire(
+        source.periodicTimeInterval.startTime.seconds > 0 ||
+          source.periodicTimeInterval.startTime.nanos > 0
+      ) {
         "PeriodicTimeInterval startTime is unspecified."
       }
-      grpcRequire(source.periodicTimeInterval.increment.seconds > 0 || source.periodicTimeInterval.increment.nanos > 0) {
+      grpcRequire(
+        source.periodicTimeInterval.increment.seconds > 0 ||
+          source.periodicTimeInterval.increment.nanos > 0
+      ) {
         "PeriodicTimeInterval increment is unspecified."
       }
       grpcRequire(source.periodicTimeInterval.intervalCount > 0) {
@@ -1588,7 +1610,9 @@ private fun WatchDurationParams.toInternal(): InternalWatchDurationParams {
 /** Converts a [ImpressionCountParams] to an [InternalImpressionCountParams]. */
 private fun ImpressionCountParams.toInternal(): InternalImpressionCountParams {
   val source = this
-  return InternalMetricKt.impressionCountParams { maximumFrequencyPerUser = source.maximumFrequencyPerUser }
+  return InternalMetricKt.impressionCountParams {
+    maximumFrequencyPerUser = source.maximumFrequencyPerUser
+  }
 }
 
 /** Converts a [FrequencyHistogramParams] to an [InternalFrequencyHistogramParams]. */
@@ -1725,15 +1749,17 @@ private fun aggregateResults(
       this.reach = InternalMeasurementKt.ResultKt.reach { value = reachValue }
     }
     if (internalResultsList.first().hasFrequency()) {
-      this.frequency = InternalMeasurementKt.ResultKt.frequency {
-        relativeFrequencyDistribution.putAll(frequencyDistribution)
-      }
+      this.frequency =
+        InternalMeasurementKt.ResultKt.frequency {
+          relativeFrequencyDistribution.putAll(frequencyDistribution)
+        }
     }
     if (internalResultsList.first().hasImpression()) {
       this.impression = InternalMeasurementKt.ResultKt.impression { value = impressionValue }
     }
     if (internalResultsList.first().hasWatchDuration()) {
-      this.watchDuration = InternalMeasurementKt.ResultKt.watchDuration { value = watchDurationValue }
+      this.watchDuration =
+        InternalMeasurementKt.ResultKt.watchDuration { value = watchDurationValue }
     }
   }
 }
@@ -1747,15 +1773,18 @@ private fun Measurement.Result.toInternal(): InternalMeasurementResult {
       this.reach = InternalMeasurementKt.ResultKt.reach { value = source.reach.value }
     }
     if (source.hasFrequency()) {
-      this.frequency = InternalMeasurementKt.ResultKt.frequency {
-        relativeFrequencyDistribution.putAll(source.frequency.relativeFrequencyDistributionMap)
-      }
+      this.frequency =
+        InternalMeasurementKt.ResultKt.frequency {
+          relativeFrequencyDistribution.putAll(source.frequency.relativeFrequencyDistributionMap)
+        }
     }
     if (source.hasImpression()) {
-      this.impression = InternalMeasurementKt.ResultKt.impression { value = source.impression.value }
+      this.impression =
+        InternalMeasurementKt.ResultKt.impression { value = source.impression.value }
     }
     if (source.hasWatchDuration()) {
-      this.watchDuration = InternalMeasurementKt.ResultKt.watchDuration { value = source.watchDuration.value }
+      this.watchDuration =
+        InternalMeasurementKt.ResultKt.watchDuration { value = source.watchDuration.value }
     }
   }
 }

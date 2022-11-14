@@ -1181,8 +1181,9 @@ private val EVENT_GROUP_UNIVERSE_ENTRIES =
     }
   }
 
-private val EVENT_GROUP_UNIVERSE =
-  eventGroupUniverse { eventGroupEntries += EVENT_GROUP_UNIVERSE_ENTRIES }
+private val EVENT_GROUP_UNIVERSE = eventGroupUniverse {
+  eventGroupEntries += EVENT_GROUP_UNIVERSE_ENTRIES
+}
 
 // Public reports with running states
 // Reports of reach
@@ -1493,9 +1494,9 @@ class ReportsServiceTest {
       }
 
       val report =
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
-            runBlocking { service.createReport(request) }
-          }
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
       assertThat(report.state).isEqualTo(Report.State.RUNNING)
     }
 
@@ -1637,9 +1638,7 @@ class ReportsServiceTest {
       report =
         PENDING_REACH_REPORT.copy {
           clearState()
-          eventGroupUniverse = eventGroupUniverse {
-            eventGroupEntries.clear()
-          }
+          eventGroupUniverse = eventGroupUniverse { eventGroupEntries.clear() }
         }
     }
 
@@ -1660,7 +1659,7 @@ class ReportsServiceTest {
         PENDING_REACH_REPORT.copy {
           clearState()
           eventGroupUniverse = eventGroupUniverse {
-            eventGroupEntries += EventGroupUniverseKt.eventGroupEntry { }
+            eventGroupEntries += EventGroupUniverseKt.eventGroupEntry {}
           }
         }
     }
@@ -1725,7 +1724,7 @@ class ReportsServiceTest {
         PENDING_REACH_REPORT.copy {
           clearState()
           clearTime()
-          timeIntervals = timeIntervals {  }
+          timeIntervals = timeIntervals {}
         }
     }
 
@@ -1747,9 +1746,7 @@ class ReportsServiceTest {
           clearState()
           clearTime()
           timeIntervals = timeIntervals {
-            timeIntervals += timeInterval {
-              endTime = timestamp { seconds = 5 }
-            }
+            timeIntervals += timeInterval { endTime = timestamp { seconds = 5 } }
           }
         }
     }
@@ -1772,9 +1769,7 @@ class ReportsServiceTest {
           clearState()
           clearTime()
           timeIntervals = timeIntervals {
-            timeIntervals += timeInterval {
-              startTime = timestamp { seconds = 5 }
-            }
+            timeIntervals += timeInterval { startTime = timestamp { seconds = 5 } }
           }
         }
     }
@@ -1950,13 +1945,11 @@ class ReportsServiceTest {
           clearState()
           metrics.clear()
           metrics += metric {
-            reach = reachParams {  }
+            reach = reachParams {}
             setOperations += namedSetOperation {
               setOperation = setOperation {
                 type = SetOperation.Type.UNION
-                lhs = SetOperationKt.operand {
-                  reportingSet = REPORTING_SET_NAMES[0]
-                }
+                lhs = SetOperationKt.operand { reportingSet = REPORTING_SET_NAMES[0] }
               }
             }
           }
@@ -1981,13 +1974,11 @@ class ReportsServiceTest {
           clearState()
           metrics.clear()
           metrics += metric {
-            reach = reachParams {  }
+            reach = reachParams {}
             setOperations += namedSetOperation {
               uniqueName = "name"
               setOperation = setOperation {
-                lhs = SetOperationKt.operand {
-                  reportingSet = REPORTING_SET_NAMES[0]
-                }
+                lhs = SetOperationKt.operand { reportingSet = REPORTING_SET_NAMES[0] }
               }
             }
           }
@@ -2012,12 +2003,10 @@ class ReportsServiceTest {
           clearState()
           metrics.clear()
           metrics += metric {
-            reach = reachParams {  }
+            reach = reachParams {}
             setOperations += namedSetOperation {
               uniqueName = "name"
-              setOperation = setOperation {
-                type = SetOperation.Type.UNION
-              }
+              setOperation = setOperation { type = SetOperation.Type.UNION }
             }
           }
         }
