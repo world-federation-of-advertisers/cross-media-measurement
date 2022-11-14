@@ -1,0 +1,49 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+load("@rules_java//java:defs.bzl", "java_test")
+
+package(default_testonly = True)
+
+kt_jvm_library(
+    name = "correctness_test",
+    srcs = ["CorrectnessTest.kt"],
+    data = [
+        "//src/main/k8s/local/testing:duchies_and_edps_config",
+        "//src/main/k8s/local/testing:emulators_config",
+        "//src/main/k8s/local/testing:kingdom_config",
+        "//src/main/k8s/testing/secretfiles:secret_files",
+    ],
+    deps = [
+        "//imports/java/io/kubernetes/client",
+        "//imports/java/io/kubernetes/client/extended",
+        "//imports/java/okhttp3",
+        "//src/main/kotlin/org/wfanet/measurement/common/k8s",
+        "//src/main/kotlin/org/wfanet/measurement/common/k8s/testing:kind_cluster",
+        "//src/main/kotlin/org/wfanet/measurement/common/k8s/testing:port_forwarder",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:event_filters",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/frontend:frontend_simulator",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:resource_setup",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/jetbrains/annotations",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:jdk8",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/forwarded",
+    ],
+)
+
+java_test(
+    name = "CorrectnessTest",
+    size = "enormous",
+    timeout = "long",
+    data = [
+        "//src/main/k8s/local/testing:cmms_image_archives",
+    ],
+    env_inherit = ["DOCKER_HOST"],
+    tags = [
+        "cpu:8",
+        "manual",
+    ],
+    test_class = "org.wfanet.measurement.integration.k8s.CorrectnessTest",
+    runtime_deps = [":correctness_test"],
+)
