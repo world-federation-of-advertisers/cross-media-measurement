@@ -29,8 +29,10 @@ _secret_name: string @tag("secret_name")
 #SystemServerGrpcThreads: 5
 
 #InternalServerResourceRequirements: #ResourceRequirements & {
-	requests: cpu:  "500m"
-	limits: memory: "512Mi"
+	requests: {
+		cpu:    "500m"
+		memory: "320Mi"
+	}
 }
 
 objectSets: [
@@ -70,7 +72,6 @@ kingdom: #Kingdom & {
 	deployments: {
 		"gcp-kingdom-data-server": {
 			_container: {
-				_javaOptions: maxRamPercentage: 40.0
 				_grpcThreadPoolSize: #InternalServerGrpcThreads
 				resources:           #InternalServerResourceRequirements
 			}

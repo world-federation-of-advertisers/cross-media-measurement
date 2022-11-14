@@ -350,8 +350,9 @@ For example,
 # SpannerInstance:   "halo-kingdom-demo-instance"
 ```
 
-You can also modify things such as the memory and CPU request/limit of each pod,
-as well as the number of replicas per deployment.
+You can also modify things such as the number of replicas per deployment, the
+memory and CPU requirements of each container, and the JVM options of each
+container.
 
 To generate the YAML manifest from the CUE files, run the following
 (substituting your own secret name and image tag):
