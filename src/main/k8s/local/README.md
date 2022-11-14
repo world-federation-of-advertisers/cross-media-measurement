@@ -28,21 +28,6 @@ environment. See [Building](../../../../docs/building.md).
 kubectl apply -f src/main/k8s/testing/secretfiles/resource_requirements.yaml
 ```
 
-### Create Secret
-
-```shell
-bazel run //src/main/k8s/testing/secretfiles:apply_kustomization
-```
-
-The secret name will be printed on creation, but it can also be obtained later
-by running
-
-```shell
-kubectl get secrets
-```
-
-You will need to substitute the correct secret name in later commands.
-
 ### Create Empty `config-files` ConfigMap
 
 The `config-files` ConfigMap contains configuration files that depend on API
@@ -63,8 +48,7 @@ The local test environment uses emulators for Google Cloud infrastructure. This
 includes an in-memory Spanner emulator as well as ephemeral blob storage.
 
 ```shell
-bazel run //src/main/k8s/local:emulators_kind \
-  --define=k8s_secret_name=certs-and-configs-k8888kc6gg
+bazel run //src/main/k8s/local:emulators_kind
 ```
 
 ## Metrics Setup
@@ -157,10 +141,8 @@ depend on resource configuration. Therefore, we have to deploy the Kingdom for
 resource setup and then update configurations and restart some Kingdom services.
 
 ```shell
-bazel run //src/main/k8s/local:kingdom_kind \
-  --define=k8s_secret_name=certs-and-configs-k8888kc6gg
-bazel run //src/main/k8s/local:resource_setup_kind \
-  --define=k8s_secret_name=certs-and-configs-k8888kc6gg
+bazel run //src/main/k8s/local:kingdom_kind
+bazel run //src/main/k8s/local:resource_setup_kind
 ```
 
 By default, the resource setup job writes all outputs to STDOUT. When the job
@@ -213,7 +195,6 @@ secret name and Certificate resource names in the command below.
 
 ```shell
 bazel run //src/main/k8s/local:duchies_kind \
-  --define=k8s_secret_name=certs-and-configs-k8888kc6gg \
   --define=aggregator_cert_name=duchies/aggregator/certificates/f3yI3aoXukM \
   --define=worker1_cert_name=duchies/worker1/certificates/QtffTVXoRno \
   --define=worker2_cert_name=duchies/worker2/certificates/eIYIf6oXuSM
@@ -228,7 +209,6 @@ below. These should match the resource names specified in
 
 ```shell
 bazel run //src/main/k8s/local:edp_simulators_kind \
-  --define=k8s_secret_name=certs-and-configs-k8888kc6gg \
   --define=mc_name=measurementConsumers/FS1n8aTrck0 \
   --define=edp1_name=dataProviders/OljiQHRz-E4 \
   --define=edp2_name=dataProviders/Fegw_3Rz-2Y \
@@ -262,7 +242,6 @@ the result.
 
 ```shell
 bazel run //src/main/k8s/local:mc_frontend_simulator_kind \
-  --define=k8s_secret_name=certs-and-configs-k8888kc6gg \
   --define=mc_name=measurementConsumers/FS1n8aTrck0 \
   --define=mc_api_key=He941S1h2XI
 ```
