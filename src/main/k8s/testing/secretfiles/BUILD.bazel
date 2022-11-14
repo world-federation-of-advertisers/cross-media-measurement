@@ -1,5 +1,5 @@
-load("@rules_pkg//pkg:pkg.bzl", "pkg_tar")
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
+load("//build/k8s:defs.bzl", "k8s_apply", "kustomization_dir")
 
 package(
     default_testonly = True,
@@ -158,18 +158,15 @@ write_file(
     ] + ["  - " + file for file in SECRET_FILES],
 )
 
-pkg_tar(
-    name = "pkg_kustomization",
+kustomization_dir(
+    name = "kustomization",
     srcs = [
         ":kustomization.yaml",
         ":secret_files",
     ],
-    out = "kustomization.tar",
 )
 
-sh_binary(
+k8s_apply(
     name = "apply_kustomization",
-    srcs = ["apply_kustomization.sh"],
-    data = [":kustomization.tar"],
-    deps = ["@bazel_tools//tools/bash/runfiles"],
+    srcs = [":kustomization"],
 )
