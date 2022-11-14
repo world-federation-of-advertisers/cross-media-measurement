@@ -261,6 +261,19 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	}
 }
 
+// K8s LabelSelectorRequirement.
+#LabelSelectorRequirement: {
+	key:      string
+	operator: "In" | "NotIn" | "Exists" | "DoesNotExist"
+	values?: [...string]
+}
+
+// K8s LabelSelector.
+#LabelSelector: {
+	matchExpressions?: [...#LabelSelectorRequirement]
+	matchLabels: [string]: string
+}
+
 // K8s ConfigMap.
 #ConfigMap: {
 	apiVersion: "v1"
@@ -435,7 +448,9 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	}
 	spec: {
 		replicas?: int32
-		selector: matchLabels: app: _name + "-app"
+		selector:  #LabelSelector & {
+			matchLabels: app: _name + "-app"
+		}
 		template: {
 			metadata: {
 				labels: {
@@ -443,7 +458,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 					scrape: string | *"true"
 				}
 				annotations: {
-					"sidecar.opentelemetry.io/inject":              string | *"default-sidecar"
+					"sidecar.opentelemetry.io/inject":              string | *"true"
 					"instrumentation.opentelemetry.io/inject-java": string | *"true"
 					"prometheus.io/port":                           string | *"\(#OpenTelemetryPrometheusExporterPort)"
 					"prometheus.io/scrape":                         string | *"true"
@@ -591,9 +606,11 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		}
 	}
 	spec: {
-		podSelector: matchLabels: {
-			if _app_label != _|_ {
-				app: _app_label
+		podSelector: #LabelSelector & {
+			matchLabels: {
+				if _app_label != _|_ {
+					app: _app_label
+				}
 			}
 		}
 		policyTypes: ["Ingress", "Egress"]
