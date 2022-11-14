@@ -205,7 +205,11 @@ class Herald(
       State.PENDING_COMPUTATION -> startComputing(computation)
       // Confirm failure at Kingdom
       State.FAILED,
-      State.CANCELLED -> failComputationAtDuchy(computation)
+      State.CANCELLED -> {
+        failComputationAtDuchy(computation)
+        clearIntermediateData(computation)
+      }
+      State.SUCCEEDED -> clearIntermediateData(computation)
       else -> logger.warning("Unexpected global computation state '$state'")
     }
   }
@@ -353,6 +357,10 @@ class Herald(
       logger.log(Level.WARNING, e) { "[id=$globalId]: Error when failComputationAtDuchy" }
     }
     // TODO(@renjiez): Clean intermediate data at Duchy
+  }
+
+  private class clearIntermediateData(computation: Computation) {
+    // TODO(@renjiez): Implementation
   }
 
   private class StreamingException(message: String, override val cause: StatusException) :

@@ -369,7 +369,8 @@ class ComputationsServiceTest {
             InternalMeasurement.State.PENDING_PARTICIPANT_CONFIRMATION,
             InternalMeasurement.State.PENDING_COMPUTATION,
             InternalMeasurement.State.FAILED,
-            InternalMeasurement.State.CANCELLED
+            InternalMeasurement.State.CANCELLED,
+            InternalMeasurement.State.SUCCEEDED
           )
         updatedAfter = timestamp { seconds = updatedAfterSeconds }
         externalComputationIdAfter = lastSeenExternalComputationId
