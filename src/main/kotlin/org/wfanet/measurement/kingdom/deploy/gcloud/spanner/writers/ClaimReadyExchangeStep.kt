@@ -141,7 +141,8 @@ class ClaimReadyExchangeStep(
       WHERE ExchangeStepAttempts.RecurringExchangeId = @recurring_exchange_id
         AND ExchangeStepAttempts.Date = @date
         AND ExchangeStepAttempts.StepIndex = @step_index
-      """.trimIndent()
+      """
+        .trimIndent()
 
     val statement: Statement =
       statement(sql) {

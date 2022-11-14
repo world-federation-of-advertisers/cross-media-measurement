@@ -36,7 +36,9 @@ class SpannerPublicKeysService(
   override suspend fun updatePublicKey(request: UpdatePublicKeyRequest): UpdatePublicKeyResponse {
     grpcRequire(
       request.externalDataProviderId != 0L || request.externalMeasurementConsumerId != 0L
-    ) { "Parent Id is specified" }
+    ) {
+      "Parent Id is specified"
+    }
 
     grpcRequire(request.externalCertificateId != 0L) { "Certificate Id unspecified" }
 

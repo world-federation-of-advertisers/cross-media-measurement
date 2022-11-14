@@ -40,7 +40,8 @@ import picocli.CommandLine
 
 private typealias ComputationsDb =
   ComputationsDatabaseTransactor<
-    ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails>
+    ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails
+  >
 
 /** gRPC server for Computations service. */
 abstract class ComputationsServer : Runnable {
@@ -52,7 +53,8 @@ abstract class ComputationsServer : Runnable {
     ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
   abstract val computationProtocolStageDetails:
     ComputationProtocolStageDetailsHelper<
-      ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails>
+      ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails
+    >
 
   protected fun run(
     computationsDatabaseReader: ComputationsDatabaseReader,
@@ -95,7 +97,8 @@ abstract class ComputationsServer : Runnable {
       ComputationsDatabaseReader by computationsDatabaseReader,
       ComputationsDb by computationDb,
       ComputationProtocolStagesEnumHelper<
-        ComputationType, ComputationStage> by protocolStageEnumHelper {}
+        ComputationType, ComputationStage
+      > by protocolStageEnumHelper {}
   }
 
   protected class Flags {

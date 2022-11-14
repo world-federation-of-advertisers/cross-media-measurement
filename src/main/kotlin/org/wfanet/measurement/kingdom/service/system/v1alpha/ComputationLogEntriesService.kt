@@ -57,7 +57,9 @@ class ComputationLogEntriesService(
               grpcRequire(
                 computationLogEntry.errorDetails.type ==
                   ComputationLogEntry.ErrorDetails.Type.TRANSIENT
-              ) { "Only transient error is support in the computationLogEntriesService." }
+              ) {
+                "Only transient error is support in the computationLogEntriesService."
+              }
               error = computationLogEntry.errorDetails.toInternalLogErrorDetails()
             }
           }
