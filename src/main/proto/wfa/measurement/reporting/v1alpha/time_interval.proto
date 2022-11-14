@@ -57,6 +57,5 @@ message PeriodicTimeInterval {
       [(google.api.field_behavior) = REQUIRED];
 
   // Number of intervals.
-  int32 interval_count = 3
-      [(google.api.field_behavior) = REQUIRED];
+  int32 interval_count = 3 [(google.api.field_behavior) = REQUIRED];
 }
