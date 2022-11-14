@@ -37,7 +37,8 @@ class ExchangeStepAttemptReader : SpannerReader<ExchangeStepAttemptReader.Result
     FROM ExchangeStepAttempts
     JOIN RecurringExchanges USING (RecurringExchangeId)
     JOIN ExchangeSteps USING (RecurringExchangeId, Date, StepIndex)
-    """.trimIndent()
+    """
+      .trimIndent()
 
   override suspend fun translate(struct: Struct): Result {
     return Result(
@@ -88,7 +89,8 @@ class ExchangeStepAttemptReader : SpannerReader<ExchangeStepAttemptReader.Result
           WHERE ExchangeSteps.State = @exchange_step_state
             AND ExchangeStepAttempts.State = @exchange_step_attempt_state
             AND ExchangeStepAttempts.ExpirationTime <= CURRENT_TIMESTAMP()
-          """.trimIndent()
+          """
+            .trimIndent()
         )
         bind("exchange_step_state").toProtoEnum(ExchangeStep.State.IN_PROGRESS)
         bind("exchange_step_attempt_state").toProtoEnum(ExchangeStepAttempt.State.ACTIVE)
@@ -101,7 +103,8 @@ class ExchangeStepAttemptReader : SpannerReader<ExchangeStepAttemptReader.Result
             |    FROM ModelProviders
             |    WHERE ExternalModelProviderId = @external_model_provider_id
             |  )
-            """.trimMargin()
+            """
+              .trimMargin()
           )
           bind("external_model_provider_id").to(externalModelProviderId.value)
         }
@@ -114,7 +117,8 @@ class ExchangeStepAttemptReader : SpannerReader<ExchangeStepAttemptReader.Result
             |    FROM DataProviders
             |    WHERE ExternalDataProviderId = @external_data_provider_id
             |  )
-            """.trimMargin()
+            """
+              .trimMargin()
           )
           bind("external_data_provider_id").to(externalDataProviderId.value)
         }

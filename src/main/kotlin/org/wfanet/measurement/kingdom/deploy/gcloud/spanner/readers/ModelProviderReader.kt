@@ -31,7 +31,8 @@ class ModelProviderReader : SpannerReader<ModelProviderReader.Result>() {
       ModelProviders.ModelProviderId,
       ModelProviders.ExternalModelProviderId,
     FROM ModelProviders
-    """.trimIndent()
+    """
+      .trimIndent()
 
   override suspend fun translate(struct: Struct): Result =
     Result(buildModelProvider(struct), struct.getLong("ModelProviderId"))

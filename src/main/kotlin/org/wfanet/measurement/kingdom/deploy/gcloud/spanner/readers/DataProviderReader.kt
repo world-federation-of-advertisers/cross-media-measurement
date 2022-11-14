@@ -45,7 +45,8 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
     FROM DataProviders
     JOIN DataProviderCertificates USING (DataProviderId)
     JOIN Certificates USING (CertificateId)
-    """.trimIndent()
+    """
+      .trimIndent()
 
   override suspend fun translate(struct: Struct): Result =
     Result(buildDataProvider(struct), struct.getLong("DataProviderId"))

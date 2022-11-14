@@ -70,7 +70,8 @@ class ComputationTokenProtoQuery(
       JOIN ComputationStages AS cs USING (ComputationId, ComputationStage)
       WHERE c.GlobalComputationId = @global_id
       GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9
-      """.trimIndent()
+      """
+        .trimIndent()
 
     private val parameterizedQueryUsingExternalRequisitionKeyString =
       """
@@ -104,7 +105,8 @@ class ComputationTokenProtoQuery(
       WHERE r.ExternalRequisitionId = @external_requisition_id
         AND r.RequisitionFingerprint = @requisition_fingerprint
       GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9
-      """.trimIndent()
+      """
+        .trimIndent()
   }
 
   override val sql: Statement =

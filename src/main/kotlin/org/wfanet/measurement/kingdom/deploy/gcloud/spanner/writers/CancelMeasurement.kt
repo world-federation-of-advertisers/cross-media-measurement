@@ -59,7 +59,9 @@ class CancelMeasurement(
           externalMeasurementConsumerId,
           externalMeasurementId,
           state
-        ) { "Unexpected Measurement state $state (${state.number})" }
+        ) {
+          "Unexpected Measurement state $state (${state.number})"
+        }
       }
     }
 
