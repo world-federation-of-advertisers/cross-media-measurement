@@ -47,7 +47,7 @@ ALTER TABLE PeriodicTimeIntervals
     REFERENCES Reports(MeasurementConsumerReferenceId, ReportId)
     ON DELETE CASCADE;
 
--- changeset tristanvuong2021:alter-netrics-table-foreign-key-reports dbms:postgresql
+-- changeset tristanvuong2021:alter-metrics-table-foreign-key-reports dbms:postgresql
 ALTER TABLE Metrics
   DROP CONSTRAINT metrics_measurementconsumerreferenceid_reportid_fkey,
   ADD CONSTRAINT metrics_measurementconsumerreferenceid_reportid_fkey
