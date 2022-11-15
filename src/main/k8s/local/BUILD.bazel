@@ -404,6 +404,7 @@ k8s_apply(
 
 k8s_apply(
     name = "reporting_database_kind",
+    testonly = True,
     srcs = [":postgres_database"],
     delete_selector = "app.kubernetes.io/component=postgres",
     tags = ["manual"],
@@ -428,6 +429,7 @@ kind_load_images(
 
 k8s_apply(
     name = "reporting_kind",
+    testonly = True,
     srcs = [":reporting_kustomization"],
     delete_selector = "app.kubernetes.io/component=reporting",
     imports = REPORTING_IMAGE_IMPORTS,
@@ -436,6 +438,7 @@ k8s_apply(
 
 k8s_apply(
     name = "prometheus_kind",
+    testonly = True,
     srcs = [":prometheus"],
     delete_selector = "app.kubernetes.io/component=prometheus",
     tags = ["manual"],
@@ -443,12 +446,14 @@ k8s_apply(
 
 k8s_apply(
     name = "open_telemetry_kind",
+    testonly = True,
     srcs = [":open_telemetry"],
     tags = ["manual"],
 )
 
 k8s_apply(
     name = "grafana_kind",
+    testonly = True,
     srcs = [":grafana"],
     tags = ["manual"],
 )
