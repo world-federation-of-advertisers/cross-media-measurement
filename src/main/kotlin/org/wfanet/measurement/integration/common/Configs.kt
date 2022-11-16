@@ -18,6 +18,7 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.Message
 import java.nio.file.Path
 import java.nio.file.Paths
+import org.jetbrains.annotations.Blocking
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
@@ -78,14 +79,17 @@ val EVENT_TEMPLATES_TO_FILTERS_MAP =
   )
 const val MC_DISPLAY_NAME = "mc"
 
+@Blocking
 fun <T : Message> loadTextProto(fileName: String, default: T): T {
   return parseTextProto(SECRET_FILES_PATH.resolve(fileName).toFile(), default)
 }
 
+@Blocking
 fun loadTestCertDerFile(fileName: String): ByteString {
   return SECRET_FILES_PATH.resolve(fileName).toFile().readByteString()
 }
 
+@Blocking
 fun loadSigningKey(certDerFileName: String, privateKeyDerFileName: String): SigningKeyHandle {
   return loadSigningKey(
     SECRET_FILES_PATH.resolve(certDerFileName).toFile(),
@@ -93,15 +97,18 @@ fun loadSigningKey(certDerFileName: String, privateKeyDerFileName: String): Sign
   )
 }
 
+@Blocking
 fun loadEncryptionPrivateKey(fileName: String): TinkPrivateKeyHandle {
   return loadPrivateKey(SECRET_FILES_PATH.resolve(fileName).toFile())
 }
 
+@Blocking
 fun loadEncryptionPublicKey(fileName: String): TinkPublicKeyHandle {
   return loadPublicKey(SECRET_FILES_PATH.resolve(fileName).toFile())
 }
 
 /** Builds a [EntityContent] for the entity with a certain [displayName]. */
+@Blocking
 fun createEntityContent(displayName: String) =
   EntityContent(
     displayName = displayName,

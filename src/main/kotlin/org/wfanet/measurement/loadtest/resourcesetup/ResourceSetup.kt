@@ -78,10 +78,6 @@ private const val MAX_RETRY_COUNT = 30L
 /** Amount of time in milliseconds between retries. */
 private const val SLEEP_INTERVAL_MILLIS = 10000L
 
-private const val RESOURCES_OUTPUT_FILE = "resources.textproto"
-private const val AKID_PRINCIPAL_MAP_FILE = "authority_key_identifier_to_principal_map.textproto"
-private const val BAZEL_RC_FILE = "resource-setup.bazelrc"
-
 /** A Job preparing resources required for the correctness test. */
 class ResourceSetup(
   private val internalAccountsClient: AccountsGrpcKt.AccountsCoroutineStub,
@@ -104,7 +100,7 @@ class ResourceSetup(
     dataProviderContents: List<EntityContent>,
     measurementConsumerContent: EntityContent,
     duchyCerts: List<DuchyCert>,
-  ) {
+  ): List<Resources.Resource> {
     logger.info("Starting with RunID: $runId ...")
     val resources = mutableListOf<Resources.Resource>()
 
@@ -169,6 +165,8 @@ class ResourceSetup(
 
     writeOutput(resources)
     logger.info("Resource setup was successful.")
+
+    return resources
   }
 
   private fun writeOutput(resources: Iterable<Resources.Resource>) {
@@ -388,6 +386,9 @@ class ResourceSetup(
 
   companion object {
     const val DEFAULT_BAZEL_CONFIG_NAME = "halo-kind"
+    const val RESOURCES_OUTPUT_FILE = "resources.textproto"
+    const val AKID_PRINCIPAL_MAP_FILE = "authority_key_identifier_to_principal_map.textproto"
+    const val BAZEL_RC_FILE = "resource-setup.bazelrc"
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
