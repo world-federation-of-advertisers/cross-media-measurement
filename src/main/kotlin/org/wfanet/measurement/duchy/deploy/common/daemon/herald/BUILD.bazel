@@ -1,15 +1,15 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+load("@rules_java//java:defs.bzl", "java_binary")
+load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 
 kt_jvm_library(
     name = "herald_daemon",
     srcs = ["HeraldDaemon.kt"],
-    visibility = ["//src/main/kotlin/org/wfanet/measurement/duchy/deploy:__subpackages__"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/herald",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common:flags",
         "//src/main/proto/wfa/measurement/internal/duchy:computations_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/system/v1alpha:computation_participants_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/system/v1alpha:computations_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/picocli",
@@ -17,4 +17,17 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
     ],
+)
+
+java_binary(
+    name = "HeraldDaemon",
+    main_class = "org.wfanet.measurement.duchy.deploy.common.daemon.herald.HeraldDaemonKt",
+    runtime_deps = [":herald_daemon"],
+)
+
+java_image(
+    name = "herald_daemon_image",
+    main_class = "org.wfanet.measurement.duchy.deploy.common.daemon.herald.HeraldDaemonKt",
+    visibility = ["//src:docker_image_deployment"],
+    runtime_deps = [":herald_daemon"],
 )

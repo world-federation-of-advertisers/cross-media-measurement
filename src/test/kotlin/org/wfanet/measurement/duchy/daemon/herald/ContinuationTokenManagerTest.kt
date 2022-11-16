@@ -1,4 +1,4 @@
-// Copyright 2020 The Cross-Media Measurement Authors
+// Copyright 2022 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,12 +15,22 @@
 package org.wfanet.measurement.duchy.daemon.herald
 
 import com.google.common.truth.Truth.assertThat
+import io.grpc.inprocess.InProcessChannelBuilder
+import io.grpc.inprocess.InProcessServerBuilder
+import io.grpc.testing.GrpcCleanupRule
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.duchy.daemon.herald.testing.InMemoryContinuationTokenStore
+import org.wfanet.measurement.duchy.db.continuationtoken.testing.TestContinuationTokens
+import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineImplBase
+import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineStub
+import org.wfanet.measurement.internal.duchy.GetContinuationTokenRequest
+import org.wfanet.measurement.internal.duchy.GetContinuationTokenResponse
+import org.wfanet.measurement.internal.duchy.UpdateContinuationTokenRequest
+import org.wfanet.measurement.internal.duchy.UpdateContinuationTokenResponse
+import org.wfanet.measurement.internal.duchy.getContinuationTokenResponse
 
 private const val DUCHY_NAME = "worker"
 private const val CONTINUATION_TOKEN_1 = "token1"
@@ -29,12 +39,25 @@ private const val CONTINUATION_TOKEN_3 = "token3"
 
 @RunWith(JUnit4::class)
 class ContinuationTokenManagerTest {
+  private val grpcCleanup = GrpcCleanupRule()
+
   private lateinit var continuationTokenManager: ContinuationTokenManager
 
   @Before
   fun init() {
-    val continuationTokenStore = InMemoryContinuationTokenStore()
-    continuationTokenManager = ContinuationTokenManager(DUCHY_NAME, continuationTokenStore)
+    // ContinuationToken service
+    val serverName: String = InProcessServerBuilder.generateName()
+    grpcCleanup.register(
+      InProcessServerBuilder.forName(serverName)
+        .directExecutor()
+        .addService(TestContinuationTokensService())
+        .build()
+        .start()
+    )
+    val channel =
+      grpcCleanup.register(InProcessChannelBuilder.forName(serverName).directExecutor().build())
+    val client = ContinuationTokensCoroutineStub(channel)
+    continuationTokenManager = ContinuationTokenManager(DUCHY_NAME, client)
   }
 
   @Test
@@ -72,5 +95,22 @@ class ContinuationTokenManagerTest {
     val token = continuationTokenManager.getLatestContinuationToken()
 
     assertThat(token).isEqualTo(CONTINUATION_TOKEN_1)
+  }
+}
+
+class TestContinuationTokensService : ContinuationTokensCoroutineImplBase() {
+  val tokens = TestContinuationTokens()
+
+  override suspend fun getContinuationToken(
+    request: GetContinuationTokenRequest
+  ): GetContinuationTokenResponse {
+    return getContinuationTokenResponse { token = tokens.readContinuationToken(request.name) }
+  }
+
+  override suspend fun updateContinuationToken(
+    request: UpdateContinuationTokenRequest
+  ): UpdateContinuationTokenResponse {
+    tokens.updateContinuationToken(request.name, request.token)
+    return UpdateContinuationTokenResponse.getDefaultInstance()
   }
 }

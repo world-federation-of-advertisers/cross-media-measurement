@@ -1,0 +1,17 @@
+load("@wfa_common_jvm//build:defs.bzl", "test_target")
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+
+package(
+    default_visibility = [
+        test_target(":__pkg__"),
+        "//src/main/kotlin/org/wfanet/measurement/duchy:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/duchy:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "continuation_tokens",
+    srcs = ["ContinuationTokens.kt"],
+)

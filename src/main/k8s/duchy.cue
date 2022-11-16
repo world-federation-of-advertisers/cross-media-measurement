@@ -88,17 +88,17 @@ import ("strings")
 	deployments: {
 		"herald-daemon-deployment": {
 			_container: args: [
-						_computations_service_target_flag,
-						_computations_service_cert_host_flag,
-						_duchy_name_flag,
-						_duchy_tls_cert_file_flag,
-						_duchy_tls_key_file_flag,
-						_duchy_cert_collection_file_flag,
-						_duchy_protocols_setup_config_flag,
-						_kingdom_system_api_target_flag,
-						_kingdom_system_api_cert_host_flag,
-						_debug_verbose_grpc_client_logging_flag,
-			] + _spannerConfig.flags
+				_computations_service_target_flag,
+				_computations_service_cert_host_flag,
+				_duchy_name_flag,
+				_duchy_tls_cert_file_flag,
+				_duchy_tls_key_file_flag,
+				_duchy_cert_collection_file_flag,
+				_duchy_protocols_setup_config_flag,
+				_kingdom_system_api_target_flag,
+				_kingdom_system_api_cert_host_flag,
+				_debug_verbose_grpc_client_logging_flag,
+			]
 			spec: template: spec: _dependencies: [
 				"\(_name)-spanner-computations-server",
 			]

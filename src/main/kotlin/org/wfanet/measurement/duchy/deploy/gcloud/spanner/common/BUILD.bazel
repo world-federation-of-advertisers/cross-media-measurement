@@ -1,0 +1,15 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "common",
+    srcs = glob(["*.kt"]),
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+    ],
+)

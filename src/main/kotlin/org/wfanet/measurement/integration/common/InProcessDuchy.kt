@@ -44,21 +44,23 @@ import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.duchy.daemon.herald.Herald
-import org.wfanet.measurement.duchy.daemon.herald.testing.InMemoryContinuationTokenStore
 import org.wfanet.measurement.duchy.daemon.mill.Certificate
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2Mill
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.JniLiquidLegionsV2Encryption
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
+import org.wfanet.measurement.duchy.db.continuationtoken.ContinuationTokens
 import org.wfanet.measurement.duchy.service.api.v2alpha.RequisitionFulfillmentService
 import org.wfanet.measurement.duchy.service.internal.computationcontrol.AsyncComputationControlService
 import org.wfanet.measurement.duchy.service.internal.computations.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computationstats.ComputationStatsService
+import org.wfanet.measurement.duchy.service.internal.continuationtokens.ContinuationTokensService
 import org.wfanet.measurement.duchy.service.system.v1alpha.ComputationControlService
 import org.wfanet.measurement.duchy.storage.RequisitionStore
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
+import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineStub
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub as SystemComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub as SystemComputationLogEntriesCoroutineStub
@@ -83,7 +85,8 @@ class InProcessDuchy(
 ) : TestRule {
   data class DuchyDependencies(
     val computationsDatabase: ComputationsDatabase,
-    val storageClient: StorageClient
+    val storageClient: StorageClient,
+    val continuationTokens: ContinuationTokens,
   )
 
   private val daemonScope = CoroutineScope(daemonContext)
@@ -111,6 +114,9 @@ class InProcessDuchy(
   private val asyncComputationControlClient by lazy {
     AsyncComputationControlCoroutineStub(asyncComputationControlServer.channel)
   }
+  private val continuationTokensClient by lazy {
+    ContinuationTokensCoroutineStub(computationsServer.channel)
+  }
 
   private val computationsServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
@@ -122,6 +128,7 @@ class InProcessDuchy(
         )
       )
       addService(ComputationStatsService(duchyDependencies.computationsDatabase))
+      addService(ContinuationTokensService(duchyDependencies.continuationTokens))
     }
   private val requisitionFulfillmentServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
@@ -177,7 +184,7 @@ class InProcessDuchy(
             internalComputationsClient = computationsClient,
             systemComputationsClient = systemComputationsClient,
             systemComputationParticipantClient = systemComputationParticipantsClient,
-            continuationTokenStore = InMemoryContinuationTokenStore(),
+            continuationTokenClient = continuationTokensClient,
             protocolsSetupConfig = protocolsSetupConfig,
             clock = Clock.systemUTC(),
           )

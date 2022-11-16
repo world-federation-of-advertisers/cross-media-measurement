@@ -27,9 +27,11 @@ import org.wfanet.measurement.duchy.db.computation.ComputationTypes
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseReader
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor
+import org.wfanet.measurement.duchy.db.continuationtoken.ContinuationTokens
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.ComputationMutations
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDatabaseReader
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDatabaseTransactor
+import org.wfanet.measurement.duchy.deploy.gcloud.spanner.continuationtoken.SpannerContinuationTokens
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -59,7 +61,8 @@ class DuchyDependencyProviderRule(duchies: Iterable<String>) :
 
     return InProcessDuchy.DuchyDependencies(
       buildComputationsDb(computationsDatabase.databaseClient),
-      buildStorageClient(duchyId)
+      buildStorageClient(duchyId),
+      buildContinuationTokens(computationsDatabase.databaseClient)
     )
   }
 
@@ -90,6 +93,12 @@ class DuchyDependencyProviderRule(duchies: Iterable<String>) :
 
   private fun buildStorageClient(duchyId: String): StorageClient {
     return GcsStorageClient(LocalStorageHelper.getOptions().service, "bucket-$duchyId")
+  }
+
+  private fun buildContinuationTokens(
+    computationsDatabaseClient: AsyncDatabaseClient
+  ): ContinuationTokens {
+    return SpannerContinuationTokens(computationsDatabaseClient)
   }
 
   override fun apply(base: Statement, description: Description): Statement {

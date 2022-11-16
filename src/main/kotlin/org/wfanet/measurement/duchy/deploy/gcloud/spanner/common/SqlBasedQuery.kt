@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation
+package org.wfanet.measurement.duchy.deploy.gcloud.spanner.common
 
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct

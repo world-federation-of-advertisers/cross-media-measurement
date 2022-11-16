@@ -56,6 +56,7 @@ java_library(
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computationcontrol:async_computation_control_service",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computations",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computationstats:service",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/continuationtokens:continuation_tokens_service",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/system/v1alpha:computation_control_service",
     ],
 )
@@ -125,7 +126,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/identity:principal_identity",
         "//src/main/kotlin/org/wfanet/measurement/common/identity/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/herald",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/herald/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill/liquidlegionsv2:liquid_legions_v2_mill",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/testing",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:duchy_ids",

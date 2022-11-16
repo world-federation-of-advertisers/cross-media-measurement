@@ -14,6 +14,6 @@ kt_jvm_library(
     name = "testing",
     srcs = glob(["*.kt"]),
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/herald:continuation_token_manager",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/continuationtoken:continuation_tokens",
     ],
 )
