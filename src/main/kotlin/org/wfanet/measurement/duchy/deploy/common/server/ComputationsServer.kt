@@ -27,10 +27,12 @@ import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnum
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseReader
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor
+import org.wfanet.measurement.duchy.db.continuationtoken.ContinuationTokens
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.deploy.common.SystemApiFlags
 import org.wfanet.measurement.duchy.service.internal.computations.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computationstats.ComputationStatsService
+import org.wfanet.measurement.duchy.service.internal.continuationtokens.ContinuationTokensService
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
@@ -56,7 +58,8 @@ abstract class ComputationsServer : Runnable {
 
   protected fun run(
     computationsDatabaseReader: ComputationsDatabaseReader,
-    computationDb: ComputationsDb
+    computationDb: ComputationsDb,
+    continuationTokens: ContinuationTokens,
   ) {
     val clientCerts =
       SigningCerts.fromPemFiles(
@@ -72,6 +75,7 @@ abstract class ComputationsServer : Runnable {
       ComputationLogEntriesCoroutineStub(channel).withDuchyId(flags.duchy.duchyName)
 
     val computationsDatabase = newComputationsDatabase(computationsDatabaseReader, computationDb)
+
     CommonServer.fromFlags(
         flags.server,
         javaClass.name,
@@ -80,7 +84,8 @@ abstract class ComputationsServer : Runnable {
           computationLogEntriesClient = computationLogEntriesClient,
           duchyName = flags.duchy.duchyName
         ),
-        ComputationStatsService(computationsDatabase)
+        ComputationStatsService(computationsDatabase),
+        ContinuationTokensService(continuationTokens)
       )
       .start()
       .blockUntilShutdown()

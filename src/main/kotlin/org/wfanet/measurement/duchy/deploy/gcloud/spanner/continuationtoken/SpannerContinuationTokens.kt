@@ -12,21 +12,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.deploy.gcloud.spanner.daemon.herald
+package org.wfanet.measurement.duchy.deploy.gcloud.spanner.continuationtoken
 
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.singleOrNull
-import org.wfanet.measurement.duchy.daemon.herald.ContinuationTokenStore
-import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.SqlBasedQuery
+import org.wfanet.measurement.duchy.db.continuationtoken.ContinuationTokens
+import org.wfanet.measurement.duchy.deploy.gcloud.spanner.common.SqlBasedQuery
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 
-class SpannerContinuationTokenStore(
+class SpannerContinuationTokens(val databaseClient: AsyncDatabaseClient) : ContinuationTokens {
+  override suspend fun readContinuationToken(duchyName: String): String {
+    val query = SpannerContinuationTokenQuery(databaseClient, duchyName)
+    return query.execute(databaseClient).singleOrNull()?.continuationToken ?: ""
+  }
+
+  override suspend fun updateContinuationToken(duchyName: String, continuationToken: String) {
+    val mutation = Mutation.newInsertOrUpdateBuilder("HeraldContinuationTokens")
+    mutation.set("DuchyName").to(duchyName)
+    mutation.set("ContinuationToken").to(continuationToken)
+    mutation.set("CreationTime").to(Value.COMMIT_TIMESTAMP)
+    val row = mutation.build()
+
+    databaseClient.write(row)
+  }
+}
+
+class SpannerContinuationTokenQuery(
   val databaseClient: AsyncDatabaseClient,
   val duchyName: String
-) : SqlBasedQuery<ContinuationTokenReaderResult>, ContinuationTokenStore {
+) : SqlBasedQuery<ContinuationTokenReaderResult> {
   companion object {
     private const val parameterizedQueryString =
       """
@@ -44,21 +61,7 @@ class SpannerContinuationTokenStore(
       duchyName = struct.getString("DuchyName"),
       continuationToken = struct.getString("ContinuationToken")
     )
-
-  override suspend fun readContinuationToken(): String {
-    return execute(databaseClient).singleOrNull()?.continuationToken ?: ""
-  }
-
-  override suspend fun updateContinuationToken(continuationToken: String) {
-    val m = Mutation.newInsertOrUpdateBuilder("HeraldContinuationTokens")
-    m.set("DuchyName").to(duchyName)
-    m.set("ContinuationToken").to(continuationToken)
-    m.set("CreationTime").to(Value.COMMIT_TIMESTAMP)
-    val continuationTokenRow = m.build()
-
-    databaseClient.write(continuationTokenRow)
-  }
 }
 
-/** @see [SpannerContinuationTokenStore.asResult] . */
+/** @see [SpannerContinuationTokenQuery.asResult] . */
 data class ContinuationTokenReaderResult(val duchyName: String, val continuationToken: String)

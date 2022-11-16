@@ -6,11 +6,11 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
-    name = "spanner_continuation_token",
+    name = "spanner_continuation_tokens",
     srcs = glob(["*.kt"]),
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/herald",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computation",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/continuationtoken:continuation_tokens",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/common",
         "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
     ],

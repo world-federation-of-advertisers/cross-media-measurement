@@ -18,6 +18,7 @@ import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.duchy.db.computation.ComputationStageLongValues
+import org.wfanet.measurement.duchy.deploy.gcloud.spanner.common.SqlBasedQuery
 
 /** Queries for computations which may be claimed at a timestamp. */
 class UnclaimedTasksQuery<StageT>(

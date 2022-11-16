@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.deploy.gcloud.spanner.daemon.herald
+package org.wfanet.measurement.duchy.deploy.gcloud.spanner.continuationtoken
 
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.runBlocking
@@ -21,48 +21,46 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.duchy.daemon.herald.ContinuationTokenStore
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 
 private const val DUCHY_NAME = "worker1"
 
 @RunWith(JUnit4::class)
-class SpannerContinuationTokenStoreTest {
+class SpannerContinuationTokensTest {
   @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(Schemata.DUCHY_CHANGELOG_PATH)
-  private lateinit var continuationTokenStore: ContinuationTokenStore
+  private lateinit var continuationTokens: SpannerContinuationTokens
 
   @Before
   fun init() {
-    continuationTokenStore =
-      SpannerContinuationTokenStore(spannerDatabase.databaseClient, DUCHY_NAME)
+    continuationTokens = SpannerContinuationTokens(spannerDatabase.databaseClient)
   }
 
   @Test
   fun `readContinuationToken returns empty string when called at the first time`() = runBlocking {
-    val token = continuationTokenStore.readContinuationToken()
+    val token = continuationTokens.readContinuationToken(DUCHY_NAME)
 
     assertThat(token).isEmpty()
   }
 
   @Test
   fun `updateContinuationToken creates new token entry`() = runBlocking {
-    val emptyToken = continuationTokenStore.readContinuationToken()
+    val emptyToken = continuationTokens.readContinuationToken(DUCHY_NAME)
     assertThat(emptyToken).isEmpty()
 
-    continuationTokenStore.updateContinuationToken("token1")
-    val token = continuationTokenStore.readContinuationToken()
+    continuationTokens.updateContinuationToken(DUCHY_NAME, "token1")
+    val token = continuationTokens.readContinuationToken(DUCHY_NAME)
     assertThat(token).isEqualTo("token1")
   }
 
   @Test
   fun `updateContinuationToken updates token entry`() = runBlocking {
-    continuationTokenStore.updateContinuationToken("token1")
-    val initToken = continuationTokenStore.readContinuationToken()
+    continuationTokens.updateContinuationToken(DUCHY_NAME, "token1")
+    val initToken = continuationTokens.readContinuationToken(DUCHY_NAME)
     assertThat(initToken).isEqualTo("token1")
 
-    continuationTokenStore.updateContinuationToken("token2")
-    val token = continuationTokenStore.readContinuationToken()
+    continuationTokens.updateContinuationToken(DUCHY_NAME, "token2")
+    val token = continuationTokens.readContinuationToken(DUCHY_NAME)
     assertThat(token).isEqualTo("token2")
   }
 }

@@ -20,6 +20,7 @@ import java.time.Clock
 import java.time.Duration
 import kotlin.properties.Delegates
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
@@ -28,107 +29,112 @@ import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.duchy.daemon.herald.ContinuationTokenStore
 import org.wfanet.measurement.duchy.daemon.herald.Herald
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.deploy.common.ComputationsServiceFlags
 import org.wfanet.measurement.duchy.deploy.common.SystemApiFlags
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
+import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineStub
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
 import picocli.CommandLine
 
-abstract class HeraldDaemon : Runnable {
-  @CommandLine.Mixin protected lateinit var flags: Flags
+private class Flags {
+  @CommandLine.Mixin
+  lateinit var duchy: CommonDuchyFlags
+    private set
 
-  protected fun run(continuationTokenStore: ContinuationTokenStore) {
-    val clientCerts =
-      SigningCerts.fromPemFiles(
-        certificateFile = flags.tlsFlags.certFile,
-        privateKeyFile = flags.tlsFlags.privateKeyFile,
-        trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
-      )
+  @CommandLine.Mixin
+  lateinit var tlsFlags: TlsFlags
+    private set
 
-    val systemServiceChannel =
-      buildMutualTlsChannel(flags.systemApiFlags.target, clientCerts, flags.systemApiFlags.certHost)
-        .withShutdownTimeout(flags.channelShutdownTimeout)
-        .withVerboseLogging(flags.verboseGrpcClientLogging)
-    val systemComputationsClient =
-      SystemComputationsCoroutineStub(systemServiceChannel).withDuchyId(flags.duchy.duchyName)
-    val systemComputationParticipantsClient =
-      SystemComputationParticipantsCoroutineStub(systemServiceChannel)
-        .withDuchyId(flags.duchy.duchyName)
+  @CommandLine.Option(
+    names = ["--channel-shutdown-timeout"],
+    defaultValue = "3s",
+    description = ["How long to allow for the gRPC channel to shutdown."],
+  )
+  lateinit var channelShutdownTimeout: Duration
+    private set
 
-    val internalComputationsChannel: Channel =
-      buildMutualTlsChannel(
-          flags.computationsServiceFlags.target,
-          clientCerts,
-          flags.computationsServiceFlags.certHost
-        )
-        .withShutdownTimeout(flags.channelShutdownTimeout)
-        .withDefaultDeadline(flags.computationsServiceFlags.defaultDeadlineDuration)
-        .withVerboseLogging(flags.verboseGrpcClientLogging)
-    val internalComputationsClient = ComputationsCoroutineStub(internalComputationsChannel)
-    // This will be the name of the pod when deployed to Kubernetes.
-    val heraldId = System.getenv("HOSTNAME")
+  @CommandLine.Mixin
+  lateinit var systemApiFlags: SystemApiFlags
+    private set
 
-    val herald =
-      Herald(
-        heraldId = heraldId,
-        duchyId = flags.duchy.duchyName,
-        internalComputationsClient = internalComputationsClient,
-        systemComputationsClient = systemComputationsClient,
-        systemComputationParticipantClient = systemComputationParticipantsClient,
-        continuationTokenStore = continuationTokenStore,
-        protocolsSetupConfig =
-          flags.protocolsSetupConfig.reader().use {
-            parseTextProto(it, ProtocolsSetupConfig.getDefaultInstance())
-          },
-        clock = Clock.systemUTC()
-      )
-    runBlocking { herald.continuallySyncStatuses() }
-  }
+  @CommandLine.Mixin
+  lateinit var computationsServiceFlags: ComputationsServiceFlags
+    private set
 
-  protected class Flags {
-    @CommandLine.Mixin
-    lateinit var duchy: CommonDuchyFlags
-      private set
+  @CommandLine.Option(
+    names = ["--protocols-setup-config"],
+    description = ["ProtocolsSetupConfig proto message in text format."],
+    required = true
+  )
+  lateinit var protocolsSetupConfig: File
+    private set
 
-    @CommandLine.Mixin
-    lateinit var tlsFlags: TlsFlags
-      private set
-
-    @CommandLine.Option(
-      names = ["--channel-shutdown-timeout"],
-      defaultValue = "3s",
-      description = ["How long to allow for the gRPC channel to shutdown."],
-    )
-    lateinit var channelShutdownTimeout: Duration
-      private set
-
-    @CommandLine.Mixin
-    lateinit var systemApiFlags: SystemApiFlags
-      private set
-
-    @CommandLine.Mixin
-    lateinit var computationsServiceFlags: ComputationsServiceFlags
-      private set
-
-    @CommandLine.Option(
-      names = ["--protocols-setup-config"],
-      description = ["ProtocolsSetupConfig proto message in text format."],
-      required = true
-    )
-    lateinit var protocolsSetupConfig: File
-      private set
-
-    @set:CommandLine.Option(
-      names = ["--debug-verbose-grpc-client-logging"],
-      description = ["Enables full gRPC request and response logging for outgoing gRPCs"],
-      defaultValue = "false"
-    )
-    var verboseGrpcClientLogging by Delegates.notNull<Boolean>()
-      private set
-  }
+  @set:CommandLine.Option(
+    names = ["--debug-verbose-grpc-client-logging"],
+    description = ["Enables full gRPC request and response logging for outgoing gRPCs"],
+    defaultValue = "false"
+  )
+  var verboseGrpcClientLogging by Delegates.notNull<Boolean>()
+    private set
 }
+
+@CommandLine.Command(
+  name = "HeraldDaemon",
+  mixinStandardHelpOptions = true,
+  showDefaultValues = true
+)
+private fun run(@CommandLine.Mixin flags: Flags) {
+  val clientCerts =
+    SigningCerts.fromPemFiles(
+      certificateFile = flags.tlsFlags.certFile,
+      privateKeyFile = flags.tlsFlags.privateKeyFile,
+      trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
+    )
+
+  val systemServiceChannel =
+    buildMutualTlsChannel(flags.systemApiFlags.target, clientCerts, flags.systemApiFlags.certHost)
+      .withShutdownTimeout(flags.channelShutdownTimeout)
+      .withVerboseLogging(flags.verboseGrpcClientLogging)
+  val systemComputationsClient =
+    SystemComputationsCoroutineStub(systemServiceChannel).withDuchyId(flags.duchy.duchyName)
+  val systemComputationParticipantsClient =
+    SystemComputationParticipantsCoroutineStub(systemServiceChannel)
+      .withDuchyId(flags.duchy.duchyName)
+
+  val internalComputationsChannel: Channel =
+    buildMutualTlsChannel(
+        flags.computationsServiceFlags.target,
+        clientCerts,
+        flags.computationsServiceFlags.certHost
+      )
+      .withShutdownTimeout(flags.channelShutdownTimeout)
+      .withDefaultDeadline(flags.computationsServiceFlags.defaultDeadlineDuration)
+      .withVerboseLogging(flags.verboseGrpcClientLogging)
+  val internalComputationsClient = ComputationsCoroutineStub(internalComputationsChannel)
+
+  val continuationTokenClient = ContinuationTokensCoroutineStub(internalComputationsChannel)
+  // This will be the name of the pod when deployed to Kubernetes.
+  val heraldId = System.getenv("HOSTNAME")
+
+  val herald =
+    Herald(
+      heraldId = heraldId,
+      duchyId = flags.duchy.duchyName,
+      internalComputationsClient = internalComputationsClient,
+      systemComputationsClient = systemComputationsClient,
+      systemComputationParticipantClient = systemComputationParticipantsClient,
+      continuationTokenClient = continuationTokenClient,
+      protocolsSetupConfig =
+        flags.protocolsSetupConfig.reader().use {
+          parseTextProto(it, ProtocolsSetupConfig.getDefaultInstance())
+        },
+      clock = Clock.systemUTC()
+    )
+  runBlocking { herald.continuallySyncStatuses() }
+}
+
+fun main(args: Array<String>) = commandLineMain(::run, args)

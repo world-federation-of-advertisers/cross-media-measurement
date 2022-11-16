@@ -12,18 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.duchy.daemon.herald.testing
+package org.wfanet.measurement.duchy.db.continuationtoken
 
-import org.wfanet.measurement.duchy.daemon.herald.ContinuationTokenStore
+/** Stores the latest continuation token. Support read and write operation */
+interface ContinuationTokens {
+  suspend fun readContinuationToken(duchyName: String): String
 
-class InMemoryContinuationTokenStore : ContinuationTokenStore {
-  var latestContinuationToken = ""
-
-  override suspend fun readContinuationToken(): String {
-    return latestContinuationToken
-  }
-
-  override suspend fun updateContinuationToken(continuationToken: String) {
-    latestContinuationToken = continuationToken
-  }
+  suspend fun updateContinuationToken(duchyName: String, continuationToken: String)
 }

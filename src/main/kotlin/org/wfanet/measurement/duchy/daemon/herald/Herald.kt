@@ -38,6 +38,7 @@ import org.wfanet.measurement.duchy.daemon.utils.toMeasurementType
 import org.wfanet.measurement.duchy.service.internal.computations.toGetTokenRequest
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
+import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineStub
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.internal.duchy.finishComputationRequest
 import org.wfanet.measurement.system.v1alpha.Computation
@@ -73,7 +74,7 @@ class Herald(
   private val internalComputationsClient: ComputationsCoroutineStub,
   private val systemComputationsClient: SystemComputationsCoroutineStub,
   private val systemComputationParticipantClient: SystemComputationParticipantsCoroutineStub,
-  continuationTokenStore: ContinuationTokenStore,
+  continuationTokenClient: ContinuationTokensCoroutineStub,
   private val protocolsSetupConfig: ProtocolsSetupConfig,
   private val clock: Clock,
   private val blobStorageBucket: String = "computation-blob-storage",
@@ -83,7 +84,7 @@ class Herald(
   private val retryBackoff: ExponentialBackoff = ExponentialBackoff(),
 ) {
   private val semaphore = Semaphore(maxConcurrency)
-  private val continuationTokenManager = ContinuationTokenManager(duchyId, continuationTokenStore)
+  private val continuationTokenManager = ContinuationTokenManager(duchyId, continuationTokenClient)
 
   /**
    * Syncs the status of computations stored at the kingdom with those stored locally continually in

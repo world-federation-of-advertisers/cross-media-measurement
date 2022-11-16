@@ -15,17 +15,13 @@
 package org.wfanet.measurement.duchy.daemon.herald
 
 import java.util.Collections
-
-/** Stores the latest continuation token. Support read and write operation */
-interface ContinuationTokenStore {
-  suspend fun readContinuationToken(): String
-
-  suspend fun updateContinuationToken(continuationToken: String)
-}
+import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineStub
+import org.wfanet.measurement.internal.duchy.getContinuationTokenRequest
+import org.wfanet.measurement.internal.duchy.updateContinuationTokenRequest
 
 class ContinuationTokenManager(
-  val duchyName: String,
-  private val continuationTokenStore: ContinuationTokenStore
+  private val duchyName: String,
+  private val continuationTokenClient: ContinuationTokensCoroutineStub
 ) {
   private data class TokenEntry(val token: String, var state: State) {
     enum class State {
@@ -38,18 +34,23 @@ class ContinuationTokenManager(
   private val continuationTokenList: MutableList<TokenEntry> =
     Collections.synchronizedList(mutableListOf())
 
-  // Note: Also clear the continuationTokenList for an incoming streaming.
+  // Get the latest continuation token to stream computations. Note: Also clear the
+  // continuationTokenList for the next stream.
   suspend fun getLatestContinuationToken(): String {
     continuationTokenList.clear()
-    return continuationTokenStore.readContinuationToken()
+
+    val request = getContinuationTokenRequest { name = duchyName }
+    return continuationTokenClient.withWaitForReady().getContinuationToken(request).token
   }
 
+  // Add a UNPROCESSED continuation token entry into the list.
   fun addContinuationToken(continuationToken: String): Int {
     val index = continuationTokenList.size
     continuationTokenList += TokenEntry(continuationToken, TokenEntry.State.UNPROCESSED)
     return index
   }
 
+  // When a computation task finished by the herald, update the latest continuation token.
   suspend fun updateContinuationToken(index: Int) {
     require(index < continuationTokenList.size)
 
@@ -63,8 +64,14 @@ class ContinuationTokenManager(
         firstUnprocessedIndex - 1
       }
     if (lastProcessedIndex >= 0) {
+      // Update the token
       val lastProcessedToken = continuationTokenList[lastProcessedIndex].token
-      continuationTokenStore.updateContinuationToken(lastProcessedToken)
+      continuationTokenClient.updateContinuationToken(
+        updateContinuationTokenRequest {
+          name = duchyName
+          token = lastProcessedToken
+        }
+      )
     }
   }
 }
