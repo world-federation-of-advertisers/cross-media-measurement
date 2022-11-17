@@ -14,20 +14,17 @@ free to use whichever you prefer.
 
 ### What are we creating/deploying?
 
--   2 GMP ClusterPodMonitoring
-    -   prometheus-pod-monitor
+-   1 GMP ClusterPodMonitoring
     -   opentelemetry-collector-pod-monitor
 -   1 GMP PodMonitoring
     -   collector-pod-monitor
 -   1 GMP Rules
     -   recording-rules
--   2 OpenTelemetry Operator OpenTelemetryCollector
-    -   sidecar-collector
-    -   spanner-collector
+-   1 OpenTelemetry Operator OpenTelemetryCollector
+    -   deployment
 -   1 OpenTelemetry Operator Instrumentation
     -   open-telemetry-java-agent
--   4 Kubernetes ConfigMaps
-    -   default-side-collector
+-   3 Kubernetes ConfigMaps
     -   deployment-collector
     -   grafana-config
     -   grafana-datasource-and-dashboard-provider
@@ -37,10 +34,12 @@ free to use whichever you prefer.
     -   deployment-collector
     -   grafana-deployment
     -   prometheus-frontend-deployment
--   3 Kubernetes Services
-    -   deployment-collector-monitoring
-    -   grafana
-    -   prometheus-frontend
+-   5 Kubernetes Services
+    - deployment-collector
+    - deployment-collector-headless  
+    - deployment-collector-monitoring
+    - grafana
+    - prometheus-frontend
 -   3 Kubernetes NetworkPolicies
     -   opentelemetry-collector-network-policy
     -   grafana-network-policy
@@ -241,7 +240,6 @@ recording-rules   3m4s
 
 ```
 NAME              MODE         VERSION   AGE
-default-sidecar   sidecar      0.60.0    4h7m
 deployment        deployment   0.60.0    131m
 ```
 
@@ -252,7 +250,6 @@ open-telemetry-java-agent   68s
 
 ```
 NAME                                         DATA   AGE
-default-sidecar-collector                    1      60s
 deployment-collector                         1      60s
 grafana-config                               1      43s
 grafana-datasource-and-dashboard-provider    1      43s
@@ -272,6 +269,8 @@ prometheus-frontend-deployment         1/1     1            1           7m21s
 
 ```
 NAME                              TYPE           CLUSTER-IP     EXTERNAL-IP   PORT(S)          AGE
+deployment-collector              ClusterIP      10.96.119.25   <none>        4317/TCP         5m13s
+deployment-collector-headless     ClusterIP      None           <none>        4317/TCP         5m13s
 deployment-collector-monitoring   ClusterIP      10.108.6.18    <none>        8888/TCP         3m18s
 grafana                           ClusterIP      10.108.8.178   <none>        3000/TCP         3m
 prometheus-frontend               ClusterIP      10.108.3.88    <none>        9090/TCP         3m35s

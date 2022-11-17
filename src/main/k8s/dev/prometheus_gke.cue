@@ -44,10 +44,10 @@ clusterPodMonitorings: {
 		kind:       "ClusterPodMonitoring"
 		metadata: name: "opentelemetry-collector-pod-monitor"
 		spec: {
-			selector: matchLabels: "app.kubernetes.io/name": "spanner-collector"
+			selector: matchLabels: "app.kubernetes.io/component": "opentelemetry-collector"
 			endpoints: [{
 				port:     #OpenTelemetryPrometheusExporterPort
-				interval: "60s"
+				interval: "30s"
 			}]
 		}
 	}
@@ -108,7 +108,7 @@ services: {
 		spec: {
 			ports: [{
 				name: "prometheus-frontend"
-				port: 9090
+				port: #PrometheusFrontendPort
 			}]
 			type: "ClusterIP"
 		}
@@ -132,13 +132,8 @@ deployments: {
 		}
 		spec: template: {
 			metadata: {
-				labels: {
-					scrape: "false"
-				}
 				annotations: {
-					"sidecar.opentelemetry.io/inject":              "false"
 					"instrumentation.opentelemetry.io/inject-java": "false"
-					"prometheus.io/scrape":                         "false"
 				}
 			}
 			spec: #ServiceAccountPodSpec & {
