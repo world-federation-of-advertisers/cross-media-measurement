@@ -16,9 +16,9 @@ package k8s
 
 import "strings"
 
-#GCloudProject:     "halo-cmm-dev"
+#GCloudProject:     "ads-open-measurement"
 #ContainerRegistry: "gcr.io"
-#SpannerInstance:   "dev-instance"
+#SpannerInstance:   "halo-dev-mc-01-us-central1"
 
 #GCloudConfig: {
 	project: #GCloudProject

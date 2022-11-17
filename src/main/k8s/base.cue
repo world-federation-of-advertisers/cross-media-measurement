@@ -439,14 +439,10 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		template: {
 			metadata: {
 				labels: {
-					app:    _name + "-app"
-					scrape: string | *"true"
+					app: _name + "-app"
 				}
 				annotations: {
-					"sidecar.opentelemetry.io/inject":              string | *"default-sidecar"
 					"instrumentation.opentelemetry.io/inject-java": string | *"true"
-					"prometheus.io/port":                           string | *"\(#OpenTelemetryPrometheusExporterPort)"
-					"prometheus.io/scrape":                         string | *"true"
 				}
 			}
 			spec: #PodSpec & {
@@ -541,6 +537,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 #NetworkPolicy: {
 	_name:       string
 	_app_label?: string
+	_policyPodSelectorMatchLabels: [Name=string]: string
 	_sourceMatchLabels: [...string]
 	_destinationMatchLabels: [...string]
 	_ingresses: [Name=_]: #IngressRule
@@ -595,6 +592,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			if _app_label != _|_ {
 				app: _app_label
 			}
+			for label, value in _policyPodSelectorMatchLabels {"\(label)": value}
 		}
 		policyTypes: ["Ingress", "Egress"]
 		ingress: [ for _, ingress in _ingresses {ingress}]

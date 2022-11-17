@@ -22,13 +22,11 @@ free to use whichever you prefer.
       - collector-pod-monitor
     - 1 GMP Rules
       - recording-rules
-    - 2 OpenTelemetry Operator OpenTelemetryCollector
-      - default-sidecar
+    - 1 OpenTelemetry Operator OpenTelemetryCollector
       - deployment
     - 1 OpenTelemetry Operator Instrumentation
       - open-telemetry-java-agent
-    - 4 Kubernetes ConfigMaps
-      - default-side-collector
+    - 3 Kubernetes ConfigMaps
       - deployment-collector
       - grafana-config
       - grafana-datasource-and-dashboard-provider
@@ -38,7 +36,9 @@ free to use whichever you prefer.
       - deployment-collector
       - grafana-deployment
       - prometheus-frontend-deployment
-    - 3 Kubernetes Services
+    - 5 Kubernetes Services
+      - deployment-collector
+      - deployment-collector-headless
       - deployment-collector-monitoring 
       - grafana
       - prometheus-frontend
@@ -86,15 +86,10 @@ We'll want to
 that our cluster will run under. Follow the steps in the linked guide to do
 this.
 
-We'll additionally want to create a service account that we'll use to allow the
-OpenTelemetry Collector in 
-[`open_telemetry_gke.cue`](../../src/main/k8s/dev/open_telemetry_gke.cue) to 
-have read access to the Spanner database. See
+[`prometheus_gke.cue`](../../src/main/k8s/dev/prometheus_gke.cue) requires 
+a service account with the role `roles/monitoring.viewer`. See
 [Granting Cloud Spanner database access](cluster-config.md#granting-cloud-spanner-database-access)
 for how to make sure this service account has the appropriate role.
-
-[`prometheus_gke.cue`](../../src/main/k8s/dev/prometheus_gke.cue) also requires 
-a service account, but with the role `roles/iam.workloadIdentityUser` instead.
 
 ## Create the K8s manifest
 
@@ -107,15 +102,6 @@ The main files for the `dev` Metrics are
 [`prometheus_gke.cue`](../../src/main/k8s/dev/prometheus_gke.cue), 
 [`open_telemetry_gke.cue`](../../src/main/k8s/dev/open_telemetry_gke.cue), and
 [`grafana_gke.cue`](../../src/main/k8s/dev/grafana_gke.cue).
-
-[`config.cue`](../../src/main/k8s/dev/config.cue) needs to be modified to 
-work with the right Spanner database. For example, if this is for a kingdom 
-cluster, the files need to be modified to work with the Spanner instance and 
-database the kingdom cluster is using. A reporting server cluster doesn't use 
-Spanner, so nothing here would be used. The contents of
-[`open_telemetry_gke.cue`](../../src/main/k8s/dev/open_telemetry_gke.cue) should 
-be swapped with the local version:
-[`open_telemetry.cue`](../../src/main/k8s/local/open_telemetry.cue).
 
 If desired, you can modify the filtering of the OpenTelemetry metrics. The 
 config is found in the base version:
@@ -233,7 +219,6 @@ recording-rules   3m4s
 
 ```
 NAME              MODE         VERSION   AGE
-default-sidecar   sidecar      0.60.0    4h7m
 deployment        deployment   0.60.0    131m
 ```
 
@@ -244,7 +229,6 @@ open-telemetry-java-agent   68s
 
 ```
 NAME                                         DATA   AGE
-default-sidecar-collector                    1      60s
 deployment-collector                         1      60s
 grafana-config                               1      43s
 grafana-datasource-and-dashboard-provider    1      43s
@@ -264,6 +248,8 @@ prometheus-frontend-deployment         1/1     1            1           7m21s
 
 ```
 NAME                              TYPE           CLUSTER-IP     EXTERNAL-IP   PORT(S)          AGE
+deployment-collector              ClusterIP      10.96.119.25   <none>        4317/TCP         5m13s
+deployment-collector-headless     ClusterIP      None           <none>        4317/TCP         5m13s
 deployment-collector-monitoring   ClusterIP      10.108.6.18    <none>        8888/TCP         3m18s
 grafana                           ClusterIP      10.108.8.178   <none>        3000/TCP         3m
 prometheus-frontend               ClusterIP      10.108.3.88    <none>        9090/TCP         3m35s
@@ -307,7 +293,7 @@ to be configured as well. Documentation can be found
 
 ## Adding Additional Metrics
 
-The above adds OpenTelemetry JVM and RPC metrics, and Cloud Spanner metrics, as 
+The above adds OpenTelemetry JVM and RPC metrics, and some mill metrics, as 
 well as self-monitoring of the Managed Prometheus collectors. With the above as 
 a base, it is possible to add other metrics that can be scraped.
 
@@ -355,47 +341,3 @@ See [kubelet](https://cloud.google.com/stackdriver/docs/managed-prometheus/setup
 
 - rpc_client_request_rate_per_second
 - rpc_client_request_error_rate_per_second
-
-### Cloud Spanner Metrics Exported using OpenTelemetry Receiver
-
-- database_spanner_active_queries_summary_active_count
-- database_spanner_active_queries_summary_count_older_than_100s
-- database_spanner_active_queries_summary_count_older_than_10s
-- database_spanner_active_queries_summary_count_older_than_1s
-- database_spanner_lock_stats_total_total_lock_wait_seconds
-- database_spanner_query_stats_top_all_failed_avg_latency_seconds
-- database_spanner_query_stats_top_all_failed_execution_count
-- database_spanner_query_stats_top_avg_bytes
-- database_spanner_query_stats_top_avg_cpu_seconds
-- database_spanner_query_stats_top_avg_latency_seconds
-- database_spanner_query_stats_top_avg_rows
-- database_spanner_query_stats_top_avg_rows_scanned
-- database_spanner_query_stats_top_cancelled_or_disconnected_execution_count
-- database_spanner_query_stats_top_execution_count
-- database_spanner_query_stats_top_timed_out_execution_count
-- database_spanner_query_stats_total_all_failed_avg_latency_seconds
-- database_spanner_query_stats_total_all_failed_execution_count
-- database_spanner_query_stats_total_avg_bytes
-- database_spanner_query_stats_total_avg_cpu_seconds
-- database_spanner_query_stats_total_avg_latency_seconds
-- database_spanner_query_stats_total_avg_rows
-- database_spanner_query_stats_total_avg_rows_scanned
-- database_spanner_query_stats_total_cancelled_or_disconnected_execution_count
-- database_spanner_query_stats_total_execution_count
-- database_spanner_query_stats_total_timed_out_execution_count
-- database_spanner_txn_stats_top_avg_bytes
-- database_spanner_txn_stats_top_avg_commit_latency_seconds
-- database_spanner_txn_stats_top_avg_participants
-- database_spanner_txn_stats_top_avg_total_latency_seconds
-- database_spanner_txn_stats_total_commit_abort_count
-- database_spanner_txn_stats_top_commit_attempt_count
-- database_spanner_txn_stats_top_commit_failed_precondition_count
-- database_spanner_txn_stats_top_commit_retry_count
-- database_spanner_txn_stats_total_avg_bytes
-- database_spanner_txn_stats_total_avg_commit_latency_seconds
-- database_spanner_txn_stats_total_avg_participants
-- database_spanner_txn_stats_total_avg_total_latency_seconds
-- database_spanner_txn_stats_total_commit_abort_count
-- database_spanner_txn_stats_total_commit_attempt_count
-- database_spanner_txn_stats_total_commit_failed_precondition_count
-- database_spanner_txn_stats_total_commit_retry_count
