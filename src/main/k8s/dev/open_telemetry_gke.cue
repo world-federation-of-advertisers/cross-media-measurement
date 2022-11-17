@@ -15,9 +15,9 @@
 package k8s
 
 objectSets: [
-  openTelemetry.collectors,
-  openTelemetry.instrumentations,
-  openTelemetry.networkPolicies,
+	openTelemetry.collectors,
+	openTelemetry.instrumentations,
+	openTelemetry.networkPolicies,
 ]
 
 #OpenTelemetryCollector: {
