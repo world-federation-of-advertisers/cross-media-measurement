@@ -19,6 +19,10 @@ import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.Continuati
 import org.wfanet.measurement.internal.duchy.getContinuationTokenRequest
 import org.wfanet.measurement.internal.duchy.updateContinuationTokenRequest
 
+/**
+ * ContinuationTokenManager stores a list of continuation tokens received along with computations
+ * during streaming. The Herald will read the latest token as well as insert/update tokens.
+ */
 class ContinuationTokenManager(
   private val duchyName: String,
   private val continuationTokenClient: ContinuationTokensCoroutineStub
@@ -30,7 +34,6 @@ class ContinuationTokenManager(
     }
   }
 
-  // Items are in Pairs of (continuationToken: String, processed: Boolean).
   private val continuationTokenList: MutableList<TokenEntry> =
     Collections.synchronizedList(mutableListOf())
 
@@ -39,8 +42,10 @@ class ContinuationTokenManager(
   suspend fun getLatestContinuationToken(): String {
     continuationTokenList.clear()
 
-    val request = getContinuationTokenRequest { name = duchyName }
-    return continuationTokenClient.withWaitForReady().getContinuationToken(request).token
+    return continuationTokenClient
+      .withWaitForReady()
+      .getContinuationToken(getContinuationTokenRequest {})
+      .token
   }
 
   // Add a UNPROCESSED continuation token entry into the list.
@@ -67,10 +72,7 @@ class ContinuationTokenManager(
       // Update the token
       val lastProcessedToken = continuationTokenList[lastProcessedIndex].token
       continuationTokenClient.updateContinuationToken(
-        updateContinuationTokenRequest {
-          name = duchyName
-          token = lastProcessedToken
-        }
+        updateContinuationTokenRequest { token = lastProcessedToken }
       )
     }
   }

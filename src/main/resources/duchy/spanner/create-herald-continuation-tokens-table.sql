@@ -14,19 +14,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- changeset renjiez:1 dbms:cloudspanner
--- preconditions onFail:MARK_RAN onError:HALT
--- precondition-sql-check expectedResult:0 SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'HeraldContinuationTokens'
+-- changeset renjiez:2 dbms:cloudspanner
 
 START BATCH DDL;
-
--- Cloud Spanner database schema for the continuation tokens used by Heralds.
---
--- Table hierarchy:
--- Table hierarchy:
---  Root
---  └── HeraldContinuationTokens
-
 
 -- HeraldContinuationTokens
 --   A ContinuationToken contains information to locate the progress of
@@ -37,8 +27,7 @@ START BATCH DDL;
 --   When restart happens, herald retrieve the continuation token to continue
 --   streaming.
 CREATE TABLE HeraldContinuationTokens (
-  -- Name of the Duchy that the Herald belongs to.
-  DuchyName STRING(MAX) NOT NULL,
+  Presence BOOL NOT NULL,
 
   -- The content of the latest ContinuationToken
   ContinuationToken STRING(MAX) NOT NULL,
@@ -49,6 +38,8 @@ CREATE TABLE HeraldContinuationTokens (
   -- Last time the ContinuationToken was modified.
   UpdateTime TIMESTAMP OPTIONS (allow_commit_timestamp = true),
 
-) PRIMARY KEY (DuchyName);
+  CONSTRAINT presence_set CHECK(Presence),
+
+) PRIMARY KEY (Presence);
 
 RUN BATCH;

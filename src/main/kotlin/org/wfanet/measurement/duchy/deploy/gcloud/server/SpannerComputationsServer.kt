@@ -23,7 +23,7 @@ import org.wfanet.measurement.duchy.deploy.common.server.ComputationsServer
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.ComputationMutations
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDatabaseReader
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDatabaseTransactor
-import org.wfanet.measurement.duchy.deploy.gcloud.spanner.continuationtoken.SpannerContinuationTokens
+import org.wfanet.measurement.duchy.deploy.gcloud.spanner.continuationtoken.SpannerContinuationTokensService
 import org.wfanet.measurement.gcloud.spanner.SpannerFlags
 import org.wfanet.measurement.gcloud.spanner.usingSpanner
 import picocli.CommandLine
@@ -55,7 +55,7 @@ class SpannerComputationsServer : ComputationsServer() {
               computationProtocolStageDetails
             )
         ),
-        SpannerContinuationTokens(databaseClient)
+        SpannerContinuationTokensService(databaseClient)
       )
     }
   }

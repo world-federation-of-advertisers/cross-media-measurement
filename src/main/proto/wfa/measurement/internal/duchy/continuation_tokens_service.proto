@@ -19,32 +19,27 @@ package wfa.measurement.internal.duchy;
 option java_package = "org.wfanet.measurement.internal.duchy";
 option java_multiple_files = true;
 
-// Service to get and update continuation token by a Herald.
+// Service to get and update the latest continuation token.
 service ContinuationTokens {
-  // Get the latest continuation token for a specific Duchy's Herald.
+  // Get the latest continuation token.
   rpc getContinuationToken(GetContinuationTokenRequest)
       returns (GetContinuationTokenResponse);
 
-  // Update the latest continuation token for a specific Duchy's Herald.
+  // Update the latest continuation token.
   rpc updateContinuationToken(UpdateContinuationTokenRequest)
       returns (UpdateContinuationTokenResponse);
 }
 
 // Request to retrieve the latest continuation token.
-message GetContinuationTokenRequest {
-  // The Duchy name of the herald.
-  string name = 1;
-}
+message GetContinuationTokenRequest {}
 
 message GetContinuationTokenResponse {
-  // Content of the continuation token.
+  // Content of continuation token.
   string token = 1;
 }
 
 // Request to update the latest continuation token.
 message UpdateContinuationTokenRequest {
-  // The Duchy name of the herald.
-  string name = 1;
   // Content of the continuation token.
   string token = 2;
 }

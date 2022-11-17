@@ -23,14 +23,8 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.duchy.db.continuationtoken.testing.TestContinuationTokens
-import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineImplBase
+import org.wfanet.measurement.duchy.service.internal.testing.TestContinuationTokensService
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineStub
-import org.wfanet.measurement.internal.duchy.GetContinuationTokenRequest
-import org.wfanet.measurement.internal.duchy.GetContinuationTokenResponse
-import org.wfanet.measurement.internal.duchy.UpdateContinuationTokenRequest
-import org.wfanet.measurement.internal.duchy.UpdateContinuationTokenResponse
-import org.wfanet.measurement.internal.duchy.getContinuationTokenResponse
 
 private const val DUCHY_NAME = "worker"
 private const val CONTINUATION_TOKEN_1 = "token1"
@@ -87,7 +81,7 @@ class ContinuationTokenManagerTest {
   fun `getLatestContinuationToken returns processed token`() = runBlocking {
     continuationTokenManager.getLatestContinuationToken()
     val index1 = continuationTokenManager.addContinuationToken(CONTINUATION_TOKEN_1)
-    val index2 = continuationTokenManager.addContinuationToken(CONTINUATION_TOKEN_2)
+    continuationTokenManager.addContinuationToken(CONTINUATION_TOKEN_2)
     continuationTokenManager.updateContinuationToken(index1)
     val index3 = continuationTokenManager.addContinuationToken(CONTINUATION_TOKEN_3)
     continuationTokenManager.updateContinuationToken(index3)
@@ -95,22 +89,5 @@ class ContinuationTokenManagerTest {
     val token = continuationTokenManager.getLatestContinuationToken()
 
     assertThat(token).isEqualTo(CONTINUATION_TOKEN_1)
-  }
-}
-
-class TestContinuationTokensService : ContinuationTokensCoroutineImplBase() {
-  val tokens = TestContinuationTokens()
-
-  override suspend fun getContinuationToken(
-    request: GetContinuationTokenRequest
-  ): GetContinuationTokenResponse {
-    return getContinuationTokenResponse { token = tokens.readContinuationToken(request.name) }
-  }
-
-  override suspend fun updateContinuationToken(
-    request: UpdateContinuationTokenRequest
-  ): UpdateContinuationTokenResponse {
-    tokens.updateContinuationToken(request.name, request.token)
-    return UpdateContinuationTokenResponse.getDefaultInstance()
   }
 }

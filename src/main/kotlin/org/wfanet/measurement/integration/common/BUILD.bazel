@@ -52,11 +52,11 @@ java_library(
     name = "duchy_services",
     visibility = ["//visibility:private"],
     exports = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/continuationtoken:service",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/api/v2alpha:requisition_fulfillment_service",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computationcontrol:async_computation_control_service",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computations",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computationstats:service",
-        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/continuationtokens:continuation_tokens_service",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/system/v1alpha:computation_control_service",
     ],
 )

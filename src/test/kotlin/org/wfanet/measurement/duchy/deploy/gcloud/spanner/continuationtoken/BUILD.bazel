@@ -2,10 +2,10 @@ load("@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/tes
 
 spanner_emulator_test(
     name = "SpannerContinuationTokensTest",
-    srcs = ["SpannerContinuationTokensTest.kt"],
-    test_class = "org.wfanet.measurement.duchy.deploy.gcloud.spanner.continuationtoken.SpannerContinuationTokensTest",
+    srcs = ["SpannerContinuationTokensServiceTest.kt"],
+    test_class = "org.wfanet.measurement.duchy.deploy.gcloud.spanner.continuationtoken.SpannerContinuationTokensServiceTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/continuationtoken:spanner_continuation_tokens",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/continuationtoken:service",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/testing",
         "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
         "@wfa_common_jvm//imports/java/org/junit",
