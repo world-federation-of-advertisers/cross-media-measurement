@@ -29,8 +29,20 @@ _secret_name: string @tag("secret_name")
 #SystemServerGrpcThreads: 5
 
 #InternalServerResourceRequirements: #ResourceRequirements & {
-	requests: cpu:  "500m"
-	limits: memory: "512Mi"
+	requests: {
+		cpu:    "500m"
+		memory: "352Mi"
+	}
+}
+#PublicServerResourceRequirements: #ResourceRequirements & {
+	requests: {
+		memory: "256Mi"
+	}
+}
+#SystemServerResourceRequirements: #ResourceRequirements & {
+	requests: {
+		memory: "256Mi"
+	}
 }
 
 objectSets: [
@@ -70,7 +82,6 @@ kingdom: #Kingdom & {
 	deployments: {
 		"gcp-kingdom-data-server": {
 			_container: {
-				_javaOptions: maxRamPercentage: 40.0
 				_grpcThreadPoolSize: #InternalServerGrpcThreads
 				resources:           #InternalServerResourceRequirements
 			}
@@ -81,6 +92,12 @@ kingdom: #Kingdom & {
 		"system-api-server": {
 			_container: {
 				_grpcThreadPoolSize: #SystemServerGrpcThreads
+				resources:           #SystemServerResourceRequirements
+			}
+		}
+		"v2alpha-public-api-server": {
+			_container: {
+				resources: #PublicServerResourceRequirements
 			}
 		}
 	}

@@ -24,8 +24,6 @@ package k8s
 }
 
 #JavaOptions: {
-	initialHeapSize:       _ | *"32M"
-	maxHeapSize:           _ | *"96M"
-	reservedCodeCacheSize: _ | *"64M"
-	maxDirectMemorySize:   _ | *"32M"
+	initialHeapSize: _ | *"32M"
+	maxHeapSize:     _ | *"96M"
 }
