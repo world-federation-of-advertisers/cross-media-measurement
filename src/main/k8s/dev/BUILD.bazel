@@ -193,10 +193,28 @@ cue_dump(
     srcs = ["open_telemetry_gke.cue"],
     tags = ["manual"],
     deps = [
-        ":config",
         "//src/main/k8s:open_telemetry",
     ],
 )
+
+SPANNER_DATABASES = [
+    "kingdom",
+    "worker1_duchy_computations",
+    "worker2_duchy_computations",
+    "aggregator_duchy_computations",
+]
+
+[cue_dump(
+    name = "open_telemetry_spanner_" + database,
+    srcs = ["open_telemetry_gke_spanner.cue"],
+    cue_tags = {"database": database},
+    tags = ["manual"],
+    deps = [
+        ":base_gke",
+        ":config",
+        "//src/main/k8s:open_telemetry",
+    ],
+) for database in SPANNER_DATABASES]
 
 cue_dump(
     name = "prometheus_gke",

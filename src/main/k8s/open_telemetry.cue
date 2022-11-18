@@ -17,68 +17,62 @@ package k8s
 // K8s custom resource defined by OpenTelemetry Operator used for creating
 // an OpenTelemetry Collector.
 #OpenTelemetryCollector: {
-	_name:                string
-	_config:              string
-	_serviceAccountName?: string
-
 	apiVersion: "opentelemetry.io/v1alpha1"
 	kind:       "OpenTelemetryCollector"
-	metadata: name: string | *"\(_name)-sidecar"
+	metadata:   #ObjectMeta & {
+		_component: "metrics"
+	}
 	spec: {
-		mode:            "deployment" | *"sidecar"
-		config:          "\(_config)"
-		image:           string | *"docker.io/otel/opentelemetry-collector-contrib:0.60.0"
-		imagePullPolicy: "Always"
-		if _serviceAccountName != _|_ {
-			serviceAccount: _serviceAccountName
-		}
+		mode:             "deployment" | "sidecar"
+		image:            string | *"docker.io/otel/opentelemetry-collector-contrib:0.62.0"
+		imagePullPolicy?: "IfNotPresent" | "Always" | "Never"
+		config:           string
+		nodeSelector?: {...}
+		podSelector?: {...}
+		serviceAccount?: string
+		resources?:      #ResourceRequirements
 	}
 }
 
 #OpenTelemetry: {
-	objectSets: [
-		openTelemetryCollectors,
-		instrumentations,
-	]
-
-	// Basic default config for an Open Telemetry Collector
-	#OpenTelemetryCollectorConfig:
-		"""
-        receivers:
-          otlp:
-            protocols:
-              grpc:
-                endpoint: 0.0.0.0:\(#OpenTelemetryReceiverPort)
-
-        processors:
-          batch:
-            send_batch_size: 200
-            timeout: 10s
-
-        exporters:
-          prometheus:
-            send_timestamps: true
-            endpoint: 0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)
-
-        extensions:
-          health_check:
-
-        service:
-          extensions: [health_check]
-          pipelines:
-            metrics:
-              receivers: [otlp]
-              processors: [batch]
-              exporters: [prometheus]
-        """
-
-	openTelemetryCollectors: [Name=string]: #OpenTelemetryCollector & {
-		_name: Name
+	collectors: [Name=string]: #OpenTelemetryCollector & {
+		metadata: name: Name
 	}
 
-	openTelemetryCollectors: {
-		"default": {
-			_config: #OpenTelemetryCollectorConfig
+	collectors: {
+		"sidecar": {
+			spec: {
+				mode:   "sidecar"
+				config: """
+
+          receivers:
+            otlp:
+              protocols:
+                grpc:
+                  endpoint: 0.0.0.0:\(#OpenTelemetryReceiverPort)
+          
+          processors:
+            batch:
+              send_batch_size: 200
+              timeout: 10s
+          
+          exporters:
+            prometheus:
+              send_timestamps: true
+              endpoint: 0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)
+          
+          extensions:
+            health_check:
+          
+          service:
+            extensions: [health_check]
+            pipelines:
+              metrics:
+                receivers: [otlp]
+                processors: [batch]
+                exporters: [prometheus]
+          """
+			}
 		}
 	}
 

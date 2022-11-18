@@ -39,13 +39,15 @@ package k8s
 	}
 }
 
+#ServiceAccountNodeSelector: {
+	"iam.gke.io/gke-metadata-server-enabled": "true"
+}
+
 #ServiceAccountPodSpec: {
 	#PodSpec
 
 	serviceAccountName: string
-	nodeSelector: {
-		"iam.gke.io/gke-metadata-server-enabled": "true"
-	}
+	nodeSelector:       #ServiceAccountNodeSelector
 }
 
 #SpotVmPodSpec: {

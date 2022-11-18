@@ -14,4 +14,6 @@
 
 package k8s
 
-objectSets: #OpenTelemetry.objectSets
+objectSets: [openTelemetry.collectors, openTelemetry.instrumentations]
+
+openTelemetry: #OpenTelemetry

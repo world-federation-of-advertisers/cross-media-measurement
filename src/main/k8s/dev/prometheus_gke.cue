@@ -14,9 +14,8 @@
 
 package k8s
 
-// Name of K8s service account for access to WorkloadIdentity to read from the
-// MonitoringAPI.
-#MonitoringServiceAccount: "prometheus-frontend"
+// K8s service account for access to Cloud Monitoring.
+#MonitoringServiceAccount: "gmp-monitoring"
 
 objectSets: [
 	clusterPodMonitorings,
@@ -45,7 +44,7 @@ clusterPodMonitorings: {
 		kind:       "ClusterPodMonitoring"
 		metadata: name: "opentelemetry-collector-pod-monitor"
 		spec: {
-			selector: matchLabels: "app.kubernetes.io/name": "deployment-collector"
+			selector: matchLabels: "app.kubernetes.io/name": "spanner-collector"
 			endpoints: [{
 				port:     #OpenTelemetryPrometheusExporterPort
 				interval: "60s"
@@ -125,7 +124,7 @@ deployments: {
 	"prometheus-frontend": {
 		_container: {
 			image:           "gke.gcr.io/prometheus-engine/frontend:v0.4.3-gke.0"
-			imagePullPolicy: "Always"
+			imagePullPolicy: "IfNotPresent"
 			args: [
 				"--web.listen-address=:\(#PrometheusFrontendPort)",
 				"--query.project-id=\(#GCloudProject)",
@@ -143,6 +142,7 @@ deployments: {
 				}
 			}
 			spec: #ServiceAccountPodSpec & {
+				_container: resources: requests: memory: "8Mi"
 				serviceAccountName: #MonitoringServiceAccount
 			}
 		}
