@@ -49,6 +49,11 @@ import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggrega
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub as SystemComputationLogEntriesCoroutineStub
+import org.junit.rules.TemporaryFolder
+import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.duchy.storage.ComputationStore
+import org.wfanet.measurement.duchy.storage.RequisitionStore
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 private const val ID_WHERE_ALSACE_IS_NOT_PRIMARY = "456"
 private const val ID_WHERE_ALSACE_IS_PRIMARY = "123"
@@ -60,18 +65,25 @@ private const val CARINTHIA = "Carinthia"
 class ComputationDataClientsTest {
   private val fakeDatabase = FakeComputationsDatabase()
 
-  @get:Rule
+  private val tempDirectory = TemporaryFolder()
+
   val grpcTestServerRule = GrpcTestServerRule {
+    val storageClient = FileSystemStorageClient(tempDirectory.root)
+
     systemComputationLogEntriesClient = SystemComputationLogEntriesCoroutineStub(channel)
     addService(
       ComputationsService(
         fakeDatabase,
         systemComputationLogEntriesClient,
+        ComputationStore(storageClient),
+        RequisitionStore(storageClient),
         ALSACE,
         Clock.systemUTC()
       )
     )
   }
+
+  @get:Rule val ruleChain = chainRulesSequentially(tempDirectory, grpcTestServerRule)
 
   private lateinit var systemComputationLogEntriesClient: SystemComputationLogEntriesCoroutineStub
 

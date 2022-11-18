@@ -31,11 +31,14 @@ import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.deploy.common.SystemApiFlags
 import org.wfanet.measurement.duchy.service.internal.computations.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computationstats.ComputationStatsService
+import org.wfanet.measurement.duchy.storage.ComputationStore
+import org.wfanet.measurement.duchy.storage.RequisitionStore
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineImplBase
+import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import picocli.CommandLine
 
@@ -59,6 +62,7 @@ abstract class ComputationsServer : Runnable {
     computationsDatabaseReader: ComputationsDatabaseReader,
     computationDb: ComputationsDb,
     continuationTokensService: ContinuationTokensCoroutineImplBase,
+    storageClient: StorageClient,
   ) {
     val clientCerts =
       SigningCerts.fromPemFiles(
@@ -81,7 +85,9 @@ abstract class ComputationsServer : Runnable {
         ComputationsService(
           computationsDatabase = computationsDatabase,
           computationLogEntriesClient = computationLogEntriesClient,
-          duchyName = flags.duchy.duchyName
+          duchyName = flags.duchy.duchyName,
+          computationStorageClient = ComputationStore(storageClient),
+          requisitionStorageClient = RequisitionStore(storageClient),
         ),
         ComputationStatsService(computationsDatabase),
         continuationTokensService

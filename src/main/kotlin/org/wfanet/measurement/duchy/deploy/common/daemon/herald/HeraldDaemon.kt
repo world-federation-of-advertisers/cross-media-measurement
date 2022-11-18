@@ -73,6 +73,15 @@ private class Flags {
   lateinit var protocolsSetupConfig: File
     private set
 
+  @CommandLine.Option(
+    names = ["--deletable-computation-state"],
+    description = ["States of Computations to be deleted."],
+    required = false,
+    defaultValue = "",
+  )
+  lateinit var deletableComputationStates: List<String>
+    private set
+
   @set:CommandLine.Option(
     names = ["--debug-verbose-grpc-client-logging"],
     description = ["Enables full gRPC request and response logging for outgoing gRPCs"],
@@ -132,7 +141,8 @@ private fun run(@CommandLine.Mixin flags: Flags) {
         flags.protocolsSetupConfig.reader().use {
           parseTextProto(it, ProtocolsSetupConfig.getDefaultInstance())
         },
-      clock = Clock.systemUTC()
+      clock = Clock.systemUTC(),
+      deletableStates = flags.deletableComputationStates
     )
   runBlocking { herald.continuallySyncStatuses() }
 }

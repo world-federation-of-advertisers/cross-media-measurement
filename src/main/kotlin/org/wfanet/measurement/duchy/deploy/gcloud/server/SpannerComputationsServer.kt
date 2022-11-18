@@ -24,8 +24,10 @@ import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.Computatio
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDatabaseReader
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDatabaseTransactor
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.continuationtoken.SpannerContinuationTokensService
+import org.wfanet.measurement.gcloud.gcs.GcsFromFlags
 import org.wfanet.measurement.gcloud.spanner.SpannerFlags
 import org.wfanet.measurement.gcloud.spanner.usingSpanner
+import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import picocli.CommandLine
 
 /** Implementation of [ComputationsServer] using Google Cloud Spanner. */
@@ -37,6 +39,7 @@ import picocli.CommandLine
 )
 class SpannerComputationsServer : ComputationsServer() {
   @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
+  @CommandLine.Mixin private lateinit var gcsFlags: GcsFromFlags.Flags
 
   override val protocolStageEnumHelper = ComputationProtocolStages
   override val computationProtocolStageDetails = ComputationProtocolStageDetails
@@ -44,6 +47,7 @@ class SpannerComputationsServer : ComputationsServer() {
   override fun run() = runBlocking {
     spannerFlags.usingSpanner { spanner ->
       val databaseClient = spanner.databaseClient
+      val storageClient = GcsStorageClient.fromFlags(GcsFromFlags(gcsFlags))
       run(
         GcpSpannerComputationsDatabaseReader(databaseClient, protocolStageEnumHelper),
         GcpSpannerComputationsDatabaseTransactor(
@@ -55,7 +59,8 @@ class SpannerComputationsServer : ComputationsServer() {
               computationProtocolStageDetails
             )
         ),
-        SpannerContinuationTokensService(databaseClient)
+        SpannerContinuationTokensService(databaseClient),
+        storageClient
       )
     }
   }

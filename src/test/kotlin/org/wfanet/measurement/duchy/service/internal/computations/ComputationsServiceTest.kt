@@ -14,19 +14,27 @@
 
 package org.wfanet.measurement.duchy.service.internal.computations
 
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.kotlin.toByteStringUtf8
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import java.time.Clock
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatabase
+import org.wfanet.measurement.duchy.storage.ComputationStore
+import org.wfanet.measurement.duchy.storage.RequisitionStore
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
@@ -43,11 +51,14 @@ import org.wfanet.measurement.internal.duchy.computationStage
 import org.wfanet.measurement.internal.duchy.computationToken
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation
 import org.wfanet.measurement.internal.duchy.copy
+import org.wfanet.measurement.internal.duchy.deleteComputationRequest
 import org.wfanet.measurement.internal.duchy.externalRequisitionKey
+import org.wfanet.measurement.internal.duchy.getComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.requisitionEntry
 import org.wfanet.measurement.internal.duchy.requisitionMetadata
 import org.wfanet.measurement.internal.duchy.updateComputationDetailsRequest
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
@@ -62,6 +73,9 @@ private val NON_AGGREGATOR_COMPUTATION_DETAILS =
     .apply { liquidLegionsV2Builder.apply { role = RoleInComputation.NON_AGGREGATOR } }
     .build()
 private const val DUCHY_NAME = "BOHEMIA"
+private const val COMPUTATION_BLOB_KEY_PREFIX = "computations"
+private const val REQUISITION_BLOB_KEY_PREFIX = "requisitions"
+
 
 @RunWith(JUnit4::class)
 @ExperimentalCoroutinesApi
@@ -71,13 +85,26 @@ class ComputationsServiceTest {
   private val mockComputationLogEntriesService: ComputationLogEntriesCoroutineImplBase =
     mockService()
 
-  @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule { addService(mockComputationLogEntriesService) }
+  private val tempDirectory = TemporaryFolder()
+  private lateinit var storageClient: FileSystemStorageClient
+  private lateinit var computationStore: ComputationStore
+  private lateinit var requisitionStore: RequisitionStore
+
+  val grpcTestServerRule = GrpcTestServerRule {
+    storageClient = FileSystemStorageClient(tempDirectory.root)
+    computationStore = ComputationStore(storageClient)
+    requisitionStore = RequisitionStore(storageClient)
+    addService(mockComputationLogEntriesService)
+  }
+
+  @get:Rule val ruleChain = chainRulesSequentially(tempDirectory, grpcTestServerRule)
 
   private val fakeService: ComputationsService by lazy {
     ComputationsService(
       fakeDatabase,
       ComputationLogEntriesCoroutineStub(grpcTestServerRule.channel),
+      computationStore,
+      requisitionStore,
       DUCHY_NAME,
       Clock.systemUTC()
     )
@@ -486,5 +513,59 @@ class ComputationsServiceTest {
           .build()
           .toRecordRequisitionBlobPathResponse()
       )
+  }
+
+  @Test
+  fun `deleteComputation deletes Computation and blobs`() = runBlocking {
+    val globalId = "65535"
+    val requisitionBlobPath1 = "$REQUISITION_BLOB_KEY_PREFIX/${globalId}_1"
+    val requisitionBlobPath2 = "$REQUISITION_BLOB_KEY_PREFIX/${globalId}_2"
+    val computationBlobKey1 = "$COMPUTATION_BLOB_KEY_PREFIX/${globalId}_1"
+    val computationBlobKey2 = "$COMPUTATION_BLOB_KEY_PREFIX/${globalId}_2"
+
+    val requisition1Key = externalRequisitionKey {
+      externalRequisitionId = "1234"
+      requisitionFingerprint = "A requisition fingerprint".toByteStringUtf8()
+    }
+    val requisition2Key = externalRequisitionKey {
+      externalRequisitionId = "5678"
+      requisitionFingerprint = "Another requisition fingerprint".toByteStringUtf8()
+    }
+    fakeDatabase.addComputation(
+      globalId = globalId,
+      stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
+      computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
+      requisitions =
+      listOf(
+        requisitionMetadata {
+          externalKey = requisition1Key
+          path = requisitionBlobPath1
+        },
+        requisitionMetadata {
+          externalKey = requisition2Key
+          path = requisitionBlobPath2
+        }
+      )
+    )
+    storageClient.writeBlob(requisitionBlobPath1, "requisition_1".toByteStringUtf8())
+    storageClient.writeBlob(requisitionBlobPath2, "requisition_2".toByteStringUtf8())
+    storageClient.writeBlob(computationBlobKey1, "computation_1".toByteStringUtf8())
+    storageClient.writeBlob(computationBlobKey2, "computation_2".toByteStringUtf8())
+
+    val localId = globalId.toLong()
+    fakeService.deleteComputation(
+      deleteComputationRequest{
+        localComputationId = localId
+      })
+
+    val exception = assertFailsWith<StatusRuntimeException> {
+      fakeService.getComputationToken(getComputationTokenRequest { globalComputationId = globalId })
+    }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+
+    assertThat(storageClient.getBlob(requisitionBlobPath1)).isNull()
+    assertThat(storageClient.getBlob(requisitionBlobPath2)).isNull()
+    assertThat(storageClient.getBlob(computationBlobKey1)).isNull()
+    assertThat(storageClient.getBlob(computationBlobKey2)).isNull()
   }
 }

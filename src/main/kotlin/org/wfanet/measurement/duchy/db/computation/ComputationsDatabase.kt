@@ -51,6 +51,16 @@ interface ComputationsDatabaseReader {
    * in a one of the provided stages.
    */
   suspend fun readGlobalComputationIds(stages: Set<ComputationStage>): Set<String>
+
+  /**
+   * Gets all blobKeys of a Computation's data
+   */
+  suspend fun readComputationBlobKeys(localId: Long): List<String>
+
+  /**
+   * Gets all blobKeys of a Computation's requisitions
+   */
+  suspend fun readRequisitionBlobKeys(localId: Long): List<String>
 }
 
 /**
@@ -80,6 +90,13 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
     computationDetails: ComputationDetailsT,
     requisitions: List<RequisitionEntry> = listOf()
   )
+
+  /**
+   * Delete a computation for the local identifier.
+   *
+   * All related records in other tables are also removed.
+   */
+  suspend fun deleteComputation(localId: Long)
 
   /**
    * Adds a computation to the work queue, saying it can be worked on by a worker job.

@@ -34,6 +34,10 @@ service Computations {
   rpc CreateComputation(CreateComputationRequest)
       returns (CreateComputationResponse);
 
+  // Deletes a computation.
+  rpc DeleteComputation(DeleteComputationRequest)
+      returns (DeleteComputationResponse);
+
   // Gets the ComputationToken for a specific computation by
   // its global identifier.
   rpc GetComputationToken(GetComputationTokenRequest)
@@ -94,6 +98,13 @@ message CreateComputationResponse {
   // Token of the created computation.
   ComputationToken token = 1;
 }
+
+message DeleteComputationRequest {
+  // The local identifier of the computation.
+  int64 local_computation_id = 2;
+}
+
+message DeleteComputationResponse {}
 
 // Request for a ComputationToken for a specific computation.
 message GetComputationTokenRequest {

@@ -47,6 +47,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
+import org.wfanet.measurement.internal.duchy.deleteComputationRequest
 import org.wfanet.measurement.system.v1alpha.failComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.streamActiveComputationsRequest
 
@@ -82,9 +83,12 @@ class Herald(
   private val maxStreamingAttempts: Int = 5,
   maxConcurrency: Int = 5,
   private val retryBackoff: ExponentialBackoff = ExponentialBackoff(),
+  deletableStates: List<String> = emptyList(),
 ) {
   private val semaphore = Semaphore(maxConcurrency)
   private val continuationTokenManager = ContinuationTokenManager(duchyId, continuationTokenClient)
+
+  private val deletableComputationStates = deletableStates.map { State.valueOf(it) }
 
   /**
    * Syncs the status of computations stored at the kingdom with those stored locally continually in
@@ -208,9 +212,15 @@ class Herald(
       State.FAILED,
       State.CANCELLED -> {
         failComputationAtDuchy(computation)
-        clearIntermediateData(computation)
+        if (state in deletableComputationStates) {
+          clearComputation(computation)
+        }
       }
-      State.SUCCEEDED -> clearIntermediateData(computation)
+      State.SUCCEEDED -> {
+        if (state in deletableComputationStates) {
+          clearComputation(computation)
+        }
+      }
       else -> logger.warning("Unexpected global computation state '$state'")
     }
   }
@@ -314,6 +324,19 @@ class Herald(
     }
   }
 
+  private suspend fun clearComputation(computation: Computation) {
+    val globalId = computation.key.computationId
+    val token = internalComputationsClient.getComputationToken(globalId.toGetTokenRequest()).token
+
+    try {
+      internalComputationsClient.deleteComputation(deleteComputationRequest {
+        localComputationId = token.localComputationId
+      })
+    } catch (e: StatusException) {
+      logger.warning("[id=$globalId]: Failed to delete computation")
+    }
+  }
+
   /** Call failComputationParticipant at Kingdom to fail the Computation */
   private suspend fun failComputationAtKingdom(computation: Computation, errorMessage: String) {
     val globalId = computation.key.computationId
@@ -358,10 +381,6 @@ class Herald(
       logger.log(Level.WARNING, e) { "[id=$globalId]: Error when failComputationAtDuchy" }
     }
     // TODO(@renjiez): Clean intermediate data at Duchy
-  }
-
-  private class clearIntermediateData(computation: Computation) {
-    // TODO(@renjiez): Implementation
   }
 
   private class StreamingException(message: String, override val cause: StatusException) :

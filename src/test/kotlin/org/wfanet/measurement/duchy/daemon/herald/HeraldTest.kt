@@ -54,8 +54,8 @@ import org.wfanet.measurement.duchy.service.internal.computations.newPassThrough
 import org.wfanet.measurement.duchy.service.internal.testing.TestContinuationTokensService
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails
-import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase as DuchyComputationsCoroutineImplBase
-import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub as DuchyComputationsCoroutineStub
+import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase as InternalComputationsCoroutineImplBase
+import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub as InternalComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineStub
 import org.wfanet.measurement.internal.duchy.FinishComputationResponse
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation
@@ -82,6 +82,21 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.Compu
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineImplBase as SystemComputationsCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
+import org.junit.rules.TemporaryFolder
+import org.mockito.kotlin.KArgumentCaptor
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verifyBlocking
+import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.duchy.storage.ComputationStore
+import org.wfanet.measurement.duchy.storage.RequisitionStore
+import org.wfanet.measurement.internal.duchy.DeleteComputationRequest
+import org.wfanet.measurement.internal.duchy.DeleteComputationResponse
+import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
+import org.wfanet.measurement.internal.duchy.computationToken
+import org.wfanet.measurement.internal.duchy.deleteComputationRequest
+import org.wfanet.measurement.internal.duchy.getComputationTokenResponse
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.system.v1alpha.FailComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.Requisition
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
@@ -202,29 +217,38 @@ class HeraldTest {
         .thenReturn(ComputationLogEntry.getDefaultInstance())
     }
 
-  private val fakeComputationStorage = FakeComputationsDatabase()
+  private val fakeComputationDatabase = FakeComputationsDatabase()
 
   private lateinit var continuationTokensService: TestContinuationTokensService
 
-  @get:Rule
+  private val tempDirectory = TemporaryFolder()
+  private lateinit var storageClient: FileSystemStorageClient
+  private lateinit var computationStore: ComputationStore
+  private lateinit var requisitionStore: RequisitionStore
+
   val grpcTestServerRule = GrpcTestServerRule {
-    addService(systemComputations)
+    storageClient = FileSystemStorageClient(tempDirectory.root)
+    computationStore = ComputationStore(storageClient)
+    requisitionStore = RequisitionStore(storageClient)
     addService(
       ComputationsService(
-        fakeComputationStorage,
+        fakeComputationDatabase,
         computationLogEntriesCoroutineStub,
+        computationStore,
+        requisitionStore,
         DUCHY_ONE,
         Clock.systemUTC()
       )
     )
+    addService(systemComputations)
     addService(systemComputationParticipants)
     addService(computationLogEntries)
     continuationTokensService = TestContinuationTokensService()
     addService(continuationTokensService)
   }
 
-  private val internalComputationsStub: DuchyComputationsCoroutineStub by lazy {
-    DuchyComputationsCoroutineStub(grpcTestServerRule.channel)
+  private val internalComputationsStub: InternalComputationsCoroutineStub by lazy {
+    InternalComputationsCoroutineStub(grpcTestServerRule.channel)
   }
 
   private val computationLogEntriesCoroutineStub: SystemComputationLogEntriesCoroutineStub by lazy {
@@ -244,8 +268,17 @@ class HeraldTest {
     ContinuationTokensCoroutineStub(grpcTestServerRule.channel)
   }
 
+  private val internalComputationsMock: InternalComputationsCoroutineImplBase = mockService {}
+  private val mockTestServerRule = GrpcTestServerRule {
+    addService(internalComputationsMock)
+  }
+  private val mockInternalComputationsStub = InternalComputationsCoroutineStub(mockTestServerRule.channel)
+
   private lateinit var aggregatorHerald: Herald
   private lateinit var nonAggregatorHerald: Herald
+  private lateinit var mockHerald: Herald
+
+  @get:Rule val ruleChain = chainRulesSequentially(tempDirectory, grpcTestServerRule, mockTestServerRule)
 
   @Before
   fun initHerald() {
@@ -271,6 +304,18 @@ class HeraldTest {
         NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
         Clock.systemUTC(),
       )
+    mockHerald =
+      Herald(
+        AGGREGATOR_HERALD_ID,
+        AGGREGATOR_DUCHY_ID,
+        mockInternalComputationsStub,
+        systemComputationsStub,
+        systemComputationParticipantsStub,
+        continuationTokensStub,
+        AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
+        Clock.systemUTC(),
+        deletableStates = listOf("SUCCEEDED", "FAILED"),
+      )
   }
 
   @Test
@@ -281,7 +326,7 @@ class HeraldTest {
     nonAggregatorHerald.syncStatuses()
 
     assertThat(continuationTokensService.latestContinuationToken).isEqualTo("TOKEN_OF_LAST_ITEM")
-    assertThat(fakeComputationStorage).isEmpty()
+    assertThat(fakeComputationDatabase).isEmpty()
   }
 
   @Test
@@ -301,7 +346,7 @@ class HeraldTest {
       )
     mockStreamActiveComputationsToReturn(confirmingKnown, confirmingUnknown)
 
-    fakeComputationStorage.addComputation(
+    fakeComputationDatabase.addComputation(
       globalId = confirmingKnown.key.computationId,
       stage = INITIALIZATION_PHASE.toProtocolStage(),
       computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
@@ -313,7 +358,7 @@ class HeraldTest {
     assertThat(continuationTokensService.latestContinuationToken)
       .isEqualTo(confirmingUnknown.continuationToken())
     assertThat(
-        fakeComputationStorage.mapValues { (_, fakeComputation) ->
+      fakeComputationDatabase.mapValues { (_, fakeComputation) ->
           fakeComputation.computationStage
         }
       )
@@ -325,14 +370,14 @@ class HeraldTest {
       )
 
     assertThat(
-        fakeComputationStorage[confirmingUnknown.key.computationId.toLong()]?.requisitionsList
+      fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.requisitionsList
       )
       .containsExactly(
         REQUISITION_1.toRequisitionMetadata(Requisition.State.UNFULFILLED),
         REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED)
       )
     assertThat(
-        fakeComputationStorage[confirmingUnknown.key.computationId.toLong()]?.computationDetails
+      fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.computationDetails
       )
       .isEqualTo(
         ComputationDetails.newBuilder()
@@ -463,7 +508,7 @@ class HeraldTest {
 
     mockStreamActiveComputationsToReturn(waitingRequisitionsAndKeySet)
 
-    fakeComputationStorage.addComputation(
+    fakeComputationDatabase.addComputation(
       globalId = globalId,
       stage = WAIT_REQUISITIONS_AND_KEY_SET.toProtocolStage(),
       computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
@@ -479,7 +524,7 @@ class HeraldTest {
     assertThat(continuationTokensService.latestContinuationToken)
       .isEqualTo(waitingRequisitionsAndKeySet.continuationToken())
 
-    val duchyComputationToken = fakeComputationStorage.readComputationToken(globalId)!!
+    val duchyComputationToken = fakeComputationDatabase.readComputationToken(globalId)!!
     assertThat(duchyComputationToken.computationStage)
       .isEqualTo(CONFIRMATION_PHASE.toProtocolStage())
     assertThat(duchyComputationToken.computationDetails.liquidLegionsV2.participantList)
@@ -537,14 +582,14 @@ class HeraldTest {
     val addingNoise = buildComputationAtKingdom("231313", Computation.State.PENDING_COMPUTATION)
     mockStreamActiveComputationsToReturn(waitingToStart, addingNoise)
 
-    fakeComputationStorage.addComputation(
+    fakeComputationDatabase.addComputation(
       globalId = waitingToStart.key.computationId,
       stage = WAIT_TO_START.toProtocolStage(),
       computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
       blobs = listOf(newPassThroughBlobMetadata(0L, "local-copy-of-sketches"))
     )
 
-    fakeComputationStorage.addComputation(
+    fakeComputationDatabase.addComputation(
       globalId = addingNoise.key.computationId,
       stage = SETUP_PHASE.toProtocolStage(),
       computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
@@ -557,7 +602,7 @@ class HeraldTest {
     assertThat(continuationTokensService.latestContinuationToken)
       .isEqualTo(addingNoise.continuationToken())
     assertThat(
-        fakeComputationStorage.mapValues { (_, fakeComputation) ->
+      fakeComputationDatabase.mapValues { (_, fakeComputation) ->
           fakeComputation.computationStage
         }
       )
@@ -588,7 +633,7 @@ class HeraldTest {
           }
         )
     }
-    fakeComputationStorage.addComputation(
+    fakeComputationDatabase.addComputation(
       globalId = computation.key.computationId,
       stage = INITIALIZATION_PHASE.toProtocolStage(),
       computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
@@ -601,7 +646,7 @@ class HeraldTest {
     streamActiveComputationsJob.join()
 
     assertThat(
-        fakeComputationStorage.mapValues { (_, fakeComputation) ->
+      fakeComputationDatabase.mapValues { (_, fakeComputation) ->
           fakeComputation.computationStage
         }
       )
@@ -611,8 +656,8 @@ class HeraldTest {
       )
 
     // Update the state.
-    fakeComputationStorage.remove(computation.key.computationId.toLong())
-    fakeComputationStorage.addComputation(
+    fakeComputationDatabase.remove(computation.key.computationId.toLong())
+    fakeComputationDatabase.addComputation(
       globalId = computation.key.computationId,
       stage = WAIT_TO_START.toProtocolStage(),
       computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
@@ -621,7 +666,7 @@ class HeraldTest {
     // Verify that next attempt succeeds.
     syncResult.await()
     val finalComputation =
-      assertNotNull(fakeComputationStorage[computation.key.computationId.toLong()])
+      assertNotNull(fakeComputationDatabase[computation.key.computationId.toLong()])
     assertThat(finalComputation.computationStage).isEqualTo(SETUP_PHASE.toProtocolStage())
   }
 
@@ -644,7 +689,7 @@ class HeraldTest {
       buildComputationAtKingdom(COMPUTATION_GLOBAL_ID, Computation.State.PENDING_COMPUTATION)
     mockStreamActiveComputationsToReturn(computation)
 
-    fakeComputationStorage.addComputation(
+    fakeComputationDatabase.addComputation(
       globalId = computation.key.computationId,
       stage = INITIALIZATION_PHASE.toProtocolStage(),
       computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS,
@@ -698,28 +743,13 @@ class HeraldTest {
   @Test
   fun `syncStatuses fails computation for attempts-exhausted error`() = runTest {
     // Set up a new herald with mock services to raise certain exception
-    val internalComputationsService: DuchyComputationsCoroutineImplBase = mockService {
+    internalComputationsMock.stub {
       onBlocking { createComputation(any()) }.thenThrow(Status.UNKNOWN.asRuntimeException())
       onBlocking { finishComputation(any()) }
         .thenReturn(FinishComputationResponse.getDefaultInstance())
+      onBlocking { getComputationToken(any())}
+        .thenThrow(Status.NOT_FOUND.asRuntimeException())
     }
-    val mockTestServerRule = GrpcTestServerRule {
-      addService(systemComputations)
-      addService(internalComputationsService)
-      addService(systemComputationParticipants)
-    }
-    val mockInternalComputationsStub = DuchyComputationsCoroutineStub(mockTestServerRule.channel)
-    val mockHerald =
-      Herald(
-        AGGREGATOR_HERALD_ID,
-        AGGREGATOR_DUCHY_ID,
-        mockInternalComputationsStub,
-        systemComputationsStub,
-        systemComputationParticipantsStub,
-        continuationTokensStub,
-        AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
-        Clock.systemUTC(),
-      )
 
     val computation =
       buildComputationAtKingdom(COMPUTATION_GLOBAL_ID, Computation.State.PENDING_REQUISITION_PARAMS)
@@ -736,6 +766,57 @@ class HeraldTest {
         ComputationParticipantKey(computation.key.computationId, AGGREGATOR_DUCHY_ID).toName()
       )
     assertThat(failRequest.failure.errorMessage).contains("3 attempts")
+  }
+
+  @Test
+  fun `syncStatuses finishes multiple tasks under coordination of semaphore`() = runTest {
+    val computations =
+      (1..10).map {
+        buildComputationAtKingdom(it.toString(), Computation.State.PENDING_REQUISITION_PARAMS)
+      }
+    mockStreamActiveComputationsToReturn(*computations.toTypedArray())
+
+    aggregatorHerald.syncStatuses()
+    assertThat(continuationTokensService.latestContinuationToken).isNotEmpty()
+  }
+
+  @Test
+  fun `syncStatuses clear terminated computations given the clear`() = runTest {
+    internalComputationsMock.stub {
+      onBlocking { getComputationToken(any()) }.thenAnswer { invocationOnMock ->
+        val request = invocationOnMock.getArgument<GetComputationTokenRequest>(0)
+        getComputationTokenResponse {
+          token = computationToken {
+            globalComputationId = request.globalComputationId
+            localComputationId = request.globalComputationId.toLong()
+            computationDetails = AGGREGATOR_COMPUTATION_DETAILS
+          }
+        }
+      }
+      onBlocking { deleteComputation(any()) }.thenReturn(DeleteComputationResponse.getDefaultInstance())
+      onBlocking { finishComputation(any()) }
+        .thenReturn(FinishComputationResponse.getDefaultInstance())
+    }
+    // The Herald only deletes SUCCEEDED and FAILED Computations.
+    val computation1 = buildComputationAtKingdom("1", Computation.State.SUCCEEDED)
+    val computation2 = buildComputationAtKingdom("2", Computation.State.FAILED)
+    val computation3 = buildComputationAtKingdom("3", Computation.State.CANCELLED)
+    mockStreamActiveComputationsToReturn(computation1, computation2, computation3)
+
+    mockHerald.syncStatuses()
+    assertThat(continuationTokensService.latestContinuationToken).isNotEmpty()
+
+    // Verify that internalComputationService receives delete requests for SUCCEEDED and FAILED
+    // Computations
+    val internalComputationServiceCaptor: KArgumentCaptor<DeleteComputationRequest> = argumentCaptor()
+    verifyBlocking(internalComputationsMock, times(2)) {
+      deleteComputation(internalComputationServiceCaptor.capture())
+    }
+    val capturedInternalReportingSetRequests = internalComputationServiceCaptor.allValues
+    assertThat(capturedInternalReportingSetRequests).containsExactly(
+      deleteComputationRequest { localComputationId = 1L },
+      deleteComputationRequest { localComputationId = 2L },
+    )
   }
 
   private fun mockStreamActiveComputationsToReturn(vararg computations: Computation) =
@@ -755,18 +836,6 @@ class HeraldTest {
             .asFlow()
         )
     }
-
-  @Test
-  fun `syncStatuses finishes multiple tasks under coordination of semaphore`() = runTest {
-    val computations =
-      (1..10).map {
-        buildComputationAtKingdom(it.toString(), Computation.State.PENDING_REQUISITION_PARAMS)
-      }
-    mockStreamActiveComputationsToReturn(*computations.toTypedArray())
-
-    aggregatorHerald.syncStatuses()
-    assertThat(continuationTokensService.latestContinuationToken).isNotEmpty()
-  }
 
   /**
    * Builds a kingdom system Api Computation using default values for fields not included in the

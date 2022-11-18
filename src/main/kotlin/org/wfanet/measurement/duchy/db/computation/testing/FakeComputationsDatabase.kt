@@ -42,6 +42,9 @@ import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.copy
 import org.wfanet.measurement.internal.duchy.requisitionMetadata
 
+private const val COMPUTATION_BLOB_KEY_PREFIX = "computations"
+private const val REQUISITION_BLOB_KEY_PREFIX = "requisitions"
+
 /** In-memory [ComputationsDatabase] */
 class FakeComputationsDatabase
 private constructor(
@@ -86,6 +89,10 @@ private constructor(
           }
         }
     )
+  }
+
+  override suspend fun deleteComputation(localId: Long) {
+    remove(localId)
   }
 
   /** Adds a fake computation to the [tokens] map. */
@@ -374,6 +381,14 @@ private constructor(
     metric: ComputationStatMetric
   ) {
     require(metric.name.isNotEmpty())
+  }
+
+  override suspend fun readComputationBlobKeys(localId: Long): List<String> {
+    return listOf("${localId}_1", "${localId}_2")
+  }
+
+  override suspend fun readRequisitionBlobKeys(localId: Long): List<String> {
+    return listOf("${localId}_1", "${localId}_2")
   }
 
   companion object {

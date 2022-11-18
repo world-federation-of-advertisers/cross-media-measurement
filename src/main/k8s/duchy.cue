@@ -24,6 +24,7 @@ import ("strings")
 	}
 	_duchy_secret_name: string
 	_computation_control_targets: [Name=_]: string
+	_deletable_computation_states: [...string]
 	_kingdom_system_api_target: string
 	_spannerConfig:             #SpannerConfig & {
 		database: "\(_duchy.name)_duchy_computations"
@@ -56,6 +57,7 @@ import ("strings")
 	_duchy_cs_cert_file_flag:                           "--consent-signaling-certificate-der-file=/var/run/secrets/files/\(_name)_cs_cert.der"
 	_duchy_cs_key_file_flag:                            "--consent-signaling-private-key-der-file=/var/run/secrets/files/\(_name)_cs_private.der"
 	_duchy_cs_cert_rename_name_flag:                    "--consent-signaling-certificate-resource-name=\(_cs_cert_resource_name)"
+	_duchy_deletable_states_flag:                       [ for state in _deletable_computation_states {"--deletable-computation-state=\(state)"}]
 	_kingdom_system_api_target_flag:                    "--kingdom-system-api-target=\(_kingdom_system_api_target)"
 	_kingdom_system_api_cert_host_flag:                 "--kingdom-system-api-cert-host=localhost"
 	_debug_verbose_grpc_client_logging_flag:            "--debug-verbose-grpc-client-logging=\(_verbose_grpc_logging)"
@@ -166,7 +168,7 @@ import ("strings")
 						"--channel-shutdown-timeout=3s",
 						"--port=8443",
 						"--health-port=8080",
-			] + _spannerConfig.flags
+			] + _spannerConfig.flags + _blob_storage_flags
 			_updateSchemaContainer: #Container & {
 				image:           _images["update-duchy-schema"]
 				imagePullPolicy: _container.imagePullPolicy
