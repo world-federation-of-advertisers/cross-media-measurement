@@ -57,3 +57,8 @@ package k8s
 		effect:   "NoSchedule"
 	}
 }
+
+#JavaOptions: {
+	initialHeapSize: _ | *"32M"
+	maxHeapSize:     _ | *"96M"
+}

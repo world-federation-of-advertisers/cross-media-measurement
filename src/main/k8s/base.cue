@@ -78,19 +78,19 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 }
 
 #JavaOptions: {
-	maxRamPercentage?:      float
-	initialRamPercentage?:  float
-	maxHeapSize?:           string
-	initialHeapSize?:       string
-	reservedCodeCacheSize?: string
-	maxMetaspaceSize?:      string
-	maxDirectMemorySize?:   string
-	maxCachedBufferSize:    uint | *262144 // 256KiB
-	nettyMaxDirectMemory?:  int
-	loggingConfigFile?:     string
-	heapDumpOnOutOfMemory:  bool | *false
-	heapDumpPath?:          string
-	exitOnOutOfMemory:      bool | *heapDumpOnOutOfMemory
+	maxRamPercentage?:        float
+	initialRamPercentage?:    float
+	maxHeapSize?:             string
+	initialHeapSize?:         string
+	profiledCodeHeapSize?:    string
+	nonProfiledCodeHeapSize?: string
+	maxDirectMemorySize?:     string
+	maxCachedBufferSize:      uint | *262144 // 256KiB
+	nettyMaxDirectMemory?:    int
+	loggingConfigFile?:       string
+	heapDumpOnOutOfMemory:    bool | *false
+	heapDumpPath?:            string
+	exitOnOutOfMemory:        bool | *heapDumpOnOutOfMemory
 
 	_maxRamPercentageOpts: [...string]
 	if maxRamPercentage != _|_ {
@@ -112,11 +112,11 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		if initialHeapSize != _|_ {
 			"-Xms\(initialHeapSize)"
 		},
-		if reservedCodeCacheSize != _|_ {
-			"-XX:ReservedCodeCacheSize=\(reservedCodeCacheSize)"
+		if profiledCodeHeapSize != _|_ {
+			"-XX:ProfiledCodeHeapSize=\(profiledCodeHeapSize)"
 		},
-		if maxMetaspaceSize != _|_ {
-			"-XX:MaxMetaspaceSize=\(maxMetaspaceSize)"
+		if nonProfiledCodeHeapSize != _|_ {
+			"-XX:NonProfiledCodeHeapSize=\(nonProfiledCodeHeapSize)"
 		},
 		if maxDirectMemorySize != _|_ {
 			"-XX:MaxDirectMemorySize=\(maxDirectMemorySize)"
