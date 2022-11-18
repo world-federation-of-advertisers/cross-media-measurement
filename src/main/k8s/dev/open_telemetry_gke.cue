@@ -14,74 +14,10 @@
 
 package k8s
 
-// Name of K8s service account for reading from Cloud Spanner.
-#CloudSpannerServiceAccount: "otel-collector"
+objectSets: [openTelemetry.collectors, openTelemetry.instrumentations]
 
-objectSets: [networkPolicies] + #OpenTelemetry.objectSets
-
-#OpenTelemetry: {
-
-	#OpenTelemetryCollector: {
-		spec: nodeSelector: "iam.gke.io/gke-metadata-server-enabled": "true"
-	}
-
-	openTelemetryCollectors: {
-		"deployment": {
-			_serviceAccountName: #CloudSpannerServiceAccount
-			_config:             """
-                receivers:
-                  googlecloudspanner:
-                    collection_interval: 60s
-                    top_metrics_query_max_rows: 100
-                    backfill_enabled: true
-                    cardinality_total_limit: 200000
-                    projects:
-                      - project_id: \(#GCloudProject)
-                        instances:
-                          - instance_id: \(#SpannerInstance)
-                            databases:
-                              - "kingdom"
-
-                processors:
-                  batch:
-                    send_batch_size: 200
-                    timeout: 10s
-
-                exporters:
-                  prometheus:
-                    send_timestamps: true
-                    endpoint: 0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)
-
-                extensions:
-                  health_check:
-
-                service:
-                  extensions: [health_check]
-                  pipelines:
-                    metrics:
-                      receivers: [googlecloudspanner]
-                      processors: [batch]
-                      exporters: [prometheus]
-                """
-			metadata: name: "deployment"
-			spec: mode:     "deployment"
-		}
-	}
+#OpenTelemetryCollector: {
+	spec: resources: requests: memory: "48Mi"
 }
 
-#NetworkPolicy: {
-	spec: podSelector: matchLabels: "app.kubernetes.io/name": "deployment-collector"
-}
-
-networkPolicies: [Name=_]: #NetworkPolicy & {
-	_name: Name
-}
-
-networkPolicies: {
-	"opentelemetry-collector": {
-		_egresses: {
-			// Need to send external traffic to Spanner.
-			any: {}
-		}
-	}
-}
+openTelemetry: #OpenTelemetry

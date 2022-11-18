@@ -1,5 +1,7 @@
 # Halo Metrics Deployment on GKE
 
+How to add visibility into CMMS component metrics to a cluster.
+
 ## Background
 
 The configuration for the [`dev` environment](../../src/main/k8s/dev) can be
@@ -11,122 +13,109 @@ console. This guide picks whichever is most convenient for that operation. Feel
 free to use whichever you prefer.
 
 ### What are we creating/deploying?
-- 1 GKE cluster
-    - 1 Managed Service for Prometheus
-    - 1 cert-manager
-    - 1 OpenTelemetry Operator
-    - 2 GMP ClusterPodMonitoring
-        - prometheus-pod-monitor
-        - opentelemetry-collector-pod-monitor
-    - 1 GMP PodMonitoring
-      - collector-pod-monitor
-    - 1 GMP Rules
-      - recording-rules
-    - 2 OpenTelemetry Operator OpenTelemetryCollector
-      - default-sidecar
-      - deployment
-    - 1 OpenTelemetry Operator Instrumentation
-      - open-telemetry-java-agent
-    - 4 Kubernetes ConfigMaps
-      - default-side-collector
-      - deployment-collector
-      - grafana-config
-      - grafana-datasource-and-dashboard-provider
-    - 1 Kubernetes Secret
-      - grafana-auth
-    - 3 Kubernetes Deployments
-      - deployment-collector
-      - grafana-deployment
-      - prometheus-frontend-deployment
-    - 3 Kubernetes Services
-      - deployment-collector-monitoring 
-      - grafana
-      - prometheus-frontend
-    - 3 Kubernetes NetworkPolicies
-      - opentelemetry-collector-network-policy
-      - grafana-network-policy
-      - prometheus-frontend-network-policy
+
+-   2 GMP ClusterPodMonitoring
+    -   prometheus-pod-monitor
+    -   opentelemetry-collector-pod-monitor
+-   1 GMP PodMonitoring
+    -   collector-pod-monitor
+-   1 GMP Rules
+    -   recording-rules
+-   2 OpenTelemetry Operator OpenTelemetryCollector
+    -   sidecar-collector
+    -   spanner-collector
+-   1 OpenTelemetry Operator Instrumentation
+    -   open-telemetry-java-agent
+-   4 Kubernetes ConfigMaps
+    -   default-side-collector
+    -   deployment-collector
+    -   grafana-config
+    -   grafana-datasource-and-dashboard-provider
+-   1 Kubernetes Secret
+    -   grafana-auth
+-   3 Kubernetes Deployments
+    -   deployment-collector
+    -   grafana-deployment
+    -   prometheus-frontend-deployment
+-   3 Kubernetes Services
+    -   deployment-collector-monitoring
+    -   grafana
+    -   prometheus-frontend
+-   3 Kubernetes NetworkPolicies
+    -   opentelemetry-collector-network-policy
+    -   grafana-network-policy
+    -   prometheus-frontend-network-policy
 
 ## Before you start
 
-Create a cluster for a Halo component. Complete a guide up until the "create
-the cluster" step. See 
-[Create Kingdom Cluster](kingdom-deployment.md#step-4-create-the-cluster),
-[Create Duchy Cluster](duchy-deployment.md#step-5-create-the-cluster), or
-[Create Reporting Cluster](reporting-server-deployment.md#create-the-cluster).
+Deploy a Halo component. See the related guides:
+[Create Kingdom Cluster](kingdom-deployment.md),
+[Create Duchy Cluster](duchy-deployment.md), or
+[Create Reporting Cluster](reporting-server-deployment.md).
 
-### Quick start
+## Enable Managed Service for Prometheus on the Cluster
 
-Adjust the number of nodes and machine type according to your expected usage.
-
-## Deploy Managed Service for Prometheus
-
-Enable Managed Service for Prometheus on the cluster. It is a quick toggle on
-Google Cloud web console and everything will be handled automatically.
-
-## Install cert-manager
-
-The cert-manager version corresponds with the OpenTelemetry Operator version.
-Only the versions below have been tested.
+This can be done via the Google Cloud Console under "Features", or using the
+gcloud CLI. For example, assuming a cluster named "kingdom":
 
 ```shell
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.9.1/cert-manager.yaml
+gcloud beta container clusters update kingdom --enable-managed-prometheus
 ```
 
-## Install OpenTelemetry Operator
+## Service Accounts
 
-```shell
-kubectl apply -f https://github.com/open-telemetry/opentelemetry-operator/releases/download/v0.60.0/opentelemetry-operator.yaml
-```
+Make sure that the least-privilege service account you created for the cluster
+has permissions to access the Cloud Monitoring API. See
+[Cluster Configuration](cluster-config.md#cluster-service-account).
 
-## IAM Service Accounts
+The Prometheus frontend will need a K8s service account that has access to Cloud
+Monitoring (e.g. the `roles/iam.workloadIdentityUser` role). See
+[Configure a service account for Workload Identity](https://cloud.google.com/stackdriver/docs/managed-prometheus/query#gmp-wli-svcacct).
+For the `dev` configuration, the K8s service account is named `gmp-monitoring`.
 
-We'll want to
-[create a least privilege service account](https://cloud.google.com/kubernetes-engine/docs/how-to/hardening-your-cluster#use_least_privilege_sa)
-that our cluster will run under. Follow the steps in the linked guide to do
-this.
+If you want to collect Spanner database metrics, you'll need a K8s service
+account that can impersonate an IAM service account with access to your Spanner
+database. See the relevant section in
+[Cluster configuration](cluster-config.md#granting-cloud-spanner-database-access).
+For the `dev` configuration, the K8s service account is named `otel-collector`.
 
-We'll additionally want to create a service account that we'll use to allow the
-OpenTelemetry Collector in 
-[`open_telemetry_gke.cue`](../../src/main/k8s/dev/open_telemetry_gke.cue) to 
-have read access to the Spanner database. See
-[Granting Cloud Spanner database access](cluster-config.md#granting-cloud-spanner-database-access)
-for how to make sure this service account has the appropriate role.
+## Create the K8s Object Configurations
 
-[`prometheus_gke.cue`](../../src/main/k8s/dev/prometheus_gke.cue) also requires 
-a service account, but with the role `roles/iam.workloadIdentityUser` instead.
+Deploying to the cluster is generally done by applying a K8s object
+configuration file. You can use the `dev` configurations as a base to get
+started. The `dev` configurations are YAML files that are generated from files
+written in [CUE](https://cuelang.org/) using Bazel rules.
 
-## Create the K8s manifest
+You do any customization in to the CUE files, or in the generated YAML file.
 
-Deploying to the cluster is generally done by applying a K8s manifest. You can
-use the `dev` configuration as a base to get started. The `dev` manifest is a
-YAML file that is generated from files written in [CUE](https://cuelang.org/)
-using Bazel rules.
+### OpenTelemetry Collectors and Instrumentation
 
-The main files for the `dev` Metrics are
-[`prometheus_gke.cue`](../../src/main/k8s/dev/prometheus_gke.cue), 
-[`open_telemetry_gke.cue`](../../src/main/k8s/dev/open_telemetry_gke.cue), and
-[`grafana_gke.cue`](../../src/main/k8s/dev/grafana_gke.cue).
+The default `dev` configuration for OpenTelemetry collection is in
+[`open_telemetry_gke.cue`](../../src/main/k8s/dev/open_telemetry_gke.cue), which
+depends on [`open_telemetry.cue`](../../src/main/k8s/open_telemetry.cue). The
+additional configuration for Spanner metrics is in
+[`open_telemetry_gke_spanner.cue`](../../src/main/k8s/dev/open_telemetry_gke_spanner.cue).
 
-[`config.cue`](../../src/main/k8s/dev/config.cue) needs to be modified to 
-work with the right Spanner database. For example, if this is for a kingdom 
-cluster, the files need to be modified to work with the Spanner instance and 
-database the kingdom cluster is using. A reporting server cluster doesn't use 
-Spanner, so nothing here would be used. The contents of
-[`open_telemetry_gke.cue`](../../src/main/k8s/dev/open_telemetry_gke.cue) should 
-be swapped with the local version:
-[`open_telemetry.cue`](../../src/main/k8s/local/open_telemetry.cue).
+The default build target is `//src/main/k8s/dev:open_telemetry_gke`. For Spanner
+collection, there are separate targets for each database. For example, the
+target for the `worker1_duchy_computations` database is
+``//src/main/k8s/dev:open_telemetry_spanner_worker1_duchy_computations`.
 
-If desired, you can modify the filtering of the OpenTelemetry metrics. The 
-config is found in the base version:
-[`open_telemetry.cue`](../../src/main/k8s/open_telemetry.cue).
+### Prometheus Monitoring and Rules
 
-For Grafana config, see [grafana config](metrics-deployment.md#Grafana)
+The `dev` configuration is in
+[`prometheus_gke.cue`](../../src/main/k8s/dev/prometheus_gke.cue). The build
+target is `//src/main/k8s/dev:prometheus_gke`.
 
-To generate the YAML manifests from the CUE files:
+### Grafana
 
-You can use `kubectl` to create the `db-auth` secret. To reduce the likelihood
-of leaking your password, we read it in from STDIN.
+The `dev` configuration is in
+[`grafana_gke.cue`](../../src/main/k8s/dev/grafana_gke.cue). The build target is
+`//src/main/k8s/dev:grafana_gke`.
+
+In order to build the target, you will need to create a `grafana-auth` secret.
+You can use `kubectl` to create this. To reduce the likelihood of leaking your
+password, we read it in from STDIN.
 
 Tip: Ctrl+D is the usual key combination for closing the input stream.
 
@@ -137,38 +126,57 @@ kubectl create secret generic grafana-auth --type='kubernetes.io/basic/auth' \
   --append-hash --from-file=password=/dev/stdin --from-literal=user=user
 ```
 
-Then use the secret name here:
+Then use the secret name when building the target:
 
 ```shell
-bazel build //src/main/k8s/dev:prometheus_gke
-bazel build //src/main/k8s/dev:open_telemetry_gke
 bazel build //src/main/k8s/dev:grafana_gke \
-  --define=grafana_secret_name=grafana-auth-dmg429kb29
+  --define=k8s_grafana_secret_name=grafana-auth-dmg429kb29
 ```
 
-You can also do your customization to the generated YAML file rather than to the
-CUE file.
+## Apply the K8s Object Configurations
 
-## Apply the K8s manifest
+### Install cert-manager
 
-Run the following first for the Grafana examples, or replace the contents first
-for customization.
+You must use a [cert-manager](https://github.com/cert-manager/cert-manager/),
+[OpenTelemetry Operator](https://github.com/open-telemetry/opentelemetry-operator/),
+and collector image that are compatible with each other. See the
+[Compatibility matrix](https://github.com/open-telemetry/opentelemetry-operator#compatibility-matrix)
+and the collector image specified in
+[`open_telemetry.cue`](../../src/main/k8s/open_telemetry.cue).
+
+```shell
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.10.0/cert-manager.yaml
+```
+
+### Install OpenTelemetry Operator
+
+```shell
+kubectl apply -f https://github.com/open-telemetry/opentelemetry-operator/releases/download/v0.62.1/opentelemetry-operator.yaml
+```
+
+### Apply OpenTelemetry and Prometheus Configurations
+
+You can just use `kubectl apply`, specifying the configuration files you created
+in the previous step.
+
+### Apply Grafana Configurations
+
+Before applying the Grafana object configuration, you'll need to create a
+`grafana-config` ConfigMap which houses the core Grafana settings in a file
+named `grafana.ini`. See
+[Grafana documentation](https://grafana.com/docs/grafana/latest/setup-grafana/configure-grafana).
+
+To create the ConfigMap using our sample
+[`grafana.ini`](../../src/main/k8s/testing/grafana/grafana.ini), run
 
 ```shell
 kubectl create configmap grafana-config \
   --from-file=src/main/k8s/testing/grafana/grafana.ini
 ```
 
-If you're using manifests generated by the above Bazel targets, the commands to
-apply the manifests is
+After this, you can apply the object configuration file using `kubectl apply`.
 
-```shell
-kubectl apply -f bazel-bin/src/main/k8s/dev/prometheus_gke.yaml
-kubectl apply -f bazel-bin/src/main/k8s/dev/open_telemetry_gke.yaml
-kubectl apply -f bazel-bin/src/main/k8s/dev/grafana_gke.yaml
-```
-
-Substitute the paths if you're using different K8s manifests.
+### Verification
 
 Now all components should be successfully deployed to your GKE cluster. You can
 verify by running
@@ -239,7 +247,7 @@ deployment        deployment   0.60.0    131m
 
 ```
 NAME                        AGE   ENDPOINT   SAMPLER   SAMPLER ARG
-open-telemetry-java-agent   68s  
+open-telemetry-java-agent   68s
 ```
 
 ```
@@ -278,7 +286,9 @@ prometheus-frontend-network-policy       app=prometheus-frontend-app            
 
 ## Restart Deployments to Start Collecting Metrics
 
-If deployments were started before these steps, they have to be restarted.
+Once the above configurations have been applied, the cluster deployments should
+start exporting metrics upon their next revision.
+
 Verify the pods have the label `scrape=true` with
 
 ```shell
@@ -290,112 +300,108 @@ that add the label then apply the updated manifests before restarting.
 
 ## Verify Managed Prometheus can Scrape Metrics
 
-Visit the [Managed Prometheus](https://console.cloud.google.com/monitoring/prometheus) 
-page in Cloud Console. Query `up` and `scrape_samples_scraped`. 
+Visit the
+[Managed Prometheus](https://console.cloud.google.com/monitoring/prometheus)
+page in Cloud Console. Query `up` and `scrape_samples_scraped`.
 
-The first one tells you which targets it can find and whether they are up, and 
-the latter is a good way to check that scraping is occurring. If it 
-hasn't been long enough, the latter might show all 0's, but after a couple of
-minutes you should be seeing results for every target that is up.
-
-## Grafana
-
-Grafana has some core configuration settings. The example can be found in
-[`grafana.ini`](../../src/main/k8s/testing/grafana/grafana.ini). This needs
-to be configured as well. Documentation can be found
-[here](https://grafana.com/docs/grafana/latest/setup-grafana/configure-grafana).
+The first one tells you which targets it can find and whether they are up, and
+the latter is a good way to check that scraping is occurring. If it hasn't been
+long enough, the latter might show all 0's, but after a couple of minutes you
+should be seeing results for every target that is up.
 
 ## Adding Additional Metrics
 
-The above adds OpenTelemetry JVM and RPC metrics, and Cloud Spanner metrics, as 
-well as self-monitoring of the Managed Prometheus collectors. With the above as 
+The above adds OpenTelemetry JVM and RPC metrics, and Cloud Spanner metrics, as
+well as self-monitoring of the Managed Prometheus collectors. With the above as
 a base, it is possible to add other metrics that can be scraped.
 
 ### kubelet and cAdvisor
 
-See [kubelet](https://cloud.google.com/stackdriver/docs/managed-prometheus/setup-managed#kubelet-metrics)
+See
+[kubelet](https://cloud.google.com/stackdriver/docs/managed-prometheus/setup-managed#kubelet-metrics)
 
 ## List of OpenTelemetry Metrics on Prometheus Dashboard
 
 ### OpenTelemetry Auto Instrumented RPC and JVM Metrics
 
-- rpc_client_duration_bucket
-- rpc_client_duration_count
-- rpc_client_duration_sum
-- rpc_server_duration_bucket
-- rpc_server_duration_count
-- rpc_server_duration_sum
-- process_runtime_jvm_buffer_count
-- process_runtime_jvm_buffer_limit
-- process_runtime_jvm_buffer_usage
-- process_runtime_jvm_classes_current_loaded
-- process_runtime_jvm_classes_loaded
-- process_runtime_jvm_classes_unloaded
-- process_runtime_jvm_cpu_utilization
-- process_runtime_jvm_memory_committed
-- process_runtime_jvm_memory_init
-- process_runtime_jvm_memory_limit
-- process_runtime_jvm_memory_usage
-- process_runtime_jvm_system_cpu_load_1m
-- process_runtime_jvm_system_cpu_utilization
-- process_runtime_jvm_threads_count
+-   rpc_client_duration_bucket
+-   rpc_client_duration_count
+-   rpc_client_duration_sum
+-   rpc_server_duration_bucket
+-   rpc_server_duration_count
+-   rpc_server_duration_sum
+-   process_runtime_jvm_buffer_count
+-   process_runtime_jvm_buffer_limit
+-   process_runtime_jvm_buffer_usage
+-   process_runtime_jvm_classes_current_loaded
+-   process_runtime_jvm_classes_loaded
+-   process_runtime_jvm_classes_unloaded
+-   process_runtime_jvm_cpu_utilization
+-   process_runtime_jvm_memory_committed
+-   process_runtime_jvm_memory_init
+-   process_runtime_jvm_memory_limit
+-   process_runtime_jvm_memory_usage
+-   process_runtime_jvm_system_cpu_load_1m
+-   process_runtime_jvm_system_cpu_utilization
+-   process_runtime_jvm_threads_count
 
 ### Mill Metrics
-- active_non_daemon_thread_count
-- jni_wall_clock_duration_millis
-- stage_wall_clock_duration_millis
-- stage_cpu_time_duration_millis
-- initialization_phase_crypto_cpu_time_duration_millis
-- setup_phase_crypto_cpu_time_duration_millis
-- execution_phase_one_crypto_cpu_time_duration_millis
-- execution_phase_two_crypto_cpu_time_duration_millis
-- execution_phase_three_crypto_cpu_time_duration_millis
+
+-   active_non_daemon_thread_count
+-   jni_wall_clock_duration_millis
+-   stage_wall_clock_duration_millis
+-   stage_cpu_time_duration_millis
+-   initialization_phase_crypto_cpu_time_duration_millis
+-   setup_phase_crypto_cpu_time_duration_millis
+-   execution_phase_one_crypto_cpu_time_duration_millis
+-   execution_phase_two_crypto_cpu_time_duration_millis
+-   execution_phase_three_crypto_cpu_time_duration_millis
 
 ### Additional Metrics Created using Existing Metrics
 
-- rpc_client_request_rate_per_second
-- rpc_client_request_error_rate_per_second
+-   rpc_client_request_rate_per_second
+-   rpc_client_request_error_rate_per_second
 
 ### Cloud Spanner Metrics Exported using OpenTelemetry Receiver
 
-- database_spanner_active_queries_summary_active_count
-- database_spanner_active_queries_summary_count_older_than_100s
-- database_spanner_active_queries_summary_count_older_than_10s
-- database_spanner_active_queries_summary_count_older_than_1s
-- database_spanner_lock_stats_total_total_lock_wait_seconds
-- database_spanner_query_stats_top_all_failed_avg_latency_seconds
-- database_spanner_query_stats_top_all_failed_execution_count
-- database_spanner_query_stats_top_avg_bytes
-- database_spanner_query_stats_top_avg_cpu_seconds
-- database_spanner_query_stats_top_avg_latency_seconds
-- database_spanner_query_stats_top_avg_rows
-- database_spanner_query_stats_top_avg_rows_scanned
-- database_spanner_query_stats_top_cancelled_or_disconnected_execution_count
-- database_spanner_query_stats_top_execution_count
-- database_spanner_query_stats_top_timed_out_execution_count
-- database_spanner_query_stats_total_all_failed_avg_latency_seconds
-- database_spanner_query_stats_total_all_failed_execution_count
-- database_spanner_query_stats_total_avg_bytes
-- database_spanner_query_stats_total_avg_cpu_seconds
-- database_spanner_query_stats_total_avg_latency_seconds
-- database_spanner_query_stats_total_avg_rows
-- database_spanner_query_stats_total_avg_rows_scanned
-- database_spanner_query_stats_total_cancelled_or_disconnected_execution_count
-- database_spanner_query_stats_total_execution_count
-- database_spanner_query_stats_total_timed_out_execution_count
-- database_spanner_txn_stats_top_avg_bytes
-- database_spanner_txn_stats_top_avg_commit_latency_seconds
-- database_spanner_txn_stats_top_avg_participants
-- database_spanner_txn_stats_top_avg_total_latency_seconds
-- database_spanner_txn_stats_total_commit_abort_count
-- database_spanner_txn_stats_top_commit_attempt_count
-- database_spanner_txn_stats_top_commit_failed_precondition_count
-- database_spanner_txn_stats_top_commit_retry_count
-- database_spanner_txn_stats_total_avg_bytes
-- database_spanner_txn_stats_total_avg_commit_latency_seconds
-- database_spanner_txn_stats_total_avg_participants
-- database_spanner_txn_stats_total_avg_total_latency_seconds
-- database_spanner_txn_stats_total_commit_abort_count
-- database_spanner_txn_stats_total_commit_attempt_count
-- database_spanner_txn_stats_total_commit_failed_precondition_count
-- database_spanner_txn_stats_total_commit_retry_count
+-   database_spanner_active_queries_summary_active_count
+-   database_spanner_active_queries_summary_count_older_than_100s
+-   database_spanner_active_queries_summary_count_older_than_10s
+-   database_spanner_active_queries_summary_count_older_than_1s
+-   database_spanner_lock_stats_total_total_lock_wait_seconds
+-   database_spanner_query_stats_top_all_failed_avg_latency_seconds
+-   database_spanner_query_stats_top_all_failed_execution_count
+-   database_spanner_query_stats_top_avg_bytes
+-   database_spanner_query_stats_top_avg_cpu_seconds
+-   database_spanner_query_stats_top_avg_latency_seconds
+-   database_spanner_query_stats_top_avg_rows
+-   database_spanner_query_stats_top_avg_rows_scanned
+-   database_spanner_query_stats_top_cancelled_or_disconnected_execution_count
+-   database_spanner_query_stats_top_execution_count
+-   database_spanner_query_stats_top_timed_out_execution_count
+-   database_spanner_query_stats_total_all_failed_avg_latency_seconds
+-   database_spanner_query_stats_total_all_failed_execution_count
+-   database_spanner_query_stats_total_avg_bytes
+-   database_spanner_query_stats_total_avg_cpu_seconds
+-   database_spanner_query_stats_total_avg_latency_seconds
+-   database_spanner_query_stats_total_avg_rows
+-   database_spanner_query_stats_total_avg_rows_scanned
+-   database_spanner_query_stats_total_cancelled_or_disconnected_execution_count
+-   database_spanner_query_stats_total_execution_count
+-   database_spanner_query_stats_total_timed_out_execution_count
+-   database_spanner_txn_stats_top_avg_bytes
+-   database_spanner_txn_stats_top_avg_commit_latency_seconds
+-   database_spanner_txn_stats_top_avg_participants
+-   database_spanner_txn_stats_top_avg_total_latency_seconds
+-   database_spanner_txn_stats_total_commit_abort_count
+-   database_spanner_txn_stats_top_commit_attempt_count
+-   database_spanner_txn_stats_top_commit_failed_precondition_count
+-   database_spanner_txn_stats_top_commit_retry_count
+-   database_spanner_txn_stats_total_avg_bytes
+-   database_spanner_txn_stats_total_avg_commit_latency_seconds
+-   database_spanner_txn_stats_total_avg_participants
+-   database_spanner_txn_stats_total_avg_total_latency_seconds
+-   database_spanner_txn_stats_total_commit_abort_count
+-   database_spanner_txn_stats_total_commit_attempt_count
+-   database_spanner_txn_stats_total_commit_failed_precondition_count
+-   database_spanner_txn_stats_total_commit_retry_count
