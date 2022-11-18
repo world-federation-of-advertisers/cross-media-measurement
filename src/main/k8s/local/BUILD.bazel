@@ -10,10 +10,14 @@ load("@wfa_rules_cue//cue:defs.bzl", "cue_library")
 load("//src/main/k8s:macros.bzl", "cue_dump")
 load("//src/main/docker:images.bzl", "ALL_LOCAL_IMAGES")
 
+package(
+    default_visibility = [":__subpackages__"],
+)
+
 SECRET_NAME = "certs-and-configs"
 
 cue_library(
-    name = "config",
+    name = "config_cue",
     srcs = ["config.cue"],
     deps = [
         "//src/main/k8s:base",
@@ -21,16 +25,21 @@ cue_library(
     ],
 )
 
+cue_library(
+    name = "emulators_cue",
+    srcs = ["emulators.cue"],
+    deps = [
+        ":config_cue",
+        "//src/main/k8s:base",
+    ],
+)
+
 cue_dump(
     name = "emulators",
-    srcs = ["emulators.cue"],
     cue_tags = {
         "secret_name": SECRET_NAME,
     },
-    deps = [
-        ":config",
-        "//src/main/k8s:base",
-    ],
+    deps = [":emulators_cue"],
 )
 
 kustomization_dir(
@@ -49,7 +58,7 @@ cue_dump(
         "secret_name": SECRET_NAME,
     },
     deps = [
-        ":config",
+        ":config_cue",
         "//src/main/k8s:kingdom",
     ],
 )
@@ -70,7 +79,7 @@ cue_dump(
         "secret_name": SECRET_NAME,
     },
     deps = [
-        ":config",
+        ":config_cue",
         "//src/main/k8s:resource_setup",
     ],
 )
@@ -84,9 +93,17 @@ kustomization_dir(
     deps = ["//src/main/k8s/testing/secretfiles:kustomization"],
 )
 
+cue_library(
+    name = "duchies_cue",
+    srcs = ["duchies.cue"],
+    deps = [
+        ":config_cue",
+        "//src/main/k8s:duchy",
+    ],
+)
+
 cue_dump(
     name = "duchies",
-    srcs = ["duchies.cue"],
     cue_tags = {
         "secret_name": SECRET_NAME,
         "aggregator_cert_name": TEST_K8S_SETTINGS.aggregator_cert_name,
@@ -94,10 +111,7 @@ cue_dump(
         "worker2_cert_name": TEST_K8S_SETTINGS.worker2_cert_name,
     },
     tags = ["manual"],
-    deps = [
-        ":config",
-        "//src/main/k8s:duchy",
-    ],
+    deps = [":duchies_cue"],
 )
 
 kustomization_dir(
@@ -110,17 +124,16 @@ kustomization_dir(
 )
 
 cue_library(
-    name = "edp_simulators_library",
+    name = "edp_simulators_cue",
     srcs = ["edp_simulators.cue"],
     deps = [
-        ":config",
+        ":config_cue",
         "//src/main/k8s:edp_simulator",
     ],
 )
 
 cue_dump(
     name = "edp_simulators",
-    srcs = None,
     cue_tags = {
         "secret_name": SECRET_NAME,
         "mc_name": TEST_K8S_SETTINGS.mc_name,
@@ -133,7 +146,7 @@ cue_dump(
     },
     tags = ["manual"],
     deps = [
-        ":edp_simulators_library",
+        ":edp_simulators_cue",
     ],
 )
 
@@ -161,7 +174,7 @@ cue_dump(
     },
     tags = ["manual"],
     deps = [
-        ":edp_simulators_library",
+        ":edp_simulators_cue",
     ],
 )
 
@@ -184,7 +197,7 @@ cue_dump(
     },
     tags = ["manual"],
     deps = [
-        ":config",
+        ":config_cue",
         "//src/main/k8s:frontend_simulator",
     ],
 )
@@ -220,7 +233,7 @@ cue_dump(
     },
     tags = ["manual"],
     deps = [
-        ":config",
+        ":config_cue",
         "//src/main/k8s:postgres",
         "//src/main/k8s:reporting",
     ],
@@ -404,6 +417,7 @@ k8s_apply(
 
 k8s_apply(
     name = "reporting_database_kind",
+    testonly = True,
     srcs = [":postgres_database"],
     delete_selector = "app.kubernetes.io/component=postgres",
     tags = ["manual"],
@@ -428,6 +442,7 @@ kind_load_images(
 
 k8s_apply(
     name = "reporting_kind",
+    testonly = True,
     srcs = [":reporting_kustomization"],
     delete_selector = "app.kubernetes.io/component=reporting",
     imports = REPORTING_IMAGE_IMPORTS,
@@ -436,6 +451,7 @@ k8s_apply(
 
 k8s_apply(
     name = "prometheus_kind",
+    testonly = True,
     srcs = [":prometheus"],
     delete_selector = "app.kubernetes.io/component=prometheus",
     tags = ["manual"],
@@ -443,12 +459,14 @@ k8s_apply(
 
 k8s_apply(
     name = "open_telemetry_kind",
+    testonly = True,
     srcs = [":open_telemetry"],
     tags = ["manual"],
 )
 
 k8s_apply(
     name = "grafana_kind",
+    testonly = True,
     srcs = [":grafana"],
     tags = ["manual"],
 )
