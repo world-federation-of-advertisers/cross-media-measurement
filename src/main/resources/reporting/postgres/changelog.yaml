@@ -22,3 +22,6 @@ databaseChangeLog:
 - include:
     file: create-reporting-schema.sql
     relativeToChangeLogFile: true
+- include:
+    file: alter-foreign-key-constraints-to-be-on-delete-cascade.sql
+    relativeToChangeLogFile: true
