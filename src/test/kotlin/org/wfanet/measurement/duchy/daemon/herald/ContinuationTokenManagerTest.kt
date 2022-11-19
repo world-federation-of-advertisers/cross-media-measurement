@@ -23,13 +23,8 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.duchy.service.internal.testing.TestContinuationTokensService
+import org.wfanet.measurement.duchy.service.internal.testing.InMemoryContinuationTokensService
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineStub
-
-private const val DUCHY_NAME = "worker"
-private const val CONTINUATION_TOKEN_1 = "token1"
-private const val CONTINUATION_TOKEN_2 = "token2"
-private const val CONTINUATION_TOKEN_3 = "token3"
 
 @RunWith(JUnit4::class)
 class ContinuationTokenManagerTest {
@@ -37,21 +32,24 @@ class ContinuationTokenManagerTest {
 
   private lateinit var continuationTokenManager: ContinuationTokenManager
 
+  private lateinit var inMemoryContinuationTokensService: InMemoryContinuationTokensService
+
   @Before
   fun init() {
-    // ContinuationToken service
+    inMemoryContinuationTokensService = InMemoryContinuationTokensService()
+
     val serverName: String = InProcessServerBuilder.generateName()
     grpcCleanup.register(
       InProcessServerBuilder.forName(serverName)
         .directExecutor()
-        .addService(TestContinuationTokensService())
+        .addService(inMemoryContinuationTokensService)
         .build()
         .start()
     )
     val channel =
       grpcCleanup.register(InProcessChannelBuilder.forName(serverName).directExecutor().build())
     val client = ContinuationTokensCoroutineStub(channel)
-    continuationTokenManager = ContinuationTokenManager(DUCHY_NAME, client)
+    continuationTokenManager = ContinuationTokenManager(client)
   }
 
   @Test
@@ -62,32 +60,54 @@ class ContinuationTokenManagerTest {
   }
 
   @Test
-  fun `getLatestContinuationToken returns the latest token when all computation processed`() =
+  fun `getLatestContinuationToken returns the last token when all tokens are processed`() =
     runBlocking {
-      continuationTokenManager.getLatestContinuationToken()
-      val index1 = continuationTokenManager.addContinuationToken(CONTINUATION_TOKEN_1)
-      val index2 = continuationTokenManager.addContinuationToken(CONTINUATION_TOKEN_2)
-      continuationTokenManager.updateContinuationToken(index1)
-      val index3 = continuationTokenManager.addContinuationToken(CONTINUATION_TOKEN_3)
-      continuationTokenManager.updateContinuationToken(index2)
-      continuationTokenManager.updateContinuationToken(index3)
+      continuationTokenManager.addPendingToken("1")
+      continuationTokenManager.addPendingToken("2")
+      continuationTokenManager.markTokenProcessed("1")
+      continuationTokenManager.addPendingToken("3")
+      continuationTokenManager.markTokenProcessed("2")
+      continuationTokenManager.markTokenProcessed("3")
 
-      val token = continuationTokenManager.getLatestContinuationToken()
-
-      assertThat(token).isEqualTo(CONTINUATION_TOKEN_3)
+      assertThat(continuationTokenManager.getLatestContinuationToken()).isEqualTo("3")
+      assertThat(inMemoryContinuationTokensService.latestContinuationToken).isEqualTo("3")
     }
 
   @Test
-  fun `getLatestContinuationToken returns processed token`() = runBlocking {
-    continuationTokenManager.getLatestContinuationToken()
-    val index1 = continuationTokenManager.addContinuationToken(CONTINUATION_TOKEN_1)
-    continuationTokenManager.addContinuationToken(CONTINUATION_TOKEN_2)
-    continuationTokenManager.updateContinuationToken(index1)
-    val index3 = continuationTokenManager.addContinuationToken(CONTINUATION_TOKEN_3)
-    continuationTokenManager.updateContinuationToken(index3)
+  fun `getLatestContinuationToken returns token when the last token is marked as processed`() =
+    runBlocking {
+      continuationTokenManager.addPendingToken("1")
+      continuationTokenManager.addPendingToken("2")
+      continuationTokenManager.markTokenProcessed("1")
+      continuationTokenManager.addPendingToken("3")
+      continuationTokenManager.markTokenProcessed("3")
 
-    val token = continuationTokenManager.getLatestContinuationToken()
+      assertThat(continuationTokenManager.getLatestContinuationToken()).isEqualTo("1")
+      assertThat(inMemoryContinuationTokensService.latestContinuationToken).isEqualTo("1")
+    }
 
-    assertThat(token).isEqualTo(CONTINUATION_TOKEN_1)
-  }
+  @Test
+  fun `getLatestContinuationToken returns  token when token 4 are marked as processed`() =
+    runBlocking {
+      continuationTokenManager.getLatestContinuationToken()
+      continuationTokenManager.addPendingToken("1")
+      continuationTokenManager.markTokenProcessed("1")
+      continuationTokenManager.addPendingToken("2")
+      continuationTokenManager.markTokenProcessed("2")
+      continuationTokenManager.addPendingToken("3")
+      continuationTokenManager.markTokenProcessed("3")
+      continuationTokenManager.addPendingToken("4")
+      continuationTokenManager.addPendingToken("5")
+      continuationTokenManager.markTokenProcessed("5")
+      continuationTokenManager.addPendingToken("6")
+      continuationTokenManager.markTokenProcessed("6")
+      continuationTokenManager.addPendingToken("7")
+      continuationTokenManager.addPendingToken("8")
+
+      assertThat(continuationTokenManager.getLatestContinuationToken()).isEqualTo("3")
+
+      continuationTokenManager.markTokenProcessed("4")
+      assertThat(continuationTokenManager.getLatestContinuationToken()).isEqualTo("6")
+      assertThat(inMemoryContinuationTokensService.latestContinuationToken).isEqualTo("6")
+    }
 }

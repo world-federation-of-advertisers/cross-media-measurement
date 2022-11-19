@@ -17,11 +17,11 @@ package org.wfanet.measurement.duchy.service.internal.testing
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.GetContinuationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetContinuationTokenResponse
-import org.wfanet.measurement.internal.duchy.UpdateContinuationTokenRequest
-import org.wfanet.measurement.internal.duchy.UpdateContinuationTokenResponse
+import org.wfanet.measurement.internal.duchy.SetContinuationTokenRequest
+import org.wfanet.measurement.internal.duchy.SetContinuationTokenResponse
 import org.wfanet.measurement.internal.duchy.getContinuationTokenResponse
 
-class TestContinuationTokensService : ContinuationTokensCoroutineImplBase() {
+class InMemoryContinuationTokensService : ContinuationTokensCoroutineImplBase() {
   var latestContinuationToken = ""
 
   override suspend fun getContinuationToken(
@@ -30,10 +30,10 @@ class TestContinuationTokensService : ContinuationTokensCoroutineImplBase() {
     return getContinuationTokenResponse { token = latestContinuationToken }
   }
 
-  override suspend fun updateContinuationToken(
-    request: UpdateContinuationTokenRequest
-  ): UpdateContinuationTokenResponse {
+  override suspend fun setContinuationToken(
+    request: SetContinuationTokenRequest
+  ): SetContinuationTokenResponse {
     latestContinuationToken = request.token
-    return UpdateContinuationTokenResponse.getDefaultInstance()
+    return SetContinuationTokenResponse.getDefaultInstance()
   }
 }

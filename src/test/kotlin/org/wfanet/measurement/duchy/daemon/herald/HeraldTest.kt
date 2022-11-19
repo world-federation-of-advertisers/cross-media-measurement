@@ -51,7 +51,7 @@ import org.wfanet.measurement.duchy.service.internal.computations.ComputationsSe
 import org.wfanet.measurement.duchy.service.internal.computations.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computations.newInputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computations.newPassThroughBlobMetadata
-import org.wfanet.measurement.duchy.service.internal.testing.TestContinuationTokensService
+import org.wfanet.measurement.duchy.service.internal.testing.InMemoryContinuationTokensService
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase as DuchyComputationsCoroutineImplBase
@@ -204,7 +204,7 @@ class HeraldTest {
 
   private val fakeComputationStorage = FakeComputationsDatabase()
 
-  private lateinit var continuationTokensService: TestContinuationTokensService
+  private lateinit var continuationTokensService: InMemoryContinuationTokensService
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
@@ -219,7 +219,7 @@ class HeraldTest {
     )
     addService(systemComputationParticipants)
     addService(computationLogEntries)
-    continuationTokensService = TestContinuationTokensService()
+    continuationTokensService = InMemoryContinuationTokensService()
     addService(continuationTokensService)
   }
 

@@ -7,8 +7,8 @@ spanner_emulator_test(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/continuationtoken:service",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/testing",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/testing",
         "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
-        "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
     ],
 )
