@@ -19,26 +19,26 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.GetContinuationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetContinuationTokenResponse
-import org.wfanet.measurement.internal.duchy.UpdateContinuationTokenRequest
-import org.wfanet.measurement.internal.duchy.UpdateContinuationTokenResponse
+import org.wfanet.measurement.internal.duchy.SetContinuationTokenRequest
+import org.wfanet.measurement.internal.duchy.SetContinuationTokenResponse
 import org.wfanet.measurement.internal.duchy.getContinuationTokenResponse
-
-private const val EMPTY_STRING = ""
 
 class SpannerContinuationTokensService(private val client: AsyncDatabaseClient) :
   ContinuationTokensCoroutineImplBase() {
   override suspend fun getContinuationToken(
     request: GetContinuationTokenRequest
   ): GetContinuationTokenResponse {
-    val continuationToken =
-      ContinuationTokenReader().execute(client).singleOrNull()?.continuationToken ?: EMPTY_STRING
-    return getContinuationTokenResponse { token = continuationToken }
+    val result: ContinuationTokenReaderResult =
+      ContinuationTokenReader().execute(client).singleOrNull()
+        ?: return GetContinuationTokenResponse.getDefaultInstance()
+
+    return getContinuationTokenResponse { token = result.continuationToken }
   }
 
-  override suspend fun updateContinuationToken(
-    request: UpdateContinuationTokenRequest
-  ): UpdateContinuationTokenResponse {
-    UpdateContinuationToken(request.token).execute(client)
-    return UpdateContinuationTokenResponse.getDefaultInstance()
+  override suspend fun setContinuationToken(
+    request: SetContinuationTokenRequest
+  ): SetContinuationTokenResponse {
+    SetContinuationToken(request.token).execute(client)
+    return SetContinuationTokenResponse.getDefaultInstance()
   }
 }

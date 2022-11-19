@@ -14,65 +14,80 @@
 
 package org.wfanet.measurement.duchy.daemon.herald
 
-import java.util.Collections
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineStub
 import org.wfanet.measurement.internal.duchy.getContinuationTokenRequest
-import org.wfanet.measurement.internal.duchy.updateContinuationTokenRequest
+import org.wfanet.measurement.internal.duchy.setContinuationTokenRequest
 
-/**
- * ContinuationTokenManager stores a list of continuation tokens received along with computations
- * during streaming. The Herald will read the latest token as well as insert/update tokens.
- */
+/** Manager for continuation tokens received along with Computations during streaming. */
 class ContinuationTokenManager(
-  private val duchyName: String,
   private val continuationTokenClient: ContinuationTokensCoroutineStub
 ) {
-  private data class TokenEntry(val token: String, var state: State) {
-    enum class State {
-      UNPROCESSED,
-      PROCESSED,
+  enum class State {
+    PENDING,
+    PROCESSED,
+  }
+
+  private val continuationTokens: LinkedHashMap<String, State> = LinkedHashMap()
+  private var latestContinuationToken = ""
+
+  /**
+   * Get the latest continuation token to stream computations and clear the [continuationTokens] for
+   * the incoming stream.
+   *
+   * @return the latest continuation token for the next stream.
+   */
+  suspend fun getLatestContinuationToken(): String {
+    synchronized(this) {
+      continuationTokens.clear()
+      if (latestContinuationToken.isNotEmpty()) {
+        return latestContinuationToken
+      }
+    }
+
+    val response =
+      continuationTokenClient
+        .withWaitForReady()
+        .getContinuationToken(getContinuationTokenRequest {})
+
+    synchronized(this) {
+      latestContinuationToken = response.token
+      return latestContinuationToken
     }
   }
 
-  private val continuationTokenList: MutableList<TokenEntry> =
-    Collections.synchronizedList(mutableListOf())
-
-  // Get the latest continuation token to stream computations. Note: Also clear the
-  // continuationTokenList for the next stream.
-  suspend fun getLatestContinuationToken(): String {
-    continuationTokenList.clear()
-
-    return continuationTokenClient
-      .withWaitForReady()
-      .getContinuationToken(getContinuationTokenRequest {})
-      .token
+  /**
+   * Add a continuationToken of [State.PENDING] into [continuationTokens].
+   *
+   * The caller is responsible to guarantee insertions are consistent with the time order of the
+   * received Computations.
+   */
+  fun addPendingToken(continuationToken: String) {
+    synchronized(this) { continuationTokens[continuationToken] = State.PENDING }
   }
 
-  // Add a UNPROCESSED continuation token entry into the list.
-  fun addContinuationToken(continuationToken: String): Int {
-    val index = continuationTokenList.size
-    continuationTokenList += TokenEntry(continuationToken, TokenEntry.State.UNPROCESSED)
-    return index
-  }
+  /**
+   * Mark a continuation token as [State.PROCESSED]. Update the latest continuation token to
+   * persistent storage when all prior tokens are all [State.PROCESSED].
+   */
+  suspend fun markTokenProcessed(token: String) {
+    var lastProcessedToken = ""
 
-  // When a computation task finished by the herald, update the latest continuation token.
-  suspend fun updateContinuationToken(index: Int) {
-    require(index < continuationTokenList.size)
+    synchronized(this) {
+      continuationTokens[token] = State.PROCESSED
 
-    continuationTokenList[index].state = TokenEntry.State.PROCESSED
-    val firstUnprocessedIndex =
-      continuationTokenList.indexOfFirst { it.state == TokenEntry.State.UNPROCESSED }
-    val lastProcessedIndex =
-      if (firstUnprocessedIndex == -1) {
-        continuationTokenList.lastIndex
-      } else {
-        firstUnprocessedIndex - 1
+      for (item in continuationTokens) {
+        if (item.value == State.PENDING) {
+          break
+        }
+        lastProcessedToken = item.key
       }
-    if (lastProcessedIndex >= 0) {
-      // Update the token
-      val lastProcessedToken = continuationTokenList[lastProcessedIndex].token
-      continuationTokenClient.updateContinuationToken(
-        updateContinuationTokenRequest { token = lastProcessedToken }
+      latestContinuationToken = lastProcessedToken
+    }
+
+    if (lastProcessedToken != "") {
+      // TODO(@renjiez): Throttle the calling of the api if needed.
+      continuationTokenClient.setContinuationToken(
+        setContinuationTokenRequest { this.token = latestContinuationToken }
       )
     }
   }
