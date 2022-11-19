@@ -52,6 +52,8 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testMetad
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testParentMetadataMessage
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse as cmmsListEventGroupsResponse
+import org.junit.Before
+import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.crypto.tink.TinkPublicKeyHandle
@@ -65,6 +67,7 @@ import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
 import org.wfanet.measurement.reporting.v1alpha.EventGroupKt.metadata
+import org.wfanet.measurement.reporting.v1alpha.copy
 import org.wfanet.measurement.reporting.v1alpha.eventGroup
 import org.wfanet.measurement.reporting.v1alpha.listEventGroupsRequest
 import org.wfanet.measurement.reporting.v1alpha.listEventGroupsResponse
@@ -164,7 +167,7 @@ private val EVENT_GROUP_METADATA_DESCRIPTOR = eventGroupMetadataDescriptor {
 @RunWith(JUnit4::class)
 class EventGroupsServiceTest {
   private val cmmsEventGroupsServiceMock: EventGroupsCoroutineImplBase =
-    mockService() {
+    mockService {
       onBlocking { listEventGroups(any()) }
         .thenReturn(
           cmmsListEventGroupsResponse {
@@ -175,7 +178,7 @@ class EventGroupsServiceTest {
     }
   private val cmmsEventGroupMetadataDescriptorsServiceMock:
     EventGroupMetadataDescriptorsCoroutineImplBase =
-    mockService() {
+    mockService {
       onBlocking { batchGetEventGroupMetadataDescriptors(any()) }
         .thenReturn(
           batchGetEventGroupMetadataDescriptorsResponse {
@@ -190,18 +193,23 @@ class EventGroupsServiceTest {
     addService(cmmsEventGroupMetadataDescriptorsServiceMock)
   }
 
+  private lateinit var service: EventGroupsService
+
+  @Before
+  fun initService() {
+    service = EventGroupsService(
+      EventGroupsCoroutineStub(grpcTestServerRule.channel),
+      EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
+      ENCRYPTION_KEY_PAIR_STORE
+    )
+  }
+
   @Test
   fun `listEventGroups returns list with no filter`() {
-    val eventGroupsService =
-      EventGroupsService(
-        EventGroupsCoroutineStub(grpcTestServerRule.channel),
-        EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
-        ENCRYPTION_KEY_PAIR_STORE
-      )
     val result =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
         runBlocking {
-          eventGroupsService.listEventGroups(
+          service.listEventGroups(
             listEventGroupsRequest {
               parent = EVENT_GROUP_PARENT
               pageSize = 10
@@ -254,16 +262,10 @@ class EventGroupsServiceTest {
 
   @Test
   fun `listEventGroups returns list with filter`() {
-    val eventGroupsService =
-      EventGroupsService(
-        EventGroupsCoroutineStub(grpcTestServerRule.channel),
-        EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
-        ENCRYPTION_KEY_PAIR_STORE
-      )
     val result =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
         runBlocking {
-          eventGroupsService.listEventGroups(
+          service.listEventGroups(
             listEventGroupsRequest {
               parent = EVENT_GROUP_PARENT
               filter = "age.value > 10"
@@ -307,6 +309,109 @@ class EventGroupsServiceTest {
   }
 
   @Test
+  fun `listEventGroups returns list if there is no event group metadata`() {
+    cmmsEventGroupsServiceMock.stub {
+      onBlocking { listEventGroups(any()) }
+        .thenReturn(
+          cmmsListEventGroupsResponse {
+            eventGroups += listOf(CMMS_EVENT_GROUP.copy {
+              clearEncryptedMetadata()
+            })
+          }
+        )
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        runBlocking {
+          service.listEventGroups(
+            listEventGroupsRequest {
+              parent = EVENT_GROUP_PARENT
+              filter = "age.value > 10"
+            }
+          )
+        }
+      }
+
+    assertThat(result)
+      .isEqualTo(
+        listEventGroupsResponse {
+          eventGroups += EVENT_GROUP.copy {
+            clearMetadata()
+          }
+        }
+      )
+
+    val expectedCmmsEventGroupsRequest = cmmsListEventGroupsRequest {
+      parent = DATA_PROVIDER_NAME
+      pageSize = 0
+      filter =
+        ListEventGroupsRequestKt.filter {
+          measurementConsumers += MEASUREMENT_CONSUMER_REFERENCE_ID
+        }
+    }
+
+    verifyProtoArgument(cmmsEventGroupsServiceMock, EventGroupsCoroutineImplBase::listEventGroups)
+      .isEqualTo(expectedCmmsEventGroupsRequest)
+  }
+
+  @Test
+  fun `listEventGroups returns list if one event gorup has metadata and one doesn't`() {
+    cmmsEventGroupsServiceMock.stub {
+      onBlocking { listEventGroups(any()) }
+        .thenReturn(
+          cmmsListEventGroupsResponse {
+            eventGroups += listOf(CMMS_EVENT_GROUP, CMMS_EVENT_GROUP_2.copy {
+              clearEncryptedMetadata()
+            })
+          }
+        )
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
+        runBlocking {
+          service.listEventGroups(
+            listEventGroupsRequest {
+              parent = EVENT_GROUP_PARENT
+              filter = "age.value > 10"
+            }
+          )
+        }
+      }
+
+    assertThat(result)
+      .isEqualTo(
+        listEventGroupsResponse {
+          eventGroups += EVENT_GROUP
+          eventGroups += EVENT_GROUP.copy {
+            clearMetadata()
+            eventGroupReferenceId = CMMS_EVENT_GROUP_2.eventGroupReferenceId
+            name =
+              EventGroupKey(
+                MEASUREMENT_CONSUMER_REFERENCE_ID,
+                DATA_PROVIDER_REFERENCE_ID,
+                CMMS_EVENT_GROUP_ID_2
+              )
+                .toName()
+          }
+        }
+      )
+
+    val expectedCmmsEventGroupsRequest = cmmsListEventGroupsRequest {
+      parent = DATA_PROVIDER_NAME
+      pageSize = 0
+      filter =
+        ListEventGroupsRequestKt.filter {
+          measurementConsumers += MEASUREMENT_CONSUMER_REFERENCE_ID
+        }
+    }
+
+    verifyProtoArgument(cmmsEventGroupsServiceMock, EventGroupsCoroutineImplBase::listEventGroups)
+      .isEqualTo(expectedCmmsEventGroupsRequest)
+  }
+
+  @Test
   fun `listEventGroups throws FAILED_PRECONDITION if message descriptor not found`() {
     val eventGroupInvalidMetadata = cmmsEventGroup {
       name = "$DATA_PROVIDER_NAME/eventGroups/$CMMS_EVENT_GROUP_ID"
@@ -332,17 +437,11 @@ class EventGroupsServiceTest {
           }
         )
     }
-    val eventGroupsService =
-      EventGroupsService(
-        EventGroupsCoroutineStub(grpcTestServerRule.channel),
-        EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
-        ENCRYPTION_KEY_PAIR_STORE
-      )
     val result =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
           runBlocking {
-            eventGroupsService.listEventGroups(
+           service.listEventGroups(
               listEventGroupsRequest {
                 parent = EVENT_GROUP_PARENT
                 filter = "age.value > 10"
@@ -381,18 +480,12 @@ class EventGroupsServiceTest {
           }
         )
     }
-    val eventGroupsService =
-      EventGroupsService(
-        EventGroupsCoroutineStub(grpcTestServerRule.channel),
-        EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
-        ENCRYPTION_KEY_PAIR_STORE
-      )
 
     val result =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
           runBlocking {
-            eventGroupsService.listEventGroups(
+            service.listEventGroups(
               listEventGroupsRequest {
                 parent = EVENT_GROUP_PARENT
                 filter = "age.value > 10"
@@ -407,17 +500,11 @@ class EventGroupsServiceTest {
 
   @Test
   fun `listEventGroups throws FAILED_PRECONDITION if parent not found`() {
-    val eventGroupsService =
-      EventGroupsService(
-        EventGroupsCoroutineStub(grpcTestServerRule.channel),
-        EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
-        ENCRYPTION_KEY_PAIR_STORE
-      )
     val result =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
           runBlocking {
-            eventGroupsService.listEventGroups(
+            service.listEventGroups(
               listEventGroupsRequest {
                 filter = "age.value > 10"
                 pageToken = PAGE_TOKEN
@@ -433,16 +520,10 @@ class EventGroupsServiceTest {
 
   @Test
   fun `listEventGroups throws UNAUTHENTICATED if principal not found`() {
-    val eventGroupsService =
-      EventGroupsService(
-        EventGroupsCoroutineStub(grpcTestServerRule.channel),
-        EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
-        ENCRYPTION_KEY_PAIR_STORE
-      )
     val result =
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
-          eventGroupsService.listEventGroups(
+          service.listEventGroups(
             listEventGroupsRequest {
               parent = EVENT_GROUP_PARENT
               filter = "age.value > 10"
