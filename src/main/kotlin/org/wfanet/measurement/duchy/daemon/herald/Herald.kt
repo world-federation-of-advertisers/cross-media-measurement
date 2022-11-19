@@ -84,7 +84,7 @@ class Herald(
   private val retryBackoff: ExponentialBackoff = ExponentialBackoff(),
 ) {
   private val semaphore = Semaphore(maxConcurrency)
-  private val continuationTokenManager = ContinuationTokenManager(duchyId, continuationTokenClient)
+  private val continuationTokenManager = ContinuationTokenManager(continuationTokenClient)
 
   /**
    * Syncs the status of computations stored at the kingdom with those stored locally continually in
@@ -123,11 +123,6 @@ class Herald(
   /**
    * Syncs the status of computations stored at the kingdom, via the system computation service,
    * with those stored locally.
-   *
-   * @param continuationToken the continuation token of the last computation in the stream which was
-   * processed by the herald.
-   * @return the continuation token of the last computation processed in that stream of active
-   * computations from the system computation service.
    */
   suspend fun syncStatuses() {
     // Continuation token signifying the last computation in an active state at the kingdom that
@@ -149,13 +144,18 @@ class Herald(
           throw StreamingException("Error streaming active computations", cause)
         }
         .collect { response ->
-          val index = continuationTokenManager.addContinuationToken(response.continuationToken)
+          continuationTokenManager.addPendingToken(response.continuationToken)
 
           semaphore.acquire()
           launch {
-            processSystemComputationAndSuppressException(response.computation, MAX_ATTEMPTS)
-            continuationTokenManager.updateContinuationToken(index)
-            semaphore.release()
+            try {
+              processSystemComputationAndSuppressException(response.computation, MAX_ATTEMPTS)
+              continuationTokenManager.markTokenProcessed(response.continuationToken)
+            } catch (e: Exception) {
+              logger.log(Level.SEVERE, "Failed to set continuation token. $e")
+            } finally {
+              semaphore.release()
+            }
           }
         }
     }
