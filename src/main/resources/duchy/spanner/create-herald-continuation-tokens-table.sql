@@ -36,7 +36,7 @@ CREATE TABLE HeraldContinuationTokens (
   CreationTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
 
   -- Last time the ContinuationToken was modified.
-  UpdateTime TIMESTAMP OPTIONS (allow_commit_timestamp = true),
+  UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
 
   CONSTRAINT presence_set CHECK(Presence),
 
