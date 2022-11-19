@@ -14,78 +14,19 @@
 
 package org.wfanet.measurement.duchy.deploy.gcloud.spanner.continuationtoken
 
-import com.google.common.truth.Truth.assertThat
-import kotlinx.coroutines.runBlocking
-import org.junit.Before
 import org.junit.Rule
-import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.Schemata
+import org.wfanet.measurement.duchy.service.internal.testing.ContinuationTokensServiceTest
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
-import org.wfanet.measurement.internal.duchy.getContinuationTokenRequest
-import org.wfanet.measurement.internal.duchy.getContinuationTokenResponse
-import org.wfanet.measurement.internal.duchy.updateContinuationTokenRequest
 
 @RunWith(JUnit4::class)
-class SpannerContinuationTokensServiceTest {
+class SpannerContinuationTokensServiceTest :
+  ContinuationTokensServiceTest<SpannerContinuationTokensService>() {
   @get:Rule val spannerDatabase = SpannerEmulatorDatabaseRule(Schemata.DUCHY_CHANGELOG_PATH)
-  private lateinit var continuationTokensService: SpannerContinuationTokensService
 
-  @Before
-  fun init() {
-    continuationTokensService = SpannerContinuationTokensService(spannerDatabase.databaseClient)
-  }
-
-  @Test
-  fun `getContinuationToken returns response with empty string when called at the first time`() =
-    runBlocking {
-      val response = continuationTokensService.getContinuationToken(getContinuationTokenRequest {})
-
-      assertThat(response).isEqualTo(getContinuationTokenResponse { token = "" })
-    }
-
-  @Test
-  fun `getContinuationToken returns response with non-empty string`() = runBlocking {
-    continuationTokensService.updateContinuationToken(
-      updateContinuationTokenRequest { this.token = "token1" }
-    )
-
-    val response = continuationTokensService.getContinuationToken(getContinuationTokenRequest {})
-
-    assertThat(response).isEqualTo(getContinuationTokenResponse { token = "token1" })
-  }
-
-  @Test
-  fun `updateContinuationToken creates new token entry`() = runBlocking {
-    val initToken =
-      continuationTokensService.getContinuationToken(getContinuationTokenRequest {}).token
-    assertThat(initToken).isEmpty()
-
-    continuationTokensService.updateContinuationToken(
-      updateContinuationTokenRequest { this.token = "updated_token" }
-    )
-
-    val updatedToken =
-      continuationTokensService.getContinuationToken(getContinuationTokenRequest {}).token
-    assertThat(updatedToken).isEqualTo("updated_token")
-  }
-
-  @Test
-  fun `updateContinuationToken updates token entry`() = runBlocking {
-    continuationTokensService.updateContinuationToken(
-      updateContinuationTokenRequest { token = "token1" }
-    )
-    val initToken =
-      continuationTokensService.getContinuationToken(getContinuationTokenRequest {}).token
-    assertThat(initToken).isEqualTo("token1")
-
-    continuationTokensService.updateContinuationToken(
-      updateContinuationTokenRequest { token = "token2" }
-    )
-
-    val updatedToken =
-      continuationTokensService.getContinuationToken(getContinuationTokenRequest {}).token
-    assertThat(updatedToken).isEqualTo("token2")
+  override fun newService(): SpannerContinuationTokensService {
+    return SpannerContinuationTokensService(spannerDatabase.databaseClient)
   }
 }
