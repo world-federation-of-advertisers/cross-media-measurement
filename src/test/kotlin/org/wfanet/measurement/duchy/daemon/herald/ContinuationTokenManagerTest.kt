@@ -23,10 +23,9 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.duchy.service.internal.testing.TestContinuationTokensService
+import org.wfanet.measurement.duchy.service.internal.testing.InMemoryContinuationTokensService
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineStub
 
-private const val DUCHY_NAME = "worker"
 private const val CONTINUATION_TOKEN_1 = "token1"
 private const val CONTINUATION_TOKEN_2 = "token2"
 private const val CONTINUATION_TOKEN_3 = "token3"
@@ -37,21 +36,24 @@ class ContinuationTokenManagerTest {
 
   private lateinit var continuationTokenManager: ContinuationTokenManager
 
+  private lateinit var inMemoryContinuationTokensService: InMemoryContinuationTokensService
+
   @Before
   fun init() {
-    // ContinuationToken service
+    inMemoryContinuationTokensService = InMemoryContinuationTokensService()
+
     val serverName: String = InProcessServerBuilder.generateName()
     grpcCleanup.register(
       InProcessServerBuilder.forName(serverName)
         .directExecutor()
-        .addService(TestContinuationTokensService())
+        .addService(inMemoryContinuationTokensService)
         .build()
         .start()
     )
     val channel =
       grpcCleanup.register(InProcessChannelBuilder.forName(serverName).directExecutor().build())
     val client = ContinuationTokensCoroutineStub(channel)
-    continuationTokenManager = ContinuationTokenManager(DUCHY_NAME, client)
+    continuationTokenManager = ContinuationTokenManager(client)
   }
 
   @Test
@@ -65,29 +67,33 @@ class ContinuationTokenManagerTest {
   fun `getLatestContinuationToken returns the latest token when all computation processed`() =
     runBlocking {
       continuationTokenManager.getLatestContinuationToken()
-      val index1 = continuationTokenManager.addContinuationToken(CONTINUATION_TOKEN_1)
-      val index2 = continuationTokenManager.addContinuationToken(CONTINUATION_TOKEN_2)
-      continuationTokenManager.updateContinuationToken(index1)
-      val index3 = continuationTokenManager.addContinuationToken(CONTINUATION_TOKEN_3)
-      continuationTokenManager.updateContinuationToken(index2)
-      continuationTokenManager.updateContinuationToken(index3)
+      continuationTokenManager.addPendingToken(CONTINUATION_TOKEN_1)
+      continuationTokenManager.addPendingToken(CONTINUATION_TOKEN_2)
+      continuationTokenManager.markTokenProcessed(CONTINUATION_TOKEN_1)
+      continuationTokenManager.addPendingToken(CONTINUATION_TOKEN_3)
+      continuationTokenManager.markTokenProcessed(CONTINUATION_TOKEN_2)
+      continuationTokenManager.markTokenProcessed(CONTINUATION_TOKEN_3)
 
       val token = continuationTokenManager.getLatestContinuationToken()
 
       assertThat(token).isEqualTo(CONTINUATION_TOKEN_3)
+      assertThat(inMemoryContinuationTokensService.latestContinuationToken)
+        .isEqualTo(CONTINUATION_TOKEN_3)
     }
 
   @Test
   fun `getLatestContinuationToken returns processed token`() = runBlocking {
     continuationTokenManager.getLatestContinuationToken()
-    val index1 = continuationTokenManager.addContinuationToken(CONTINUATION_TOKEN_1)
-    continuationTokenManager.addContinuationToken(CONTINUATION_TOKEN_2)
-    continuationTokenManager.updateContinuationToken(index1)
-    val index3 = continuationTokenManager.addContinuationToken(CONTINUATION_TOKEN_3)
-    continuationTokenManager.updateContinuationToken(index3)
+    continuationTokenManager.addPendingToken(CONTINUATION_TOKEN_1)
+    continuationTokenManager.addPendingToken(CONTINUATION_TOKEN_2)
+    continuationTokenManager.markTokenProcessed(CONTINUATION_TOKEN_1)
+    continuationTokenManager.addPendingToken(CONTINUATION_TOKEN_3)
+    continuationTokenManager.markTokenProcessed(CONTINUATION_TOKEN_3)
 
     val token = continuationTokenManager.getLatestContinuationToken()
 
     assertThat(token).isEqualTo(CONTINUATION_TOKEN_1)
+    assertThat(inMemoryContinuationTokensService.latestContinuationToken)
+      .isEqualTo(CONTINUATION_TOKEN_1)
   }
 }
