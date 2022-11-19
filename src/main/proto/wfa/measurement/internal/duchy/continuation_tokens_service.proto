@@ -25,9 +25,9 @@ service ContinuationTokens {
   rpc getContinuationToken(GetContinuationTokenRequest)
       returns (GetContinuationTokenResponse);
 
-  // Update the latest continuation token.
-  rpc updateContinuationToken(UpdateContinuationTokenRequest)
-      returns (UpdateContinuationTokenResponse);
+  // Set the latest continuation token.
+  rpc setContinuationToken(SetContinuationTokenRequest)
+      returns (SetContinuationTokenResponse);
 }
 
 // Request to retrieve the latest continuation token.
@@ -38,10 +38,10 @@ message GetContinuationTokenResponse {
   string token = 1;
 }
 
-// Request to update the latest continuation token.
-message UpdateContinuationTokenRequest {
+// Request to Set the latest continuation token.
+message SetContinuationTokenRequest {
   // Content of the continuation token.
   string token = 2;
 }
 
-message UpdateContinuationTokenResponse {}
+message SetContinuationTokenResponse {}

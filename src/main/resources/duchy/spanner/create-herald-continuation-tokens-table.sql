@@ -32,11 +32,8 @@ CREATE TABLE HeraldContinuationTokens (
   -- The content of the latest ContinuationToken
   ContinuationToken STRING(MAX) NOT NULL,
 
-  -- Time when the row was inserted.
-  CreationTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
-
   -- Last time the ContinuationToken was modified.
-  UpdateTime TIMESTAMP OPTIONS (allow_commit_timestamp = true),
+  UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
 
   CONSTRAINT presence_set CHECK(Presence),
 
