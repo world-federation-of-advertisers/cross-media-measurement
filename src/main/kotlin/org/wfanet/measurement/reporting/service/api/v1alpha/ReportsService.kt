@@ -242,6 +242,30 @@ private val REACH_ONLY_MEASUREMENT_SPEC = measurementSpecReachAndFrequency {
   maximumFrequencyPerUser = REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER
 }
 
+internal data class ReportInfo(
+  val measurementConsumerReferenceId: String,
+  val reportIdempotencyKey: String,
+  val eventGroupFilters: Map<String, String>,
+)
+
+internal data class SigningConfig(
+  val signingCertificateName: String,
+  val signingCertificateDer: ByteString,
+  val signingPrivateKey: PrivateKey,
+)
+
+internal data class WeightedMeasurementInfo(
+  val reportingMeasurementId: String,
+  val weightedMeasurement: WeightedMeasurement,
+  val timeInterval: TimeInterval,
+  var kingdomMeasurementId: String? = null,
+)
+
+internal data class SetOperationResult(
+  val weightedMeasurementInfoList: List<WeightedMeasurementInfo>,
+  val internalMetricDetails: InternalMetricDetails,
+)
+
 class ReportsService(
   private val internalReportsStub: InternalReportsCoroutineStub,
   private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
@@ -255,30 +279,6 @@ class ReportsService(
   private val signingPrivateKeyDir: File,
 ) : ReportsCoroutineImplBase() {
   private val setOperationCompiler = SetOperationCompiler()
-
-  private data class ReportInfo(
-    val measurementConsumerReferenceId: String,
-    val reportIdempotencyKey: String,
-    val eventGroupFilters: Map<String, String>,
-  )
-
-  private data class SigningConfig(
-    val signingCertificateName: String,
-    val signingCertificateDer: ByteString,
-    val signingPrivateKey: PrivateKey,
-  )
-
-  private data class WeightedMeasurementInfo(
-    val reportingMeasurementId: String,
-    val weightedMeasurement: WeightedMeasurement,
-    val timeInterval: TimeInterval,
-    var kingdomMeasurementId: String? = null,
-  )
-
-  private data class SetOperationResult(
-    val weightedMeasurementInfoList: List<WeightedMeasurementInfo>,
-    val internalMetricDetails: InternalMetricDetails,
-  )
 
   override suspend fun createReport(request: CreateReportRequest): Report {
     grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
@@ -1401,7 +1401,7 @@ private fun buildInternalMeasurementKeys(
 }
 
 /** Converts an [TimeInterval] to a [MeasurementTimeInterval] for measurement request. */
-private fun TimeInterval.toMeasurementTimeInterval(): MeasurementTimeInterval {
+internal fun TimeInterval.toMeasurementTimeInterval(): MeasurementTimeInterval {
   val source = this
   return measurementTimeInterval {
     startTime = source.startTime
