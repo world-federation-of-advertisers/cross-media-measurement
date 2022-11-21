@@ -22,7 +22,7 @@ _database: string @tag("database")
 objectSets: [
 	collectors,
 	openTelemetry.instrumentations,
-	openTelemetry.networkPolicies,
+	networkPolicies,
 ]
 
 openTelemetry: #OpenTelemetry
@@ -31,52 +31,69 @@ collectors: [Name=string]: #OpenTelemetryCollector & {
 	metadata: name: Name
 }
 collectors: {
-	"deployment": {
+	"default": {
 		spec: {
 			nodeSelector:   #ServiceAccountNodeSelector
 			serviceAccount: #CollectorServiceAccount
 			config:         """
-        receivers:
-          otlp:
-            protocols:
-              grpc:
-                endpoint: 0.0.0.0:\(#OpenTelemetryReceiverPort)
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:\(#OpenTelemetryReceiverPort)
 
-          googlecloudspanner:
-            collection_interval: 60s
-            top_metrics_query_max_rows: 100
-            backfill_enabled: true
-            cardinality_total_limit: 200000
-            projects:
-              - project_id: \(#GCloudProject)
-                instances:
-                  - instance_id: \(#SpannerInstance)
-                    databases:
-                      - \(_database)
+  googlecloudspanner:
+    collection_interval: 60s
+    top_metrics_query_max_rows: 100
+    backfill_enabled: true
+    cardinality_total_limit: 200000
+    projects:
+      - project_id: \(#GCloudProject)
+        instances:
+          - instance_id: \(#SpannerInstance)
+            databases:
+              - \(_database)
 
-        processors:
-          batch:
-            send_batch_size: 200
-            timeout: 10s
+processors:
+  batch:
+    send_batch_size: 200
+    timeout: 10s
 
-        exporters:
-          prometheus:
-            send_timestamps: true
-            endpoint: 0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)
-            resource_to_telemetry_conversion:
-              enabled: true
+exporters:
+  prometheus:
+    send_timestamps: true
+    endpoint: 0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)
+    resource_to_telemetry_conversion:
+      enabled: true
 
-        extensions:
-          health_check:
+extensions:
+  health_check:
 
-        service:
-          extensions: [health_check]
-          pipelines:
-            metrics:
-              receivers: [otlp, googlecloudspanner]
-              processors: [batch]
-              exporters: [prometheus]
-       """
+service:
+  extensions: [health_check]
+  pipelines:
+    metrics:
+      receivers: [otlp, googlecloudspanner]
+      processors: [batch]
+      exporters: [prometheus]
+"""
+		}
+	}
+}
+
+networkPolicies: [Name=_]: #NetworkPolicy & {
+	_policyPodSelectorMatchLabels: "app.kubernetes.io/component": "opentelemetry-collector"
+	_name: Name
+}
+
+networkPolicies: {
+	"opentelemetry-collector": {
+		_ingresses: {
+			any: {}
+		}
+		_egresses: {
+			// Need to send external traffic to Spanner.
+			any: {}
 		}
 	}
 }

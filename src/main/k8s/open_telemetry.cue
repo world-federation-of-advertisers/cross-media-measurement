@@ -24,7 +24,7 @@ package k8s
 		labels: "app": "opentelemetry-collector-app"
 	}
 	spec: {
-		mode:             "deployment"
+		mode:             *"deployment" | "sidecar"
 		image:            string | *"docker.io/otel/opentelemetry-collector-contrib:0.62.0"
 		imagePullPolicy?: "IfNotPresent" | "Always" | "Never"
 		config:           string
@@ -45,38 +45,38 @@ package k8s
 	}
 
 	collectors: {
-		"deployment": {
+		"default": {
 			spec: {
 				config: """
-          receivers:
-            otlp:
-              protocols:
-                grpc:
-                  endpoint: 0.0.0.0:\(#OpenTelemetryReceiverPort)
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:\(#OpenTelemetryReceiverPort)
 
-          processors:
-            batch:
-              send_batch_size: 200
-              timeout: 10s
+processors:
+  batch:
+    send_batch_size: 200
+    timeout: 10s
 
-          exporters:
-            prometheus:
-              send_timestamps: true
-              endpoint: 0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)
-              resource_to_telemetry_conversion:
-                enabled: true
+exporters:
+  prometheus:
+    send_timestamps: true
+    endpoint: 0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)
+    resource_to_telemetry_conversion:
+      enabled: true
 
-          extensions:
-            health_check:
+extensions:
+  health_check:
 
-          service:
-            extensions: [health_check]
-            pipelines:
-              metrics:
-                receivers: [otlp]
-                processors: [batch]
-                exporters: [prometheus]
-          """
+service:
+  extensions: [health_check]
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus]
+"""
 			}
 		}
 	}
@@ -93,7 +93,7 @@ package k8s
 						value: "none"
 					}, {
 						name:  "OTEL_EXPORTER_OTLP_ENDPOINT"
-						value: "http://deployment-collector-headless.default.svc:\(#OpenTelemetryReceiverPort)"
+						value: "http://default-collector-headless.default.svc:\(#OpenTelemetryReceiverPort)"
 					}, {
 						name:  "OTEL_EXPORTER_OTLP_TIMEOUT"
 						value: "20000"
@@ -121,10 +121,6 @@ package k8s
 	networkPolicies: {
 		"opentelemetry-collector": {
 			_ingresses: {
-				any: {}
-			}
-			_egresses: {
-				// Need to send external traffic to Spanner.
 				any: {}
 			}
 		}

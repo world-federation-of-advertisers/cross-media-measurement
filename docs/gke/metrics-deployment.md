@@ -21,23 +21,23 @@ free to use whichever you prefer.
 -   1 GMP Rules
     -   recording-rules
 -   1 OpenTelemetry Operator OpenTelemetryCollector
-    -   deployment
+    -   default
 -   1 OpenTelemetry Operator Instrumentation
     -   open-telemetry-java-agent
 -   3 Kubernetes ConfigMaps
-    -   deployment-collector
+    -   default-collector
     -   grafana-config
     -   grafana-datasource-and-dashboard-provider
 -   1 Kubernetes Secret
     -   grafana-auth
 -   3 Kubernetes Deployments
-    -   deployment-collector
+    -   default-collector
     -   grafana-deployment
     -   prometheus-frontend-deployment
 -   5 Kubernetes Services
-    - deployment-collector
-    - deployment-collector-headless  
-    - deployment-collector-monitoring
+    - default-collector
+    - default-collector-headless  
+    - default-collector-monitoring
     - grafana
     - prometheus-frontend
 -   3 Kubernetes NetworkPolicies
@@ -92,7 +92,7 @@ You do any customization in to the CUE files, or in the generated YAML file.
 The default `dev` configuration for OpenTelemetry collection is in
 [`open_telemetry_gke.cue`](../../src/main/k8s/dev/open_telemetry_gke.cue), which
 depends on [`open_telemetry.cue`](../../src/main/k8s/open_telemetry.cue). The
-additional configuration for Spanner metrics is in
+alternative configuration which includes Spanner metrics is in
 [`open_telemetry_gke_spanner.cue`](../../src/main/k8s/dev/open_telemetry_gke_spanner.cue).
 
 The default build target is `//src/main/k8s/dev:open_telemetry_gke`. For Spanner
@@ -239,8 +239,8 @@ recording-rules   3m4s
 ```
 
 ```
-NAME              MODE         VERSION   AGE
-deployment        deployment   0.60.0    131m
+NAME          MODE         VERSION   AGE
+default       deployment   0.60.0    131m
 ```
 
 ```
@@ -250,7 +250,7 @@ open-telemetry-java-agent   68s
 
 ```
 NAME                                         DATA   AGE
-deployment-collector                         1      60s
+default-collector                         1      60s
 grafana-config                               1      43s
 grafana-datasource-and-dashboard-provider    1      43s
 ```
@@ -262,25 +262,25 @@ grafana-auth-dmg429kb29        kubernetes.io/basic/auth   2      42s
 
 ```
 NAME                                   READY   UP-TO-DATE   AVAILABLE   AGE
-deployment-collector                   1/1     1            1           7m4s
+default-collector                   1/1     1            1           7m4s
 grafana-deployment                     1/1     1            1           6m46s
 prometheus-frontend-deployment         1/1     1            1           7m21s
 ```
 
 ```
 NAME                              TYPE           CLUSTER-IP     EXTERNAL-IP   PORT(S)          AGE
-deployment-collector              ClusterIP      10.96.119.25   <none>        4317/TCP         5m13s
-deployment-collector-headless     ClusterIP      None           <none>        4317/TCP         5m13s
-deployment-collector-monitoring   ClusterIP      10.108.6.18    <none>        8888/TCP         3m18s
+default-collector              ClusterIP      10.96.119.25   <none>        4317/TCP         5m13s
+default-collector-headless     ClusterIP      None           <none>        4317/TCP         5m13s
+default-collector-monitoring   ClusterIP      10.108.6.18    <none>        8888/TCP         3m18s
 grafana                           ClusterIP      10.108.8.178   <none>        3000/TCP         3m
 prometheus-frontend               ClusterIP      10.108.3.88    <none>        9090/TCP         3m35s
 ```
 
 ```
-NAME                                     POD-SELECTOR                                  AGE
-grafana-network-policy                   app=grafana-app                               5m56s
-opentelemetry-collector-network-policy   app.kubernetes.io/name=deployment-collector   51m
-prometheus-frontend-network-policy       app=prometheus-frontend-app                   6m29s
+NAME                                     POD-SELECTOR                                          AGE
+grafana-network-policy                   app=grafana-app                                       5m56s
+opentelemetry-collector-network-policy   app.kubernetes.io/component=opentelemetry-collector   51m
+prometheus-frontend-network-policy       app=prometheus-frontend-app                           6m29s
 ```
 
 ## Restart Deployments to Start Collecting Metrics
