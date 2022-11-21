@@ -79,9 +79,7 @@ class EventGroupsService(
     val cmmsEventGroups = cmmsListEventGroupResponse.eventGroupsList
     val parsedEventGroupMetadataMap: Map<String, CmmsEventGroup.Metadata> =
       cmmsEventGroups
-        .filter {
-          !it.encryptedMetadata.isEmpty
-        }
+        .filter { !it.encryptedMetadata.isEmpty }
         .associate {
           val measurementConsumerPrivateKey =
             encryptionKeyPairStore.getPrivateKeyHandle(
