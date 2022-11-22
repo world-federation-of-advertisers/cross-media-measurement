@@ -237,6 +237,7 @@ import ("strings")
 			]
 			_destinationMatchLabels: [
 				_object_prefix + "spanner-computations-server-app",
+				"opentelemetry-collector-app",
 			]
 		}
 		"computation-control-server": {
