@@ -21,9 +21,10 @@ package k8s
 	kind:       "OpenTelemetryCollector"
 	metadata:   #ObjectMeta & {
 		_component: "metrics"
+		labels: "app": "opentelemetry-collector-app"
 	}
 	spec: {
-		mode:             "deployment" | "sidecar"
+		mode:             *"deployment" | "sidecar"
 		image:            string | *"docker.io/otel/opentelemetry-collector-contrib:0.62.0"
 		imagePullPolicy?: "IfNotPresent" | "Always" | "Never"
 		config:           string
@@ -31,6 +32,10 @@ package k8s
 		podSelector?: {...}
 		serviceAccount?: string
 		resources?:      #ResourceRequirements
+		podAnnotations: {
+			"prometheus.io/port":   string | *"\(#OpenTelemetryPrometheusExporterPort)"
+			"prometheus.io/scrape": string | *"true"
+		}
 	}
 }
 
@@ -40,38 +45,38 @@ package k8s
 	}
 
 	collectors: {
-		"sidecar": {
+		"default": {
 			spec: {
-				mode:   "sidecar"
 				config: """
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:\(#OpenTelemetryReceiverPort)
 
-          receivers:
-            otlp:
-              protocols:
-                grpc:
-                  endpoint: 0.0.0.0:\(#OpenTelemetryReceiverPort)
-          
-          processors:
-            batch:
-              send_batch_size: 200
-              timeout: 10s
-          
-          exporters:
-            prometheus:
-              send_timestamps: true
-              endpoint: 0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)
-          
-          extensions:
-            health_check:
-          
-          service:
-            extensions: [health_check]
-            pipelines:
-              metrics:
-                receivers: [otlp]
-                processors: [batch]
-                exporters: [prometheus]
-          """
+processors:
+  batch:
+    send_batch_size: 200
+    timeout: 10s
+
+exporters:
+  prometheus:
+    send_timestamps: true
+    endpoint: 0.0.0.0:\(#OpenTelemetryPrometheusExporterPort)
+    resource_to_telemetry_conversion:
+      enabled: true
+
+extensions:
+  health_check:
+
+service:
+  extensions: [health_check]
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheus]
+"""
 			}
 		}
 	}
@@ -88,7 +93,7 @@ package k8s
 						value: "none"
 					}, {
 						name:  "OTEL_EXPORTER_OTLP_ENDPOINT"
-						value: "http://0.0.0.0:\(#OpenTelemetryReceiverPort)"
+						value: "http://default-collector-headless.default.svc:\(#OpenTelemetryReceiverPort)"
 					}, {
 						name:  "OTEL_EXPORTER_OTLP_TIMEOUT"
 						value: "20000"
@@ -104,6 +109,19 @@ package k8s
 					},
 				]
 				java: image: "ghcr.io/open-telemetry/opentelemetry-operator/autoinstrumentation-java:1.18.0"
+			}
+		}
+	}
+
+	networkPolicies: [Name=_]: #NetworkPolicy & {
+		_policyPodSelectorMatchLabels: "app.kubernetes.io/component": "opentelemetry-collector"
+		_name: Name
+	}
+
+	networkPolicies: {
+		"opentelemetry-collector": {
+			_ingresses: {
+				any: {}
 			}
 		}
 	}
