@@ -36,6 +36,7 @@ import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
@@ -722,14 +723,24 @@ class ListMeasurements : Runnable {
   private lateinit var measurementConsumerName: String
 
   override fun run() {
-    val response =
-      runBlocking(parentCommand.parentCommand.rpcDispatcher) {
-        parentCommand.measurementStub
-          .withAuthenticationKey(parentCommand.apiAuthenticationKey)
-          .listMeasurements(listMeasurementsRequest { parent = measurementConsumerName })
-      }
+    val measurements: MutableList<Measurement> = mutableListOf()
+    var nextPageToken: String = ""
+    runBlocking(parentCommand.parentCommand.rpcDispatcher) {
+      do {
+        val request: ListMeasurementsRequest = listMeasurementsRequest {
+          parent = measurementConsumerName
+          pageToken = nextPageToken
+        }
+        val response =
+          parentCommand.measurementStub
+            .withAuthenticationKey(parentCommand.apiAuthenticationKey)
+            .listMeasurements(request)
+        measurements += response.measurementList
+        nextPageToken = response.nextPageToken
+      } while (response.nextPageToken.isNotEmpty())
+    }
 
-    response.measurementList.forEach {
+    measurements.forEach {
       if (it.state == Measurement.State.FAILED) {
         println(it.name + " FAILED - " + it.failure.reason + ": " + it.failure.message)
       } else {
