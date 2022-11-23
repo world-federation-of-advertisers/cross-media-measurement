@@ -18,9 +18,6 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any
 import com.google.protobuf.ByteString
-import com.google.protobuf.DescriptorProtos.FileDescriptorSet
-import com.google.protobuf.Descriptors.Descriptor
-import com.google.protobuf.Descriptors.FileDescriptor
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.nio.file.Path
@@ -163,19 +160,18 @@ private val EVENT_GROUP_METADATA_DESCRIPTOR = eventGroupMetadataDescriptor {
 
 @RunWith(JUnit4::class)
 class EventGroupsServiceTest {
-  private val cmmsEventGroupsServiceMock: EventGroupsCoroutineImplBase =
-    mockService() {
-      onBlocking { listEventGroups(any()) }
-        .thenReturn(
-          cmmsListEventGroupsResponse {
-            eventGroups += listOf(CMMS_EVENT_GROUP, CMMS_EVENT_GROUP_2)
-            nextPageToken = NEXT_PAGE_TOKEN
-          }
-        )
-    }
+  private val cmmsEventGroupsServiceMock: EventGroupsCoroutineImplBase = mockService {
+    onBlocking { listEventGroups(any()) }
+      .thenReturn(
+        cmmsListEventGroupsResponse {
+          eventGroups += listOf(CMMS_EVENT_GROUP, CMMS_EVENT_GROUP_2)
+          nextPageToken = NEXT_PAGE_TOKEN
+        }
+      )
+  }
   private val cmmsEventGroupMetadataDescriptorsServiceMock:
     EventGroupMetadataDescriptorsCoroutineImplBase =
-    mockService() {
+    mockService {
       onBlocking { batchGetEventGroupMetadataDescriptors(any()) }
         .thenReturn(
           batchGetEventGroupMetadataDescriptorsResponse {
@@ -242,10 +238,7 @@ class EventGroupsServiceTest {
       parent = DATA_PROVIDER_NAME
       pageSize = 10
       pageToken = PAGE_TOKEN
-      filter =
-        ListEventGroupsRequestKt.filter {
-          measurementConsumers += MEASUREMENT_CONSUMER_REFERENCE_ID
-        }
+      filter = ListEventGroupsRequestKt.filter { measurementConsumers += MEASUREMENT_CONSUMER_NAME }
     }
 
     verifyProtoArgument(cmmsEventGroupsServiceMock, EventGroupsCoroutineImplBase::listEventGroups)
@@ -296,10 +289,7 @@ class EventGroupsServiceTest {
       parent = DATA_PROVIDER_NAME
       pageSize = 0
       pageToken = PAGE_TOKEN
-      filter =
-        ListEventGroupsRequestKt.filter {
-          measurementConsumers += MEASUREMENT_CONSUMER_REFERENCE_ID
-        }
+      filter = ListEventGroupsRequestKt.filter { measurementConsumers += MEASUREMENT_CONSUMER_NAME }
     }
 
     verifyProtoArgument(cmmsEventGroupsServiceMock, EventGroupsCoroutineImplBase::listEventGroups)
@@ -455,27 +445,10 @@ class EventGroupsServiceTest {
   }
 }
 
-fun Descriptor.getFileDescriptorSet(): FileDescriptorSet {
-  val fileDescriptors = mutableSetOf<FileDescriptor>()
-  val toVisit = mutableListOf<FileDescriptor>(file)
-  while (toVisit.isNotEmpty()) {
-    val fileDescriptor = toVisit.removeLast()
-    if (!fileDescriptors.contains(fileDescriptor)) {
-      fileDescriptors.add(fileDescriptor)
-      fileDescriptor.dependencies.forEach {
-        if (!fileDescriptors.contains(it)) {
-          toVisit.add(it)
-        }
-      }
-    }
-  }
-  return FileDescriptorSet.newBuilder().addAllFile(fileDescriptors.map { it.toProto() }).build()
-}
-
-fun loadEncryptionPrivateKey(fileName: String): TinkPrivateKeyHandle {
+private fun loadEncryptionPrivateKey(fileName: String): TinkPrivateKeyHandle {
   return loadPrivateKey(SECRET_FILES_PATH.resolve(fileName).toFile())
 }
 
-fun loadEncryptionPublicKey(fileName: String): TinkPublicKeyHandle {
+private fun loadEncryptionPublicKey(fileName: String): TinkPublicKeyHandle {
   return loadPublicKey(SECRET_FILES_PATH.resolve(fileName).toFile())
 }

@@ -1,4 +1,15 @@
-load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library", "kt_jvm_test")
+
+kt_jvm_library(
+    name = "util",
+    srcs = ["Util.kt"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting:__subpackages__",
+    ],
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+    ],
+)
 
 kt_jvm_test(
     name = "ReportingSetsServiceTest",
@@ -50,6 +61,7 @@ kt_jvm_test(
     ],
     test_class = "org.wfanet.measurement.reporting.service.api.v1alpha.EventGroupsServiceTest",
     deps = [
+        ":util",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:event_groups_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:principal_server_interceptor",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",

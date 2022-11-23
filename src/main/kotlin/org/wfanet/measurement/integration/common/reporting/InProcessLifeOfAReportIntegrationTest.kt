@@ -15,8 +15,8 @@
 package org.wfanet.measurement.integration.common.reporting
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.Any
 import com.google.protobuf.ByteString
-import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.duration
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.timestamp
@@ -29,18 +29,29 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TestRule
 import org.mockito.kotlin.any
+import org.wfanet.measurement.api.v2alpha.BatchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
+import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
+import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKt
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
+import org.wfanet.measurement.api.v2alpha.GetCertificateRequest
+import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
+import org.wfanet.measurement.api.v2alpha.GetMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
@@ -53,6 +64,8 @@ import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessageKt
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testMetadataMessage
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
@@ -80,6 +93,7 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionP
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.integration.common.reporting.identity.withPrincipalName
 import org.wfanet.measurement.reporting.deploy.common.server.ReportingDataServer
+import org.wfanet.measurement.reporting.service.api.v1alpha.getFileDescriptorSet
 import org.wfanet.measurement.reporting.v1alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.reporting.v1alpha.ListEventGroupsResponse
 import org.wfanet.measurement.reporting.v1alpha.ListReportingSetsResponse
@@ -113,31 +127,102 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
   private val publicKingdomCertificatesMock: CertificatesGrpcKt.CertificatesCoroutineImplBase =
     mockService {
-      onBlocking { getCertificate(any()) }.thenReturn(CERTIFICATE)
+      onBlocking { getCertificate(any()) }
+        .thenAnswer {
+          val name = it.getArgument(0, GetCertificateRequest::class.java).name
+          if (
+            DataProviderCertificateKey.fromName(name) == null &&
+              DuchyCertificateKey.fromName(name) == null &&
+              MeasurementConsumerCertificateKey.fromName(name) == null
+          ) {
+            throw Status.INVALID_ARGUMENT.withDescription("Invalid Certificate name")
+              .asRuntimeException()
+          } else {
+            CERTIFICATE
+          }
+        }
     }
   private val publicKingdomDataProvidersMock: DataProvidersGrpcKt.DataProvidersCoroutineImplBase =
     mockService {
-      onBlocking { getDataProvider(any()) }.thenReturn(DATA_PROVIDER)
+      onBlocking { getDataProvider(any()) }
+        .thenAnswer {
+          val name = it.getArgument(0, GetDataProviderRequest::class.java).name
+          if (DataProviderKey.fromName(name) == null) {
+            throw Status.INVALID_ARGUMENT.withDescription(
+                "Invalid DataProvider name when calling GetDataProvider"
+              )
+              .asRuntimeException()
+          } else {
+            DATA_PROVIDER
+          }
+        }
     }
   private val publicKingdomEventGroupsMock: EventGroupsGrpcKt.EventGroupsCoroutineImplBase =
     mockService {
       onBlocking { listEventGroups(any()) }
-        .thenReturn(listEventGroupsResponse { eventGroups += EVENT_GROUP })
+        .thenAnswer {
+          val request = it.getArgument(0, ListEventGroupsRequest::class.java)
+          if (DataProviderKey.fromName(request.parent) == null) {
+            throw Status.INVALID_ARGUMENT.withDescription(
+                "Invalid DataProvider name when calling ListEventGroups"
+              )
+              .asRuntimeException()
+          }
+          request.filter.measurementConsumersList.forEach { measurementConsumerName ->
+            if (MeasurementConsumerKey.fromName(measurementConsumerName) == null) {
+              throw Status.INVALID_ARGUMENT.withDescription(
+                  "Invalid MeasurementConsumer name when calling ListEventGroups"
+                )
+                .asRuntimeException()
+            }
+          }
+
+          listEventGroupsResponse { eventGroups += EVENT_GROUP }
+        }
     }
   private val publicKingdomEventGroupMetadataDescriptorsMock:
     EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase =
     mockService {
       onBlocking { batchGetEventGroupMetadataDescriptors(any()) }
-        .thenReturn(
+        .thenAnswer {
+          val request = it.getArgument(0, BatchGetEventGroupMetadataDescriptorsRequest::class.java)
+          if (DataProviderKey.fromName(request.parent) == null) {
+            throw Status.INVALID_ARGUMENT.withDescription(
+                "Invalid DataProvider name when calling BatchGetEventGroupMetadataDescriptors"
+              )
+              .asRuntimeException()
+          }
+          request.namesList.forEach { eventGroupMetadataDescriptorName ->
+            if (
+              EventGroupMetadataDescriptorKey.fromName(eventGroupMetadataDescriptorName) == null
+            ) {
+              throw Status.INVALID_ARGUMENT.withDescription(
+                  "Invalid EventGroupMetadataDescriptor name"
+                )
+                .asRuntimeException()
+            }
+          }
+
           batchGetEventGroupMetadataDescriptorsResponse {
             eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR
           }
-        )
+        }
     }
   private val publicKingdomMeasurementConsumersMock:
     MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase =
     mockService {
-      onBlocking { getMeasurementConsumer(any()) }.thenReturn(MEASUREMENT_CONSUMER)
+      onBlocking { getMeasurementConsumer(any()) }
+        .thenAnswer {
+          val name = it.getArgument(0, GetMeasurementConsumerRequest::class.java).name
+          if (MeasurementConsumerKey.fromName(name) == null) {
+            throw Status.INVALID_ARGUMENT.withDescription(
+                "Invalid MeasurementConsumer name when calling GetMeasurementConsumer"
+              )
+              .asRuntimeException()
+          } else {
+            MEASUREMENT_CONSUMER
+          }
+        }
     }
   private val publicKingdomMeasurementsMock: MeasurementsGrpcKt.MeasurementsCoroutineImplBase =
     mockService {
@@ -241,7 +326,10 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     return publicEventGroupsClient
       .withPrincipalName(measurementConsumerName)
       .listEventGroups(
-        listEventGroupsRequest { parent = "$measurementConsumerName/dataProviders/-" }
+        listEventGroupsRequest {
+          parent = "$measurementConsumerName/dataProviders/-"
+          filter = "age.value > 10"
+        }
       )
   }
 
@@ -471,6 +559,12 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     private val EVENT_TEMPLATES =
       EVENT_TEMPLATE_TYPES.map { type -> EventGroupKt.eventTemplate { this.type = type } }
 
+    private val TEST_MESSAGE = testMetadataMessage {
+      name = TestMetadataMessageKt.name { value = "Bob" }
+      age = TestMetadataMessageKt.age { value = 15 }
+      duration = TestMetadataMessageKt.duration { value = 20 }
+    }
+
     private val EVENT_GROUP: EventGroup = eventGroup {
       name = EVENT_GROUP_NAME
       measurementConsumer = MEASUREMENT_CONSUMER_NAME
@@ -481,17 +575,22 @@ abstract class InProcessLifeOfAReportIntegrationTest {
       eventTemplates.addAll(EVENT_TEMPLATES)
       encryptedMetadata =
         MC_ENCRYPTION_PUBLIC_KEY.toPublicKeyHandle()
-          .hybridEncrypt(EventGroup.Metadata.getDefaultInstance().toByteString())
+          .hybridEncrypt(
+            EventGroupKt.metadata {
+                eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
+                metadata = Any.pack(TEST_MESSAGE)
+              }
+              .toByteString()
+          )
     }
 
     private const val EVENT_GROUP_METADATA_DESCRIPTOR_NAME =
       "$DATA_PROVIDER_NAME/eventGroupMetadataDescriptors/AAAAAAAAAHs"
-    private val FILE_DESCRIPTOR_SET = DescriptorProtos.FileDescriptorSet.getDefaultInstance()
 
     private val EVENT_GROUP_METADATA_DESCRIPTOR: EventGroupMetadataDescriptor =
       eventGroupMetadataDescriptor {
         name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-        descriptorSet = FILE_DESCRIPTOR_SET
+        descriptorSet = TEST_MESSAGE.descriptorForType.getFileDescriptorSet()
       }
   }
 }
