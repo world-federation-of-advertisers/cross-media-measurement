@@ -73,7 +73,10 @@ class EventGroupsService(
             parent = dataProviderName
             pageSize = request.pageSize
             pageToken = request.pageToken
-            filter = filter { measurementConsumers += principal.resourceKey.measurementConsumerId }
+            filter = filter {
+              measurementConsumers +=
+                MeasurementConsumerKey(principal.resourceKey.measurementConsumerId).toName()
+            }
           }
         )
     val cmmsEventGroups = cmmsListEventGroupResponse.eventGroupsList
