@@ -163,19 +163,18 @@ private val EVENT_GROUP_METADATA_DESCRIPTOR = eventGroupMetadataDescriptor {
 
 @RunWith(JUnit4::class)
 class EventGroupsServiceTest {
-  private val cmmsEventGroupsServiceMock: EventGroupsCoroutineImplBase =
-    mockService() {
-      onBlocking { listEventGroups(any()) }
-        .thenReturn(
-          cmmsListEventGroupsResponse {
-            eventGroups += listOf(CMMS_EVENT_GROUP, CMMS_EVENT_GROUP_2)
-            nextPageToken = NEXT_PAGE_TOKEN
-          }
-        )
-    }
+  private val cmmsEventGroupsServiceMock: EventGroupsCoroutineImplBase = mockService {
+    onBlocking { listEventGroups(any()) }
+      .thenReturn(
+        cmmsListEventGroupsResponse {
+          eventGroups += listOf(CMMS_EVENT_GROUP, CMMS_EVENT_GROUP_2)
+          nextPageToken = NEXT_PAGE_TOKEN
+        }
+      )
+  }
   private val cmmsEventGroupMetadataDescriptorsServiceMock:
     EventGroupMetadataDescriptorsCoroutineImplBase =
-    mockService() {
+    mockService {
       onBlocking { batchGetEventGroupMetadataDescriptors(any()) }
         .thenReturn(
           batchGetEventGroupMetadataDescriptorsResponse {
@@ -242,10 +241,7 @@ class EventGroupsServiceTest {
       parent = DATA_PROVIDER_NAME
       pageSize = 10
       pageToken = PAGE_TOKEN
-      filter =
-        ListEventGroupsRequestKt.filter {
-          measurementConsumers += MEASUREMENT_CONSUMER_REFERENCE_ID
-        }
+      filter = ListEventGroupsRequestKt.filter { measurementConsumers += MEASUREMENT_CONSUMER_NAME }
     }
 
     verifyProtoArgument(cmmsEventGroupsServiceMock, EventGroupsCoroutineImplBase::listEventGroups)
@@ -296,10 +292,7 @@ class EventGroupsServiceTest {
       parent = DATA_PROVIDER_NAME
       pageSize = 0
       pageToken = PAGE_TOKEN
-      filter =
-        ListEventGroupsRequestKt.filter {
-          measurementConsumers += MEASUREMENT_CONSUMER_REFERENCE_ID
-        }
+      filter = ListEventGroupsRequestKt.filter { measurementConsumers += MEASUREMENT_CONSUMER_NAME }
     }
 
     verifyProtoArgument(cmmsEventGroupsServiceMock, EventGroupsCoroutineImplBase::listEventGroups)
@@ -472,10 +465,10 @@ fun Descriptor.getFileDescriptorSet(): FileDescriptorSet {
   return FileDescriptorSet.newBuilder().addAllFile(fileDescriptors.map { it.toProto() }).build()
 }
 
-fun loadEncryptionPrivateKey(fileName: String): TinkPrivateKeyHandle {
+private fun loadEncryptionPrivateKey(fileName: String): TinkPrivateKeyHandle {
   return loadPrivateKey(SECRET_FILES_PATH.resolve(fileName).toFile())
 }
 
-fun loadEncryptionPublicKey(fileName: String): TinkPublicKeyHandle {
+private fun loadEncryptionPublicKey(fileName: String): TinkPublicKeyHandle {
   return loadPublicKey(SECRET_FILES_PATH.resolve(fileName).toFile())
 }
