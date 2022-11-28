@@ -49,7 +49,6 @@ import org.wfanet.measurement.internal.reporting.copy
 import org.wfanet.measurement.internal.reporting.createReportRequest
 import org.wfanet.measurement.internal.reporting.getReportByIdempotencyKeyRequest
 import org.wfanet.measurement.internal.reporting.getReportRequest
-import org.wfanet.measurement.internal.reporting.measurement
 import org.wfanet.measurement.internal.reporting.metric
 import org.wfanet.measurement.internal.reporting.periodicTimeInterval
 import org.wfanet.measurement.internal.reporting.report
@@ -355,14 +354,17 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
     val createdReport =
       service.createReport(createCreateReportRequest("1234", "1234", "1234", "1235"))
 
-    measurementsService.setMeasurementFailure(setMeasurementFailureRequest {
-      measurementConsumerReferenceId = "1234"
-      measurementReferenceId = "1234"
-      failure = MeasurementKt.failure {
-        reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
-        message = "message"
+    measurementsService.setMeasurementFailure(
+      setMeasurementFailureRequest {
+        measurementConsumerReferenceId = "1234"
+        measurementReferenceId = "1234"
+        failure =
+          MeasurementKt.failure {
+            reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
+            message = "message"
+          }
       }
-    })
+    )
 
     val getRequest = getReportRequest {
       measurementConsumerReferenceId = createdReport.measurementConsumerReferenceId
@@ -374,23 +376,24 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
 
   @Test
   fun `getReport succeeds after measurement with big result makes report succeed`() = runBlocking {
-    val createdReport =
-      service.createReport(createCreateReportRequest("1234", "1234", "1234"))
+    val createdReport = service.createReport(createCreateReportRequest("1234", "1234", "1234"))
 
-    measurementsService.setMeasurementResult(setMeasurementResultRequest {
-      measurementConsumerReferenceId = "1234"
-      measurementReferenceId = "1234"
-      result = MeasurementKt.result {
-        reach = MeasurementKt.ResultKt.reach {
-          value = 1L
-        }
-        frequency = MeasurementKt.ResultKt.frequency {
-          for (i in 1L..100L) {
-            relativeFrequencyDistribution[i] = i * 1.0
+    measurementsService.setMeasurementResult(
+      setMeasurementResultRequest {
+        measurementConsumerReferenceId = "1234"
+        measurementReferenceId = "1234"
+        result =
+          MeasurementKt.result {
+            reach = MeasurementKt.ResultKt.reach { value = 1L }
+            frequency =
+              MeasurementKt.ResultKt.frequency {
+                for (i in 1L..100L) {
+                  relativeFrequencyDistribution[i] = i * 1.0
+                }
+              }
           }
-        }
       }
-    })
+    )
 
     val getRequest = getReportRequest {
       measurementConsumerReferenceId = createdReport.measurementConsumerReferenceId

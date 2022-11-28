@@ -391,7 +391,9 @@ class ReportReader {
             state = Measurement.State.forNumber(it.getAsJsonPrimitive("state").asInt)
             if (!it.get("failure").isJsonNull) {
               failure =
-                Measurement.Failure.parseFrom(it.getAsJsonPrimitive("failure").decodePostgresBase64())
+                Measurement.Failure.parseFrom(
+                  it.getAsJsonPrimitive("failure").decodePostgresBase64()
+                )
             }
             if (!it.get("result").isJsonNull) {
               result =
@@ -412,7 +414,9 @@ class ReportReader {
       metricsList.add(
         metric {
           details =
-            Metric.Details.parseFrom(metricObject.getAsJsonPrimitive("metricDetails").decodePostgresBase64())
+            Metric.Details.parseFrom(
+              metricObject.getAsJsonPrimitive("metricDetails").decodePostgresBase64()
+            )
 
           val setOperationsArr = metricObject.getAsJsonArray("setOperations")
           val setOperationsMap = mutableMapOf<Long, JsonObject>()

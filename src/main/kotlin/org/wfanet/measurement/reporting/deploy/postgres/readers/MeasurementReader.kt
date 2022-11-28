@@ -68,7 +68,8 @@ class MeasurementReader {
       measurementConsumerReferenceId = row["MeasurementConsumerReferenceId"]
       measurementReferenceId = row["MeasurementReferenceId"]
       state = Measurement.State.forNumber(row["State"])
-      val failure: Measurement.Failure? = row.getProtoMessage("Failure", Measurement.Failure.parser())
+      val failure: Measurement.Failure? =
+        row.getProtoMessage("Failure", Measurement.Failure.parser())
       if (failure != null) {
         this.failure = failure
       }
