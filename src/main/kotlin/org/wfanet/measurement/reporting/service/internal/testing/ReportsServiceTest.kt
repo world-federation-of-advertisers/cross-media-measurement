@@ -35,6 +35,8 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.reporting.CreateReportRequest
 import org.wfanet.measurement.internal.reporting.CreateReportRequestKt
+import org.wfanet.measurement.internal.reporting.Measurement
+import org.wfanet.measurement.internal.reporting.MeasurementKt
 import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.Metric
 import org.wfanet.measurement.internal.reporting.MetricKt
@@ -47,10 +49,13 @@ import org.wfanet.measurement.internal.reporting.copy
 import org.wfanet.measurement.internal.reporting.createReportRequest
 import org.wfanet.measurement.internal.reporting.getReportByIdempotencyKeyRequest
 import org.wfanet.measurement.internal.reporting.getReportRequest
+import org.wfanet.measurement.internal.reporting.measurement
 import org.wfanet.measurement.internal.reporting.metric
 import org.wfanet.measurement.internal.reporting.periodicTimeInterval
 import org.wfanet.measurement.internal.reporting.report
 import org.wfanet.measurement.internal.reporting.reportingSet
+import org.wfanet.measurement.internal.reporting.setMeasurementFailureRequest
+import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest
 import org.wfanet.measurement.internal.reporting.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.timeInterval
 import org.wfanet.measurement.internal.reporting.timeIntervals
@@ -343,6 +348,56 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
       assertFailsWith<StatusRuntimeException> { service.createReport(createReportRequest) }
     }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `getReport succeeds after measurement failure`() = runBlocking {
+    val createdReport =
+      service.createReport(createCreateReportRequest("1234", "1234", "1234", "1235"))
+
+    measurementsService.setMeasurementFailure(setMeasurementFailureRequest {
+      measurementConsumerReferenceId = "1234"
+      measurementReferenceId = "1234"
+      failure = MeasurementKt.failure {
+        reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
+        message = "message"
+      }
+    })
+
+    val getRequest = getReportRequest {
+      measurementConsumerReferenceId = createdReport.measurementConsumerReferenceId
+      externalReportId = createdReport.externalReportId
+    }
+    val retrievedReport = service.getReport(getRequest)
+    assertThat(retrievedReport.state).isEqualTo(Report.State.FAILED)
+  }
+
+  @Test
+  fun `getReport succeeds after measurement with big result makes report succeed`() = runBlocking {
+    val createdReport =
+      service.createReport(createCreateReportRequest("1234", "1234", "1234"))
+
+    measurementsService.setMeasurementResult(setMeasurementResultRequest {
+      measurementConsumerReferenceId = "1234"
+      measurementReferenceId = "1234"
+      result = MeasurementKt.result {
+        reach = MeasurementKt.ResultKt.reach {
+          value = 1L
+        }
+        frequency = MeasurementKt.ResultKt.frequency {
+          for (i in 1L..100L) {
+            relativeFrequencyDistribution[i] = i * 1.0
+          }
+        }
+      }
+    })
+
+    val getRequest = getReportRequest {
+      measurementConsumerReferenceId = createdReport.measurementConsumerReferenceId
+      externalReportId = createdReport.externalReportId
+    }
+    val retrievedReport = service.getReport(getRequest)
+    assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
   }
 
   @Test

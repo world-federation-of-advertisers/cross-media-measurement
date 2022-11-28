@@ -16,6 +16,7 @@ package org.wfanet.measurement.reporting.deploy.postgres.readers
 
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import com.google.gson.JsonPrimitive
 import com.google.protobuf.duration
 import com.google.protobuf.timestamp
 import java.time.Instant
@@ -390,15 +391,11 @@ class ReportReader {
             state = Measurement.State.forNumber(it.getAsJsonPrimitive("state").asInt)
             if (!it.get("failure").isJsonNull) {
               failure =
-                Measurement.Failure.parseFrom(
-                  Base64.getDecoder().decode(it.getAsJsonPrimitive("failure").asString)
-                )
+                Measurement.Failure.parseFrom(it.getAsJsonPrimitive("failure").decodePostgresBase64())
             }
             if (!it.get("result").isJsonNull) {
               result =
-                Measurement.Result.parseFrom(
-                  Base64.getDecoder().decode(it.getAsJsonPrimitive("result").asString)
-                )
+                Measurement.Result.parseFrom(it.getAsJsonPrimitive("result").decodePostgresBase64())
             }
           }
         }
@@ -415,9 +412,7 @@ class ReportReader {
       metricsList.add(
         metric {
           details =
-            Metric.Details.parseFrom(
-              Base64.getDecoder().decode(metricObject.getAsJsonPrimitive("metricDetails").asString)
-            )
+            Metric.Details.parseFrom(metricObject.getAsJsonPrimitive("metricDetails").decodePostgresBase64())
 
           val setOperationsArr = metricObject.getAsJsonArray("setOperations")
           val setOperationsMap = mutableMapOf<Long, JsonObject>()
@@ -527,5 +522,14 @@ class ReportReader {
           }
         }
     }
+  }
+
+  /**
+   * Postgres base64 encoding adds \n to break up the text for backwards compatibility in older
+   * systems. They have to be removed for the decoding to be successful every time because Java
+   * base64 encoding/decoding does not support this.
+   */
+  private fun JsonPrimitive.decodePostgresBase64(): ByteArray {
+    return Base64.getDecoder().decode(this.asString.replace("\n", ""))
   }
 }
