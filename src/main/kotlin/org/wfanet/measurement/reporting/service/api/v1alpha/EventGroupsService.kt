@@ -74,8 +74,7 @@ class EventGroupsService(
             pageSize = request.pageSize
             pageToken = request.pageToken
             filter = filter {
-              measurementConsumers +=
-                MeasurementConsumerKey(principal.resourceKey.measurementConsumerId).toName()
+              measurementConsumers += principalName
             }
           }
         )
