@@ -530,10 +530,9 @@ class ReportReader {
 
   /**
    * Postgres base64 encoding adds \n to break up the text for backwards compatibility in older
-   * systems. They have to be removed for the decoding to be successful every time because Java
-   * base64 encoding/decoding does not support this.
+   * systems. The MIME decoder ignores the \n.
    */
   private fun JsonPrimitive.decodePostgresBase64(): ByteArray {
-    return Base64.getDecoder().decode(this.asString.replace("\n", ""))
+    return Base64.getMimeDecoder().decode(this.asString)
   }
 }
