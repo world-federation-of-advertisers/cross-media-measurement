@@ -73,9 +73,7 @@ class EventGroupsService(
             parent = dataProviderName
             pageSize = request.pageSize
             pageToken = request.pageToken
-            filter = filter {
-              measurementConsumers += principalName
-            }
+            filter = filter { measurementConsumers += principalName }
           }
         )
     val cmmsEventGroups = cmmsListEventGroupResponse.eventGroupsList
