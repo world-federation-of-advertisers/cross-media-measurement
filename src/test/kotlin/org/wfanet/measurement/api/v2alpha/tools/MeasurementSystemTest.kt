@@ -127,7 +127,7 @@ private val KINGDOM_TRUSTED_CERTS: File = SECRETS_DIR.resolve("all_root_certs.pe
 
 private val CLIENT_TLS_CERT: File = SECRETS_DIR.resolve("mc_tls.pem")
 private val CLIENT_TLS_KEY: File = SECRETS_DIR.resolve("mc_tls.key")
-private val CLIENT_TRUSTED_CERTS: File = SECRETS_DIR.resolve("kingdom_root.pem")
+private val CLIENT_TRUSTED_CERTS: File = SECRETS_DIR.resolve("mc_trusted_certs.pem")
 
 private val SIOP_KEY: File = SECRETS_DIR.resolve("account1_siop_private.tink")
 

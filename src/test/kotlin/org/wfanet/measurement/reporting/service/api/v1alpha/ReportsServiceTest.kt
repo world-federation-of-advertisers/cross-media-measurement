@@ -24,6 +24,7 @@ import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.nio.file.Paths
 import java.security.SecureRandom
+import java.security.cert.X509Certificate
 import java.time.Instant
 import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
@@ -96,6 +97,7 @@ import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
@@ -259,6 +261,8 @@ private val AGGREGATOR_SIGNING_KEY: SigningKeyHandle by lazy {
   )
 }
 private val AGGREGATOR_CERTIFICATE = certificate { x509Der = AGGREGATOR_CERTIFICATE_DER }
+private val AGGREGATOR_ROOT_CERTIFICATE: X509Certificate =
+  readCertificate(SECRETS_DIR.resolve("aggregator_root.pem"))
 
 // Public keys of measurement consumers
 private val MEASUREMENT_PUBLIC_KEY_DATA = SECRETS_DIR.resolve("mc_enc_public.tink").readByteString()
@@ -1303,15 +1307,20 @@ class ReportsServiceTest {
     onBlocking {
         getCertificate(eq(getCertificateRequest { name = DATA_PROVIDER_CERTIFICATE_NAMES[0] }))
       }
-      .thenReturn(AGGREGATOR_CERTIFICATE)
+      .thenReturn(AGGREGATOR_CERTIFICATE.copy { name = DATA_PROVIDER_CERTIFICATE_NAMES[0] })
     onBlocking {
         getCertificate(eq(getCertificateRequest { name = DATA_PROVIDER_CERTIFICATE_NAMES[1] }))
       }
-      .thenReturn(AGGREGATOR_CERTIFICATE)
+      .thenReturn(AGGREGATOR_CERTIFICATE.copy { name = DATA_PROVIDER_CERTIFICATE_NAMES[1] })
     onBlocking {
         getCertificate(eq(getCertificateRequest { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME }))
       }
-      .thenReturn(certificate { x509Der = MEASUREMENT_CONSUMER_CERTIFICATE_DER })
+      .thenReturn(
+        certificate {
+          name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
+          x509Der = MEASUREMENT_CONSUMER_CERTIFICATE_DER
+        }
+      )
   }
 
   private val secureRandomMock: SecureRandom = mock()
@@ -1347,7 +1356,8 @@ class ReportsServiceTest {
         CertificatesCoroutineStub(grpcTestServerRule.channel),
         ENCRYPTION_KEY_PAIR_STORE,
         secureRandomMock,
-        SECRETS_DIR
+        SECRETS_DIR,
+        mapOf(AGGREGATOR_ROOT_CERTIFICATE.authorityKeyIdentifier!! to AGGREGATOR_ROOT_CERTIFICATE)
       )
   }
 

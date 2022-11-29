@@ -22,10 +22,11 @@ def wfa_measurement_system_repositories():
     """Imports all direct dependencies for wfa_measurement_system."""
 
     wfa_repo_archive(
+        # DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#172): Use version once released.
+        commit = "a16e9d5dfda8661c635f4dfccf86c4fdc11e5c0c",
         name = "wfa_common_jvm",
         repo = "common-jvm",
-        sha256 = "9b7aa407b2f7a2f6aec6649bff2272d92f83022fcb5e6be183fa4b2aa31b976c",
-        version = "0.48.0",
+        sha256 = "a114026676a41ef5a247e19516e1bdbe73d86714314c7ec6e04e3278f282f80b",
     )
 
     wfa_repo_archive(
@@ -64,10 +65,11 @@ def wfa_measurement_system_repositories():
     )
 
     wfa_repo_archive(
+        # DO_NOT_SUBMIT(world-federation-of-advertisers/consent-signaling-client#40): Use version once released.
+        commit = "18a4ceffca545e84607fbaebdc022c608fdf3f02",
         name = "wfa_consent_signaling_client",
         repo = "consent-signaling-client",
-        sha256 = "ad92284f50b685b2044756693271501feeff6054f09e2d1daaf33ffa54f48cd8",
-        version = "0.14.1",
+        sha256 = "fc502ba3e6c7adee2f28591263059f283dfc0471091becc71eb911dc24de06e5",
     )
 
     wfa_repo_archive(

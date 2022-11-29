@@ -31,7 +31,6 @@ import java.nio.file.Paths
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
-import java.util.concurrent.TimeUnit.SECONDS
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -259,8 +258,8 @@ class BenchmarkTest {
 
   @After
   fun shutdownServer() {
-    server.server.shutdown()
-    server.server.awaitTermination(1, SECONDS)
+    server.shutdown()
+    server.blockUntilShutdown()
   }
 
   @Test

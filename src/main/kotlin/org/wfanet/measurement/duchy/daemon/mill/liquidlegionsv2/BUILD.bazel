@@ -22,6 +22,7 @@ kt_jvm_library(
     deps = [
         "//imports/java/io/opentelemetry/api",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
+        "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill:mill_base",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/mill/liquidlegionsv2/crypto:liquidlegionsv2encryption",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/utils:computation_conversions",

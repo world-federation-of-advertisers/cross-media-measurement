@@ -434,6 +434,7 @@ class CorrectnessTest {
           CertificatesCoroutineStub(publicApiChannel),
           SketchStore(storageClient),
           Duration.ofSeconds(10L),
+          kingdomSigningCerts.trustedCertificates,
           EventFilters.EVENT_TEMPLATES_TO_FILTERS_MAP
         )
         .also {
