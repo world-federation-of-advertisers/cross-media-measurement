@@ -529,8 +529,8 @@ class ReportReader {
   }
 
   /**
-   * Postgres base64 encoding adds \n to break up the text for backwards compatibility in older
-   * systems. The MIME decoder ignores the \n.
+   * Postgres base64 encoding follows MIME encoding standards from RFC 2045 by adding \n to break up
+   * the text. The MIME decoder ignores the \n.
    */
   private fun JsonPrimitive.decodePostgresBase64(): ByteArray {
     return Base64.getMimeDecoder().decode(this.asString)
