@@ -183,16 +183,17 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
         duchyId = flags.duchy.duchyName,
         signingKey = csSigningKey,
         consentSignalCert = csCertificate,
+        trustedCertificates = flags.tlsFlags.signingCerts.trustedCertificates,
         dataClients = dataClients,
         systemComputationParticipantsClient = systemComputationParticipantsClient,
         systemComputationsClient = systemComputationsClient,
         systemComputationLogEntriesClient = systemComputationLogEntriesClient,
         computationStatsClient = computationStatsClient,
+        throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval),
         workerStubs = computationControlClientMap,
         cryptoWorker = JniLiquidLegionsV2Encryption(),
-        throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval),
-        requestChunkSizeBytes = flags.requestChunkSizeBytes,
-        openTelemetry = openTelemetry
+        openTelemetry = openTelemetry,
+        requestChunkSizeBytes = flags.requestChunkSizeBytes
       )
 
     runBlocking { mill.continuallyProcessComputationQueue() }
