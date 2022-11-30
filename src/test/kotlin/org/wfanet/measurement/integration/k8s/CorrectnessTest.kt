@@ -287,7 +287,7 @@ class CorrectnessTest {
 
     private val measurementConsumerSigningCerts: SigningCerts by lazy {
       val secretFiles = checkNotNull(getRuntimePath(SECRET_FILES_PATH))
-      val trustedCerts = secretFiles.resolve("kingdom_root.pem").toFile()
+      val trustedCerts = secretFiles.resolve("mc_trusted_certs.pem").toFile()
       val cert = secretFiles.resolve("mc_tls.pem").toFile()
       val key = secretFiles.resolve("mc_tls.key").toFile()
       SigningCerts.fromPemFiles(cert, key, trustedCerts)
@@ -434,6 +434,7 @@ class CorrectnessTest {
           CertificatesCoroutineStub(publicApiChannel),
           SketchStore(storageClient),
           Duration.ofSeconds(10L),
+          measurementConsumerSigningCerts.trustedCertificates,
           EventFilters.EVENT_TEMPLATES_TO_FILTERS_MAP
         )
         .also {

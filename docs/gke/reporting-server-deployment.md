@@ -200,11 +200,13 @@ First, prepare all the files we want to include in the Kubernetes secret. The
 
 1.  `all_root_certs.pem`
 
-    This makes up the TLS trusted root CA store. It's the concatenation of the
-    root CA certificates for all the entities that the Reporting server
-    interacts with, including:
+    This makes up the trusted root CA store. It's the concatenation of the root
+    CA certificates for all the entities that the Reporting server interacts
+    with, including:
 
     *   All Measurement Consumers
+    *   Any entity which produces Measurement results (e.g. the Aggregator Duchy
+        and Data Providers)
     *   The Kingdom
     *   The Reporting server itself (for internal traffic)
 
