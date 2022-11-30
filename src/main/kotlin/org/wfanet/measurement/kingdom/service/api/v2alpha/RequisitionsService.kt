@@ -26,6 +26,7 @@ import org.wfanet.measurement.api.v2.alpha.listRequisitionsPageToken
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
+import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
@@ -405,10 +406,11 @@ private fun State.toInternal(): InternalState =
   }
 
 /** Converts an internal [DuchyValue] to a public [DuchyEntry.Value]. */
-private fun DuchyValue.toDuchyEntryValue(): DuchyEntry.Value {
+private fun DuchyValue.toDuchyEntryValue(externalDuchyId: String): DuchyEntry.Value {
   val value = this
   return value {
-    duchyCertificate = externalIdToApiId(externalDuchyCertificateId)
+    duchyCertificate =
+      DuchyCertificateKey(externalDuchyId, externalIdToApiId(externalDuchyCertificateId)).toName()
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
     when (value.protocolCase) {
       DuchyValue.ProtocolCase.LIQUID_LEGIONS_V2 -> liquidLegionsV2 = liquidLegionsV2 {
@@ -427,7 +429,7 @@ private fun Map.Entry<String, DuchyValue>.toDuchyEntry(): DuchyEntry {
   val mapEntry = this
   return duchyEntry {
     key = mapEntry.key
-    value = mapEntry.value.toDuchyEntryValue()
+    value = mapEntry.value.toDuchyEntryValue(mapEntry.key)
   }
 }
 
