@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.reporting.deploy.postgres.readers
 
-import com.google.protobuf.ByteString
 import kotlinx.coroutines.flow.firstOrNull
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
@@ -69,9 +68,10 @@ class MeasurementReader {
       measurementConsumerReferenceId = row["MeasurementConsumerReferenceId"]
       measurementReferenceId = row["MeasurementReferenceId"]
       state = Measurement.State.forNumber(row["State"])
-      val failure: ByteString? = row["Failure"]
+      val failure: Measurement.Failure? =
+        row.getProtoMessage("Failure", Measurement.Failure.parser())
       if (failure != null) {
-        this.failure = Measurement.Failure.parseFrom(failure)
+        this.failure = failure
       }
       val result: Measurement.Result? = row.getProtoMessage("Result", Measurement.Result.parser())
       if (result != null) {

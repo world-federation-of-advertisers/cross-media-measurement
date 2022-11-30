@@ -16,6 +16,7 @@ package org.wfanet.measurement.reporting.deploy.postgres.readers
 
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import com.google.gson.JsonPrimitive
 import com.google.protobuf.duration
 import com.google.protobuf.timestamp
 import java.time.Instant
@@ -391,14 +392,12 @@ class ReportReader {
             if (!it.get("failure").isJsonNull) {
               failure =
                 Measurement.Failure.parseFrom(
-                  Base64.getDecoder().decode(it.getAsJsonPrimitive("failure").asString)
+                  it.getAsJsonPrimitive("failure").decodePostgresBase64()
                 )
             }
             if (!it.get("result").isJsonNull) {
               result =
-                Measurement.Result.parseFrom(
-                  Base64.getDecoder().decode(it.getAsJsonPrimitive("result").asString)
-                )
+                Measurement.Result.parseFrom(it.getAsJsonPrimitive("result").decodePostgresBase64())
             }
           }
         }
@@ -416,7 +415,7 @@ class ReportReader {
         metric {
           details =
             Metric.Details.parseFrom(
-              Base64.getDecoder().decode(metricObject.getAsJsonPrimitive("metricDetails").asString)
+              metricObject.getAsJsonPrimitive("metricDetails").decodePostgresBase64()
             )
 
           val setOperationsArr = metricObject.getAsJsonArray("setOperations")
@@ -527,5 +526,13 @@ class ReportReader {
           }
         }
     }
+  }
+
+  /**
+   * Postgres base64 encoding follows MIME encoding standards from RFC 2045 by adding \n to break up
+   * the text. The MIME decoder ignores the \n.
+   */
+  private fun JsonPrimitive.decodePostgresBase64(): ByteArray {
+    return Base64.getMimeDecoder().decode(this.asString)
   }
 }
