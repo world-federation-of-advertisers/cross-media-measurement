@@ -62,7 +62,8 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
   ComputationTypeEnumHelper<ProtocolT> by computationTypeEnumHelper,
   ComputationProtocolStagesEnumHelper<ProtocolT, StageT> by computationProtocolStagesEnumHelper,
   ComputationProtocolStageDetailsHelper<
-    ProtocolT, StageT, StageDT, ComputationDT> by computationProtocolStageDetailsHelper {
+    ProtocolT, StageT, StageDT, ComputationDT
+  > by computationProtocolStageDetailsHelper {
   /** Appends fields to write in a mutation of the Computations spanner table. */
   private fun computation(
     newBuilderFunction: MutationBuilderFunction,

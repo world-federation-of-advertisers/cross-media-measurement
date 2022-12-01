@@ -22,3 +22,10 @@ grafana: #Grafana & {
 	_prometheusUrl: "http://prometheus.default.svc.cluster.local:9090"
 	_secretName:    _grafanaSecretName
 }
+
+#JavaOptions: {
+	initialHeapSize:       _ | *"32M"
+	maxHeapSize:           _ | *"96M"
+	reservedCodeCacheSize: _ | *"64M"
+	maxDirectMemorySize:   _ | *"32M"
+}

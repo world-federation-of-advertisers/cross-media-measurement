@@ -2,7 +2,7 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 load("@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl", "spanner_emulator_test")
 
 kt_jvm_library(
-    name = "gcloud",
+    name = "provider_rules",
     testonly = True,
     srcs = [
         "DuchyDependencyProviderRule.kt",
@@ -30,7 +30,7 @@ spanner_emulator_test(
     tags = ["cpu:2"],
     test_class = "org.wfanet.measurement.integration.gcloud.GCloudInProcessLifeOfAMeasurementIntegrationTest",
     deps = [
-        ":gcloud",
+        ":provider_rules",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_components",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/debug",
     ],

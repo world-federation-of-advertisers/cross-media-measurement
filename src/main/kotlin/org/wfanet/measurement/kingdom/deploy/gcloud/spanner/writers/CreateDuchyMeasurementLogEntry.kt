@@ -56,7 +56,9 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
       readMeasurementIds()
         ?: throw MeasurementNotFoundByComputationException(
           ExternalId(request.externalComputationId)
-        ) { "Measurement for external computation ID ${request.externalComputationId} not found" }
+        ) {
+          "Measurement for external computation ID ${request.externalComputationId} not found"
+        }
     val duchyId =
       DuchyIds.getInternalId(request.externalDuchyId)
         ?: throw DuchyNotFoundException(request.externalDuchyId)
@@ -139,7 +141,8 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
           JOIN MeasurementConsumers USING (MeasurementConsumerId)
           WHERE ExternalComputationId = ${request.externalComputationId}
           LIMIT 1
-        """.trimIndent()
+        """
+              .trimIndent()
           )
           .build()
       )

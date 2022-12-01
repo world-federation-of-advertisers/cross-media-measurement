@@ -55,7 +55,8 @@ class SpannerExchangeStepAttemptsService(
               AND ExchangeStepAttempts.Date = @date
               AND ExchangeStepAttempts.StepIndex = @step_index
               AND ExchangeStepAttempts.AttemptIndex = @attempt_index
-            """.trimIndent()
+            """
+              .trimIndent()
           )
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
           when (request.provider.type) {
@@ -67,7 +68,8 @@ class SpannerExchangeStepAttemptsService(
                 |    FROM DataProviders
                 |    WHERE ExternalDataProviderId = @external_provider_id
                 |  )
-                """.trimMargin()
+                """
+                  .trimMargin()
               )
             Provider.Type.MODEL_PROVIDER ->
               appendClause(
@@ -77,7 +79,8 @@ class SpannerExchangeStepAttemptsService(
                 |    FROM ModelProviders
                 |    WHERE ExternalModelProviderId = @external_provider_id
                 |  )
-                """.trimMargin()
+                """
+                  .trimMargin()
               )
             Provider.Type.TYPE_UNSPECIFIED,
             Provider.Type.UNRECOGNIZED ->

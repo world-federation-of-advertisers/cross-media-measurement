@@ -76,7 +76,8 @@ class StreamMeasurements(
           ((UpdateTime > @$UPDATED_AFTER)
           OR (UpdateTime = @$UPDATED_AFTER
           AND ExternalMeasurementId > @$EXTERNAL_MEASUREMENT_ID_AFTER))
-        """.trimIndent()
+        """
+            .trimIndent()
         )
         bind(EXTERNAL_MEASUREMENT_ID_AFTER).to(filter.externalMeasurementIdAfter)
       } else if (filter.hasExternalComputationIdAfter()) {
@@ -85,7 +86,8 @@ class StreamMeasurements(
           ((UpdateTime > @$UPDATED_AFTER)
           OR (UpdateTime = @$UPDATED_AFTER
           AND ExternalComputationId > @$EXTERNAL_COMPUTATION_ID_AFTER))
-        """.trimIndent()
+        """
+            .trimIndent()
         )
         bind(EXTERNAL_COMPUTATION_ID_AFTER).to(filter.externalComputationIdAfter)
       } else {

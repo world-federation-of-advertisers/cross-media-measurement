@@ -328,12 +328,12 @@ class FrontendSimulator(
     runId: String,
     newMeasurementSpec:
       (
-        serializedMeasurementPublicKey: ByteString,
-        nonceHashes: MutableList<ByteString>
+        serializedMeasurementPublicKey: ByteString, nonceHashes: MutableList<ByteString>
       ) -> MeasurementSpec,
     numberOfEdp: Int = 20,
   ): Measurement {
-    var eventGroups = listEventGroups(measurementConsumer.name)
+    var eventGroups: List<EventGroup> = listEventGroups(measurementConsumer.name)
+    check(eventGroups.isNotEmpty()) { "No event groups found for ${measurementConsumer.name}" }
     eventGroups = eventGroups.subList(0, min(numberOfEdp, eventGroups.size))
     val nonceHashes = mutableListOf<ByteString>()
     val dataProviderEntries =
@@ -399,7 +399,11 @@ class FrontendSimulator(
     }
 
     val resultPair = measurement.resultsList[0]
-    return parseAndVerifyResult(resultPair)
+    val result = parseAndVerifyResult(resultPair)
+    assertThat(result.hasReach()).isTrue()
+    assertThat(result.hasFrequency()).isTrue()
+
+    return result
   }
 
   private suspend fun getMeasurement(measurementName: String) =

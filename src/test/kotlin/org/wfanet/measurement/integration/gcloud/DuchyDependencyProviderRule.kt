@@ -44,7 +44,8 @@ import org.wfanet.measurement.storage.StorageClient
 
 private typealias ComputationsDb =
   ComputationsDatabaseTransactor<
-    ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails>
+    ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails
+  >
 
 class DuchyDependencyProviderRule(duchies: Iterable<String>) :
   ProviderRule<(String) -> InProcessDuchy.DuchyDependencies> {
@@ -87,7 +88,8 @@ class DuchyDependencyProviderRule(duchies: Iterable<String>) :
       ComputationsDatabaseReader by readOnlyDb,
       ComputationsDb by computationsDb,
       ComputationProtocolStagesEnumHelper<
-        ComputationType, ComputationStage> by ComputationProtocolStages {}
+        ComputationType, ComputationStage
+      > by ComputationProtocolStages {}
   }
 
   private fun buildStorageClient(duchyId: String): StorageClient {

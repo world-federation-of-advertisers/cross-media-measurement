@@ -22,17 +22,22 @@ _certificateId:                string @tag("certificate_id")
 
 _duchy_cert_name: "duchies/\(_duchy_name)/certificates/\(_certificateId)"
 
-#KingdomSystemApiTarget:       "system.kingdom.dev.halo-cmm.org:8443"
-#InternalServerServiceAccount: "internal-server"
-#StorageServiceAccount:        "storage"
-#MillResourceRequirements:     #ResourceRequirements & {
-	requests: cpu:  "800m"
-	limits: memory: "2Gi"
+#KingdomSystemApiTarget:             "system.kingdom.dev.halo-cmm.org:8443"
+#InternalServerServiceAccount:       "internal-server"
+#StorageServiceAccount:              "storage"
+#InternalServerResourceRequirements: #ResourceRequirements & {
+	requests: {
+		memory: "256Mi"
+	}
 }
-#SpannerComputationsResourceRequirements: #ResourceRequirements & {
-	limits: memory: "384Mi"
+#MillResourceRequirements: #ResourceRequirements & {
+	requests: {
+		cpu:    "800m"
+		memory: "2Gi"
+	}
 }
-#MillReplicas: 1
+#MillMaxHeapSize: "1G"
+#MillReplicas:    1
 
 objectSets: [
 	default_deny_ingress_and_egress,
@@ -86,7 +91,9 @@ duchy: #Duchy & {
 
 	deployments: {
 		"spanner-computations-server-deployment": {
-			_container: resources: #SpannerComputationsResourceRequirements
+			_container: {
+				resources: #InternalServerResourceRequirements
+			}
 			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #InternalServerServiceAccount
 			}
@@ -96,7 +103,7 @@ duchy: #Duchy & {
 		}
 		"liquid-legions-v2-mill-daemon-deployment": {
 			_container: {
-				_javaOptions: maxRamPercentage: 50.0
+				_javaOptions: maxHeapSize: #MillMaxHeapSize
 				resources: #MillResourceRequirements
 			}
 			spec: {

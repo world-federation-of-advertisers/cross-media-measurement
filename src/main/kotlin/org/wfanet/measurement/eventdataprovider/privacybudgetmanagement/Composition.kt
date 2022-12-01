@@ -111,5 +111,7 @@ object Composition {
   ): Float =
     advancedCompositionResults.getOrPut(
       AdvancedCompositionKey(charge, repetitionCount, totalDelta)
-    ) { calculateAdvancedComposition(charge, repetitionCount, totalDelta) }
+    ) {
+      calculateAdvancedComposition(charge, repetitionCount, totalDelta)
+    }
 }

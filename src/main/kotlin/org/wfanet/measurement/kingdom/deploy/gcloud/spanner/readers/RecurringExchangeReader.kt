@@ -51,7 +51,8 @@ class RecurringExchangeReader(recurringExchangesIndex: Index = Index.NONE) :
     FROM RecurringExchanges${recurringExchangesIndex.sql}
     JOIN ModelProviders USING (ModelProviderId)
     JOIN DataProviders USING (DataProviderId)
-    """.trimIndent()
+    """
+      .trimIndent()
 
   override suspend fun translate(struct: Struct): Result {
     return Result(

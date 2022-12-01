@@ -30,7 +30,8 @@ class MeasurementConsumerOwnerReader : SpannerReader<MeasurementConsumerOwnerRea
       MeasurementConsumerOwners.AccountId,
       MeasurementConsumerOwners.MeasurementConsumerId,
     FROM MeasurementConsumerOwners
-    """.trimIndent()
+    """
+      .trimIndent()
 
   override suspend fun translate(struct: Struct): Result =
     Result(

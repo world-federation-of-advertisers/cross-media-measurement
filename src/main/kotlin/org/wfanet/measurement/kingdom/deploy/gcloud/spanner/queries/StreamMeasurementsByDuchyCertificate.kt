@@ -34,7 +34,8 @@ class StreamMeasurementsByDuchyCertificate(
         WHERE ComputationParticipants.CertificateId = @duchyCertificateId
           AND ComputationParticipants.State = @computationParticipantState
           AND Measurements.State in UNNEST(@pendingStates)
-        """.trimIndent()
+        """
+          .trimIndent()
       )
       bind("duchyCertificateId").to(duchyCertificateId.value)
       bind("computationParticipantState")
