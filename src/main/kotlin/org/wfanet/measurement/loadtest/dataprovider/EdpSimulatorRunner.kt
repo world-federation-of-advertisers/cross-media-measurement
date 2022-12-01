@@ -84,7 +84,8 @@ abstract class EdpSimulatorRunner : Runnable {
         eventQuery,
         MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval),
         eventTemplateNames = EVENT_TEMPLATES_TO_FILTERS_MAP.keys.toList(),
-        createNoOpPrivacyBudgetManager()
+        createNoOpPrivacyBudgetManager(),
+        clientCerts.trustedCertificates
       )
     runBlocking {
       edpSimulator.createEventGroup()

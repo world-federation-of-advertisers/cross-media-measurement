@@ -127,7 +127,7 @@ private val KINGDOM_TRUSTED_CERTS: File = SECRETS_DIR.resolve("all_root_certs.pe
 
 private val CLIENT_TLS_CERT: File = SECRETS_DIR.resolve("mc_tls.pem")
 private val CLIENT_TLS_KEY: File = SECRETS_DIR.resolve("mc_tls.key")
-private val CLIENT_TRUSTED_CERTS: File = SECRETS_DIR.resolve("kingdom_root.pem")
+private val CLIENT_TRUSTED_CERTS: File = SECRETS_DIR.resolve("mc_trusted_certs.pem")
 
 private val SIOP_KEY: File = SECRETS_DIR.resolve("account1_siop_private.tink")
 
@@ -142,6 +142,7 @@ private const val MEASUREMENT_CONSUMER_CERTIFICATE_NAME = "measurementConsumers/
 private val MEASUREMENT_CONSUMER_PUBLIC_KEY_FILE: File = SECRETS_DIR.resolve("mc_enc_public.pb")
 private val MEASUREMENT_CONSUMER_PUBLIC_KEY_SIG_FILE: File =
   SECRETS_DIR.resolve("mc_enc_public.pb.sig")
+private val MEASUREMENT_CONSUMER_ROOT_CERTIFICATE_FILE: File = SECRETS_DIR.resolve("mc_root.pem")
 
 private const val DATA_PROVIDER_NAME = "dataProviders/1"
 private const val DATA_PROVIDER_CERTIFICATE_NAME = "dataProviders/1/certificates/1"
@@ -423,8 +424,11 @@ class MeasurementSystemTest {
       }
     val measurement = request.measurement
     // measurementSpec matches
-    assertThat(verifyMeasurementSpec(measurement.measurementSpec, MEASUREMENT_CONSUMER_CERTIFICATE))
-      .isTrue()
+    verifyMeasurementSpec(
+      measurement.measurementSpec,
+      MEASUREMENT_CONSUMER_CERTIFICATE,
+      TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+    )
     val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
     val nonceHashes = measurement.dataProvidersList.map { it.value.nonceHash }
     assertThat(measurementSpec)
@@ -445,15 +449,14 @@ class MeasurementSystemTest {
         DATA_PROVIDER_PRIVATE_KEY_HANDLE
       )
     val requisitionSpec1 = RequisitionSpec.parseFrom(signedRequisitionSpec1.data)
-    assertThat(
-        verifyRequisitionSpec(
-          signedRequisitionSpec1,
-          requisitionSpec1,
-          measurementSpec,
-          MEASUREMENT_CONSUMER_CERTIFICATE
-        )
-      )
-      .isTrue()
+    verifyRequisitionSpec(
+      signedRequisitionSpec1,
+      requisitionSpec1,
+      measurementSpec,
+      MEASUREMENT_CONSUMER_CERTIFICATE,
+      TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+    )
+
     assertThat(requisitionSpec1)
       .comparingExpectedFieldsOnly()
       .isEqualTo(
@@ -493,15 +496,13 @@ class MeasurementSystemTest {
         DATA_PROVIDER_PRIVATE_KEY_HANDLE
       )
     val requisitionSpec2 = RequisitionSpec.parseFrom(signedRequisitionSpec2.data)
-    assertThat(
-        verifyRequisitionSpec(
-          signedRequisitionSpec2,
-          requisitionSpec2,
-          measurementSpec,
-          MEASUREMENT_CONSUMER_CERTIFICATE
-        )
-      )
-      .isTrue()
+    verifyRequisitionSpec(
+      signedRequisitionSpec2,
+      requisitionSpec2,
+      measurementSpec,
+      MEASUREMENT_CONSUMER_CERTIFICATE,
+      TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+    )
     assertThat(requisitionSpec2)
       .comparingExpectedFieldsOnly()
       .isEqualTo(
@@ -763,6 +764,9 @@ class MeasurementSystemTest {
 
     private val MEASUREMENT_CONSUMER_CERTIFICATE: X509Certificate by lazy {
       readCertificate(MEASUREMENT_CONSUMER.certificateDer)
+    }
+    private val TRUSTED_MEASUREMENT_CONSUMER_ISSUER: X509Certificate by lazy {
+      readCertificate(MEASUREMENT_CONSUMER_ROOT_CERTIFICATE_FILE)
     }
 
     private val MEASUREMENT_CONSUMER_ENCRYPTION_PUBLIC_KEY: EncryptionPublicKey by lazy {

@@ -10,6 +10,7 @@ kt_jvm_library(
         "//src/main/k8s/local/testing:duchies_and_edps_config",
         "//src/main/k8s/local/testing:emulators_config",
         "//src/main/k8s/local/testing:kingdom_config",
+        "//src/main/k8s/testing/secretfiles:mc_trusted_certs.pem",
         "//src/main/k8s/testing/secretfiles:secret_files",
     ],
     deps = [
