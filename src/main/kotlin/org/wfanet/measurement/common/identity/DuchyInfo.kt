@@ -29,9 +29,14 @@ object DuchyInfo {
     require(!DuchyInfo::entries.isInitialized)
     val configMessage =
       flags.config.reader().use { parseTextProto(it, DuchyCertConfig.getDefaultInstance()) }
-    require(configMessage.duchiesCount > 0) { "Duchy info config has no entries" }
+    initializeFromConfig(configMessage)
+  }
+
+  fun initializeFromConfig(certConfig: DuchyCertConfig) {
+    require(!DuchyInfo::entries.isInitialized)
+    require(certConfig.duchiesCount > 0) { "Duchy info config has no entries" }
     entries =
-      configMessage.duchiesList.associateBy(DuchyCertConfig.Duchy::getDuchyId) {
+      certConfig.duchiesList.associateBy(DuchyCertConfig.Duchy::getDuchyId) {
         it.toDuchyInfoEntry()
       }
   }

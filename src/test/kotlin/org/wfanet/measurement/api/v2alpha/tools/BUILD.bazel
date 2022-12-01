@@ -6,6 +6,7 @@ kt_jvm_test(
     data = [
         "//src/main/k8s/testing/secretfiles:all_tink_keysets",
         "//src/main/k8s/testing/secretfiles:encryption_public_keys",
+        "//src/main/k8s/testing/secretfiles:mc_trusted_certs.pem",
         "//src/main/k8s/testing/secretfiles:root_certs",
         "//src/main/k8s/testing/secretfiles:secret_files",
     ],

@@ -106,7 +106,8 @@ private fun run(
           KingdomCertificatesCoroutineStub(kingdomChannel),
           InMemoryEncryptionKeyPairStore(encryptionKeyPairMap.keyPairs),
           SecureRandom(),
-          v1AlphaFlags.signingPrivateKeyStoreDir
+          v1AlphaFlags.signingPrivateKeyStoreDir,
+          commonServerFlags.tlsFlags.signingCerts.trustedCertificates
         )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
     )
