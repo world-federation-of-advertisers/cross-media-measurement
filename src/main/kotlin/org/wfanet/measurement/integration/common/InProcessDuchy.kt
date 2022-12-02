@@ -58,6 +58,8 @@ import org.wfanet.measurement.duchy.storage.RequisitionStore
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
+import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineImplBase
+import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineStub
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub as SystemComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub as SystemComputationLogEntriesCoroutineStub
@@ -82,7 +84,8 @@ class InProcessDuchy(
 ) : TestRule {
   data class DuchyDependencies(
     val computationsDatabase: ComputationsDatabase,
-    val storageClient: StorageClient
+    val storageClient: StorageClient,
+    val continuationTokensService: ContinuationTokensCoroutineImplBase,
   )
 
   private val daemonScope = CoroutineScope(daemonContext)
@@ -110,6 +113,9 @@ class InProcessDuchy(
   private val asyncComputationControlClient by lazy {
     AsyncComputationControlCoroutineStub(asyncComputationControlServer.channel)
   }
+  private val continuationTokensClient by lazy {
+    ContinuationTokensCoroutineStub(computationsServer.channel)
+  }
 
   private val computationsServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
@@ -121,6 +127,7 @@ class InProcessDuchy(
         )
       )
       addService(ComputationStatsService(duchyDependencies.computationsDatabase))
+      addService(duchyDependencies.continuationTokensService)
     }
   private val requisitionFulfillmentServer =
     GrpcTestServerRule(logAllRequests = verboseGrpcLogging) {
@@ -176,6 +183,7 @@ class InProcessDuchy(
             internalComputationsClient = computationsClient,
             systemComputationsClient = systemComputationsClient,
             systemComputationParticipantClient = systemComputationParticipantsClient,
+            continuationTokenClient = continuationTokensClient,
             protocolsSetupConfig = protocolsSetupConfig,
             clock = Clock.systemUTC(),
           )

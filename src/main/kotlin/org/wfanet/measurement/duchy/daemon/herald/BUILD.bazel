@@ -1,17 +1,33 @@
 load("@wfa_common_jvm//build:defs.bzl", "test_target")
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 
+package(
+    default_visibility = [
+        test_target(":__pkg__"),
+        "//src/main/kotlin/org/wfanet/measurement/duchy:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/duchy:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
+    ],
+)
+
+kt_jvm_library(
+    name = "continuation_token_manager",
+    srcs = ["ContinuationTokenManager.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/internal/duchy:continuation_tokens_service_kt_jvm_grpc_proto",
+    ],
+)
+
 kt_jvm_library(
     name = "herald",
-    srcs = glob(["*.kt"]),
-    visibility = [
-        test_target(":__pkg__"),
-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy:__subpackages__",
-        "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
-        "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
+    srcs = [
+        "Herald.kt",
+        "LiquidLegionsV2Starter.kt",
     ],
     runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [
+        "continuation_token_manager",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",
         "//src/main/kotlin/org/wfanet/measurement/duchy/daemon/utils:computation_conversions",
