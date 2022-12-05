@@ -30,11 +30,16 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.kotlin.KArgumentCaptor
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.stub
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
+import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -42,6 +47,7 @@ import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.captureFirst
+import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.duchy.daemon.testing.TestRequisition
 import org.wfanet.measurement.duchy.daemon.utils.key
@@ -51,21 +57,30 @@ import org.wfanet.measurement.duchy.service.internal.computations.ComputationsSe
 import org.wfanet.measurement.duchy.service.internal.computations.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computations.newInputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computations.newPassThroughBlobMetadata
-import org.wfanet.measurement.duchy.service.internal.testing.TestContinuationTokensService
+import org.wfanet.measurement.duchy.service.internal.testing.InMemoryContinuationTokensService
+import org.wfanet.measurement.duchy.storage.ComputationStore
+import org.wfanet.measurement.duchy.storage.RequisitionStore
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase as InternalComputationsCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub as InternalComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineStub
+import org.wfanet.measurement.internal.duchy.DeleteComputationRequest
+import org.wfanet.measurement.internal.duchy.DeleteComputationResponse
 import org.wfanet.measurement.internal.duchy.FinishComputationResponse
+import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
+import org.wfanet.measurement.internal.duchy.computationToken
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
+import org.wfanet.measurement.internal.duchy.deleteComputationRequest
+import org.wfanet.measurement.internal.duchy.getComputationTokenResponse
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.CONFIRMATION_PHASE
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_REQUISITIONS_AND_KEY_SET
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.liquidLegionsSketchParams
@@ -82,21 +97,6 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.Compu
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineImplBase as SystemComputationsCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
-import org.junit.rules.TemporaryFolder
-import org.mockito.kotlin.KArgumentCaptor
-import org.mockito.kotlin.argumentCaptor
-import org.mockito.kotlin.times
-import org.mockito.kotlin.verifyBlocking
-import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.duchy.storage.ComputationStore
-import org.wfanet.measurement.duchy.storage.RequisitionStore
-import org.wfanet.measurement.internal.duchy.DeleteComputationRequest
-import org.wfanet.measurement.internal.duchy.DeleteComputationResponse
-import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
-import org.wfanet.measurement.internal.duchy.computationToken
-import org.wfanet.measurement.internal.duchy.deleteComputationRequest
-import org.wfanet.measurement.internal.duchy.getComputationTokenResponse
-import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.system.v1alpha.FailComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.Requisition
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
@@ -219,12 +219,12 @@ class HeraldTest {
 
   private val fakeComputationDatabase = FakeComputationsDatabase()
 
-  private lateinit var continuationTokensService: TestContinuationTokensService
-
   private val tempDirectory = TemporaryFolder()
   private lateinit var storageClient: FileSystemStorageClient
   private lateinit var computationStore: ComputationStore
   private lateinit var requisitionStore: RequisitionStore
+
+  private lateinit var continuationTokensService: InMemoryContinuationTokensService
 
   val grpcTestServerRule = GrpcTestServerRule {
     storageClient = FileSystemStorageClient(tempDirectory.root)
@@ -243,7 +243,7 @@ class HeraldTest {
     addService(systemComputations)
     addService(systemComputationParticipants)
     addService(computationLogEntries)
-    continuationTokensService = TestContinuationTokensService()
+    continuationTokensService = InMemoryContinuationTokensService()
     addService(continuationTokensService)
   }
 
@@ -269,16 +269,16 @@ class HeraldTest {
   }
 
   private val internalComputationsMock: InternalComputationsCoroutineImplBase = mockService {}
-  private val mockTestServerRule = GrpcTestServerRule {
-    addService(internalComputationsMock)
-  }
-  private val mockInternalComputationsStub = InternalComputationsCoroutineStub(mockTestServerRule.channel)
+  private val mockTestServerRule = GrpcTestServerRule { addService(internalComputationsMock) }
+  private val mockInternalComputationsStub =
+    InternalComputationsCoroutineStub(mockTestServerRule.channel)
 
   private lateinit var aggregatorHerald: Herald
   private lateinit var nonAggregatorHerald: Herald
   private lateinit var mockHerald: Herald
 
-  @get:Rule val ruleChain = chainRulesSequentially(tempDirectory, grpcTestServerRule, mockTestServerRule)
+  @get:Rule
+  val ruleChain = chainRulesSequentially(tempDirectory, grpcTestServerRule, mockTestServerRule)
 
   @Before
   fun initHerald() {
@@ -326,7 +326,6 @@ class HeraldTest {
     nonAggregatorHerald.syncStatuses()
 
     assertThat(continuationTokensService.latestContinuationToken).isEqualTo("TOKEN_OF_LAST_ITEM")
-    assertThat(fakeComputationDatabase).isEmpty()
   }
 
   @Test
@@ -358,7 +357,7 @@ class HeraldTest {
     assertThat(continuationTokensService.latestContinuationToken)
       .isEqualTo(confirmingUnknown.continuationToken())
     assertThat(
-      fakeComputationDatabase.mapValues { (_, fakeComputation) ->
+        fakeComputationDatabase.mapValues { (_, fakeComputation) ->
           fakeComputation.computationStage
         }
       )
@@ -370,14 +369,14 @@ class HeraldTest {
       )
 
     assertThat(
-      fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.requisitionsList
+        fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.requisitionsList
       )
       .containsExactly(
         REQUISITION_1.toRequisitionMetadata(Requisition.State.UNFULFILLED),
         REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED)
       )
     assertThat(
-      fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.computationDetails
+        fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.computationDetails
       )
       .isEqualTo(
         ComputationDetails.newBuilder()
@@ -602,7 +601,7 @@ class HeraldTest {
     assertThat(continuationTokensService.latestContinuationToken)
       .isEqualTo(addingNoise.continuationToken())
     assertThat(
-      fakeComputationDatabase.mapValues { (_, fakeComputation) ->
+        fakeComputationDatabase.mapValues { (_, fakeComputation) ->
           fakeComputation.computationStage
         }
       )
@@ -646,7 +645,7 @@ class HeraldTest {
     streamActiveComputationsJob.join()
 
     assertThat(
-      fakeComputationDatabase.mapValues { (_, fakeComputation) ->
+        fakeComputationDatabase.mapValues { (_, fakeComputation) ->
           fakeComputation.computationStage
         }
       )
@@ -747,8 +746,7 @@ class HeraldTest {
       onBlocking { createComputation(any()) }.thenThrow(Status.UNKNOWN.asRuntimeException())
       onBlocking { finishComputation(any()) }
         .thenReturn(FinishComputationResponse.getDefaultInstance())
-      onBlocking { getComputationToken(any())}
-        .thenThrow(Status.NOT_FOUND.asRuntimeException())
+      onBlocking { getComputationToken(any()) }.thenThrow(Status.NOT_FOUND.asRuntimeException())
     }
 
     val computation =
@@ -783,17 +781,19 @@ class HeraldTest {
   @Test
   fun `syncStatuses clear terminated computations given the clear`() = runTest {
     internalComputationsMock.stub {
-      onBlocking { getComputationToken(any()) }.thenAnswer { invocationOnMock ->
-        val request = invocationOnMock.getArgument<GetComputationTokenRequest>(0)
-        getComputationTokenResponse {
-          token = computationToken {
-            globalComputationId = request.globalComputationId
-            localComputationId = request.globalComputationId.toLong()
-            computationDetails = AGGREGATOR_COMPUTATION_DETAILS
+      onBlocking { getComputationToken(any()) }
+        .thenAnswer { invocationOnMock ->
+          val request = invocationOnMock.getArgument<GetComputationTokenRequest>(0)
+          getComputationTokenResponse {
+            token = computationToken {
+              globalComputationId = request.globalComputationId
+              localComputationId = request.globalComputationId.toLong()
+              computationDetails = AGGREGATOR_COMPUTATION_DETAILS
+            }
           }
         }
-      }
-      onBlocking { deleteComputation(any()) }.thenReturn(DeleteComputationResponse.getDefaultInstance())
+      onBlocking { deleteComputation(any()) }
+        .thenReturn(DeleteComputationResponse.getDefaultInstance())
       onBlocking { finishComputation(any()) }
         .thenReturn(FinishComputationResponse.getDefaultInstance())
     }
@@ -808,15 +808,17 @@ class HeraldTest {
 
     // Verify that internalComputationService receives delete requests for SUCCEEDED and FAILED
     // Computations
-    val internalComputationServiceCaptor: KArgumentCaptor<DeleteComputationRequest> = argumentCaptor()
+    val internalComputationServiceCaptor: KArgumentCaptor<DeleteComputationRequest> =
+      argumentCaptor()
     verifyBlocking(internalComputationsMock, times(2)) {
       deleteComputation(internalComputationServiceCaptor.capture())
     }
     val capturedInternalReportingSetRequests = internalComputationServiceCaptor.allValues
-    assertThat(capturedInternalReportingSetRequests).containsExactly(
-      deleteComputationRequest { localComputationId = 1L },
-      deleteComputationRequest { localComputationId = 2L },
-    )
+    assertThat(capturedInternalReportingSetRequests)
+      .containsExactly(
+        deleteComputationRequest { localComputationId = 1L },
+        deleteComputationRequest { localComputationId = 2L },
+      )
   }
 
   private fun mockStreamActiveComputationsToReturn(vararg computations: Computation) =

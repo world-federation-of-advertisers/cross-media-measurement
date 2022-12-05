@@ -3,6 +3,7 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 kt_jvm_test(
     name = "PostgresMeasurementsServiceTest",
     srcs = ["PostgresMeasurementsServiceTest.kt"],
+    flaky = True,
     test_class = "org.wfanet.measurement.reporting.deploy.postgres.PostgresMeasurementsServiceTest",
     runtime_deps = [
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
@@ -19,6 +20,7 @@ kt_jvm_test(
 kt_jvm_test(
     name = "PostgresReportingSetsServiceTest",
     srcs = ["PostgresReportingSetsServiceTest.kt"],
+    flaky = True,
     test_class = "org.wfanet.measurement.reporting.deploy.postgres.PostgresReportingSetsServiceTest",
     runtime_deps = [
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
@@ -35,6 +37,7 @@ kt_jvm_test(
 kt_jvm_test(
     name = "PostgresReportsServiceTest",
     srcs = ["PostgresReportsServiceTest.kt"],
+    flaky = True,
     test_class = "org.wfanet.measurement.reporting.deploy.postgres.PostgresReportsServiceTest",
     runtime_deps = [
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",

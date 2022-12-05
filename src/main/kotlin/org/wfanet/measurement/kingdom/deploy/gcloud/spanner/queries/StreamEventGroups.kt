@@ -50,7 +50,8 @@ class StreamEventGroups(requestFilter: StreamEventGroupsRequest.Filter, limit: I
           ((ExternalDataProviderId > @$EXTERNAL_DATA_PROVIDER_ID_AFTER)
           OR (ExternalDataProviderId = @$EXTERNAL_DATA_PROVIDER_ID_AFTER
           AND ExternalEventGroupId > @$EXTERNAL_EVENT_GROUP_ID_AFTER))
-        """.trimIndent()
+        """
+          .trimIndent()
       )
       bind(EXTERNAL_DATA_PROVIDER_ID_AFTER).to(filter.externalDataProviderIdAfter)
       bind(EXTERNAL_EVENT_GROUP_ID_AFTER).to(filter.externalEventGroupIdAfter)

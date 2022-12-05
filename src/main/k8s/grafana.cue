@@ -105,13 +105,8 @@ package k8s
 			}
 			spec: template: {
 				metadata: {
-					labels: {
-						scrape: "false"
-					}
 					annotations: {
-						"sidecar.opentelemetry.io/inject":              "false"
 						"instrumentation.opentelemetry.io/inject-java": "false"
-						"prometheus.io/scrape":                         "false"
 					}
 				}
 				spec: _mounts: {

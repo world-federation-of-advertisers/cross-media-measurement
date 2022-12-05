@@ -1,47 +1,38 @@
-# Local Kubernetes Deployment
+# Local Kubernetes Configuration
 
-How to deploy system components to a local Kubernetes cluster running in
-[KiND](https://kind.sigs.k8s.io/).
+Configuration used to deploy a local version of the CMMS to a local cluster in
+[KinD](https://kind.sigs.k8s.io/) and run the correctness test in that cluster.
+
+Tested on minimum versions:
+
+-   KinD: v0.17.0
+-   Kubernetes: v1.24
+
+Note: As of this writing, KinD
+[does not support resource limits](https://github.com/kubernetes-sigs/kind/issues/2514#issuecomment-951265965).
+Therefore, this configuration does not set any.
+
+## Automated Run
+
+If you just want to run the correctness test and not leave the cluster running,
+you can use the
+`//src/test/kotlin/org/wfanet/measurement/integration/k8s:CorrectnessTest` Bazel
+test target.
+
+## Manual Run
 
 This assumes that you have `kubectl` installed and configured to point to a
 local KiND cluster. You should have some familiarity with Kubernetes and
 `kubectl`.
 
-Minimum Version Required:
-
--   KiND: v0.13.0
--   kubernetes server: v1.24.0
--   kubectl: compatible with kubernetes server
-
-Use the default `kind` as the KiND cluster name. The corresponding k8s cluster
+Use the default `kind` as the KiND cluster name. The corresponding K8s cluster
 name is `kind-kind`.
 
 Note that some of the targets listed below -- namely, the Duchies and
 simulators -- have requirements regarding the version of glibc in the build
 environment. See [Building](../../../../docs/building.md).
 
-## Initial Setup
-
-### Set Default Resource Requirements
-
-```shell
-kubectl apply -f src/main/k8s/testing/secretfiles/resource_requirements.yaml
-```
-
-### Create Secret
-
-```shell
-bazel run //src/main/k8s/testing/secretfiles:apply_kustomization
-```
-
-The secret name will be printed on creation, but it can also be obtained later
-by running
-
-```shell
-kubectl get secrets
-```
-
-You will need to substitute the correct secret name in later commands.
+### Initial Setup
 
 ### Create Empty `config-files` ConfigMap
 
@@ -57,34 +48,33 @@ kubectl create configmap config-files \
   --from-file=/tmp/authority_key_identifier_to_principal_map.textproto
 ```
 
-## Deploy Emulators
+### Deploy Emulators
 
 The local test environment uses emulators for Google Cloud infrastructure. This
 includes an in-memory Spanner emulator as well as ephemeral blob storage.
 
 ```shell
-bazel run //src/main/k8s/local:emulators_kind \
-  --define=k8s_secret_name=certs-and-configs-k8888kc6gg
+bazel run //src/main/k8s/local:emulators_kind
 ```
 
-## Metrics Setup
+### Metrics Setup
 
 The Open Telemetry Operator adds the creation and management of new Open
 Telemetry specific resources. It depends on Cert Manager to run.
 
-### Deploy Cert Manager
+#### Deploy Cert Manager
 
 ```shell
 kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.9.1/cert-manager.yaml
 ```
 
-### Deploy Open Telemetry Operator
+#### Deploy Open Telemetry Operator
 
 ```shell
 kubectl apply -f https://github.com/open-telemetry/opentelemetry-operator/releases/download/v0.60.0/opentelemetry-operator.yaml
 ```
 
-### Deploy Open Telemetry Resources
+#### Deploy Open Telemetry Resources
 
 Create an operator instrumentation resource fpr instrumenting the application
 code and an operator collector sidecar resource for collecting the metrics.
@@ -93,7 +83,7 @@ code and an operator collector sidecar resource for collecting the metrics.
 bazel run //src/main/k8s/local:open_telemetry_kind
 ```
 
-### Deploy Prometheus Server
+#### Deploy Prometheus Server
 
 ```shell
 bazel run //src/main/k8s/local:prometheus_kind
@@ -143,7 +133,7 @@ port-forwarding.
 kubectl port-forward service/grafana 31112:3000
 ```
 
-## Resource Setup
+### Resource Setup
 
 There is a chicken-and-egg problem with setting up initial resources, in that
 resource setup is done by calling Kingdom services but some Kingdom services
@@ -151,10 +141,8 @@ depend on resource configuration. Therefore, we have to deploy the Kingdom for
 resource setup and then update configurations and restart some Kingdom services.
 
 ```shell
-bazel run //src/main/k8s/local:kingdom_kind \
-  --define=k8s_secret_name=certs-and-configs-k8888kc6gg
-bazel run //src/main/k8s/local:resource_setup_kind \
-  --define=k8s_secret_name=certs-and-configs-k8888kc6gg
+bazel run //src/main/k8s/local:kingdom_kind
+bazel run //src/main/k8s/local:resource_setup_kind
 ```
 
 By default, the resource setup job writes all outputs to STDOUT. When the job
@@ -168,7 +156,7 @@ Tip: The job will output a `resource-setup.bazelrc` file with `--define` options
 that you can include in your `.bazelrc` file. You can then specify
 `--config=halo-kind` to Bazel commands instead of those individual options.
 
-### Update `config-files` ConfigMap
+#### Update `config-files` ConfigMap
 
 After the resource setup job has completed, we can fill in the config files and
 update the `config-files` ConfigMap.
@@ -199,7 +187,7 @@ the moment, this is just the public API server.
 kubectl rollout restart deployments/v2alpha-public-api-server-deployment
 ```
 
-## Deploy Duchies
+### Deploy Duchies
 
 The testing environment uses three Duchies: an aggregator and two workers, named
 `aggregator`, `worker1`, and `worker2` respectively. Substitute the appropriate
@@ -207,13 +195,12 @@ secret name and Certificate resource names in the command below.
 
 ```shell
 bazel run //src/main/k8s/local:duchies_kind \
-  --define=k8s_secret_name=certs-and-configs-k8888kc6gg \
   --define=aggregator_cert_name=duchies/aggregator/certificates/f3yI3aoXukM \
   --define=worker1_cert_name=duchies/worker1/certificates/QtffTVXoRno \
   --define=worker2_cert_name=duchies/worker2/certificates/eIYIf6oXuSM
 ```
 
-## Deploy EDP Simulators
+### Deploy EDP Simulators
 
 The testing environment simulates six DataProviders, named `edp1` through
 `edp6`. Substitute the appropriate secret name and resource names in the command
@@ -222,7 +209,6 @@ below. These should match the resource names specified in
 
 ```shell
 bazel run //src/main/k8s/local:edp_simulators_kind \
-  --define=k8s_secret_name=certs-and-configs-k8888kc6gg \
   --define=mc_name=measurementConsumers/FS1n8aTrck0 \
   --define=edp1_name=dataProviders/OljiQHRz-E4 \
   --define=edp2_name=dataProviders/Fegw_3Rz-2Y \
@@ -249,21 +235,20 @@ kubectl cp </path/to/your/file.csv> <edp-podname>:/data/csvfiles/synthetic-label
 You can get `<edp-podname>` by running `kubectl get pods`. The default volume
 mountPath in the container is `/data/csvfiles`.
 
-## Deploy MC Frontend Simulator
+### Deploy MC Frontend Simulator
 
 This is a job that tests correctness by creating a Measurement and validating
 the result.
 
 ```shell
 bazel run //src/main/k8s/local:mc_frontend_simulator_kind \
-  --define=k8s_secret_name=certs-and-configs-k8888kc6gg \
   --define=mc_name=measurementConsumers/FS1n8aTrck0 \
   --define=mc_api_key=He941S1h2XI
 ```
 
-## Reporting Server
+### Reporting Server
 
-### Additional Configuration in `config-files`
+#### Additional Configuration in `config-files`
 
 This is a modification to the [above section](#update-config-files-configmap) on
 updating `config-files`.
@@ -314,7 +299,7 @@ kubectl create configmap config-files --output=yaml --dry-run=client \
   | kubectl replace -f -
 ```
 
-### Create Secret for Reporting Server Postgres Database
+#### Create Secret for Reporting Server Postgres Database
 
 You can use `kubectl` to create the `db-auth` secret. To reduce the likelihood
 of leaking your password, we read it in from STDIN.
@@ -330,7 +315,7 @@ kubectl create secret generic db-auth --type='kubernetes.io/basic/auth' \
 
 Record the secret name for later steps.
 
-### Deploy Reporting Server Postgres Database
+#### Deploy Reporting Server Postgres Database
 
 ```shell
 bazel run //src/main/k8s/local:reporting_database_kind \
@@ -366,7 +351,7 @@ kubectl create secret generic mc-config --append-hash \
 
 Record the secret name for later steps.
 
-### Deploy Reporting Server
+#### Deploy Reporting Server
 
 ```shell
 bazel run //src/main/k8s/local:reporting_kind \

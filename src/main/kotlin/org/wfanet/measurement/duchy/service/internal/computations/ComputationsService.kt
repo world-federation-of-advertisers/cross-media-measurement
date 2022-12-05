@@ -116,13 +116,17 @@ class ComputationsService(
       .toCreateComputationResponse()
   }
 
-  override suspend fun deleteComputation(request: DeleteComputationRequest): DeleteComputationResponse {
-    val computationBlobKeys = computationsDatabase.readComputationBlobKeys(request.localComputationId)
+  override suspend fun deleteComputation(
+    request: DeleteComputationRequest
+  ): DeleteComputationResponse {
+    val computationBlobKeys =
+      computationsDatabase.readComputationBlobKeys(request.localComputationId)
     for (blobKey in computationBlobKeys) {
       computationStorageClient.get(blobKey)?.delete()
     }
 
-    val requisitionBlobKeys = computationsDatabase.readRequisitionBlobKeys(request.localComputationId)
+    val requisitionBlobKeys =
+      computationsDatabase.readRequisitionBlobKeys(request.localComputationId)
     for (blobKey in requisitionBlobKeys) {
       requisitionStorageClient.get(blobKey)?.delete()
     }

@@ -25,6 +25,12 @@ _reportingMcConfigSecretName: string @tag("mc_config_secret_name")
 // Name of K8s service account for the internal API server.
 #InternalServerServiceAccount: "internal-reporting-server"
 
+#InternalServerResourceRequirements: #ResourceRequirements & {
+	requests: {
+		memory: "256Mi"
+	}
+}
+
 objectSets: [
 	default_deny_ingress_and_egress,
 	reporting.deployments,
@@ -67,6 +73,7 @@ reporting: #Reporting & {
 
 	deployments: {
 		"postgres-reporting-data-server": {
+			_container: resources: #InternalServerResourceRequirements
 			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #InternalServerServiceAccount
 			}

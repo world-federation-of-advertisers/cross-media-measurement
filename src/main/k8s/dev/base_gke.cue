@@ -39,13 +39,15 @@ package k8s
 	}
 }
 
+#ServiceAccountNodeSelector: {
+	"iam.gke.io/gke-metadata-server-enabled": "true"
+}
+
 #ServiceAccountPodSpec: {
 	#PodSpec
 
 	serviceAccountName: string
-	nodeSelector: {
-		"iam.gke.io/gke-metadata-server-enabled": "true"
-	}
+	nodeSelector:       #ServiceAccountNodeSelector
 }
 
 #SpotVmPodSpec: {
@@ -56,4 +58,9 @@ package k8s
 		value:    "true"
 		effect:   "NoSchedule"
 	}
+}
+
+#JavaOptions: {
+	initialHeapSize: _ | *"32M"
+	maxHeapSize:     _ | *"96M"
 }

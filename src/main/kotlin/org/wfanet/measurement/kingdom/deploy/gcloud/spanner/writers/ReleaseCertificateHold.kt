@@ -76,7 +76,9 @@ class ReleaseCertificateHold(private val request: ReleaseCertificateHoldRequest)
             ?: throw MeasurementConsumerCertificateNotFoundException(
               externalMeasurementConsumerId,
               externalCertificateId
-            ) { "Certificate not found." }
+            ) {
+              "Certificate not found."
+            }
         }
         ReleaseCertificateHoldRequest.ParentCase.EXTERNAL_MODEL_PROVIDER_ID -> {
           val externalModelProviderId = ExternalId(request.externalModelProviderId)
@@ -87,7 +89,9 @@ class ReleaseCertificateHold(private val request: ReleaseCertificateHoldRequest)
             ?: throw ModelProviderCertificateNotFoundException(
               externalModelProviderId,
               externalCertificateId
-            ) { "Certificate not found." }
+            ) {
+              "Certificate not found."
+            }
         }
         ReleaseCertificateHoldRequest.ParentCase.EXTERNAL_DUCHY_ID -> {
           val duchyId =
@@ -102,7 +106,9 @@ class ReleaseCertificateHold(private val request: ReleaseCertificateHoldRequest)
             ?: throw DuchyCertificateNotFoundException(
               request.externalDuchyId,
               externalCertificateId
-            ) { "Certificate not found." }
+            ) {
+              "Certificate not found."
+            }
         }
         ReleaseCertificateHoldRequest.ParentCase.PARENT_NOT_SET ->
           throw IllegalStateException("ReleaseCertificateHoldRequest is missing parent field.")
@@ -125,7 +131,9 @@ class ReleaseCertificateHold(private val request: ReleaseCertificateHoldRequest)
         throw CertificateRevocationStateIllegalException(
           ExternalId(externalCertificateId.value),
           certificateRevocationState
-        ) { "Certificate is in $certificateRevocationState state, cannot release hold." }
+        ) {
+          "Certificate is in $certificateRevocationState state, cannot release hold."
+        }
       RevocationState.UNRECOGNIZED ->
         throw IllegalStateException("Certificate RevocationState field is unrecognized.")
     }

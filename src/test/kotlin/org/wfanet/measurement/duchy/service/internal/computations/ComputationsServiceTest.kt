@@ -76,7 +76,6 @@ private const val DUCHY_NAME = "BOHEMIA"
 private const val COMPUTATION_BLOB_KEY_PREFIX = "computations"
 private const val REQUISITION_BLOB_KEY_PREFIX = "requisitions"
 
-
 @RunWith(JUnit4::class)
 @ExperimentalCoroutinesApi
 class ComputationsServiceTest {
@@ -536,16 +535,16 @@ class ComputationsServiceTest {
       stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
       computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
       requisitions =
-      listOf(
-        requisitionMetadata {
-          externalKey = requisition1Key
-          path = requisitionBlobPath1
-        },
-        requisitionMetadata {
-          externalKey = requisition2Key
-          path = requisitionBlobPath2
-        }
-      )
+        listOf(
+          requisitionMetadata {
+            externalKey = requisition1Key
+            path = requisitionBlobPath1
+          },
+          requisitionMetadata {
+            externalKey = requisition2Key
+            path = requisitionBlobPath2
+          }
+        )
     )
     storageClient.writeBlob(requisitionBlobPath1, "requisition_1".toByteStringUtf8())
     storageClient.writeBlob(requisitionBlobPath2, "requisition_2".toByteStringUtf8())
@@ -553,14 +552,14 @@ class ComputationsServiceTest {
     storageClient.writeBlob(computationBlobKey2, "computation_2".toByteStringUtf8())
 
     val localId = globalId.toLong()
-    fakeService.deleteComputation(
-      deleteComputationRequest{
-        localComputationId = localId
-      })
+    fakeService.deleteComputation(deleteComputationRequest { localComputationId = localId })
 
-    val exception = assertFailsWith<StatusRuntimeException> {
-      fakeService.getComputationToken(getComputationTokenRequest { globalComputationId = globalId })
-    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        fakeService.getComputationToken(
+          getComputationTokenRequest { globalComputationId = globalId }
+        )
+      }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
 
     assertThat(storageClient.getBlob(requisitionBlobPath1)).isNull()

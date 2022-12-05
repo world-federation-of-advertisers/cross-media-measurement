@@ -41,6 +41,8 @@ class EventTemplateTest {
     assertFailsWith(
       IllegalArgumentException::class,
       "Descriptor does not have EventTemplate annotation"
-    ) { EventTemplate(AgeRange.getDescriptor()) }
+    ) {
+      EventTemplate(AgeRange.getDescriptor())
+    }
   }
 }

@@ -78,26 +78,46 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 }
 
 #JavaOptions: {
-	maxRamPercentage?:     float
-	maxDirectMemorySize?:  string
-	maxCachedBufferSize:   uint | *262144 // 256KiB
-	nettyMaxDirectMemory?: int
-	loggingConfigFile?:    string
-	heapDumpOnOutOfMemory: bool | *false
-	heapDumpPath?:         string
+	maxRamPercentage?:        float
+	initialRamPercentage?:    float
+	maxHeapSize?:             string
+	initialHeapSize?:         string
+	profiledCodeHeapSize?:    string
+	nonProfiledCodeHeapSize?: string
+	maxDirectMemorySize?:     string
+	maxCachedBufferSize:      uint | *262144 // 256KiB
+	nettyMaxDirectMemory?:    int
+	loggingConfigFile?:       string
+	heapDumpOnOutOfMemory:    bool | *false
+	heapDumpPath?:            string
+	exitOnOutOfMemory:        bool | *heapDumpOnOutOfMemory
 
-	_maxRamOptions: [...string]
+	_maxRamPercentageOpts: [...string]
 	if maxRamPercentage != _|_ {
-		_maxRamOptions: [
+		_maxRamPercentageOpts: [
 			"-XX:MaxRAMPercentage=\(maxRamPercentage)",
 			"-XX:MinRAMPercentage=\(maxRamPercentage)",
-			"-XX:InitialRAMPercentage=\(maxRamPercentage)",
 		]
 	}
 
 	options: [...string]
 	options: [
-		for item in _maxRamOptions {item},
+		for item in _maxRamPercentageOpts {item},
+		if initialRamPercentage != _|_ {
+			"-XX:InitialRAMPercentage=\(initialRamPercentage)"
+		},
+		if maxHeapSize != _|_ {
+			"-Xmx\(maxHeapSize)"
+		},
+		if initialHeapSize != _|_ {
+			"-Xms\(initialHeapSize)"
+		},
+		if profiledCodeHeapSize != _|_ {
+			"-XX:ProfiledCodeHeapSize=\(profiledCodeHeapSize)"
+		},
+		if nonProfiledCodeHeapSize != _|_ {
+			"-XX:NonProfiledCodeHeapSize=\(nonProfiledCodeHeapSize)"
+		},
 		if maxDirectMemorySize != _|_ {
 			"-XX:MaxDirectMemorySize=\(maxDirectMemorySize)"
 		},
@@ -113,6 +133,9 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		},
 		if heapDumpPath != _|_ {
 			"-XX:HeapDumpPath=\(heapDumpPath)"
+		},
+		if exitOnOutOfMemory {
+			"-XX:+ExitOnOutOfMemoryError"
 		},
 	]
 }
@@ -236,6 +259,19 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		"app.kubernetes.io/part-of":   #AppName
 		"app.kubernetes.io/component": _component
 	}
+}
+
+// K8s LabelSelectorRequirement.
+#LabelSelectorRequirement: {
+	key:      string
+	operator: "In" | "NotIn" | "Exists" | "DoesNotExist"
+	values?: [...string]
+}
+
+// K8s LabelSelector.
+#LabelSelector: {
+	matchExpressions?: [...#LabelSelectorRequirement]
+	matchLabels: [string]: string
 }
 
 // K8s ConfigMap.
@@ -412,18 +448,16 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	}
 	spec: {
 		replicas?: int32
-		selector: matchLabels: app: _name + "-app"
+		selector:  #LabelSelector & {
+			matchLabels: app: _name + "-app"
+		}
 		template: {
 			metadata: {
 				labels: {
-					app:    _name + "-app"
-					scrape: string | *"true"
+					app: _name + "-app"
 				}
 				annotations: {
-					"sidecar.opentelemetry.io/inject":              string | *"default-sidecar"
 					"instrumentation.opentelemetry.io/inject-java": string | *"true"
-					"prometheus.io/port":                           string | *"\(#OpenTelemetryPrometheusExporterPort)"
-					"prometheus.io/scrape":                         string | *"true"
 				}
 			}
 			spec: #PodSpec & {
@@ -568,9 +602,11 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		}
 	}
 	spec: {
-		podSelector: matchLabels: {
-			if _app_label != _|_ {
-				app: _app_label
+		podSelector: #LabelSelector & {
+			matchLabels: {
+				if _app_label != _|_ {
+					app: _app_label
+				}
 			}
 		}
 		policyTypes: ["Ingress", "Egress"]

@@ -14,18 +14,19 @@
 
 package org.wfanet.measurement.duchy.deploy.gcloud.spanner.continuationtoken
 
-import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.insertOrUpdateMutation
 
-class UpdateContinuationToken(val continuationToken: String) {
+class SetContinuationToken(val continuationToken: String) {
   suspend fun execute(databaseClient: AsyncDatabaseClient) {
-    val mutation = Mutation.newInsertOrUpdateBuilder("HeraldContinuationTokens")
-    mutation.set("Presence").to(true)
-    mutation.set("ContinuationToken").to(continuationToken)
-    mutation.set("CreationTime").to(Value.COMMIT_TIMESTAMP)
-    val row = mutation.build()
+    val mutation =
+      insertOrUpdateMutation("HeraldContinuationTokens") {
+        set("Presence").to(true)
+        set("ContinuationToken").to(continuationToken)
+        set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+      }
 
-    databaseClient.write(row)
+    databaseClient.write(mutation)
   }
 }

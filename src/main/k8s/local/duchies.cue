@@ -19,14 +19,8 @@ _aggregator_cert_name: string @tag("aggregator_cert_name")
 _worker1_cert_name:    string @tag("worker1_cert_name")
 _worker2_cert_name:    string @tag("worker2_cert_name")
 
-#KingdomSystemApiTarget:   (#Target & {name: "system-api-server"}).target
-#SpannerEmulatorHost:      (#Target & {name: "spanner-emulator"}).target
-#MillResourceRequirements: #ResourceRequirements & {
-	limits: memory: "4Gi"
-}
-#SpannerComputationsResourceRequirements: #ResourceRequirements & {
-	limits: memory: "384Mi"
-}
+#KingdomSystemApiTarget: (#Target & {name: "system-api-server"}).target
+#SpannerEmulatorHost:    (#Target & {name: "spanner-emulator"}).target
 #DuchyConfig: {
 	let duchyName = name
 	name:                            string
@@ -86,17 +80,5 @@ duchies: [ for duchyConfig in _duchyConfigs {
 		_duchy_image_pull_policy: "Never"
 		_verbose_grpc_logging:    "true"
 		_deletable_computation_states:   ["SUCCEEDED"]
-
-		deployments: {
-			"liquid-legions-v2-mill-daemon-deployment": {
-				_container: {
-					_javaOptions: maxRamPercentage: 50.0
-					resources: #MillResourceRequirements
-				}
-			}
-			"spanner-computations-server-deployment": {
-				_container: resources: #SpannerComputationsResourceRequirements
-			}
-		}
 	}
 }]

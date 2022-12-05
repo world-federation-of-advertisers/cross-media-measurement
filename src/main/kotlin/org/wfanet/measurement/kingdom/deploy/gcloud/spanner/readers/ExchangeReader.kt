@@ -35,7 +35,8 @@ class ExchangeReader : SpannerReader<ExchangeReader.Result>() {
     JOIN RecurringExchanges USING (RecurringExchangeId)
     LEFT JOIN ModelProviders USING (ModelProviderId)
     LEFT JOIN DataProviders USING (DataProviderId)
-    """.trimIndent()
+    """
+      .trimIndent()
 
   override suspend fun translate(struct: Struct): Result {
     return Result(

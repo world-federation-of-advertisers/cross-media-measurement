@@ -14,7 +14,8 @@ class RequisitionBlobKeysQuery(localId: Long) : SqlBasedQuery<String> {
       """.trimIndent()
   }
 
-  override val sql: Statement = Statement.newBuilder(parameterizedQueryString).bind("local_id").to(localId).build()
+  override val sql: Statement =
+    Statement.newBuilder(parameterizedQueryString).bind("local_id").to(localId).build()
 
   override fun asResult(struct: Struct): String = struct.getString("PathToBlob")
 }

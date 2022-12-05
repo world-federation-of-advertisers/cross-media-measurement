@@ -52,14 +52,10 @@ interface ComputationsDatabaseReader {
    */
   suspend fun readGlobalComputationIds(stages: Set<ComputationStage>): Set<String>
 
-  /**
-   * Gets all blobKeys of a Computation's data
-   */
+  /** Gets all blobKeys of a Computation's data */
   suspend fun readComputationBlobKeys(localId: Long): List<String>
 
-  /**
-   * Gets all blobKeys of a Computation's requisitions
-   */
+  /** Gets all blobKeys of a Computation's requisitions */
   suspend fun readRequisitionBlobKeys(localId: Long): List<String>
 }
 

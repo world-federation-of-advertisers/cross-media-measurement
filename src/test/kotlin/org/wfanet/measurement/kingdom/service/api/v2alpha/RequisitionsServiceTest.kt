@@ -105,7 +105,8 @@ private const val DEFAULT_LIMIT = 50
 
 private const val WILDCARD_NAME = "dataProviders/-"
 
-private const val DUCHIES_MAP_KEY = "1"
+private const val DUCHY_ID = "worker1"
+private const val DUCHY_CERTIFICATE_NAME = "duchies/$DUCHY_ID/certificates/AAAAAAAAAAY"
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
 private const val MEASUREMENT_CONSUMER_NAME_2 = "measurementConsumers/BBBBBBBBBHs"
 private const val MEASUREMENT_NAME = "$MEASUREMENT_CONSUMER_NAME/measurements/AAAAAAAAAHs"
@@ -979,7 +980,7 @@ class RequisitionsServiceTest {
       updateTime = UPDATE_TIME
       state = InternalState.FULFILLED
       externalFulfillingDuchyId = "9"
-      duchies[DUCHIES_MAP_KEY] = duchyValue {
+      duchies[DUCHY_ID] = duchyValue {
         externalDuchyCertificateId = 6L
         liquidLegionsV2 = liquidLegionsV2Details {
           elGamalPublicKey = UPDATE_TIME.toByteString()
@@ -1049,16 +1050,16 @@ class RequisitionsServiceTest {
         signature = INTERNAL_REQUISITION.details.dataProviderPublicKeySignature
       }
 
-      val entry = INTERNAL_REQUISITION.duchiesMap[DUCHIES_MAP_KEY]!!
-
+      val internalDuchyValue: InternalRequisition.DuchyValue =
+        INTERNAL_REQUISITION.duchiesMap.getValue(DUCHY_ID)
       duchies += duchyEntry {
-        key = DUCHIES_MAP_KEY
+        key = DUCHY_ID
         value = value {
-          duchyCertificate = externalIdToApiId(entry.externalDuchyCertificateId)
+          duchyCertificate = DUCHY_CERTIFICATE_NAME
           liquidLegionsV2 = liquidLegionsV2 {
             elGamalPublicKey = signedData {
-              data = entry.liquidLegionsV2.elGamalPublicKey
-              signature = entry.liquidLegionsV2.elGamalPublicKeySignature
+              data = internalDuchyValue.liquidLegionsV2.elGamalPublicKey
+              signature = internalDuchyValue.liquidLegionsV2.elGamalPublicKeySignature
             }
           }
         }

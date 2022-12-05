@@ -30,7 +30,8 @@ class OpenIdRequestParamsReader : SpannerReader<OpenIdRequestParamsReader.Result
       Nonce,
       CURRENT_TIMESTAMP > TIMESTAMP_ADD(CreateTime, INTERVAL ValidSeconds SECOND) AS IsExpired,
     FROM OpenIdRequestParams
-    """.trimIndent()
+    """
+      .trimIndent()
 
   override suspend fun translate(struct: Struct) =
     Result(
@@ -47,7 +48,8 @@ class OpenIdRequestParamsReader : SpannerReader<OpenIdRequestParamsReader.Result
         appendClause(
           """
           WHERE OpenIdRequestParams.ExternalOpenIdRequestParamsId = @state
-          """.trimIndent()
+          """
+            .trimIndent()
         )
         bind("state").to(state.value)
       }

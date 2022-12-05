@@ -33,8 +33,23 @@ jobs:
       - name: Bazel build and test
         uses: world-federation-of-advertisers/actions/bazel-build-test@v1
         with:
-          workspace-path: .
           cache-version: 1
+          workspace-path: .
+          target-patterns: |
+            //...
           build-options: |
             --compilation_mode=opt
             --host_platform=//build/platforms:ubuntu_20_04
+
+      - name: Bazel build and test K8s Correctness Test
+        uses: world-federation-of-advertisers/actions/bazel-build-test@v1
+        with:
+          cache-version: 1
+          restore-cache: false
+          workspace-path: .
+          target-patterns: |
+            //src/test/kotlin/org/wfanet/measurement/integration/k8s:CorrectnessTest
+          build-options: |
+            --compilation_mode=opt
+            --host_platform=//build/platforms:ubuntu_20_04
+          test-output: streamed
