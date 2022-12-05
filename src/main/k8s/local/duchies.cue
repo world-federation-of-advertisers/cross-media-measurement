@@ -79,6 +79,6 @@ duchies: [ for duchyConfig in _duchyConfigs {
 		}
 		_duchy_image_pull_policy: "Never"
 		_verbose_grpc_logging:    "true"
-		_deletable_computation_states:   ["SUCCEEDED"]
+		_deletable_computation_states: ["SUCCEEDED", "CANCELLED"]
 	}
 }]
