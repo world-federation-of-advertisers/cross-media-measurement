@@ -30,14 +30,16 @@ import org.wfanet.measurement.gcloud.spanner.SpannerFlags
 import org.wfanet.measurement.gcloud.spanner.usingSpanner
 import picocli.CommandLine
 
-/** Implementation of [ComputationsServer] using Google Cloud Spanner. */
+/**
+ * Implementation of [ComputationsServer] using Google Cloud Spanner and Google Cloud Storage (GCS).
+ */
 @CommandLine.Command(
-  name = "SpannerComputationsServer",
+  name = "GcsSpannerComputationsServer",
   description = ["Server daemon for ${ComputationsServer.SERVICE_NAME} service."],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-class SpannerComputationsServer : ComputationsServer() {
+class GcsSpannerComputationsServer : ComputationsServer() {
   @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
   @CommandLine.Mixin private lateinit var gcsFlags: GcsFromFlags.Flags
 
@@ -66,4 +68,4 @@ class SpannerComputationsServer : ComputationsServer() {
   }
 }
 
-fun main(args: Array<String>) = commandLineMain(SpannerComputationsServer(), args)
+fun main(args: Array<String>) = commandLineMain(GcsSpannerComputationsServer(), args)

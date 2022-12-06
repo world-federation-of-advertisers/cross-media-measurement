@@ -779,7 +779,7 @@ class HeraldTest {
   }
 
   @Test
-  fun `syncStatuses clear terminated computations given the clear`() = runTest {
+  fun `syncStatuses calls deleteComputation api for Computations in terminated states`() = runTest {
     internalComputationsMock.stub {
       onBlocking { getComputationToken(any()) }
         .thenAnswer { invocationOnMock ->
@@ -797,7 +797,7 @@ class HeraldTest {
       onBlocking { finishComputation(any()) }
         .thenReturn(FinishComputationResponse.getDefaultInstance())
     }
-    // The Herald only deletes SUCCEEDED and FAILED Computations.
+    // The Herald deletes SUCCEEDED and FAILED Computations as configured.
     val computation1 = buildComputationAtKingdom("1", Computation.State.SUCCEEDED)
     val computation2 = buildComputationAtKingdom("2", Computation.State.FAILED)
     val computation3 = buildComputationAtKingdom("3", Computation.State.CANCELLED)

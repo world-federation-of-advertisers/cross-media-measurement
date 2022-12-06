@@ -196,7 +196,8 @@ class Herald(
     require(computation.name.isNotEmpty()) { "Resource name not specified" }
     val globalId: String = computation.key.computationId
     logger.fine("[id=$globalId]: Processing updated GlobalComputation")
-    when (val state = computation.state) {
+    val state = computation.state
+    when (state) {
       // Creates a new computation if it is not already present in the database.
       State.PENDING_REQUISITION_PARAMS -> createComputation(computation)
       // Updates a computation for duchy confirmation.
@@ -207,16 +208,12 @@ class Herald(
       State.FAILED,
       State.CANCELLED -> {
         failComputationAtDuchy(computation)
-        if (state in deletableComputationStates) {
-          clearComputation(computation)
-        }
       }
-      State.SUCCEEDED -> {
-        if (state in deletableComputationStates) {
-          clearComputation(computation)
-        }
-      }
+      State.SUCCEEDED -> {}
       else -> logger.warning("Unexpected global computation state '$state'")
+    }
+    if (state in deletableComputationStates) {
+      clearComputation(computation)
     }
   }
 
@@ -321,14 +318,13 @@ class Herald(
 
   private suspend fun clearComputation(computation: Computation) {
     val globalId = computation.key.computationId
-    val token = internalComputationsClient.getComputationToken(globalId.toGetTokenRequest()).token
-
     try {
+      val token = internalComputationsClient.getComputationToken(globalId.toGetTokenRequest()).token
       internalComputationsClient.deleteComputation(
         deleteComputationRequest { localComputationId = token.localComputationId }
       )
     } catch (e: StatusException) {
-      logger.warning("[id=$globalId]: Failed to delete computation")
+      logger.warning("[id=$globalId]: Failed to delete computation. $e")
     }
   }
 

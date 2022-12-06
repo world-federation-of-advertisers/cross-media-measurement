@@ -29,7 +29,7 @@ import org.wfanet.measurement.gcloud.spanner.usingSpanner
 import org.wfanet.measurement.storage.forwarded.ForwardedStorageFromFlags
 import picocli.CommandLine
 
-/** Implementation of [ComputationsServer] using Google Cloud Spanner. */
+/** Implementation of [ComputationsServer] using Google Cloud Spanner and Fake Storage Service. */
 @CommandLine.Command(
   name = "ForwardedStorageSpannerComputationsServer",
   description = ["Server daemon for ${ComputationsServer.SERVICE_NAME} service."],

@@ -32,11 +32,6 @@ COMMON_IMAGES = [
         repository = _PREFIX + "/duchy/herald",
     ),
     struct(
-        name = "duchy_spanner_computations_server_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:spanner_computations_server_image",
-        repository = _PREFIX + "/duchy/spanner-computations",
-    ),
-    struct(
         name = "duchy_spanner_update_schema_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/tools:update_schema_image",
         repository = _PREFIX + "/duchy/spanner-update-schema",
@@ -80,6 +75,11 @@ GKE_IMAGES = [
         name = "duchy_computation_control_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:gcs_computation_control_server_image",
         repository = _PREFIX + "/duchy/computation-control",
+    ),
+    struct(
+        name = "duchy_gcs_spanner_computations_server_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:gcs_spanner_computations_server_image",
+        repository = _PREFIX + "/duchy/spanner-computations",
     ),
     struct(
         name = "duchy_requisition_fulfillment_server_image",
