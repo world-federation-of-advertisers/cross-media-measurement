@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.reporting.deploy.postgres.writers
 
+import io.r2dbc.postgresql.api.PostgresqlException
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.logging.Logger
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
@@ -40,17 +41,23 @@ abstract class PostgresWriter<T> {
   // To ensure the transaction is only executed once:
   private val executed = AtomicBoolean(false)
 
-  private suspend fun runTransaction(databaseClient: DatabaseClient, idGenerator: IdGenerator): T {
-    val transactionContext = databaseClient.readWriteTransaction()
-    val result: T
+  private suspend fun runTransaction(
+    transactionContext: ReadWriteContext,
+    idGenerator: IdGenerator
+  ): T {
     try {
+      val result: T
       val scope = TransactionScope(transactionContext, idGenerator)
       result = scope.runTransaction()
       transactionContext.commit()
-    } finally {
-      transactionContext.close()
+      executed.set(true)
+      return result
+    } catch (e: Exception) {
+      if (e is PostgresqlException) {
+        transactionContext.rollback()
+      }
+      throw (e)
     }
-    return result
   }
 
   /**
@@ -64,7 +71,12 @@ abstract class PostgresWriter<T> {
   suspend fun execute(databaseClient: DatabaseClient, idGenerator: IdGenerator): T {
     logger.fine("Running ${this::class.simpleName} transaction")
     check(executed.compareAndSet(false, true)) { "Cannot execute PostgresWriter multiple times" }
-    return SerializableErrors.retrying { runTransaction(databaseClient, idGenerator) }
+    val transactionContext = databaseClient.readWriteTransaction()
+    try {
+      return SerializableErrors.retrying { runTransaction(transactionContext, idGenerator) }
+    } finally {
+      transactionContext.close()
+    }
   }
 
   companion object {
