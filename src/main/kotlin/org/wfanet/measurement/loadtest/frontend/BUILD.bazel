@@ -25,6 +25,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:api_key_authentication_server_interceptor",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:test_identifiers",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/storage",
         "//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:crypto_kt_jvm_proto",
