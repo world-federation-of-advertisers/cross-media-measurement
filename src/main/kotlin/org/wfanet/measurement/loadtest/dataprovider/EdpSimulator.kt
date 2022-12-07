@@ -96,6 +96,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper
 import org.wfanet.measurement.loadtest.config.EventFilters.VID_SAMPLER_HASH_FUNCTION
+import org.wfanet.measurement.loadtest.config.TestIdentifiers
 import org.wfanet.measurement.loadtest.storage.SketchStore
 
 data class EdpData(
@@ -135,7 +136,7 @@ class EdpSimulator(
       parent = edpData.name
       eventGroup = eventGroup {
         measurementConsumer = measurementConsumerName
-        eventGroupReferenceId = "001"
+        eventGroupReferenceId = TestIdentifiers.EVENT_GROUP_REFERENCE_ID_PREFIX
         eventTemplates += eventTemplateNames.map { eventTemplate { type = it } }
       }
     }
