@@ -265,7 +265,7 @@ class EventGroupsServiceTest {
           service.listEventGroups(
             listEventGroupsRequest {
               parent = EVENT_GROUP_PARENT
-              filter = "age.value > 10"
+              filter = "metadata.metadata.age.value > 10"
               pageToken = PAGE_TOKEN
             }
           )
@@ -430,7 +430,7 @@ class EventGroupsServiceTest {
             service.listEventGroups(
               listEventGroupsRequest {
                 parent = EVENT_GROUP_PARENT
-                filter = "age.value > 10"
+                filter = "metadata.metadata.age.value > 10"
               }
             )
           }
@@ -474,7 +474,7 @@ class EventGroupsServiceTest {
             service.listEventGroups(
               listEventGroupsRequest {
                 parent = EVENT_GROUP_PARENT
-                filter = "age.value > 10"
+                filter = "metadata.metadata.age.value > 10"
               }
             )
           }
@@ -492,7 +492,7 @@ class EventGroupsServiceTest {
           runBlocking {
             service.listEventGroups(
               listEventGroupsRequest {
-                filter = "age.value > 10"
+                filter = "metadata.metadata.age.value > 10"
                 pageToken = PAGE_TOKEN
                 ENCRYPTION_KEY_PAIR_STORE
               }
@@ -512,7 +512,7 @@ class EventGroupsServiceTest {
           service.listEventGroups(
             listEventGroupsRequest {
               parent = EVENT_GROUP_PARENT
-              filter = "age.value > 10"
+              filter = "metadata.metadata.age.value > 10"
             }
           )
         }

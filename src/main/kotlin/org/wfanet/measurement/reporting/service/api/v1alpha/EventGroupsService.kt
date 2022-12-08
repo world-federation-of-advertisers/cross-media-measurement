@@ -28,6 +28,20 @@ import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
+import com.google.api.expr.v1alpha1.Decl
+import com.google.protobuf.DescriptorProtos.DescriptorProto
+import com.google.protobuf.DescriptorProtos.FileDescriptorProto
+import com.google.protobuf.Descriptors
+import com.google.protobuf.Descriptors.FieldDescriptor
+import com.google.protobuf.Descriptors.FileDescriptor
+import com.google.protobuf.DynamicMessage
+import com.google.protobuf.Message
+import com.google.protobuf.copy
+import com.google.protobuf.fileDescriptorProto
+import org.projectnessie.cel.Env
+import org.projectnessie.cel.EnvOption
+import org.projectnessie.cel.checker.Decls
+import org.projectnessie.cel.common.types.pb.ProtoTypeRegistry
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -41,6 +55,8 @@ import org.wfanet.measurement.reporting.v1alpha.ListEventGroupsRequest
 import org.wfanet.measurement.reporting.v1alpha.ListEventGroupsResponse
 import org.wfanet.measurement.reporting.v1alpha.eventGroup
 import org.wfanet.measurement.reporting.v1alpha.listEventGroupsResponse
+
+private const val EVENT_GROUP_METADATA_FIELD_DESCRIPTOR_NAME_PREFIX = "wfa.measurement.reporting.v1alpha.EventGroup.Metadata."
 
 class EventGroupsService(
   private val cmmsEventGroupsStub: EventGroupsCoroutineStub,
@@ -92,12 +108,17 @@ class EventGroupsService(
           it.name to decryptMetadata(it.encryptedMetadata, measurementConsumerPrivateKey)
         }
 
-    if (request.filter.isEmpty() || parsedEventGroupMetadataMap.isEmpty())
+    if (request.filter.isBlank())
       return listEventGroupsResponse {
-        this.eventGroups += cmmsEventGroups.map { it.toEventGroup(parsedEventGroupMetadataMap) }
+        cmmsEventGroups.forEach {
+          if (it.encryptedMetadata.isEmpty) {
+            this.eventGroups += it.toEventGroup()
+          } else {
+            this.eventGroups += it.toEventGroup(parsedEventGroupMetadataMap)
+          }
+        }
         nextPageToken = cmmsListEventGroupResponse.nextPageToken
       }
-
     val eventGroupMetadataDescriptors: List<EventGroupMetadataDescriptor> =
       eventGroupsMetadataDescriptorsStub
         .withAuthenticationKey(apiAuthenticationKey)
@@ -110,39 +131,124 @@ class EventGroupsService(
         )
         .eventGroupMetadataDescriptorsList
     val metadataParser = EventGroupMetadataParser(eventGroupMetadataDescriptors)
-    val filteredEventGroups: MutableList<CmmsEventGroup> = mutableListOf()
+    val filteredEventGroups: MutableList<EventGroup> = mutableListOf()
 
     for (cmmsEventGroup in cmmsEventGroups) {
-      if (cmmsEventGroup.encryptedMetadata.isEmpty) {
-        filteredEventGroups.add(cmmsEventGroup)
-        continue
+      val reportingEventGroup: EventGroup
+      val program: Program
+      try {
+        if (cmmsEventGroup.encryptedMetadata.isEmpty) {
+          reportingEventGroup = cmmsEventGroup.toEventGroup()
+          program = compileProgram(request.filter)
+        } else {
+          val metadata = parsedEventGroupMetadataMap.getValue(cmmsEventGroup.name)
+          var metadataMessage: DynamicMessage =
+            metadataParser.convertToDynamicMessage(metadata)
+              ?: failGrpc(Status.FAILED_PRECONDITION) {
+                "Event group metadata message descriptor not found"
+              }
+          val descriptorProto = metadataMessage.descriptorForType.toProto()
+          val modifiedDescriptorProto = descriptorProto.copy {
+            val messageName = name
+            //field.clear()
+            //descriptorProto.fieldList.forEach { it ->
+            //  field += it.copy {
+            //    typeName = "$EVENT_GROUP_METADATA_FIELD_DESCRIPTOR_NAME_PREFIX$messageName." + it.name.replaceFirstChar { it.titlecaseChar() }
+            //  }
+            //}
+            nestedType.clear()
+            descriptorProto.nestedTypeList.forEach {
+              nestedType += nestedType {
+
+              }
+            }
+          }
+          val fileDescriptorProto = fileDescriptorProto {
+            name = "temp"
+            messageType += modifiedDescriptorProto
+          }
+          val fileDescriptor = FileDescriptor.buildFrom(fileDescriptorProto, arrayOf(), true)
+          val modifiedDescriptor = fileDescriptor.findMessageTypeByName(modifiedDescriptorProto.name)
+          metadataMessage = DynamicMessage.parseFrom(modifiedDescriptor, metadata.metadata.value)
+          reportingEventGroup = cmmsEventGroup.toEventGroup(parsedEventGroupMetadataMap)
+          program = compileProgram(request.filter, metadataMessage)
+        }
+      } catch (e: IllegalArgumentException) {
+        failGrpc(Status.INVALID_ARGUMENT) { "Filter is invalid" }
       }
 
-      val metadata = parsedEventGroupMetadataMap.getValue(cmmsEventGroup.name)
-      val metadataMessage =
-        metadataParser.convertToDynamicMessage(metadata)
-          ?: failGrpc(Status.FAILED_PRECONDITION) {
-            "Event group metadata message descriptor not found"
-          }
-      val program: Program =
-        EventFilters.compileProgram(request.filter, metadataMessage.defaultInstanceForType)
-      if (EventFilters.matches(metadataMessage, program)) {
-        filteredEventGroups.add(cmmsEventGroup)
+      if (EventFilters.matches(reportingEventGroup, program)) {
+        filteredEventGroups.add(reportingEventGroup)
       }
     }
 
     return listEventGroupsResponse {
-      this.eventGroups += filteredEventGroups.map { it.toEventGroup(parsedEventGroupMetadataMap) }
+      this.eventGroups += filteredEventGroups
       nextPageToken = cmmsListEventGroupResponse.nextPageToken
+    }
+  }
+
+  companion object {
+    private val eventGroupDeclarations: List<Decl> =
+      with(EventGroup.getDefaultInstance()) {
+        this.descriptorForType.fields
+          .filter { fieldDescriptor ->
+            fieldDescriptor.type == FieldDescriptor.Type.MESSAGE
+          }
+          .map { fieldDescriptor ->
+            val typeName = fieldDescriptor.messageType.fullName
+            Decls.newVar(
+              fieldDescriptor.name,
+              Decls.newObjectType(typeName),
+            )
+          }
+      }
+
+    private fun compileProgram(celExpr: String): Program {
+      return compileProgram(celExpr, null)
+    }
+
+    /**
+     * @throws IllegalArgumentException if celExpr is invalid
+     */
+    private fun compileProgram(celExpr: String, eventMessage: Message?): Program {
+      val typeRegistry: ProtoTypeRegistry = ProtoTypeRegistry.newRegistry(EventGroup.getDefaultInstance())
+      val declarations: List<Decl> =
+        eventMessage?.descriptorForType?.fields?.map { fieldDescriptor ->
+          val typeName = fieldDescriptor.messageType.fullName
+          val defaultValue = eventMessage.getField(fieldDescriptor) as? Message
+          typeRegistry.registerMessage(defaultValue)
+          Decls.newVar(
+            fieldDescriptor.name,
+            Decls.newObjectType(typeName),
+          )
+        }
+          ?: emptyList()
+      val env = Env.newEnv(
+        EnvOption.customTypeAdapter(typeRegistry),
+        EnvOption.customTypeProvider(typeRegistry),
+        EnvOption.declarations(eventGroupDeclarations)
+        //EnvOption.declarations(eventGroupDeclarations.plus(declarations)),
+      )
+
+      val astIssuesTuple = env.compile(celExpr)
+      if (astIssuesTuple.hasIssues()) {
+        throw IllegalArgumentException()
+      }
+
+      return env.program(astIssuesTuple.ast)
     }
   }
 }
 
+private fun CmmsEventGroup.toEventGroup(): EventGroup {
+  return this.toEventGroup(null)
+}
+
 private fun CmmsEventGroup.toEventGroup(
-  parsedEventGroupMetadataMap: Map<String, CmmsEventGroup.Metadata>
+  parsedEventGroupMetadataMap: Map<String, CmmsEventGroup.Metadata>?,
 ): EventGroup {
   val source = this
-  val cmmsMetadata = parsedEventGroupMetadataMap[name]
   val cmmsEventGroupKey =
     grpcRequireNotNull(CmmsEventGroupKey.fromName(name)) { "Event group name is missing" }
   val measurementConsumerKey =
@@ -160,7 +266,8 @@ private fun CmmsEventGroup.toEventGroup(
     dataProvider = CmmsDataProviderKey(cmmsEventGroupKey.dataProviderId).toName()
     eventGroupReferenceId = source.eventGroupReferenceId
     eventTemplates += source.eventTemplatesList.map { eventTemplate { type = it.type } }
-    if (cmmsMetadata != null) {
+    if (parsedEventGroupMetadataMap != null) {
+      val cmmsMetadata = parsedEventGroupMetadataMap.getValue(source.name)
       metadata = metadata {
         eventGroupMetadataDescriptor = cmmsMetadata.eventGroupMetadataDescriptor
         metadata = cmmsMetadata.metadata
