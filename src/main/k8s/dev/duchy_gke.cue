@@ -88,7 +88,6 @@ duchy: #Duchy & {
 	}
 	_duchy_image_pull_policy: "Always"
 	_verbose_grpc_logging:    "false"
-	_deletable_computation_states: ["SUCCEEDED"]
 
 	deployments: {
 		"spanner-computations-server-deployment": {

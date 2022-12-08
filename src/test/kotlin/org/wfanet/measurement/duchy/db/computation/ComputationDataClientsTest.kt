@@ -23,12 +23,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
-import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
-import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatabase
 import org.wfanet.measurement.duchy.service.internal.computations.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computations.newEmptyOutputBlobMetadata
@@ -52,7 +50,7 @@ import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 import org.wfanet.measurement.storage.StorageClient
-import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
+import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub as SystemComputationLogEntriesCoroutineStub
 
 private const val ID_WHERE_ALSACE_IS_NOT_PRIMARY = "456"
@@ -65,10 +63,9 @@ private const val CARINTHIA = "Carinthia"
 class ComputationDataClientsTest {
   private val fakeDatabase = FakeComputationsDatabase()
 
-  private val tempDirectory = TemporaryFolder()
-
+  @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
-    val storageClient = FileSystemStorageClient(tempDirectory.root)
+    val storageClient = InMemoryStorageClient()
 
     systemComputationLogEntriesClient = SystemComputationLogEntriesCoroutineStub(channel)
     addService(
@@ -82,8 +79,6 @@ class ComputationDataClientsTest {
       )
     )
   }
-
-  @get:Rule val ruleChain = chainRulesSequentially(tempDirectory, grpcTestServerRule)
 
   private lateinit var systemComputationLogEntriesClient: SystemComputationLogEntriesCoroutineStub
 

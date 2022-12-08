@@ -55,6 +55,8 @@ import org.wfanet.measurement.system.v1alpha.streamActiveComputationsRequest
 // exceptions.
 private const val MAX_ATTEMPTS = 3
 
+private val TERMINAL_STATES = listOf(State.SUCCEEDED, State.FAILED, State.CANCELLED)
+
 /**
  * The Herald looks to the kingdom for status of computations.
  *
@@ -83,12 +85,18 @@ class Herald(
   private val maxStreamingAttempts: Int = 5,
   maxConcurrency: Int = 5,
   private val retryBackoff: ExponentialBackoff = ExponentialBackoff(),
-  deletableStates: List<String> = emptyList(),
+  private val deletableComputationStates: Set<State> = emptySet(),
 ) {
   private val semaphore = Semaphore(maxConcurrency)
   private val continuationTokenManager = ContinuationTokenManager(continuationTokenClient)
 
-  private val deletableComputationStates = deletableStates.map { State.valueOf(it) }
+  init {
+    for (state in deletableComputationStates) {
+      require(state in TERMINAL_STATES) {
+        "Unexpected deletable computation state $state while initializing Herald."
+      }
+    }
+  }
 
   /**
    * Syncs the status of computations stored at the kingdom with those stored locally continually in
@@ -213,7 +221,7 @@ class Herald(
       else -> logger.warning("Unexpected global computation state '$state'")
     }
     if (state in deletableComputationStates) {
-      clearComputation(computation)
+      deleteComputationAtDuchy(computation)
     }
   }
 
@@ -316,7 +324,7 @@ class Herald(
     }
   }
 
-  private suspend fun clearComputation(computation: Computation) {
+  private suspend fun deleteComputationAtDuchy(computation: Computation) {
     val globalId = computation.key.computationId
     try {
       val token = internalComputationsClient.getComputationToken(globalId.toGetTokenRequest()).token
