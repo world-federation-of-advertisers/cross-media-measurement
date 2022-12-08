@@ -298,7 +298,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
                     }
                 }
 
-              for (i in 1..50) {
+              for (i in 1..30) {
                 setOperations += setOperation.copy { uniqueName = "$uniqueName-$i" }
               }
             }
