@@ -19,6 +19,9 @@ import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.metrics.LongHistogram
 import io.opentelemetry.api.metrics.Meter
 import java.nio.file.Paths
+import java.security.SignatureException
+import java.security.cert.CertPathValidatorException
+import java.security.cert.X509Certificate
 import java.time.Clock
 import java.util.logging.Logger
 import kotlin.math.min
@@ -28,6 +31,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.loadLibrary
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.consent.client.duchy.encryptResult
@@ -99,6 +103,7 @@ import org.wfanet.measurement.system.v1alpha.SetParticipantRequisitionParamsRequ
  * @param duchyId The identifier of this duchy who owns this mill.
  * @param signingKey handle to a signing private key for consent signaling.
  * @param consentSignalCert The [Certificate] used for consent signaling.
+ * @param trustedCertificates [Map] of SKID to trusted certificate
  * @param dataClients clients that have access to local computation storage, i.e., spanner table and
  * blob store.
  * @param systemComputationParticipantsClient client of the kingdom's system
@@ -121,18 +126,19 @@ class LiquidLegionsV2Mill(
   duchyId: String,
   signingKey: SigningKeyHandle,
   consentSignalCert: Certificate,
+  private val trustedCertificates: Map<ByteString, X509Certificate>,
   dataClients: ComputationDataClients,
   systemComputationParticipantsClient: ComputationParticipantsCoroutineStub,
   systemComputationsClient: ComputationsGrpcKt.ComputationsCoroutineStub,
   systemComputationLogEntriesClient: ComputationLogEntriesCoroutineStub,
   computationStatsClient: ComputationStatsCoroutineStub,
   throttler: MinimumIntervalThrottler,
-  requestChunkSizeBytes: Int = 1024 * 32, // 32 KiB
-  maximumAttempts: Int = 10,
-  clock: Clock = Clock.systemUTC(),
-  private val workerStubs: Map<String, ComputationControlCoroutineStub>,
+  private val workerStubs: Map<String, ComputationControlCoroutineStub>, // 32 KiB
   private val cryptoWorker: LiquidLegionsV2Encryption,
   openTelemetry: OpenTelemetry,
+  requestChunkSizeBytes: Int = 1024 * 32,
+  maximumAttempts: Int = 10,
+  clock: Clock = Clock.systemUTC(),
 ) :
   MillBase(
     millId,
@@ -316,32 +322,36 @@ class LiquidLegionsV2Mill(
   }
 
   /**
-   * Verifies the duchy Elgamal Key signature. Returns a list of error messages if anything is
-   * wrong. Otherwise return an empty list.
+   * Verifies the ElGamal public key of [duchy].
+   *
+   * @return the error message if verification fails, or else `null`
    */
   private fun verifyDuchySignature(
     duchy: ComputationParticipant,
     publicApiVersion: Version
-  ): List<String> {
-    val errorList = mutableListOf<String>()
-    if (duchy.duchyId != duchyId && !workerStubs.containsKey(duchy.duchyId)) {
-      errorList.add("Unrecognized duchy ${duchy.duchyId}.")
-    }
+  ): String? {
+    val duchyInfo: DuchyInfo.Entry =
+      requireNotNull(DuchyInfo.getByDuchyId(duchy.duchyId)) {
+        "DuchyInfo not found for ${duchy.duchyId}"
+      }
     when (publicApiVersion) {
       Version.V2_ALPHA -> {
-        if (
-          !verifyElGamalPublicKey(
+        try {
+          verifyElGamalPublicKey(
             duchy.elGamalPublicKey,
             duchy.elGamalPublicKeySignature,
-            readCertificate(duchy.duchyCertificateDer)
+            readCertificate(duchy.duchyCertificateDer),
+            trustedCertificates.getValue(duchyInfo.rootCertificateSkid)
           )
-        ) {
-          errorList.add("ElGamalPublicKey signature of ${duchy.duchyId} is invalid.")
+        } catch (e: CertPathValidatorException) {
+          return "Certificate path invalid for Duchy ${duchy.duchyId}"
+        } catch (e: SignatureException) {
+          return "Invalid ElGamal public key signature for Duchy ${duchy.duchyId}"
         }
       }
       Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
     }
-    return errorList
+    return null
   }
 
   /** Fails a computation both locally and at the kingdom when the confirmation fails. */
@@ -441,9 +451,10 @@ class LiquidLegionsV2Mill(
     val kingdomComputation = token.computationDetails.kingdomComputation
     errorList.addAll(verifyEdpParticipation(kingdomComputation, token.requisitionsList))
     token.computationDetails.liquidLegionsV2.participantList.forEach {
-      errorList.addAll(
-        verifyDuchySignature(it, Version.fromString(kingdomComputation.publicApiVersion))
-      )
+      verifyDuchySignature(it, Version.fromString(kingdomComputation.publicApiVersion))?.also {
+        error ->
+        errorList.add(error)
+      }
     }
     return if (errorList.isEmpty()) {
       passConfirmationPhase(token)

@@ -47,8 +47,7 @@ import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
 import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
-import org.wfanet.measurement.common.crypto.testing.FIXED_ENCRYPTION_PUBLIC_KEYSET
-import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_PEM_FILE
+import org.wfanet.measurement.common.crypto.testing.TestData
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
@@ -527,11 +526,12 @@ class MeasurementConsumersServiceTest {
   }
 
   companion object {
-    private val serverCertificate: X509Certificate = readCertificate(FIXED_SERVER_CERT_PEM_FILE)
+    private val serverCertificate: X509Certificate =
+      readCertificate(TestData.FIXED_SERVER_CERT_PEM_FILE)
     private val SERVER_CERTIFICATE_DER = serverCertificate.encoded.toByteString()
 
     private val ENCRYPTION_PUBLIC_KEY =
-      loadPublicKey(FIXED_ENCRYPTION_PUBLIC_KEYSET).toEncryptionPublicKey()
+      loadPublicKey(TestData.FIXED_ENCRYPTION_PUBLIC_KEYSET).toEncryptionPublicKey()
     private val SIGNED_PUBLIC_KEY = signedData {
       data = ENCRYPTION_PUBLIC_KEY.toByteString()
       signature = ByteString.copyFromUtf8("Fake signature of public key")

@@ -18,8 +18,10 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.Message
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.security.cert.X509Certificate
 import org.jetbrains.annotations.Blocking
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.crypto.readCertificateCollection
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.crypto.tink.TinkPublicKeyHandle
@@ -88,6 +90,10 @@ fun <T : Message> loadTextProto(fileName: String, default: T): T {
 fun loadTestCertDerFile(fileName: String): ByteString {
   return SECRET_FILES_PATH.resolve(fileName).toFile().readByteString()
 }
+
+@Blocking
+fun loadTestCertCollection(fileName: String): Collection<X509Certificate> =
+  readCertificateCollection(SECRET_FILES_PATH.resolve(fileName).toFile())
 
 @Blocking
 fun loadSigningKey(certDerFileName: String, privateKeyDerFileName: String): SigningKeyHandle {
