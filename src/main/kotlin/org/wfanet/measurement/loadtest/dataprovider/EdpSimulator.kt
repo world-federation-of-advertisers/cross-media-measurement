@@ -14,8 +14,12 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import com.google.protobuf.Any
 import com.google.protobuf.ByteString
+import com.google.protobuf.DescriptorProtos
+import com.google.protobuf.Descriptors
 import com.google.protobuf.duration
+import com.google.protobuf.fileDescriptorSet
 import io.grpc.StatusException
 import java.nio.file.Paths
 import java.security.GeneralSecurityException
@@ -55,6 +59,9 @@ import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKt.eventTemplate
+import org.wfanet.measurement.api.v2alpha.EventGroupKt.metadata
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
@@ -62,6 +69,8 @@ import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
 import org.wfanet.measurement.api.v2alpha.LiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.Measurement
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.frequency
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.impression
@@ -77,11 +86,17 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedData
+import org.wfanet.measurement.api.v2alpha.createEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup
+import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessage
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessageKt as TestMetadataMessages
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testMetadataMessage
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
+import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.common.asBufferedFlow
@@ -97,6 +112,7 @@ import org.wfanet.measurement.consent.client.common.PublicKeyMismatchException
 import org.wfanet.measurement.consent.client.common.toPublicKeyHandle
 import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
+import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
 import org.wfanet.measurement.consent.client.dataprovider.verifyElGamalPublicKey
 import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
@@ -125,8 +141,10 @@ data class EdpData(
 class EdpSimulator(
   private val edpData: EdpData,
   private val measurementConsumerName: String,
+  private val measurementConsumersStub: MeasurementConsumersCoroutineStub,
   private val certificatesStub: CertificatesCoroutineStub,
   private val eventGroupsStub: EventGroupsCoroutineStub,
+  private val eventGroupMetadataDescriptorsStub: EventGroupMetadataDescriptorsCoroutineStub,
   private val requisitionsStub: RequisitionsCoroutineStub,
   private val requisitionFulfillmentStub: RequisitionFulfillmentCoroutineStub,
   private val sketchStore: SketchStore,
@@ -144,12 +162,51 @@ class EdpSimulator(
 
   /** Creates an eventGroup for the MC. */
   suspend fun createEventGroup(): EventGroup {
+    val measurementConsumer: MeasurementConsumer =
+      try {
+        measurementConsumersStub.getMeasurementConsumer(
+          getMeasurementConsumerRequest { name = measurementConsumerName }
+        )
+      } catch (e: StatusException) {
+        throw Exception("Error getting MeasurementConsumer $measurementConsumerName", e)
+      }
+
+    val descriptorResource: EventGroupMetadataDescriptor =
+      try {
+        val metadataDescriptor: Descriptors.Descriptor = TestMetadataMessage.getDescriptor()
+        eventGroupMetadataDescriptorsStub.createEventGroupMetadataDescriptor(
+          createEventGroupMetadataDescriptorRequest {
+            parent = edpData.name
+            eventGroupMetadataDescriptor = eventGroupMetadataDescriptor {
+              descriptorSet = buildTransitiveDescriptorSet(metadataDescriptor)
+            }
+            requestId = "type.googleapis.com/${metadataDescriptor.fullName}"
+          }
+        )
+      } catch (e: StatusException) {
+        throw Exception("Error creating EventGroupMetadataDescriptor", e)
+      }
+
     val request = createEventGroupRequest {
       parent = edpData.name
       eventGroup = eventGroup {
-        measurementConsumer = measurementConsumerName
-        eventGroupReferenceId = TestIdentifiers.EVENT_GROUP_REFERENCE_ID_PREFIX
+        this.measurementConsumer = measurementConsumerName
+        eventGroupReferenceId =
+          "${TestIdentifiers.EVENT_GROUP_REFERENCE_ID_PREFIX}-${edpData.displayName}"
         eventTemplates += eventTemplateNames.map { eventTemplate { type = it } }
+        measurementConsumerCertificate = measurementConsumer.certificate
+        measurementConsumerPublicKey = measurementConsumer.publicKey
+        encryptedMetadata =
+          encryptMetadata(
+            metadata {
+              this.eventGroupMetadataDescriptor = descriptorResource.name
+              this.metadata =
+                Any.pack(
+                  testMetadataMessage { name = TestMetadataMessages.name { value = "John Doe" } }
+                )
+            },
+            EncryptionPublicKey.parseFrom(measurementConsumer.publicKey.data)
+          )
       }
     }
     val eventGroup =
@@ -779,6 +836,31 @@ private fun LiquidLegionsSketchParams.toSketchConfig(): SketchConfig {
       name = "Frequency"
       aggregator = SketchConfig.ValueSpec.Aggregator.SUM
       distribution = distribution { oracle = oracleDistribution { key = "frequency" } }
+    }
+  }
+}
+
+private fun buildTransitiveDescriptorSet(
+  descriptor: Descriptors.Descriptor
+): DescriptorProtos.FileDescriptorSet {
+  val fileDescriptors = mutableSetOf<Descriptors.FileDescriptor>()
+  fun addTransitiveDeps(node: Descriptors.FileDescriptor) {
+    if (fileDescriptors.contains(node)) {
+      return
+    }
+    for (dep in node.dependencies) {
+      addTransitiveDeps(dep)
+      fileDescriptors.add(node)
+    }
+  }
+
+  val root: Descriptors.FileDescriptor = descriptor.file
+  addTransitiveDeps(root)
+  fileDescriptors.add(root)
+
+  return fileDescriptorSet {
+    for (fileDescriptor in fileDescriptors) {
+      this.file += fileDescriptor.toProto()
     }
   }
 }
