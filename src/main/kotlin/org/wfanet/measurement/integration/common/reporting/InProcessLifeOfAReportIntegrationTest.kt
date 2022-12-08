@@ -202,7 +202,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     createReportingSet("1", MEASUREMENT_CONSUMER_NAME)
     createReportingSet("2", MEASUREMENT_CONSUMER_NAME)
     createReportingSet("3", MEASUREMENT_CONSUMER_NAME)
-    for (i in 1..10) {
+    for (i in 1..5) {
       launch { createReport("$i", MEASUREMENT_CONSUMER_NAME) }
     }
   }
@@ -298,7 +298,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
                     }
                 }
 
-              for (i in 1..100) {
+              for (i in 1..50) {
                 setOperations += setOperation.copy { uniqueName = "$uniqueName-$i" }
               }
             }
