@@ -18,6 +18,7 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flow
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
@@ -117,6 +118,51 @@ class ReportingSetReader {
           bind("$3", limit)
         } else {
           bind("$3", 50)
+        }
+      }
+
+    return flow {
+      val readContext = client.readTransaction()
+      try {
+        emitAll(readContext.executeQuery(statement).consume(::translate))
+      } finally {
+        readContext.close()
+      }
+    }
+  }
+
+  fun getReportingSetsByExternalIds(
+    client: DatabaseClient,
+    measurementConsumerReferenceId: String,
+    externalReportingSetIds: List<Long>
+  ): Flow<Result> {
+    val sql = StringBuilder(
+      baseSql +
+        """
+        WHERE MeasurementConsumerReferenceId = $1
+          AND ExternalReportingSetId IN (
+        """
+    )
+
+    if (externalReportingSetIds.isEmpty()) {
+      return emptyFlow()
+    }
+
+    var j = 2
+    for (i in j until externalReportingSetIds.size + j) {
+      sql.append("$$i,")
+    }
+    sql.setCharAt(sql.lastIndex, ')')
+
+    val statement =
+      boundStatement(
+        sql.toString()
+      ) {
+        bind("$1", measurementConsumerReferenceId)
+
+        externalReportingSetIds.forEach {
+          bind("$$j", it)
+          j += 1
         }
       }
 

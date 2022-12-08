@@ -20,9 +20,9 @@ import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.duration
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.timestamp
-import io.grpc.Status
 import java.io.File
 import java.nio.file.Paths
+import java.time.Clock
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -38,26 +38,16 @@ import org.wfanet.measurement.api.v2alpha.EventGroupKt
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
-import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
-import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
-import org.wfanet.measurement.api.v2alpha.MeasurementKt
-import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
-import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.api.v2alpha.certificate
-import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.dataProvider
-import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
-import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
-import org.wfanet.measurement.api.v2alpha.measurementSpec
-import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
@@ -65,6 +55,7 @@ import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfig
@@ -74,10 +65,8 @@ import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.common.toPublicKeyHandle
-import org.wfanet.measurement.consent.client.duchy.encryptResult
-import org.wfanet.measurement.consent.client.duchy.signResult
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
-import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
+import org.wfanet.measurement.integration.common.kingdom.service.api.v2alpha.FakeMeasurementsService
 import org.wfanet.measurement.integration.common.reporting.identity.withPrincipalName
 import org.wfanet.measurement.reporting.deploy.common.server.ReportingDataServer
 import org.wfanet.measurement.reporting.v1alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
@@ -91,6 +80,7 @@ import org.wfanet.measurement.reporting.v1alpha.ReportKt
 import org.wfanet.measurement.reporting.v1alpha.ReportingSet
 import org.wfanet.measurement.reporting.v1alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import org.wfanet.measurement.reporting.v1alpha.ReportsGrpcKt.ReportsCoroutineStub
+import org.wfanet.measurement.reporting.v1alpha.copy
 import org.wfanet.measurement.reporting.v1alpha.createReportRequest
 import org.wfanet.measurement.reporting.v1alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v1alpha.getReportRequest
@@ -139,24 +129,8 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     mockService {
       onBlocking { getMeasurementConsumer(any()) }.thenReturn(MEASUREMENT_CONSUMER)
     }
-  private val publicKingdomMeasurementsMock: MeasurementsGrpcKt.MeasurementsCoroutineImplBase =
-    mockService {
-      onBlocking { createMeasurement(any()) }
-        .apply {
-          var chain = this
-          MEASUREMENT_NAME_SET.forEach { chain = chain.thenReturn(MEASUREMENT.copy { name = it }) }
-        }
-
-      onBlocking { getMeasurement(any()) }
-        .thenAnswer {
-          val name = it.getArgument(0, GetMeasurementRequest::class.java).name
-          if (MEASUREMENT_NAME_SET.contains(name)) {
-            MEASUREMENT.copy { this.name = name }
-          } else {
-            throw Status.NOT_FOUND.asRuntimeException()
-          }
-        }
-    }
+  private val publicFakeKingdomMeasurementsService: MeasurementsGrpcKt.MeasurementsCoroutineImplBase =
+    FakeMeasurementsService(RandomIdGenerator(Clock.systemUTC()), EDP_SIGNING_KEY_HANDLE, DATA_PROVIDER_CERTIFICATE_NAME)
 
   private val publicKingdomServer = GrpcTestServerRule {
     addService(publicKingdomCertificatesMock)
@@ -164,7 +138,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     addService(publicKingdomEventGroupsMock)
     addService(publicKingdomEventGroupMetadataDescriptorsMock)
     addService(publicKingdomMeasurementConsumersMock)
-    addService(publicKingdomMeasurementsMock)
+    addService(publicFakeKingdomMeasurementsService)
   }
 
   private val encryptionKeyPairConfig: EncryptionKeyPairConfig = encryptionKeyPairConfig {
@@ -206,7 +180,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
   private val publicReportsClient by lazy { ReportsCoroutineStub(reportingServer.publicApiChannel) }
 
   @Test
-  fun `create Report and get the expected result successfully`() = runBlocking {
+  fun `create Report and get the result successfully`() = runBlocking {
     createReportingSet("1", MEASUREMENT_CONSUMER_NAME)
     createReportingSet("2", MEASUREMENT_CONSUMER_NAME)
     createReportingSet("3", MEASUREMENT_CONSUMER_NAME)
@@ -215,7 +189,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     val reports = listReports(MEASUREMENT_CONSUMER_NAME)
     assertThat(reports.reportsList).hasSize(1)
     val reportResult = getReportResult(createdReport)
-    assertThat(reportResult).isEqualTo(200.0)
+    assertThat(reportResult).isGreaterThan(0.0)
   }
 
   @Test
@@ -223,7 +197,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     createReportingSet("1", MEASUREMENT_CONSUMER_NAME)
     createReportingSet("2", MEASUREMENT_CONSUMER_NAME)
     createReportingSet("3", MEASUREMENT_CONSUMER_NAME)
-    for (i in 1..5) {
+    for (i in 1..10) {
       launch { createReport("$i", MEASUREMENT_CONSUMER_NAME) }
     }
   }
@@ -294,7 +268,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
             }
             metrics += metric {
               impressionCount = MetricKt.impressionCountParams { maximumFrequencyPerUser = 5 }
-              setOperations +=
+              val setOperation =
                 MetricKt.namedSetOperation {
                   uniqueName = "set-operation"
                   setOperation =
@@ -318,6 +292,12 @@ abstract class InProcessLifeOfAReportIntegrationTest {
                       rhs = MetricKt.SetOperationKt.operand { reportingSet = reportingSets[2].name }
                     }
                 }
+
+              for (i in 1..100) {
+                setOperations += setOperation.copy {
+                  uniqueName = "$uniqueName-$i"
+                }
+              }
             }
           }
         }
@@ -399,70 +379,6 @@ abstract class InProcessLifeOfAReportIntegrationTest {
       certificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
       certificateDer = MC_CERTIFICATE_DER
       publicKey = signEncryptionPublicKey(MC_ENCRYPTION_PUBLIC_KEY, MC_SIGNING_KEY_HANDLE)
-    }
-
-    private val DATA_PROVIDER_NONCE_HASH: ByteString =
-      HexString("97F76220FEB39EE6F262B1F0C8D40F221285EEDE105748AE98F7DC241198D69F").bytes
-
-    private val MEASUREMENT_SPEC = measurementSpec {
-      measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.data
-      vidSamplingInterval = MeasurementSpecKt.vidSamplingInterval { width = 1.0f }
-      impression =
-        MeasurementSpecKt.impression {
-          privacyParams = differentialPrivacyParams {
-            epsilon = 1.0
-            delta = 1.0
-          }
-          maximumFrequencyPerUser = 5
-        }
-      nonceHashes += DATA_PROVIDER_NONCE_HASH
-    }
-
-    private val MEASUREMENT_NAME_SET =
-      setOf(
-        "$MEASUREMENT_CONSUMER_NAME/measurements/AAAAAAAAAHs",
-        "$MEASUREMENT_CONSUMER_NAME/measurements/BBBBBBBBBHs",
-        "$MEASUREMENT_CONSUMER_NAME/measurements/CCCCCCCCCHs",
-        "$MEASUREMENT_CONSUMER_NAME/measurements/DDDDDDDDDHs",
-        "$MEASUREMENT_CONSUMER_NAME/measurements/EEEEEEEEEHs",
-        "$MEASUREMENT_CONSUMER_NAME/measurements/FFFFFFFFFHs",
-        "$MEASUREMENT_CONSUMER_NAME/measurements/GGGGGGGGGHs",
-        "$MEASUREMENT_CONSUMER_NAME/measurements/HHHHHHHHHHs",
-        "$MEASUREMENT_CONSUMER_NAME/measurements/IIIIIIIIIHs",
-        "$MEASUREMENT_CONSUMER_NAME/measurements/JJJJJJJJJHs",
-      )
-
-    private val result =
-      MeasurementKt.result { impression = MeasurementKt.ResultKt.impression { value = 100 } }
-    private val signedResult: SignedData = signResult(result, EDP_SIGNING_KEY_HANDLE)
-    private val ENCRYPTED_RESULT: ByteString =
-      encryptResult(
-        signedResult,
-        EncryptionPublicKey.parseFrom(MEASUREMENT_SPEC.measurementPublicKey)
-      )
-
-    private val MEASUREMENT = measurement {
-      name = MEASUREMENT_NAME_SET.first()
-      measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
-      measurementSpec = signMeasurementSpec(MEASUREMENT_SPEC, MC_SIGNING_KEY_HANDLE)
-      dataProviders +=
-        MeasurementKt.dataProviderEntry {
-          key = DATA_PROVIDER_NAME
-          value =
-            MeasurementKt.DataProviderEntryKt.value {
-              dataProviderCertificate = DATA_PROVIDER_CERTIFICATE_NAME
-              dataProviderPublicKey = DATA_PROVIDER.publicKey
-              encryptedRequisitionSpec = ByteString.copyFromUtf8("Fake encrypted requisition spec")
-              nonceHash = DATA_PROVIDER_NONCE_HASH
-            }
-        }
-      measurementReferenceId = "ref_id"
-      results +=
-        MeasurementKt.resultPair {
-          certificate = DATA_PROVIDER_CERTIFICATE_NAME
-          encryptedResult = ENCRYPTED_RESULT
-        }
-      state = Measurement.State.SUCCEEDED
     }
 
     private const val EVENT_GROUP_NAME = "$DATA_PROVIDER_NAME/eventGroups/AAAAAAAAAHs"

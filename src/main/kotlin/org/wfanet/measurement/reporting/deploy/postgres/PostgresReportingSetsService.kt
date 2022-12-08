@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.internal.reporting.BatchGetReportingSetRequest
 import org.wfanet.measurement.internal.reporting.GetReportingSetRequest
 import org.wfanet.measurement.internal.reporting.ReportingSet
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
@@ -63,6 +64,13 @@ class PostgresReportingSetsService(
   override fun streamReportingSets(request: StreamReportingSetsRequest): Flow<ReportingSet> {
     return ReportingSetReader()
       .listReportingSets(client, request.filter, request.limit)
+      .map { result -> result.reportingSet }
+      .withSerializableErrorRetries()
+  }
+
+  override fun batchGetReportingSet(request: BatchGetReportingSetRequest): Flow<ReportingSet> {
+    return ReportingSetReader()
+      .getReportingSetsByExternalIds(client, request.measurementConsumerReferenceId, request.externalReportingSetIdsList)
       .map { result -> result.reportingSet }
       .withSerializableErrorRetries()
   }

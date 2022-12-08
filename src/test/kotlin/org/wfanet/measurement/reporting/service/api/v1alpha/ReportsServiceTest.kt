@@ -119,7 +119,6 @@ import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisit
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.internal.reporting.GetReportRequest as GetInternalReportRequest
-import org.wfanet.measurement.internal.reporting.GetReportingSetRequest
 import org.wfanet.measurement.internal.reporting.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.MeasurementKt as InternalMeasurementKt
 import org.wfanet.measurement.internal.reporting.MeasurementKt.ResultKt as InternalMeasurementResultKt
@@ -143,7 +142,6 @@ import org.wfanet.measurement.internal.reporting.StreamReportsRequestKt.filter
 import org.wfanet.measurement.internal.reporting.copy
 import org.wfanet.measurement.internal.reporting.getReportByIdempotencyKeyRequest
 import org.wfanet.measurement.internal.reporting.getReportRequest as getInternalReportRequest
-import org.wfanet.measurement.internal.reporting.getReportingSetRequest
 import org.wfanet.measurement.internal.reporting.measurement as internalMeasurement
 import org.wfanet.measurement.internal.reporting.metric as internalMetric
 import org.wfanet.measurement.internal.reporting.periodicTimeInterval as internalPeriodicTimeInterval
@@ -153,6 +151,7 @@ import org.wfanet.measurement.internal.reporting.setMeasurementFailureRequest
 import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest
 import org.wfanet.measurement.internal.reporting.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInterval
+import org.wfanet.measurement.internal.reporting.batchGetReportingSetRequest
 import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.v1alpha.Metric.SetOperation
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.SetOperationKt
@@ -1266,12 +1265,14 @@ class ReportsServiceTest {
   }
 
   private val internalReportingSetsMock: InternalReportingSetsCoroutineImplBase = mockService {
-    onBlocking { getReportingSet(any()) }
+    onBlocking { batchGetReportingSet(any()) }
       .thenReturn(
-        INTERNAL_REPORTING_SETS[0],
-        INTERNAL_REPORTING_SETS[1],
-        INTERNAL_REPORTING_SETS[0],
-        INTERNAL_REPORTING_SETS[1]
+        flowOf(
+          INTERNAL_REPORTING_SETS[0],
+          INTERNAL_REPORTING_SETS[1],
+          INTERNAL_REPORTING_SETS[0],
+          INTERNAL_REPORTING_SETS[1]
+        )
       )
   }
 
@@ -1374,28 +1375,13 @@ class ReportsServiceTest {
         }
       )
 
-    // Verify proto argument of InternalReportingSetsCoroutineImplBase::getReportingSet
-    val internalReportingSetCaptor: KArgumentCaptor<GetReportingSetRequest> = argumentCaptor()
-    verifyBlocking(internalReportingSetsMock, times(4)) {
-      getReportingSet(internalReportingSetCaptor.capture())
-    }
-    val capturedInternalReportingSetRequests = internalReportingSetCaptor.allValues
-    val expectedInternalReportingSetRequest = getReportingSetRequest {
-      measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-    }
-    assertThat(capturedInternalReportingSetRequests)
-      .containsExactly(
-        expectedInternalReportingSetRequest.copy {
-          externalReportingSetId = REPORTING_SET_EXTERNAL_IDS[0]
-        },
-        expectedInternalReportingSetRequest.copy {
-          externalReportingSetId = REPORTING_SET_EXTERNAL_IDS[0]
-        },
-        expectedInternalReportingSetRequest.copy {
-          externalReportingSetId = REPORTING_SET_EXTERNAL_IDS[1]
-        },
-        expectedInternalReportingSetRequest.copy {
-          externalReportingSetId = REPORTING_SET_EXTERNAL_IDS[1]
+    // Verify proto argument of InternalReportingSetsCoroutineImplBase::batchGetReportingSet
+    verifyProtoArgument(internalReportingSetsMock, InternalReportingSetsCoroutineImplBase::batchGetReportingSet)
+      .isEqualTo(
+        batchGetReportingSetRequest {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+          externalReportingSetIds += REPORTING_SET_EXTERNAL_IDS[0]
+          externalReportingSetIds += REPORTING_SET_EXTERNAL_IDS[1]
         }
       )
 
@@ -2088,10 +2074,12 @@ class ReportsServiceTest {
   @Test
   fun `createReport throws INVALID_ARGUMENT when eventGroup isn't covered by eventGroupUniverse`() =
     runBlocking {
-      whenever(internalReportingSetsMock.getReportingSet(any()))
+      whenever(internalReportingSetsMock.batchGetReportingSet(any()))
         .thenReturn(
-          INTERNAL_REPORTING_SETS[0],
-          UNCOVERED_INTERNAL_REPORTING_SET,
+          flowOf(
+            INTERNAL_REPORTING_SETS[0],
+            UNCOVERED_INTERNAL_REPORTING_SET
+          )
         )
       val request = createReportRequest {
         parent = MEASUREMENT_CONSUMER_NAMES[0]
@@ -2110,6 +2098,29 @@ class ReportsServiceTest {
           "universe."
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertThat(exception.status.description).isEqualTo(expectedExceptionDescription)
+    }
+
+  @Test
+  fun `createReport throws NOT_FOUND when reporting set is not found`() =
+    runBlocking {
+      whenever(internalReportingSetsMock.batchGetReportingSet(any()))
+        .thenReturn(
+          flowOf(
+            INTERNAL_REPORTING_SETS[0]
+          )
+        )
+      val request = createReportRequest {
+        parent = MEASUREMENT_CONSUMER_NAMES[0]
+        report = PENDING_REACH_REPORT.copy { clearState() }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+            runBlocking { service.createReport(request) }
+          }
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     }
 
   @Test
@@ -2221,14 +2232,10 @@ class ReportsServiceTest {
   }
 
   @Test
-  fun `createReport throws exception when the internal getReportingSet throws exception`(): Unit =
+  fun `createReport throws exception when the internal batchGetReportingSet throws exception`(): Unit =
     runBlocking {
-      whenever(internalReportingSetsMock.getReportingSet(any()))
-        .thenReturn(
-          INTERNAL_REPORTING_SETS[0],
-          INTERNAL_REPORTING_SETS[1],
-        )
-        .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
+      whenever(internalReportingSetsMock.batchGetReportingSet(any()))
+        .thenThrow(StatusRuntimeException(Status.UNKNOWN))
 
       val request = createReportRequest {
         parent = MEASUREMENT_CONSUMER_NAMES[0]
@@ -2261,29 +2268,6 @@ class ReportsServiceTest {
     val expectedExceptionDescription = "Unable to retrieve the data provider"
     assertThat(exception.message).contains(expectedExceptionDescription)
   }
-
-  @Test
-  fun `createReport throws exception when checkReportingSet got exception from getReportingSet`() =
-    runBlocking {
-      whenever(internalReportingSetsMock.getReportingSet(any()))
-        .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
-
-      val request = createReportRequest {
-        parent = MEASUREMENT_CONSUMER_NAMES[0]
-        report = PENDING_REACH_REPORT.copy { clearState() }
-      }
-
-      val exception =
-        assertFailsWith(Exception::class) {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
-            runBlocking { service.createReport(request) }
-          }
-        }
-      val expectedExceptionDescription =
-        "Unable to retrieve the reporting set [${REPORTING_SET_NAMES[0]}] from the reporting " +
-          "database."
-      assertThat(exception.message).isEqualTo(expectedExceptionDescription)
-    }
 
   @Test
   fun `listReports returns without a next page token when there is no previous page token`() {

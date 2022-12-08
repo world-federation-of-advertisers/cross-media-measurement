@@ -32,6 +32,7 @@ import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.internal.reporting.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.StreamReportingSetsRequestKt
+import org.wfanet.measurement.internal.reporting.batchGetReportingSetRequest
 import org.wfanet.measurement.internal.reporting.getReportingSetRequest
 import org.wfanet.measurement.internal.reporting.reportingSet
 import org.wfanet.measurement.internal.reporting.streamReportingSetsRequest
@@ -254,5 +255,65 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
     }
 
     assertThat(reportingSets).containsExactly(createdReportingSet2)
+  }
+
+  @Test
+  fun `batchGetReportingSet can get multiple reporting sets`() {
+    val reportingSet1 = reportingSet {
+      measurementConsumerReferenceId = "1234"
+      eventGroupKeys +=
+        ReportingSetKt.eventGroupKey {
+          measurementConsumerReferenceId = "1234"
+          dataProviderReferenceId = "1234"
+          eventGroupReferenceId = "1234"
+        }
+      filter = "filter"
+      displayName = "displayName"
+    }
+    val createdReportingSet = runBlocking { service.createReportingSet(reportingSet1) }
+
+    val reportingSet2 = reportingSet {
+      measurementConsumerReferenceId = "1234"
+      eventGroupKeys +=
+        ReportingSetKt.eventGroupKey {
+          measurementConsumerReferenceId = "1234"
+          dataProviderReferenceId = "1234"
+          eventGroupReferenceId = "1234"
+        }
+      filter = "filter"
+      displayName = "displayName"
+    }
+    idGenerator.internalId = InternalId(FIXED_INTERNAL_ID + 1)
+    idGenerator.externalId = ExternalId(FIXED_EXTERNAL_ID + 1)
+    val createdReportingSet2 = runBlocking { service.createReportingSet(reportingSet2) }
+
+    val reportingSets = runBlocking {
+      service
+        .batchGetReportingSet(
+          batchGetReportingSetRequest {
+            measurementConsumerReferenceId = "1234"
+            externalReportingSetIds += FIXED_EXTERNAL_ID
+            externalReportingSetIds += FIXED_EXTERNAL_ID + 1
+          }
+        )
+        .toList()
+    }
+
+    assertThat(reportingSets).containsExactly(createdReportingSet2, createdReportingSet)
+  }
+
+  @Test
+  fun `batchGetReportingSet returns nothing when no ids are given`() {
+    val reportingSets = runBlocking {
+      service
+        .batchGetReportingSet(
+          batchGetReportingSetRequest {
+            measurementConsumerReferenceId = "1234"
+          }
+        )
+        .toList()
+    }
+
+    assertThat(reportingSets).hasSize(0)
   }
 }
