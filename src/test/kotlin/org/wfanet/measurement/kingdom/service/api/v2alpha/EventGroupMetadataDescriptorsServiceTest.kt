@@ -220,6 +220,7 @@ class EventGroupMetadataDescriptorsServiceTest {
     val request = createEventGroupMetadataDescriptorRequest {
       parent = DATA_PROVIDER_NAME
       eventGroupMetadataDescriptor = EVENT_GROUP_METADATA_DESCRIPTOR
+      requestId = "type.googleapis.com/example.MetadataMessage"
     }
 
     val result =
@@ -236,6 +237,7 @@ class EventGroupMetadataDescriptorsServiceTest {
       .isEqualTo(
         INTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR.copy {
           clearExternalEventGroupMetadataDescriptorId()
+          idempotencyKey = request.requestId
         }
       )
 

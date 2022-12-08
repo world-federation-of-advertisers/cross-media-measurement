@@ -14,9 +14,11 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
+import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
@@ -24,6 +26,7 @@ import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.DataProvider
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 
 class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
   data class Result(val dataProvider: DataProvider, val dataProviderId: Long)
@@ -87,4 +90,25 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
         details = struct.getProtoMessage("CertificateDetails", Certificate.Details.parser())
       }
       .build()
+}
+
+/**
+ * Reads the internal ID for a DataProvider given its external ID.
+ *
+ * @throws DataProviderNotFoundException
+ */
+suspend fun AsyncDatabaseClient.ReadContext.readDataProviderId(
+  externalDataProviderId: ExternalId
+): InternalId {
+  val column = "DataProviderId"
+  return readRowUsingIndex(
+      "DataProviders",
+      "DataProvidersByExternalId",
+      Key.of(externalDataProviderId.value),
+      column
+    )
+    ?.let { struct -> InternalId(struct.getLong(column)) }
+    ?: throw DataProviderNotFoundException(externalDataProviderId) {
+      "DataProvider with external ID $externalDataProviderId not found"
+    }
 }

@@ -41,6 +41,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementCo
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.readDataProviderId
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWriter.TransactionScope
 
 /**
@@ -227,7 +228,7 @@ class CreateMeasurement(private val measurement: Measurement) :
     dataProviderValue: Measurement.DataProviderValue,
     initialRequisitionState: Requisition.State
   ) {
-    val dataProviderId = readDataProviderId(externalDataProviderId)
+    val dataProviderId = transactionContext.readDataProviderId(externalDataProviderId)
     val reader =
       CertificateReader(CertificateReader.ParentType.DATA_PROVIDER)
         .bindWhereClause(
@@ -319,23 +320,6 @@ private suspend fun TransactionScope.readMeasurementConsumerId(
     ?.let { struct -> InternalId(struct.getLong(column)) }
     ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId) {
       "MeasurementConsumer with external ID $externalMeasurementConsumerId not found"
-    }
-}
-
-private suspend fun TransactionScope.readDataProviderId(
-  externalDataProviderId: ExternalId
-): InternalId {
-  val column = "DataProviderId"
-  return transactionContext
-    .readRowUsingIndex(
-      "DataProviders",
-      "DataProvidersByExternalId",
-      Key.of(externalDataProviderId.value),
-      column
-    )
-    ?.let { struct -> InternalId(struct.getLong(column)) }
-    ?: throw DataProviderNotFoundException(externalDataProviderId) {
-      "DataProvider with external ID $externalDataProviderId not found"
     }
 }
 
