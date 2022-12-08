@@ -99,6 +99,9 @@ import ("strings")
 				_kingdom_system_api_cert_host_flag,
 				_debug_verbose_grpc_client_logging_flag,
 			]
+			spec: template: spec: _dependencies: [
+				"\(_name)-spanner-computations-server",
+			]
 		}
 		"liquid-legions-v2-mill-daemon-deployment": Deployment={
 			_container: args: [

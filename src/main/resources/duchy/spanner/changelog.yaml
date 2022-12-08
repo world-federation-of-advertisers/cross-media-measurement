@@ -18,3 +18,6 @@ databaseChangeLog:
 - include:
     file: create-computations-schema.sql
     relativeToChangeLogFile: true
+- include:
+    file: create-herald-continuation-tokens-table.sql
+    relativeToChangeLogFile: true

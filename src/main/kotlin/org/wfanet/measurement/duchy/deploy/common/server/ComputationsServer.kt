@@ -35,6 +35,7 @@ import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
+import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import picocli.CommandLine
 
@@ -58,7 +59,8 @@ abstract class ComputationsServer : Runnable {
 
   protected fun run(
     computationsDatabaseReader: ComputationsDatabaseReader,
-    computationDb: ComputationsDb
+    computationDb: ComputationsDb,
+    continuationTokensService: ContinuationTokensCoroutineImplBase,
   ) {
     val clientCerts =
       SigningCerts.fromPemFiles(
@@ -74,6 +76,7 @@ abstract class ComputationsServer : Runnable {
       ComputationLogEntriesCoroutineStub(channel).withDuchyId(flags.duchy.duchyName)
 
     val computationsDatabase = newComputationsDatabase(computationsDatabaseReader, computationDb)
+
     CommonServer.fromFlags(
         flags.server,
         javaClass.name,
@@ -82,7 +85,8 @@ abstract class ComputationsServer : Runnable {
           computationLogEntriesClient = computationLogEntriesClient,
           duchyName = flags.duchy.duchyName
         ),
-        ComputationStatsService(computationsDatabase)
+        ComputationStatsService(computationsDatabase),
+        continuationTokensService
       )
       .start()
       .blockUntilShutdown()

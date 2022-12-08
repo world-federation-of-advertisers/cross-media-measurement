@@ -30,6 +30,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransacto
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.ComputationMutations
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDatabaseReader
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpannerComputationsDatabaseTransactor
+import org.wfanet.measurement.duchy.deploy.gcloud.spanner.continuationtoken.SpannerContinuationTokensService
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -60,7 +61,8 @@ class DuchyDependencyProviderRule(duchies: Iterable<String>) :
 
     return InProcessDuchy.DuchyDependencies(
       buildComputationsDb(computationsDatabase.databaseClient),
-      buildStorageClient(duchyId)
+      buildStorageClient(duchyId),
+      SpannerContinuationTokensService(computationsDatabase.databaseClient)
     )
   }
 

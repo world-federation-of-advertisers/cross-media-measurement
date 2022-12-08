@@ -136,6 +136,17 @@ kt_jvm_grpc_proto_library(
 )
 
 proto_library(
+    name = "continuation_tokens_service_proto",
+    srcs = ["continuation_tokens_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_grpc_proto_library(
+    name = "continuation_tokens_service_kt_jvm_grpc_proto",
+    srcs = [":continuation_tokens_service_proto"],
+)
+
+proto_library(
     name = "async_computation_control_service_proto",
     srcs = ["async_computation_control_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,

@@ -34,6 +34,7 @@ import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.deploy.common.ComputationsServiceFlags
 import org.wfanet.measurement.duchy.deploy.common.SystemApiFlags
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
+import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineStub
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
@@ -114,6 +115,8 @@ private fun run(@CommandLine.Mixin flags: Flags) {
       .withDefaultDeadline(flags.computationsServiceFlags.defaultDeadlineDuration)
       .withVerboseLogging(flags.verboseGrpcClientLogging)
   val internalComputationsClient = ComputationsCoroutineStub(internalComputationsChannel)
+
+  val continuationTokenClient = ContinuationTokensCoroutineStub(internalComputationsChannel)
   // This will be the name of the pod when deployed to Kubernetes.
   val heraldId = System.getenv("HOSTNAME")
 
@@ -124,6 +127,7 @@ private fun run(@CommandLine.Mixin flags: Flags) {
       internalComputationsClient = internalComputationsClient,
       systemComputationsClient = systemComputationsClient,
       systemComputationParticipantClient = systemComputationParticipantsClient,
+      continuationTokenClient = continuationTokenClient,
       protocolsSetupConfig =
         flags.protocolsSetupConfig.reader().use {
           parseTextProto(it, ProtocolsSetupConfig.getDefaultInstance())

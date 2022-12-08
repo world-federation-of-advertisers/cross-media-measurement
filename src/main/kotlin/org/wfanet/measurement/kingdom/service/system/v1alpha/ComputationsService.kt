@@ -198,7 +198,8 @@ private val STATES_SUBSCRIBED =
     Measurement.State.PENDING_PARTICIPANT_CONFIRMATION,
     Measurement.State.PENDING_COMPUTATION,
     Measurement.State.FAILED,
-    Measurement.State.CANCELLED
+    Measurement.State.CANCELLED,
+    Measurement.State.SUCCEEDED
   )
 
 private object ContinuationTokenConverter {
