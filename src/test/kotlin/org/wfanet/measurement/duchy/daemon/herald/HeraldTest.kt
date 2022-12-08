@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.daemon.herald
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.Empty
 import com.google.protobuf.kotlin.toByteStringUtf8
 import io.grpc.Status
 import java.time.Clock
@@ -66,7 +67,6 @@ import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoro
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub as InternalComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineStub
 import org.wfanet.measurement.internal.duchy.DeleteComputationRequest
-import org.wfanet.measurement.internal.duchy.DeleteComputationResponse
 import org.wfanet.measurement.internal.duchy.FinishComputationResponse
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.computationToken
@@ -275,7 +275,6 @@ class HeraldTest {
 
   private lateinit var aggregatorHerald: Herald
   private lateinit var nonAggregatorHerald: Herald
-  private lateinit var mockHerald: Herald
 
   @get:Rule
   val ruleChain = chainRulesSequentially(tempDirectory, grpcTestServerRule, mockTestServerRule)
@@ -303,18 +302,6 @@ class HeraldTest {
         continuationTokensStub,
         NON_AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
         Clock.systemUTC(),
-      )
-    mockHerald =
-      Herald(
-        AGGREGATOR_HERALD_ID,
-        AGGREGATOR_DUCHY_ID,
-        mockInternalComputationsStub,
-        systemComputationsStub,
-        systemComputationParticipantsStub,
-        continuationTokensStub,
-        AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
-        Clock.systemUTC(),
-        deletableStates = listOf("SUCCEEDED", "FAILED"),
       )
   }
 
@@ -741,6 +728,18 @@ class HeraldTest {
 
   @Test
   fun `syncStatuses fails computation for attempts-exhausted error`() = runTest {
+    val mockHerald =
+      Herald(
+        AGGREGATOR_HERALD_ID,
+        AGGREGATOR_DUCHY_ID,
+        mockInternalComputationsStub,
+        systemComputationsStub,
+        systemComputationParticipantsStub,
+        continuationTokensStub,
+        AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
+        Clock.systemUTC(),
+        deletableComputationStates = setOf(Computation.State.SUCCEEDED, Computation.State.FAILED),
+      )
     // Set up a new herald with mock services to raise certain exception
     internalComputationsMock.stub {
       onBlocking { createComputation(any()) }.thenThrow(Status.UNKNOWN.asRuntimeException())
@@ -780,6 +779,19 @@ class HeraldTest {
 
   @Test
   fun `syncStatuses calls deleteComputation api for Computations in terminated states`() = runTest {
+    val mockHerald =
+      Herald(
+        AGGREGATOR_HERALD_ID,
+        AGGREGATOR_DUCHY_ID,
+        mockInternalComputationsStub,
+        systemComputationsStub,
+        systemComputationParticipantsStub,
+        continuationTokensStub,
+        AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
+        Clock.systemUTC(),
+        deletableComputationStates = setOf(Computation.State.SUCCEEDED, Computation.State.FAILED),
+      )
+
     internalComputationsMock.stub {
       onBlocking { getComputationToken(any()) }
         .thenAnswer { invocationOnMock ->
@@ -792,8 +804,7 @@ class HeraldTest {
             }
           }
         }
-      onBlocking { deleteComputation(any()) }
-        .thenReturn(DeleteComputationResponse.getDefaultInstance())
+      onBlocking { deleteComputation(any()) }.thenReturn(Empty.getDefaultInstance())
       onBlocking { finishComputation(any()) }
         .thenReturn(FinishComputationResponse.getDefaultInstance())
     }

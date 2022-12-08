@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.duchy.service.internal.computations
 
+import com.google.protobuf.Empty
 import io.grpc.Status
 import java.time.Clock
 import java.util.logging.Logger
@@ -41,7 +42,6 @@ import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoro
 import org.wfanet.measurement.internal.duchy.CreateComputationRequest
 import org.wfanet.measurement.internal.duchy.CreateComputationResponse
 import org.wfanet.measurement.internal.duchy.DeleteComputationRequest
-import org.wfanet.measurement.internal.duchy.DeleteComputationResponse
 import org.wfanet.measurement.internal.duchy.EnqueueComputationRequest
 import org.wfanet.measurement.internal.duchy.EnqueueComputationResponse
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
@@ -116,9 +116,7 @@ class ComputationsService(
       .toCreateComputationResponse()
   }
 
-  override suspend fun deleteComputation(
-    request: DeleteComputationRequest
-  ): DeleteComputationResponse {
+  override suspend fun deleteComputation(request: DeleteComputationRequest): Empty {
     val computationBlobKeys =
       computationsDatabase.readComputationBlobKeys(request.localComputationId)
     for (blobKey in computationBlobKeys) {
@@ -132,7 +130,7 @@ class ComputationsService(
     }
     computationsDatabase.deleteComputation(request.localComputationId)
 
-    return DeleteComputationResponse.getDefaultInstance()
+    return Empty.getDefaultInstance()
   }
 
   override suspend fun finishComputation(

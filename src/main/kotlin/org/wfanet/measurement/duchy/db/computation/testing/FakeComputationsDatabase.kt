@@ -42,9 +42,6 @@ import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.copy
 import org.wfanet.measurement.internal.duchy.requisitionMetadata
 
-private const val COMPUTATION_BLOB_KEY_PREFIX = "computations"
-private const val REQUISITION_BLOB_KEY_PREFIX = "requisitions"
-
 /** In-memory [ComputationsDatabase] */
 class FakeComputationsDatabase
 private constructor(
