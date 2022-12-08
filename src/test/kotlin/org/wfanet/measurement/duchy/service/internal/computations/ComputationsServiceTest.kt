@@ -98,7 +98,7 @@ class ComputationsServiceTest {
 
   @get:Rule val ruleChain = chainRulesSequentially(tempDirectory, grpcTestServerRule)
 
-  private val fakeService: ComputationsService by lazy {
+  private val service: ComputationsService by lazy {
     ComputationsService(
       fakeDatabase,
       ComputationLogEntriesCoroutineStub(grpcTestServerRule.channel),
@@ -136,9 +136,9 @@ class ComputationsServiceTest {
       requisitions += requisitionMetadata
     }
 
-    assertThat(fakeService.getComputationToken(id.toGetTokenRequest()))
+    assertThat(service.getComputationToken(id.toGetTokenRequest()))
       .isEqualTo(expectedToken.toGetComputationTokenResponse())
-    assertThat(fakeService.getComputationToken(id.toGetTokenRequest()))
+    assertThat(service.getComputationToken(id.toGetTokenRequest()))
       .isEqualTo(expectedToken.toGetComputationTokenResponse())
   }
 
@@ -150,7 +150,7 @@ class ComputationsServiceTest {
       stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
       computationDetails = AGGREGATOR_COMPUTATION_DETAILS
     )
-    val tokenAtStart = fakeService.getComputationToken(id.toGetTokenRequest()).token
+    val tokenAtStart = service.getComputationToken(id.toGetTokenRequest()).token
     val newComputationDetails =
       AGGREGATOR_COMPUTATION_DETAILS.toBuilder()
         .apply { liquidLegionsV2Builder.reachEstimateBuilder.reach = 123 }
@@ -163,7 +163,7 @@ class ComputationsServiceTest {
         }
         .build()
 
-    assertThat(fakeService.updateComputationDetails(request))
+    assertThat(service.updateComputationDetails(request))
       .isEqualTo(
         tokenAtStart
           .toBuilder()
@@ -197,7 +197,7 @@ class ComputationsServiceTest {
           requisitionMetadata { externalKey = requisition2Key }
         )
     )
-    val tokenAtStart = fakeService.getComputationToken(id.toGetTokenRequest()).token
+    val tokenAtStart = service.getComputationToken(id.toGetTokenRequest()).token
     val newComputationDetails =
       AGGREGATOR_COMPUTATION_DETAILS.toBuilder()
         .apply { liquidLegionsV2Builder.reachEstimateBuilder.reach = 123 }
@@ -219,7 +219,7 @@ class ComputationsServiceTest {
       }
     }
 
-    assertThat(fakeService.updateComputationDetails(request))
+    assertThat(service.updateComputationDetails(request))
       .isEqualTo(
         tokenAtStart
           .copy {
@@ -248,7 +248,7 @@ class ComputationsServiceTest {
       stage = LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS.toProtocolStage(),
       computationDetails = AGGREGATOR_COMPUTATION_DETAILS
     )
-    val tokenAtStart = fakeService.getComputationToken(id.toGetTokenRequest()).token
+    val tokenAtStart = service.getComputationToken(id.toGetTokenRequest()).token
     val request =
       FinishComputationRequest.newBuilder()
         .apply {
@@ -258,7 +258,7 @@ class ComputationsServiceTest {
         }
         .build()
 
-    assertThat(fakeService.finishComputation(request))
+    assertThat(service.finishComputation(request))
       .isEqualTo(
         tokenAtStart
           .toBuilder()
@@ -307,10 +307,10 @@ class ComputationsServiceTest {
           newEmptyOutputBlobMetadata(id = 1L)
         )
     )
-    val tokenAtStart = fakeService.getComputationToken(id.toGetTokenRequest()).token
+    val tokenAtStart = service.getComputationToken(id.toGetTokenRequest()).token
 
     val tokenAfterRecordingBlob =
-      fakeService
+      service
         .recordOutputBlobPath(
           RecordOutputBlobPathRequest.newBuilder()
             .apply {
@@ -334,7 +334,7 @@ class ComputationsServiceTest {
         }
         .build()
 
-    assertThat(fakeService.advanceComputationStage(request))
+    assertThat(service.advanceComputationStage(request))
       .isEqualTo(
         tokenAtStart
           .toBuilder()
@@ -410,7 +410,7 @@ class ComputationsServiceTest {
           )
         }
         .build()
-    assertThat(fakeService.getComputationIds(getIdsInMillStagesRequest))
+    assertThat(service.getComputationIds(getIdsInMillStagesRequest))
       .isEqualTo(
         GetComputationIdsResponse.newBuilder()
           .apply { addAllGlobalIds(setOf(blindId, decryptId)) }
@@ -427,7 +427,7 @@ class ComputationsServiceTest {
       stage = LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
       computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS
     )
-    val unclaimedAtStart = fakeService.getComputationToken(unclaimed.toGetTokenRequest()).token
+    val unclaimedAtStart = service.getComputationToken(unclaimed.toGetTokenRequest()).token
     fakeDatabase.addComputation(
       claimed,
       LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
@@ -435,19 +435,19 @@ class ComputationsServiceTest {
       listOf()
     )
     fakeDatabase.claimedComputationIds.add(claimed)
-    val claimedAtStart = fakeService.getComputationToken(claimed.toGetTokenRequest()).token
+    val claimedAtStart = service.getComputationToken(claimed.toGetTokenRequest()).token
     val owner = "TheOwner"
     val request =
       ClaimWorkRequest.newBuilder()
         .setComputationType(ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2)
         .setOwner(owner)
         .build()
-    assertThat(fakeService.claimWork(request))
+    assertThat(service.claimWork(request))
       .isEqualTo(
         unclaimedAtStart.toBuilder().setVersion(1).setAttempt(1).build().toClaimWorkResponse()
       )
-    assertThat(fakeService.claimWork(request)).isEqualToDefaultInstance()
-    assertThat(fakeService.getComputationToken(claimed.toGetTokenRequest()))
+    assertThat(service.claimWork(request)).isEqualToDefaultInstance()
+    assertThat(service.getComputationToken(claimed.toGetTokenRequest()))
       .isEqualTo(claimedAtStart.toGetComputationTokenResponse())
 
     verifyProtoArgument(
@@ -486,7 +486,7 @@ class ComputationsServiceTest {
       requisitions = listOf(requisitionMetadata { externalKey = requisitionKey })
     )
 
-    val tokenAtStart = fakeService.getComputationToken(id.toGetTokenRequest()).token
+    val tokenAtStart = service.getComputationToken(id.toGetTokenRequest()).token
 
     val request =
       RecordRequisitionBlobPathRequest.newBuilder()
@@ -497,7 +497,7 @@ class ComputationsServiceTest {
         }
         .build()
 
-    assertThat(fakeService.recordRequisitionBlobPath(request))
+    assertThat(service.recordRequisitionBlobPath(request))
       .isEqualTo(
         tokenAtStart
           .toBuilder()
@@ -552,13 +552,11 @@ class ComputationsServiceTest {
     storageClient.writeBlob(computationBlobKey2, "computation_2".toByteStringUtf8())
 
     val localId = globalId.toLong()
-    fakeService.deleteComputation(deleteComputationRequest { localComputationId = localId })
+    service.deleteComputation(deleteComputationRequest { localComputationId = localId })
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        fakeService.getComputationToken(
-          getComputationTokenRequest { globalComputationId = globalId }
-        )
+        service.getComputationToken(getComputationTokenRequest { globalComputationId = globalId })
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
 
