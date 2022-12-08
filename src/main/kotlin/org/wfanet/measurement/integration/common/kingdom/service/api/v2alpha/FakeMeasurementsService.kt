@@ -16,24 +16,24 @@ package org.wfanet.measurement.integration.common.kingdom.service.api.v2alpha
 
 import com.google.protobuf.duration
 import io.grpc.Status
+import java.util.concurrent.ConcurrentHashMap
 import org.wfanet.measurement.api.v2alpha.CancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.ListMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.Measurement
-import org.wfanet.measurement.api.v2alpha.MeasurementKey
-import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
-import org.wfanet.measurement.common.grpc.failGrpc
-import org.wfanet.measurement.common.grpc.grpcRequireNotNull
-import java.util.concurrent.ConcurrentHashMap
-import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
+import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.consent.client.duchy.encryptResult
 import org.wfanet.measurement.consent.client.duchy.signResult
@@ -62,15 +62,23 @@ class FakeMeasurementsService(
 
     val measurementConsumerCertificateKey =
       grpcRequireNotNull(
-        MeasurementConsumerCertificateKey.fromName(request.measurement.measurementConsumerCertificate)
+        MeasurementConsumerCertificateKey.fromName(
+          request.measurement.measurementConsumerCertificate
+        )
       ) {
         "Measurement Consumer Certificate resource name is either unspecified or invalid"
       }
 
-    val measurement = request.measurement.copy {
-      name = MeasurementKey(measurementConsumerId = measurementConsumerCertificateKey.measurementConsumerId, measurementId = apiId).toName()
-      state = Measurement.State.AWAITING_REQUISITION_FULFILLMENT
-    }
+    val measurement =
+      request.measurement.copy {
+        name =
+          MeasurementKey(
+              measurementConsumerId = measurementConsumerCertificateKey.measurementConsumerId,
+              measurementId = apiId
+            )
+            .toName()
+        state = Measurement.State.AWAITING_REQUISITION_FULFILLMENT
+      }
 
     measurementsApiIdMap[apiId] = measurement
     if (referenceId.isNotBlank()) {
@@ -82,34 +90,37 @@ class FakeMeasurementsService(
 
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
     val key =
-      grpcRequireNotNull(MeasurementKey.fromName(request.name)) { "Resource name is either unspecified or invalid" }
+      grpcRequireNotNull(MeasurementKey.fromName(request.name)) {
+        "Resource name is either unspecified or invalid"
+      }
 
-    val measurement = measurementsApiIdMap[key.measurementId] ?: failGrpc(Status.NOT_FOUND) { "Measurement not found" }
+    val measurement =
+      measurementsApiIdMap[key.measurementId]
+        ?: failGrpc(Status.NOT_FOUND) { "Measurement not found" }
 
     val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
     val result =
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
-      when(measurementSpec.measurementTypeCase) {
-        MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> throw Status.UNIMPLEMENTED.asRuntimeException()
-        MeasurementSpec.MeasurementTypeCase.IMPRESSION -> MeasurementKt.result {
-          impression =
-            MeasurementKt.ResultKt.impression {
-              value = 100
-            }
-        }
-        MeasurementSpec.MeasurementTypeCase.DURATION -> MeasurementKt.result {
-          watchDuration =
-            MeasurementKt.ResultKt.watchDuration {
-              value = duration {
-                seconds = 100
-              }
-            }
-        }
-        MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> failGrpc(Status.INVALID_ARGUMENT) { "MeasurementSpec MeasurementType not set"}
+      when (measurementSpec.measurementTypeCase) {
+        MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
+          throw Status.UNIMPLEMENTED.asRuntimeException()
+        MeasurementSpec.MeasurementTypeCase.IMPRESSION ->
+          MeasurementKt.result { impression = MeasurementKt.ResultKt.impression { value = 100 } }
+        MeasurementSpec.MeasurementTypeCase.DURATION ->
+          MeasurementKt.result {
+            watchDuration =
+              MeasurementKt.ResultKt.watchDuration { value = duration { seconds = 100 } }
+          }
+        MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
+          failGrpc(Status.INVALID_ARGUMENT) { "MeasurementSpec MeasurementType not set" }
       }
 
     val signedResult: SignedData = signResult(result, edpSigningKeyHandle)
-    val encryptedResult = encryptResult(signedResult, EncryptionPublicKey.parseFrom(measurementSpec.measurementPublicKey))
+    val encryptedResult =
+      encryptResult(
+        signedResult,
+        EncryptionPublicKey.parseFrom(measurementSpec.measurementPublicKey)
+      )
 
     return measurement.copy {
       results +=
@@ -121,7 +132,9 @@ class FakeMeasurementsService(
     }
   }
 
-  override suspend fun listMeasurements(request: ListMeasurementsRequest): ListMeasurementsResponse {
+  override suspend fun listMeasurements(
+    request: ListMeasurementsRequest
+  ): ListMeasurementsResponse {
     throw Status.UNIMPLEMENTED.asRuntimeException()
   }
 }

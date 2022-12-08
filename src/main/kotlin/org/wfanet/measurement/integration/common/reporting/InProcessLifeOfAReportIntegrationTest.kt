@@ -129,8 +129,13 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     mockService {
       onBlocking { getMeasurementConsumer(any()) }.thenReturn(MEASUREMENT_CONSUMER)
     }
-  private val publicFakeKingdomMeasurementsService: MeasurementsGrpcKt.MeasurementsCoroutineImplBase =
-    FakeMeasurementsService(RandomIdGenerator(Clock.systemUTC()), EDP_SIGNING_KEY_HANDLE, DATA_PROVIDER_CERTIFICATE_NAME)
+  private val publicFakeKingdomMeasurementsService:
+    MeasurementsGrpcKt.MeasurementsCoroutineImplBase =
+    FakeMeasurementsService(
+      RandomIdGenerator(Clock.systemUTC()),
+      EDP_SIGNING_KEY_HANDLE,
+      DATA_PROVIDER_CERTIFICATE_NAME
+    )
 
   private val publicKingdomServer = GrpcTestServerRule {
     addService(publicKingdomCertificatesMock)
@@ -294,9 +299,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
                 }
 
               for (i in 1..100) {
-                setOperations += setOperation.copy {
-                  uniqueName = "$uniqueName-$i"
-                }
+                setOperations += setOperation.copy { uniqueName = "$uniqueName-$i" }
               }
             }
           }

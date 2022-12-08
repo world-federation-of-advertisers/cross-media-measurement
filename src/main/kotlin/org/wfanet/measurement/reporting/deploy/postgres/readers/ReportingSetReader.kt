@@ -136,13 +136,14 @@ class ReportingSetReader {
     measurementConsumerReferenceId: String,
     externalReportingSetIds: List<Long>
   ): Flow<Result> {
-    val sql = StringBuilder(
-      baseSql +
-        """
+    val sql =
+      StringBuilder(
+        baseSql +
+          """
         WHERE MeasurementConsumerReferenceId = $1
           AND ExternalReportingSetId IN (
         """
-    )
+      )
 
     if (externalReportingSetIds.isEmpty()) {
       return emptyFlow()
@@ -155,9 +156,7 @@ class ReportingSetReader {
     sql.setCharAt(sql.lastIndex, ')')
 
     val statement =
-      boundStatement(
-        sql.toString()
-      ) {
+      boundStatement(sql.toString()) {
         bind("$1", measurementConsumerReferenceId)
 
         externalReportingSetIds.forEach {

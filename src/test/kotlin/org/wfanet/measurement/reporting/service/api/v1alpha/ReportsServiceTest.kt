@@ -139,6 +139,7 @@ import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSe
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.StreamReportsRequestKt.filter
+import org.wfanet.measurement.internal.reporting.batchGetReportingSetRequest
 import org.wfanet.measurement.internal.reporting.copy
 import org.wfanet.measurement.internal.reporting.getReportByIdempotencyKeyRequest
 import org.wfanet.measurement.internal.reporting.getReportRequest as getInternalReportRequest
@@ -151,7 +152,6 @@ import org.wfanet.measurement.internal.reporting.setMeasurementFailureRequest
 import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest
 import org.wfanet.measurement.internal.reporting.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInterval
-import org.wfanet.measurement.internal.reporting.batchGetReportingSetRequest
 import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.v1alpha.Metric.SetOperation
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.SetOperationKt
@@ -1376,7 +1376,10 @@ class ReportsServiceTest {
       )
 
     // Verify proto argument of InternalReportingSetsCoroutineImplBase::batchGetReportingSet
-    verifyProtoArgument(internalReportingSetsMock, InternalReportingSetsCoroutineImplBase::batchGetReportingSet)
+    verifyProtoArgument(
+        internalReportingSetsMock,
+        InternalReportingSetsCoroutineImplBase::batchGetReportingSet
+      )
       .isEqualTo(
         batchGetReportingSetRequest {
           measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
@@ -2075,12 +2078,7 @@ class ReportsServiceTest {
   fun `createReport throws INVALID_ARGUMENT when eventGroup isn't covered by eventGroupUniverse`() =
     runBlocking {
       whenever(internalReportingSetsMock.batchGetReportingSet(any()))
-        .thenReturn(
-          flowOf(
-            INTERNAL_REPORTING_SETS[0],
-            UNCOVERED_INTERNAL_REPORTING_SET
-          )
-        )
+        .thenReturn(flowOf(INTERNAL_REPORTING_SETS[0], UNCOVERED_INTERNAL_REPORTING_SET))
       val request = createReportRequest {
         parent = MEASUREMENT_CONSUMER_NAMES[0]
         report = PENDING_REACH_REPORT.copy { clearState() }
@@ -2101,27 +2099,22 @@ class ReportsServiceTest {
     }
 
   @Test
-  fun `createReport throws NOT_FOUND when reporting set is not found`() =
-    runBlocking {
-      whenever(internalReportingSetsMock.batchGetReportingSet(any()))
-        .thenReturn(
-          flowOf(
-            INTERNAL_REPORTING_SETS[0]
-          )
-        )
-      val request = createReportRequest {
-        parent = MEASUREMENT_CONSUMER_NAMES[0]
-        report = PENDING_REACH_REPORT.copy { clearState() }
-      }
-
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
-            runBlocking { service.createReport(request) }
-          }
-        }
-      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  fun `createReport throws NOT_FOUND when reporting set is not found`() = runBlocking {
+    whenever(internalReportingSetsMock.batchGetReportingSet(any()))
+      .thenReturn(flowOf(INTERNAL_REPORTING_SETS[0]))
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      report = PENDING_REACH_REPORT.copy { clearState() }
     }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
 
   @Test
   fun `createReport throws exception from getReportByIdempotencyKey when status isn't NOT_FOUND`() =
@@ -2232,22 +2225,22 @@ class ReportsServiceTest {
   }
 
   @Test
-  fun `createReport throws exception when the internal batchGetReportingSet throws exception`(): Unit =
-    runBlocking {
-      whenever(internalReportingSetsMock.batchGetReportingSet(any()))
-        .thenThrow(StatusRuntimeException(Status.UNKNOWN))
+  fun `createReport throws exception when the internal batchGetReportingSet throws exception`():
+    Unit = runBlocking {
+    whenever(internalReportingSetsMock.batchGetReportingSet(any()))
+      .thenThrow(StatusRuntimeException(Status.UNKNOWN))
 
-      val request = createReportRequest {
-        parent = MEASUREMENT_CONSUMER_NAMES[0]
-        report = PENDING_REACH_REPORT.copy { clearState() }
-      }
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      report = PENDING_REACH_REPORT.copy { clearState() }
+    }
 
-      assertFails {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
-          runBlocking { service.createReport(request) }
-        }
+    assertFails {
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        runBlocking { service.createReport(request) }
       }
     }
+  }
 
   @Test
   fun `createReport throws exception when getDataProvider throws exception`() = runBlocking {

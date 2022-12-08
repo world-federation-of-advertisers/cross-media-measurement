@@ -307,9 +307,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
     val reportingSets = runBlocking {
       service
         .batchGetReportingSet(
-          batchGetReportingSetRequest {
-            measurementConsumerReferenceId = "1234"
-          }
+          batchGetReportingSetRequest { measurementConsumerReferenceId = "1234" }
         )
         .toList()
     }

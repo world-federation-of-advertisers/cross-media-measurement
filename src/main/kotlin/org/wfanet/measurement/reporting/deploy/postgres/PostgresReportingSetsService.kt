@@ -70,7 +70,11 @@ class PostgresReportingSetsService(
 
   override fun batchGetReportingSet(request: BatchGetReportingSetRequest): Flow<ReportingSet> {
     return ReportingSetReader()
-      .getReportingSetsByExternalIds(client, request.measurementConsumerReferenceId, request.externalReportingSetIdsList)
+      .getReportingSetsByExternalIds(
+        client,
+        request.measurementConsumerReferenceId,
+        request.externalReportingSetIdsList
+      )
       .map { result -> result.reportingSet }
       .withSerializableErrorRetries()
   }
