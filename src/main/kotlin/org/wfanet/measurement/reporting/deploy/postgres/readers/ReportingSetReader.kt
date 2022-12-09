@@ -151,12 +151,13 @@ class ReportingSetReader {
 
     var i = 2
     val bindingMap = mutableMapOf<Long, String>()
-    val inList = externalReportingSetIds.joinToString(separator = ",", prefix = "(", postfix = ")") {
-      val index = "$$i"
-      bindingMap[it] = "$$i"
-      i++
-      index
-    }
+    val inList =
+      externalReportingSetIds.joinToString(separator = ",", prefix = "(", postfix = ")") {
+        val index = "$$i"
+        bindingMap[it] = "$$i"
+        i++
+        index
+      }
     sql.append(inList)
 
     val statement =
