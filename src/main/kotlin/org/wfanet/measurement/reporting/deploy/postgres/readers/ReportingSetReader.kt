@@ -141,7 +141,7 @@ class ReportingSetReader {
         baseSql +
           """
         WHERE MeasurementConsumerReferenceId = $1
-          AND ExternalReportingSetId IN (
+          AND ExternalReportingSetId IN
         """
       )
 
@@ -151,20 +151,19 @@ class ReportingSetReader {
 
     var i = 2
     val bindingMap = mutableMapOf<Long, String>()
-    externalReportingSetIds.forEach {
-      sql.append("$$i,")
+    val inList = externalReportingSetIds.joinToString(separator = ",", prefix = "(", postfix = ")") {
+      val index = "$$i"
       bindingMap[it] = "$$i"
       i++
+      index
     }
-    sql.setCharAt(sql.lastIndex, ')')
+    sql.append(inList)
 
     val statement =
       boundStatement(sql.toString()) {
         bind("$1", measurementConsumerReferenceId)
 
-        externalReportingSetIds.forEach {
-          bind(bindingMap.getValue(it), it)
-        }
+        externalReportingSetIds.forEach { bind(bindingMap.getValue(it), it) }
       }
 
     return flow {

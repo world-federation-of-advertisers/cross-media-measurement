@@ -26,6 +26,9 @@ import java.security.PrivateKey
 import java.security.SecureRandom
 import java.time.Instant
 import kotlin.math.min
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
@@ -126,9 +129,6 @@ import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest as 
 import org.wfanet.measurement.internal.reporting.streamReportsRequest as streamInternalReportsRequest
 import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInterval
 import org.wfanet.measurement.internal.reporting.timeIntervals as internalTimeIntervals
-import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import org.wfanet.measurement.reporting.v1alpha.CreateReportRequest
 import org.wfanet.measurement.reporting.v1alpha.GetReportRequest
 import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest
@@ -461,17 +461,19 @@ class ReportsService(
           namedSetOperationResults[setOperationId] ?: continue
 
         setOperationResult.weightedMeasurementInfoList.forEach { weightedMeasurementInfo ->
-          deferred.add(async {
-            createMeasurement(
-              weightedMeasurementInfo,
-              reportInfo,
-              setOperationResult.internalMetricDetails,
-              measurementConsumer,
-              apiAuthenticationKey,
-              signingConfig,
-              internalReportingSetMap
-            )
-          })
+          deferred.add(
+            async {
+              createMeasurement(
+                weightedMeasurementInfo,
+                reportInfo,
+                setOperationResult.internalMetricDetails,
+                measurementConsumer,
+                apiAuthenticationKey,
+                signingConfig,
+                internalReportingSetMap
+              )
+            }
+          )
         }
       }
     }
@@ -515,7 +517,8 @@ class ReportsService(
           namedSetOperationResults[setOperationId] ?: continue
 
         setOperationResult.weightedMeasurementInfoList.forEach { weightedMeasurementInfo ->
-          weightedMeasurementInfo.kingdomMeasurementId = measurementMap[weightedMeasurementInfo.reportingMeasurementId]
+          weightedMeasurementInfo.kingdomMeasurementId =
+            measurementMap[weightedMeasurementInfo.reportingMeasurementId]
         }
       }
     }
@@ -551,8 +554,8 @@ class ReportsService(
 
     try {
       return measurementsStub
-          .withAuthenticationKey(apiAuthenticationKey)
-          .createMeasurement(createMeasurementRequest)
+        .withAuthenticationKey(apiAuthenticationKey)
+        .createMeasurement(createMeasurementRequest)
     } catch (e: StatusException) {
       throw Exception(
         "Unable to create the measurement [${createMeasurementRequest.measurement.name}].",
