@@ -126,6 +126,9 @@ import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest as 
 import org.wfanet.measurement.internal.reporting.streamReportsRequest as streamInternalReportsRequest
 import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInterval
 import org.wfanet.measurement.internal.reporting.timeIntervals as internalTimeIntervals
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import org.wfanet.measurement.reporting.v1alpha.CreateReportRequest
 import org.wfanet.measurement.reporting.v1alpha.GetReportRequest
 import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest
@@ -323,7 +326,7 @@ class ReportsService(
 
     val reportInfo: ReportInfo = buildReportInfo(request, resourceKey.measurementConsumerId)
 
-    val reportingSetExternalIds = mutableSetOf<Long>()
+    val reportingSetExternalIds = ReportingSetExternalIdsSet()
     val namedSetOperationResults: Map<String, SetOperationResult> =
       compileAllSetOperations(request, reportInfo, reportingSetExternalIds)
     val internalReportingSetMap: Map<Long, InternalReportingSet> =
@@ -441,7 +444,8 @@ class ReportsService(
     apiAuthenticationKey: String,
     signingConfig: SigningConfig,
     internalReportingSetMap: Map<Long, InternalReportingSet>
-  ) {
+  ) = coroutineScope {
+    val deferred = mutableListOf<Deferred<Measurement>>()
     for (metric in request.report.metricsList) {
       val internalMetricDetails = buildInternalMetricDetails(metric)
 
@@ -457,21 +461,67 @@ class ReportsService(
           namedSetOperationResults[setOperationId] ?: continue
 
         setOperationResult.weightedMeasurementInfoList.forEach { weightedMeasurementInfo ->
-          createMeasurement(
-            weightedMeasurementInfo,
-            reportInfo,
-            setOperationResult.internalMetricDetails,
-            measurementConsumer,
-            apiAuthenticationKey,
-            signingConfig,
-            internalReportingSetMap
+          deferred.add(async {
+            createMeasurement(
+              weightedMeasurementInfo,
+              reportInfo,
+              setOperationResult.internalMetricDetails,
+              measurementConsumer,
+              apiAuthenticationKey,
+              signingConfig,
+              internalReportingSetMap
+            )
+          })
+        }
+      }
+    }
+
+    // map of kingdom measurementReferenceId to kingdom apiId
+    val measurementMap = mutableMapOf<String, String>()
+    deferred.awaitAll().forEach { measurement ->
+      try {
+        val apiId = MeasurementKey.fromName(measurement.name)!!.measurementId
+        measurementMap[measurement.measurementReferenceId] = apiId
+        internalMeasurementsStub.createMeasurement(
+          internalMeasurement {
+            this.measurementConsumerReferenceId = reportInfo.measurementConsumerReferenceId
+            this.measurementReferenceId = apiId
+            state = InternalMeasurement.State.PENDING
+          }
+        )
+      } catch (e: StatusException) {
+        if (!e.status.code.equals(Status.Code.ALREADY_EXISTS)) {
+          throw Exception(
+            "Unable to create the measurement [${measurement.name}] " +
+              "in the reporting database.",
+            e
           )
+        }
+      }
+    }
+
+    for (metric in request.report.metricsList) {
+      val internalMetricDetails = buildInternalMetricDetails(metric)
+
+      for (namedSetOperation in metric.setOperationsList) {
+        val setOperationId =
+          buildSetOperationId(
+            reportInfo.reportIdempotencyKey,
+            internalMetricDetails,
+            namedSetOperation.uniqueName,
+          )
+
+        val setOperationResult: SetOperationResult =
+          namedSetOperationResults[setOperationId] ?: continue
+
+        setOperationResult.weightedMeasurementInfoList.forEach { weightedMeasurementInfo ->
+          weightedMeasurementInfo.kingdomMeasurementId = measurementMap[weightedMeasurementInfo.reportingMeasurementId]
         }
       }
     }
   }
 
-  /** Creates a measurement for a [WeightedMeasurement]. */
+  /** Creates a kingdom measurement for a [WeightedMeasurement]. */
   private suspend fun createMeasurement(
     weightedMeasurementInfo: WeightedMeasurementInfo,
     reportInfo: ReportInfo,
@@ -480,7 +530,7 @@ class ReportsService(
     apiAuthenticationKey: String,
     signingConfig: SigningConfig,
     internalReportingSetMap: Map<Long, InternalReportingSet>
-  ) {
+  ): Measurement {
     val dataProviderNameToInternalEventGroupEntriesList =
       aggregateInternalEventGroupEntryByDataProviderName(
         weightedMeasurementInfo.weightedMeasurement.reportingSets,
@@ -500,35 +550,14 @@ class ReportsService(
       )
 
     try {
-      val measurement =
-        measurementsStub
+      return measurementsStub
           .withAuthenticationKey(apiAuthenticationKey)
           .createMeasurement(createMeasurementRequest)
-      weightedMeasurementInfo.kingdomMeasurementId =
-        checkNotNull(MeasurementKey.fromName(measurement.name)).measurementId
     } catch (e: StatusException) {
       throw Exception(
         "Unable to create the measurement [${createMeasurementRequest.measurement.name}].",
         e
       )
-    }
-
-    try {
-      internalMeasurementsStub.createMeasurement(
-        internalMeasurement {
-          this.measurementConsumerReferenceId = reportInfo.measurementConsumerReferenceId
-          this.measurementReferenceId = weightedMeasurementInfo.kingdomMeasurementId!!
-          state = InternalMeasurement.State.PENDING
-        }
-      )
-    } catch (e: StatusException) {
-      if (!e.status.code.equals(Status.Code.ALREADY_EXISTS)) {
-        throw Exception(
-          "Unable to create the measurement [${createMeasurementRequest.measurement.name}] " +
-            "in the reporting database.",
-          e
-        )
-      }
     }
   }
 
@@ -536,7 +565,7 @@ class ReportsService(
   private suspend fun compileAllSetOperations(
     request: CreateReportRequest,
     reportInfo: ReportInfo,
-    reportingSetExternalIds: MutableSet<Long>
+    reportingSetExternalIds: ReportingSetExternalIdsSet
   ): Map<String, SetOperationResult> {
     val namedSetOperationResults = mutableMapOf<String, SetOperationResult>()
 
@@ -553,20 +582,20 @@ class ReportsService(
         val internalMetricDetails: InternalMetricDetails = buildInternalMetricDetails(metric)
 
         for (namedSetOperation in metric.setOperationsList) {
-          checkSetOperationReportingSetName(
-            namedSetOperation.setOperation,
-            reportInfo,
-            reportingSetExternalIds
-          )
-
-          val setOperationId =
-            buildSetOperationId(
-              reportInfo.reportIdempotencyKey,
-              internalMetricDetails,
-              namedSetOperation.uniqueName
+          launch {
+            checkSetOperationReportingSetName(
+              namedSetOperation.setOperation,
+              reportInfo,
+              reportingSetExternalIds
             )
 
-          launch {
+            val setOperationId =
+              buildSetOperationId(
+                reportInfo.reportIdempotencyKey,
+                internalMetricDetails,
+                namedSetOperation.uniqueName
+              )
+
             val weightedMeasurementInfoList =
               compileSetOperation(
                 namedSetOperation.setOperation,
@@ -609,7 +638,7 @@ class ReportsService(
   private suspend fun checkSetOperationReportingSetName(
     setOperation: SetOperation,
     reportInfo: ReportInfo,
-    reportingSetExternalIds: MutableSet<Long>
+    reportingSetExternalIds: ReportingSetExternalIdsSet
   ) {
     checkOperandReportingSetName(setOperation.lhs, reportInfo, reportingSetExternalIds)
     checkOperandReportingSetName(setOperation.rhs, reportInfo, reportingSetExternalIds)
@@ -619,7 +648,7 @@ class ReportsService(
   private suspend fun checkOperandReportingSetName(
     operand: Operand,
     reportInfo: ReportInfo,
-    reportingSetExternalIds: MutableSet<Long>
+    reportingSetExternalIds: ReportingSetExternalIdsSet
   ) {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     when (operand.operandCase) {
@@ -1265,7 +1294,7 @@ class ReportsService(
   private fun checkReportingSetName(
     reportingSetName: String,
     reportInfo: ReportInfo,
-    reportingSetExternalIds: MutableSet<Long>
+    reportingSetExternalIds: ReportingSetExternalIdsSet
   ) {
     val reportingSetKey =
       grpcRequireNotNull(ReportingSetKey.fromName(reportingSetName)) {
@@ -1348,24 +1377,25 @@ class ReportsService(
 
   private suspend fun getReportingSets(
     measurementConsumerReferenceId: String,
-    reportingSetExternalIds: MutableSet<Long>
+    reportingSetExternalIds: ReportingSetExternalIdsSet
   ): Map<Long, InternalReportingSet> {
+    val reportingSetExternalIdsCopy: MutableSet<Long> = reportingSetExternalIds.createCopy()
     val batchGetReportingSetRequest = batchGetReportingSetRequest {
       this.measurementConsumerReferenceId = measurementConsumerReferenceId
-      reportingSetExternalIds.forEach { externalReportingSetIds += it }
+      reportingSetExternalIdsCopy.forEach { externalReportingSetIds += it }
     }
 
     val internalReportingSetsList =
       internalReportingSetsStub.batchGetReportingSet(batchGetReportingSetRequest).toList()
 
-    if (internalReportingSetsList.size < reportingSetExternalIds.size) {
+    if (internalReportingSetsList.size < reportingSetExternalIdsCopy.size) {
       val errorMessage = StringBuilder("The following reporting set names were not found:")
       internalReportingSetsList.forEach {
-        if (reportingSetExternalIds.contains(it.externalReportingSetId)) {
-          reportingSetExternalIds.remove(it.externalReportingSetId)
+        if (reportingSetExternalIdsCopy.contains(it.externalReportingSetId)) {
+          reportingSetExternalIdsCopy.remove(it.externalReportingSetId)
         }
       }
-      reportingSetExternalIds.forEach {
+      reportingSetExternalIdsCopy.forEach {
         errorMessage.append(
           " ${ReportingSetKey(measurementConsumerReferenceId, externalIdToApiId(it)).toName()}"
         )
@@ -1374,6 +1404,20 @@ class ReportsService(
     }
 
     return internalReportingSetsList.associateBy { it.externalReportingSetId }
+  }
+
+  companion object {
+    private class ReportingSetExternalIdsSet {
+      private val set = mutableSetOf<Long>()
+
+      fun add(externalId: Long) {
+        set.add(externalId)
+      }
+
+      fun createCopy(): MutableSet<Long> {
+        return set.toMutableSet()
+      }
+    }
   }
 }
 

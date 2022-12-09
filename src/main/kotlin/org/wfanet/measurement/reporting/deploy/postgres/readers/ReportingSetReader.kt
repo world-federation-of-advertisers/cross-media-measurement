@@ -149,9 +149,12 @@ class ReportingSetReader {
       return emptyFlow()
     }
 
-    var j = 2
-    for (i in j until externalReportingSetIds.size + j) {
+    var i = 2
+    val bindingMap = mutableMapOf<Long, String>()
+    externalReportingSetIds.forEach {
       sql.append("$$i,")
+      bindingMap[it] = "$$i"
+      i++
     }
     sql.setCharAt(sql.lastIndex, ')')
 
@@ -160,8 +163,7 @@ class ReportingSetReader {
         bind("$1", measurementConsumerReferenceId)
 
         externalReportingSetIds.forEach {
-          bind("$$j", it)
-          j += 1
+          bind(bindingMap.getValue(it), it)
         }
       }
 
