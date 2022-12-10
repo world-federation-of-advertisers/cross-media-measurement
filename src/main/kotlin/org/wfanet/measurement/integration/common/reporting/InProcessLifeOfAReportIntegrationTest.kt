@@ -15,6 +15,7 @@
 package org.wfanet.measurement.integration.common.reporting
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.duration
@@ -251,60 +252,64 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     val eventGroupsList = listEventGroups(measurementConsumerName).eventGroupsList
     val reportingSets = listReportingSets(measurementConsumerName).reportingSetsList
     assertThat(reportingSets.size).isAtLeast(3)
-    return publicReportsClient
-      .withPrincipalName(measurementConsumerName)
-      .createReport(
-        createReportRequest {
-          parent = measurementConsumerName
-          report = report {
-            measurementConsumer = measurementConsumerName
-            reportIdempotencyKey = runId
-            eventGroupUniverse =
-              ReportKt.eventGroupUniverse {
-                eventGroupsList.forEach {
-                  eventGroupEntries +=
-                    ReportKt.EventGroupUniverseKt.eventGroupEntry { key = it.name }
-                }
-              }
-            periodicTimeInterval = periodicTimeInterval {
-              startTime = timestamp { seconds = 100 }
-              increment = duration { seconds = 5 }
-              intervalCount = 2
-            }
-            metrics += metric {
-              impressionCount = MetricKt.impressionCountParams { maximumFrequencyPerUser = 5 }
-              val setOperation =
-                MetricKt.namedSetOperation {
-                  uniqueName = "set-operation"
-                  setOperation =
-                    MetricKt.setOperation {
-                      type = Metric.SetOperation.Type.UNION
-                      lhs =
-                        MetricKt.SetOperationKt.operand {
-                          operation =
-                            MetricKt.setOperation {
-                              type = Metric.SetOperation.Type.UNION
-                              lhs =
-                                MetricKt.SetOperationKt.operand {
-                                  reportingSet = reportingSets[0].name
-                                }
-                              rhs =
-                                MetricKt.SetOperationKt.operand {
-                                  reportingSet = reportingSets[1].name
-                                }
-                            }
-                        }
-                      rhs = MetricKt.SetOperationKt.operand { reportingSet = reportingSets[2].name }
-                    }
-                }
-
-              for (i in 1..50) {
-                setOperations += setOperation.copy { uniqueName = "$uniqueName-$i" }
-              }
+    val createReportRequest = createReportRequest {
+      parent = measurementConsumerName
+      report = report {
+        measurementConsumer = measurementConsumerName
+        reportIdempotencyKey = runId
+        eventGroupUniverse =
+          ReportKt.eventGroupUniverse {
+            eventGroupsList.forEach {
+              eventGroupEntries +=
+                ReportKt.EventGroupUniverseKt.eventGroupEntry { key = it.name }
             }
           }
+        periodicTimeInterval = periodicTimeInterval {
+          startTime = timestamp { seconds = 100 }
+          increment = duration { seconds = 5 }
+          intervalCount = 2
         }
-      )
+        metrics += metric {
+          impressionCount = MetricKt.impressionCountParams { maximumFrequencyPerUser = 5 }
+          val setOperation =
+            MetricKt.namedSetOperation {
+              uniqueName = "set-operation"
+              setOperation =
+                MetricKt.setOperation {
+                  type = Metric.SetOperation.Type.UNION
+                  lhs =
+                    MetricKt.SetOperationKt.operand {
+                      operation =
+                        MetricKt.setOperation {
+                          type = Metric.SetOperation.Type.UNION
+                          lhs =
+                            MetricKt.SetOperationKt.operand {
+                              reportingSet = reportingSets[0].name
+                            }
+                          rhs =
+                            MetricKt.SetOperationKt.operand {
+                              reportingSet = reportingSets[1].name
+                            }
+                        }
+                    }
+                  rhs = MetricKt.SetOperationKt.operand { reportingSet = reportingSets[2].name }
+                }
+            }
+
+          for (i in 1..50) {
+            setOperations += setOperation.copy { uniqueName = "$uniqueName-$i" }
+          }
+        }
+      }
+    }
+
+    val report = publicReportsClient
+      .withPrincipalName(measurementConsumerName)
+      .createReport(createReportRequest)
+
+    // Verify concurrent operations process the metrics without skipping set operations.
+    assertThat(report.metricsList).ignoringRepeatedFieldOrder().containsExactlyElementsIn(createReportRequest.report.metricsList)
+    return report
   }
 
   private suspend fun getReport(reportName: String, measurementConsumerName: String): Report {
