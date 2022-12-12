@@ -51,6 +51,8 @@ import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
+import org.wfanet.measurement.common.crypto.readCertificateCollection
+import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.getRuntimePath
@@ -165,11 +167,12 @@ abstract class InProcessLifeOfAReportIntegrationTest {
 
   private val reportingServer: InProcessReportingServer by lazy {
     InProcessReportingServer(
-      reportingServerDataServices = reportingServerDataServices,
+      reportingServerDataServices,
       publicKingdomServer.channel,
       encryptionKeyPairConfig,
       SECRETS_DIR,
       measurementConsumerConfig,
+      TRUSTED_CERTIFICATES,
       verboseGrpcLogging = false,
     )
   }
@@ -194,8 +197,10 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     val createdReport = createReport("1234", MEASUREMENT_CONSUMER_NAME)
     val reports = listReports(MEASUREMENT_CONSUMER_NAME)
     assertThat(reports.reportsList).hasSize(1)
-    val reportResult = getReportResult(createdReport)
-    assertThat(reportResult).isGreaterThan(0.0)
+    val completedReport = getReport(createdReport.name, createdReport.measurementConsumer)
+    assertThat(assertThat(completedReport.state).isEqualTo(Report.State.SUCCEEDED))
+    val reportResult = computeReportResult(completedReport)
+    assertThat(reportResult).isEqualTo(200.0)
   }
 
   @Test
@@ -208,8 +213,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     }
   }
 
-  private suspend fun getReportResult(report: Report): Double {
-    val completedReport = getReport(report.name, report.measurementConsumer)
+  private fun computeReportResult(completedReport: Report): Double {
     var sum = 0.0
     completedReport.result.scalarTable.columnsList.forEach { column ->
       column.setOperationsList.forEach { sum += it }
@@ -225,7 +229,10 @@ abstract class InProcessLifeOfAReportIntegrationTest {
       )
   }
 
-  suspend fun createReportingSet(runId: String, measurementConsumerName: String): ReportingSet {
+  private suspend fun createReportingSet(
+    runId: String,
+    measurementConsumerName: String
+  ): ReportingSet {
     val eventGroupsList = listEventGroups(measurementConsumerName).eventGroupsList
     return publicReportingSetsClient
       .withPrincipalName(measurementConsumerName)
@@ -312,9 +319,9 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     return report
   }
 
-  private suspend fun getReport(reportName: String, measurementConsumerName: String): Report {
+  private suspend fun getReport(reportName: String, principalName: String): Report {
     return publicReportsClient
-      .withPrincipalName(measurementConsumerName)
+      .withPrincipalName(principalName)
       .getReport(getReportRequest { name = reportName })
   }
 
@@ -338,8 +345,13 @@ abstract class InProcessLifeOfAReportIntegrationTest {
         )!!
         .toFile()
 
+    private val TRUSTED_CERTIFICATES =
+      readCertificateCollection(SECRETS_DIR.resolve("all_root_certs.pem")).associateBy {
+        it.subjectKeyIdentifier!!
+      }
+
     private val MC_CERTIFICATE_DER: ByteString =
-      readCertificate(SECRETS_DIR.resolve("mc_cs_cert.der").readByteString()).encoded.toByteString()
+      SECRETS_DIR.resolve("mc_cs_cert.der").readByteString()
     private val MC_SIGNING_KEY_HANDLE: SigningKeyHandle =
       loadSigningKey(
         SECRETS_DIR.resolve("mc_cs_cert.der"),

@@ -24,6 +24,7 @@ import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.nio.file.Paths
 import java.security.SecureRandom
+import java.security.cert.X509Certificate
 import java.time.Instant
 import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
@@ -99,6 +100,7 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
+import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.getRuntimePath
@@ -258,6 +260,8 @@ private val AGGREGATOR_SIGNING_KEY: SigningKeyHandle by lazy {
   )
 }
 private val AGGREGATOR_CERTIFICATE = certificate { x509Der = AGGREGATOR_CERTIFICATE_DER }
+private val AGGREGATOR_ROOT_CERTIFICATE: X509Certificate =
+  readCertificate(SECRETS_DIR.resolve("aggregator_root.pem"))
 
 // Public keys of measurement consumers
 private val MEASUREMENT_PUBLIC_KEY_DATA = SECRETS_DIR.resolve("mc_enc_public.tink").readByteString()
@@ -273,6 +277,8 @@ private val MEASUREMENT_CONSUMER_CERTIFICATE_DER =
 private val MEASUREMENT_CONSUMER_PRIVATE_KEY_DER =
   SECRETS_DIR.resolve("mc_cs_private.der").readByteString()
 private val MEASUREMENT_CONSUMER_CERTIFICATE = readCertificate(MEASUREMENT_CONSUMER_CERTIFICATE_DER)
+private val TRUSTED_MEASUREMENT_CONSUMER_ISSUER: X509Certificate =
+  readCertificate(SECRETS_DIR.resolve("mc_root.pem"))
 private val MEASUREMENT_CONSUMER_SIGNING_PRIVATE_KEY =
   readPrivateKey(
     MEASUREMENT_CONSUMER_PRIVATE_KEY_DER,
@@ -1304,15 +1310,20 @@ class ReportsServiceTest {
     onBlocking {
         getCertificate(eq(getCertificateRequest { name = DATA_PROVIDER_CERTIFICATE_NAMES[0] }))
       }
-      .thenReturn(AGGREGATOR_CERTIFICATE)
+      .thenReturn(AGGREGATOR_CERTIFICATE.copy { name = DATA_PROVIDER_CERTIFICATE_NAMES[0] })
     onBlocking {
         getCertificate(eq(getCertificateRequest { name = DATA_PROVIDER_CERTIFICATE_NAMES[1] }))
       }
-      .thenReturn(AGGREGATOR_CERTIFICATE)
+      .thenReturn(AGGREGATOR_CERTIFICATE.copy { name = DATA_PROVIDER_CERTIFICATE_NAMES[1] })
     onBlocking {
         getCertificate(eq(getCertificateRequest { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME }))
       }
-      .thenReturn(certificate { x509Der = MEASUREMENT_CONSUMER_CERTIFICATE_DER })
+      .thenReturn(
+        certificate {
+          name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
+          x509Der = MEASUREMENT_CONSUMER_CERTIFICATE_DER
+        }
+      )
   }
 
   private val secureRandomMock: SecureRandom = mock()
@@ -1348,7 +1359,8 @@ class ReportsServiceTest {
         CertificatesCoroutineStub(grpcTestServerRule.channel),
         ENCRYPTION_KEY_PAIR_STORE,
         secureRandomMock,
-        SECRETS_DIR
+        SECRETS_DIR,
+        mapOf(AGGREGATOR_ROOT_CERTIFICATE.subjectKeyIdentifier!! to AGGREGATOR_ROOT_CERTIFICATE)
       )
   }
 
@@ -1428,10 +1440,11 @@ class ReportsServiceTest {
       )
       .isEqualTo(expectedMeasurement)
 
-    assertThat(
-        verifyMeasurementSpec(capturedMeasurement.measurementSpec, MEASUREMENT_CONSUMER_CERTIFICATE)
-      )
-      .isTrue()
+    verifyMeasurementSpec(
+      capturedMeasurement.measurementSpec,
+      MEASUREMENT_CONSUMER_CERTIFICATE,
+      TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+    )
     val measurementSpec = MeasurementSpec.parseFrom(capturedMeasurement.measurementSpec.data)
     assertThat(measurementSpec).isEqualTo(REACH_ONLY_MEASUREMENT_SPEC)
 
@@ -1444,15 +1457,13 @@ class ReportsServiceTest {
           DATA_PROVIDER_PRIVATE_KEY_HANDLE
         )
       val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
-      assertThat(
-          verifyRequisitionSpec(
-            signedRequisitionSpec,
-            requisitionSpec,
-            measurementSpec,
-            MEASUREMENT_CONSUMER_CERTIFICATE
-          )
-        )
-        .isTrue()
+      verifyRequisitionSpec(
+        signedRequisitionSpec,
+        requisitionSpec,
+        measurementSpec,
+        MEASUREMENT_CONSUMER_CERTIFICATE,
+        TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+      )
     }
 
     // Verify proto argument of InternalMeasurementsCoroutineImplBase::createMeasurement

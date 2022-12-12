@@ -24,6 +24,9 @@ import io.grpc.StatusException
 import java.io.File
 import java.security.PrivateKey
 import java.security.SecureRandom
+import java.security.SignatureException
+import java.security.cert.CertPathValidatorException
+import java.security.cert.X509Certificate
 import java.time.Instant
 import kotlin.math.min
 import kotlinx.coroutines.Deferred
@@ -70,6 +73,7 @@ import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
@@ -239,6 +243,7 @@ class ReportsService(
   private val encryptionKeyPairStore: EncryptionKeyPairStore,
   private val secureRandom: SecureRandom,
   private val signingPrivateKeyDir: File,
+  private val trustedCertificates: Map<ByteString, X509Certificate>
 ) : ReportsCoroutineImplBase() {
   private val setOperationCompiler = SetOperationCompiler()
 
@@ -863,8 +868,19 @@ class ReportsService(
 
     val signedResult =
       decryptResult(measurementResultPair.encryptedResult, encryptionPrivateKeyHandle)
-    if (!verifyResult(signedResult, readCertificate(certificate.x509Der))) {
-      error("Signature of the result is invalid.")
+
+    val x509Certificate: X509Certificate = readCertificate(certificate.x509Der)
+    val trustedIssuer: X509Certificate =
+      checkNotNull(trustedCertificates[checkNotNull(x509Certificate.authorityKeyIdentifier)]) {
+        "${certificate.name} not issued by trusted CA"
+      }
+    // TODO: Record verification failure in internal Measurement rather than having the RPC fail.
+    try {
+      verifyResult(signedResult, x509Certificate, trustedIssuer)
+    } catch (e: CertPathValidatorException) {
+      throw Exception("Certificate path for ${certificate.name} is invalid", e)
+    } catch (e: SignatureException) {
+      throw Exception("Measurement result signature is invalid", e)
     }
     return Measurement.Result.parseFrom(signedResult.data)
   }

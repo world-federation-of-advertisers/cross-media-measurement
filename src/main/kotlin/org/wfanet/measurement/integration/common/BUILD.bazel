@@ -95,6 +95,7 @@ kt_jvm_library(
     data = [
         "//src/main/k8s/testing/secretfiles:all_configs",
         "//src/main/k8s/testing/secretfiles:all_der_files",
+        "//src/main/k8s/testing/secretfiles:all_root_certs.pem",
         "//src/main/k8s/testing/secretfiles:all_tink_keysets",
     ],
     deps = [

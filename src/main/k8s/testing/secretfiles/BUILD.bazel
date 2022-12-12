@@ -34,6 +34,25 @@ filegroup(
 )
 
 filegroup(
+    name = "mc_trusted_certs",
+    srcs = [
+        "kingdom_root.pem",
+        "aggregator_root.pem",
+    ] + glob(["edp*_root.pem"]),
+)
+
+filegroup(
+    name = "edp_trusted_certs",
+    srcs = [
+        "aggregator_root.pem",
+        "kingdom_root.pem",
+        "mc_root.pem",
+        "worker1_root.pem",
+        "worker2_root.pem",
+    ],
+)
+
+filegroup(
     name = "encryption_public_keys",
     srcs = [
         ":mc_enc_public.pb",
@@ -45,6 +64,20 @@ genrule(
     name = "gen_trusted_certs",
     srcs = [":root_certs"],
     outs = ["all_root_certs.pem"],
+    cmd = "cat $(SRCS) > $@",
+)
+
+genrule(
+    name = "gen_mc_trusted_certs",
+    srcs = [":mc_trusted_certs"],
+    outs = ["mc_trusted_certs.pem"],
+    cmd = "cat $(SRCS) > $@",
+)
+
+genrule(
+    name = "gen_edp_trusted_certs",
+    srcs = [":edp_trusted_certs"],
+    outs = ["edp_trusted_certs.pem"],
     cmd = "cat $(SRCS) > $@",
 )
 

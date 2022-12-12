@@ -14,9 +14,11 @@
 
 package org.wfanet.measurement.integration.common.reporting
 
+import com.google.protobuf.ByteString
 import io.grpc.Channel
 import java.io.File
 import java.security.SecureRandom
+import java.security.cert.X509Certificate
 import java.util.logging.Logger
 import org.junit.rules.TestRule
 import org.junit.runner.Description
@@ -52,6 +54,7 @@ class InProcessReportingServer(
   private val encryptionKeyPairConfig: EncryptionKeyPairConfig,
   private val signingPrivateKeyDir: File,
   private val measurementConsumerConfig: MeasurementConsumerConfig,
+  trustedCertificates: Map<ByteString, X509Certificate>,
   private val verboseGrpcLogging: Boolean = true,
 ) : TestRule {
   private val publicKingdomMeasurementConsumersClient by lazy {
@@ -128,7 +131,8 @@ class InProcessReportingServer(
               publicKingdomCertificatesClient,
               encryptionKeyPairStore,
               SecureRandom(),
-              signingPrivateKeyDir
+              signingPrivateKeyDir,
+              trustedCertificates
             )
             .withMetadataPrincipalIdentities(measurementConsumerConfig)
         )

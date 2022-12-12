@@ -23,6 +23,8 @@ import com.google.protobuf.kotlin.toByteString
 import io.grpc.ManagedChannel
 import java.io.File
 import java.security.SecureRandom
+import java.security.SignatureException
+import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration as systemDuration
@@ -72,8 +74,8 @@ import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.api.withIdToken
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
-import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
@@ -131,16 +133,11 @@ class MeasurementSystem private constructor() : Runnable {
   )
   private var certHost: String? = null
 
+  val trustedCertificates: Map<ByteString, X509Certificate>
+    get() = tlsFlags.signingCerts.trustedCertificates
+
   val kingdomChannel: ManagedChannel by lazy {
-    buildMutualTlsChannel(
-        target,
-        SigningCerts.fromPemFiles(
-          tlsFlags.certFile,
-          tlsFlags.privateKeyFile,
-          tlsFlags.certCollectionFile
-        ),
-        certHost
-      )
+    buildMutualTlsChannel(target, tlsFlags.signingCerts, certHost)
       .withShutdownTimeout(CHANNEL_SHUTDOWN_TIMEOUT)
   }
 
@@ -776,8 +773,20 @@ class GetMeasurement : Runnable {
     }
 
     val signedResult = decryptResult(resultPair.encryptedResult, privateKeyHandle)
-    if (!verifyResult(signedResult, readCertificate(certificate.x509Der))) {
-      error("Signature of the result is invalid.")
+    val x509Certificate: X509Certificate = readCertificate(certificate.x509Der)
+    val trustedIssuer =
+      checkNotNull(
+        parentCommand.parentCommand.trustedCertificates[
+            checkNotNull(x509Certificate.authorityKeyIdentifier)]
+      ) {
+        "${certificate.name} not issued by trusted CA"
+      }
+    try {
+      verifyResult(signedResult, x509Certificate, trustedIssuer)
+    } catch (e: CertPathValidatorException) {
+      throw Exception("Certificate path of ${certificate.name} is invalid", e)
+    } catch (e: SignatureException) {
+      throw Exception("Measurement result signature is invalid", e)
     }
     return Measurement.Result.parseFrom(signedResult.data)
   }
