@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.integration.common
 
+import com.google.protobuf.ByteString
+import java.security.cert.X509Certificate
 import java.time.Duration
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -32,9 +34,12 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as PublicMeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub as PublicRequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
+import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.config.DuchyCertConfig
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
@@ -85,6 +90,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
         externalDuchyId = it,
         kingdomSystemApiChannel = kingdom.systemApiChannel,
         duchyDependenciesProvider = { duchyDependenciesRule.value(it) },
+        trustedCertificates = TRUSTED_CERTIFICATES,
         verboseGrpcLogging = false,
       )
     }
@@ -100,6 +106,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
         kingdomPublicApiChannel = kingdom.publicApiChannel,
         duchyPublicApiChannel = duchies[1].publicApiChannel,
         eventTemplateNames = EVENT_TEMPLATES_TO_FILTERS_MAP.keys.toList(),
+        trustedCertificates = TRUSTED_CERTIFICATES,
       )
     }
   }
@@ -180,7 +187,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
         MeasurementConsumerData(
           mcResourceName,
           MC_ENTITY_CONTENT.signingKey,
-          loadEncryptionPrivateKey("${MC_DISPLAY_NAME}_enc_private.tink"),
+          MC_ENCRYPTION_PRIVATE_KEY,
           apiAuthenticationKey
         ),
         OUTPUT_DP_PARAMS,
@@ -192,7 +199,8 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
         publicCertificatesClient,
         SketchStore(storageClient),
         RESULT_POLLING_DELAY,
-        EVENT_TEMPLATES_TO_FILTERS_MAP,
+        TRUSTED_CERTIFICATES,
+        EVENT_TEMPLATES_TO_FILTERS_MAP
       )
   }
 
@@ -267,6 +275,13 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
 
   companion object {
     private val MC_ENTITY_CONTENT: EntityContent = createEntityContent(MC_DISPLAY_NAME)
+    private val MC_ENCRYPTION_PRIVATE_KEY: TinkPrivateKeyHandle =
+      loadEncryptionPrivateKey("${MC_DISPLAY_NAME}_enc_private.tink")
+
+    private val TRUSTED_CERTIFICATES: Map<ByteString, X509Certificate> =
+      loadTestCertCollection("all_root_certs.pem").associateBy {
+        checkNotNull(it.subjectKeyIdentifier)
+      }
 
     @BeforeClass
     @JvmStatic
@@ -276,7 +291,9 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
         LLV2_PROTOCOL_CONFIG_CONFIG.protocolConfig,
         LLV2_PROTOCOL_CONFIG_CONFIG.duchyProtocolConfig
       )
-      DuchyInfo.setForTest(ALL_DUCHY_NAMES.toSet())
+      DuchyInfo.initializeFromConfig(
+        loadTextProto("duchy_cert_config.textproto", DuchyCertConfig.getDefaultInstance())
+      )
     }
   }
 }

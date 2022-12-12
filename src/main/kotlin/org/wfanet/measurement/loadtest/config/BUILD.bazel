@@ -33,3 +33,8 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/loadtest/config:loadtest_event_kt_jvm_proto",
     ],
 )
+
+kt_jvm_library(
+    name = "test_identifiers",
+    srcs = ["TestIdentifiers.kt"],
+)

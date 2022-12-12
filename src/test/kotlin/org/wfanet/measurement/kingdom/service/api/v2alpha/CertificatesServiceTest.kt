@@ -58,7 +58,7 @@ import org.wfanet.measurement.api.v2alpha.withModelProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withPrincipal
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
-import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_PEM_FILE
+import org.wfanet.measurement.common.crypto.testing.TestData
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -1096,7 +1096,8 @@ class CertificatesServiceTest {
   }
 }
 
-private val SERVER_CERTIFICATE: X509Certificate = readCertificate(FIXED_SERVER_CERT_PEM_FILE)
+private val SERVER_CERTIFICATE: X509Certificate =
+  readCertificate(TestData.FIXED_SERVER_CERT_PEM_FILE)
 private val SERVER_CERTIFICATE_DER = ByteString.copyFrom(SERVER_CERTIFICATE.encoded)
 
 private val CERTIFICATE: Certificate = certificate {

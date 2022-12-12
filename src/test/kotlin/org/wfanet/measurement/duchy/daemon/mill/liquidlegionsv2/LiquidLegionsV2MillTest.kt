@@ -31,6 +31,7 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import io.grpc.Status
 import io.opentelemetry.api.GlobalOpenTelemetry
+import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
 import java.util.Base64
@@ -56,12 +57,12 @@ import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
-import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_DER_FILE
-import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_KEY_DER_FILE
+import org.wfanet.measurement.common.crypto.testing.TestData
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.identity.DuchyInfo
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -247,8 +248,12 @@ private val LLV2_PARAMETERS =
 
 // In the test, use the same set of cert and encryption key for all parties.
 private const val CONSENT_SIGNALING_CERT_NAME = "Just a name"
-private val CONSENT_SIGNALING_CERT_DER = FIXED_SERVER_CERT_DER_FILE.readBytes().toByteString()
-private val CONSENT_SIGNALING_PRIVATE_KEY_DER = FIXED_SERVER_KEY_DER_FILE.readBytes().toByteString()
+private val CONSENT_SIGNALING_CERT_DER =
+  TestData.FIXED_SERVER_CERT_DER_FILE.readBytes().toByteString()
+private val CONSENT_SIGNALING_PRIVATE_KEY_DER =
+  TestData.FIXED_SERVER_KEY_DER_FILE.readBytes().toByteString()
+private val CONSENT_SIGNALING_ROOT_CERT: X509Certificate =
+  readCertificate(TestData.FIXED_CA_CERT_PEM_FILE)
 private val ENCRYPTION_PRIVATE_KEY = TinkPrivateKeyHandle.generateEcies()
 private val ENCRYPTION_PUBLIC_KEY: org.wfanet.measurement.api.v2alpha.EncryptionPublicKey =
   ENCRYPTION_PRIVATE_KEY.publicKey.toEncryptionPublicKey()
@@ -564,6 +569,7 @@ class LiquidLegionsV2MillTest {
   @Before
   fun initializeMill() = runBlocking {
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(60))
+    DuchyInfo.setForTest(setOf(DUCHY_ONE_NAME, DUCHY_TWO_NAME, DUCHY_THREE_NAME))
     val csX509Certificate = readCertificate(CONSENT_SIGNALING_CERT_DER)
     val csSigningKey =
       SigningKeyHandle(
@@ -571,6 +577,11 @@ class LiquidLegionsV2MillTest {
         readPrivateKey(CONSENT_SIGNALING_PRIVATE_KEY_DER, csX509Certificate.publicKey.algorithm)
       )
     val csCertificate = Certificate(CONSENT_SIGNALING_CERT_NAME, csX509Certificate)
+    val trustedCertificates =
+      DuchyInfo.entries.values.associateBy(
+        { it.rootCertificateSkid },
+        { CONSENT_SIGNALING_ROOT_CERT }
+      )
 
     aggregatorMill =
       LiquidLegionsV2Mill(
@@ -578,17 +589,18 @@ class LiquidLegionsV2MillTest {
         duchyId = DUCHY_ONE_NAME,
         signingKey = csSigningKey,
         consentSignalCert = csCertificate,
+        trustedCertificates = trustedCertificates,
         dataClients = computationDataClients,
         systemComputationParticipantsClient = systemComputationParticipantsStub,
         systemComputationsClient = systemComputationStub,
         systemComputationLogEntriesClient = systemComputationLogEntriesStub,
         computationStatsClient = computationStatsStub,
+        throttler = throttler,
         workerStubs = workerStubs,
         cryptoWorker = mockCryptoWorker,
-        throttler = throttler,
+        openTelemetry = GlobalOpenTelemetry.get(),
         requestChunkSizeBytes = 20,
         maximumAttempts = 2,
-        openTelemetry = GlobalOpenTelemetry.get(),
       )
     nonAggregatorMill =
       LiquidLegionsV2Mill(
@@ -596,17 +608,18 @@ class LiquidLegionsV2MillTest {
         duchyId = DUCHY_ONE_NAME,
         signingKey = csSigningKey,
         consentSignalCert = csCertificate,
+        trustedCertificates = trustedCertificates,
         dataClients = computationDataClients,
         systemComputationParticipantsClient = systemComputationParticipantsStub,
         systemComputationsClient = systemComputationStub,
         systemComputationLogEntriesClient = systemComputationLogEntriesStub,
         computationStatsClient = computationStatsStub,
+        throttler = throttler,
         workerStubs = workerStubs,
         cryptoWorker = mockCryptoWorker,
-        throttler = throttler,
+        openTelemetry = GlobalOpenTelemetry.get(),
         requestChunkSizeBytes = 20,
         maximumAttempts = 2,
-        openTelemetry = GlobalOpenTelemetry.get(),
       )
   }
 
@@ -1069,7 +1082,7 @@ class LiquidLegionsV2MillTest {
               errorMessage =
                 "java.lang.Exception: @Mill a nice mill, Computation 1234 failed due to:\n" +
                   "Cannot verify participation of all DataProviders.\n" +
-                  "ElGamalPublicKey signature of DUCHY_TWO is invalid."
+                  "Invalid ElGamal public key signature for Duchy $DUCHY_TWO_NAME"
               stageAttemptBuilder.apply {
                 stage = CONFIRMATION_PHASE.number
                 stageName = CONFIRMATION_PHASE.name

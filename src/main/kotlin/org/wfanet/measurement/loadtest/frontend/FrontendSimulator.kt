@@ -18,11 +18,13 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import io.grpc.StatusException
 import java.nio.file.Paths
+import java.security.SignatureException
+import java.security.cert.CertPathValidatorException
+import java.security.cert.X509Certificate
 import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.logging.Logger
-import kotlin.math.min
 import kotlin.random.Random
 import kotlinx.coroutines.time.delay
 import org.wfanet.anysketch.AnySketch
@@ -83,6 +85,7 @@ import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.flatten
@@ -94,6 +97,7 @@ import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisit
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
+import org.wfanet.measurement.loadtest.config.TestIdentifiers
 import org.wfanet.measurement.loadtest.storage.SketchStore
 
 private const val DATA_PROVIDER_WILDCARD = "dataProviders/-"
@@ -121,6 +125,7 @@ class FrontendSimulator(
   private val certificatesClient: CertificatesCoroutineStub,
   private val sketchStore: SketchStore,
   private val resultPollingDelay: Duration,
+  private val trustedCertificates: Map<ByteString, X509Certificate>,
   /** Map of event template names to filter expressions. */
   private val eventTemplateFilters: Map<String, String> = emptyMap(),
 ) {
@@ -330,18 +335,25 @@ class FrontendSimulator(
       (
         serializedMeasurementPublicKey: ByteString, nonceHashes: MutableList<ByteString>
       ) -> MeasurementSpec,
-    numberOfEdp: Int = 20,
+    maxDataProviders: Int = 20
   ): Measurement {
-    var eventGroups: List<EventGroup> = listEventGroups(measurementConsumer.name)
-    check(eventGroups.isNotEmpty()) { "No event groups found for ${measurementConsumer.name}" }
-    eventGroups = eventGroups.subList(0, min(numberOfEdp, eventGroups.size))
-    val nonceHashes = mutableListOf<ByteString>()
-    val dataProviderEntries =
-      eventGroups.map {
-        val nonce = Random.Default.nextLong()
-        nonceHashes.add(hashSha256(nonce))
-        createDataProviderEntry(it, measurementConsumer, nonce)
+    val eventGroups: List<EventGroup> =
+      listEventGroups(measurementConsumer.name).filter {
+        it.eventGroupReferenceId.startsWith(TestIdentifiers.EVENT_GROUP_REFERENCE_ID_PREFIX)
       }
+    check(eventGroups.isNotEmpty()) { "No event groups found for ${measurementConsumer.name}" }
+    val nonceHashes = mutableListOf<ByteString>()
+
+    val dataProviderEntries =
+      eventGroups
+        .groupBy { extractDataProviderKey(it.name) }
+        .entries
+        .take(maxDataProviders)
+        .map { (dataProviderKey, eventGroups) ->
+          val nonce = Random.Default.nextLong()
+          nonceHashes.add(hashSha256(nonce))
+          createDataProviderEntry(dataProviderKey, eventGroups, measurementConsumer, nonce)
+        }
 
     val request = createMeasurementRequest {
       measurement = measurement {
@@ -439,8 +451,17 @@ class FrontendSimulator(
 
     val signedResult =
       decryptResult(resultPair.encryptedResult, measurementConsumerData.encryptionKey)
-    if (!verifyResult(signedResult, readCertificate(certificate.x509Der))) {
-      error("Signature of the result is invalid.")
+    val x509Certificate: X509Certificate = readCertificate(certificate.x509Der)
+    val trustedIssuer =
+      checkNotNull(trustedCertificates[checkNotNull(x509Certificate.authorityKeyIdentifier)]) {
+        "Issuer of ${certificate.name} not trusted"
+      }
+    try {
+      verifyResult(signedResult, x509Certificate, trustedIssuer)
+    } catch (e: CertPathValidatorException) {
+      throw Exception("Certificate path is invalid for ${certificate.name}", e)
+    } catch (e: SignatureException) {
+      throw Exception("Measurement result signature is invalid", e)
     }
     return Result.parseFrom(signedResult.data)
   }
@@ -620,12 +641,13 @@ class FrontendSimulator(
     }
   }
 
-  private fun extractDataProviderName(eventGroupName: String): String {
+  private fun extractDataProviderKey(eventGroupName: String): DataProviderKey {
     val eventGroupKey = EventGroupKey.fromName(eventGroupName) ?: error("Invalid eventGroup name.")
-    return DataProviderKey(eventGroupKey.dataProviderId).toName()
+    return DataProviderKey(eventGroupKey.dataProviderId)
   }
 
-  private suspend fun getDataProvider(name: String): DataProvider {
+  private suspend fun getDataProvider(key: DataProviderKey): DataProvider {
+    val name = key.toName()
     val request = GetDataProviderRequest.newBuilder().also { it.name = name }.build()
     try {
       return dataProvidersClient
@@ -639,26 +661,32 @@ class FrontendSimulator(
   private fun createFilterExpression(): String = eventTemplateFilters.values.joinToString(" && ")
 
   private suspend fun createDataProviderEntry(
-    eventGroup: EventGroup,
+    dataProviderKey: DataProviderKey,
+    eventGroups: Iterable<EventGroup>,
     measurementConsumer: MeasurementConsumer,
     nonce: Long
   ): DataProviderEntry {
-    val dataProvider = getDataProvider(extractDataProviderName(eventGroup.name))
+    val dataProvider = getDataProvider(dataProviderKey)
 
     val eventFilterExpression = createFilterExpression()
-
     val requisitionSpec = requisitionSpec {
-      eventGroups += eventGroupEntry {
-        key = eventGroup.name
-        value =
-          RequisitionSpecKt.EventGroupEntryKt.value {
-            collectionInterval = timeInterval {
-              startTime =
-                LocalDate.now().minusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
-              endTime = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+      for (eventGroup in eventGroups) {
+        this.eventGroups += eventGroupEntry {
+          key = eventGroup.name
+          value =
+            RequisitionSpecKt.EventGroupEntryKt.value {
+              collectionInterval = timeInterval {
+                startTime =
+                  LocalDate.now()
+                    .minusDays(1)
+                    .atStartOfDay()
+                    .toInstant(ZoneOffset.UTC)
+                    .toProtoTime()
+                endTime = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+              }
+              filter = eventFilter { expression = eventFilterExpression }
             }
-            filter = eventFilter { expression = eventFilterExpression }
-          }
+        }
       }
       measurementPublicKey = measurementConsumer.publicKey.data
       this.nonce = nonce
