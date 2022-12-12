@@ -269,8 +269,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
         eventGroupUniverse =
           ReportKt.eventGroupUniverse {
             eventGroupsList.forEach {
-              eventGroupEntries +=
-                ReportKt.EventGroupUniverseKt.eventGroupEntry { key = it.name }
+              eventGroupEntries += ReportKt.EventGroupUniverseKt.eventGroupEntry { key = it.name }
             }
           }
         periodicTimeInterval = periodicTimeInterval {
@@ -292,13 +291,9 @@ abstract class InProcessLifeOfAReportIntegrationTest {
                         MetricKt.setOperation {
                           type = Metric.SetOperation.Type.UNION
                           lhs =
-                            MetricKt.SetOperationKt.operand {
-                              reportingSet = reportingSets[0].name
-                            }
+                            MetricKt.SetOperationKt.operand { reportingSet = reportingSets[0].name }
                           rhs =
-                            MetricKt.SetOperationKt.operand {
-                              reportingSet = reportingSets[1].name
-                            }
+                            MetricKt.SetOperationKt.operand { reportingSet = reportingSets[1].name }
                         }
                     }
                   rhs = MetricKt.SetOperationKt.operand { reportingSet = reportingSets[2].name }
@@ -312,12 +307,15 @@ abstract class InProcessLifeOfAReportIntegrationTest {
       }
     }
 
-    val report = publicReportsClient
-      .withPrincipalName(measurementConsumerName)
-      .createReport(createReportRequest)
+    val report =
+      publicReportsClient
+        .withPrincipalName(measurementConsumerName)
+        .createReport(createReportRequest)
 
     // Verify concurrent operations process the metrics without skipping set operations.
-    assertThat(report.metricsList).ignoringRepeatedFieldOrder().containsExactlyElementsIn(createReportRequest.report.metricsList)
+    assertThat(report.metricsList)
+      .ignoringRepeatedFieldOrder()
+      .containsExactlyElementsIn(createReportRequest.report.metricsList)
     return report
   }
 
