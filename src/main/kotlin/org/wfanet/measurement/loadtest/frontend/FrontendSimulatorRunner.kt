@@ -88,6 +88,7 @@ abstract class FrontendSimulatorRunner : Runnable {
         certificatesStub,
         SketchStore(storageClient),
         flags.resultPollingDelay,
+        flags.tlsFlags.signingCerts.trustedCertificates,
         EVENT_TEMPLATES_TO_FILTERS_MAP,
       )
 

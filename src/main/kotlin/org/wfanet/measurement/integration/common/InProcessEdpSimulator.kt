@@ -14,7 +14,9 @@
 
 package org.wfanet.measurement.integration.common
 
+import com.google.protobuf.ByteString
 import io.grpc.Channel
+import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Level
@@ -53,6 +55,7 @@ class InProcessEdpSimulator(
   kingdomPublicApiChannel: Channel,
   duchyPublicApiChannel: Channel,
   eventTemplateNames: List<String>,
+  trustedCertificates: Map<ByteString, X509Certificate>,
   coroutineContext: CoroutineContext = Dispatchers.Default,
 ) {
   private val loggingName = "${javaClass.simpleName} $displayName"
@@ -86,7 +89,8 @@ class InProcessEdpSimulator(
         InMemoryBackingStore(),
         100.0f,
         100.0f
-      )
+      ),
+      trustedCertificates
     )
 
   private lateinit var edpJob: Job
