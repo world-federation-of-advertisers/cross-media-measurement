@@ -95,6 +95,8 @@ import org.wfanet.measurement.reporting.v1alpha.periodicTimeInterval
 import org.wfanet.measurement.reporting.v1alpha.report
 import org.wfanet.measurement.reporting.v1alpha.reportingSet
 
+private const val NUM_SET_OPERATIONS = 50
+
 /**
  * Test that everything is wired up properly.
  *
@@ -200,7 +202,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     val completedReport = getReport(createdReport.name, createdReport.measurementConsumer)
     assertThat(assertThat(completedReport.state).isEqualTo(Report.State.SUCCEEDED))
     val reportResult = computeReportResult(completedReport)
-    assertThat(reportResult).isEqualTo(200.0)
+    assertThat(reportResult).isEqualTo(200.0 * NUM_SET_OPERATIONS)
   }
 
   @Test
@@ -303,7 +305,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
                 }
             }
 
-          for (i in 1..50) {
+          for (i in 1..NUM_SET_OPERATIONS) {
             setOperations += setOperation.copy { uniqueName = "$uniqueName-$i" }
           }
         }

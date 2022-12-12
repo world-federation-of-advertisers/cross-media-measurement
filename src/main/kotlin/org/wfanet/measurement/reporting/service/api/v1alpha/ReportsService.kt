@@ -112,6 +112,7 @@ import org.wfanet.measurement.internal.reporting.PeriodicTimeInterval as Interna
 import org.wfanet.measurement.internal.reporting.Report as InternalReport
 import org.wfanet.measurement.internal.reporting.ReportKt as InternalReportKt
 import org.wfanet.measurement.internal.reporting.ReportingSet as InternalReportingSet
+import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.SetMeasurementResultRequest as SetInternalMeasurementResultRequest
@@ -132,7 +133,6 @@ import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest as 
 import org.wfanet.measurement.internal.reporting.streamReportsRequest as streamInternalReportsRequest
 import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInterval
 import org.wfanet.measurement.internal.reporting.timeIntervals as internalTimeIntervals
-import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt
 import org.wfanet.measurement.reporting.v1alpha.CreateReportRequest
 import org.wfanet.measurement.reporting.v1alpha.GetReportRequest
 import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest
@@ -331,10 +331,13 @@ class ReportsService(
 
     val reportInfo: ReportInfo = buildReportInfo(request, resourceKey.measurementConsumerId)
 
-    val metrics = Metrics(reportInfo, internalReportingSetsStub, setOperationCompiler, request.report)
+    val metrics =
+      Metrics(reportInfo, internalReportingSetsStub, setOperationCompiler, request.report)
     metrics.process()
-    val namedSetOperationResults: Map<String, SetOperationResult> = metrics.getNamedSetOperationResults()
-    val internalReportingSetMap: Map<Long, InternalReportingSet> = metrics.getInternalReportingSetsMap()
+    val namedSetOperationResults: Map<String, SetOperationResult> =
+      metrics.getNamedSetOperationResults()
+    val internalReportingSetMap: Map<Long, InternalReportingSet> =
+      metrics.getInternalReportingSetsMap()
 
     val measurementConsumer =
       try {
@@ -1238,7 +1241,8 @@ class ReportsService(
     private val reportInfo: ReportInfo,
     private val internalReportingSetsStub: ReportingSetsGrpcKt.ReportingSetsCoroutineStub,
     private val setOperationCompiler: SetOperationCompiler,
-    private val report: Report) {
+    private val report: Report
+  ) {
 
     private val reportingSetExternalIds: MutableSet<Long> = mutableSetOf()
     private lateinit var namedSetOperationResults: Map<String, SetOperationResult>
@@ -1265,7 +1269,6 @@ class ReportsService(
       }
       return internalReportingSetMap
     }
-
 
     /** Compiles all [SetOperation]s and outputs each result with measurement reference ID. */
     private suspend fun compileAllSetOperations(): Map<String, SetOperationResult> {
@@ -1316,10 +1319,8 @@ class ReportsService(
     private fun checkOperandReportingSetName(operand: Operand) {
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (operand.operandCase) {
-        Operand.OperandCase.OPERATION ->
-          checkSetOperationReportingSetName(operand.operation)
-        Operand.OperandCase.REPORTING_SET ->
-          checkReportingSetName(operand.reportingSet)
+        Operand.OperandCase.OPERATION -> checkSetOperationReportingSetName(operand.operation)
+        Operand.OperandCase.REPORTING_SET -> checkReportingSetName(operand.reportingSet)
         Operand.OperandCase.OPERAND_NOT_SET -> {}
       }
     }
@@ -1442,14 +1443,16 @@ private fun Report.timeIntervalsList(): List<TimeInterval> {
  * Check if the event groups in the internal [InternalReportingSet] are covered by the event group
  * universe.
  */
-private fun InternalReportingSet.checkReportingSetEventGroupFilters(eventGroupFilters: Map<String, String>) {
+private fun InternalReportingSet.checkReportingSetEventGroupFilters(
+  eventGroupFilters: Map<String, String>
+) {
   for (eventGroupKey in this.eventGroupKeysList) {
     val eventGroupName =
       EventGroupKey(
-        eventGroupKey.measurementConsumerReferenceId,
-        eventGroupKey.dataProviderReferenceId,
-        eventGroupKey.eventGroupReferenceId
-      )
+          eventGroupKey.measurementConsumerReferenceId,
+          eventGroupKey.dataProviderReferenceId,
+          eventGroupKey.eventGroupReferenceId
+        )
         .toName()
     val internalReportingSetDisplayName = this.displayName
     grpcRequire(eventGroupFilters.containsKey(eventGroupName)) {
