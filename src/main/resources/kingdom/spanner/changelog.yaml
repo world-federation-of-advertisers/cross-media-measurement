@@ -21,3 +21,6 @@ databaseChangeLog:
 - include:
     file: create-exchange-schema.sql
     relativeToChangeLogFile: true
+- include:
+    file: add-event-group-metadata-idempotency-key.sql
+    relativeToChangeLogFile: true
