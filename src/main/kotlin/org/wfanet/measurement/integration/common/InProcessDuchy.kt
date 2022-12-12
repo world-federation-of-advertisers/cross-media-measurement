@@ -56,6 +56,7 @@ import org.wfanet.measurement.duchy.service.internal.computationcontrol.AsyncCom
 import org.wfanet.measurement.duchy.service.internal.computations.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computationstats.ComputationStatsService
 import org.wfanet.measurement.duchy.service.system.v1alpha.ComputationControlService
+import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.duchy.storage.RequisitionStore
 import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.AsyncComputationControlCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
@@ -126,6 +127,8 @@ class InProcessDuchy(
         ComputationsService(
           duchyDependencies.computationsDatabase,
           systemComputationLogEntriesClient,
+          ComputationStore(duchyDependencies.storageClient),
+          RequisitionStore(duchyDependencies.storageClient),
           externalDuchyId,
         )
       )

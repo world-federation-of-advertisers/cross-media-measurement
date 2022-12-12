@@ -26,17 +26,19 @@ import org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.GcpSpanner
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.continuationtoken.SpannerContinuationTokensService
 import org.wfanet.measurement.gcloud.spanner.SpannerFlags
 import org.wfanet.measurement.gcloud.spanner.usingSpanner
+import org.wfanet.measurement.storage.forwarded.ForwardedStorageFromFlags
 import picocli.CommandLine
 
-/** Implementation of [ComputationsServer] using Google Cloud Spanner. */
+/** Implementation of [ComputationsServer] using Google Cloud Spanner and Fake Storage Service. */
 @CommandLine.Command(
-  name = "SpannerComputationsServer",
+  name = "ForwardedStorageSpannerComputationsServer",
   description = ["Server daemon for ${ComputationsServer.SERVICE_NAME} service."],
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
-class SpannerComputationsServer : ComputationsServer() {
+class ForwardedStorageSpannerComputationServer : ComputationsServer() {
   @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
+  @CommandLine.Mixin private lateinit var forwardedStorageFlags: ForwardedStorageFromFlags.Flags
 
   override val protocolStageEnumHelper = ComputationProtocolStages
   override val computationProtocolStageDetails = ComputationProtocolStageDetails
@@ -44,6 +46,8 @@ class SpannerComputationsServer : ComputationsServer() {
   override fun run() = runBlocking {
     spannerFlags.usingSpanner { spanner ->
       val databaseClient = spanner.databaseClient
+      val storageClient =
+        ForwardedStorageFromFlags(forwardedStorageFlags, flags.server.tlsFlags).storageClient
       run(
         GcpSpannerComputationsDatabaseReader(databaseClient, protocolStageEnumHelper),
         GcpSpannerComputationsDatabaseTransactor(
@@ -55,10 +59,11 @@ class SpannerComputationsServer : ComputationsServer() {
               computationProtocolStageDetails
             )
         ),
-        SpannerContinuationTokensService(databaseClient)
+        SpannerContinuationTokensService(databaseClient),
+        storageClient
       )
     }
   }
 }
 
-fun main(args: Array<String>) = commandLineMain(SpannerComputationsServer(), args)
+fun main(args: Array<String>) = commandLineMain(ForwardedStorageSpannerComputationServer(), args)
