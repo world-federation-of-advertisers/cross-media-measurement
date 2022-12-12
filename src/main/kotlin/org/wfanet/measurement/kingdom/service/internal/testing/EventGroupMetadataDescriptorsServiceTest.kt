@@ -158,30 +158,23 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
   }
 
   @Test
-  fun `createEventGroupMetadataDescriptor returns created Descriptor for existing external ID`() =
+  fun `createEventGroupMetadataDescriptor returns existing Descriptor by idempotency key`() =
     runBlocking {
       val externalDataProviderId =
         population.createDataProvider(dataProvidersService).externalDataProviderId
+      val idempotencyKey = "type.googleapis.com/example.TestMetadataMessage"
+      val request = eventGroupMetadataDescriptor {
+        this.externalDataProviderId = externalDataProviderId
+        this.idempotencyKey = idempotencyKey
+        this.details = DETAILS
+      }
+      val existingDescriptor: EventGroupMetadataDescriptor =
+        eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(request)
 
-      val createdEventGroupMetadataDescriptor =
-        eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
-          eventGroupMetadataDescriptor {
-            this.externalDataProviderId = externalDataProviderId
-            details = DETAILS
-          }
-        )
-      val secondCreatedEventGroupMetadataDescriptorAttempt =
-        eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
-          eventGroupMetadataDescriptor {
-            this.externalDataProviderId = externalDataProviderId
-            externalEventGroupMetadataDescriptorId =
-              createdEventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId
-            details = DETAILS
-          }
-        )
+      val createdDescriptor =
+        eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(request)
 
-      assertThat(secondCreatedEventGroupMetadataDescriptorAttempt)
-        .isEqualTo(createdEventGroupMetadataDescriptor)
+      assertThat(createdDescriptor).isEqualTo(existingDescriptor)
     }
 
   @Test
