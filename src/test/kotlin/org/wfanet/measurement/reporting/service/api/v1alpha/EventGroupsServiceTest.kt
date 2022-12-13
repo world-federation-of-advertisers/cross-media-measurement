@@ -18,6 +18,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any
 import com.google.protobuf.ByteString
+import com.google.protobuf.TypeRegistry
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.nio.file.Path
@@ -39,9 +40,11 @@ import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsResponse
+import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessage
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessageKt.age
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessageKt.duration
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessageKt.name
@@ -189,6 +192,20 @@ class EventGroupsServiceTest {
 
   @Test
   fun `listEventGroups returns list with no filter`() {
+    cmmsEventGroupsServiceMock.stub {
+      onBlocking { listEventGroups(any()) }
+        .thenReturn(
+          cmmsListEventGroupsResponse {
+            eventGroups +=
+              listOf(
+                CMMS_EVENT_GROUP,
+                // When there's no filter applied to metadata, it doesn't need to be set on all EGs.
+                CMMS_EVENT_GROUP_2.copy { clearEncryptedMetadata() }
+              )
+            nextPageToken = NEXT_PAGE_TOKEN
+          }
+        )
+    }
     val eventGroupsService =
       EventGroupsService(
         EventGroupsCoroutineStub(grpcTestServerRule.channel),
@@ -225,10 +242,6 @@ class EventGroupsServiceTest {
                     .toName()
                 dataProvider = DATA_PROVIDER_NAME
                 eventGroupReferenceId = "id2"
-                metadata = metadata {
-                  eventGroupMetadataDescriptor = METADATA_NAME
-                  metadata = Any.pack(TEST_MESSAGE_2)
-                }
               }
             )
           nextPageToken = NEXT_PAGE_TOKEN
@@ -252,7 +265,8 @@ class EventGroupsServiceTest {
       EventGroupsService(
         EventGroupsCoroutineStub(grpcTestServerRule.channel),
         EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
-        ENCRYPTION_KEY_PAIR_STORE
+        ENCRYPTION_KEY_PAIR_STORE,
+        TypeRegistry.newBuilder().add(TestMetadataMessage.getDescriptor()).build()
       )
     val result =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
@@ -260,7 +274,7 @@ class EventGroupsServiceTest {
           eventGroupsService.listEventGroups(
             listEventGroupsRequest {
               parent = EVENT_GROUP_PARENT
-              filter = "age.value > 10"
+              filter = "metadata.metadata.age.value > 10"
               pageToken = PAGE_TOKEN
             }
           )
@@ -336,7 +350,7 @@ class EventGroupsServiceTest {
             eventGroupsService.listEventGroups(
               listEventGroupsRequest {
                 parent = EVENT_GROUP_PARENT
-                filter = "age.value > 10"
+                filter = "metadata.metadata.age.value > 10"
               }
             )
           }
@@ -386,7 +400,7 @@ class EventGroupsServiceTest {
             eventGroupsService.listEventGroups(
               listEventGroupsRequest {
                 parent = EVENT_GROUP_PARENT
-                filter = "age.value > 10"
+                filter = "metadata.metadata.age.value > 10"
               }
             )
           }
@@ -397,20 +411,21 @@ class EventGroupsServiceTest {
   }
 
   @Test
-  fun `listEventGroups throws FAILED_PRECONDITION if parent not found`() {
+  fun `listEventGroups throws INVALID_ARGUMENT if parent not specified`() {
     val eventGroupsService =
       EventGroupsService(
         EventGroupsCoroutineStub(grpcTestServerRule.channel),
         EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel),
         ENCRYPTION_KEY_PAIR_STORE
       )
-    val result =
+
+    val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME, CONFIG) {
           runBlocking {
             eventGroupsService.listEventGroups(
               listEventGroupsRequest {
-                filter = "age.value > 10"
+                filter = "metadata.metadata.age.value > 10"
                 pageToken = PAGE_TOKEN
                 ENCRYPTION_KEY_PAIR_STORE
               }
@@ -419,7 +434,8 @@ class EventGroupsServiceTest {
         }
       }
 
-    assertThat(result.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().ignoringCase().contains("parent")
   }
 
   @Test
@@ -436,7 +452,7 @@ class EventGroupsServiceTest {
           eventGroupsService.listEventGroups(
             listEventGroupsRequest {
               parent = EVENT_GROUP_PARENT
-              filter = "age.value > 10"
+              filter = "metadata.metadata.age.value > 10"
             }
           )
         }

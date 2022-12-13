@@ -57,4 +57,65 @@ object ProtoReflection {
       add(dep)
     }
   }
+
+  /** Builds [Descriptors.Descriptor]s from [fileDescriptorSets]. */
+  fun buildDescriptors(
+    fileDescriptorSets: Iterable<DescriptorProtos.FileDescriptorSet>
+  ): List<Descriptors.Descriptor> {
+    val fileDescriptors =
+      FileDescriptorMapBuilder(fileDescriptorSets.flatMap { it.fileList }.associateBy { it.name })
+        .build()
+    return fileDescriptors.values.flatMap { it.messageTypes }
+  }
+
+  private class FileDescriptorMapBuilder(
+    private val fileDescriptorProtos: Map<String, DescriptorProtos.FileDescriptorProto>
+  ) {
+    /** Builds a [Map] of file name to [Descriptors.FileDescriptor]. */
+    fun build(): Map<String, Descriptors.FileDescriptor> {
+      val fileDescriptors = mutableMapOf<String, Descriptors.FileDescriptor>()
+      for (fileDescriptorProto in fileDescriptorProtos.values) {
+        fileDescriptors.add(fileDescriptorProto)
+      }
+      return fileDescriptors
+    }
+
+    private fun MutableMap<String, Descriptors.FileDescriptor>.add(
+      fileDescriptorProto: DescriptorProtos.FileDescriptorProto
+    ) {
+      if (containsKey(fileDescriptorProto.name)) {
+        return
+      }
+      addDeps(fileDescriptorProto)
+      put(
+        fileDescriptorProto.name,
+        Descriptors.FileDescriptor.buildFrom(
+          fileDescriptorProto,
+          fileDescriptorProto.dependencyList.map { getValue(it) }.toTypedArray()
+        )
+      )
+    }
+
+    /**
+     * Adds all direct and transitive dependencies of [fileDescriptorProto] to this [MutableMap].
+     */
+    private fun MutableMap<String, Descriptors.FileDescriptor>.addDeps(
+      fileDescriptorProto: DescriptorProtos.FileDescriptorProto,
+    ) {
+      for (depName in fileDescriptorProto.dependencyList) {
+        if (containsKey(depName)) {
+          continue
+        }
+        val depProto: DescriptorProtos.FileDescriptorProto = fileDescriptorProtos.getValue(depName)
+        addDeps(depProto)
+        put(
+          depName,
+          Descriptors.FileDescriptor.buildFrom(
+            depProto,
+            depProto.dependencyList.map { getValue(it) }.toTypedArray()
+          )
+        )
+      }
+    }
+  }
 }

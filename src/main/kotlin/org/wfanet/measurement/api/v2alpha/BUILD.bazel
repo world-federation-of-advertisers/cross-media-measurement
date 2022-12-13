@@ -31,17 +31,6 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "event_group_metadata_parser",
-    srcs = ["EventGroupMetadataParser.kt"],
-    deps = [
-        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_metadata_descriptor_kt_jvm_proto",
-        "@wfa_common_jvm//imports/java/com/google/protobuf",
-        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
-    ],
-)
-
-kt_jvm_library(
     name = "resource_key",
     srcs = glob(["*Key.kt"]) + ["IdVariable.kt"],
     deps = [
