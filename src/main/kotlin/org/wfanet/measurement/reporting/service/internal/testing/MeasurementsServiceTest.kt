@@ -523,44 +523,48 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
                 MetricKt.details {
                   impressionCount = MetricKt.impressionCountParams { maximumFrequencyPerUser = 2 }
                 }
-              namedSetOperations += NAMED_SET_OPERATION.copy {
-                measurementCalculations +=
-                  MetricKt.measurementCalculation {
-                    timeInterval = timeInterval {
-                      startTime = PERIODIC_TIME_INTERVAL.startTime
-                      endTime = Timestamps.add(startTime, PERIODIC_TIME_INTERVAL.increment)
+              namedSetOperations +=
+                NAMED_SET_OPERATION.copy {
+                  measurementCalculations +=
+                    MetricKt.measurementCalculation {
+                      timeInterval = timeInterval {
+                        startTime = PERIODIC_TIME_INTERVAL.startTime
+                        endTime = Timestamps.add(startTime, PERIODIC_TIME_INTERVAL.increment)
+                      }
+                      weightedMeasurements +=
+                        MetricKt.MeasurementCalculationKt.weightedMeasurement {
+                          measurementReferenceId = MEASUREMENT_REFERENCE_ID
+                          coefficient = 1
+                        }
+                      weightedMeasurements +=
+                        MetricKt.MeasurementCalculationKt.weightedMeasurement {
+                          measurementReferenceId = MEASUREMENT_REFERENCE_ID_2
+                          coefficient = 3
+                        }
                     }
-                    weightedMeasurements +=
-                      MetricKt.MeasurementCalculationKt.weightedMeasurement {
-                        measurementReferenceId = MEASUREMENT_REFERENCE_ID
-                        coefficient = 1
-                      }
-                    weightedMeasurements +=
-                      MetricKt.MeasurementCalculationKt.weightedMeasurement {
-                        measurementReferenceId = MEASUREMENT_REFERENCE_ID_2
-                        coefficient = 3
-                      }
-                  }
 
-                measurementCalculations +=
-                  MetricKt.measurementCalculation {
-                    timeInterval = timeInterval {
-                      startTime =
-                        Timestamps.add(PERIODIC_TIME_INTERVAL.startTime, PERIODIC_TIME_INTERVAL.increment)
-                      endTime = Timestamps.add(startTime, PERIODIC_TIME_INTERVAL.increment)
+                  measurementCalculations +=
+                    MetricKt.measurementCalculation {
+                      timeInterval = timeInterval {
+                        startTime =
+                          Timestamps.add(
+                            PERIODIC_TIME_INTERVAL.startTime,
+                            PERIODIC_TIME_INTERVAL.increment
+                          )
+                        endTime = Timestamps.add(startTime, PERIODIC_TIME_INTERVAL.increment)
+                      }
+                      weightedMeasurements +=
+                        MetricKt.MeasurementCalculationKt.weightedMeasurement {
+                          measurementReferenceId = MEASUREMENT_REFERENCE_ID
+                          coefficient = 1
+                        }
+                      weightedMeasurements +=
+                        MetricKt.MeasurementCalculationKt.weightedMeasurement {
+                          measurementReferenceId = MEASUREMENT_REFERENCE_ID_2
+                          coefficient = 3
+                        }
                     }
-                    weightedMeasurements +=
-                      MetricKt.MeasurementCalculationKt.weightedMeasurement {
-                        measurementReferenceId = MEASUREMENT_REFERENCE_ID
-                        coefficient = 1
-                      }
-                    weightedMeasurements +=
-                      MetricKt.MeasurementCalculationKt.weightedMeasurement {
-                        measurementReferenceId = MEASUREMENT_REFERENCE_ID_2
-                        coefficient = 3
-                      }
-                  }
-              }
+                }
             }
           }
         }
