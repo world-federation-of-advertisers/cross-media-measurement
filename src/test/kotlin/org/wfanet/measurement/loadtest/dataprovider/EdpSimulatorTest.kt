@@ -61,8 +61,12 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCorouti
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyKey
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
@@ -83,6 +87,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.elGamalPublicKey
+import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplate
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplate.Gender
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplateKt.gender
@@ -96,6 +101,7 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.testPrivacyBud
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.liquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
+import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
@@ -124,6 +130,7 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.duchy.signElgamalPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
+import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup as PrivacyLandscapeAge
@@ -224,16 +231,36 @@ private const val DUCHY_ID = "worker1"
 
 @RunWith(JUnit4::class)
 class EdpSimulatorTest {
-
   private val certificatesServiceMock: CertificatesCoroutineImplBase = mockService {
     onBlocking {
-        getCertificate(eq(getCertificateRequest { name = MEASUREMENT_CONSUMER_CERTIFICATE.name }))
+        getCertificate(eq(getCertificateRequest { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME }))
       }
       .thenReturn(MEASUREMENT_CONSUMER_CERTIFICATE)
     onBlocking { getCertificate(eq(getCertificateRequest { name = DUCHY_CERTIFICATE.name })) }
       .thenReturn(DUCHY_CERTIFICATE)
   }
+  private val measurementConsumersServiceMock:
+    MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase =
+    mockService {
+      onBlocking { getMeasurementConsumer(any()) }
+        .thenReturn(
+          measurementConsumer {
+            publicKey = signEncryptionPublicKey(MC_PUBLIC_KEY, MC_SIGNING_KEY)
+            certificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
+          }
+        )
+    }
   private val eventGroupsServiceMock: EventGroupsCoroutineImplBase = mockService()
+  private val eventGroupMetadataDescriptorsServiceMock:
+    EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase =
+    mockService {
+      onBlocking { createEventGroupMetadataDescriptor(any()) }
+        .thenReturn(
+          eventGroupMetadataDescriptor {
+            name = "dataProviders/foo/eventGroupMetadataDescriptors/bar"
+          }
+        )
+    }
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
     onBlocking { listRequisitions(any()) }
       .thenReturn(listRequisitionsResponse { requisitions += REQUISITION_ONE })
@@ -244,10 +271,16 @@ class EdpSimulatorTest {
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
+    addService(measurementConsumersServiceMock)
     addService(certificatesServiceMock)
     addService(eventGroupsServiceMock)
+    addService(eventGroupMetadataDescriptorsServiceMock)
     addService(requisitionsServiceMock)
     addService(requisitionFulfillmentServiceMock)
+  }
+
+  private val measurementConsumersStub by lazy {
+    MeasurementConsumersCoroutineStub(grpcTestServerRule.channel)
   }
 
   private val certificatesStub: CertificatesCoroutineStub by lazy {
@@ -256,6 +289,10 @@ class EdpSimulatorTest {
 
   private val eventGroupsStub: EventGroupsCoroutineStub by lazy {
     EventGroupsCoroutineStub(grpcTestServerRule.channel)
+  }
+
+  private val eventGroupMetadataDescriptorsStub by lazy {
+    EventGroupMetadataDescriptorsCoroutineStub(grpcTestServerRule.channel)
   }
 
   private val requisitionsStub: RequisitionsCoroutineStub by lazy {
@@ -353,8 +390,10 @@ class EdpSimulatorTest {
         EdpSimulator(
           EDP_DATA,
           MC_NAME,
+          measurementConsumersStub,
           certificatesStub,
           eventGroupsStub,
+          eventGroupMetadataDescriptorsStub,
           requisitionsStub,
           requisitionFulfillmentStub,
           sketchStore,
@@ -672,8 +711,10 @@ class EdpSimulatorTest {
       EdpSimulator(
         EDP_DATA,
         MC_NAME,
+        measurementConsumersStub,
         certificatesStub,
         eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
         requisitionsStub,
         requisitionFulfillmentStub,
         sketchStore,
@@ -745,6 +786,9 @@ class EdpSimulatorTest {
       nonceHashes += hashSha256(REQUISITION_ONE_SPEC.nonce)
     }
 
+    private val MC_PUBLIC_KEY =
+      loadPublicKey(SECRET_FILES_PATH.resolve("mc_enc_public.tink").toFile())
+        .toEncryptionPublicKey()
     private val MEASUREMENT_PUBLIC_KEY =
       loadPublicKey(SECRET_FILES_PATH.resolve("${EDP_DISPLAY_NAME}_enc_public.tink").toFile())
         .toEncryptionPublicKey()

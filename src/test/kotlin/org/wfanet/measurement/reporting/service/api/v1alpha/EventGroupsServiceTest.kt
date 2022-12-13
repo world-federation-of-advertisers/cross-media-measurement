@@ -18,9 +18,6 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any
 import com.google.protobuf.ByteString
-import com.google.protobuf.DescriptorProtos.FileDescriptorSet
-import com.google.protobuf.Descriptors.Descriptor
-import com.google.protobuf.Descriptors.FileDescriptor
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.nio.file.Path
@@ -53,6 +50,7 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testParen
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest as cmmsListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse as cmmsListEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.crypto.tink.TinkPublicKeyHandle
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
@@ -158,7 +156,7 @@ private const val EVENT_GROUP_PARENT =
 private const val METADATA_NAME = "$DATA_PROVIDER_NAME/eventGroupMetadataDescriptors/abc"
 private val EVENT_GROUP_METADATA_DESCRIPTOR = eventGroupMetadataDescriptor {
   name = METADATA_NAME
-  descriptorSet = TEST_MESSAGE.descriptorForType.getFileDescriptorSet()
+  descriptorSet = ProtoReflection.buildFileDescriptorSet(TEST_MESSAGE.descriptorForType)
 }
 
 @RunWith(JUnit4::class)
@@ -446,23 +444,6 @@ class EventGroupsServiceTest {
 
     assertThat(result.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
-}
-
-fun Descriptor.getFileDescriptorSet(): FileDescriptorSet {
-  val fileDescriptors = mutableSetOf<FileDescriptor>()
-  val toVisit = mutableListOf<FileDescriptor>(file)
-  while (toVisit.isNotEmpty()) {
-    val fileDescriptor = toVisit.removeLast()
-    if (!fileDescriptors.contains(fileDescriptor)) {
-      fileDescriptors.add(fileDescriptor)
-      fileDescriptor.dependencies.forEach {
-        if (!fileDescriptors.contains(it)) {
-          toVisit.add(it)
-        }
-      }
-    }
-  }
-  return FileDescriptorSet.newBuilder().addAllFile(fileDescriptors.map { it.toProto() }).build()
 }
 
 private fun loadEncryptionPrivateKey(fileName: String): TinkPrivateKeyHandle {
