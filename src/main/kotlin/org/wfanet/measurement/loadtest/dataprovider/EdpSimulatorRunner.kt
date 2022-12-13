@@ -18,7 +18,9 @@ import io.grpc.ManagedChannel
 import java.time.Clock
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -46,15 +48,18 @@ abstract class EdpSimulatorRunner : Runnable {
         trustedCertCollectionFile = flags.tlsFlags.certCollectionFile
       )
 
-    val v2alphaPublicApiChannel: ManagedChannel =
+    val v2AlphaPublicApiChannel: ManagedChannel =
       buildMutualTlsChannel(
         flags.kingdomPublicApiFlags.target,
         clientCerts,
         flags.kingdomPublicApiFlags.certHost
       )
-    val requisitionsStub = RequisitionsCoroutineStub(v2alphaPublicApiChannel)
-    val eventGroupsStub = EventGroupsCoroutineStub(v2alphaPublicApiChannel)
-    val certificatesStub = CertificatesCoroutineStub(v2alphaPublicApiChannel)
+    val requisitionsStub = RequisitionsCoroutineStub(v2AlphaPublicApiChannel)
+    val eventGroupsStub = EventGroupsCoroutineStub(v2AlphaPublicApiChannel)
+    val eventGroupMetadataDescriptorsStub =
+      EventGroupMetadataDescriptorsCoroutineStub(v2AlphaPublicApiChannel)
+    val measurementConsumersStub = MeasurementConsumersCoroutineStub(v2AlphaPublicApiChannel)
+    val certificatesStub = CertificatesCoroutineStub(v2AlphaPublicApiChannel)
 
     val requisitionFulfillmentStub =
       RequisitionFulfillmentCoroutineStub(
@@ -76,8 +81,10 @@ abstract class EdpSimulatorRunner : Runnable {
       EdpSimulator(
         edpData,
         flags.mcResourceName,
+        measurementConsumersStub,
         certificatesStub,
         eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
         requisitionsStub,
         requisitionFulfillmentStub,
         SketchStore(storageClient),

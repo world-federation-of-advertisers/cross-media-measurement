@@ -20,6 +20,7 @@ import "wfa/measurement/internal/duchy/computation_details.proto";
 import "wfa/measurement/internal/duchy/computation_protocols.proto";
 import "wfa/measurement/internal/duchy/computation_token.proto";
 import "wfa/measurement/internal/duchy/requisition_details.proto";
+import "google/protobuf/empty.proto";
 
 option java_package = "org.wfanet.measurement.internal.duchy";
 option java_multiple_files = true;
@@ -33,6 +34,10 @@ service Computations {
   // Creates a computation.
   rpc CreateComputation(CreateComputationRequest)
       returns (CreateComputationResponse);
+
+  // Deletes a computation.
+  rpc DeleteComputation(DeleteComputationRequest)
+      returns (google.protobuf.Empty);
 
   // Gets the ComputationToken for a specific computation by
   // its global identifier.
@@ -93,6 +98,11 @@ message CreateComputationRequest {
 message CreateComputationResponse {
   // Token of the created computation.
   ComputationToken token = 1;
+}
+
+message DeleteComputationRequest {
+  // The local identifier of the computation.
+  int64 local_computation_id = 1;
 }
 
 // Request for a ComputationToken for a specific computation.

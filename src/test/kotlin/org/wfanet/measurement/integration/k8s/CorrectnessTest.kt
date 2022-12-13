@@ -263,7 +263,7 @@ class CorrectnessTest {
           Paths.get("common", "daemon", "herald", "herald_daemon_image.tar")
         ),
         DUCHY_DEPLOY_PATH.resolve(
-          Paths.get("gcloud", "server", "spanner_computations_server_image.tar")
+          Paths.get("gcloud", "server", "forwarded_storage_spanner_computations_server_image.tar")
         ),
         DUCHY_DEPLOY_PATH.resolve(
           Paths.get("gcloud", "spanner", "tools", "update_schema_image.tar")

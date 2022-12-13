@@ -36,6 +36,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/system/v1alpha:resource_key",
         "//src/main/proto/wfa/measurement/system/v1alpha:computation_log_entries_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/system/v1alpha:stage_attempt_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",

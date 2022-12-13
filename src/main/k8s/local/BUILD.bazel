@@ -343,8 +343,8 @@ k8s_apply(
 DUCHY_IMAGE_NAMES = [
     "duchy_spanner_update_schema_image",
     "duchy_async_computation_control_server_image",
-    "duchy_spanner_computations_server_image",
     "duchy_herald_daemon_image",
+    "forwarded_storage_spanner_computations_server_image",
     "forwarded_storage_computation_control_server_image",
     "forwarded_storage_liquid_legions_v2_mill_daemon_image",
     "forwarded_storage_requisition_fulfillment_server_image",
