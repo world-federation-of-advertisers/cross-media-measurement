@@ -117,7 +117,11 @@ class EventGroupMetadataDescriptorsService(
       }
     }
 
-    val createRequest = request.eventGroupMetadataDescriptor.toInternal(parentKey.dataProviderId)
+    val createRequest =
+      request.eventGroupMetadataDescriptor.toInternal(
+        parentKey.dataProviderId,
+        idempotencyKey = request.requestId
+      )
     val internalEventGroupMetadataDescriptor =
       try {
         internalEventGroupMetadataDescriptorsStub.createEventGroupMetadataDescriptor(createRequest)
@@ -270,12 +274,17 @@ private fun InternalEventGroupMetadataDescriptor.toEventGroupMetadataDescriptor(
  */
 private fun EventGroupMetadataDescriptor.toInternal(
   dataProviderId: String,
-  eventGroupMetadataDescriptorId: String = ""
+  eventGroupMetadataDescriptorId: String = "",
+  idempotencyKey: String = ""
 ): InternalEventGroupMetadataDescriptor {
   return internalEventGroupMetadataDescriptor {
     externalDataProviderId = apiIdToExternalId(dataProviderId)
-    if (eventGroupMetadataDescriptorId != "")
+    if (eventGroupMetadataDescriptorId.isNotEmpty()) {
       externalEventGroupMetadataDescriptorId = apiIdToExternalId(eventGroupMetadataDescriptorId)
+    }
+    if (idempotencyKey.isNotEmpty()) {
+      this.idempotencyKey = idempotencyKey
+    }
 
     details = details {
       apiVersion = API_VERSION.string

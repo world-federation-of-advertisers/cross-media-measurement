@@ -40,6 +40,7 @@ import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineStub
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
+import org.wfanet.measurement.internal.duchy.deleteComputationRequest
 import org.wfanet.measurement.internal.duchy.finishComputationRequest
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.Computation.State
@@ -53,6 +54,8 @@ import org.wfanet.measurement.system.v1alpha.streamActiveComputationsRequest
 // Number of attempts that herald would retry processSystemComputationChange() when catch transient
 // exceptions.
 private const val MAX_ATTEMPTS = 3
+
+private val TERMINAL_STATES = listOf(State.SUCCEEDED, State.FAILED, State.CANCELLED)
 
 /**
  * The Herald looks to the kingdom for status of computations.
@@ -82,9 +85,18 @@ class Herald(
   private val maxStreamingAttempts: Int = 5,
   maxConcurrency: Int = 5,
   private val retryBackoff: ExponentialBackoff = ExponentialBackoff(),
+  private val deletableComputationStates: Set<State> = emptySet(),
 ) {
   private val semaphore = Semaphore(maxConcurrency)
   private val continuationTokenManager = ContinuationTokenManager(continuationTokenClient)
+
+  init {
+    for (state in deletableComputationStates) {
+      require(state in TERMINAL_STATES) {
+        "Unexpected deletable computation state $state while initializing Herald."
+      }
+    }
+  }
 
   /**
    * Syncs the status of computations stored at the kingdom with those stored locally continually in
@@ -192,7 +204,8 @@ class Herald(
     require(computation.name.isNotEmpty()) { "Resource name not specified" }
     val globalId: String = computation.key.computationId
     logger.fine("[id=$globalId]: Processing updated GlobalComputation")
-    when (val state = computation.state) {
+    val state = computation.state
+    when (state) {
       // Creates a new computation if it is not already present in the database.
       State.PENDING_REQUISITION_PARAMS -> createComputation(computation)
       // Updates a computation for duchy confirmation.
@@ -203,10 +216,12 @@ class Herald(
       State.FAILED,
       State.CANCELLED -> {
         failComputationAtDuchy(computation)
-        clearIntermediateData(computation)
       }
-      State.SUCCEEDED -> clearIntermediateData(computation)
+      State.SUCCEEDED -> {}
       else -> logger.warning("Unexpected global computation state '$state'")
+    }
+    if (state in deletableComputationStates) {
+      deleteComputationAtDuchy(computation)
     }
   }
 
@@ -309,6 +324,18 @@ class Herald(
     }
   }
 
+  private suspend fun deleteComputationAtDuchy(computation: Computation) {
+    val globalId = computation.key.computationId
+    try {
+      val token = internalComputationsClient.getComputationToken(globalId.toGetTokenRequest()).token
+      internalComputationsClient.deleteComputation(
+        deleteComputationRequest { localComputationId = token.localComputationId }
+      )
+    } catch (e: StatusException) {
+      logger.warning("[id=$globalId]: Failed to delete computation. $e")
+    }
+  }
+
   /** Call failComputationParticipant at Kingdom to fail the Computation */
   private suspend fun failComputationAtKingdom(computation: Computation, errorMessage: String) {
     val globalId = computation.key.computationId
@@ -352,11 +379,6 @@ class Herald(
     } catch (e: StatusException) {
       logger.log(Level.WARNING, e) { "[id=$globalId]: Error when failComputationAtDuchy" }
     }
-    // TODO(@renjiez): Clean intermediate data at Duchy
-  }
-
-  private class clearIntermediateData(computation: Computation) {
-    // TODO(@renjiez): Implementation
   }
 
   private class StreamingException(message: String, override val cause: StatusException) :

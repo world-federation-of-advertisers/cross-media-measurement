@@ -504,6 +504,8 @@ class LiquidLegionsV2MillTest {
       ComputationsService(
         fakeComputationDb,
         systemComputationLogEntriesStub,
+        computationStore,
+        requisitionStore,
         DUCHY_THREE_NAME,
         Clock.systemUTC()
       )

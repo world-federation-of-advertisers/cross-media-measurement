@@ -14,7 +14,9 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import com.google.protobuf.Any
 import com.google.protobuf.ByteString
+import com.google.protobuf.Descriptors
 import com.google.protobuf.duration
 import io.grpc.StatusException
 import java.nio.file.Paths
@@ -55,6 +57,9 @@ import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKt.eventTemplate
+import org.wfanet.measurement.api.v2alpha.EventGroupKt.metadata
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
@@ -62,6 +67,8 @@ import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
 import org.wfanet.measurement.api.v2alpha.LiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequestKt.filter
 import org.wfanet.measurement.api.v2alpha.Measurement
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.frequency
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.impression
@@ -77,13 +84,20 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedData
+import org.wfanet.measurement.api.v2alpha.createEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup
+import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessage
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.TestMetadataMessageKt as TestMetadataMessages
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.testMetadataMessage
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
+import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.asBufferedFlow
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -97,10 +111,12 @@ import org.wfanet.measurement.consent.client.common.PublicKeyMismatchException
 import org.wfanet.measurement.consent.client.common.toPublicKeyHandle
 import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
+import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
 import org.wfanet.measurement.consent.client.dataprovider.verifyElGamalPublicKey
 import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
 import org.wfanet.measurement.consent.client.duchy.signResult
+import org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptionPublicKey
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
@@ -125,8 +141,10 @@ data class EdpData(
 class EdpSimulator(
   private val edpData: EdpData,
   private val measurementConsumerName: String,
+  private val measurementConsumersStub: MeasurementConsumersCoroutineStub,
   private val certificatesStub: CertificatesCoroutineStub,
   private val eventGroupsStub: EventGroupsCoroutineStub,
+  private val eventGroupMetadataDescriptorsStub: EventGroupMetadataDescriptorsCoroutineStub,
   private val requisitionsStub: RequisitionsCoroutineStub,
   private val requisitionFulfillmentStub: RequisitionFulfillmentCoroutineStub,
   private val sketchStore: SketchStore,
@@ -144,12 +162,56 @@ class EdpSimulator(
 
   /** Creates an eventGroup for the MC. */
   suspend fun createEventGroup(): EventGroup {
+    val measurementConsumer: MeasurementConsumer =
+      try {
+        measurementConsumersStub.getMeasurementConsumer(
+          getMeasurementConsumerRequest { name = measurementConsumerName }
+        )
+      } catch (e: StatusException) {
+        throw Exception("Error getting MeasurementConsumer $measurementConsumerName", e)
+      }
+
+    verifyEncryptionPublicKey(
+      measurementConsumer.publicKey,
+      getCertificate(measurementConsumer.certificate)
+    )
+
+    val descriptorResource: EventGroupMetadataDescriptor =
+      try {
+        val metadataDescriptor: Descriptors.Descriptor = TestMetadataMessage.getDescriptor()
+        eventGroupMetadataDescriptorsStub.createEventGroupMetadataDescriptor(
+          createEventGroupMetadataDescriptorRequest {
+            parent = edpData.name
+            eventGroupMetadataDescriptor = eventGroupMetadataDescriptor {
+              descriptorSet = ProtoReflection.buildFileDescriptorSet(metadataDescriptor)
+            }
+            requestId = "type.googleapis.com/${metadataDescriptor.fullName}"
+          }
+        )
+      } catch (e: StatusException) {
+        throw Exception("Error creating EventGroupMetadataDescriptor", e)
+      }
+
     val request = createEventGroupRequest {
       parent = edpData.name
       eventGroup = eventGroup {
-        measurementConsumer = measurementConsumerName
-        eventGroupReferenceId = TestIdentifiers.EVENT_GROUP_REFERENCE_ID_PREFIX
+        this.measurementConsumer = measurementConsumerName
+        eventGroupReferenceId =
+          "${TestIdentifiers.EVENT_GROUP_REFERENCE_ID_PREFIX}-${edpData.displayName}"
         eventTemplates += eventTemplateNames.map { eventTemplate { type = it } }
+        measurementConsumerCertificate = measurementConsumer.certificate
+        measurementConsumerPublicKey = measurementConsumer.publicKey
+        encryptedMetadata =
+          encryptMetadata(
+            metadata {
+              this.eventGroupMetadataDescriptor = descriptorResource.name
+              this.metadata =
+                Any.pack(
+                  testMetadataMessage { name = TestMetadataMessages.name { value = "John Doe" } }
+                )
+            },
+            EncryptionPublicKey.parseFrom(measurementConsumer.publicKey.data)
+          )
       }
     }
     val eventGroup =
@@ -258,6 +320,33 @@ class EdpSimulator(
         "ElGamal public key signature is invalid for Duchy ${duchyEntry.key}",
         e
       )
+    }
+  }
+
+  private fun verifyEncryptionPublicKey(
+    signedEncryptionPublicKey: SignedData,
+    measurementConsumerCertificate: Certificate
+  ) {
+    val x509Certificate = readCertificate(measurementConsumerCertificate.x509Der)
+    // Look up the trusted issuer certificate for this MC certificate. Note that this doesn't
+    // confirm that this is the trusted issuer for the right MC. In a production environment,
+    // consider having a mapping of MC to root/CA cert.
+    val trustedIssuer =
+      trustedCertificates[checkNotNull(x509Certificate.authorityKeyIdentifier)]
+        ?: throw VerificationException(
+          "Issuer of ${measurementConsumerCertificate.name} is not trusted"
+        )
+    // TODO(world-federation-of-advertisers/consent-signaling-client#41): Use method from
+    // DataProviders client instead of MeasurementConsumers client.
+    try {
+      verifyEncryptionPublicKey(signedEncryptionPublicKey, x509Certificate, trustedIssuer)
+    } catch (e: CertPathValidatorException) {
+      throw VerificationException(
+        "Certificate path for ${measurementConsumerCertificate.name} is invalid",
+        e
+      )
+    } catch (e: SignatureException) {
+      throw VerificationException("EncryptionPublicKey signature is invalid", e)
     }
   }
 
@@ -674,6 +763,8 @@ class EdpSimulator(
     val measurementEncryptionPublicKey =
       EncryptionPublicKey.parseFrom(measurementSpec.measurementPublicKey)
 
+    // TODO(world-federation-of-advertisers/consent-signaling-client#41): Use method from
+    // DataProviders client instead of Duchies client.
     val signedData = signResult(requisitionData, edpData.signingKey)
 
     val encryptedData =

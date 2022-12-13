@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.duchy.service.internal.computations
 
+import com.google.protobuf.Empty
 import io.grpc.Status
 import java.time.Clock
 import java.util.logging.Logger
@@ -27,6 +28,8 @@ import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransacto
 import org.wfanet.measurement.duchy.db.computation.EndComputationReason
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
+import org.wfanet.measurement.duchy.storage.ComputationStore
+import org.wfanet.measurement.duchy.storage.RequisitionStore
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageResponse
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
@@ -38,6 +41,7 @@ import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.CreateComputationRequest
 import org.wfanet.measurement.internal.duchy.CreateComputationResponse
+import org.wfanet.measurement.internal.duchy.DeleteComputationRequest
 import org.wfanet.measurement.internal.duchy.EnqueueComputationRequest
 import org.wfanet.measurement.internal.duchy.EnqueueComputationResponse
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
@@ -61,6 +65,8 @@ import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
 class ComputationsService(
   private val computationsDatabase: ComputationsDatabase,
   private val computationLogEntriesClient: ComputationLogEntriesCoroutineStub,
+  private val computationStorageClient: ComputationStore,
+  private val requisitionStorageClient: RequisitionStore,
   private val duchyName: String,
   private val clock: Clock = Clock.systemUTC()
 ) : ComputationsCoroutineImplBase() {
@@ -108,6 +114,23 @@ class ComputationsService(
     return computationsDatabase
       .readComputationToken(request.globalComputationId)!!
       .toCreateComputationResponse()
+  }
+
+  override suspend fun deleteComputation(request: DeleteComputationRequest): Empty {
+    val computationBlobKeys =
+      computationsDatabase.readComputationBlobKeys(request.localComputationId)
+    for (blobKey in computationBlobKeys) {
+      computationStorageClient.get(blobKey)?.delete()
+    }
+
+    val requisitionBlobKeys =
+      computationsDatabase.readRequisitionBlobKeys(request.localComputationId)
+    for (blobKey in requisitionBlobKeys) {
+      requisitionStorageClient.get(blobKey)?.delete()
+    }
+    computationsDatabase.deleteComputation(request.localComputationId)
+
+    return Empty.getDefaultInstance()
   }
 
   override suspend fun finishComputation(

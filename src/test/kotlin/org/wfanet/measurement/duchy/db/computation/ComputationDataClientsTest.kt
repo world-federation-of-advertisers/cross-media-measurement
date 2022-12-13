@@ -31,6 +31,8 @@ import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatab
 import org.wfanet.measurement.duchy.service.internal.computations.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computations.newEmptyOutputBlobMetadata
 import org.wfanet.measurement.duchy.service.internal.computations.toGetTokenRequest
+import org.wfanet.measurement.duchy.storage.ComputationStore
+import org.wfanet.measurement.duchy.storage.RequisitionStore
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
@@ -48,6 +50,7 @@ import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub as SystemComputationLogEntriesCoroutineStub
 
 private const val ID_WHERE_ALSACE_IS_NOT_PRIMARY = "456"
@@ -62,11 +65,15 @@ class ComputationDataClientsTest {
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
+    val storageClient = InMemoryStorageClient()
+
     systemComputationLogEntriesClient = SystemComputationLogEntriesCoroutineStub(channel)
     addService(
       ComputationsService(
         fakeDatabase,
         systemComputationLogEntriesClient,
+        ComputationStore(storageClient),
+        RequisitionStore(storageClient),
         ALSACE,
         Clock.systemUTC()
       )

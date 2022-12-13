@@ -89,6 +89,10 @@ private constructor(
     )
   }
 
+  override suspend fun deleteComputation(localId: Long) {
+    remove(localId)
+  }
+
   /** Adds a fake computation to the [tokens] map. */
   fun addComputation(
     localId: Long,
@@ -375,6 +379,14 @@ private constructor(
     metric: ComputationStatMetric
   ) {
     require(metric.name.isNotEmpty())
+  }
+
+  override suspend fun readComputationBlobKeys(localId: Long): List<String> {
+    return listOf("${localId}_1", "${localId}_2")
+  }
+
+  override suspend fun readRequisitionBlobKeys(localId: Long): List<String> {
+    return listOf("${localId}_1", "${localId}_2")
   }
 
   companion object {
