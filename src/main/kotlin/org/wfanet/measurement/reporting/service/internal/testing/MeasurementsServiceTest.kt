@@ -500,7 +500,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
-  fun `setMeasurementResult sets result when 2 measurement calculations for set operation`() {
+  fun `setMeasurementResult sets result when 2 calculations with same time interval for set op`() {
     val createdReport = runBlocking {
       reportsService.createReport(
         createReportRequest {
