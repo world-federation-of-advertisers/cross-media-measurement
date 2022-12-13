@@ -501,6 +501,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `setMeasurementResult sets result when 2 calculations with same time interval for set op`() {
+    val metricDetails = MetricKt.details {
+        impressionCount = MetricKt.impressionCountParams { maximumFrequencyPerUser = 2 }
+      }
     val createdReport = runBlocking {
       reportsService.createReport(
         createReportRequest {
@@ -519,10 +522,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             reportIdempotencyKey = "1235"
             periodicTimeInterval = PERIODIC_TIME_INTERVAL
             metrics += metric {
-              details =
-                MetricKt.details {
-                  impressionCount = MetricKt.impressionCountParams { maximumFrequencyPerUser = 2 }
-                }
+              details = metricDetails
               namedSetOperations +=
                 NAMED_SET_OPERATION.copy {
                   measurementCalculations +=
@@ -607,7 +607,11 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
               rowHeaders += "1970-01-01T00:01:50.000000011Z-1970-01-01T00:02:00.000000012Z"
               columns +=
                 ReportKt.DetailsKt.ResultKt.column {
-                  columnHeader = NAMED_SET_OPERATION.displayName
+                  columnHeader =
+                    buildColumnHeader(
+                      metricDetails.metricTypeCase.name,
+                      NAMED_SET_OPERATION.displayName
+                    )
                   setOperations += listOf(1400.0, 700.0)
                 }
             }
