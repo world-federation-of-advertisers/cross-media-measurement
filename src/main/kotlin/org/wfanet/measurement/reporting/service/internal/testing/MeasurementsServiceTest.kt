@@ -501,7 +501,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `setMeasurementResult sets result when 2 calculations with same time interval for set op`() {
-    val metricDetails = MetricKt.details {
+    val metricDetails =
+      MetricKt.details {
         impressionCount = MetricKt.impressionCountParams { maximumFrequencyPerUser = 2 }
       }
     val createdReport = runBlocking {
