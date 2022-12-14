@@ -216,13 +216,18 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
   ): Report.Details.Result.Column {
     val source = this
     return ReportKt.DetailsKt.ResultKt.column {
-      columnHeader = source.displayName
+      columnHeader = buildColumnHeader(metricType.name, source.displayName)
       for (measurementCalculation in source.measurementCalculationsList) {
         setOperations.addAll(
           measurementCalculation.toSetOperationResults(metricType, measurementResultsMap)
         )
       }
     }
+  }
+
+  /** Build a column header given the metric and set operation name. */
+  private fun buildColumnHeader(metricTypeName: String, setOperationName: String): String {
+    return "${metricTypeName}_$setOperationName"
   }
 
   /** Calculate the equation in [Metric.MeasurementCalculation] to get the result. */

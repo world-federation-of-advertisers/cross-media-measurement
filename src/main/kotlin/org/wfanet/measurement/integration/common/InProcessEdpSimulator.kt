@@ -14,7 +14,9 @@
 
 package org.wfanet.measurement.integration.common
 
+import com.google.protobuf.ByteString
 import io.grpc.Channel
+import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Level
@@ -28,7 +30,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.common.identity.withPrincipalName
@@ -53,6 +57,7 @@ class InProcessEdpSimulator(
   kingdomPublicApiChannel: Channel,
   duchyPublicApiChannel: Channel,
   eventTemplateNames: List<String>,
+  trustedCertificates: Map<ByteString, X509Certificate>,
   coroutineContext: CoroutineContext = Dispatchers.Default,
 ) {
   private val loggingName = "${javaClass.simpleName} $displayName"
@@ -69,10 +74,15 @@ class InProcessEdpSimulator(
     EdpSimulator(
       edpData = createEdpData(displayName, resourceName),
       measurementConsumerName = mcResourceName,
+      measurementConsumersStub =
+        MeasurementConsumersCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
       certificatesStub =
         CertificatesCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
       eventGroupsStub =
         EventGroupsCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
+      eventGroupMetadataDescriptorsStub =
+        EventGroupMetadataDescriptorsCoroutineStub(kingdomPublicApiChannel)
+          .withPrincipalName(resourceName),
       requisitionsStub =
         RequisitionsCoroutineStub(kingdomPublicApiChannel).withPrincipalName(resourceName),
       requisitionFulfillmentStub =
@@ -81,12 +91,14 @@ class InProcessEdpSimulator(
       eventQuery = RandomEventQuery(SketchGenerationParams(reach = 1000, universeSize = 10_000)),
       throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
       eventTemplateNames = eventTemplateNames,
-      PrivacyBudgetManager(
-        PrivacyBucketFilter(TestPrivacyBucketMapper()),
-        InMemoryBackingStore(),
-        100.0f,
-        100.0f
-      )
+      privacyBudgetManager =
+        PrivacyBudgetManager(
+          PrivacyBucketFilter(TestPrivacyBucketMapper()),
+          InMemoryBackingStore(),
+          100.0f,
+          100.0f
+        ),
+      trustedCertificates = trustedCertificates
     )
 
   private lateinit var edpJob: Job

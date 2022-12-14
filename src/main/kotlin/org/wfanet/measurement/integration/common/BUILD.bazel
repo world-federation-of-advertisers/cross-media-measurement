@@ -17,6 +17,7 @@ java_library(
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:api_keys_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:certificates_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:data_providers_service",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:event_group_metadata_descriptors_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:event_groups_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:exchange_step_attempts_service",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:exchange_steps_service",
@@ -95,6 +96,7 @@ kt_jvm_library(
     data = [
         "//src/main/k8s/testing/secretfiles:all_configs",
         "//src/main/k8s/testing/secretfiles:all_der_files",
+        "//src/main/k8s/testing/secretfiles:all_root_certs.pem",
         "//src/main/k8s/testing/secretfiles:all_tink_keysets",
     ],
     deps = [

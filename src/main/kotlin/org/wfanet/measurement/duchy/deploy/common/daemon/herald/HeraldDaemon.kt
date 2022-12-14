@@ -36,6 +36,7 @@ import org.wfanet.measurement.duchy.deploy.common.SystemApiFlags
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineStub
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
+import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineStub as SystemComputationsCoroutineStub
 import picocli.CommandLine
@@ -71,6 +72,19 @@ private class Flags {
     required = true
   )
   lateinit var protocolsSetupConfig: File
+    private set
+
+  @CommandLine.Option(
+    names = ["--deletable-computation-state"],
+    description =
+      [
+        "Terminal State (SUCCEEDED, FAILED or CANCELLED) in which the Computation can be " +
+          "deleted. This can be specified multiple times."
+      ],
+    required = false,
+    defaultValue = "",
+  )
+  lateinit var deletableComputationStates: Set<Computation.State>
     private set
 
   @set:CommandLine.Option(
@@ -132,7 +146,8 @@ private fun run(@CommandLine.Mixin flags: Flags) {
         flags.protocolsSetupConfig.reader().use {
           parseTextProto(it, ProtocolsSetupConfig.getDefaultInstance())
         },
-      clock = Clock.systemUTC()
+      clock = Clock.systemUTC(),
+      deletableComputationStates = flags.deletableComputationStates
     )
   runBlocking { herald.continuallySyncStatuses() }
 }

@@ -25,6 +25,8 @@ message EventGroupMetadataDescriptor {
   fixed64 external_data_provider_id = 1;
   fixed64 external_event_group_metadata_descriptor_id = 2;
 
+  string idempotency_key = 4;
+
   message Details {
     // Version of the public API for serialized message definitions.
     string api_version = 1;

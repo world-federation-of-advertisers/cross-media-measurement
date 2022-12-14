@@ -18,6 +18,9 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import io.grpc.StatusException
 import java.nio.file.Paths
+import java.security.SignatureException
+import java.security.cert.CertPathValidatorException
+import java.security.cert.X509Certificate
 import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -82,6 +85,7 @@ import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.flatten
@@ -121,6 +125,7 @@ class FrontendSimulator(
   private val certificatesClient: CertificatesCoroutineStub,
   private val sketchStore: SketchStore,
   private val resultPollingDelay: Duration,
+  private val trustedCertificates: Map<ByteString, X509Certificate>,
   /** Map of event template names to filter expressions. */
   private val eventTemplateFilters: Map<String, String> = emptyMap(),
 ) {
@@ -446,8 +451,17 @@ class FrontendSimulator(
 
     val signedResult =
       decryptResult(resultPair.encryptedResult, measurementConsumerData.encryptionKey)
-    if (!verifyResult(signedResult, readCertificate(certificate.x509Der))) {
-      error("Signature of the result is invalid.")
+    val x509Certificate: X509Certificate = readCertificate(certificate.x509Der)
+    val trustedIssuer =
+      checkNotNull(trustedCertificates[checkNotNull(x509Certificate.authorityKeyIdentifier)]) {
+        "Issuer of ${certificate.name} not trusted"
+      }
+    try {
+      verifyResult(signedResult, x509Certificate, trustedIssuer)
+    } catch (e: CertPathValidatorException) {
+      throw Exception("Certificate path is invalid for ${certificate.name}", e)
+    } catch (e: SignatureException) {
+      throw Exception("Measurement result signature is invalid", e)
     }
     return Result.parseFrom(signedResult.data)
   }

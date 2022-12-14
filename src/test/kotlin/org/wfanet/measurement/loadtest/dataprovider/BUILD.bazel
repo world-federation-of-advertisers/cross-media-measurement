@@ -7,6 +7,7 @@ kt_jvm_test(
         "//src/main/k8s/testing/secretfiles:all_configs",
         "//src/main/k8s/testing/secretfiles:all_der_files",
         "//src/main/k8s/testing/secretfiles:all_tink_keysets",
+        "//src/main/k8s/testing/secretfiles:edp_trusted_certs.pem",
     ],
     test_class = "org.wfanet.measurement.loadtest.dataprovider.EdpSimulatorTest",
     deps = [

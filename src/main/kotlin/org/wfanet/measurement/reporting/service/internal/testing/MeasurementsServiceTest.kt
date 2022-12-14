@@ -77,6 +77,11 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     reportsService = services.reportsService
   }
 
+  /** Build a column header given the metric and set operation name. */
+  private fun buildColumnHeader(metricTypeName: String, setOperationName: String): String {
+    return "${metricTypeName}_$setOperationName"
+  }
+
   @Test
   fun `createMeasurement succeeds`() {
     val measurement = measurement {
@@ -200,6 +205,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `setMeasurementResult succeeds in setting the result for report with RF metric`() {
+    val metricDetails =
+      MetricKt.details {
+        frequencyHistogram = MetricKt.frequencyHistogramParams { maximumFrequencyPerUser = 2 }
+      }
     val createdReport = runBlocking {
       reportsService.createReport(
         createReportRequest {
@@ -218,11 +227,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             reportIdempotencyKey = "1235"
             periodicTimeInterval = PERIODIC_TIME_INTERVAL
             metrics += metric {
-              details =
-                MetricKt.details {
-                  frequencyHistogram =
-                    MetricKt.frequencyHistogramParams { maximumFrequencyPerUser = 2 }
-                }
+              details = metricDetails
               namedSetOperations += NAMED_SET_OPERATION
             }
           }
@@ -299,7 +304,11 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
                 }
               columns +=
                 ReportKt.DetailsKt.ResultKt.column {
-                  columnHeader = NAMED_SET_OPERATION.displayName
+                  columnHeader =
+                    buildColumnHeader(
+                      metricDetails.metricTypeCase.name,
+                      NAMED_SET_OPERATION.displayName
+                    )
                   setOperations += 260.0
                   setOperations += 439.0
                 }
@@ -310,6 +319,14 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `setMeasurementResult succeeds in setting the result for report with duration metric`() {
+    val metricDetails =
+      MetricKt.details {
+        watchDuration =
+          MetricKt.watchDurationParams {
+            maximumFrequencyPerUser = 2
+            maximumWatchDurationPerUser = 100
+          }
+      }
     val createdReport = runBlocking {
       reportsService.createReport(
         createReportRequest {
@@ -328,14 +345,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             reportIdempotencyKey = "1235"
             periodicTimeInterval = PERIODIC_TIME_INTERVAL
             metrics += metric {
-              details =
-                MetricKt.details {
-                  watchDuration =
-                    MetricKt.watchDurationParams {
-                      maximumFrequencyPerUser = 2
-                      maximumWatchDurationPerUser = 100
-                    }
-                }
+              details = metricDetails
               namedSetOperations += NAMED_SET_OPERATION
             }
           }
@@ -385,6 +395,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       )
     }
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
+
     assertThat(retrievedReport.details.result)
       .ignoringRepeatedFieldOrder()
       .usingDoubleTolerance(2.0)
@@ -396,7 +407,11 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
               rowHeaders += "1970-01-01T00:01:50.000000011Z-1970-01-01T00:02:00.000000012Z"
               columns +=
                 ReportKt.DetailsKt.ResultKt.column {
-                  columnHeader = NAMED_SET_OPERATION.displayName
+                  columnHeader =
+                    buildColumnHeader(
+                      metricDetails.metricTypeCase.name,
+                      NAMED_SET_OPERATION.displayName
+                    )
                   setOperations += 700.0
                 }
             }
@@ -406,6 +421,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `setMeasurementResult succeeds in setting the result for report with impression metric`() {
+    val metricDetails =
+      MetricKt.details {
+        impressionCount = MetricKt.impressionCountParams { maximumFrequencyPerUser = 2 }
+      }
     val createdReport = runBlocking {
       reportsService.createReport(
         createReportRequest {
@@ -424,10 +443,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             reportIdempotencyKey = "1235"
             periodicTimeInterval = PERIODIC_TIME_INTERVAL
             metrics += metric {
-              details =
-                MetricKt.details {
-                  impressionCount = MetricKt.impressionCountParams { maximumFrequencyPerUser = 2 }
-                }
+              details = metricDetails
               namedSetOperations += NAMED_SET_OPERATION
             }
           }
@@ -471,7 +487,11 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
               rowHeaders += "1970-01-01T00:01:50.000000011Z-1970-01-01T00:02:00.000000012Z"
               columns +=
                 ReportKt.DetailsKt.ResultKt.column {
-                  columnHeader = NAMED_SET_OPERATION.displayName
+                  columnHeader =
+                    buildColumnHeader(
+                      metricDetails.metricTypeCase.name,
+                      NAMED_SET_OPERATION.displayName
+                    )
                   setOperations += 700.0
                 }
             }
@@ -481,6 +501,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `setMeasurementResult succeeds in setting the result for report with reach metric`() {
+    val metricDetails = MetricKt.details { reach = MetricKt.reachParams {} }
     val createdReport = runBlocking {
       reportsService.createReport(
         createReportRequest {
@@ -499,7 +520,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             reportIdempotencyKey = "1235"
             periodicTimeInterval = PERIODIC_TIME_INTERVAL
             metrics += metric {
-              details = MetricKt.details { reach = MetricKt.reachParams {} }
+              details = metricDetails
               namedSetOperations += NAMED_SET_OPERATION
             }
           }
@@ -541,7 +562,11 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
               rowHeaders += "1970-01-01T00:01:50.000000011Z-1970-01-01T00:02:00.000000012Z"
               columns +=
                 ReportKt.DetailsKt.ResultKt.column {
-                  columnHeader = NAMED_SET_OPERATION.displayName
+                  columnHeader =
+                    buildColumnHeader(
+                      metricDetails.metricTypeCase.name,
+                      NAMED_SET_OPERATION.displayName
+                    )
                   setOperations += 700.0
                 }
             }

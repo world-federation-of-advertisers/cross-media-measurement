@@ -23,7 +23,6 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.util.logging.Logger
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.toList
@@ -664,6 +663,11 @@ class GcpSpannerComputationsDatabaseTransactor<
         metricValue = metric.value
       )
     )
+  }
+
+  override suspend fun deleteComputation(localId: Long) {
+    val mutation = Mutation.delete("Computations", Key.of(localId))
+    databaseClient.write(mutation)
   }
 
   /**
