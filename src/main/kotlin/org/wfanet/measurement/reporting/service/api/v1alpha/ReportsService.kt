@@ -1249,6 +1249,9 @@ class ReportsService(
     private lateinit var internalReportingSetMap: Map<Long, InternalReportingSet>
 
     suspend fun process() {
+      if (this::namedSetOperationResults.isInitialized) {
+        return
+      }
       namedSetOperationResults = compileAllSetOperations()
       internalReportingSetMap = getReportingSets()
       internalReportingSetMap.values.forEach {
@@ -1257,14 +1260,14 @@ class ReportsService(
     }
 
     suspend fun getNamedSetOperationResults(): Map<String, SetOperationResult> {
-      if (reportingSetExternalIds.isEmpty()) {
+      if (!this::namedSetOperationResults.isInitialized) {
         process()
       }
       return namedSetOperationResults
     }
 
     suspend fun getInternalReportingSetsMap(): Map<Long, InternalReportingSet> {
-      if (reportingSetExternalIds.isEmpty()) {
+      if (!this::namedSetOperationResults.isInitialized) {
         process()
       }
       return internalReportingSetMap
