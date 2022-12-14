@@ -120,6 +120,8 @@ import org.wfanet.measurement.consent.client.duchy.signResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
+import org.wfanet.measurement.internal.reporting.CreateReportRequestKt as InternalCreateReportRequestKt
+import org.wfanet.measurement.internal.reporting.createReportRequest as internalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.GetReportRequest as GetInternalReportRequest
 import org.wfanet.measurement.internal.reporting.GetReportingSetRequest
 import org.wfanet.measurement.internal.reporting.Measurement as InternalMeasurement
@@ -1490,7 +1492,165 @@ class ReportsServiceTest {
         }
       )
 
+    // Verify proto argument of InternalReportsCoroutineImplBase::createReport
+    verifyProtoArgument(
+      internalReportsMock,
+      ReportsCoroutineImplBase::createReport
+    )
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(internalCreateReportRequest {
+        report = INTERNAL_PENDING_REACH_REPORT.copy {
+          clearState()
+          clearExternalReportId()
+          measurements.clear()
+          clearCreateTime()
+        }
+        measurements += InternalCreateReportRequestKt.measurementKey {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+          measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
+        }
+      })
+
     assertThat(result).isEqualTo(expected)
+  }
+
+  @Test
+  fun `createReport returns a report with set operation type DIFFERENCE`() {
+    val pendingReachReportWithSetDifference = PENDING_REACH_REPORT.copy {
+      metrics.clear()
+      metrics += metric {
+        reach = reachParams {}
+        cumulative = false
+        setOperations +=
+          namedSetOperation {
+            uniqueName = REACH_SET_OPERATION_UNIQUE_NAME
+            setOperation = setOperation {
+              type = SetOperation.Type.DIFFERENCE
+              lhs = SetOperationKt.operand { reportingSet = REPORTING_SET_NAMES[0] }
+              rhs = SetOperationKt.operand { reportingSet = REPORTING_SET_NAMES[1] }
+            }
+          }
+      }
+    }
+
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      report = pendingReachReportWithSetDifference
+    }
+
+    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+      runBlocking { service.createReport(request) }
+    }
+
+    // Verify proto argument of ReportsCoroutineImplBase::getReportByIdempotencyKey
+    verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::getReportByIdempotencyKey)
+      .isEqualTo(
+        getReportByIdempotencyKeyRequest {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+          reportIdempotencyKey = REACH_REPORT_IDEMPOTENCY_KEY
+        }
+      )
+
+    // Verify proto argument of InternalReportingSetsCoroutineImplBase::getReportingSet
+    val internalReportingSetCaptor: KArgumentCaptor<GetReportingSetRequest> = argumentCaptor()
+    verifyBlocking(internalReportingSetsMock, times(5)) {
+      getReportingSet(internalReportingSetCaptor.capture())
+    }
+    val capturedInternalReportingSetRequests = internalReportingSetCaptor.allValues
+    val expectedInternalReportingSetRequest = getReportingSetRequest {
+      measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+    }
+    assertThat(capturedInternalReportingSetRequests)
+      .containsExactly(
+        expectedInternalReportingSetRequest.copy {
+          externalReportingSetId = REPORTING_SET_EXTERNAL_IDS[0]
+        },
+        expectedInternalReportingSetRequest.copy {
+          externalReportingSetId = REPORTING_SET_EXTERNAL_IDS[1]
+        },
+        expectedInternalReportingSetRequest.copy {
+          externalReportingSetId = REPORTING_SET_EXTERNAL_IDS[0]
+        },
+        expectedInternalReportingSetRequest.copy {
+          externalReportingSetId = REPORTING_SET_EXTERNAL_IDS[1]
+        },
+        expectedInternalReportingSetRequest.copy {
+          externalReportingSetId = REPORTING_SET_EXTERNAL_IDS[1]
+        }
+      )
+
+    // Verify proto argument of MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
+    verifyProtoArgument(
+      measurementConsumersMock,
+      MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
+    )
+      .isEqualTo(getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMER_NAMES[0] })
+
+    // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
+    val dataProvidersCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
+    verifyBlocking(dataProvidersMock, times(2)) { getDataProvider(dataProvidersCaptor.capture()) }
+    val capturedDataProviderRequests = dataProvidersCaptor.allValues
+    assertThat(capturedDataProviderRequests)
+      .containsExactly(
+        getDataProviderRequest { name = DATA_PROVIDERS[0].name },
+        getDataProviderRequest { name = DATA_PROVIDERS[1].name }
+      )
+
+    // Verify proto argument of MeasurementsCoroutineImplBase::createMeasurement
+    val measurementCaptor: KArgumentCaptor<CreateMeasurementRequest> = argumentCaptor()
+    verifyBlocking(measurementsMock, times(2)) {
+      createMeasurement(measurementCaptor.capture())
+    }
+    assertThat(measurementCaptor.allValues.map { it.measurement }).containsNoDuplicates()
+
+    // Verify proto argument of InternalMeasurementsCoroutineImplBase::createMeasurement
+    val internalMeasurementCaptor: KArgumentCaptor<InternalMeasurement> = argumentCaptor()
+    verifyBlocking(internalMeasurementsMock, times(2)) {
+      createMeasurement(internalMeasurementCaptor.capture())
+    }
+
+    // Verify proto argument of InternalReportsCoroutineImplBase::createReport
+    verifyProtoArgument(
+      internalReportsMock,
+      ReportsCoroutineImplBase::createReport
+    )
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(internalCreateReportRequest {
+        report = INTERNAL_PENDING_REACH_REPORT.copy {
+          val source = this
+          clearState()
+          clearExternalReportId()
+          measurements.clear()
+          clearCreateTime()
+          val metric = internalMetric {
+            details = InternalMetricKt.details {
+              reach = InternalMetricKt.reachParams {  }
+            }
+            namedSetOperations += source.metrics[0].namedSetOperationsList[0].copy {
+              setOperation = setOperation.copy {
+                type = InternalMetric.SetOperation.Type.DIFFERENCE
+              }
+              measurementCalculations.clear()
+              measurementCalculations += source.metrics[0].namedSetOperationsList[0].measurementCalculationsList[0].copy {
+                weightedMeasurements += weightedMeasurement {
+                  measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
+                  coefficient = -1
+                }
+              }
+            }
+          }
+          metrics.clear()
+          metrics += metric
+        }
+        measurements += InternalCreateReportRequestKt.measurementKey {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+          measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
+        }
+        measurements += InternalCreateReportRequestKt.measurementKey {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+          measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
+        }
+      })
   }
 
   @Test

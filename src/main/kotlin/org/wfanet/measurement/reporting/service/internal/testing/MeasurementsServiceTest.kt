@@ -500,127 +500,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
-  fun `setMeasurementResult sets result when 2 calculations with same time interval for set op`() {
-    val metricDetails =
-      MetricKt.details {
-        impressionCount = MetricKt.impressionCountParams { maximumFrequencyPerUser = 2 }
-      }
-    val createdReport = runBlocking {
-      reportsService.createReport(
-        createReportRequest {
-          measurements +=
-            CreateReportRequestKt.measurementKey {
-              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
-              measurementReferenceId = MEASUREMENT_REFERENCE_ID
-            }
-          measurements +=
-            CreateReportRequestKt.measurementKey {
-              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
-              measurementReferenceId = MEASUREMENT_REFERENCE_ID_2
-            }
-          report = report {
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
-            reportIdempotencyKey = "1235"
-            periodicTimeInterval = PERIODIC_TIME_INTERVAL
-            metrics += metric {
-              details = metricDetails
-              namedSetOperations +=
-                NAMED_SET_OPERATION.copy {
-                  measurementCalculations +=
-                    MetricKt.measurementCalculation {
-                      timeInterval = timeInterval {
-                        startTime = PERIODIC_TIME_INTERVAL.startTime
-                        endTime = Timestamps.add(startTime, PERIODIC_TIME_INTERVAL.increment)
-                      }
-                      weightedMeasurements +=
-                        MetricKt.MeasurementCalculationKt.weightedMeasurement {
-                          measurementReferenceId = MEASUREMENT_REFERENCE_ID
-                          coefficient = 1
-                        }
-                      weightedMeasurements +=
-                        MetricKt.MeasurementCalculationKt.weightedMeasurement {
-                          measurementReferenceId = MEASUREMENT_REFERENCE_ID_2
-                          coefficient = 3
-                        }
-                    }
-
-                  measurementCalculations +=
-                    MetricKt.measurementCalculation {
-                      timeInterval = timeInterval {
-                        startTime =
-                          Timestamps.add(
-                            PERIODIC_TIME_INTERVAL.startTime,
-                            PERIODIC_TIME_INTERVAL.increment
-                          )
-                        endTime = Timestamps.add(startTime, PERIODIC_TIME_INTERVAL.increment)
-                      }
-                      weightedMeasurements +=
-                        MetricKt.MeasurementCalculationKt.weightedMeasurement {
-                          measurementReferenceId = MEASUREMENT_REFERENCE_ID
-                          coefficient = 1
-                        }
-                      weightedMeasurements +=
-                        MetricKt.MeasurementCalculationKt.weightedMeasurement {
-                          measurementReferenceId = MEASUREMENT_REFERENCE_ID_2
-                          coefficient = 3
-                        }
-                    }
-                }
-            }
-          }
-        }
-      )
-    }
-    runBlocking {
-      service.setMeasurementResult(
-        setMeasurementResultRequest {
-          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
-          measurementReferenceId = MEASUREMENT_REFERENCE_ID
-          result =
-            MeasurementKt.result { impression = MeasurementKt.ResultKt.impression { value = 100 } }
-        }
-      )
-      service.setMeasurementResult(
-        setMeasurementResultRequest {
-          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
-          measurementReferenceId = MEASUREMENT_REFERENCE_ID_2
-          result =
-            MeasurementKt.result { impression = MeasurementKt.ResultKt.impression { value = 200 } }
-        }
-      )
-    }
-    val retrievedReport = runBlocking {
-      reportsService.getReport(
-        getReportRequest {
-          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
-          externalReportId = createdReport.externalReportId
-        }
-      )
-    }
-    assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
-    assertThat(retrievedReport.details.result)
-      .ignoringRepeatedFieldOrder()
-      .isEqualTo(
-        ReportKt.DetailsKt.result {
-          scalarTable =
-            ReportKt.DetailsKt.ResultKt.scalarTable {
-              rowHeaders += "1970-01-01T00:01:40.000000010Z-1970-01-01T00:01:50.000000011Z"
-              rowHeaders += "1970-01-01T00:01:50.000000011Z-1970-01-01T00:02:00.000000012Z"
-              columns +=
-                ReportKt.DetailsKt.ResultKt.column {
-                  columnHeader =
-                    buildColumnHeader(
-                      metricDetails.metricTypeCase.name,
-                      NAMED_SET_OPERATION.displayName
-                    )
-                  setOperations += listOf(1400.0, 700.0)
-                }
-            }
-        }
-      )
-  }
-
-  @Test
   fun `setMeasurementResult succeeds in setting the result for report with reach metric`() {
     val metricDetails = MetricKt.details { reach = MetricKt.reachParams {} }
     val createdReport = runBlocking {
@@ -928,7 +807,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         measurementCalculations +=
           MetricKt.measurementCalculation {
             timeInterval = timeInterval {
-              startTime = PERIODIC_TIME_INTERVAL.startTime
+              startTime =
+                Timestamps.add(PERIODIC_TIME_INTERVAL.startTime, PERIODIC_TIME_INTERVAL.increment)
               endTime = Timestamps.add(startTime, PERIODIC_TIME_INTERVAL.increment)
             }
             weightedMeasurements +=

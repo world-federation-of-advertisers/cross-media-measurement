@@ -194,7 +194,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
       Report.TimeCase.TIME_NOT_SET -> {
         error("Time should be set.")
       }
-    }.sorted()
+    }
   }
 
   private fun PeriodicTimeInterval.toTimeIntervals(): List<TimeInterval> {
@@ -217,33 +217,11 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
     val source = this
     return ReportKt.DetailsKt.ResultKt.column {
       columnHeader = buildColumnHeader(metricType.name, source.displayName)
-      val timeIntervalsToMeasurementCalculationsMap =
-        measurementCalculationsList.groupBy { it.timeInterval }
-      timeIntervalsToMeasurementCalculationsMap.keys
-        .toList()
-        .sortedWith { a, b ->
-          val startCompare = Timestamps.compare(a.startTime, b.startTime)
-          if (startCompare != 0) {
-            startCompare
-          } else {
-            Timestamps.compare(a.endTime, b.endTime)
-          }
-        }
-        .forEach {
-          val setOperationsResultsList: MutableList<List<Double>> = mutableListOf()
-          timeIntervalsToMeasurementCalculationsMap.getValue(it).forEach { measurementCalculation ->
-            setOperationsResultsList.add(
-              measurementCalculation.toSetOperationResults(metricType, measurementResultsMap)
-            )
-          }
-          val resultsSumList = MutableList(setOperationsResultsList.first().size) { 0.0 }
-          setOperationsResultsList.forEach { setOperationResults ->
-            for (i in setOperationResults.indices) {
-              resultsSumList[i] += setOperationResults[i]
-            }
-          }
-          setOperations += resultsSumList
-        }
+      for (measurementCalculation in source.measurementCalculationsList) {
+        setOperations.addAll(
+          measurementCalculation.toSetOperationResults(metricType, measurementResultsMap)
+        )
+      }
     }
   }
 
@@ -363,7 +341,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
           }
           aggregatedFrequencyHistogramMap
         }
-    return aggregatedFrequencyHistogramMap.values.toList().sorted()
+    return aggregatedFrequencyHistogramMap.values.toList()
   }
 
   /** Convert a [Metric] to a [Report.Details.Result.HistogramTable] of a [Report] */
