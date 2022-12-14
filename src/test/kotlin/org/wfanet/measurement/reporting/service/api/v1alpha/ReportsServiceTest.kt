@@ -121,7 +121,6 @@ import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisit
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.internal.reporting.CreateReportRequestKt as InternalCreateReportRequestKt
-import org.wfanet.measurement.internal.reporting.createReportRequest as internalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.GetReportRequest as GetInternalReportRequest
 import org.wfanet.measurement.internal.reporting.GetReportingSetRequest
 import org.wfanet.measurement.internal.reporting.Measurement as InternalMeasurement
@@ -145,6 +144,7 @@ import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineI
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.StreamReportsRequestKt.filter
 import org.wfanet.measurement.internal.reporting.copy
+import org.wfanet.measurement.internal.reporting.createReportRequest as internalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.getReportByIdempotencyKeyRequest
 import org.wfanet.measurement.internal.reporting.getReportRequest as getInternalReportRequest
 import org.wfanet.measurement.internal.reporting.getReportingSetRequest
@@ -1493,36 +1493,37 @@ class ReportsServiceTest {
       )
 
     // Verify proto argument of InternalReportsCoroutineImplBase::createReport
-    verifyProtoArgument(
-      internalReportsMock,
-      ReportsCoroutineImplBase::createReport
-    )
+    verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::createReport)
       .ignoringRepeatedFieldOrder()
-      .isEqualTo(internalCreateReportRequest {
-        report = INTERNAL_PENDING_REACH_REPORT.copy {
-          clearState()
-          clearExternalReportId()
-          measurements.clear()
-          clearCreateTime()
+      .isEqualTo(
+        internalCreateReportRequest {
+          report =
+            INTERNAL_PENDING_REACH_REPORT.copy {
+              clearState()
+              clearExternalReportId()
+              measurements.clear()
+              clearCreateTime()
+            }
+          measurements +=
+            InternalCreateReportRequestKt.measurementKey {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+              measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
+            }
         }
-        measurements += InternalCreateReportRequestKt.measurementKey {
-          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-          measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
-        }
-      })
+      )
 
     assertThat(result).isEqualTo(expected)
   }
 
   @Test
   fun `createReport returns a report with set operation type DIFFERENCE`() {
-    val pendingReachReportWithSetDifference = PENDING_REACH_REPORT.copy {
-      metrics.clear()
-      metrics += metric {
-        reach = reachParams {}
-        cumulative = false
-        setOperations +=
-          namedSetOperation {
+    val pendingReachReportWithSetDifference =
+      PENDING_REACH_REPORT.copy {
+        metrics.clear()
+        metrics += metric {
+          reach = reachParams {}
+          cumulative = false
+          setOperations += namedSetOperation {
             uniqueName = REACH_SET_OPERATION_UNIQUE_NAME
             setOperation = setOperation {
               type = SetOperation.Type.DIFFERENCE
@@ -1530,8 +1531,8 @@ class ReportsServiceTest {
               rhs = SetOperationKt.operand { reportingSet = REPORTING_SET_NAMES[1] }
             }
           }
+        }
       }
-    }
 
     val request = createReportRequest {
       parent = MEASUREMENT_CONSUMER_NAMES[0]
@@ -1581,9 +1582,9 @@ class ReportsServiceTest {
 
     // Verify proto argument of MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
     verifyProtoArgument(
-      measurementConsumersMock,
-      MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
-    )
+        measurementConsumersMock,
+        MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
+      )
       .isEqualTo(getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMER_NAMES[0] })
 
     // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
@@ -1598,9 +1599,7 @@ class ReportsServiceTest {
 
     // Verify proto argument of MeasurementsCoroutineImplBase::createMeasurement
     val measurementCaptor: KArgumentCaptor<CreateMeasurementRequest> = argumentCaptor()
-    verifyBlocking(measurementsMock, times(2)) {
-      createMeasurement(measurementCaptor.capture())
-    }
+    verifyBlocking(measurementsMock, times(2)) { createMeasurement(measurementCaptor.capture()) }
     assertThat(measurementCaptor.allValues.map { it.measurement }).containsNoDuplicates()
 
     // Verify proto argument of InternalMeasurementsCoroutineImplBase::createMeasurement
@@ -1610,47 +1609,51 @@ class ReportsServiceTest {
     }
 
     // Verify proto argument of InternalReportsCoroutineImplBase::createReport
-    verifyProtoArgument(
-      internalReportsMock,
-      ReportsCoroutineImplBase::createReport
-    )
+    verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::createReport)
       .ignoringRepeatedFieldOrder()
-      .isEqualTo(internalCreateReportRequest {
-        report = INTERNAL_PENDING_REACH_REPORT.copy {
-          val source = this
-          clearState()
-          clearExternalReportId()
-          measurements.clear()
-          clearCreateTime()
-          val metric = internalMetric {
-            details = InternalMetricKt.details {
-              reach = InternalMetricKt.reachParams {  }
-            }
-            namedSetOperations += source.metrics[0].namedSetOperationsList[0].copy {
-              setOperation = setOperation.copy {
-                type = InternalMetric.SetOperation.Type.DIFFERENCE
+      .isEqualTo(
+        internalCreateReportRequest {
+          report =
+            INTERNAL_PENDING_REACH_REPORT.copy {
+              val source = this
+              clearState()
+              clearExternalReportId()
+              measurements.clear()
+              clearCreateTime()
+              val metric = internalMetric {
+                details = InternalMetricKt.details { reach = InternalMetricKt.reachParams {} }
+                namedSetOperations +=
+                  source.metrics[0].namedSetOperationsList[0].copy {
+                    setOperation =
+                      setOperation.copy { type = InternalMetric.SetOperation.Type.DIFFERENCE }
+                    measurementCalculations.clear()
+                    measurementCalculations +=
+                      source.metrics[0]
+                        .namedSetOperationsList[0]
+                        .measurementCalculationsList[0]
+                        .copy {
+                          weightedMeasurements += weightedMeasurement {
+                            measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
+                            coefficient = -1
+                          }
+                        }
+                  }
               }
-              measurementCalculations.clear()
-              measurementCalculations += source.metrics[0].namedSetOperationsList[0].measurementCalculationsList[0].copy {
-                weightedMeasurements += weightedMeasurement {
-                  measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
-                  coefficient = -1
-                }
-              }
+              metrics.clear()
+              metrics += metric
             }
-          }
-          metrics.clear()
-          metrics += metric
+          measurements +=
+            InternalCreateReportRequestKt.measurementKey {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+              measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
+            }
+          measurements +=
+            InternalCreateReportRequestKt.measurementKey {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+              measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
+            }
         }
-        measurements += InternalCreateReportRequestKt.measurementKey {
-          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-          measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
-        }
-        measurements += InternalCreateReportRequestKt.measurementKey {
-          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-          measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
-        }
-      })
+      )
   }
 
   @Test

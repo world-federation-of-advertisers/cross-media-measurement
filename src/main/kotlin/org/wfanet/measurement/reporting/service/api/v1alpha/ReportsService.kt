@@ -1111,19 +1111,23 @@ class ReportsService(
     setOperationResult: SetOperationResult,
   ): List<MeasurementCalculation> {
     val measurementCalculations = mutableListOf<MeasurementCalculation>()
-    setOperationResult.weightedMeasurementInfoList.groupBy { it.timeInterval }.forEach { (timeInterval, weightedMeasurementInfos) ->
-      measurementCalculations.add(InternalMetricKt.measurementCalculation {
-        this.timeInterval = timeInterval.toInternal()
+    setOperationResult.weightedMeasurementInfoList
+      .groupBy { it.timeInterval }
+      .forEach { (timeInterval, weightedMeasurementInfos) ->
+        measurementCalculations.add(
+          InternalMetricKt.measurementCalculation {
+            this.timeInterval = timeInterval.toInternal()
 
-        weightedMeasurementInfos.forEach {
-          weightedMeasurements +=
-            MeasurementCalculationKt.weightedMeasurement {
-              this.measurementReferenceId = it.kingdomMeasurementId!!
-              coefficient = it.weightedMeasurement.coefficient
+            weightedMeasurementInfos.forEach {
+              weightedMeasurements +=
+                MeasurementCalculationKt.weightedMeasurement {
+                  this.measurementReferenceId = it.kingdomMeasurementId!!
+                  coefficient = it.weightedMeasurement.coefficient
+                }
             }
-        }
-      })
-    }
+          }
+        )
+      }
     return measurementCalculations
   }
 
