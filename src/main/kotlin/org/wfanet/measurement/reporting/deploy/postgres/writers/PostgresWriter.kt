@@ -53,6 +53,7 @@ abstract class PostgresWriter<T> {
       executed.set(true)
       return result
     } catch (e: Exception) {
+      // PostgresqlException is an interface, not a subclass of Exception
       if (e is PostgresqlException) {
         transactionContext.rollback()
       }
