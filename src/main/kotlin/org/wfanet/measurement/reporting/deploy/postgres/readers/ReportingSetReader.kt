@@ -18,6 +18,7 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flow
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
@@ -118,6 +119,52 @@ class ReportingSetReader {
         } else {
           bind("$3", 50)
         }
+      }
+
+    return flow {
+      val readContext = client.readTransaction()
+      try {
+        emitAll(readContext.executeQuery(statement).consume(::translate))
+      } finally {
+        readContext.close()
+      }
+    }
+  }
+
+  fun getReportingSetsByExternalIds(
+    client: DatabaseClient,
+    measurementConsumerReferenceId: String,
+    externalReportingSetIds: List<Long>
+  ): Flow<Result> {
+    val sql =
+      StringBuilder(
+        baseSql +
+          """
+        WHERE MeasurementConsumerReferenceId = $1
+          AND ExternalReportingSetId IN
+        """
+      )
+
+    if (externalReportingSetIds.isEmpty()) {
+      return emptyFlow()
+    }
+
+    var i = 2
+    val bindingMap = mutableMapOf<Long, String>()
+    val inList =
+      externalReportingSetIds.joinToString(separator = ",", prefix = "(", postfix = ")") {
+        val index = "$$i"
+        bindingMap[it] = "$$i"
+        i++
+        index
+      }
+    sql.append(inList)
+
+    val statement =
+      boundStatement(sql.toString()) {
+        bind("$1", measurementConsumerReferenceId)
+
+        externalReportingSetIds.forEach { bind(bindingMap.getValue(it), it) }
       }
 
     return flow {

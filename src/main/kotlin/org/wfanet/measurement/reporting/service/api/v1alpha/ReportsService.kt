@@ -29,9 +29,11 @@ import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.time.Instant
 import kotlin.math.min
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.launch
 import org.wfanet.measurement.api.v2.alpha.ListReportsPageToken
 import org.wfanet.measurement.api.v2.alpha.ListReportsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2.alpha.copy
@@ -110,6 +112,7 @@ import org.wfanet.measurement.internal.reporting.PeriodicTimeInterval as Interna
 import org.wfanet.measurement.internal.reporting.Report as InternalReport
 import org.wfanet.measurement.internal.reporting.ReportKt as InternalReportKt
 import org.wfanet.measurement.internal.reporting.ReportingSet as InternalReportingSet
+import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.SetMeasurementResultRequest as SetInternalMeasurementResultRequest
@@ -117,10 +120,10 @@ import org.wfanet.measurement.internal.reporting.StreamReportsRequest as StreamI
 import org.wfanet.measurement.internal.reporting.StreamReportsRequestKt.filter
 import org.wfanet.measurement.internal.reporting.TimeInterval as InternalTimeInterval
 import org.wfanet.measurement.internal.reporting.TimeIntervals as InternalTimeIntervals
+import org.wfanet.measurement.internal.reporting.batchGetReportingSetRequest
 import org.wfanet.measurement.internal.reporting.createReportRequest as internalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.getReportByIdempotencyKeyRequest
 import org.wfanet.measurement.internal.reporting.getReportRequest as getInternalReportRequest
-import org.wfanet.measurement.internal.reporting.getReportingSetRequest
 import org.wfanet.measurement.internal.reporting.measurement as internalMeasurement
 import org.wfanet.measurement.internal.reporting.metric as internalMetric
 import org.wfanet.measurement.internal.reporting.periodicTimeInterval as internalPeriodicTimeInterval
@@ -328,11 +331,13 @@ class ReportsService(
 
     val reportInfo: ReportInfo = buildReportInfo(request, resourceKey.measurementConsumerId)
 
+    val metrics =
+      Metrics(reportInfo, internalReportingSetsStub, setOperationCompiler, request.report)
+    metrics.process()
     val namedSetOperationResults: Map<String, SetOperationResult> =
-      compileAllSetOperations(
-        request,
-        reportInfo,
-      )
+      metrics.getNamedSetOperationResults()
+    val internalReportingSetMap: Map<Long, InternalReportingSet> =
+      metrics.getInternalReportingSetsMap()
 
     val measurementConsumer =
       try {
@@ -375,6 +380,7 @@ class ReportsService(
       measurementConsumer,
       apiAuthenticationKey,
       signingConfig,
+      internalReportingSetMap
     )
 
     val internalCreateReportRequest: InternalCreateReportRequest =
@@ -443,7 +449,9 @@ class ReportsService(
     measurementConsumer: MeasurementConsumer,
     apiAuthenticationKey: String,
     signingConfig: SigningConfig,
+    internalReportingSetMap: Map<Long, InternalReportingSet>
   ) = coroutineScope {
+    val deferred = mutableListOf<Deferred<Measurement>>()
     for (metric in request.report.metricsList) {
       val internalMetricDetails = buildInternalMetricDetails(metric)
 
@@ -459,22 +467,70 @@ class ReportsService(
           namedSetOperationResults[setOperationId] ?: continue
 
         setOperationResult.weightedMeasurementInfoList.forEach { weightedMeasurementInfo ->
-          launch {
-            createMeasurement(
-              weightedMeasurementInfo,
-              reportInfo,
-              setOperationResult.internalMetricDetails,
-              measurementConsumer,
-              apiAuthenticationKey,
-              signingConfig,
-            )
+          deferred.add(
+            async {
+              createMeasurement(
+                weightedMeasurementInfo,
+                reportInfo,
+                setOperationResult.internalMetricDetails,
+                measurementConsumer,
+                apiAuthenticationKey,
+                signingConfig,
+                internalReportingSetMap
+              )
+            }
+          )
+        }
+      }
+    }
+
+    // map of kingdom measurementReferenceId to kingdom apiId
+    val measurementMap = mutableMapOf<String, String>()
+    deferred.awaitAll().forEach { measurement ->
+      try {
+        val apiId = MeasurementKey.fromName(measurement.name)!!.measurementId
+        measurementMap[measurement.measurementReferenceId] = apiId
+        internalMeasurementsStub.createMeasurement(
+          internalMeasurement {
+            this.measurementConsumerReferenceId = reportInfo.measurementConsumerReferenceId
+            this.measurementReferenceId = apiId
+            state = InternalMeasurement.State.PENDING
           }
+        )
+      } catch (e: StatusException) {
+        if (!e.status.code.equals(Status.Code.ALREADY_EXISTS)) {
+          throw Exception(
+            "Unable to create the measurement [${measurement.name}] " +
+              "in the reporting database.",
+            e
+          )
+        }
+      }
+    }
+
+    for (metric in request.report.metricsList) {
+      val internalMetricDetails = buildInternalMetricDetails(metric)
+
+      for (namedSetOperation in metric.setOperationsList) {
+        val setOperationId =
+          buildSetOperationId(
+            reportInfo.reportIdempotencyKey,
+            internalMetricDetails,
+            namedSetOperation.uniqueName,
+          )
+
+        val setOperationResult: SetOperationResult =
+          namedSetOperationResults[setOperationId] ?: continue
+
+        setOperationResult.weightedMeasurementInfoList.forEach { weightedMeasurementInfo ->
+          weightedMeasurementInfo.kingdomMeasurementId =
+            measurementMap[weightedMeasurementInfo.reportingMeasurementId]
         }
       }
     }
   }
 
-  /** Creates a measurement for a [WeightedMeasurement]. */
+  /** Creates a kingdom measurement for a [WeightedMeasurement]. */
   private suspend fun createMeasurement(
     weightedMeasurementInfo: WeightedMeasurementInfo,
     reportInfo: ReportInfo,
@@ -482,12 +538,14 @@ class ReportsService(
     measurementConsumer: MeasurementConsumer,
     apiAuthenticationKey: String,
     signingConfig: SigningConfig,
-  ) {
+    internalReportingSetMap: Map<Long, InternalReportingSet>
+  ): Measurement {
     val dataProviderNameToInternalEventGroupEntriesList =
       aggregateInternalEventGroupEntryByDataProviderName(
         weightedMeasurementInfo.weightedMeasurement.reportingSets,
         weightedMeasurementInfo.timeInterval.toMeasurementTimeInterval(),
-        reportInfo.eventGroupFilters
+        reportInfo.eventGroupFilters,
+        internalReportingSetMap
       )
 
     val createMeasurementRequest: CreateMeasurementRequest =
@@ -501,143 +559,14 @@ class ReportsService(
       )
 
     try {
-      val measurement =
-        measurementsStub
-          .withAuthenticationKey(apiAuthenticationKey)
-          .createMeasurement(createMeasurementRequest)
-      weightedMeasurementInfo.kingdomMeasurementId =
-        checkNotNull(MeasurementKey.fromName(measurement.name)).measurementId
+      return measurementsStub
+        .withAuthenticationKey(apiAuthenticationKey)
+        .createMeasurement(createMeasurementRequest)
     } catch (e: StatusException) {
       throw Exception(
         "Unable to create the measurement [${createMeasurementRequest.measurement.name}].",
         e
       )
-    }
-
-    try {
-      internalMeasurementsStub.createMeasurement(
-        internalMeasurement {
-          this.measurementConsumerReferenceId = reportInfo.measurementConsumerReferenceId
-          this.measurementReferenceId = weightedMeasurementInfo.kingdomMeasurementId!!
-          state = InternalMeasurement.State.PENDING
-        }
-      )
-    } catch (e: StatusException) {
-      if (!e.status.code.equals(Status.Code.ALREADY_EXISTS)) {
-        throw Exception(
-          "Unable to create the measurement [${createMeasurementRequest.measurement.name}] " +
-            "in the reporting database.",
-          e
-        )
-      }
-    }
-  }
-
-  /** Compiles all [SetOperation]s and outputs each result with measurement reference ID. */
-  private suspend fun compileAllSetOperations(
-    request: CreateReportRequest,
-    reportInfo: ReportInfo,
-  ): Map<String, SetOperationResult> {
-    val namedSetOperationResults = mutableMapOf<String, SetOperationResult>()
-
-    val timeIntervalsList = request.report.timeIntervalsList()
-    val cumulativeTimeIntervalsList =
-      timeIntervalsList.map { timeInterval ->
-        timeInterval.copy { this.startTime = timeIntervalsList.first().startTime }
-      }
-
-    coroutineScope {
-      for (metric in request.report.metricsList) {
-        val metricTimeIntervalsList =
-          if (metric.cumulative) cumulativeTimeIntervalsList else timeIntervalsList
-        val internalMetricDetails: InternalMetricDetails = buildInternalMetricDetails(metric)
-
-        for (namedSetOperation in metric.setOperationsList) {
-          launch {
-            checkSetOperationReportingSetCoverage(namedSetOperation.setOperation, reportInfo)
-          }
-
-          val setOperationId =
-            buildSetOperationId(
-              reportInfo.reportIdempotencyKey,
-              internalMetricDetails,
-              namedSetOperation.uniqueName
-            )
-
-          launch {
-            val weightedMeasurementInfoList =
-              compileSetOperation(
-                namedSetOperation.setOperation,
-                setOperationId,
-                metricTimeIntervalsList,
-              )
-            namedSetOperationResults[setOperationId] =
-              SetOperationResult(weightedMeasurementInfoList, internalMetricDetails)
-          }
-        }
-      }
-    }
-
-    return namedSetOperationResults.toMap()
-  }
-
-  /** Compiles a [SetOperation] and outputs each result with measurement reference ID. */
-  private suspend fun compileSetOperation(
-    setOperation: SetOperation,
-    setOperationId: String,
-    timeIntervalsList: List<TimeInterval>,
-  ): List<WeightedMeasurementInfo> {
-    val weightedMeasurementsList = setOperationCompiler.compileSetOperation(setOperation)
-
-    return timeIntervalsList.flatMap { timeInterval ->
-      weightedMeasurementsList.mapIndexed { index, weightedMeasurement ->
-        val measurementReferenceId =
-          buildMeasurementReferenceId(
-            setOperationId,
-            timeInterval,
-            index,
-          )
-
-        WeightedMeasurementInfo(measurementReferenceId, weightedMeasurement, timeInterval)
-      }
-    }
-  }
-
-  /** Checks if all reporting sets under a [SetOperation] are covered by the event filters. */
-  private suspend fun checkSetOperationReportingSetCoverage(
-    setOperation: SetOperation,
-    reportInfo: ReportInfo
-  ) {
-    checkOperandReportingSetCoverage(setOperation.lhs, reportInfo)
-    checkOperandReportingSetCoverage(setOperation.rhs, reportInfo)
-  }
-
-  /** Checks if all reporting sets under a [Operand] are covered by the event filters. */
-  private suspend fun checkOperandReportingSetCoverage(operand: Operand, reportInfo: ReportInfo) {
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-    when (operand.operandCase) {
-      Operand.OperandCase.OPERATION ->
-        checkSetOperationReportingSetCoverage(operand.operation, reportInfo)
-      Operand.OperandCase.REPORTING_SET -> checkReportingSet(operand.reportingSet, reportInfo)
-      Operand.OperandCase.OPERAND_NOT_SET -> {}
-    }
-  }
-
-  /** Builds an [InternalMetricDetails] from a [Metric]. */
-  private fun buildInternalMetricDetails(metric: Metric): InternalMetricDetails {
-    return InternalMetricKt.details {
-      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-      when (metric.metricTypeCase) {
-        MetricTypeCase.REACH -> reach = InternalMetricKt.reachParams {}
-        MetricTypeCase.FREQUENCY_HISTOGRAM ->
-          frequencyHistogram = metric.frequencyHistogram.toInternal()
-        MetricTypeCase.IMPRESSION_COUNT -> impressionCount = metric.impressionCount.toInternal()
-        MetricTypeCase.WATCH_DURATION -> watchDuration = metric.watchDuration.toInternal()
-        MetricTypeCase.METRICTYPE_NOT_SET ->
-          failGrpc(Status.INVALID_ARGUMENT) { "The metric type in Report is not specified." }
-      }
-
-      cumulative = metric.cumulative
     }
   }
 
@@ -811,19 +740,17 @@ class ReportsService(
     measurementConsumerReferenceId: String,
     apiAuthenticationKey: String,
     principalName: String,
-  ) = coroutineScope {
+  ) {
     for ((measurementReferenceId, internalMeasurement) in measurementsMap) {
       // Measurement with SUCCEEDED state is already synced
       if (internalMeasurement.state == InternalMeasurement.State.SUCCEEDED) continue
 
-      launch {
-        syncMeasurement(
-          measurementReferenceId,
-          measurementConsumerReferenceId,
-          apiAuthenticationKey,
-          principalName,
-        )
-      }
+      syncMeasurement(
+        measurementReferenceId,
+        measurementConsumerReferenceId,
+        apiAuthenticationKey,
+        principalName,
+      )
     }
   }
 
@@ -982,13 +909,9 @@ class ReportsService(
           failGrpc(Status.INVALID_ARGUMENT) { "The time in Report is not specified." }
       }
 
-      coroutineScope {
-        for (metric in request.report.metricsList) {
-          launch {
-            this@internalReport.metrics +=
-              buildInternalMetric(metric, reportInfo, namedSetOperationResults)
-          }
-        }
+      for (metric in request.report.metricsList) {
+        this@internalReport.metrics +=
+          buildInternalMetric(metric, reportInfo, namedSetOperationResults)
       }
 
       details =
@@ -1015,26 +938,22 @@ class ReportsService(
     return internalMetric {
       details = buildInternalMetricDetails(metric)
 
-      coroutineScope {
-        metric.setOperationsList.map { setOperation ->
-          val setOperationId =
-            buildSetOperationId(
-              reportInfo.reportIdempotencyKey,
-              details,
-              setOperation.uniqueName,
-            )
+      metric.setOperationsList.map { setOperation ->
+        val setOperationId =
+          buildSetOperationId(
+            reportInfo.reportIdempotencyKey,
+            details,
+            setOperation.uniqueName,
+          )
 
-          namedSetOperationResults[setOperationId]?.let { setOperationResult ->
-            launch {
-              val internalNamedSetOperation =
-                buildInternalNamedSetOperation(
-                  setOperation,
-                  reportInfo,
-                  setOperationResult,
-                )
-              namedSetOperations += internalNamedSetOperation
-            }
-          }
+        namedSetOperationResults[setOperationId]?.let { setOperationResult ->
+          val internalNamedSetOperation =
+            buildInternalNamedSetOperation(
+              setOperation,
+              reportInfo,
+              setOperationResult,
+            )
+          namedSetOperations += internalNamedSetOperation
         }
       }
     }
@@ -1175,38 +1094,22 @@ class ReportsService(
   }
 
   /** Builds a map of data provider resource name to a list of [EventGroupEntry]s. */
-  private suspend fun aggregateInternalEventGroupEntryByDataProviderName(
+  private fun aggregateInternalEventGroupEntryByDataProviderName(
     reportingSetNames: List<String>,
     timeInterval: MeasurementTimeInterval,
     eventGroupFilters: Map<String, String>,
+    internalReportingSetMap: Map<Long, InternalReportingSet>
   ): Map<String, List<EventGroupEntry>> {
     val internalReportingSetsList = mutableListOf<InternalReportingSet>()
 
-    coroutineScope {
-      for (reportingSetName in reportingSetNames) {
-        val reportingSetKey =
-          grpcRequireNotNull(ReportingSetKey.fromName(reportingSetName)) {
-            "Invalid reporting set name $reportingSetName."
-          }
-
-        launch {
-          internalReportingSetsList +=
-            try {
-              internalReportingSetsStub.getReportingSet(
-                getReportingSetRequest {
-                  measurementConsumerReferenceId = reportingSetKey.measurementConsumerId
-                  externalReportingSetId = apiIdToExternalId(reportingSetKey.reportingSetId)
-                }
-              )
-            } catch (e: StatusException) {
-              throw Exception(
-                "Unable to retrieve the reporting set [$reportingSetName] from the reporting " +
-                  "database.",
-                e
-              )
-            }
+    for (reportingSetName in reportingSetNames) {
+      val reportingSetKey =
+        grpcRequireNotNull(ReportingSetKey.fromName(reportingSetName)) {
+          "Invalid reporting set name $reportingSetName."
         }
-      }
+
+      internalReportingSetsList +=
+        internalReportingSetMap.getValue(apiIdToExternalId(reportingSetKey.reportingSetId))
     }
 
     val dataProviderNameToInternalEventGroupEntriesList =
@@ -1290,55 +1193,6 @@ class ReportsService(
     }
   }
 
-  /**
-   * Check if the event groups in the public [ReportingSet] are covered by the event group universe.
-   */
-  private suspend fun checkReportingSet(
-    reportingSetName: String,
-    reportInfo: ReportInfo,
-  ) {
-    val reportingSetKey =
-      grpcRequireNotNull(ReportingSetKey.fromName(reportingSetName)) {
-        "Invalid reporting set name $reportingSetName."
-      }
-
-    grpcRequire(
-      reportingSetKey.measurementConsumerId == reportInfo.measurementConsumerReferenceId
-    ) {
-      "No access to the reporting set [$reportingSetName]."
-    }
-
-    val internalReportingSet =
-      try {
-        internalReportingSetsStub.getReportingSet(
-          getReportingSetRequest {
-            this.measurementConsumerReferenceId = reportInfo.measurementConsumerReferenceId
-            externalReportingSetId = apiIdToExternalId(reportingSetKey.reportingSetId)
-          }
-        )
-      } catch (e: StatusException) {
-        throw Exception(
-          "Unable to retrieve the reporting set [$reportingSetName] from the reporting database.",
-          e
-        )
-      }
-
-    for (eventGroupKey in internalReportingSet.eventGroupKeysList) {
-      val eventGroupName =
-        EventGroupKey(
-            eventGroupKey.measurementConsumerReferenceId,
-            eventGroupKey.dataProviderReferenceId,
-            eventGroupKey.eventGroupReferenceId
-          )
-          .toName()
-      val internalReportingSetDisplayName = internalReportingSet.displayName
-      grpcRequire(reportInfo.eventGroupFilters.containsKey(eventGroupName)) {
-        "The event group [$eventGroupName] in the reporting set " +
-          "[$internalReportingSetDisplayName] is not included in the event group universe."
-      }
-    }
-  }
-
   /** Builds the unsigned [MeasurementSpec]. */
   private fun buildUnsignedMeasurementSpec(
     measurementEncryptionPublicKey: ByteString,
@@ -1380,6 +1234,161 @@ class ReportsService(
         InternalMetricTypeCase.METRICTYPE_NOT_SET ->
           error("Unset metric type should've already raised error.")
       }
+    }
+  }
+
+  private class Metrics(
+    private val reportInfo: ReportInfo,
+    private val internalReportingSetsStub: ReportingSetsGrpcKt.ReportingSetsCoroutineStub,
+    private val setOperationCompiler: SetOperationCompiler,
+    private val report: Report
+  ) {
+
+    private val reportingSetExternalIds: MutableSet<Long> = mutableSetOf()
+    private lateinit var namedSetOperationResults: Map<String, SetOperationResult>
+    private lateinit var internalReportingSetMap: Map<Long, InternalReportingSet>
+
+    suspend fun process() {
+      if (this::namedSetOperationResults.isInitialized) {
+        return
+      }
+      namedSetOperationResults = compileAllSetOperations()
+      internalReportingSetMap = getReportingSets()
+      internalReportingSetMap.values.forEach {
+        it.checkReportingSetEventGroupFilters(reportInfo.eventGroupFilters)
+      }
+    }
+
+    suspend fun getNamedSetOperationResults(): Map<String, SetOperationResult> {
+      if (!this::namedSetOperationResults.isInitialized) {
+        process()
+      }
+      return namedSetOperationResults
+    }
+
+    suspend fun getInternalReportingSetsMap(): Map<Long, InternalReportingSet> {
+      if (!this::namedSetOperationResults.isInitialized) {
+        process()
+      }
+      return internalReportingSetMap
+    }
+
+    /** Compiles all [SetOperation]s and outputs each result with measurement reference ID. */
+    private suspend fun compileAllSetOperations(): Map<String, SetOperationResult> {
+      val namedSetOperationResults = mutableMapOf<String, SetOperationResult>()
+
+      val timeIntervalsList = report.timeIntervalsList()
+      val cumulativeTimeIntervalsList =
+        timeIntervalsList.map { timeInterval ->
+          timeInterval.copy { this.startTime = timeIntervalsList.first().startTime }
+        }
+
+      for (metric in report.metricsList) {
+        val metricTimeIntervalsList =
+          if (metric.cumulative) cumulativeTimeIntervalsList else timeIntervalsList
+        val internalMetricDetails: InternalMetricDetails = buildInternalMetricDetails(metric)
+
+        for (namedSetOperation in metric.setOperationsList) {
+          checkSetOperationReportingSetName(namedSetOperation.setOperation)
+
+          val setOperationId =
+            buildSetOperationId(
+              reportInfo.reportIdempotencyKey,
+              internalMetricDetails,
+              namedSetOperation.uniqueName
+            )
+
+          val weightedMeasurementInfoList =
+            compileSetOperation(
+              namedSetOperation.setOperation,
+              setOperationId,
+              metricTimeIntervalsList,
+            )
+          namedSetOperationResults[setOperationId] =
+            SetOperationResult(weightedMeasurementInfoList, internalMetricDetails)
+        }
+      }
+
+      return namedSetOperationResults.toMap()
+    }
+
+    /** Checks if all reporting sets under a [SetOperation] have valid names. */
+    private fun checkSetOperationReportingSetName(setOperation: SetOperation) {
+      checkOperandReportingSetName(setOperation.lhs)
+      checkOperandReportingSetName(setOperation.rhs)
+    }
+
+    /** Checks if all reporting sets under a [Operand] have valid names. */
+    private fun checkOperandReportingSetName(operand: Operand) {
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+      when (operand.operandCase) {
+        Operand.OperandCase.OPERATION -> checkSetOperationReportingSetName(operand.operation)
+        Operand.OperandCase.REPORTING_SET -> checkReportingSetName(operand.reportingSet)
+        Operand.OperandCase.OPERAND_NOT_SET -> {}
+      }
+    }
+
+    /** Check if the event groups in the public [ReportingSet] have valid names. */
+    private fun checkReportingSetName(reportingSetName: String) {
+      val reportingSetKey =
+        grpcRequireNotNull(ReportingSetKey.fromName(reportingSetName)) {
+          "Invalid reporting set name $reportingSetName."
+        }
+
+      grpcRequire(
+        reportingSetKey.measurementConsumerId == reportInfo.measurementConsumerReferenceId
+      ) {
+        "No access to the reporting set [$reportingSetName]."
+      }
+
+      reportingSetExternalIds.add(apiIdToExternalId(reportingSetKey.reportingSetId))
+    }
+
+    /** Compiles a [SetOperation] and outputs each result with measurement reference ID. */
+    private suspend fun compileSetOperation(
+      setOperation: SetOperation,
+      setOperationId: String,
+      timeIntervalsList: List<TimeInterval>,
+    ): List<WeightedMeasurementInfo> {
+      val weightedMeasurementsList = setOperationCompiler.compileSetOperation(setOperation)
+
+      return timeIntervalsList.flatMap { timeInterval ->
+        weightedMeasurementsList.mapIndexed { index, weightedMeasurement ->
+          val measurementReferenceId =
+            buildMeasurementReferenceId(
+              setOperationId,
+              timeInterval,
+              index,
+            )
+
+          WeightedMeasurementInfo(measurementReferenceId, weightedMeasurement, timeInterval)
+        }
+      }
+    }
+
+    private suspend fun getReportingSets(): Map<Long, InternalReportingSet> {
+      val batchGetReportingSetRequest = batchGetReportingSetRequest {
+        measurementConsumerReferenceId = reportInfo.measurementConsumerReferenceId
+        reportingSetExternalIds.forEach { externalReportingSetIds += it }
+      }
+
+      val internalReportingSetsList =
+        internalReportingSetsStub.batchGetReportingSet(batchGetReportingSetRequest).toList()
+
+      if (internalReportingSetsList.size < reportingSetExternalIds.size) {
+        val errorMessage = StringBuilder("The following reporting set names were not found:")
+        internalReportingSetsList.forEach {
+          reportingSetExternalIds.remove(it.externalReportingSetId)
+        }
+        reportingSetExternalIds.forEach {
+          errorMessage.append(
+            " ${ReportingSetKey(reportInfo.measurementConsumerReferenceId, externalIdToApiId(it)).toName()}"
+          )
+        }
+        failGrpc(Status.NOT_FOUND) { errorMessage.toString() }
+      }
+
+      return internalReportingSetsList.associateBy { it.externalReportingSetId }
     }
   }
 }
@@ -1431,6 +1440,29 @@ private fun Report.timeIntervalsList(): List<TimeInterval> {
   }
 }
 
+/**
+ * Check if the event groups in the internal [InternalReportingSet] are covered by the event group
+ * universe.
+ */
+private fun InternalReportingSet.checkReportingSetEventGroupFilters(
+  eventGroupFilters: Map<String, String>
+) {
+  for (eventGroupKey in this.eventGroupKeysList) {
+    val eventGroupName =
+      EventGroupKey(
+          eventGroupKey.measurementConsumerReferenceId,
+          eventGroupKey.dataProviderReferenceId,
+          eventGroupKey.eventGroupReferenceId
+        )
+        .toName()
+    val internalReportingSetDisplayName = this.displayName
+    grpcRequire(eventGroupFilters.containsKey(eventGroupName)) {
+      "The event group [$eventGroupName] in the reporting set " +
+        "[$internalReportingSetDisplayName] is not included in the event group universe."
+    }
+  }
+}
+
 /** Check if the names of the set operations within the same metric type are unique. */
 private fun checkSetOperationNamesUniqueness(metricsList: List<Metric>) {
   val seenNames = mutableMapOf<MetricTypeCase, MutableSet<String>>().withDefault { mutableSetOf() }
@@ -1470,6 +1502,24 @@ private fun TimeInterval.toMeasurementTimeInterval(): MeasurementTimeInterval {
   return measurementTimeInterval {
     startTime = source.startTime
     endTime = source.endTime
+  }
+}
+
+/** Builds an [InternalMetricDetails] from a [Metric]. */
+private fun buildInternalMetricDetails(metric: Metric): InternalMetricDetails {
+  return InternalMetricKt.details {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    when (metric.metricTypeCase) {
+      MetricTypeCase.REACH -> reach = InternalMetricKt.reachParams {}
+      MetricTypeCase.FREQUENCY_HISTOGRAM ->
+        frequencyHistogram = metric.frequencyHistogram.toInternal()
+      MetricTypeCase.IMPRESSION_COUNT -> impressionCount = metric.impressionCount.toInternal()
+      MetricTypeCase.WATCH_DURATION -> watchDuration = metric.watchDuration.toInternal()
+      MetricTypeCase.METRICTYPE_NOT_SET ->
+        failGrpc(Status.INVALID_ARGUMENT) { "The metric type in Report is not specified." }
+    }
+
+    cumulative = metric.cumulative
   }
 }
 
