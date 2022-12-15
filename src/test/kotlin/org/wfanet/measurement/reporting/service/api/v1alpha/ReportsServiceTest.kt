@@ -138,6 +138,7 @@ import org.wfanet.measurement.internal.reporting.ReportKt.DetailsKt as InternalR
 import org.wfanet.measurement.internal.reporting.ReportKt.DetailsKt.ResultKt as InternalReportResultKt
 import org.wfanet.measurement.internal.reporting.ReportingSetKt as InternalReportingSetKt
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase as InternalReportingSetsCoroutineImplBase
+import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
@@ -156,7 +157,6 @@ import org.wfanet.measurement.internal.reporting.setMeasurementFailureRequest
 import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest
 import org.wfanet.measurement.internal.reporting.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInterval
-import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.v1alpha.Metric.SetOperation
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.SetOperationKt
@@ -1556,7 +1556,10 @@ class ReportsServiceTest {
       )
 
     // Verify proto argument of InternalReportingSetsCoroutineImplBase::batchGetReportingSet
-    verifyProtoArgument(internalReportingSetsMock, ReportingSetsCoroutineImplBase::batchGetReportingSet)
+    verifyProtoArgument(
+        internalReportingSetsMock,
+        ReportingSetsCoroutineImplBase::batchGetReportingSet
+      )
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
         batchGetReportingSetRequest {
