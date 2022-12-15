@@ -209,15 +209,17 @@ private val CONSENT_SIGNALING_ELGAMAL_PUBLIC_KEY = elGamalPublicKey {
   element = HexString("0277BF406C5AA4376413E480E0AB8B0EFCA999D362204E6D1686E0BE567811604D").bytes
 }
 
+private val TODAY = LocalDate.now()
+private val YESTERDAY = TODAY.minusDays(1)
+
 private val REQUISITION_ONE_SPEC = requisitionSpec {
   eventGroups += eventGroupEntry {
     key = "eventGroup/name"
     value =
       RequisitionSpecKt.EventGroupEntryKt.value {
         collectionInterval = timeInterval {
-          startTime =
-            LocalDate.now().minusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
-          endTime = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+          startTime = YESTERDAY.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+          endTime = TODAY.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
         }
         filter = eventFilter {
           expression = "privacy_budget.age.value == 1 || banner_ad.gender.value == 2"
@@ -308,7 +310,7 @@ class EdpSimulatorTest {
     PrivacyBudgetManager(PrivacyBucketFilter(TestPrivacyBucketMapper()), backingStore, 10.0f, 0.02f)
 
   private fun getExpectedResult(
-    matchingVids: List<Int>,
+    matchingVids: Iterable<Long>,
     vidSamplingIntervalStart: Float,
     vidSamplingIntervalWidth: Float
   ): AnySketch {
@@ -317,13 +319,9 @@ class EdpSimulatorTest {
 
     matchingVids.forEach {
       if (
-        vidSampler.vidIsInSamplingBucket(
-          it.toLong(),
-          vidSamplingIntervalStart,
-          vidSamplingIntervalWidth
-        )
+        vidSampler.vidIsInSamplingBucket(it, vidSamplingIntervalStart, vidSamplingIntervalWidth)
       ) {
-        expectedResult.insert(it.toLong(), mapOf("frequency" to 1L))
+        expectedResult.insert(it, mapOf("frequency" to 1L))
       }
     }
     return expectedResult
@@ -332,11 +330,12 @@ class EdpSimulatorTest {
   private fun getEvents(
     bannerAd: TestBannerTemplate,
     privacyBudget: TestPrivacyBudgetTemplate,
-    vidRange: IntRange,
-  ): Map<Int, List<TestEvent>> {
+    vidRange: LongRange,
+  ): Map<Long, List<TestEvent>> {
     return vidRange.associateWith {
       listOf(
         testEvent {
+          time = YESTERDAY.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
           this.bannerAd = bannerAd
           this.privacyBudget = privacyBudget
         }
@@ -347,9 +346,9 @@ class EdpSimulatorTest {
   @Test
   fun `filters events, charges privacy budget and generates sketch successfully`() {
     runBlocking {
-      val videoTemplateMatchingVids = (1..10)
-      val bannerTemplateMatchingVids = (11..20)
-      val nonMatchingVids = (21..40)
+      val videoTemplateMatchingVids = (1L..10L)
+      val bannerTemplateMatchingVids = (11L..20L)
+      val nonMatchingVids = (21L..40L)
       val matchingVids = videoTemplateMatchingVids + bannerTemplateMatchingVids
 
       val matchingTestPrivacyTemplate = testPrivacyBudgetTemplate {

@@ -14,17 +14,23 @@
 package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.common.truth.Truth.assertThat
+import java.time.LocalDate
+import java.time.ZoneOffset
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplate.Gender
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplateKt.gender
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate.AgeRange
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplateKt.ageRange
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.copy
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testBannerTemplate
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testPrivacyBudgetTemplate
+import org.wfanet.measurement.api.v2alpha.timeInterval
+import org.wfanet.measurement.common.toProtoTime
 
 private val NONMATCHING_BANNER_GENDER = Gender.Value.GENDER_MALE
 private val MATCHING_BANNER_GENDER = Gender.Value.GENDER_FEMALE
@@ -34,15 +40,24 @@ private val MATCHING_EVENT_FILTER = eventFilter {
   expression = "privacy_budget.age.value == 2 || banner_ad.gender.value == 2"
 }
 
+private val TODAY = LocalDate.now()
+private val YESTERDAY = TODAY.minusDays(1)
+private val ALL_OF_YESTERDAY = timeInterval {
+  startTime = YESTERDAY.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+  endTime = TODAY.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+}
+
 @RunWith(JUnit4::class)
 class FilterEventQueryTest {
+  private data class LabelledEvent(val vid: Long, val event: TestEvent)
 
   @Test
-  fun `filters when no matching conditions`() {
+  fun `getUserVirtualIds returns empty when no conditions match`() {
     val nonMatchingEvents =
-      (1..5).associateWith {
+      (1L..5L).associateWith {
         listOf(
           testEvent {
+            time = ALL_OF_YESTERDAY.startTime
             this.bannerAd = testBannerTemplate {
               gender = gender { value = NONMATCHING_BANNER_GENDER }
             }
@@ -53,56 +68,80 @@ class FilterEventQueryTest {
         )
       }
     val eventQuery = FilterEventQuery(nonMatchingEvents)
-    val userVids = eventQuery.getUserVirtualIds(MATCHING_EVENT_FILTER)
+    val userVids = eventQuery.getUserVirtualIds(ALL_OF_YESTERDAY, MATCHING_EVENT_FILTER)
     assertThat(userVids.toList()).isEmpty()
   }
 
   @Test
-  fun `filters matching conditions`() {
-    val privacyTemplateMatchingVids = (1..10)
-    val bannerTemplateMatchingVids = (6..10)
-    val nonMatchingVids = (11..20)
-    val matchingVids = privacyTemplateMatchingVids + bannerTemplateMatchingVids
+  fun `getUserVirtualIds returns VIDs for matching events`() {
+    val privacyTemplateMatchingVids = (1L..10L)
+    val bannerTemplateMatchingVids = (6L..10L)
+    val nonMatchingVids = (11L..20L)
+    val matchingVids = privacyTemplateMatchingVids.toList() + bannerTemplateMatchingVids
 
-    val nonMatchingEvents =
-      nonMatchingVids.associateWith {
-        testEvent {
-          this.bannerAd = testBannerTemplate {
-            gender = gender { value = NONMATCHING_BANNER_GENDER }
+    val privacyMatchingEvents: List<LabelledEvent> =
+      privacyTemplateMatchingVids.map {
+        LabelledEvent(
+          it,
+          testEvent {
+            time = ALL_OF_YESTERDAY.startTime
+            this.bannerAd = testBannerTemplate {
+              gender = gender { value = NONMATCHING_BANNER_GENDER }
+            }
+            this.privacyBudget = testPrivacyBudgetTemplate {
+              age = ageRange { value = MATCHING_PRIVACY_AGE_RANGE }
+            }
           }
-          this.privacyBudget = testPrivacyBudgetTemplate {
-            age = ageRange { value = NONMATCHING_PRIVACY_AGE_RANGE }
+        )
+      }
+    val bannerMatchingEvents: List<LabelledEvent> =
+      bannerTemplateMatchingVids.map {
+        LabelledEvent(
+          it,
+          testEvent {
+            time = ALL_OF_YESTERDAY.startTime
+            this.bannerAd = testBannerTemplate {
+              gender = gender { value = MATCHING_BANNER_GENDER }
+            }
+            this.privacyBudget = testPrivacyBudgetTemplate {
+              age = ageRange { value = NONMATCHING_PRIVACY_AGE_RANGE }
+            }
           }
+        )
+      }
+    val nonMatchingEvents: List<LabelledEvent> =
+      nonMatchingVids
+        .map {
+          LabelledEvent(
+            it,
+            testEvent {
+              time = ALL_OF_YESTERDAY.startTime
+              this.bannerAd = testBannerTemplate {
+                gender = gender { value = NONMATCHING_BANNER_GENDER }
+              }
+              this.privacyBudget = testPrivacyBudgetTemplate {
+                age = ageRange { value = NONMATCHING_PRIVACY_AGE_RANGE }
+              }
+            }
+          )
         }
-      }
-    val privacyMatchingEvents =
-      privacyTemplateMatchingVids.associateWith {
-        testEvent {
-          this.bannerAd = testBannerTemplate {
-            gender = gender { value = NONMATCHING_BANNER_GENDER }
-          }
-          this.privacyBudget = testPrivacyBudgetTemplate {
-            age = ageRange { value = MATCHING_PRIVACY_AGE_RANGE }
-          }
-        }
-      }
-    val bannerMatchingEvents =
-      bannerTemplateMatchingVids.associateWith {
-        testEvent {
-          this.bannerAd = testBannerTemplate { gender = gender { value = MATCHING_BANNER_GENDER } }
-          this.privacyBudget = testPrivacyBudgetTemplate {
-            age = ageRange { value = NONMATCHING_PRIVACY_AGE_RANGE }
-          }
-        }
-      }
-    val allEvents =
-      (1..20).associateWith {
-        listOfNotNull(privacyMatchingEvents[it], bannerMatchingEvents[it], nonMatchingEvents[it])
-      }
+        // Add event that would match except for time interval.
+        .plusElement(
+          LabelledEvent(
+            nonMatchingVids.first(),
+            privacyMatchingEvents.first().event.copy { time = ALL_OF_YESTERDAY.endTime }
+          )
+        )
+    val allEvents: Map<Long, List<TestEvent>> =
+      nonMatchingEvents
+        .asSequence()
+        .plus(privacyMatchingEvents)
+        .plus(bannerMatchingEvents)
+        .groupBy({ it.vid }, { it.event })
 
-    val filterEventQuery = FilterEventQuery(allEvents)
-    val userVids = filterEventQuery.getUserVirtualIds(MATCHING_EVENT_FILTER)
-    val expectedVids = matchingVids.map { it.toLong() }
-    assertThat(userVids.toList().sorted()).isEqualTo(expectedVids.sorted())
+    val userVids: Sequence<Long> =
+      FilterEventQuery(allEvents).getUserVirtualIds(ALL_OF_YESTERDAY, MATCHING_EVENT_FILTER)
+
+    assertThat(userVids.toList()).containsExactlyElementsIn(matchingVids)
   }
 }

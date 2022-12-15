@@ -16,8 +16,13 @@ package org.wfanet.measurement.loadtest.dataprovider
 import com.opencsv.CSVReaderBuilder
 import java.io.File
 import java.io.IOException
+import java.time.LocalDate
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
+import org.wfanet.measurement.api.v2alpha.TimeInterval
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplate.Gender as BannerGender
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplateKt as TestBannerTemplate
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
@@ -38,17 +43,18 @@ private const val AGE_GROUP = "Age_Group"
 private const val EDP_ID_INDEX = 0
 private const val SEX_INDEX = 2
 private const val AGE_GROUP_INDEX = 3
+private const val DATE_INDEX = 5
 private const val VID_INDEX = 7
 
-data class VidAndEvent(val vid: Int, val event: TestEvent)
+data class LabelledEvent(val vid: Long, val event: TestEvent, val date: LocalDate)
 
 /** Fulfill the query with VIDs imported from CSV file. */
-class CsvEventQuery(private val publisherId: Int, private val file: File) : EventQuery() {
-  private val vidAndEventList: List<VidAndEvent> by lazy { readCsvFile() }
+class CsvEventQuery(private val publisherId: Int, private val file: File) : EventQuery {
+  private val labelledEventList: List<LabelledEvent> by lazy { readCsvFile() }
 
   @Throws(IOException::class)
-  private fun readCsvFile(): List<VidAndEvent> {
-    val vidsAndEvents: MutableList<VidAndEvent> = mutableListOf()
+  private fun readCsvFile(): List<LabelledEvent> {
+    val vidsAndEvents: MutableList<LabelledEvent> = mutableListOf()
 
     logger.info("Reading data from CSV file: $file...")
     file.reader().use { fileReader ->
@@ -56,7 +62,13 @@ class CsvEventQuery(private val publisherId: Int, private val file: File) : Even
       csvReader.forEach { row ->
         if (row[EDP_ID_INDEX].toInt() == publisherId) {
           val csvEventMap = mapOf(SEX to row[SEX_INDEX], AGE_GROUP to row[AGE_GROUP_INDEX])
-          vidsAndEvents.add(VidAndEvent(row[VID_INDEX].toInt(), csvEntryToTestEvent(csvEventMap)))
+          vidsAndEvents.add(
+            LabelledEvent(
+              row[VID_INDEX].toLong(),
+              csvEntryToTestEvent(csvEventMap),
+              LocalDate.parse(row[DATE_INDEX], dateFormatter)
+            )
+          )
         }
       }
     }
@@ -66,22 +78,22 @@ class CsvEventQuery(private val publisherId: Int, private val file: File) : Even
   }
 
   /** Generates Ids by applying filter on events */
-  override fun getUserVirtualIds(eventFilter: EventFilter): Sequence<Long> {
+  override fun getUserVirtualIds(
+    timeInterval: TimeInterval,
+    eventFilter: EventFilter
+  ): Sequence<Long> {
     logger.info("Querying and filtering VIDs from CsvEventQuery...")
 
-    val program =
-      EventFilters.compileProgram(
-        eventFilter.expression,
-        testEvent {},
-      )
+    val timeRange = TimeIntervalRange(timeInterval)
+    val program = EventQuery.compileProgram(eventFilter, TestEvent.getDefaultInstance())
 
-    return sequence {
-      vidAndEventList.forEach { vidAndEvent ->
-        if (EventFilters.matches(vidAndEvent.event, program)) {
-          yield(vidAndEvent.vid.toLong())
-        }
+    return labelledEventList
+      .asSequence()
+      .filter {
+        it.date.atStartOfDay().toInstant(ZoneOffset.UTC) in timeRange &&
+          EventFilters.matches(it.event, program)
       }
-    }
+      .map { it.vid }
   }
 
   private fun csvEntryToTestEvent(event: Map<String, Any>): TestEvent {
@@ -130,5 +142,7 @@ class CsvEventQuery(private val publisherId: Int, private val file: File) : Even
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    private val dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale.UK)
   }
 }

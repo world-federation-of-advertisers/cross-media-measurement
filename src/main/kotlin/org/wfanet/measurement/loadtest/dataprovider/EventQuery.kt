@@ -14,40 +14,44 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import com.google.protobuf.Message
+import java.time.Instant
+import org.projectnessie.cel.Program
+import org.projectnessie.cel.common.types.BoolT
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
-
-/** TODO(@uakyol): Delete once the GCS correctness test supports [EventFilter]s */
-enum class Sex(val string: String) {
-  MALE("M"),
-  FEMALE("F")
-}
-
-enum class AgeGroup(val string: String) {
-  RANGE_18_34("18_34"),
-  RANGE_35_54("35_54"),
-  ABOVE_54("55+")
-}
-
-enum class SocialGrade(val string: String) {
-  ABC1("ABC1"),
-  C2DE("C2DE"),
-}
-
-enum class Complete(val integer: Int) {
-  COMPLETE(1),
-  INCOMPLETE(0)
-}
-
-data class QueryParameter(
-  val beginDate: String,
-  val endDate: String,
-  val sex: Sex?,
-  val ageGroup: AgeGroup?,
-  val socialGrade: SocialGrade?,
-  val complete: Complete?,
-)
+import org.wfanet.measurement.api.v2alpha.TimeInterval
+import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 /** A query to get the list of user virtual IDs for a particular requisition. */
-abstract class EventQuery {
-  abstract fun getUserVirtualIds(eventFilter: EventFilter): Sequence<Long>
+interface EventQuery {
+  /**
+   * Returns a [Sequence] of virtual person IDs for matching events.
+   *
+   * Each element in the returned value represents a single event. As a result, the same VID may be
+   * returned multiple times.
+   */
+  fun getUserVirtualIds(timeInterval: TimeInterval, eventFilter: EventFilter): Sequence<Long>
+
+  companion object {
+    private val TRUE_EVAL_RESULT = Program.newEvalResult(BoolT.True, null)
+
+    fun compileProgram(eventFilter: EventFilter, eventDefaultInstance: Message): Program {
+      if (eventFilter.expression.isEmpty()) {
+        return Program { TRUE_EVAL_RESULT }
+      }
+      return EventFilters.compileProgram(eventFilter.expression, eventDefaultInstance)
+    }
+  }
+}
+
+/** Half-open range for a [TimeInterval], represented as `[`[start], [endExclusive]`)`. */
+data class TimeIntervalRange(val start: Instant, val endExclusive: Instant) {
+  constructor(
+    timeInterval: TimeInterval
+  ) : this(timeInterval.startTime.toInstant(), timeInterval.endTime.toInstant())
+
+  operator fun contains(value: Instant): Boolean {
+    return value >= start && value < endExclusive
+  }
 }

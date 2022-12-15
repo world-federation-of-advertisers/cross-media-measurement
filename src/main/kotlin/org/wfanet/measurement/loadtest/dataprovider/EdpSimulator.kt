@@ -81,7 +81,6 @@ import org.wfanet.measurement.api.v2alpha.Requisition.DuchyEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
-import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.api.v2alpha.createEventGroupMetadataDescriptorRequest
@@ -471,14 +470,14 @@ class EdpSimulator(
   }
 
   private fun populateAnySketch(
-    eventFilter: EventFilter,
+    eventSpec: RequisitionSpec.EventGroupEntry.Value,
     vidSampler: VidSampler,
     vidSamplingIntervalStart: Float,
     vidSamplingIntervalWidth: Float,
     anySketch: AnySketch
   ) {
     eventQuery
-      .getUserVirtualIds(eventFilter)
+      .getUserVirtualIds(eventSpec.collectionInterval, eventSpec.filter)
       .filter {
         vidSampler.vidIsInSamplingBucket(it, vidSamplingIntervalStart, vidSamplingIntervalWidth)
       }
@@ -526,7 +525,7 @@ class EdpSimulator(
 
     requisitionSpec.eventGroupsList.forEach {
       populateAnySketch(
-        it.value.filter,
+        it.value,
         VidSampler(VID_SAMPLER_HASH_FUNCTION),
         vidSamplingIntervalStart,
         vidSamplingIntervalWidth,
@@ -686,7 +685,9 @@ class EdpSimulator(
     val vidList: List<Long> =
       requisitionSpec.eventGroupsList
         .distinctBy { eventGroup -> eventGroup.key }
-        .flatMap { eventGroup -> eventQuery.getUserVirtualIds(eventGroup.value.filter) }
+        .flatMap { eventGroup ->
+          eventQuery.getUserVirtualIds(eventGroup.value.collectionInterval, eventGroup.value.filter)
+        }
         .filter { vid ->
           vidSampler.vidIsInSamplingBucket(vid, vidSamplingIntervalStart, vidSamplingIntervalWidth)
         }
