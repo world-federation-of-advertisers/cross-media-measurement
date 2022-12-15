@@ -1378,9 +1378,7 @@ class ReportsService(
       if (internalReportingSetsList.size < reportingSetExternalIds.size) {
         val errorMessage = StringBuilder("The following reporting set names were not found:")
         internalReportingSetsList.forEach {
-          if (reportingSetExternalIds.contains(it.externalReportingSetId)) {
-            reportingSetExternalIds.remove(it.externalReportingSetId)
-          }
+          reportingSetExternalIds.remove(it.externalReportingSetId)
         }
         reportingSetExternalIds.forEach {
           errorMessage.append(
