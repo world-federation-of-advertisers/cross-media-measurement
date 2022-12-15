@@ -13,29 +13,31 @@
  */
 package org.wfanet.measurement.loadtest.dataprovider
 
-import com.google.protobuf.Message
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
+import org.wfanet.measurement.api.v2alpha.TimeInterval
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.timeOrNull
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 /** Fulfills the query with matching events using filters. */
-class FilterEventQuery(val events: Map<Int, List<TestEvent>>) : EventQuery() {
+class FilterEventQuery(val events: Map<Long, List<TestEvent>>) : EventQuery {
 
-  override fun getUserVirtualIds(eventFilter: RequisitionSpec.EventFilter): Sequence<Long> {
-    val program =
-      EventFilters.compileProgram(
-        eventFilter.expression,
-        testEvent {},
-      )
-    return sequence {
-      events.forEach { (vid, testEvents) ->
-        testEvents.forEach {
-          if (EventFilters.matches(it as Message, program)) {
-            yield(vid.toLong())
-          }
+  override fun getUserVirtualIds(
+    timeInterval: TimeInterval,
+    eventFilter: RequisitionSpec.EventFilter
+  ): Sequence<Long> {
+    val timeRange = TimeIntervalRange(timeInterval)
+    val program = EventQuery.compileProgram(eventFilter, TestEvent.getDefaultInstance())
+
+    return events
+      .asSequence()
+      .filter {
+        it.value.any { event ->
+          checkNotNull(event.timeOrNull).toInstant() in timeRange &&
+            EventFilters.matches(event, program)
         }
       }
-    }
+      .map { it.key }
   }
 }
