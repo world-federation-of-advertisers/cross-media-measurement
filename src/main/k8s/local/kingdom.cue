@@ -16,6 +16,15 @@ package k8s
 
 _secret_name: string @tag("secret_name")
 
+// Number of gRPC threads for the internal API server.
+#InternalServerGrpcThreads: 7
+
+// Number of gRPC threads for the system API server.
+//
+// This serves long-lived streaming RPCs from each Herald which will each occupy
+// a thread, so this should be greater than the number of Heralds.
+#SystemServerGrpcThreads: 5
+
 objectSets: [ for objectSet in kingdom {objectSet}]
 
 kingdom: #Kingdom & {
@@ -33,8 +42,16 @@ kingdom: #Kingdom & {
 
 	deployments: {
 		"gcp-kingdom-data-server": {
+			_container: {
+				_grpcThreadPoolSize: #InternalServerGrpcThreads
+			}
 			spec: template: spec: {
 				_dependencies: ["spanner-emulator"]
+			}
+		}
+		"system-api-server": {
+			_container: {
+				_grpcThreadPoolSize: #SystemServerGrpcThreads
 			}
 		}
 	}
