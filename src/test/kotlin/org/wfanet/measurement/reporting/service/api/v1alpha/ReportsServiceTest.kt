@@ -1516,22 +1516,20 @@ class ReportsServiceTest {
 
   @Test
   fun `createReport returns a report with set operation type DIFFERENCE`() {
-    val internalPendingReachReportWithSetDifference = INTERNAL_PENDING_REACH_REPORT.copy {
-      val source = this
-      measurements.clear()
-      clearCreateTime()
-      val metric = internalMetric {
-        details = InternalMetricKt.details { reach = InternalMetricKt.reachParams {} }
-        namedSetOperations +=
-          source.metrics[0].namedSetOperationsList[0].copy {
-            setOperation =
-              setOperation.copy { type = InternalMetric.SetOperation.Type.DIFFERENCE }
-            measurementCalculations.clear()
-            measurementCalculations +=
-              source.metrics[0]
-                .namedSetOperationsList[0]
-                .measurementCalculationsList[0]
-                .copy {
+    val internalPendingReachReportWithSetDifference =
+      INTERNAL_PENDING_REACH_REPORT.copy {
+        val source = this
+        measurements.clear()
+        clearCreateTime()
+        val metric = internalMetric {
+          details = InternalMetricKt.details { reach = InternalMetricKt.reachParams {} }
+          namedSetOperations +=
+            source.metrics[0].namedSetOperationsList[0].copy {
+              setOperation =
+                setOperation.copy { type = InternalMetric.SetOperation.Type.DIFFERENCE }
+              measurementCalculations.clear()
+              measurementCalculations +=
+                source.metrics[0].namedSetOperationsList[0].measurementCalculationsList[0].copy {
                   weightedMeasurements.clear()
                   weightedMeasurements += weightedMeasurement {
                     measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
@@ -1542,11 +1540,11 @@ class ReportsServiceTest {
                     coefficient = 1
                   }
                 }
-          }
+            }
+        }
+        metrics.clear()
+        metrics += metric
       }
-      metrics.clear()
-      metrics += metric
-    }
 
     runBlocking {
       whenever(internalReportsMock.createReport(any()))
@@ -1577,9 +1575,10 @@ class ReportsServiceTest {
       report = pendingReachReportWithSetDifference
     }
 
-    val result = withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
-      runBlocking { service.createReport(request) }
-    }
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        runBlocking { service.createReport(request) }
+      }
 
     // Verify proto argument of ReportsCoroutineImplBase::getReportByIdempotencyKey
     verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::getReportByIdempotencyKey)
@@ -1638,10 +1637,11 @@ class ReportsServiceTest {
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
         internalCreateReportRequest {
-          report = internalPendingReachReportWithSetDifference.copy {
-            clearState()
-            clearExternalReportId()
-          }
+          report =
+            internalPendingReachReportWithSetDifference.copy {
+              clearState()
+              clearExternalReportId()
+            }
           measurements +=
             InternalCreateReportRequestKt.measurementKey {
               measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
