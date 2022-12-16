@@ -138,7 +138,6 @@ import org.wfanet.measurement.internal.reporting.ReportKt.DetailsKt as InternalR
 import org.wfanet.measurement.internal.reporting.ReportKt.DetailsKt.ResultKt as InternalReportResultKt
 import org.wfanet.measurement.internal.reporting.ReportingSetKt as InternalReportingSetKt
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase as InternalReportingSetsCoroutineImplBase
-import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
@@ -518,6 +517,8 @@ private val WATCH_DURATION_MEASUREMENT_REFERENCE_ID =
 
 private val REACH_MEASUREMENT_NAME =
   MeasurementKey(MEASUREMENT_CONSUMER_REFERENCE_IDS[0], REACH_MEASUREMENT_REFERENCE_ID).toName()
+private val REACH_MEASUREMENT_NAME_2 =
+  MeasurementKey(MEASUREMENT_CONSUMER_REFERENCE_IDS[0], REACH_MEASUREMENT_REFERENCE_ID_2).toName()
 private val FREQUENCY_HISTOGRAM_MEASUREMENT_NAME =
   MeasurementKey(
       MEASUREMENT_CONSUMER_REFERENCE_IDS[0],
@@ -641,7 +642,7 @@ private val BASE_REACH_MEASUREMENT =
   }
 private val BASE_REACH_MEASUREMENT_2 =
   BASE_MEASUREMENT.copy {
-    name = REACH_MEASUREMENT_NAME
+    name = REACH_MEASUREMENT_NAME_2
     measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID_2
   }
 
@@ -1515,7 +1516,41 @@ class ReportsServiceTest {
 
   @Test
   fun `createReport returns a report with set operation type DIFFERENCE`() {
+    val internalPendingReachReportWithSetDifference = INTERNAL_PENDING_REACH_REPORT.copy {
+      val source = this
+      measurements.clear()
+      clearCreateTime()
+      val metric = internalMetric {
+        details = InternalMetricKt.details { reach = InternalMetricKt.reachParams {} }
+        namedSetOperations +=
+          source.metrics[0].namedSetOperationsList[0].copy {
+            setOperation =
+              setOperation.copy { type = InternalMetric.SetOperation.Type.DIFFERENCE }
+            measurementCalculations.clear()
+            measurementCalculations +=
+              source.metrics[0]
+                .namedSetOperationsList[0]
+                .measurementCalculationsList[0]
+                .copy {
+                  weightedMeasurements.clear()
+                  weightedMeasurements += weightedMeasurement {
+                    measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
+                    coefficient = -1
+                  }
+                  weightedMeasurements += weightedMeasurement {
+                    measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID_2
+                    coefficient = 1
+                  }
+                }
+          }
+      }
+      metrics.clear()
+      metrics += metric
+    }
+
     runBlocking {
+      whenever(internalReportsMock.createReport(any()))
+        .thenReturn(internalPendingReachReportWithSetDifference)
       whenever(measurementsMock.createMeasurement(any()))
         .thenReturn(BASE_REACH_MEASUREMENT, BASE_REACH_MEASUREMENT_2)
     }
@@ -1542,7 +1577,7 @@ class ReportsServiceTest {
       report = pendingReachReportWithSetDifference
     }
 
-    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+    val result = withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
       runBlocking { service.createReport(request) }
     }
 
@@ -1558,7 +1593,7 @@ class ReportsServiceTest {
     // Verify proto argument of InternalReportingSetsCoroutineImplBase::batchGetReportingSet
     verifyProtoArgument(
         internalReportingSetsMock,
-        ReportingSetsCoroutineImplBase::batchGetReportingSet
+        InternalReportingSetsCoroutineImplBase::batchGetReportingSet
       )
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
@@ -1603,35 +1638,10 @@ class ReportsServiceTest {
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
         internalCreateReportRequest {
-          report =
-            INTERNAL_PENDING_REACH_REPORT.copy {
-              val source = this
-              clearState()
-              clearExternalReportId()
-              measurements.clear()
-              clearCreateTime()
-              val metric = internalMetric {
-                details = InternalMetricKt.details { reach = InternalMetricKt.reachParams {} }
-                namedSetOperations +=
-                  source.metrics[0].namedSetOperationsList[0].copy {
-                    setOperation =
-                      setOperation.copy { type = InternalMetric.SetOperation.Type.DIFFERENCE }
-                    measurementCalculations.clear()
-                    measurementCalculations +=
-                      source.metrics[0]
-                        .namedSetOperationsList[0]
-                        .measurementCalculationsList[0]
-                        .copy {
-                          weightedMeasurements += weightedMeasurement {
-                            measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
-                            coefficient = -1
-                          }
-                        }
-                  }
-              }
-              metrics.clear()
-              metrics += metric
-            }
+          report = internalPendingReachReportWithSetDifference.copy {
+            clearState()
+            clearExternalReportId()
+          }
           measurements +=
             InternalCreateReportRequestKt.measurementKey {
               measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
@@ -1640,10 +1650,12 @@ class ReportsServiceTest {
           measurements +=
             InternalCreateReportRequestKt.measurementKey {
               measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-              measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
+              measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID_2
             }
         }
       )
+
+    assertThat(result).isEqualTo(pendingReachReportWithSetDifference)
   }
 
   @Test
