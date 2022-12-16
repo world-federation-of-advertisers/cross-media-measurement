@@ -221,7 +221,11 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
       columnHeader = buildColumnHeader(metricType.name, source.displayName)
       for (measurementCalculation in source.measurementCalculationsList) {
         setOperations.addAll(
-          measurementCalculation.toSetOperationResults(metricType, measurementResultsMap, maximumFrequency)
+          measurementCalculation.toSetOperationResults(
+            metricType,
+            measurementResultsMap,
+            maximumFrequency
+          )
         )
       }
     }
@@ -375,7 +379,11 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
       }
       for (namedSetOperation in source.namedSetOperationsList) {
         columns +=
-          namedSetOperation.toResultColumn(source.details.metricTypeCase, measurementResultsMap, maximumFrequency)
+          namedSetOperation.toResultColumn(
+            source.details.metricTypeCase,
+            measurementResultsMap,
+            maximumFrequency
+          )
       }
     }
   }
