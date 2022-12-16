@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.internal.reporting.Measurement
 import org.wfanet.measurement.internal.reporting.Metric
+import org.wfanet.measurement.internal.reporting.Metric.MeasurementCalculation
 import org.wfanet.measurement.internal.reporting.PeriodicTimeInterval
 import org.wfanet.measurement.internal.reporting.Report
 import org.wfanet.measurement.internal.reporting.ReportKt
@@ -212,14 +213,15 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
   /** Convert an [Metric.NamedSetOperation] to a [Report.Details.Result.Column] of a [Report] */
   private fun Metric.NamedSetOperation.toResultColumn(
     metricType: Metric.Details.MetricTypeCase,
-    measurementResultsMap: Map<String, MeasurementResultsReader.Result>
+    measurementResultsMap: Map<String, MeasurementResultsReader.Result>,
+    maximumFrequency: Int = 0
   ): Report.Details.Result.Column {
     val source = this
     return ReportKt.DetailsKt.ResultKt.column {
       columnHeader = buildColumnHeader(metricType.name, source.displayName)
       for (measurementCalculation in source.measurementCalculationsList) {
         setOperations.addAll(
-          measurementCalculation.toSetOperationResults(metricType, measurementResultsMap)
+          measurementCalculation.toSetOperationResults(metricType, measurementResultsMap, maximumFrequency)
         )
       }
     }
@@ -230,10 +232,11 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
     return "${metricTypeName}_$setOperationName"
   }
 
-  /** Calculate the equation in [Metric.MeasurementCalculation] to get the result. */
-  private fun Metric.MeasurementCalculation.toSetOperationResults(
+  /** Calculate the equation in [MeasurementCalculation] to get the result. */
+  private fun MeasurementCalculation.toSetOperationResults(
     metricType: Metric.Details.MetricTypeCase,
-    measurementResultsMap: Map<String, MeasurementResultsReader.Result>
+    measurementResultsMap: Map<String, MeasurementResultsReader.Result>,
+    maximumFrequency: Int = 0
   ): List<Double> {
     val source = this
     val measurementResultsList =
@@ -251,8 +254,9 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
         listOf(calculateImpressionResults(measurementResultsList))
       Metric.Details.MetricTypeCase.WATCH_DURATION ->
         listOf(calculateWatchDurationResults(measurementResultsList))
-      Metric.Details.MetricTypeCase.FREQUENCY_HISTOGRAM ->
-        calculateFrequencyHistogramResults(measurementResultsList)
+      Metric.Details.MetricTypeCase.FREQUENCY_HISTOGRAM -> {
+        calculateFrequencyHistogramResults(measurementResultsList, maximumFrequency)
+      }
       Metric.Details.MetricTypeCase.METRICTYPE_NOT_SET -> {
         error("Metric Type should be set.")
       }
@@ -319,7 +323,8 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
 
   /** Calculate the frequency histogram result by summing up weighted [Measurement]s. */
   private fun calculateFrequencyHistogramResults(
-    measurementCoefficientPairsList: List<MeasurementResult>
+    measurementCoefficientPairsList: List<MeasurementResult>,
+    maximumFrequency: Int
   ): List<Double> {
     val aggregatedFrequencyHistogramMap =
       measurementCoefficientPairsList
@@ -341,7 +346,14 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
           }
           aggregatedFrequencyHistogramMap
         }
-    return aggregatedFrequencyHistogramMap.values.toList()
+    val resultsList = aggregatedFrequencyHistogramMap.entries.sortedBy { it.key }.map { it.value }
+    return if (resultsList.size < maximumFrequency) {
+      val paddedResultsList = resultsList.toMutableList()
+      paddedResultsList.addAll(DoubleArray(maximumFrequency - resultsList.size) { 0.0 }.toList())
+      paddedResultsList
+    } else {
+      resultsList
+    }
   }
 
   /** Convert a [Metric] to a [Report.Details.Result.HistogramTable] of a [Report] */
@@ -363,7 +375,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
       }
       for (namedSetOperation in source.namedSetOperationsList) {
         columns +=
-          namedSetOperation.toResultColumn(source.details.metricTypeCase, measurementResultsMap)
+          namedSetOperation.toResultColumn(source.details.metricTypeCase, measurementResultsMap, maximumFrequency)
       }
     }
   }

@@ -276,7 +276,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     }
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
     assertThat(retrievedReport.details.result)
-      .ignoringRepeatedFieldOrder()
       .usingDoubleTolerance(2.0)
       .isEqualTo(
         ReportKt.DetailsKt.result {
@@ -311,6 +310,130 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
                     )
                   setOperations += 260.0
                   setOperations += 439.0
+                }
+            }
+        }
+      )
+  }
+
+  @Test
+  fun `setMeasurementResult sets result for RF metric report with padding`() {
+    val metricDetails =
+      MetricKt.details {
+        frequencyHistogram = MetricKt.frequencyHistogramParams { maximumFrequencyPerUser = 3 }
+      }
+    val createdReport = runBlocking {
+      reportsService.createReport(
+        createReportRequest {
+          measurements +=
+            CreateReportRequestKt.measurementKey {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+              measurementReferenceId = MEASUREMENT_REFERENCE_ID
+            }
+          measurements +=
+            CreateReportRequestKt.measurementKey {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+              measurementReferenceId = MEASUREMENT_REFERENCE_ID_2
+            }
+          report = report {
+            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+            reportIdempotencyKey = "1235"
+            periodicTimeInterval = PERIODIC_TIME_INTERVAL
+            metrics += metric {
+              details = metricDetails
+              namedSetOperations += NAMED_SET_OPERATION
+            }
+          }
+        }
+      )
+    }
+    runBlocking {
+      service.setMeasurementResult(
+        setMeasurementResultRequest {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+          measurementReferenceId = MEASUREMENT_REFERENCE_ID
+          result =
+            MeasurementKt.result {
+              reach = MeasurementKt.ResultKt.reach { value = 100L }
+              frequency =
+                MeasurementKt.ResultKt.frequency {
+                  relativeFrequencyDistribution[1] = 0.8
+                  relativeFrequencyDistribution[2] = 0.2
+                }
+            }
+        }
+      )
+      service.setMeasurementResult(
+        setMeasurementResultRequest {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+          measurementReferenceId = MEASUREMENT_REFERENCE_ID_2
+          result =
+            MeasurementKt.result {
+              reach = MeasurementKt.ResultKt.reach { value = 200L }
+              frequency =
+                MeasurementKt.ResultKt.frequency {
+                  relativeFrequencyDistribution[1] = 0.3
+                  relativeFrequencyDistribution[2] = 0.7
+                }
+            }
+        }
+      )
+    }
+    val retrievedReport = runBlocking {
+      reportsService.getReport(
+        getReportRequest {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_ID
+          externalReportId = createdReport.externalReportId
+        }
+      )
+    }
+    assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
+    assertThat(retrievedReport.details.result)
+      .usingDoubleTolerance(2.0)
+      .isEqualTo(
+        ReportKt.DetailsKt.result {
+          histogramTables +=
+            ReportKt.DetailsKt.ResultKt.histogramTable {
+              rows +=
+                ReportKt.DetailsKt.ResultKt.HistogramTableKt.row {
+                  rowHeader = "1970-01-01T00:01:40.000000010Z-1970-01-01T00:01:50.000000011Z"
+                  frequency = 1
+                }
+              rows +=
+                ReportKt.DetailsKt.ResultKt.HistogramTableKt.row {
+                  rowHeader = "1970-01-01T00:01:40.000000010Z-1970-01-01T00:01:50.000000011Z"
+                  frequency = 2
+                }
+              rows +=
+                ReportKt.DetailsKt.ResultKt.HistogramTableKt.row {
+                  rowHeader = "1970-01-01T00:01:40.000000010Z-1970-01-01T00:01:50.000000011Z"
+                  frequency = 3
+                }
+              rows +=
+                ReportKt.DetailsKt.ResultKt.HistogramTableKt.row {
+                  rowHeader = "1970-01-01T00:01:50.000000011Z-1970-01-01T00:02:00.000000012Z"
+                  frequency = 1
+                }
+              rows +=
+                ReportKt.DetailsKt.ResultKt.HistogramTableKt.row {
+                  rowHeader = "1970-01-01T00:01:50.000000011Z-1970-01-01T00:02:00.000000012Z"
+                  frequency = 2
+                }
+              rows +=
+                ReportKt.DetailsKt.ResultKt.HistogramTableKt.row {
+                  rowHeader = "1970-01-01T00:01:50.000000011Z-1970-01-01T00:02:00.000000012Z"
+                  frequency = 3
+                }
+              columns +=
+                ReportKt.DetailsKt.ResultKt.column {
+                  columnHeader =
+                    buildColumnHeader(
+                      metricDetails.metricTypeCase.name,
+                      NAMED_SET_OPERATION.displayName
+                    )
+                  setOperations += 260.0
+                  setOperations += 439.0
+                  setOperations += 0.0
                 }
             }
         }
@@ -397,7 +520,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
 
     assertThat(retrievedReport.details.result)
-      .ignoringRepeatedFieldOrder()
       .usingDoubleTolerance(2.0)
       .isEqualTo(
         ReportKt.DetailsKt.result {
@@ -478,7 +600,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     }
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
     assertThat(retrievedReport.details.result)
-      .ignoringRepeatedFieldOrder()
       .isEqualTo(
         ReportKt.DetailsKt.result {
           scalarTable =
@@ -553,7 +674,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     }
     assertThat(retrievedReport.state).isEqualTo(Report.State.SUCCEEDED)
     assertThat(retrievedReport.details.result)
-      .ignoringRepeatedFieldOrder()
       .isEqualTo(
         ReportKt.DetailsKt.result {
           scalarTable =
