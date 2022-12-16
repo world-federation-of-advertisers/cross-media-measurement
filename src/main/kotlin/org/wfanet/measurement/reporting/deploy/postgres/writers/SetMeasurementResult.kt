@@ -217,14 +217,15 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
     val source = this
     return ReportKt.DetailsKt.ResultKt.column {
       columnHeader = buildColumnHeader(metricType.name, source.displayName)
-      for (measurementCalculation in source.measurementCalculationsList.sortedWith { a, b ->
-        val start = Timestamps.compare(a.timeInterval.startTime, b.timeInterval.startTime)
-        if (start != 0) {
-          start
-        } else {
-          Timestamps.compare(a.timeInterval.endTime, b.timeInterval.endTime)
-        }
-      }) {
+      for (measurementCalculation in
+        source.measurementCalculationsList.sortedWith { a, b ->
+          val start = Timestamps.compare(a.timeInterval.startTime, b.timeInterval.startTime)
+          if (start != 0) {
+            start
+          } else {
+            Timestamps.compare(a.timeInterval.endTime, b.timeInterval.endTime)
+          }
+        }) {
         setOperations.addAll(
           measurementCalculation.toSetOperationResults(metricType, measurementResultsMap)
         )
