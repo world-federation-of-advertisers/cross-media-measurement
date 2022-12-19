@@ -309,7 +309,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
                       NAMED_SET_OPERATION.displayName
                     )
                   setOperations += 260.0
-                  setOperations += 439.0
+                  setOperations += 440.0
+                  setOperations += 520.0
+                  setOperations += 880.0
                 }
             }
         }
@@ -432,7 +434,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
                       NAMED_SET_OPERATION.displayName
                     )
                   setOperations += 260.0
-                  setOperations += 439.0
+                  setOperations += 440.0
+                  setOperations += 0.0
+                  setOperations += 520.0
+                  setOperations += 880.0
                   setOperations += 0.0
                 }
             }
@@ -535,6 +540,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
                       NAMED_SET_OPERATION.displayName
                     )
                   setOperations += 700.0
+                  setOperations += 1400.0
                 }
             }
         }
@@ -614,6 +620,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
                       NAMED_SET_OPERATION.displayName
                     )
                   setOperations += 700.0
+                  setOperations += 1400.0
                 }
             }
         }
@@ -688,6 +695,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
                       NAMED_SET_OPERATION.displayName
                     )
                   setOperations += 700.0
+                  setOperations += 1400.0
                 }
             }
         }
@@ -922,13 +930,13 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
     private val NAMED_SET_OPERATION =
       MetricKt.namedSetOperation {
+        val source = this
         displayName = "name4"
         setOperation = MetricKt.setOperation { type = Metric.SetOperation.Type.UNION }
         measurementCalculations +=
           MetricKt.measurementCalculation {
             timeInterval = timeInterval {
-              startTime =
-                Timestamps.add(PERIODIC_TIME_INTERVAL.startTime, PERIODIC_TIME_INTERVAL.increment)
+              startTime = PERIODIC_TIME_INTERVAL.startTime
               endTime = Timestamps.add(startTime, PERIODIC_TIME_INTERVAL.increment)
             }
             weightedMeasurements +=
@@ -940,6 +948,24 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
               MetricKt.MeasurementCalculationKt.weightedMeasurement {
                 measurementReferenceId = MEASUREMENT_REFERENCE_ID_2
                 coefficient = 3
+              }
+          }
+
+        measurementCalculations +=
+          MetricKt.measurementCalculation {
+            timeInterval = timeInterval {
+              startTime = source.measurementCalculations[0].timeInterval.endTime
+              endTime = Timestamps.add(startTime, PERIODIC_TIME_INTERVAL.increment)
+            }
+            weightedMeasurements +=
+              MetricKt.MeasurementCalculationKt.weightedMeasurement {
+                measurementReferenceId = MEASUREMENT_REFERENCE_ID
+                coefficient = 2
+              }
+            weightedMeasurements +=
+              MetricKt.MeasurementCalculationKt.weightedMeasurement {
+                measurementReferenceId = MEASUREMENT_REFERENCE_ID_2
+                coefficient = 6
               }
           }
       }
