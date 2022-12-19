@@ -930,9 +930,26 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
     private val NAMED_SET_OPERATION =
       MetricKt.namedSetOperation {
-        val source = this
         displayName = "name4"
         setOperation = MetricKt.setOperation { type = Metric.SetOperation.Type.UNION }
+        measurementCalculations +=
+          MetricKt.measurementCalculation {
+            timeInterval = timeInterval {
+              startTime = Timestamps.add(PERIODIC_TIME_INTERVAL.startTime, PERIODIC_TIME_INTERVAL.increment)
+              endTime = Timestamps.add(startTime, PERIODIC_TIME_INTERVAL.increment)
+            }
+            weightedMeasurements +=
+              MetricKt.MeasurementCalculationKt.weightedMeasurement {
+                measurementReferenceId = MEASUREMENT_REFERENCE_ID
+                coefficient = 2
+              }
+            weightedMeasurements +=
+              MetricKt.MeasurementCalculationKt.weightedMeasurement {
+                measurementReferenceId = MEASUREMENT_REFERENCE_ID_2
+                coefficient = 6
+              }
+          }
+
         measurementCalculations +=
           MetricKt.measurementCalculation {
             timeInterval = timeInterval {
@@ -948,24 +965,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
               MetricKt.MeasurementCalculationKt.weightedMeasurement {
                 measurementReferenceId = MEASUREMENT_REFERENCE_ID_2
                 coefficient = 3
-              }
-          }
-
-        measurementCalculations +=
-          MetricKt.measurementCalculation {
-            timeInterval = timeInterval {
-              startTime = source.measurementCalculations[0].timeInterval.endTime
-              endTime = Timestamps.add(startTime, PERIODIC_TIME_INTERVAL.increment)
-            }
-            weightedMeasurements +=
-              MetricKt.MeasurementCalculationKt.weightedMeasurement {
-                measurementReferenceId = MEASUREMENT_REFERENCE_ID
-                coefficient = 2
-              }
-            weightedMeasurements +=
-              MetricKt.MeasurementCalculationKt.weightedMeasurement {
-                measurementReferenceId = MEASUREMENT_REFERENCE_ID_2
-                coefficient = 6
               }
           }
       }
