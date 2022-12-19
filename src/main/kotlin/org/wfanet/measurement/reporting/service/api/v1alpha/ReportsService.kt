@@ -1029,17 +1029,25 @@ class ReportsService(
   private fun buildMeasurementCalculationList(
     setOperationResult: SetOperationResult,
   ): List<MeasurementCalculation> {
-    return setOperationResult.weightedMeasurementInfoList.map { weightedMeasurementInfo ->
-      InternalMetricKt.measurementCalculation {
-        this.timeInterval = weightedMeasurementInfo.timeInterval.toInternal()
+    val measurementCalculations = mutableListOf<MeasurementCalculation>()
+    setOperationResult.weightedMeasurementInfoList
+      .groupBy { it.timeInterval }
+      .forEach { (timeInterval, weightedMeasurementInfos) ->
+        measurementCalculations.add(
+          InternalMetricKt.measurementCalculation {
+            this.timeInterval = timeInterval.toInternal()
 
-        weightedMeasurements +=
-          MeasurementCalculationKt.weightedMeasurement {
-            this.measurementReferenceId = weightedMeasurementInfo.kingdomMeasurementId!!
-            coefficient = weightedMeasurementInfo.weightedMeasurement.coefficient
+            weightedMeasurementInfos.forEach {
+              weightedMeasurements +=
+                MeasurementCalculationKt.weightedMeasurement {
+                  this.measurementReferenceId = it.kingdomMeasurementId!!
+                  coefficient = it.weightedMeasurement.coefficient
+                }
+            }
           }
+        )
       }
-    }
+    return measurementCalculations
   }
 
   /** Builds a [CreateMeasurementRequest]. */
