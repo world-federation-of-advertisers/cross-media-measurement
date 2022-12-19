@@ -935,7 +935,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         measurementCalculations +=
           MetricKt.measurementCalculation {
             timeInterval = timeInterval {
-              startTime = Timestamps.add(PERIODIC_TIME_INTERVAL.startTime, PERIODIC_TIME_INTERVAL.increment)
+              startTime =
+                Timestamps.add(PERIODIC_TIME_INTERVAL.startTime, PERIODIC_TIME_INTERVAL.increment)
               endTime = Timestamps.add(startTime, PERIODIC_TIME_INTERVAL.increment)
             }
             weightedMeasurements +=
