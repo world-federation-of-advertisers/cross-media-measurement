@@ -488,7 +488,8 @@ class Reporting : Runnable {
   override fun run() {}
 
   companion object {
-    @JvmStatic fun main(args: Array<String>) = commandLineMain(Reporting(), args, DurationFormat.ISO_8601)
+    @JvmStatic
+    fun main(args: Array<String>) = commandLineMain(Reporting(), args, DurationFormat.ISO_8601)
   }
 }
 
