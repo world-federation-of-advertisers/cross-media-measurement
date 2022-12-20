@@ -20,6 +20,7 @@ import java.time.Instant
 import kotlin.properties.Delegates
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.common.DurationFormat
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.TlsFlags
@@ -256,6 +257,7 @@ class CreateReportCommand : Runnable {
         required = true
       )
       lateinit var periodicIntervalIncrement: Duration
+        private set
 
       @set:CommandLine.Option(
         names = ["--periodic-interval-count"],
@@ -486,7 +488,7 @@ class Reporting : Runnable {
   override fun run() {}
 
   companion object {
-    @JvmStatic fun main(args: Array<String>) = commandLineMain(Reporting(), args)
+    @JvmStatic fun main(args: Array<String>) = commandLineMain(Reporting(), args, DurationFormat.ISO_8601)
   }
 }
 
