@@ -1368,7 +1368,7 @@ class ReportsService(
      * Compiles a [SetOperation] and outputs each result with measurement reference ID.
      *
      * metricTimeIntervalsList and timeIntervalsList are required to be the same size.
-     * */
+     */
     private suspend fun compileSetOperation(
       setOperation: SetOperation,
       setOperationId: String,
@@ -1382,7 +1382,9 @@ class ReportsService(
 
       val weightedMeasurementsList = setOperationCompiler.compileSetOperation(setOperation)
 
-      return metricTimeIntervalsList.sortedWith(timeIntervalComparator).flatMapIndexed { timeIntervalsIndex, timeInterval ->
+      return metricTimeIntervalsList.sortedWith(timeIntervalComparator).flatMapIndexed {
+        timeIntervalsIndex,
+        timeInterval ->
         weightedMeasurementsList.mapIndexed { index, weightedMeasurement ->
           val measurementReferenceId =
             buildMeasurementReferenceId(
@@ -1391,7 +1393,12 @@ class ReportsService(
               index,
             )
 
-          WeightedMeasurementInfo(measurementReferenceId, weightedMeasurement, timeInterval = timeInterval, reportTimeInterval = sortedReportTimeIntervalsList[timeIntervalsIndex])
+          WeightedMeasurementInfo(
+            measurementReferenceId,
+            weightedMeasurement,
+            timeInterval = timeInterval,
+            reportTimeInterval = sortedReportTimeIntervalsList[timeIntervalsIndex]
+          )
         }
       }
     }

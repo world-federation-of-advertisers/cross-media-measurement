@@ -258,7 +258,11 @@ abstract class InProcessLifeOfAReportIntegrationTest {
       .listReportingSets(listReportingSetsRequest { parent = measurementConsumerName })
   }
 
-  private suspend fun createReport(runId: String, measurementConsumerName: String, cumulative: Boolean = false): Report {
+  private suspend fun createReport(
+    runId: String,
+    measurementConsumerName: String,
+    cumulative: Boolean = false
+  ): Report {
     val eventGroupsList = listEventGroups(measurementConsumerName).eventGroupsList
     val reportingSets = listReportingSets(measurementConsumerName).reportingSetsList
     assertThat(reportingSets.size).isAtLeast(3)

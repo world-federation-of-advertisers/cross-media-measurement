@@ -1516,29 +1516,28 @@ class ReportsServiceTest {
 
   @Test
   fun `createReport returns a report with a cumulative metric`() {
-    val internalCumulativeReport = INTERNAL_PENDING_REACH_REPORT.copy {
-      metrics.clear()
-      metrics += INTERNAL_PENDING_REACH_REPORT.metricsList[0].copy {
-        details = INTERNAL_PENDING_REACH_REPORT.metricsList[0].details.copy {
-          cumulative = true
-        }
+    val internalCumulativeReport =
+      INTERNAL_PENDING_REACH_REPORT.copy {
+        metrics.clear()
+        metrics +=
+          INTERNAL_PENDING_REACH_REPORT.metricsList[0].copy {
+            details =
+              INTERNAL_PENDING_REACH_REPORT.metricsList[0].details.copy { cumulative = true }
+          }
       }
-    }
     runBlocking {
-      whenever(internalReportsMock.createReport(any()))
-        .thenReturn(internalCumulativeReport)
+      whenever(internalReportsMock.createReport(any())).thenReturn(internalCumulativeReport)
     }
 
-    val cumulativeReport = PENDING_REACH_REPORT.copy {
-      metrics.clear()
-      metrics += PENDING_REACH_REPORT.metricsList[0].copy { cumulative = true }
-    }
+    val cumulativeReport =
+      PENDING_REACH_REPORT.copy {
+        metrics.clear()
+        metrics += PENDING_REACH_REPORT.metricsList[0].copy { cumulative = true }
+      }
 
     val request = createReportRequest {
       parent = MEASUREMENT_CONSUMER_NAMES[0]
-      report = cumulativeReport.copy {
-        clearState()
-      }
+      report = cumulativeReport.copy { clearState() }
     }
 
     val result =
@@ -1557,9 +1556,9 @@ class ReportsServiceTest {
 
     // Verify proto argument of InternalReportingSetsCoroutineImplBase::batchGetReportingSet
     verifyProtoArgument(
-      internalReportingSetsMock,
-      InternalReportingSetsCoroutineImplBase::batchGetReportingSet
-    )
+        internalReportingSetsMock,
+        InternalReportingSetsCoroutineImplBase::batchGetReportingSet
+      )
       .isEqualTo(
         batchGetReportingSetRequest {
           measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
@@ -1570,9 +1569,9 @@ class ReportsServiceTest {
 
     // Verify proto argument of MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
     verifyProtoArgument(
-      measurementConsumersMock,
-      MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
-    )
+        measurementConsumersMock,
+        MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
+      )
       .isEqualTo(getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMER_NAMES[0] })
 
     // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
@@ -1636,9 +1635,9 @@ class ReportsServiceTest {
 
     // Verify proto argument of InternalMeasurementsCoroutineImplBase::createMeasurement
     verifyProtoArgument(
-      internalMeasurementsMock,
-      InternalMeasurementsCoroutineImplBase::createMeasurement
-    )
+        internalMeasurementsMock,
+        InternalMeasurementsCoroutineImplBase::createMeasurement
+      )
       .isEqualTo(
         internalMeasurement {
           measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
