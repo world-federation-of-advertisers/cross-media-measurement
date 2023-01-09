@@ -110,13 +110,12 @@ object EventFilterValidator {
   }
 
   private fun failOnSingleToplevelValue(expr: Expr) {
-    if (expr.presenceTestNode()) {
-      return
+    if (!expr.presenceTestNode()) {
+      throw EventFilterValidationException(
+        EventFilterValidationException.Code.EXPRESSION_IS_NOT_CONDITIONAL,
+        "Expression cannot be a single value, should be a conditional",
+      )
     }
-    throw EventFilterValidationException(
-      EventFilterValidationException.Code.EXPRESSION_IS_NOT_CONDITIONAL,
-      "Expression cannot be a single value, should be a conditional",
-    )
   }
 
   private fun failOnVariableOutsideLeaf(args: List<Expr>) {
@@ -217,11 +216,11 @@ object EventFilterValidator {
       return TRUE_EXPRESSION
     }
 
-    // Operative presence test node. Keep the negation if it should.
-    if(presenceTestNode()){
-      return if(negate) negate() else this
+    // Operative presence test node (e.g. has(demo.age.value)). Keep the negation if it should.
+    if (presenceTestNode()) {
+      return if (negate) negate() else this
     }
-    
+
     // Operative comparison node, valid statement that should not be altered.
     return this
   }
@@ -290,11 +289,9 @@ object EventFilterValidator {
     return env.program(ast)
   }
 
-  private fun Expr.negate() : Expr{
+  private fun Expr.negate(): Expr {
     val builder: Builder = Expr.newBuilder()
-    val callBuilder: Expr.Call.Builder  = builder.getCallExprBuilder();
-    callBuilder.addArgs(this)
-    callBuilder.setFunction(NOT_OPERATOR)
+    builder.getCallExprBuilder().addArgs(this).setFunction(NOT_OPERATOR)
     return builder.build()
   }
 
@@ -355,7 +352,6 @@ private fun Expr.nonOperativeComparisonNode(operativeFields: Set<String>): Boole
   }
   return false
 }
-
 
 private fun Expr.toBuilderWithFunction(func: String): Builder {
   val builder: Builder = toBuilder()
