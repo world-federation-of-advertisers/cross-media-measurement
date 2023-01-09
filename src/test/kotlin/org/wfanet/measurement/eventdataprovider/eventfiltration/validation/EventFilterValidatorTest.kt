@@ -253,6 +253,19 @@ class EventFilterValidatorTest {
   }
 
   @Test
+  fun `can use template with has operator`() {
+    compile("has(vt.age.value)", envWithTestTemplateVars(videoTemplateVar("vt")))
+  }
+
+  @Test
+  fun `can use template with has operator with other operators`() {
+    compile(
+      "has(vt.age.value) && vt.age.value in [0, 1]",
+      envWithTestTemplateVars(videoTemplateVar("vt"))
+    )
+  }
+
+  @Test
   fun `compiles to Normal Form correctly with single operative field`() {
 
     val env = envWithTestTemplateVars(videoTemplateVar("vt"))
@@ -284,6 +297,41 @@ class EventFilterValidatorTest {
   }
 
   @Test
+  fun `compiles to Normal Form correctly with single non operative field with presence check`() {
+
+    val env =
+      envWithTestTemplateVars(
+        videoTemplateVar("vt"),
+        privacyTemplateVar("pt"),
+      )
+
+    val expression = "has(vt.age.value)"
+    val operativeFields = setOf("pt.age.value")
+    val expectedCompiledNormalizedExpression =
+      Expr.newBuilder().setConstExpr(Constant.newBuilder().setBoolValue(true)).build()
+
+    compileToNormalForm(expression, env, operativeFields)
+      .assertEqualsIgnoreIds(expectedCompiledNormalizedExpression)
+  }
+
+  @Test
+  fun `compiles to Normal Form correctly with single operative field with presence check`() {
+
+    val env =
+      envWithTestTemplateVars(
+        videoTemplateVar("vt"),
+        privacyTemplateVar("pt"),
+      )
+
+    val expression = "has(vt.age.value)"
+    val operativeFields = setOf("vt.age.value")
+    val expectedNormalizedExpression = "has(vt.age.value)"
+
+    compileToNormalForm(expression, env, operativeFields)
+      .assertEqualsIgnoreIds(compile(expectedNormalizedExpression, env))
+  }
+
+  @Test
   fun `compiles to Normal Form correctly with non operative fields`() {
 
     val env =
@@ -307,9 +355,13 @@ class EventFilterValidatorTest {
       envWithTestTemplateVars(
         privacyTemplateVar("pt"),
       )
-    val expression = "!(pt.gender.value == 2 && pt.age.value == 1)"
+    val expression =
+      "(has(pt.gender.value) && has(pt.age.value)) && " +
+        "!(pt.gender.value == 2 && pt.age.value == 1)"
     val operativeFields = setOf("pt.age.value", "pt.gender.value")
-    val expectedNormalizedExpression = "pt.gender.value == 2 || pt.age.value == 1"
+    val expectedNormalizedExpression =
+      "(has(pt.gender.value) && has(pt.age.value)) && " +
+        "(pt.gender.value == 2 || pt.age.value == 1)"
 
     compileToNormalForm(expression, env, operativeFields)
       .assertEqualsIgnoreIds(compile(expectedNormalizedExpression, env))
@@ -324,15 +376,18 @@ class EventFilterValidatorTest {
         videoTemplateVar("vt"),
       )
 
-    val expression = "!(pt.gender.value == 2 && pt.age.value == 1) && !(vt.age.value == 2)"
+    val expression =
+      "(has(pt.gender.value) && has(vt.age.value)) && " +
+        "!(pt.gender.value == 2 && pt.age.value == 1) && !(vt.age.value == 2)"
     val operativeFields = setOf("pt.age.value", "pt.gender.value")
-    val expectedNormalizedExpression = "(pt.gender.value == 2 || pt.age.value == 1) && true"
+    val expectedNormalizedExpression =
+      "(has(pt.gender.value) && true) && (pt.gender.value == 2 || pt.age.value == 1) && true"
 
     compileToNormalForm(expression, env, operativeFields)
       .assertEqualsIgnoreIds(compile(expectedNormalizedExpression, env))
   }
 
-  @Test
+   @Test
   fun `compiles to Normal Form correctly with complex expression`() {
 
     val env =
@@ -342,14 +397,14 @@ class EventFilterValidatorTest {
       )
 
     val expression =
-      "!(pt.gender.value == 2  || vt.age.value == 1) && !(pt.age.value == 1 || " +
-        "(pt.age.value == 2 || !((vt.age.value == 1 && vt.age.value == 2))))"
+      "!(has(pt.gender.value) && (pt.gender.value == 2  || vt.age.value == 1)) && !(pt.age.value == 1 || " +
+        "(pt.age.value == 2 || !(has(vt.age.value) && (vt.age.value == 1 && vt.age.value == 2))))"
 
     val operativeFields = setOf("pt.age.value", "pt.gender.value")
 
     val expectedNormalizedExpression =
-      "(pt.gender.value == 2  && true) && (pt.age.value == 1 && " +
-        "(pt.age.value == 2 && ((true && true))) )"
+      "(!has(pt.gender.value) || (pt.gender.value == 2  && true)) && (pt.age.value == 1 && " +
+        "(pt.age.value == 2 && (true && (true && true))) )"
 
     compileToNormalForm(expression, env, operativeFields)
       .assertEqualsIgnoreIds(compile(expectedNormalizedExpression, env))

@@ -3,9 +3,11 @@
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
+ *
  * ```
  *      http://www.apache.org/licenses/LICENSE-2.0
  * ```
+ *
  * Unless required by applicable law or agreed to in writing, software distributed under the License
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
  * or implied. See the License for the specific language governing permissions and limitations under
@@ -107,7 +109,10 @@ object EventFilterValidator {
     }
   }
 
-  private fun failOnSingleToplevelValue() {
+  private fun failOnSingleToplevelValue(expr: Expr) {
+    if (expr.presenceTestNode()) {
+      return
+    }
     throw EventFilterValidationException(
       EventFilterValidationException.Code.EXPRESSION_IS_NOT_CONDITIONAL,
       "Expression cannot be a single value, should be a conditional",
@@ -164,7 +169,7 @@ object EventFilterValidator {
 
   fun validateExpression(expression: Expr) {
     if (!expression.hasCallExpr()) {
-      failOnSingleToplevelValue()
+      failOnSingleToplevelValue(expression)
     }
     validateExpr(expression)
   }
@@ -176,13 +181,13 @@ object EventFilterValidator {
     // Leaf Node, should never be reached if the EventFilter is valid. The leaf nodes are always
     // checked from the parent.
     if (!hasCallExpr()) {
-      failOnSingleToplevelValue()
+      failOnSingleToplevelValue(this)
     }
     // Negation Node. Flip the negate flag and recurse down. If the child is a non operative
     // comparison node, return true.
     if (isNegation()) {
       val childExpr: Expr = getCallExpr().getArgsList().single()
-      if (childExpr.nonOperativeComparisonNode(operativeFields)) {
+      if (childExpr.nonOperativeNode(operativeFields)) {
         return TRUE_EXPRESSION
       }
       return childExpr.toOperativeNegationNormalForm(operativeFields, !negate)
@@ -208,9 +213,15 @@ object EventFilterValidator {
       )
     }
     // Comparison Node (e.g. x == 47).  If it is for a non operative comparison, return true.
-    if (nonOperativeComparisonNode(operativeFields)) {
+    if (nonOperativeNode(operativeFields)) {
       return TRUE_EXPRESSION
     }
+
+    // Operative presence test node. Keep the negation if it should.
+    if(presenceTestNode()){
+      return if(negate) negate() else this
+    }
+    
     // Operative comparison node, valid statement that should not be altered.
     return this
   }
@@ -279,6 +290,14 @@ object EventFilterValidator {
     return env.program(ast)
   }
 
+  private fun Expr.negate() : Expr{
+    val builder: Builder = Expr.newBuilder()
+    val callBuilder: Expr.Call.Builder  = builder.getCallExprBuilder();
+    callBuilder.addArgs(this)
+    callBuilder.setFunction(NOT_OPERATOR)
+    return builder.build()
+  }
+
   private fun Expr.buildToOperativeNegationNormalForm(
     func: String,
     operativeFields: Set<String>,
@@ -286,7 +305,7 @@ object EventFilterValidator {
   ): Expr {
     val builder: Builder = toBuilderWithFunction(func)
     getCallExpr().getArgsList().forEach {
-      if (it.nonOperativeComparisonNode(operativeFields)) {
+      if (it.nonOperativeNode(operativeFields)) {
         builder.getCallExprBuilder().addArgs(TRUE_EXPRESSION)
       } else {
         builder
@@ -304,6 +323,16 @@ private fun getFieldName(selectExpr: Expr.Select): String {
   }
   return getFieldName(selectExpr.operand.getSelectExpr()) + "." + selectExpr.getField()
 }
+
+// testOnly indicates if select is to be interpreted as a field presence test. Such as
+// `has(request.auth)`.
+private fun Expr.presenceTestNode() = hasSelectExpr() && selectExpr.testOnly
+
+private fun Expr.nonOperativeNode(operativeFields: Set<String>) =
+  nonOperativeComparisonNode(operativeFields) || nonOperativePresenceNode(operativeFields)
+
+private fun Expr.nonOperativePresenceNode(operativeFields: Set<String>) =
+  presenceTestNode() && !operativeFields.contains(getFieldName(selectExpr))
 
 private fun Expr.nonOperativeComparisonNode(operativeFields: Set<String>): Boolean {
   if (hasCallExpr()) {
@@ -326,6 +355,7 @@ private fun Expr.nonOperativeComparisonNode(operativeFields: Set<String>): Boole
   }
   return false
 }
+
 
 private fun Expr.toBuilderWithFunction(func: String): Builder {
   val builder: Builder = toBuilder()
