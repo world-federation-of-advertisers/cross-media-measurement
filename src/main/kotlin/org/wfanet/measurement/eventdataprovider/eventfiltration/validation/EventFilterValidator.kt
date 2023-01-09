@@ -177,8 +177,8 @@ object EventFilterValidator {
     operativeFields: Set<String>,
     negate: Boolean = false
   ): Expr {
-    // Leaf Node, should never be reached if the EventFilter is valid. The leaf nodes are always
-    // checked from the parent.
+    // Leaf Node, if it is a comparison node, should never be reached if the EventFilter is valid. 
+    // The leaf comparison nodes are always checked from the parent. Presence is handled here.
     if (!hasCallExpr()) {
       failOnSingleToplevelValue(this)
     }
@@ -319,7 +319,7 @@ private fun getFieldName(selectExpr: Expr.Select): String {
   return getFieldName(selectExpr.operand.getSelectExpr()) + "." + selectExpr.getField()
 }
 
-// testOnly indicates if select is to be interpreted as a field presence test. Such as
+// testOnly field indicates if select is to be interpreted as a field presence test. Such as
 // `has(request.auth)`.
 private fun Expr.presenceTestNode() = hasSelectExpr() && selectExpr.testOnly
 
