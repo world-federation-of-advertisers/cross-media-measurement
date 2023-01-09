@@ -215,12 +215,10 @@ object EventFilterValidator {
     if (nonOperativeNode(operativeFields)) {
       return TRUE_EXPRESSION
     }
-
     // Operative presence test node (e.g. has(demo.age.value)). Keep the negation if it should.
     if (presenceTestNode()) {
       return if (negate) negate() else this
     }
-
     // Operative comparison node, valid statement that should not be altered.
     return this
   }
