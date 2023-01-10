@@ -35,9 +35,7 @@ load("@wfa_common_jvm//build/maven:artifacts.bzl", "artifacts")
 
 MAVEN_ARTIFACTS_DICT = dict(common_jvm_maven_artifacts_dict().items() + {
     "software.aws.rds:aws-postgresql-jdbc": "0.1.0",
-    "org.projectnessie.cel:cel-core": "0.2.4",
-    "org.projectnessie.cel:cel-tools": "0.2.4",
-    "org.projectnessie.cel:cel-generated-pb": "0.2.4",
+    "org.projectnessie.cel:cel-core": "0.3.11",
     "io.opentelemetry:opentelemetry-api": "1.19.0",
     "io.opentelemetry:opentelemetry-sdk": "1.19.0",
     "io.opentelemetry:opentelemetry-exporter-otlp": "1.19.0",
