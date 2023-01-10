@@ -387,7 +387,7 @@ class EventFilterValidatorTest {
       .assertEqualsIgnoreIds(compile(expectedNormalizedExpression, env))
   }
 
-   @Test
+  @Test
   fun `compiles to Normal Form correctly with complex expression`() {
 
     val env =

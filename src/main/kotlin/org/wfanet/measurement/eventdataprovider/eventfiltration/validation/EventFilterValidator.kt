@@ -177,7 +177,8 @@ object EventFilterValidator {
     operativeFields: Set<String>,
     negate: Boolean = false
   ): Expr {
-    // Leaf Node, if it is a comparison node, should never be reached if the EventFilter is valid. 
+    
+    // Leaf Node, if it is a comparison node, should never be reached if the EventFilter is valid.
     // The leaf comparison nodes are always checked from the parent. Presence is handled here.
     if (!hasCallExpr()) {
       failOnSingleToplevelValue(this)
