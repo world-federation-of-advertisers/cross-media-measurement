@@ -14,19 +14,44 @@
 
 package org.wfanet.measurement.duchy.deploy.gcloud.spanner.continuationtoken
 
+import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Value
+import com.google.protobuf.util.Timestamps
+import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.insertOrUpdateMutation
+import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsContinuationToken
 
 class SetContinuationToken(val continuationToken: String) {
   suspend fun execute(databaseClient: AsyncDatabaseClient) {
-    val mutation =
-      insertOrUpdateMutation("HeraldContinuationTokens") {
-        set("Presence").to(true)
-        set("ContinuationToken").to(continuationToken)
-        set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
-      }
+    databaseClient.readWriteTransaction().execute { ctx ->
+      val newContinuationToken = continuationToken.decode()
+      val oldContinuationToken =
+        ctx
+          .readRow("HeraldContinuationTokens", Key.of(true), listOf("ContinuationToken"))
+          ?.getString("ContinuationToken")
+          ?.decode()
+          ?: StreamActiveComputationsContinuationToken.getDefaultInstance()
 
-    databaseClient.write(mutation)
+      if (
+        Timestamps.compare(
+          newContinuationToken.updateTimeSince,
+          oldContinuationToken.updateTimeSince
+        ) >= 0
+      ) {
+        val mutation =
+          insertOrUpdateMutation("HeraldContinuationTokens") {
+            set("Presence").to(true)
+            set("ContinuationToken").to(continuationToken)
+            set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+          }
+        ctx.buffer(mutation)
+      } else {
+        throw IllegalArgumentException("ContinuationToken to set cannot have older timestamp.")
+      }
+    }
   }
+
+  private fun String.decode(): StreamActiveComputationsContinuationToken =
+    StreamActiveComputationsContinuationToken.parseFrom(this.base64UrlDecode())
 }

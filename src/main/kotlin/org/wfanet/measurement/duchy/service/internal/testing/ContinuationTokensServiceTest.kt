@@ -16,15 +16,21 @@ package org.wfanet.measurement.duchy.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.timestamp
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.getContinuationTokenRequest
 import org.wfanet.measurement.internal.duchy.getContinuationTokenResponse
 import org.wfanet.measurement.internal.duchy.setContinuationTokenRequest
+import org.wfanet.measurement.system.v1alpha.streamActiveComputationsContinuationToken
 
 @RunWith(JUnit4::class)
 abstract class ContinuationTokensServiceTest<T : ContinuationTokensCoroutineImplBase> {
@@ -49,11 +55,11 @@ abstract class ContinuationTokensServiceTest<T : ContinuationTokensCoroutineImpl
 
   @Test
   fun `getContinuationToken returns response with non-empty string`() = runBlocking {
-    service.setContinuationToken(setContinuationTokenRequest { this.token = "token1" })
+    service.setContinuationToken(setContinuationTokenRequest { this.token = TOKEN_1 })
 
     val response = service.getContinuationToken(getContinuationTokenRequest {})
 
-    assertThat(response).isEqualTo(getContinuationTokenResponse { token = "token1" })
+    assertThat(response).isEqualTo(getContinuationTokenResponse { token = TOKEN_1 })
   }
 
   @Test
@@ -61,21 +67,47 @@ abstract class ContinuationTokensServiceTest<T : ContinuationTokensCoroutineImpl
     val initToken = service.getContinuationToken(getContinuationTokenRequest {}).token
     assertThat(initToken).isEmpty()
 
-    service.setContinuationToken(setContinuationTokenRequest { this.token = "updated_token" })
+    service.setContinuationToken(setContinuationTokenRequest { this.token = TOKEN_1 })
 
     val updatedToken = service.getContinuationToken(getContinuationTokenRequest {}).token
-    assertThat(updatedToken).isEqualTo("updated_token")
+    assertThat(updatedToken).isEqualTo(TOKEN_1)
   }
 
   @Test
   fun `setContinuationToken updates token entry`() = runBlocking {
-    service.setContinuationToken(setContinuationTokenRequest { token = "token1" })
+    service.setContinuationToken(setContinuationTokenRequest { token = TOKEN_1 })
     val initToken = service.getContinuationToken(getContinuationTokenRequest {}).token
-    assertThat(initToken).isEqualTo("token1")
+    assertThat(initToken).isEqualTo(TOKEN_1)
 
-    service.setContinuationToken(setContinuationTokenRequest { token = "token2" })
+    service.setContinuationToken(setContinuationTokenRequest { token = TOKEN_2 })
 
     val updatedToken = service.getContinuationToken(getContinuationTokenRequest {}).token
-    assertThat(updatedToken).isEqualTo("token2")
+    assertThat(updatedToken).isEqualTo(TOKEN_2)
   }
+
+  @Test
+  fun `setContinuationToken raise exeption when token to set is older`() = runBlocking {
+    service.setContinuationToken(setContinuationTokenRequest { token = TOKEN_2 })
+    val initToken = service.getContinuationToken(getContinuationTokenRequest {}).token
+    assertThat(initToken).isEqualTo(TOKEN_2)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.setContinuationToken(setContinuationTokenRequest { token = TOKEN_1 })
+      }
+    assertThat(exception.status.code).isEqualTo(Status.INVALID_ARGUMENT.code)
+  }
+
+  companion object {
+    private val TOKEN_1 = createContinuationTokenString(10L, 0L)
+    private val TOKEN_2 = createContinuationTokenString(20L, 1L)
+  }
+}
+
+private fun createContinuationTokenString(timeSince: Long, lastComputationId: Long): String {
+  val token = streamActiveComputationsContinuationToken {
+    updateTimeSince = timestamp { seconds = timeSince }
+    lastSeenExternalComputationId = lastComputationId
+  }
+  return token.toByteArray().base64UrlEncode()
 }

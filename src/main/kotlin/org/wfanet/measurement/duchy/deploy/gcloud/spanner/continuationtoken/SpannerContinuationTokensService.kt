@@ -14,7 +14,9 @@
 
 package org.wfanet.measurement.duchy.deploy.gcloud.spanner.continuationtoken
 
+import io.grpc.Status
 import kotlinx.coroutines.flow.singleOrNull
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.GetContinuationTokenRequest
@@ -38,7 +40,12 @@ class SpannerContinuationTokensService(private val client: AsyncDatabaseClient) 
   override suspend fun setContinuationToken(
     request: SetContinuationTokenRequest
   ): SetContinuationTokenResponse {
-    SetContinuationToken(request.token).execute(client)
+    try {
+      SetContinuationToken(request.token).execute(client)
+    } catch (e: Exception) {
+      failGrpc(Status.INVALID_ARGUMENT) { e.message ?: "Invalid continuation token." }
+    }
+
     return SetContinuationTokenResponse.getDefaultInstance()
   }
 }
