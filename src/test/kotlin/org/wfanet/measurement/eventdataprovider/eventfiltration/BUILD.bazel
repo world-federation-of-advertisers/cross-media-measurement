@@ -5,8 +5,7 @@ kt_jvm_test(
     srcs = ["EventFiltersTest.kt"],
     test_class = "org.wfanet.measurement.eventdataprovider.eventfiltration.EventFiltersTest",
     deps = [
-        "//imports/java/org/projectnessie/cel:core",
-        "//imports/java/org/projectnessie/cel/tools",
+        "//imports/java/org/projectnessie/cel",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:event_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:event_templates_kt_jvm_proto",
