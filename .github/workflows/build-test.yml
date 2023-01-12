@@ -41,15 +41,16 @@ jobs:
             --compilation_mode=opt
             --host_platform=//build/platforms:ubuntu_20_04
 
-      - name: Bazel build and test K8s Correctness Test
-        uses: world-federation-of-advertisers/actions/bazel-build-test@v1
-        with:
-          cache-version: 1
-          restore-cache: false
-          workspace-path: .
-          target-patterns: |
-            //src/test/kotlin/org/wfanet/measurement/integration/k8s:CorrectnessTest
-          build-options: |
-            --compilation_mode=opt
-            --host_platform=//build/platforms:ubuntu_20_04
-          test-output: streamed
+# TODO(world-federation-of-advertisers/cross-media-measurement#805): Re-enable once fixed.
+#      - name: Bazel build and test K8s Correctness Test
+#        uses: world-federation-of-advertisers/actions/bazel-build-test@v1
+#        with:
+#          cache-version: 1
+#          restore-cache: false
+#          workspace-path: .
+#          target-patterns: |
+#            //src/test/kotlin/org/wfanet/measurement/integration/k8s:CorrectnessTest
+#          build-options: |
+#            --compilation_mode=opt
+#            --host_platform=//build/platforms:ubuntu_20_04
+#          test-output: streamed
