@@ -35,7 +35,12 @@ message Metric {
   }
   // Parameters that are used to generate `Impression Count` metric.
   message ImpressionCountParams {
-    // Maximum frequency per user that will be included in this measurement.
+    // Setting the maximum frequency for each user is for noising the impression
+    // estimation with the noise proportional to maximum_frequency_per_user to
+    // guarantee epsilon-DP, i.e. the higher maximum_frequency_per_user, the
+    // larger the variance. On the other hand, if maximum_frequency_per_user is
+    // too small, there's truncation bias. Through optimization the recommended
+    // value for maximum_frequency_per_user = 60.
     int32 maximum_frequency_per_user = 1;
   }
   // Parameters that are used to generate `Watch Duration` metric.
@@ -43,7 +48,8 @@ message Metric {
     // Maximum frequency per user that will be included in this measurement.
     int32 maximum_frequency_per_user = 1;
     // Maximum watch duration per user that will be included in this
-    // measurement.
+    // measurement. Recommended maximum_watch_duration_per_user = cap on the
+    // total watch duration of all the impressions of a user = 4000s.
     int32 maximum_watch_duration_per_user = 2;
   }
 
@@ -90,7 +96,7 @@ message Metric {
         // the reporting set is constrained by the `EventGroupUniverse` defined
         // in the `Report`.
         string reporting_set = 1 [(google.api.resource_reference).type =
-                                      "reporting.halo-cmm.org/ReportingSet"];
+          "reporting.halo-cmm.org/ReportingSet"];
         // Nested `SetOperation` to allow for expressions with more terms.
         SetOperation operation = 2;
       }
@@ -116,5 +122,5 @@ message Metric {
 
   // A list of named `SetOperations` on which the same metric will be applied.
   repeated NamedSetOperation set_operations = 7
-      [(google.api.field_behavior) = REQUIRED];
+  [(google.api.field_behavior) = REQUIRED];
 }
