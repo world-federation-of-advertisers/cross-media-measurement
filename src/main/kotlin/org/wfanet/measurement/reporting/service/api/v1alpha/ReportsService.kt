@@ -1444,7 +1444,7 @@ private fun Report.timeIntervalsList(hasCumulativeMetric: Boolean): List<TimeInt
   return when (source.timeCase) {
     Report.TimeCase.TIME_INTERVALS -> {
       if (hasCumulativeMetric) {
-        failGrpc(Status.INVALID_ARGUMENT) { "Cannot use TimeIntervals with a cumulative Metric."}
+        failGrpc(Status.INVALID_ARGUMENT) { "Cannot use TimeIntervals with a cumulative Metric." }
       }
       grpcRequire(source.timeIntervals.timeIntervalsList.isNotEmpty()) {
         "TimeIntervals timeIntervalsList is empty."
