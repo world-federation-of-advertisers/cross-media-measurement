@@ -34,9 +34,9 @@ kt_jvm_library(
     deps = [
         ":encryption_key_pair_store",
         ":resource_key",
+        "//imports/java/org/projectnessie/cel",
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_group_metadata_parser",
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
+        "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:principal_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:reporting_principal",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
