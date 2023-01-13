@@ -39,8 +39,9 @@ message Metric {
     // estimation with the noise proportional to maximum_frequency_per_user to
     // guarantee epsilon-DP, i.e. the higher maximum_frequency_per_user, the
     // larger the variance. On the other hand, if maximum_frequency_per_user is
-    // too small, there's truncation bias. Through optimization the recommended
-    // value for maximum_frequency_per_user = 60.
+    // too small, there's truncation bias. Through optimization, the recommended
+    // value for maximum_frequency_per_user = 60 for the case with 1M audience
+    // size.
     int32 maximum_frequency_per_user = 1;
   }
   // Parameters that are used to generate `Watch Duration` metric.
@@ -49,7 +50,8 @@ message Metric {
     int32 maximum_frequency_per_user = 1;
     // Maximum watch duration per user that will be included in this
     // measurement. Recommended maximum_watch_duration_per_user = cap on the
-    // total watch duration of all the impressions of a user = 4000s.
+    // total watch duration of all the impressions of a user = 4000 sec for the
+    // case with 1M audience size.
     int32 maximum_watch_duration_per_user = 2;
   }
 
