@@ -72,7 +72,7 @@ message PrimitiveReportingSet {
   };
 
   // Resource name.
-  string name = 1;
+  string name = 1 [(google.api.field_behavior) = REQUIRED];
 
   // Human-readable name for display purposes.
   string display_name = 2;
@@ -100,7 +100,7 @@ message CompositeReportingSet {
   };
 
   // Resource name.
-  string name = 1;
+  string name = 1 [(google.api.field_behavior) = REQUIRED];
 
   // Human-readable name for display purposes.
   string display_name = 2;
@@ -111,5 +111,15 @@ message CompositeReportingSet {
   string filter = 3 [(google.api.field_behavior) = IMMUTABLE];
 
   // A nested expression of binary set expressions.
-  SetExpression expression = 4;
+  SetExpression expression = 4 [(google.api.field_behavior) = REQUIRED];
+}
+
+// The resource name of a reporting set which is either primitive or composite.
+message ReportingSet {
+  oneof type {
+    // The resource name of a primitive reporting set.
+    string primitive_reporting_set = 1;
+    // The resource name of a composite reporting set.
+    string composite_reporting_set = 2;
+  }
 }

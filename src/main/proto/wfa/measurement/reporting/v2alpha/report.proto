@@ -1,0 +1,170 @@
+// Copyright 2022 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.reporting.v2alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "wfa/measurement/reporting/v2alpha/metric.proto";
+import "wfa/measurement/reporting/v2alpha/time_interval.proto";
+import "wfa/measurement/reporting/v2alpha/reporting_set.proto";
+
+option java_package = "org.wfanet.measurement.reporting.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "ReportProto";
+
+// Resource representing a report.
+message Report {
+  option (google.api.resource) = {
+    type: "reporting.halo-cmm.org/Report"
+    pattern: "measurementConsumers/{measurement_consumer}/reports/{report}"
+  };
+
+  // Resource name.
+  string name = 1 [(google.api.field_behavior) = REQUIRED];
+
+  // Used as the prefix of the idempotency keys of internal measurements. This
+  // value must be unique among `Report`s for the parent `MeasurementConsumer`.
+  // TODO(@riemanli) Moved the idempotency key to request messages.
+  // string report_idempotency_key = 2 [(google.api.field_behavior) = REQUIRED];
+  //
+  // Representation of a Measurement Consumer entity.
+  string measurement_consumer = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "halo.wfanet.org/MeasurementConsumer"
+    }
+  ];
+
+  // Contain the grouping predicates.
+  message Grouping {
+    // All predicates need to be applied on the same field in an Event Template
+    // but doesn't need to be disjoint. Each predicate is used to determine the
+    // groups for the grouping operation.
+    // Note that the field indicated in the predicates must be in an Event
+    // Template shared by all event groups associated with the reporting sets
+    // implied in the metric calculation
+    repeated string predicates = 1 [(google.api.field_behavior) = REQUIRED];
+  }
+  // The specification of metric calculations.
+  message MetricCalculationSpec {
+    // A collection of metrics.
+    repeated MetricSpec metric_specs = 1
+        [(google.api.field_behavior) = REQUIRED];
+    // The final set of groups is the Cartesian product of groupings.
+    repeated Grouping groupings = 2;
+    // Whether the results for a given time interval is cumulative with those of
+    // previous time intervals.
+    bool cumulative = 3;
+  }
+  // The specification of metric calculation for a reporting set.
+  message ReportingMetricSpec {
+    // A collection of metric calculations.
+    repeated MetricCalculationSpec metric_calculation_specs = 1
+        [(google.api.field_behavior) = REQUIRED];
+    // The resource name of what model to use.
+    // If model is empty, compute the metrics using kingdom measurements;
+    // otherwise, use the model inferences.
+    // The user needs to provide a model that can cover all time intervals and
+    // all primitive reporting sets used for the metric calculations.
+    string model = 2;
+  }
+
+  // Define metric calculations with a reporting set.
+  message ReportingMetricCalculation {
+    // Map entry of `ReportingSet` to `ReportingMetricSpec`.
+    message ReportingMetricEntry {
+      // Key of the map entry.
+      ReportingSet key = 1 [(google.api.field_behavior) = REQUIRED];
+      // Value of the map entry.
+      ReportingMetricSpec value = 2;
+    }
+
+    // A Map with `ReportingSet`s as the keys and `ReportingMetricSpec`s as the
+    // values.
+    repeated ReportingMetricEntry reporting_metric_entries = 1
+        [(google.api.field_behavior) = REQUIRED];
+  }
+
+  // The calculations defined for specific reporting sets.
+  ReportingMetricCalculation reporting_metric_calculation = 4
+      [(google.api.field_behavior) = REQUIRED];
+
+  // Types of time intervals for metric aggregation.
+  // REQUIRED
+  oneof time {
+    // A list of time intervals with different start times and end times.
+    TimeIntervals time_intervals = 5;
+    // A series of time intervals with the same length.
+    PeriodicTimeInterval periodic_time_interval = 6;
+  }
+
+  // Possible states of a `Report`.
+  enum State {
+    // Default value. This value is unused.
+    STATE_UNSPECIFIED = 0;
+    // Computation is running.
+    RUNNING = 1;
+    // Completed successfully. Terminal state.
+    SUCCEEDED = 2;
+    // Completed with failure. Terminal state.
+    FAILED = 3;
+  }
+
+  // Report state.
+  State state = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The result of all calculations in this report.
+  message Result {
+    // A column with a header and values.
+    message Column {
+      // The header of the column.
+      string column_header = 1;
+      // Must be in the same order as `row_headers`.
+      repeated double values = 2;
+    }
+    // The table that contains the calculation results of a scalar metric
+    message ScalarTable {
+      // Must be in the same order as `column`'s `values`.
+      repeated string row_headers = 1;
+      // Must be in the same order as `row_headers`.
+      repeated Column columns = 2;
+    }
+    // A collection of tables for metrics in scalar type.
+    repeated ScalarTable scalar_tables = 1;
+
+    // `HistogramTable` has an additional field for each row and thus different
+    // from `ScalarTable`.
+    message HistogramTable {
+      // Combine header and bin label as Row.
+      message Row {
+        // Must be in the same order as `column`'s `values`.
+        string row_header = 1;
+        // Bin label of the row
+        string bin_label = 2;
+      }
+      // Must be in the same order as `column`'s `values`.
+      repeated Row rows = 1;
+      // Must be in the same order as row's `row_headers`.
+      repeated Column columns = 2;
+    }
+    // Each HistogramTable contains the results of one metric of histogram type.
+    repeated HistogramTable histogram_tables = 2;
+  }
+
+  // Set only when `state` is `SUCCEEDED`.
+  Result result = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
