@@ -67,7 +67,8 @@ message Report {
     // The final set of groups is the Cartesian product of groupings.
     repeated Grouping groupings = 2;
     // Whether the results for a given time interval is cumulative with those of
-    // previous time intervals.
+    // previous time intervals. 
+    // Only supported when using `PeriodicTimeInterval`.
     bool cumulative = 3;
   }
   // The specification of metric calculation for a reporting set.
