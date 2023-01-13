@@ -47,7 +47,7 @@ class SetContinuationToken(val continuationToken: String) {
           }
         ctx.buffer(mutation)
       } else {
-        throw IllegalArgumentException("ContinuationToken to set cannot have older timestamp.")
+        throw InvalidContinuationToken("ContinuationToken to set cannot have older timestamp.")
       }
     }
   }
@@ -55,3 +55,5 @@ class SetContinuationToken(val continuationToken: String) {
   private fun String.decode(): StreamActiveComputationsContinuationToken =
     StreamActiveComputationsContinuationToken.parseFrom(this.base64UrlDecode())
 }
+
+class InvalidContinuationToken(message: String) : Exception(message) {}

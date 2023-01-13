@@ -193,7 +193,7 @@ private val NON_AGGREGATOR_COMPUTATION_DETAILS =
     .apply { liquidLegionsV2Builder.apply { role = RoleInComputation.NON_AGGREGATOR } }
     .build()
 
-private const val COMPUTATION_GLOBAL_ID = "42314125676756"
+private const val COMPUTATION_GLOBAL_ID = "123"
 
 private val FAIL_COMPUTATION_PARTICIPANT_RESPONSE = computationParticipant {
   state = SystemComputationParticipant.State.FAILED
@@ -310,25 +310,25 @@ class HeraldTest {
   @Test
   fun `syncStatuses on empty stream retains same computation token`() = runTest {
     mockStreamActiveComputationsToReturn() // No items in stream.
-    continuationTokensService.latestContinuationToken = "TOKEN_OF_LAST_ITEM"
+    continuationTokensService.latestContinuationToken = "123"
 
     nonAggregatorHerald.syncStatuses()
 
-    assertThat(continuationTokensService.latestContinuationToken).isEqualTo("TOKEN_OF_LAST_ITEM")
+    assertThat(continuationTokensService.latestContinuationToken).isEqualTo("123")
   }
 
   @Test
   fun `syncStatuses creates new computations`() = runTest {
     val confirmingKnown =
-      buildComputationAtKingdom("454647484950", Computation.State.PENDING_REQUISITION_PARAMS)
-    val systemApiRequisitions1 =
-      REQUISITION_1.toSystemRequisition("321", Requisition.State.UNFULFILLED)
-    val systemApiRequisitions2 =
-      REQUISITION_2.toSystemRequisition("321", Requisition.State.UNFULFILLED)
+      buildComputationAtKingdom("1", Computation.State.PENDING_REQUISITION_PARAMS)
 
+    val systemApiRequisitions1 =
+      REQUISITION_1.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+    val systemApiRequisitions2 =
+      REQUISITION_2.toSystemRequisition("2", Requisition.State.UNFULFILLED)
     val confirmingUnknown =
       buildComputationAtKingdom(
-        "321",
+        "2",
         Computation.State.PENDING_REQUISITION_PARAMS,
         listOf(systemApiRequisitions1, systemApiRequisitions2)
       )
@@ -343,7 +343,7 @@ class HeraldTest {
 
     aggregatorHerald.syncStatuses()
 
-    assertThat(continuationTokensService.latestContinuationToken).isNotEmpty()
+    assertThat(continuationTokensService.latestContinuationToken).isEqualTo("2")
     assertThat(
         fakeComputationDatabase.mapValues { (_, fakeComputation) ->
           fakeComputation.computationStage
@@ -369,7 +369,7 @@ class HeraldTest {
       .isEqualTo(
         ComputationDetails.newBuilder()
           .apply {
-            blobsStoragePrefix = "computation-blob-storage/321"
+            blobsStoragePrefix = "computation-blob-storage/2"
             kingdomComputationBuilder.apply {
               publicApiVersion = PUBLIC_API_VERSION
               measurementSpec = SERIALIZED_MEASUREMENT_SPEC
@@ -586,7 +586,7 @@ class HeraldTest {
 
     aggregatorHerald.syncStatuses()
 
-    assertThat(continuationTokensService.latestContinuationToken).isNotEmpty()
+    assertThat(continuationTokensService.latestContinuationToken).isEqualTo("231313")
     assertThat(
         fakeComputationDatabase.mapValues { (_, fakeComputation) ->
           fakeComputation.computationStage
@@ -685,7 +685,7 @@ class HeraldTest {
     heraldWithOneRetry.syncStatuses()
 
     assertThat(continuationTokensService.latestContinuationToken)
-      .isEqualTo("token_for_$COMPUTATION_GLOBAL_ID")
+      .isEqualTo(COMPUTATION_GLOBAL_ID.toString())
     verifyProtoArgument(
         systemComputationParticipants,
         SystemComputationParticipantsCoroutineImplBase::failComputationParticipant
@@ -774,7 +774,7 @@ class HeraldTest {
     mockStreamActiveComputationsToReturn(*computations.toTypedArray())
 
     aggregatorHerald.syncStatuses()
-    assertThat(continuationTokensService.latestContinuationToken).isNotEmpty()
+    assertThat(continuationTokensService.latestContinuationToken).isEqualTo("10")
   }
 
   @Test
@@ -873,5 +873,5 @@ class HeraldTest {
       .build()
   }
 
-  private fun Computation.continuationToken(): String = "token_for_${key.computationId}"
+  private fun Computation.continuationToken(): String = key.computationId.toString()
 }

@@ -14,6 +14,8 @@
 
 package org.wfanet.measurement.duchy.service.internal.testing
 
+import io.grpc.Status
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.GetContinuationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetContinuationTokenResponse
@@ -21,6 +23,11 @@ import org.wfanet.measurement.internal.duchy.SetContinuationTokenRequest
 import org.wfanet.measurement.internal.duchy.SetContinuationTokenResponse
 import org.wfanet.measurement.internal.duchy.getContinuationTokenResponse
 
+/**
+ * In memory continuation token service for testing purpose.
+ *
+ * Tokens are integers in string form standing for the time order. Larger value means newer token.
+ */
 class InMemoryContinuationTokensService : ContinuationTokensCoroutineImplBase() {
   var latestContinuationToken = ""
 
@@ -33,6 +40,14 @@ class InMemoryContinuationTokensService : ContinuationTokensCoroutineImplBase() 
   override suspend fun setContinuationToken(
     request: SetContinuationTokenRequest
   ): SetContinuationTokenResponse {
+    if (
+      latestContinuationToken.isNotEmpty() &&
+        request.token.toInt() < latestContinuationToken.toInt()
+    ) {
+      failGrpc(Status.FAILED_PRECONDITION) {
+        "ContinuationToken to set cannot have older timestamp."
+      }
+    }
     latestContinuationToken = request.token
     return SetContinuationTokenResponse.getDefaultInstance()
   }

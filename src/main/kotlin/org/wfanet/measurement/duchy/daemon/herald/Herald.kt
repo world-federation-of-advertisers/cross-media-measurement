@@ -164,7 +164,7 @@ class Herald(
               processSystemComputation(response.computation, MAX_ATTEMPTS)
               continuationTokenManager.markTokenProcessed(response.continuationToken)
             } catch (e: StatusException) {
-              if (e.status.code == Status.INVALID_ARGUMENT.code) {
+              if (e.status.code == Status.FAILED_PRECONDITION.code) {
                 logger.warning("Failure happened during process computation. $e")
               } else {
                 throw e

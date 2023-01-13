@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.duchy.deploy.gcloud.spanner.continuationtoken
 
+import com.google.protobuf.InvalidProtocolBufferException
 import io.grpc.Status
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -43,7 +44,13 @@ class SpannerContinuationTokensService(private val client: AsyncDatabaseClient) 
     try {
       SetContinuationToken(request.token).execute(client)
     } catch (e: Exception) {
-      failGrpc(Status.INVALID_ARGUMENT) { e.message ?: "Invalid continuation token." }
+      when (e) {
+        is InvalidContinuationToken ->
+          failGrpc(Status.FAILED_PRECONDITION) { e.message ?: "Invalid continuation token." }
+        is InvalidProtocolBufferException ->
+          failGrpc(Status.INVALID_ARGUMENT) { e.message ?: "Malformed continuation token." }
+        else -> failGrpc(Status.UNKNOWN) { e.message ?: "Error during setContinuationToken." }
+      }
     }
 
     return SetContinuationTokenResponse.getDefaultInstance()

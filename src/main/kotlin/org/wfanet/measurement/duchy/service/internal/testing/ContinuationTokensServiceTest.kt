@@ -95,7 +95,7 @@ abstract class ContinuationTokensServiceTest<T : ContinuationTokensCoroutineImpl
       assertFailsWith<StatusRuntimeException> {
         service.setContinuationToken(setContinuationTokenRequest { token = TOKEN_1 })
       }
-    assertThat(exception.status.code).isEqualTo(Status.INVALID_ARGUMENT.code)
+    assertThat(exception.status.code).isEqualTo(Status.FAILED_PRECONDITION.code)
   }
 
   companion object {
