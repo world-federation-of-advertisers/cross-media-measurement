@@ -202,7 +202,24 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     val completedReport = getReport(createdReport.name, createdReport.measurementConsumer)
     assertThat(assertThat(completedReport.state).isEqualTo(Report.State.SUCCEEDED))
     val reportResult = computeReportResult(completedReport)
+    // each measurement has a result of 100.0 and there are two time intervals
     assertThat(reportResult).isEqualTo(200.0 * NUM_SET_OPERATIONS)
+  }
+
+  @Test
+  fun `create Report with cumulative metric and get the result successfully`() = runBlocking {
+    createReportingSet("1", MEASUREMENT_CONSUMER_NAME)
+    createReportingSet("2", MEASUREMENT_CONSUMER_NAME)
+    createReportingSet("3", MEASUREMENT_CONSUMER_NAME)
+
+    val createdReport = createReport("1234", MEASUREMENT_CONSUMER_NAME, true)
+    val reports = listReports(MEASUREMENT_CONSUMER_NAME)
+    assertThat(reports.reportsList).hasSize(1)
+    val completedReport = getReport(createdReport.name, createdReport.measurementConsumer)
+    assertThat(assertThat(completedReport.state).isEqualTo(Report.State.SUCCEEDED))
+    val reportResult = computeReportResult(completedReport)
+    // each measurement has a result of 100.0 and there are two time intervals
+    assertThat(reportResult).isEqualTo(300.0 * NUM_SET_OPERATIONS)
   }
 
   @Test
@@ -210,8 +227,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     createReportingSet("1", MEASUREMENT_CONSUMER_NAME)
     createReportingSet("2", MEASUREMENT_CONSUMER_NAME)
     createReportingSet("3", MEASUREMENT_CONSUMER_NAME)
-    launch { createReport("5", MEASUREMENT_CONSUMER_NAME, true) }
-    for (i in 1..4) {
+    for (i in 1..5) {
       launch { createReport("$i", MEASUREMENT_CONSUMER_NAME) }
     }
   }

@@ -165,7 +165,6 @@ import org.wfanet.measurement.reporting.v1alpha.ReportKt.result
 import org.wfanet.measurement.reporting.v1alpha.ReportsGrpcKt.ReportsCoroutineImplBase
 import org.wfanet.measurement.reporting.v1alpha.TimeInterval
 import org.wfanet.measurement.reporting.v1alpha.TimeIntervals
-import org.wfanet.measurement.reporting.v1alpha.copy
 import org.wfanet.measurement.reporting.v1alpha.listReportsResponse
 import org.wfanet.measurement.reporting.v1alpha.metric
 import org.wfanet.measurement.reporting.v1alpha.periodicTimeInterval
@@ -232,15 +231,6 @@ private val REACH_ONLY_MEASUREMENT_SPEC =
     maximumFrequencyPerUser = REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER
   }
 
-private val timeIntervalComparator: (TimeInterval, TimeInterval) -> Int = { a, b ->
-  val start = Timestamps.compare(a.startTime, b.startTime)
-  if (start != 0) {
-    start
-  } else {
-    Timestamps.compare(a.endTime, b.endTime)
-  }
-}
-
 class ReportsService(
   private val internalReportsStub: InternalReportsCoroutineStub,
   private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
@@ -272,7 +262,6 @@ class ReportsService(
     val reportingMeasurementId: String,
     val weightedMeasurement: WeightedMeasurement,
     val timeInterval: TimeInterval,
-    val reportTimeInterval: TimeInterval,
     var kingdomMeasurementId: String? = null,
   )
 
@@ -1041,11 +1030,11 @@ class ReportsService(
   ): List<MeasurementCalculation> {
     val measurementCalculations = mutableListOf<MeasurementCalculation>()
     setOperationResult.weightedMeasurementInfoList
-      .groupBy { it.reportTimeInterval }
-      .forEach { (reportTimeInterval, weightedMeasurementInfos) ->
+      .groupBy { it.timeInterval }
+      .forEach { (timeInterval, weightedMeasurementInfos) ->
         measurementCalculations.add(
           InternalMetricKt.measurementCalculation {
-            this.timeInterval = reportTimeInterval.toInternal()
+            this.timeInterval = timeInterval.toInternal()
 
             weightedMeasurementInfos.forEach {
               weightedMeasurements +=
@@ -1295,16 +1284,7 @@ class ReportsService(
     private suspend fun compileAllSetOperations(): Map<String, SetOperationResult> {
       val namedSetOperationResults = mutableMapOf<String, SetOperationResult>()
 
-      val timeIntervalsList = report.timeIntervalsList()
-      val sortedTimeIntervalsList = timeIntervalsList.sortedWith(timeIntervalComparator)
-      val cumulativeTimeIntervalsList =
-        sortedTimeIntervalsList.map { timeInterval ->
-          timeInterval.copy { this.startTime = sortedTimeIntervalsList.first().startTime }
-        }
-
       for (metric in report.metricsList) {
-        val metricTimeIntervalsList =
-          if (metric.cumulative) cumulativeTimeIntervalsList else sortedTimeIntervalsList
         val internalMetricDetails: InternalMetricDetails = buildInternalMetricDetails(metric)
 
         for (namedSetOperation in metric.setOperationsList) {
@@ -1321,8 +1301,7 @@ class ReportsService(
             compileSetOperation(
               namedSetOperation.setOperation,
               setOperationId,
-              metricTimeIntervalsList,
-              sortedTimeIntervalsList
+              report.timeIntervalsList(),
             )
           namedSetOperationResults[setOperationId] =
             SetOperationResult(weightedMeasurementInfoList, internalMetricDetails)
@@ -1364,27 +1343,15 @@ class ReportsService(
       reportingSetExternalIds.add(apiIdToExternalId(reportingSetKey.reportingSetId))
     }
 
-    /**
-     * Compiles a [SetOperation] and outputs each result with measurement reference ID.
-     *
-     * metricTimeIntervalsList and timeIntervalsList are required to be the same size.
-     */
+    /** Compiles a [SetOperation] and outputs each result with measurement reference ID. */
     private suspend fun compileSetOperation(
       setOperation: SetOperation,
       setOperationId: String,
-      metricTimeIntervalsList: List<TimeInterval>,
-      reportTimeIntervalsList: List<TimeInterval>,
+      timeIntervalsList: List<TimeInterval>,
     ): List<WeightedMeasurementInfo> {
-      if (metricTimeIntervalsList.size != reportTimeIntervalsList.size) {
-        throw IllegalArgumentException()
-      }
-      val sortedReportTimeIntervalsList = reportTimeIntervalsList.sortedWith(timeIntervalComparator)
-
       val weightedMeasurementsList = setOperationCompiler.compileSetOperation(setOperation)
 
-      return metricTimeIntervalsList.sortedWith(timeIntervalComparator).flatMapIndexed {
-        timeIntervalsIndex,
-        timeInterval ->
+      return timeIntervalsList.flatMap { timeInterval ->
         weightedMeasurementsList.mapIndexed { index, weightedMeasurement ->
           val measurementReferenceId =
             buildMeasurementReferenceId(
@@ -1393,12 +1360,7 @@ class ReportsService(
               index,
             )
 
-          WeightedMeasurementInfo(
-            measurementReferenceId,
-            weightedMeasurement,
-            timeInterval = timeInterval,
-            reportTimeInterval = sortedReportTimeIntervalsList[timeIntervalsIndex]
-          )
+          WeightedMeasurementInfo(measurementReferenceId, weightedMeasurement, timeInterval)
         }
       }
     }
