@@ -820,10 +820,11 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `setMeasurementResult succeeds in setting result for report with cumulative reach metric`() {
-    val metricDetails = MetricKt.details {
-      reach = MetricKt.reachParams {}
-      cumulative = true
-    }
+    val metricDetails =
+      MetricKt.details {
+        reach = MetricKt.reachParams {}
+        cumulative = true
+      }
     val createdReport = runBlocking {
       reportsService.createReport(
         createReportRequest {

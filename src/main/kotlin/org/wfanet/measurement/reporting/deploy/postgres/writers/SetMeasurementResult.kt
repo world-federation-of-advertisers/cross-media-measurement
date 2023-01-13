@@ -162,7 +162,11 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
             // One namedSetOperation is one column in the report
             for (namedSetOperation in metric.namedSetOperationsList) {
               scalarTableColumnsList +=
-                namedSetOperation.toResultColumn(metricType, measurementResultsMap, metric.details.cumulative)
+                namedSetOperation.toResultColumn(
+                  metricType,
+                  measurementResultsMap,
+                  metric.details.cumulative
+                )
             }
           }
           Metric.Details.MetricTypeCase.FREQUENCY_HISTOGRAM -> {
@@ -220,17 +224,18 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
     val source = this
     return ReportKt.DetailsKt.ResultKt.column {
       columnHeader = buildColumnHeader(metricType.name, source.displayName)
-      val sortedMeasurementCalculationsList = source.measurementCalculationsList.sortedWith {
-          a, b ->
-        val start = Timestamps.compare(a.timeInterval.startTime, b.timeInterval.startTime)
-        if (start != 0) {
-          start
-        } else {
-          Timestamps.compare(a.timeInterval.endTime, b.timeInterval.endTime)
+      val sortedMeasurementCalculationsList =
+        source.measurementCalculationsList.sortedWith { a, b ->
+          val start = Timestamps.compare(a.timeInterval.startTime, b.timeInterval.startTime)
+          if (start != 0) {
+            start
+          } else {
+            Timestamps.compare(a.timeInterval.endTime, b.timeInterval.endTime)
+          }
         }
-      }
 
-      val cumulativeWeightedMeasurementsList = emptyList<MeasurementCalculation.WeightedMeasurement>().toMutableList()
+      val cumulativeWeightedMeasurementsList =
+        emptyList<MeasurementCalculation.WeightedMeasurement>().toMutableList()
       sortedMeasurementCalculationsList.forEach { measurementCalculation ->
         if (cumulative) {
           cumulativeWeightedMeasurementsList.addAll(measurementCalculation.weightedMeasurementsList)
