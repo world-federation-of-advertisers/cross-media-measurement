@@ -162,11 +162,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
             // One namedSetOperation is one column in the report
             for (namedSetOperation in metric.namedSetOperationsList) {
               scalarTableColumnsList +=
-                namedSetOperation.toResultColumn(
-                  metricType,
-                  measurementResultsMap,
-                  metric.details.cumulative
-                )
+                namedSetOperation.toResultColumn(metricType, measurementResultsMap)
             }
           }
           Metric.Details.MetricTypeCase.FREQUENCY_HISTOGRAM -> {
@@ -218,13 +214,12 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
   private fun Metric.NamedSetOperation.toResultColumn(
     metricType: Metric.Details.MetricTypeCase,
     measurementResultsMap: Map<String, MeasurementResultsReader.Result>,
-    cumulative: Boolean,
     maximumFrequency: Int = 0
   ): Report.Details.Result.Column {
     val source = this
     return ReportKt.DetailsKt.ResultKt.column {
       columnHeader = buildColumnHeader(metricType.name, source.displayName)
-      val sortedMeasurementCalculationsList =
+      for (measurementCalculation in
         source.measurementCalculationsList.sortedWith { a, b ->
           val start = Timestamps.compare(a.timeInterval.startTime, b.timeInterval.startTime)
           if (start != 0) {
@@ -232,20 +227,12 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
           } else {
             Timestamps.compare(a.timeInterval.endTime, b.timeInterval.endTime)
           }
-        }
-
-      val cumulativeWeightedMeasurementsList =
-        emptyList<MeasurementCalculation.WeightedMeasurement>().toMutableList()
-      sortedMeasurementCalculationsList.forEach { measurementCalculation ->
-        if (cumulative) {
-          cumulativeWeightedMeasurementsList.addAll(measurementCalculation.weightedMeasurementsList)
-        }
+        }) {
         setOperations.addAll(
           measurementCalculation.toSetOperationResults(
             metricType,
             measurementResultsMap,
-            maximumFrequency,
-            cumulativeWeightedMeasurementsList
+            maximumFrequency
           )
         )
       }
@@ -261,18 +248,11 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
   private fun MeasurementCalculation.toSetOperationResults(
     metricType: Metric.Details.MetricTypeCase,
     measurementResultsMap: Map<String, MeasurementResultsReader.Result>,
-    maximumFrequency: Int = 0,
-    cumulativeWeightedMeasurementsList: List<MeasurementCalculation.WeightedMeasurement>
+    maximumFrequency: Int = 0
   ): List<Double> {
     val source = this
-    val weightedMeasurementsList =
-      if (source.weightedMeasurementsList.size > cumulativeWeightedMeasurementsList.size) {
-        source.weightedMeasurementsList
-      } else {
-        cumulativeWeightedMeasurementsList
-      }
     val measurementResultsList =
-      weightedMeasurementsList.map {
+      source.weightedMeasurementsList.map {
         MeasurementResult(
           measurementResultsMap[it.measurementReferenceId]?.result
             ?: throw MeasurementNotFoundException(),
@@ -410,7 +390,6 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
           namedSetOperation.toResultColumn(
             source.details.metricTypeCase,
             measurementResultsMap,
-            source.details.cumulative,
             maximumFrequency
           )
       }

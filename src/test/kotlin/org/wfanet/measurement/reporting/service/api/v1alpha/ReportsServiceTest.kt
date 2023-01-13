@@ -2048,6 +2048,34 @@ class ReportsServiceTest {
   }
 
   @Test
+  fun `createReport throws INVALID_ARGUMENT when TimeIntervals is set and cumulative is true`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearState()
+          clearTime()
+          timeIntervals = timeIntervals {
+            timeIntervals += timeInterval {
+              startTime = timestamp { seconds = 1 }
+              endTime = timestamp { seconds = 5 }
+            }
+          }
+          metrics.clear()
+          metrics += PENDING_REACH_REPORT.metricsList[0].copy { cumulative = true }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
   fun `createReport throws INVALID_ARGUMENT when TimeIntervals timeIntervalsList is empty`() {
     val request = createReportRequest {
       parent = MEASUREMENT_CONSUMER_NAMES[0]

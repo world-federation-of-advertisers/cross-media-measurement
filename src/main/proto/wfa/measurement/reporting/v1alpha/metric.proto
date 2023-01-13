@@ -72,7 +72,7 @@ message Metric {
   }
 
   // Whether the results for a given time interval is cumulative with those of
-  // previous time intervals.
+  // previous time intervals. Only supported when using `PeriodicTimeInterval`.
   bool cumulative = 6;
 
   // Represents a binary set operation.
