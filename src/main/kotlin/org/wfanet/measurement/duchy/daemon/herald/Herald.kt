@@ -162,12 +162,12 @@ class Herald(
           launch {
             try {
               processSystemComputation(response.computation, MAX_ATTEMPTS)
-              continuationTokenManager.markTokenProcessed(response.continuationToken)
-            } catch (e: StatusException) {
-              if (e.status.code == Status.FAILED_PRECONDITION.code) {
-                logger.warning("Failure happened during process computation. $e")
-              } else {
-                throw e
+              try {
+                continuationTokenManager.markTokenProcessed(response.continuationToken)
+              } catch (e: StatusException) {
+                if (e.status.code == Status.FAILED_PRECONDITION.code) {
+                  logger.log(Level.WARNING, e) { "Failure happened during process computation" }
+                }
               }
             } finally {
               semaphore.release()
