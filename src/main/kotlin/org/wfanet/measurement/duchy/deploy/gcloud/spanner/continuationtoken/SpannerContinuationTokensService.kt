@@ -43,16 +43,13 @@ class SpannerContinuationTokensService(private val client: AsyncDatabaseClient) 
   ): SetContinuationTokenResponse {
     try {
       SetContinuationToken(request.token).execute(client)
+    } catch (e: InvalidContinuationToken) {
+      failGrpc(Status.FAILED_PRECONDITION) { e.message ?: "Invalid continuation token." }
+    } catch (e: InvalidProtocolBufferException) {
+      failGrpc(Status.INVALID_ARGUMENT) { e.message ?: "Malformed continuation token." }
     } catch (e: Exception) {
-      when (e) {
-        is InvalidContinuationToken ->
-          failGrpc(Status.FAILED_PRECONDITION) { e.message ?: "Invalid continuation token." }
-        is InvalidProtocolBufferException ->
-          failGrpc(Status.INVALID_ARGUMENT) { e.message ?: "Malformed continuation token." }
-        else -> failGrpc(Status.UNKNOWN) { e.message ?: "Error during setContinuationToken." }
-      }
+      failGrpc(Status.UNKNOWN) { e.message ?: "Error during setContinuationToken." }
     }
-
     return SetContinuationTokenResponse.getDefaultInstance()
   }
 }
