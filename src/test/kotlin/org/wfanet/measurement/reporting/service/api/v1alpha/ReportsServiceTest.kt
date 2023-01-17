@@ -20,6 +20,7 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.duration
 import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.protobuf.timestamp
+import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.nio.file.Paths
@@ -157,7 +158,6 @@ import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest
 import org.wfanet.measurement.internal.reporting.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInterval
 import org.wfanet.measurement.internal.reporting.timeIntervals as internalTimeIntervals
-import com.google.protobuf.util.Timestamps
 import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.v1alpha.Metric.SetOperation
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.SetOperationKt
@@ -1528,14 +1528,30 @@ class ReportsServiceTest {
           }
         }
       }
-    runBlocking {
-      whenever(internalReportsMock.createReport(any())).thenReturn(internalReport)
-    }
+    runBlocking { whenever(internalReportsMock.createReport(any())).thenReturn(internalReport) }
 
     val request = createReportRequest {
       parent = MEASUREMENT_CONSUMER_NAMES[0]
-      report = PENDING_REACH_REPORT.copy {
-        clearState()
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearState()
+          clearTime()
+          timeIntervals = timeIntervals {
+            timeIntervals += timeInterval {
+              startTime = START_TIME
+              endTime = Timestamps.add(START_TIME, TIME_INTERVAL_INCREMENT)
+            }
+          }
+        }
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        runBlocking { service.createReport(request) }
+      }
+
+    val expected =
+      PENDING_REACH_REPORT.copy {
         clearTime()
         timeIntervals = timeIntervals {
           timeIntervals += timeInterval {
@@ -1544,22 +1560,6 @@ class ReportsServiceTest {
           }
         }
       }
-    }
-
-    val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
-        runBlocking { service.createReport(request) }
-      }
-
-    val expected = PENDING_REACH_REPORT.copy {
-      clearTime()
-      timeIntervals = timeIntervals {
-        timeIntervals += timeInterval {
-          startTime = START_TIME
-          endTime = Timestamps.add(START_TIME, TIME_INTERVAL_INCREMENT)
-        }
-      }
-    }
 
     // Verify proto argument of ReportsCoroutineImplBase::getReportByIdempotencyKey
     verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::getReportByIdempotencyKey)
@@ -1572,9 +1572,9 @@ class ReportsServiceTest {
 
     // Verify proto argument of InternalReportingSetsCoroutineImplBase::batchGetReportingSet
     verifyProtoArgument(
-      internalReportingSetsMock,
-      InternalReportingSetsCoroutineImplBase::batchGetReportingSet
-    )
+        internalReportingSetsMock,
+        InternalReportingSetsCoroutineImplBase::batchGetReportingSet
+      )
       .isEqualTo(
         batchGetReportingSetRequest {
           measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
@@ -1585,9 +1585,9 @@ class ReportsServiceTest {
 
     // Verify proto argument of MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
     verifyProtoArgument(
-      measurementConsumersMock,
-      MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
-    )
+        measurementConsumersMock,
+        MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
+      )
       .isEqualTo(getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMER_NAMES[0] })
 
     // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
@@ -1651,9 +1651,9 @@ class ReportsServiceTest {
 
     // Verify proto argument of InternalMeasurementsCoroutineImplBase::createMeasurement
     verifyProtoArgument(
-      internalMeasurementsMock,
-      InternalMeasurementsCoroutineImplBase::createMeasurement
-    )
+        internalMeasurementsMock,
+        InternalMeasurementsCoroutineImplBase::createMeasurement
+      )
       .isEqualTo(
         internalMeasurement {
           measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
@@ -1667,12 +1667,13 @@ class ReportsServiceTest {
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
         internalCreateReportRequest {
-          report = internalReport.copy {
-            clearState()
-            clearExternalReportId()
-            measurements.clear()
-            clearCreateTime()
-          }
+          report =
+            internalReport.copy {
+              clearState()
+              clearExternalReportId()
+              measurements.clear()
+              clearCreateTime()
+            }
           measurements +=
             InternalCreateReportRequestKt.measurementKey {
               measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
