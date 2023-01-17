@@ -86,6 +86,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.elGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplate
@@ -648,29 +649,12 @@ class EdpSimulatorTest {
         )
     }
   }
-  @Test
-  fun `calculateDirectReachAndFrequency fails with sampling rate 0`() {
-    runBlocking {
-      val vidList = listOf(1L, 1L, 1L, 2L, 2L, 3L, 4L, 5L)
-
-      assertFails { EdpSimulator.calculateDirectReachAndFrequency(vidList, 0.0f) }
-    }
-  }
 
   @Test
-  fun `calculateDirectReachAndFrequency fails with sampling rate bigger than 1`() {
+  fun `calculate direct reach and frequency correctly`() {
     runBlocking {
       val vidList = listOf(1L, 1L, 1L, 2L, 2L, 3L, 4L, 5L)
-
-      assertFails { EdpSimulator.calculateDirectReachAndFrequency(vidList, 1.1f) }
-    }
-  }
-
-  @Test
-  fun `calculate direct reach and frequency correctly with sampling rate 1`() {
-    runBlocking {
-      val vidList = listOf(1L, 1L, 1L, 2L, 2L, 3L, 4L, 5L)
-      val (reachValue, frequencyMap) = EdpSimulator.calculateDirectReachAndFrequency(vidList, 1.0f)
+      val (reachValue, frequencyMap) = EdpSimulator.calculateDirectReachAndFrequency(vidList)
 
       // 5 unique people(1, 2, 3, 4, 5) being reached
       val expectedReachValue = 5
@@ -687,18 +671,87 @@ class EdpSimulatorTest {
   }
 
   @Test
-  fun `calculate direct reach and frequency correctly with sampling rate smaller than 1`() {
+  fun `addPublisherNoise fails with sampling rate 0`() {
     runBlocking {
-      val vidList = listOf(1L, 1L, 1L, 2L, 2L, 3L, 4L, 5L)
-      val (reachValue, frequencyMap) = EdpSimulator.calculateDirectReachAndFrequency(vidList, 0.1f)
+      val reachValue = 5L
+      val frequencyMap = mapOf(1L to 0.6, 2L to 0.2, 3L to 0.2)
 
-      // Scale reach by multiplying 1/samplingRate
-      val expectedReachValue = 50
-      val expectedFrequencyMap = mapOf(1L to 0.6, 2L to 0.2, 3L to 0.2)
+      assertFails {
+        EdpSimulator.addPublisherNoise(
+          reachValue,
+          frequencyMap,
+          0.0f,
+          MEASUREMENT_SPEC.reachAndFrequency
+        )
+      }
+    }
+  }
 
-      assertThat(reachValue).isEqualTo(expectedReachValue)
-      frequencyMap.forEach { (frequency, percentage) ->
-        assertThat(percentage).isEqualTo(expectedFrequencyMap[frequency])
+  @Test
+  fun `addPublisherNoise fails with sampling rate bigger than 1`() {
+    runBlocking {
+      val reachValue = 5L
+      val frequencyMap = mapOf(1L to 0.6, 2L to 0.2, 3L to 0.2)
+
+      assertFails {
+        EdpSimulator.addPublisherNoise(
+          reachValue,
+          frequencyMap,
+          1.1f,
+          MEASUREMENT_SPEC.reachAndFrequency
+        )
+      }
+    }
+  }
+
+  @Test
+  fun `calculate noised direct reach and frequency correctly with sampling rate equal to 1`() {
+    runBlocking {
+      val reachValue = 500L
+      val frequencyMap = mapOf(1L to 0.6, 2L to 0.2, 3L to 0.2)
+      val samplingRate = 1f
+
+      val (noisedReachValue, noisedFrequencyMap) =
+        EdpSimulator.addPublisherNoise(
+          reachValue,
+          frequencyMap,
+          samplingRate,
+          MEASUREMENT_SPEC.reachAndFrequency
+        )
+
+      val expectedNoisedReachValue = 499
+      val expectedNoisedFrequencyMap =
+        mapOf(1L to 0.5961455846667975, 2L to 0.19919901208134336, 3L to 0.20523867948429547)
+
+      assertThat(noisedReachValue).isEqualTo(expectedNoisedReachValue)
+      noisedFrequencyMap.forEach { (frequency, percentage) ->
+        assertThat(percentage).isEqualTo(expectedNoisedFrequencyMap[frequency])
+      }
+    }
+  }
+
+  @Test
+  fun `calculate noised direct reach and frequency correctly with sampling rate smaller than 1`() {
+    runBlocking {
+      val reachValue = 500L
+      val frequencyMap = mapOf(1L to 0.6, 2L to 0.2, 3L to 0.2)
+      val samplingRate = 0.1f
+
+      val (noisedReachValue, noisedFrequencyMap) =
+        EdpSimulator.addPublisherNoise(
+          reachValue,
+          frequencyMap,
+          samplingRate,
+          MEASUREMENT_SPEC.reachAndFrequency
+        )
+
+      val expectedNoisedReachValue = 4990
+      val expectedNoisedFrequencyMap =
+        mapOf(1L to 0.5961455846667975, 2L to 0.19919901208134336, 3L to 0.20523867948429547)
+
+      assertThat(noisedReachValue).isEqualTo(expectedNoisedReachValue)
+      noisedFrequencyMap.forEach { (frequency, percentage) ->
+        assertThat(percentage).isEqualTo(expectedNoisedFrequencyMap[frequency])
       }
     }
   }
@@ -778,7 +831,10 @@ class EdpSimulatorTest {
 
     private val MEASUREMENT_SPEC = measurementSpec {
       measurementPublicKey = org.wfanet.measurement.loadtest.dataprovider.MEASUREMENT_PUBLIC_KEY
-      reachAndFrequency = reachAndFrequency {}
+      reachAndFrequency = reachAndFrequency {
+        reachPrivacyParams = differentialPrivacyParams { epsilon = 1.0 }
+        frequencyPrivacyParams = differentialPrivacyParams { epsilon = 1.0 }
+      }
       vidSamplingInterval = vidSamplingInterval {
         start = 0.0f
         width = PRIVACY_BUCKET_VID_SAMPLE_WIDTH

@@ -690,30 +690,21 @@ class EdpSimulator(
         .filter { vid ->
           vidSampler.vidIsInSamplingBucket(vid, vidSamplingIntervalStart, vidSamplingIntervalWidth)
         }
-
-    val (reachValue, frequencyMap) =
-      calculateDirectReachAndFrequency(vidList, vidSamplingIntervalWidth)
+    val (reachValue, frequencyMap) = calculateDirectReachAndFrequency(vidList)
 
     logger.info("Adding publisher noise to direct reach and frequency...")
-    val laplaceForReach =
-      LaplaceDistribution(0.0, 1 / measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon)
-    laplaceForReach.reseedRandomGenerator(1)
-    val reachNoisedValue = reachValue + laplaceForReach.sample().toInt()
-
-    val laplaceForFrequency =
-      LaplaceDistribution(0.0, 1 / measurementSpec.reachAndFrequency.frequencyPrivacyParams.epsilon)
-    laplaceForFrequency.reseedRandomGenerator(1)
-
-    val frequencyNoisedMap = mutableMapOf<Long, Double>()
-    frequencyMap.forEach { (frequency, percentage) ->
-      frequencyNoisedMap[frequency] =
-        (percentage * reachValue.toDouble() + laplaceForFrequency.sample()) / reachValue.toDouble()
-    }
+    val (noisedReachValue, noisedFrequencyMap) =
+      addPublisherNoise(
+        reachValue,
+        frequencyMap,
+        vidSamplingIntervalWidth,
+        measurementSpec.reachAndFrequency
+      )
 
     val requisitionData =
       MeasurementKt.result {
-        reach = reach { value = reachNoisedValue }
-        frequency = frequency { relativeFrequencyDistribution.putAll(frequencyNoisedMap) }
+        reach = reach { value = noisedReachValue }
+        frequency = frequency { relativeFrequencyDistribution.putAll(noisedFrequencyMap) }
       }
 
     fulfillDirectMeasurement(requisition, requisitionSpec, measurementSpec, requisitionData)
@@ -806,19 +797,16 @@ class EdpSimulator(
     }
 
     /**
-     * Function to calculate direct reach and frequency from VIDs in
-     * fulfillDirectReachAndFrequencyMeasurement(). Reach needs to scale by sampling rate
+     * Calculate direct reach and frequency from VIDs in
+     * fulfillDirectReachAndFrequencyMeasurement().
      * @param vidList List of VIDs
-     * @param samplingRate Probability of sampling which is vidSamplingIntervalWidth
      * @return Pair of reach value and frequency map
      */
     fun calculateDirectReachAndFrequency(
       vidList: List<Long>,
-      samplingRate: Float
     ): Pair<Long, Map<Long, Double>> {
-      require(samplingRate > 0 && samplingRate <= 1.0) { "Invalid samplingRate $samplingRate" }
 
-      var reachValue = vidList.toSet().size.toLong()
+      val reachValue = vidList.toSet().size.toLong()
       val frequencyMap = mutableMapOf<Long, Double>().withDefault { 0.0 }
 
       vidList
@@ -832,9 +820,47 @@ class EdpSimulator(
         frequencyMap[frequency] = frequencyMap.getValue(frequency) / reachValue.toDouble()
       }
 
-      reachValue = (reachValue / samplingRate).toLong()
-
       return Pair(reachValue, frequencyMap)
+    }
+
+    /**
+     * Add Laplace publisher noise to calculated direct reach and frequency. Noised reach needs to
+     * scale by sampling rate
+     * @param reachValue Direct reach value
+     * @param frequencyMap Direct frequency
+     * @param samplingRate Probability of sampling which is vidSamplingIntervalWidth
+     * @param reachAndFrequency ReachAndFrequency from MeasurementSpec
+     * @return Pair of noised reach value and frequency map
+     */
+    fun addPublisherNoise(
+      reachValue: Long,
+      frequencyMap: Map<Long, Double>,
+      samplingRate: Float,
+      reachAndFrequency: MeasurementSpec.ReachAndFrequency
+    ): Pair<Long, Map<Long, Double>> {
+      require(samplingRate > 0 && samplingRate <= 1.0) { "Invalid samplingRate $samplingRate" }
+
+      val laplaceForReach =
+        LaplaceDistribution(0.0, 1 / reachAndFrequency.reachPrivacyParams.epsilon)
+      laplaceForReach.reseedRandomGenerator(1)
+
+      // Differentially private reach value is calculated by reach_dp = (reach + noise) /
+      // sampling_rate.
+      val noisedReachValue =
+        ((reachValue + laplaceForReach.sample().toInt()) / samplingRate).toLong()
+
+      val laplaceForFrequency =
+        LaplaceDistribution(0.0, 1 / reachAndFrequency.frequencyPrivacyParams.epsilon)
+      laplaceForFrequency.reseedRandomGenerator(1)
+
+      val noisedFrequencyMap = mutableMapOf<Long, Double>()
+      frequencyMap.forEach { (frequency, percentage) ->
+        noisedFrequencyMap[frequency] =
+          (percentage * reachValue.toDouble() + laplaceForFrequency.sample()) /
+            reachValue.toDouble()
+      }
+
+      return Pair(noisedReachValue, noisedFrequencyMap)
     }
   }
 }
