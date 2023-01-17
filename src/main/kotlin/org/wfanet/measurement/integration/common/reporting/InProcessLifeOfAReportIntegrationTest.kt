@@ -202,6 +202,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     val completedReport = getReport(createdReport.name, createdReport.measurementConsumer)
     assertThat(assertThat(completedReport.state).isEqualTo(Report.State.SUCCEEDED))
     val reportResult = computeReportResult(completedReport)
+    // each measurement has a result of 100.0 and there are two time intervals
     assertThat(reportResult).isEqualTo(200.0 * NUM_SET_OPERATIONS)
   }
 
@@ -210,7 +211,8 @@ abstract class InProcessLifeOfAReportIntegrationTest {
     createReportingSet("1", MEASUREMENT_CONSUMER_NAME)
     createReportingSet("2", MEASUREMENT_CONSUMER_NAME)
     createReportingSet("3", MEASUREMENT_CONSUMER_NAME)
-    for (i in 1..5) {
+    launch { createReport("5", MEASUREMENT_CONSUMER_NAME, true) }
+    for (i in 1..4) {
       launch { createReport("$i", MEASUREMENT_CONSUMER_NAME) }
     }
   }
@@ -257,7 +259,11 @@ abstract class InProcessLifeOfAReportIntegrationTest {
       .listReportingSets(listReportingSetsRequest { parent = measurementConsumerName })
   }
 
-  private suspend fun createReport(runId: String, measurementConsumerName: String): Report {
+  private suspend fun createReport(
+    runId: String,
+    measurementConsumerName: String,
+    cumulative: Boolean = false
+  ): Report {
     val eventGroupsList = listEventGroups(measurementConsumerName).eventGroupsList
     val reportingSets = listReportingSets(measurementConsumerName).reportingSetsList
     assertThat(reportingSets.size).isAtLeast(3)
@@ -278,6 +284,7 @@ abstract class InProcessLifeOfAReportIntegrationTest {
           intervalCount = 2
         }
         metrics += metric {
+          this.cumulative = cumulative
           impressionCount = MetricKt.impressionCountParams { maximumFrequencyPerUser = 5 }
           val setOperation =
             MetricKt.namedSetOperation {
