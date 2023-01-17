@@ -156,6 +156,8 @@ import org.wfanet.measurement.internal.reporting.setMeasurementFailureRequest
 import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest
 import org.wfanet.measurement.internal.reporting.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInterval
+import org.wfanet.measurement.internal.reporting.timeIntervals as internalTimeIntervals
+import com.google.protobuf.util.Timestamps
 import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.v1alpha.Metric.SetOperation
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.SetOperationKt
@@ -1503,6 +1505,174 @@ class ReportsServiceTest {
               measurements.clear()
               clearCreateTime()
             }
+          measurements +=
+            InternalCreateReportRequestKt.measurementKey {
+              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+              measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
+            }
+        }
+      )
+
+    assertThat(result).isEqualTo(expected)
+  }
+
+  @Test
+  fun `createReport returns a report of reach with RUNNING state when timeIntervals set`() {
+    val internalReport =
+      INTERNAL_PENDING_REACH_REPORT.copy {
+        clearTime()
+        timeIntervals = internalTimeIntervals {
+          timeIntervals += internalTimeInterval {
+            startTime = START_TIME
+            endTime = Timestamps.add(START_TIME, TIME_INTERVAL_INCREMENT)
+          }
+        }
+      }
+    runBlocking {
+      whenever(internalReportsMock.createReport(any())).thenReturn(internalReport)
+    }
+
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      report = PENDING_REACH_REPORT.copy {
+        clearState()
+        clearTime()
+        timeIntervals = timeIntervals {
+          timeIntervals += timeInterval {
+            startTime = START_TIME
+            endTime = Timestamps.add(START_TIME, TIME_INTERVAL_INCREMENT)
+          }
+        }
+      }
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        runBlocking { service.createReport(request) }
+      }
+
+    val expected = PENDING_REACH_REPORT.copy {
+      clearTime()
+      timeIntervals = timeIntervals {
+        timeIntervals += timeInterval {
+          startTime = START_TIME
+          endTime = Timestamps.add(START_TIME, TIME_INTERVAL_INCREMENT)
+        }
+      }
+    }
+
+    // Verify proto argument of ReportsCoroutineImplBase::getReportByIdempotencyKey
+    verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::getReportByIdempotencyKey)
+      .isEqualTo(
+        getReportByIdempotencyKeyRequest {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+          reportIdempotencyKey = REACH_REPORT_IDEMPOTENCY_KEY
+        }
+      )
+
+    // Verify proto argument of InternalReportingSetsCoroutineImplBase::batchGetReportingSet
+    verifyProtoArgument(
+      internalReportingSetsMock,
+      InternalReportingSetsCoroutineImplBase::batchGetReportingSet
+    )
+      .isEqualTo(
+        batchGetReportingSetRequest {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+          externalReportingSetIds += REPORTING_SET_EXTERNAL_IDS[0]
+          externalReportingSetIds += REPORTING_SET_EXTERNAL_IDS[1]
+        }
+      )
+
+    // Verify proto argument of MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
+    verifyProtoArgument(
+      measurementConsumersMock,
+      MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
+    )
+      .isEqualTo(getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMER_NAMES[0] })
+
+    // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
+    val dataProvidersCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
+    verifyBlocking(dataProvidersMock, times(2)) { getDataProvider(dataProvidersCaptor.capture()) }
+    val capturedDataProviderRequests = dataProvidersCaptor.allValues
+    assertThat(capturedDataProviderRequests)
+      .containsExactly(
+        getDataProviderRequest { name = DATA_PROVIDERS[0].name },
+        getDataProviderRequest { name = DATA_PROVIDERS[1].name }
+      )
+
+    // Verify proto argument of MeasurementsCoroutineImplBase::createMeasurement
+    val capturedMeasurementRequest =
+      captureFirst<CreateMeasurementRequest> {
+        runBlocking { verify(measurementsMock).createMeasurement(capture()) }
+      }
+    val capturedMeasurement = capturedMeasurementRequest.measurement
+    val expectedMeasurement =
+      BASE_REACH_MEASUREMENT.copy {
+        dataProviders +=
+          DATA_PROVIDER_INDICES_IN_SET_OPERATION.map { index -> DATA_PROVIDER_ENTRIES[index] }
+        measurementSpec =
+          signMeasurementSpec(REACH_ONLY_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
+      }
+
+    assertThat(capturedMeasurement)
+      .ignoringRepeatedFieldOrder()
+      .ignoringFieldDescriptors(
+        Measurement.getDescriptor().findFieldByNumber(Measurement.MEASUREMENT_SPEC_FIELD_NUMBER),
+        Measurement.DataProviderEntry.Value.getDescriptor()
+          .findFieldByNumber(ENCRYPTED_REQUISITION_SPEC_FIELD_NUMBER),
+      )
+      .isEqualTo(expectedMeasurement)
+
+    verifyMeasurementSpec(
+      capturedMeasurement.measurementSpec,
+      MEASUREMENT_CONSUMER_CERTIFICATE,
+      TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+    )
+    val measurementSpec = MeasurementSpec.parseFrom(capturedMeasurement.measurementSpec.data)
+    assertThat(measurementSpec).isEqualTo(REACH_ONLY_MEASUREMENT_SPEC)
+
+    val dataProvidersList = capturedMeasurement.dataProvidersList.sortedBy { it.key }
+
+    dataProvidersList.map { dataProviderEntry ->
+      val signedRequisitionSpec =
+        decryptRequisitionSpec(
+          dataProviderEntry.value.encryptedRequisitionSpec,
+          DATA_PROVIDER_PRIVATE_KEY_HANDLE
+        )
+      val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
+      verifyRequisitionSpec(
+        signedRequisitionSpec,
+        requisitionSpec,
+        measurementSpec,
+        MEASUREMENT_CONSUMER_CERTIFICATE,
+        TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+      )
+    }
+
+    // Verify proto argument of InternalMeasurementsCoroutineImplBase::createMeasurement
+    verifyProtoArgument(
+      internalMeasurementsMock,
+      InternalMeasurementsCoroutineImplBase::createMeasurement
+    )
+      .isEqualTo(
+        internalMeasurement {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+          measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
+          state = InternalMeasurement.State.PENDING
+        }
+      )
+
+    // Verify proto argument of InternalReportsCoroutineImplBase::createReport
+    verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::createReport)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        internalCreateReportRequest {
+          report = internalReport.copy {
+            clearState()
+            clearExternalReportId()
+            measurements.clear()
+            clearCreateTime()
+          }
           measurements +=
             InternalCreateReportRequestKt.measurementKey {
               measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]

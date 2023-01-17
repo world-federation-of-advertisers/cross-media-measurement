@@ -186,7 +186,14 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     return when (report.timeCase) {
       Report.TimeCase.TIME_INTERVALS -> {
-        report.timeIntervals.timeIntervalsList.map(TimeInterval::toRowHeader)
+        report.timeIntervals.timeIntervalsList.sortedWith { a, b ->
+          val start = Timestamps.compare(a.startTime, b.startTime)
+          if (start != 0) {
+            start
+          } else {
+            Timestamps.compare(a.endTime, b.endTime)
+          }
+        }.map(TimeInterval::toRowHeader)
       }
       Report.TimeCase.PERIODIC_TIME_INTERVAL -> {
 
