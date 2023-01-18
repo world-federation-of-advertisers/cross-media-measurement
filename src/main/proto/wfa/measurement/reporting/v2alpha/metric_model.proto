@@ -55,7 +55,7 @@ message MetricModel {
     // Only supported when using `PeriodicTimeInterval`.
     bool cumulative = 4;
 
-    // Specify the list of primitive reporting sets as the basis of the model.
+    // Specifies the list of primitive reporting sets as the basis of the model.
     // Once trained, the model can then estimate metrics of any composite
     // reporting sets that are the subset of the span of these primitive
     // reporting sets.
