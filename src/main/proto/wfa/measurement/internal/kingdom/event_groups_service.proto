@@ -16,8 +16,6 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
-import "google/api/field_behavior.proto";
-import "google/api/resource.proto";
 import "google/protobuf/empty.proto";
 import "wfa/measurement/internal/kingdom/event_group.proto";
 
@@ -48,12 +46,10 @@ message GetEventGroupRequest {
 }
 
 message DeleteEventGroupRequest {
-  // The name of `EventGroup` to delete. Required.
-  // Format: dataProviders/{dataProvider}/eventGroups/{eventGroup}
-  string name = 1 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference).type = "halo.wfanet.org/EventGroup"
-  ];
+  // The external id of `EventGroup Data Provider`. Required.
+  fixed64 external_data_provider_id = 1;
+  // The external id of `EventGroup`. Required.
+  fixed64 external_event_group_id = 2;
 }
 
 message StreamEventGroupsRequest {
