@@ -108,22 +108,21 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
       InternalId(struct.getLong("DataProviderId"))
     )
 
-  private fun buildEventGroup(struct: Struct): EventGroup =
-    eventGroup {
-      externalEventGroupId = struct.getLong("ExternalEventGroupId")
-      externalDataProviderId = struct.getLong("ExternalDataProviderId")
-      externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
-      if (!struct.isNull("ExternalMeasurementConsumerCertificateId")) {
-        externalMeasurementConsumerCertificateId =
-          struct.getLong("ExternalMeasurementConsumerCertificateId")
-      }
-      if (!struct.isNull("ProvidedEventGroupId")) {
-        providedEventGroupId = struct.getString("ProvidedEventGroupId")
-      }
-      createTime = struct.getTimestamp("CreateTime").toProto()
-      updateTime = struct.getTimestamp("UpdateTime").toProto()
-      if (!struct.isNull("EventGroupDetails")) {
-        details = struct.getProtoMessage("EventGroupDetails", EventGroup.Details.parser())
-      }
+  private fun buildEventGroup(struct: Struct): EventGroup = eventGroup {
+    externalEventGroupId = struct.getLong("ExternalEventGroupId")
+    externalDataProviderId = struct.getLong("ExternalDataProviderId")
+    externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
+    if (!struct.isNull("ExternalMeasurementConsumerCertificateId")) {
+      externalMeasurementConsumerCertificateId =
+        struct.getLong("ExternalMeasurementConsumerCertificateId")
     }
+    if (!struct.isNull("ProvidedEventGroupId")) {
+      providedEventGroupId = struct.getString("ProvidedEventGroupId")
+    }
+    createTime = struct.getTimestamp("CreateTime").toProto()
+    updateTime = struct.getTimestamp("UpdateTime").toProto()
+    if (!struct.isNull("EventGroupDetails")) {
+      details = struct.getProtoMessage("EventGroupDetails", EventGroup.Details.parser())
+    }
+  }
 }

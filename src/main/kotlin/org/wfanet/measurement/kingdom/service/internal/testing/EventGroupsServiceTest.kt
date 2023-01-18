@@ -543,8 +543,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   @Test
   fun `getEventGroup succeeds when certificate id is set`() = runBlocking {
     val measurementConsumer =
-      population
-        .createMeasurementConsumer(measurementConsumersService, accountsService)
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
 
     val externalDataProviderId =
       population.createDataProvider(dataProvidersService).externalDataProviderId
@@ -552,7 +551,8 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     val eventGroup = eventGroup {
       this.externalDataProviderId = externalDataProviderId
       this.externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-      this.externalMeasurementConsumerCertificateId = measurementConsumer.certificate.externalCertificateId
+      this.externalMeasurementConsumerCertificateId =
+        measurementConsumer.certificate.externalCertificateId
     }
 
     val createdEventGroup = eventGroupsService.createEventGroup(eventGroup)
