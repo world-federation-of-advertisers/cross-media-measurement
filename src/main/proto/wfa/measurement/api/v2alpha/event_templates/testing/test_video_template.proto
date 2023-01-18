@@ -29,26 +29,23 @@ message TestVideoTemplate {
     description: "A simple Event Template for a video ad."
   };
 
-  message AgeRange {
+  message LengthField {
     option (.wfa.measurement.api.v2alpha.event_field) = {
-      display_name: "Age Range"
-    };
-
-    enum Value {
-      AGE_RANGE_UNSPECIFIED = 0;
-      AGE_18_TO_34 = 1;
-    }
-    Value value = 1;
-  }
-
-  message ViewDuration {
-    option (.wfa.measurement.api.v2alpha.event_field) = {
-      display_name: "View Duration"
+      display_name: "Video Length"
     };
 
     google.protobuf.Duration value = 1;
   }
+  LengthField length = 1;
 
-  AgeRange age = 1;
-  ViewDuration duration = 2;
+  message ViewedFractionField {
+    option (.wfa.measurement.api.v2alpha.event_field) = {
+      display_name: "Viewed Fraction"
+    };
+
+    // In the range [0, 1] of what fraction of the video was viewed.
+    double value = 1;
+  }
+  // Fraction of video that was viewed.
+  ViewedFractionField viewed_fraction = 2;
 }

@@ -16,13 +16,14 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha.event_templates.testing;
 
-import "google/protobuf/duration.proto";
 import "wfa/measurement/api/v2alpha/event_annotations.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha.event_templates.testing";
 option java_multiple_files = true;
 
 message TestPrivacyBudgetTemplate {
+  // Deprecated. Use Person instead.
+  option deprecated = true;
   option (.wfa.measurement.api.v2alpha.event_template) = {
     name: "test_privacy_budget_template"
     display_name: "Privacy Budget"

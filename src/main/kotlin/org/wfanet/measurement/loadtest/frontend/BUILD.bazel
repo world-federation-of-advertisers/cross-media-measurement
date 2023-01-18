@@ -20,8 +20,6 @@ kt_jvm_library(
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_data_classes",
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_templates",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/service/api/v2alpha:api_key_authentication_server_interceptor",

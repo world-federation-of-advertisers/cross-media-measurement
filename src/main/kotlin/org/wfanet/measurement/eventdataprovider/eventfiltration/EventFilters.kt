@@ -13,47 +13,52 @@
  */
 package org.wfanet.measurement.eventdataprovider.eventfiltration
 
+import com.google.protobuf.Descriptors
 import com.google.protobuf.Message
 import org.projectnessie.cel.Ast
 import org.projectnessie.cel.Env
+import org.projectnessie.cel.EnvOption
 import org.projectnessie.cel.Program
+import org.projectnessie.cel.checker.Decls
 import org.projectnessie.cel.common.types.BoolT
 import org.projectnessie.cel.common.types.Err
+import org.projectnessie.cel.common.types.pb.ProtoTypeRegistry
 import org.projectnessie.cel.common.types.ref.Val
+import org.wfanet.measurement.common.ProtoReflection.allDependencies
+import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters.matches
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidator
 
 object EventFilters {
+
   /**
    * Compiles a [Program] that should be fed into [matches] function to indicate if an [Event]
    * should be filtered or not, based on the filtering [celExpr].
    *
-   * @param celExpr string descrbing the event filter in common expression language format.
+   * This is a convenience wrapper around [compile] and [createEnv] for callers that do not need
+   * access to the [Ast].
    *
-   * @param defaultEventMessage default instance for a [Message] that contains each type of event
-   * template as fields. See `event_annotations.proto`.
+   * @throws [EventFilterValidationException] if [celExpr] is not valid.
+   */
+  fun compileProgram(
+    eventMessageDescriptor: Descriptors.Descriptor,
+    celExpr: String,
+    operativeFields: Set<String> = emptySet()
+  ): Program {
+    val env = createEnv(eventMessageDescriptor)
+    val ast = compile(env, celExpr, operativeFields)
+    return env.program(ast)
+  }
+
+  /**
+   * Compiles [celExpr] to an [Ast].
    *
+   * @param celExpr string describing the event filter in common expression language format.
    * @param operativeFields fields in [celExpr] that will be not be altered after the normalization
    * operation. If provided, [celExpr] is normalized to operative negation normal form by bubbling
    * down all the negation operations to the leafs by applying De Morgan's laws recursively and by
    * setting all the leaf comparison nodes (e.g. x == 47 ) that contain any field other than the
    * operative fields to true.
-   *
-   * @throws [EventFilterValidationException] if [celExpr] is not valid.
-   */
-  fun compileProgram(
-    celExpr: String,
-    defaultEventMessage: Message,
-    operativeFields: Set<String> = emptySet()
-  ): Program =
-    EventFilterValidator.compileProgramWithEventMessage(
-      celExpr,
-      defaultEventMessage,
-      operativeFields
-    )
-
-  /**
-   * Validates an Event Filtering CEL expression according to Halo rules.
    *
    * @throws [EventFilterValidationException] if [celExpr] is not valid. with the following codes:
    * * [EventFilterValidationException.Code.INVALID_CEL_EXPRESSION]
@@ -63,7 +68,42 @@ object EventFilters {
    * * [EventFilterValidationException.Code.INVALID_OPERATION_OUTSIDE_LEAF]
    * * [EventFilterValidationException.Code.FIELD_COMPARISON_OUTSIDE_LEAF]
    */
-  fun compile(celExpr: String, env: Env): Ast = EventFilterValidator.compile(celExpr, env)
+  fun compile(env: Env, celExpr: String, operativeFields: Set<String> = emptySet()): Ast =
+    EventFilterValidator.compile(env, celExpr, operativeFields)
+
+  /**
+   * Creates an [Env] from [eventMessageDescriptor].
+   *
+   * @param eventMessageDescriptor protobuf descriptor for event message that contains each type of
+   * event template as fields. See `event_annotations.proto`.
+   */
+  fun createEnv(eventMessageDescriptor: Descriptors.Descriptor): Env {
+    val celTypeRegistry: ProtoTypeRegistry =
+      ProtoTypeRegistry.newRegistry().apply {
+        registerDescriptor(eventMessageDescriptor.file)
+        for (fileDescriptor in eventMessageDescriptor.file.allDependencies) {
+          registerDescriptor(fileDescriptor)
+        }
+      }
+    val celVariables =
+      eventMessageDescriptor.fields
+        .filter { it.type == Descriptors.FieldDescriptor.Type.MESSAGE }
+        .map { field ->
+          val fieldType =
+            checkNotNull(
+              celTypeRegistry.findFieldType(eventMessageDescriptor.fullName, field.name)
+            ) {
+              "Type not found for field ${field.fullName}"
+            }
+          Decls.newVar(field.name, fieldType.type)
+        }
+    return Env.newEnv(
+      EnvOption.container(eventMessageDescriptor.fullName),
+      EnvOption.customTypeAdapter(celTypeRegistry),
+      EnvOption.customTypeProvider(celTypeRegistry),
+      EnvOption.declarations(celVariables),
+    )
+  }
 
   /**
    * Indicates if an Event should be filtered or not, based on a Program previously compiled with
@@ -77,7 +117,8 @@ object EventFilters {
    * * [EventFilterException.Code.INVALID_RESULT]
    */
   fun matches(event: Message, program: Program): Boolean {
-    val variables: Map<String, Any> = event.allFields.entries.associate { it.key.name to it.value }
+    val variables: Map<String, Any> =
+      event.descriptorForType.fields.associateBy({ it.name }, { event.getField(it) })
     val result: Program.EvalResult = program.eval(variables)
     val value: Val = result.`val`
     if (value is Err) {
