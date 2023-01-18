@@ -1,4 +1,4 @@
-// Copyright 2022 The Cross-Media Measurement Authors
+// Copyright 2023 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,101 +14,105 @@
 
 syntax = "proto3";
 
-package wfa.measurement.reporting.v1alpha;
+package wfa.measurement.reporting.v2alpha;
 
 import "google/api/client.proto";
 import "google/api/field_behavior.proto";
 import "google/api/annotations.proto";
 import "google/api/resource.proto";
-import "wfa/measurement/reporting/v1alpha/report.proto";
+import "wfa/measurement/reporting/v2alpha/metric_model.proto";
 
-option java_package = "org.wfanet.measurement.reporting.v1alpha";
+option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
-option java_outer_classname = "ReportsServiceProto";
+option java_outer_classname = "MetricModelsServiceProto";
 
-// Service for interacting with `Report` resources.
-service Reports {
-  // Returns the `Report` with the specified resource key.
-  rpc GetReport(GetReportRequest) returns (Report) {
+// Service for interacting with `MetricModel` resources.
+service MetricModels {
+  // Returns the `MetricModel` with the specified resource key.
+  rpc GetMetricModel(GetMetricModelRequest) returns (MetricModel) {
     option (google.api.http) = {
-      get: "/v1alpha/{name=measurementConsumers/*/reports/*}"
+      get: "/v2alpha/{name=measurementConsumers/*/metricModels/*}"
     };
     option (google.api.method_signature) = "name";
   }
 
-  // Lists `Report`s.
-  rpc ListReports(ListReportsRequest) returns (ListReportsResponse) {
+  // Lists `MetricModel`s.
+  rpc ListMetricModels(ListMetricModelsRequest)
+      returns (ListMetricModelsResponse) {
     option (google.api.http) = {
-      get: "/v1alpha/{parent=measurementConsumers/*}/reports"
+      get: "/v2alpha/{parent=measurementConsumers/*}/metricModels"
     };
     option (google.api.method_signature) = "parent";
   }
 
-  // Creates a `Report`.
-  rpc CreateReport(CreateReportRequest) returns (Report) {
+  // Creates a `MetricModel`.
+  rpc CreateMetricModel(CreateMetricModelRequest) returns (MetricModel) {
     option (google.api.http) = {
-      post: "/v1alpha/{parent=measurementConsumers/*}/reports"
-      body: "report"
+      post: "/v2alpha/{parent=measurementConsumers/*}/metricModels"
+      body: "metric_model"
     };
-    option (google.api.method_signature) = "parent,report";
+    option (google.api.method_signature) = "parent,metric_model";
   }
 }
 
-// Request message for `GetReport` method.
-message GetReportRequest {
-  // The name of the report to retrieve.
-  // Format: measurementConsumers/{measurement_consumer}/reports/{report}
+// Request message for `GetMetricModel` method.
+message GetMetricModelRequest {
+  // The name of the metric model to retrieve.
+  // Format:
+  // measurementConsumers/{measurement_consumer}/metricModels/{metric_model}
   string name = 1 [
     (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = { type: "reporting.halo-cmm.org/Report" }
+    (google.api.resource_reference) = {
+      type: "reporting.halo-cmm.org/MetricModel"
+    }
   ];
 }
 
-// Request message for `ListReports` method.
-message ListReportsRequest {
+// Request message for `ListMetricModels` method.
+message ListMetricModelsRequest {
   // Format: measurementConsumers/{measurement_consumer}
   string parent = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
-      child_type: "reporting.halo-cmm.org/Report"
+      child_type: "reporting.halo-cmm.org/MetricModel"
     }
   ];
 
-  // The maximum number of reports to return. The service may return fewer than
-  // this value.
-  // If unspecified, at most 50 reports will be returned.
+  // The maximum number of metric models to return. The service may return fewer
+  // than this value.
+  // If unspecified, at most 50 metric models will be returned.
   // The maximum value is 1000; values above 1000 will be coerced to 1000.
   int32 page_size = 2;
 
-  // A page token, received from a previous `ListReports` call.
+  // A page token, received from a previous `ListMetricModels` call.
   // Provide this to retrieve the subsequent page.
   //
-  // When paginating, all other parameters provided to `ListReports` must match
-  // the call that provided the page token.
+  // When paginating, all other parameters provided to `ListMetricModels` must
+  // match the call that provided the page token.
   string page_token = 3;
 }
 
-// Response message for `ListReports` method.
-message ListReportsResponse {
-  // The reports from the specified measurement consumer.
-  repeated Report reports = 1;
+// Response message for `ListMetricModels` method.
+message ListMetricModelsResponse {
+  // The metric models from the specified measurement consumer.
+  repeated MetricModel metric_models = 1;
 
   // A token, which can be sent as `page_token` to retrieve the next page.
   // If this field is omitted, there are no subsequent pages.
   string next_page_token = 2;
 }
 
-// Request message for `CreateReport` method.
-message CreateReportRequest {
-  // The parent resource where this report will be created.
+// Request message for `CreateMetricModel` method.
+message CreateMetricModelRequest {
+  // The parent resource where this metric model will be created.
   // Format: measurementConsumers/{measurement_consumer}
   string parent = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
-      child_type: "reporting.halo-cmm.org/Report"
+      child_type: "reporting.halo-cmm.org/MetricModel"
     }
   ];
 
-  // The report to create.
-  Report report = 2 [(google.api.field_behavior) = REQUIRED];
+  // The metric model to create.
+  MetricModel metric_model = 2 [(google.api.field_behavior) = REQUIRED];
 }
