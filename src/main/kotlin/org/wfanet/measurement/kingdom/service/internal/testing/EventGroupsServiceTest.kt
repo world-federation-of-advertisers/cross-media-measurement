@@ -42,6 +42,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.Measur
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.eventGroup
+import org.wfanet.measurement.internal.kingdom.getEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.updateEventGroupRequest
 
@@ -537,6 +538,34 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       )
 
     assertThat(eventGroupRead).isEqualTo(createdEventGroup)
+  }
+
+  @Test
+  fun `getEventGroup succeeds when certificate id is set`() = runBlocking {
+    val measurementConsumer =
+      population
+        .createMeasurementConsumer(measurementConsumersService, accountsService)
+
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+
+    val eventGroup = eventGroup {
+      this.externalDataProviderId = externalDataProviderId
+      this.externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+      this.externalMeasurementConsumerCertificateId = measurementConsumer.certificate.externalCertificateId
+    }
+
+    val createdEventGroup = eventGroupsService.createEventGroup(eventGroup)
+
+    val retrievedEventGroup =
+      eventGroupsService.getEventGroup(
+        getEventGroupRequest {
+          this.externalDataProviderId = externalDataProviderId
+          this.externalEventGroupId = createdEventGroup.externalEventGroupId
+        }
+      )
+
+    assertThat(retrievedEventGroup).isEqualTo(createdEventGroup)
   }
 
   @Test
