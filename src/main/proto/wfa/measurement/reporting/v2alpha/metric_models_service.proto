@@ -20,6 +20,7 @@ import "google/api/client.proto";
 import "google/api/field_behavior.proto";
 import "google/api/annotations.proto";
 import "google/api/resource.proto";
+import "wfa/measurement/reporting/v2alpha/metric.proto";
 import "wfa/measurement/reporting/v2alpha/metric_model.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
@@ -52,6 +53,14 @@ service MetricModels {
       body: "metric_model"
     };
     option (google.api.method_signature) = "parent,metric_model";
+  }
+
+  // Applies the metric model to estimate a metric result.
+  // Will return a RPC error if the model hasn't been trained yet.
+  rpc ApplyMetricModel(ApplyMetricModelRequest) returns (Metric) {
+    option (google.api.http) = {
+      get: "/v2alpha/{name=measurementConsumers/*/metricModels/*}:apply"
+    };
   }
 }
 
@@ -115,4 +124,18 @@ message CreateMetricModelRequest {
 
   // The metric model to create.
   MetricModel metric_model = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Request message for `ApplyMetricModel` method.
+message ApplyMetricModelRequest {
+  // The parent resource of this metric model that will be applied.
+  // Format: measurementConsumers/{measurement_consumer}
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "reporting.halo-cmm.org/MetricModel"
+    }
+  ];
+  // The metric to be estimated.
+  Metric metric = 2;
 }
