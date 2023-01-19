@@ -136,6 +136,7 @@ message ApplyMetricModelRequest {
       child_type: "reporting.halo-cmm.org/MetricModel"
     }
   ];
-  // The metric to be estimated.
+  // The metric to be estimated. The `model` field in `metric` has to be
+  // specified.
   Metric metric = 2;
 }
