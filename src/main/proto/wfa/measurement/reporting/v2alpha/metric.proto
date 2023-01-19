@@ -126,13 +126,20 @@ message Metric {
   // The specification of what metric to calculate
   MetricSpec metric_spec = 4 [(google.api.field_behavior) = REQUIRED];
 
-  // The resource name of what model to use.
-  // If model is empty, compute the associated metric with the reporting
-  // set defined above using kingdom measurements; otherwise, use the model
-  // inferences.
-  // The user needs to provide a model that can cover all time intervals and all
-  // primitive reporting sets defined in this metric.
-  string model = 5;
+  // Possible states of a `Metric`.
+  enum State {
+    // Default value. This value is unused.
+    STATE_UNSPECIFIED = 0;
+    // Computation is running.
+    RUNNING = 1;
+    // Completed successfully. Terminal state.
+    SUCCEEDED = 2;
+    // Completed with failure. Terminal state.
+    FAILED = 3;
+  }
+
+  // Metric state.
+  State state = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // The result of calculating the metric.
   MetricResult result = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
