@@ -30,6 +30,7 @@ import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
 import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.duchy.storage.RequisitionStore
+import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageResponse
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
@@ -42,6 +43,8 @@ import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoro
 import org.wfanet.measurement.internal.duchy.CreateComputationRequest
 import org.wfanet.measurement.internal.duchy.CreateComputationResponse
 import org.wfanet.measurement.internal.duchy.DeleteComputationRequest
+import org.wfanet.measurement.internal.duchy.DeleteOutdatedComputationsRequest
+import org.wfanet.measurement.internal.duchy.DeleteOutdatedComputationsResponse
 import org.wfanet.measurement.internal.duchy.EnqueueComputationRequest
 import org.wfanet.measurement.internal.duchy.EnqueueComputationResponse
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
@@ -57,6 +60,8 @@ import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathRequest
 import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathResponse
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsResponse
+import org.wfanet.measurement.internal.duchy.deleteOutdatedComputationsResponse
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
@@ -116,21 +121,54 @@ class ComputationsService(
       .toCreateComputationResponse()
   }
 
-  override suspend fun deleteComputation(request: DeleteComputationRequest): Empty {
-    val computationBlobKeys =
-      computationsDatabase.readComputationBlobKeys(request.localComputationId)
+  private suspend fun deleteComputation(localId: Long) {
+    val computationBlobKeys = computationsDatabase.readComputationBlobKeys(localId)
     for (blobKey in computationBlobKeys) {
       computationStorageClient.get(blobKey)?.delete()
     }
 
-    val requisitionBlobKeys =
-      computationsDatabase.readRequisitionBlobKeys(request.localComputationId)
+    val requisitionBlobKeys = computationsDatabase.readRequisitionBlobKeys(localId)
     for (blobKey in requisitionBlobKeys) {
       requisitionStorageClient.get(blobKey)?.delete()
     }
-    computationsDatabase.deleteComputation(request.localComputationId)
+    computationsDatabase.deleteComputation(localId)
+  }
 
+  override suspend fun deleteComputation(request: DeleteComputationRequest): Empty {
+    deleteComputation(request.localComputationId)
     return Empty.getDefaultInstance()
+  }
+
+  override suspend fun deleteOutdatedComputations(
+    request: DeleteOutdatedComputationsRequest
+  ): DeleteOutdatedComputationsResponse {
+    var deleted = 0
+    try {
+      val globalIds = computationsDatabase.readOutdatedComputationGlobalIds(request.ttlSecond)
+      for (globalId in globalIds) {
+        val token = computationsDatabase.readComputationToken(globalId) ?: continue
+        if (!isTerminated(token)) {
+          // finishComputation()
+          computationsDatabase.endComputation(
+            token.toDatabaseEditToken(),
+            getEndingComputationStage(token),
+            EndComputationReason.FAILED,
+            token.computationDetails
+          )
+          sendStatusUpdateToKingdom(
+            newCreateComputationLogEntryRequest(
+              token.globalComputationId,
+              getEndingComputationStage(token),
+            )
+          )
+        }
+        deleteComputation(token.localComputationId)
+        deleted += 1
+      }
+    } catch (e: Exception) {
+      logger.warning("Exception during Computations cleaning. $e")
+    }
+    return deleteOutdatedComputationsResponse { this.count = deleted }
   }
 
   override suspend fun finishComputation(
@@ -294,6 +332,25 @@ class ComputationsService(
       computationLogEntriesClient.createComputationLogEntry(request)
     } catch (ignored: Exception) {
       logger.warning("Failed to update status change to the kingdom. $ignored")
+    }
+  }
+
+  private fun isTerminated(token: ComputationToken): Boolean {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    return when (token.computationStage.stageCase) {
+      ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+        token.computationStage.liquidLegionsSketchAggregationV2 ==
+          LiquidLegionsSketchAggregationV2.Stage.COMPLETE
+      ComputationStage.StageCase.STAGE_NOT_SET -> false
+    }
+  }
+
+  private fun getEndingComputationStage(token: ComputationToken): ComputationStage {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    return when (token.computationStage.stageCase) {
+      ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+        LiquidLegionsSketchAggregationV2.Stage.COMPLETE.toProtocolStage()
+      ComputationStage.StageCase.STAGE_NOT_SET -> error("protocol not set")
     }
   }
 

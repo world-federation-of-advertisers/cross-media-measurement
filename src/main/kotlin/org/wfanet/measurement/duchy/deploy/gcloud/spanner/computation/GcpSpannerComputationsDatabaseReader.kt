@@ -76,4 +76,10 @@ class GcpSpannerComputationsDatabaseReader(
   override suspend fun readRequisitionBlobKeys(localId: Long): List<String> {
     return RequisitionBlobKeysQuery(localId).execute(databaseClient).toCollection(mutableListOf())
   }
+
+  override suspend fun readOutdatedComputationGlobalIds(ttlSecond: Long): List<String> {
+    return OutdatedComputationsQuery(ttlSecond)
+      .execute(databaseClient)
+      .toCollection(mutableListOf())
+  }
 }

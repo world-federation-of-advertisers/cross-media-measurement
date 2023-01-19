@@ -93,6 +93,10 @@ private constructor(
     remove(localId)
   }
 
+  override suspend fun readOutdatedComputationGlobalIds(ttlSecond: Long): List<String> {
+    return listOf()
+  }
+
   /** Adds a fake computation to the [tokens] map. */
   fun addComputation(
     localId: Long,

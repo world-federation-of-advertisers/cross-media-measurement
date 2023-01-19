@@ -58,6 +58,9 @@ interface ComputationsDatabaseReader {
 
   /** Gets all blobKeys of a Computation's requisitions */
   suspend fun readRequisitionBlobKeys(localId: Long): List<String>
+
+  /** Gets list of globalIds of all outdated Computations */
+  suspend fun readOutdatedComputationGlobalIds(ttlSecond: Long): List<String>
 }
 
 /**

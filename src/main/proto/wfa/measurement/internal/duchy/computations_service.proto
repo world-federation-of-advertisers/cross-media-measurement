@@ -39,6 +39,10 @@ service Computations {
   rpc DeleteComputation(DeleteComputationRequest)
       returns (google.protobuf.Empty);
 
+  // Deletes all outdated computations.
+  rpc DeleteOutdatedComputations(DeleteOutdatedComputationsRequest)
+      returns (DeleteOutdatedComputationsResponse);
+
   // Gets the ComputationToken for a specific computation by
   // its global identifier.
   rpc GetComputationToken(GetComputationTokenRequest)
@@ -103,6 +107,14 @@ message CreateComputationResponse {
 message DeleteComputationRequest {
   // The local identifier of the computation.
   int64 local_computation_id = 1;
+}
+
+message DeleteOutdatedComputationsRequest {
+  int64 ttl_second = 1;
+}
+
+message DeleteOutdatedComputationsResponse {
+  int32 count = 1;
 }
 
 // Request for a ComputationToken for a specific computation.

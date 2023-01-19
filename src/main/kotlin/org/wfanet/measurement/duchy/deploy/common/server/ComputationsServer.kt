@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.deploy.common.server
 
 import io.grpc.ManagedChannel
 import java.time.Duration
+import kotlin.properties.Delegates
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
@@ -29,6 +30,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseReader
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseTransactor
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.deploy.common.SystemApiFlags
+import org.wfanet.measurement.duchy.service.internal.computations.ComputationsCleaner
 import org.wfanet.measurement.duchy.service.internal.computations.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.computationstats.ComputationStatsService
 import org.wfanet.measurement.duchy.storage.ComputationStore
@@ -80,17 +82,26 @@ abstract class ComputationsServer : Runnable {
       ComputationLogEntriesCoroutineStub(channel).withDuchyId(flags.duchy.duchyName)
 
     val computationsDatabase = newComputationsDatabase(computationsDatabaseReader, computationDb)
+    val computationService =
+      ComputationsService(
+        computationsDatabase = computationsDatabase,
+        computationLogEntriesClient = computationLogEntriesClient,
+        duchyName = flags.duchy.duchyName,
+        computationStorageClient = ComputationStore(storageClient),
+        requisitionStorageClient = RequisitionStore(storageClient),
+      )
+
+    val computationsCleaner =
+      ComputationsCleaner(
+        computationService,
+        flags.computationsTtlDays,
+        flags.computationsCleanerPeriodSeconds
+      )
 
     CommonServer.fromFlags(
         flags.server,
         javaClass.name,
-        ComputationsService(
-          computationsDatabase = computationsDatabase,
-          computationLogEntriesClient = computationLogEntriesClient,
-          duchyName = flags.duchy.duchyName,
-          computationStorageClient = ComputationStore(storageClient),
-          requisitionStorageClient = RequisitionStore(storageClient),
-        ),
+        computationService,
         ComputationStatsService(computationsDatabase),
         continuationTokensService
       )
@@ -135,6 +146,24 @@ abstract class ComputationsServer : Runnable {
 
     @CommandLine.Mixin
     lateinit var systemApiFlags: SystemApiFlags
+      private set
+
+    @set:CommandLine.Option(
+      names = ["--computations-ttl-days"],
+      defaultValue = "30",
+      description = ["TTL in days of Computations in database and storage."],
+      required = false
+    )
+    var computationsTtlDays by Delegates.notNull<Long>()
+      private set
+
+    @set:CommandLine.Option(
+      names = ["--computations-cleaning-period-seconds"],
+      defaultValue = "0",
+      description = ["Period in seconds that Computations cleaner runs"],
+      required = false
+    )
+    var computationsCleanerPeriodSeconds by Delegates.notNull<Long>()
       private set
   }
 
