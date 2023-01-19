@@ -37,9 +37,10 @@ message MetricModel {
 
   // The specification of the model.
   message ModelSpec {
-    // The metric that this model will be estimating. Currently only support
+    // The metrics that this model will be estimating. Currently only support
     // reach.
-    MetricSpec metric_spec = 1 [(google.api.field_behavior) = REQUIRED];
+    repeated MetricSpec metric_specs = 1
+        [(google.api.field_behavior) = REQUIRED];
 
     // Types of time intervals that the model covers.
     // REQUIRED
