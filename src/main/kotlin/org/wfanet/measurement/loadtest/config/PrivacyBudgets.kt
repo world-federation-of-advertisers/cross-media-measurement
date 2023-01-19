@@ -16,7 +16,7 @@ package org.wfanet.measurement.loadtest.config
 
 import com.google.protobuf.Message
 import org.projectnessie.cel.Program
-import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
+import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters.compileProgram
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.InMemoryBackingStore
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBucketFilter
@@ -32,15 +32,15 @@ class TestPrivacyBucketMapper : PrivacyBucketMapper {
   /** This mapper does not charge any bucket [filterExpression] is ignored. */
   override fun toPrivacyFilterProgram(filterExpression: String): Program =
     try {
-      EventFilters.compileProgram(
+      compileProgram(
+        LoadTestEvent.getDescriptor(),
         "privacy.filterable == true",
-        loadTestEvent {},
         setOf("privacy.filterable")
       )
     } catch (e: EventFilterValidationException) {
       throw PrivacyBudgetManagerException(
         PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER,
-        emptyList()
+        e
       )
     }
   /** To not charge any buckets, [privacyBucketGroup] is ignored and set to be not filterable. */

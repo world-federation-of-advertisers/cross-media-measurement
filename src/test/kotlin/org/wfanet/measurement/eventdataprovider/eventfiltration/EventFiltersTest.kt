@@ -16,73 +16,75 @@ package org.wfanet.measurement.eventdataprovider.eventfiltration
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Message
+import java.time.Duration
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.PersonKt
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplate.AgeRange
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplateKt.ageRange
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestVideoTemplateKt.lengthField
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testVideoTemplate
+import org.wfanet.measurement.common.toProtoDuration
+import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters.compileProgram
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
 
 @RunWith(JUnit4::class)
 class EventFiltersTest {
   private fun exampleEventWithAge(): Message {
     return testEvent {
-      videoAd = testVideoTemplate { age = ageRange { value = AgeRange.Value.AGE_18_TO_34 } }
+      person = person {
+        ageGroup = PersonKt.ageGroupField { value = Person.AgeGroup.YEARS_18_TO_34 }
+      }
+      videoAd = testVideoTemplate {
+        length = lengthField { value = Duration.ofMinutes(5).withSeconds(11).toProtoDuration() }
+      }
     }
   }
 
   @Test
-  fun `keeps event when condition matches`() {
-    val program =
-      EventFilters.compileProgram(
-        " video_ad.age.value == 1",
-        testEvent {},
-      )
+  fun `matches returns true when filter expression matches event`() {
+    val program = compileProgram(TestEvent.getDescriptor(), "person.age_group.value == 1")
     val event = exampleEventWithAge()
-    assert(EventFilters.matches(event, program))
+    assertThat(EventFilters.matches(event, program)).isTrue()
   }
 
   @Test
-  fun `filters even when condition does not match`() {
-    val program =
-      EventFilters.compileProgram(" video_ad.age.value != 1", TestEvent.getDefaultInstance())
+  fun `matches returns false when filter expression does not match event`() {
+    val program = compileProgram(TestEvent.getDescriptor(), "person.age_group.value == 2")
     val event = exampleEventWithAge()
-    assert(!EventFilters.matches(event, program))
-  }
-
-  private inline fun assertFailsWithCode(
-    code: EventFilterException.Code,
-    block: () -> Unit,
-  ) {
-    val e = assertFailsWith(EventFilterException::class, block)
-    assertThat(e.code).isEqualTo(code)
+    assertThat(EventFilters.matches(event, program)).isFalse()
   }
 
   @Test
-  fun `throws error when field is not filled`() {
-    val program =
-      EventFilters.compileProgram(
-        " video_ad.age.value == 1",
-        testEvent {},
-      )
-    val event = testEvent {}
-    assertFailsWithCode(EventFilterException.Code.EVALUATION_ERROR) {
-      EventFilters.matches(event, program)
-    }
+  fun `matches returns true for default value when evaluated field is not set`() {
+    val program = compileProgram(TestEvent.getDescriptor(), "person.age_group.value == 0")
+    val event = TestEvent.getDefaultInstance()
+    assertThat(EventFilters.matches(event, program)).isTrue()
   }
 
   @Test
-  fun `throws error when result is not boolean`() {
+  fun `matches returns true for has macro when evaluated field is set`() {
+    val program = compileProgram(TestEvent.getDescriptor(), "has(person.age_group)")
+    val event = exampleEventWithAge()
+    assertThat(EventFilters.matches(event, program)).isTrue()
+  }
+
+  @Test
+  fun `matches returns true when expression is empty`() {
+    val program = compileProgram(TestEvent.getDescriptor(), "")
+    val event = exampleEventWithAge()
+    assertThat(EventFilters.matches(event, program)).isTrue()
+  }
+
+  @Test
+  fun `compileProgram throws error when expression is not a conditional`() {
     val e =
       assertFailsWith(EventFilterValidationException::class) {
-        EventFilters.compileProgram(
-          "video_ad.age.value",
-          testEvent {},
-        )
+        compileProgram(TestEvent.getDescriptor(), "person.age_group.value")
       }
     assertThat(e.code).isEqualTo(EventFilterValidationException.Code.EXPRESSION_IS_NOT_CONDITIONAL)
   }

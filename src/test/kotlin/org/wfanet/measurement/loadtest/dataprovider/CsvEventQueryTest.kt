@@ -17,15 +17,18 @@ import com.google.common.truth.Truth.assertThat
 import java.io.File
 import java.nio.file.Path
 import java.nio.file.Paths
-import kotlin.test.assertFails
+import java.time.LocalDate
+import java.time.ZoneOffset
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplate.Gender.Value as BannerGender
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate.AgeRange.Value as PrivacyAge
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate.Gender.Value as PrivacyGender
+import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.toProtoTime
 
 private val directoryPath: Path =
   Paths.get(
@@ -43,41 +46,76 @@ private const val FILE_NAME = "CsvEventQueryTestEvents.csv"
 private val FILE: File = getRuntimePath(directoryPath.resolve(FILE_NAME))!!.toFile()
 
 private const val PUBLISHER_ID_1 = 1
-private val BANNER_FEMALE = BannerGender.GENDER_FEMALE.ordinal
-private val PRIVACY_35_54 = PrivacyAge.AGE_35_TO_54.ordinal
-private val PRIVACY_MALE = PrivacyGender.GENDER_MALE.ordinal
+private const val PERSON_35_to_54 = Person.AgeGroup.YEARS_35_TO_54_VALUE
+private const val PERSON_MALE = Person.Gender.MALE_VALUE
+private const val PERSON_FEMALE = Person.Gender.FEMALE_VALUE
 
-private val MATCHING_EVENT_FILTER = eventFilter {
-  expression =
-    "privacy_budget.age.value == $PRIVACY_35_54 || banner_ad.gender.value == $BANNER_FEMALE"
+private val EMPTY_EVENT_FILTER = RequisitionSpec.EventFilter.getDefaultInstance()
+
+private val FIRST_EVENT_DATE = LocalDate.of(2021, 4, 20)
+private val LAST_EVENT_DATE = FIRST_EVENT_DATE.plusDays(1)
+private val FULL_TIME_INTERVAL = timeInterval {
+  startTime = FIRST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+  // end_time is exclusive, so we specify the start of the day after LAST_EVENT_DATE.
+  endTime = LAST_EVENT_DATE.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
 }
-private val NONMATCHING_EVENT_FILTER = eventFilter {
-  expression =
-    "privacy_budget.gender.value == $PRIVACY_MALE && banner_ad.gender.value == $BANNER_FEMALE"
-}
-private val EMPTY_EVENT_FILTER = eventFilter { expression = "" }
+
+private val ALL_VIDS: List<Long> =
+  listOf(1000077, 1000650, 1000694, 1000759, 1000840, 1000997, 1001028, 1001096, 1001096, 1001289)
 
 @RunWith(JUnit4::class)
 class CsvEventQueryTest {
-  companion object {
-    private val eventQuery = CsvEventQuery(PUBLISHER_ID_1, FILE)
+  @Test
+  fun `getUserVirtualIds excludes events outside of time interval`() {
+    val userVids: Sequence<Long> =
+      eventQuery.getUserVirtualIds(
+        FULL_TIME_INTERVAL.copy {
+          // end_time is exclusive, so this should exclude all events on or after LAST_EVENT_DATE.
+          endTime = LAST_EVENT_DATE.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+        },
+        EMPTY_EVENT_FILTER
+      )
+
+    assertThat(userVids.toList())
+      .containsExactly(1000077L, 1000650L, 1000759L, 1000997L, 1001096L, 1001096L)
   }
 
   @Test
-  fun `filters when no matching conditions`() {
-    val userVids: Sequence<Long> = eventQuery.getUserVirtualIds(NONMATCHING_EVENT_FILTER)
+  fun `getUserVirtualIds return empty when no events match filter expression`() {
+    val userVids: Sequence<Long> =
+      eventQuery.getUserVirtualIds(
+        FULL_TIME_INTERVAL,
+        eventFilter {
+          expression =
+            "person.gender.value == $PERSON_MALE && person.gender.value == $PERSON_FEMALE"
+        }
+      )
+
     assertThat(userVids.toList()).isEmpty()
   }
 
   @Test
-  fun `filters matching conditions`() {
-    val matchingVids = listOf(1000650L, 1000997L, 1001028L, 1001096L, 1001096L, 1001289L)
-    val userVids: Sequence<Long> = eventQuery.getUserVirtualIds(MATCHING_EVENT_FILTER)
-    assertThat(userVids.toList()).containsExactlyElementsIn(matchingVids)
+  fun `getUserVirtualIds returns VIDs for matching events`() {
+    val userVids: Sequence<Long> =
+      eventQuery.getUserVirtualIds(
+        FULL_TIME_INTERVAL,
+        eventFilter {
+          expression =
+            "person.age_group.value == $PERSON_35_to_54 && person.gender.value == $PERSON_FEMALE"
+        }
+      )
+
+    assertThat(userVids.toList()).containsExactly(1001096L, 1001096L)
   }
 
   @Test
-  fun `empty filter should fail`() {
-    assertFails { eventQuery.getUserVirtualIds(EMPTY_EVENT_FILTER) }
+  fun `getUserVirtualIds returns VIDs for all events when filter is empty`() {
+    val vids = eventQuery.getUserVirtualIds(FULL_TIME_INTERVAL, EMPTY_EVENT_FILTER)
+
+    assertThat(vids.toList()).containsExactlyElementsIn(ALL_VIDS)
+  }
+
+  companion object {
+    private val eventQuery = CsvEventQuery(PUBLISHER_ID_1, FILE)
   }
 }

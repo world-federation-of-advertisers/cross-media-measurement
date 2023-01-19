@@ -15,7 +15,6 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2a
 
 import com.google.common.truth.Truth.assertThat
 import java.time.LocalDate
-import java.time.ZoneOffset
 import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
@@ -27,6 +26,7 @@ import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.timeInterval
+import org.wfanet.measurement.common.OpenEndedTimeRange
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Charge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.EventGroupSpec
@@ -35,6 +35,10 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Query
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
 
 private const val MEASUREMENT_CONSUMER_ID = "ACME"
+
+private val LAST_EVENT_DATE = LocalDate.now()
+private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
+private val TIME_RANGE = OpenEndedTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
 
 private const val FILTER_EXPRESSION =
   "privacy_budget.gender.value==0 && privacy_budget.age.value==0 && " +
@@ -45,9 +49,8 @@ private val REQUISITION_SPEC = requisitionSpec {
     value =
       RequisitionSpecKt.EventGroupEntryKt.value {
         collectionInterval = timeInterval {
-          startTime =
-            LocalDate.now().minusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
-          endTime = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+          startTime = TIME_RANGE.start.toProtoTime()
+          endTime = TIME_RANGE.endExclusive.toProtoTime()
         }
         filter = eventFilter { expression = FILTER_EXPRESSION }
       }
@@ -105,13 +108,7 @@ class PrivacyQueryMapperTest {
       .isEqualTo(
         Query(
           Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
-          LandscapeMask(
-            listOf(
-              EventGroupSpec(FILTER_EXPRESSION, LocalDate.now().minusDays(1), LocalDate.now())
-            ),
-            0.01f,
-            0.02f
-          ),
+          LandscapeMask(listOf(EventGroupSpec(FILTER_EXPRESSION, TIME_RANGE)), 0.01f, 0.02f),
           Charge(0.6f, 0.02f)
         )
       )
@@ -131,13 +128,7 @@ class PrivacyQueryMapperTest {
       .isEqualTo(
         Query(
           Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
-          LandscapeMask(
-            listOf(
-              EventGroupSpec(FILTER_EXPRESSION, LocalDate.now().minusDays(1), LocalDate.now())
-            ),
-            0.0f,
-            0.0f
-          ),
+          LandscapeMask(listOf(EventGroupSpec(FILTER_EXPRESSION, TIME_RANGE)), 0.0f, 0.0f),
           Charge(0.3f, 0.02f)
         )
       )
@@ -157,13 +148,7 @@ class PrivacyQueryMapperTest {
       .isEqualTo(
         Query(
           Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
-          LandscapeMask(
-            listOf(
-              EventGroupSpec(FILTER_EXPRESSION, LocalDate.now().minusDays(1), LocalDate.now())
-            ),
-            0.0f,
-            0.0f
-          ),
+          LandscapeMask(listOf(EventGroupSpec(FILTER_EXPRESSION, TIME_RANGE)), 0.0f, 0.0f),
           Charge(0.4f, 0.02f)
         )
       )
