@@ -37,12 +37,11 @@ message MetricModel {
 
   // The specification of the model.
   message ModelSpec {
-    // The metrics that this model will be estimating. Currently only support
+    // The metric that this model will be estimating. Currently only support
     // reach.
-    repeated MetricSpec metric_specs = 1
-        [(google.api.field_behavior) = REQUIRED];
+    MetricSpec metric_spec = 1 [(google.api.field_behavior) = REQUIRED];
 
-    // Types of time intervals that the model needs to cover.
+    // Types of time intervals that the model covers.
     // REQUIRED
     oneof time {
       // A list of time intervals with different start times and end times.
@@ -74,7 +73,7 @@ message MetricModel {
     // The model is trained and ready to be used. Terminal state.
     ACTIVE = 2;
     // The model training failed. Terminal state.
-    FAILED = 3;
+    TRAINING_FAILED = 3;
   }
 
   // Model state
