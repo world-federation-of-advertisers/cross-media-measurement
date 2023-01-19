@@ -37,20 +37,30 @@ message MetricSpec {
   }
   // Parameters that are used to generate `Impression Count` metric.
   message ImpressionCountParams {
-    // Maximum frequency per user that will be included in this measurement.
+    // Maximum frequency per user that will be included in this metric.
+    //
+    // Setting the maximum frequency for each user is for noising the impression
+    // estimation with the noise proportional to maximum_frequency_per_user to
+    // guarantee epsilon-DP, i.e. the higher maximum_frequency_per_user, the
+    // larger the variance. On the other hand, if maximum_frequency_per_user is
+    // too small, there's a truncation bias. Through optimization, the
+    // recommended value for maximum_frequency_per_user = 60 for the case with
+    // over 1M audience size.
     int32 maximum_frequency_per_user = 1;
   }
   // Parameters that are used to generate `Watch Duration` metric.
   message WatchDurationParams {
-    // Maximum frequency per user that will be included in this measurement.
+    // Maximum frequency per user that will be included in this metric.
     int32 maximum_frequency_per_user = 1;
-    // Maximum watch duration per user that will be included in this
-    // measurement.
+    // Maximum watch duration per user that will be included in this metric.
+    // Recommended maximum_watch_duration_per_user = cap on the total watch
+    // duration of all the impressions of a user = 4000 sec for the case with
+    // over 1M audience size.
     int32 maximum_watch_duration_per_user = 2;
   }
 
   // Types of metric with parameters.
-  oneof metric_type {
+  oneof type {
     // The count of unique audiences reached given a set of event groups.
     ReachParams reach = 1;
     // The reach frequency histogram given a set of event groups. Currently, we
@@ -67,12 +77,12 @@ message MetricSpec {
 
 // The calculation result of a metric
 message MetricResult {
-  // The metric result in scalar type. Ex: reach, impression count.
+  // Scalar metric result. Ex: reach, impression count.
   message ScalarResult {
     // The value of the scalar result
     double value = 1;
   }
-  // The metric result in histogram type. Ex: frequency histogram.
+  // Histogram metric result. Ex: frequency histogram.
   message HistogramResult {
     // The histogram bin with a label and a value.
     message HistogramBin {
@@ -96,7 +106,9 @@ message MetricResult {
   }
 }
 
-// Definition of a metric for a `Report` in terms of set operations.
+// A `Metric` is a resource that will calculate a particular quantity as defined
+// by `MetricSpec` cumulatively over a time interval for the given
+// `ReportingSet`. The metric value once calculated is stored in `MetricResult`.
 message Metric {
   option (google.api.resource) = {
     type: "reporting.halo-cmm.org/Metric"
@@ -108,7 +120,7 @@ message Metric {
   // The resource name of the reporting set to calculate the metric on.
   ReportingSet reporting_set = 2 [(google.api.field_behavior) = REQUIRED];
 
-  // The time over which to calculate the metric.
+  // The time over which to calculate the metric cumulatively.
   TimeInterval time_interval = 3 [(google.api.field_behavior) = REQUIRED];
 
   // The specification of what metric to calculate
