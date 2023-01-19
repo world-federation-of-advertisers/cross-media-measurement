@@ -70,18 +70,18 @@ message Report {
     // previous time intervals.
     // Only supported when using `PeriodicTimeInterval`.
     bool cumulative = 3;
+    // The resource name of what model to use.
+    // If model is empty, compute the metrics using kingdom measurements;
+    // otherwise, use the model inferences.
+    // The user needs to provide a model that can cover all time intervals and
+    // all primitive reporting sets used for the metric calculations.
+    string model = 4;
   }
   // The specification of metric calculation for a reporting set.
   message ReportingMetricSpec {
     // A collection of metric calculations.
     repeated MetricCalculationSpec metric_calculation_specs = 1
         [(google.api.field_behavior) = REQUIRED];
-    // The resource name of what model to use.
-    // If model is empty, compute the metrics using kingdom measurements;
-    // otherwise, use the model inferences.
-    // The user needs to provide a model that can cover all time intervals and
-    // all primitive reporting sets used for the metric calculations.
-    string model = 2;
   }
 
   // Define metric calculations with a reporting set.
