@@ -35,7 +35,13 @@ message Metric {
   }
   // Parameters that are used to generate `Impression Count` metric.
   message ImpressionCountParams {
-    // Maximum frequency per user that will be included in this measurement.
+    // Setting the maximum frequency for each user is for noising the impression
+    // estimation with the noise proportional to maximum_frequency_per_user to
+    // guarantee epsilon-DP, i.e. the higher maximum_frequency_per_user, the
+    // larger the variance. On the other hand, if maximum_frequency_per_user is
+    // too small, there's truncation bias. Through optimization, the recommended
+    // value for maximum_frequency_per_user = 60 for the case with 1M audience
+    // size.
     int32 maximum_frequency_per_user = 1;
   }
   // Parameters that are used to generate `Watch Duration` metric.
@@ -43,7 +49,9 @@ message Metric {
     // Maximum frequency per user that will be included in this measurement.
     int32 maximum_frequency_per_user = 1;
     // Maximum watch duration per user that will be included in this
-    // measurement.
+    // measurement. Recommended maximum_watch_duration_per_user = cap on the
+    // total watch duration of all the impressions of a user = 4000 sec for the
+    // case with 1M audience size.
     int32 maximum_watch_duration_per_user = 2;
   }
 
@@ -64,7 +72,7 @@ message Metric {
   }
 
   // Whether the results for a given time interval is cumulative with those of
-  // previous time intervals.
+  // previous time intervals. Only supported when using `PeriodicTimeInterval`.
   bool cumulative = 6;
 
   // Represents a binary set operation.
