@@ -86,17 +86,17 @@ import org.wfanet.measurement.storage.forwarded.ForwardedStorageClient
 /** Test for correctness of the CMMS on [KinD](https://kind.sigs.k8s.io/). */
 @RunWith(JUnit4::class)
 class CorrectnessTest {
-  @Test(timeout = 2 * 60 * 1000)
+  @Test(timeout = 1 * 60 * 1000)
   fun `impression measurement completes with expected result`() = runBlocking {
     testHarness.executeImpression("$runId-impression")
   }
 
-  @Test(timeout = 2 * 60 * 1000)
+  @Test(timeout = 1 * 60 * 1000)
   fun `duration measurement completes with expected result`() = runBlocking {
     testHarness.executeDuration("$runId-duration")
   }
 
-  @Test(timeout = 10 * 60 * 1000)
+  @Test(timeout = 8 * 60 * 1000)
   fun `reach and frequency measurement completes with expected result`() = runBlocking {
     testHarness.executeReachAndFrequency("$runId-reach-and-freq")
   }
