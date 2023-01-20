@@ -133,7 +133,7 @@ message CreateMetricModelRequest {
 message ApplyMetricModelRequest {
   // The name of the metric model that will be applied.
   // The user needs to provide a model that can cover the time interval and
-  // all primitive reporting sets used for the metric calculations.
+  // all primitive reporting set bases of the specified reporting set.
   // Format:
   // measurementConsumers/{measurement_consumer}/metricModels/{metric_model}
   string name = 1 [
