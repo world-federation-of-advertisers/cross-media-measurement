@@ -362,8 +362,13 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
           aggregatedFrequencyHistogramMap: MutableMap<Long, Double>,
           weightedFrequencyHistogramMap ->
           for ((frequency, count) in weightedFrequencyHistogramMap) {
-            aggregatedFrequencyHistogramMap[frequency] =
-              aggregatedFrequencyHistogramMap.getValue(frequency) + count
+            if (frequency > maximumFrequency) {
+              aggregatedFrequencyHistogramMap[maximumFrequency.toLong()] =
+                aggregatedFrequencyHistogramMap.getValue(maximumFrequency.toLong()) + count
+            } else {
+              aggregatedFrequencyHistogramMap[frequency] =
+                aggregatedFrequencyHistogramMap.getValue(frequency) + count
+            }
           }
           aggregatedFrequencyHistogramMap
         }
