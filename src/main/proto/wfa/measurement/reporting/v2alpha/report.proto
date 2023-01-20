@@ -76,7 +76,8 @@ message Report {
     // If model is empty, compute the metrics using kingdom measurements;
     // otherwise, use the model inferences.
     // The user needs to provide a model that can cover all time intervals and
-    // all primitive reporting sets used for the metric calculations.
+    // all primitive reporting set bases of the reporting set used for the
+    // metric calculations.
     string model = 4;
   }
   // The specification of metric calculation for a reporting set.
