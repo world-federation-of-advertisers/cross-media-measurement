@@ -64,7 +64,9 @@ message Report {
     // A collection of metrics.
     repeated MetricSpec metric_specs = 1
         [(google.api.field_behavior) = REQUIRED];
-    // The final set of groups is the Cartesian product of groupings.
+    // The final set of groups is the Cartesian product of groupings. The final
+    // set of groups will fan out multiple metrics, each for one group in the
+    // final set.
     repeated Grouping groupings = 2;
     // Whether the results for a given time interval is cumulative with those of
     // previous time intervals.
