@@ -16,7 +16,6 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
-import "google/protobuf/empty.proto";
 import "wfa/measurement/internal/kingdom/event_group.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
@@ -30,7 +29,7 @@ service EventGroups {
 
   rpc GetEventGroup(GetEventGroupRequest) returns (EventGroup);
 
-  rpc DeleteEventGroup(DeleteEventGroupRequest) returns (google.protobuf.Empty);
+  rpc DeleteEventGroup(DeleteEventGroupRequest) returns (EventGroup);
 
   // Streams EventGroups ordered by create time, ascending.
   rpc StreamEventGroups(StreamEventGroupsRequest) returns (stream EventGroup);
