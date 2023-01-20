@@ -73,7 +73,7 @@ deployments: {
 		_container: {
 			image: "bazel/src/main/kotlin/org/wfanet/measurement/storage/filesystem:server_image"
 			args: [
-				"--debug-verbose-grpc-server-logging=true",
+				"--debug-verbose-grpc-server-logging=false",
 				"--port=8443",
 				"--require-client-auth=false",
 				"--tls-cert-file=/var/run/secrets/files/kingdom_tls.pem",
