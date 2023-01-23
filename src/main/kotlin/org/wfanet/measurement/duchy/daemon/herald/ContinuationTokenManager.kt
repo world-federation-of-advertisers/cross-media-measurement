@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.duchy.daemon.herald
 
+import io.grpc.Status
 import io.grpc.StatusException
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -103,7 +104,11 @@ class ContinuationTokenManager(
     try {
       continuationTokenClient.setContinuationToken(setRequest)
     } catch (e: StatusException) {
-      logger.log(Level.WARNING, e) { "Failure happened during setContinuationToken" }
+      if (e.status.code == Status.FAILED_PRECONDITION.code) {
+        logger.log(Level.WARNING, e) { "Failure happened during setContinuationToken" }
+      } else {
+        throw e
+      }
     }
   }
 

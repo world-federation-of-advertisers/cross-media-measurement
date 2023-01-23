@@ -25,35 +25,36 @@ import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsContinuatio
 class SetContinuationToken(val continuationToken: String) {
   suspend fun execute(databaseClient: AsyncDatabaseClient) {
     databaseClient.readWriteTransaction().execute { ctx ->
-      val newContinuationToken = continuationToken.decode()
-      val oldContinuationToken =
+      val newContinuationToken = decodeContinuationToken(continuationToken)
+      val oldContinuationTokenString =
         ctx
           .readRow("HeraldContinuationTokens", Key.of(true), listOf("ContinuationToken"))
           ?.getString("ContinuationToken")
-          ?.decode()
-          ?: StreamActiveComputationsContinuationToken.getDefaultInstance()
+          ?: ""
+      val oldContinuationToken = decodeContinuationToken(oldContinuationTokenString)
 
       if (
         Timestamps.compare(
           newContinuationToken.updateTimeSince,
           oldContinuationToken.updateTimeSince
-        ) >= 0
+        ) < 0
       ) {
-        val mutation =
-          insertOrUpdateMutation("HeraldContinuationTokens") {
-            set("Presence").to(true)
-            set("ContinuationToken").to(continuationToken)
-            set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
-          }
-        ctx.buffer(mutation)
-      } else {
-        throw InvalidContinuationToken("ContinuationToken to set cannot have older timestamp.")
+        throw InvalidContinuationTokenException(
+          "ContinuationToken to set cannot have older timestamp."
+        )
       }
+      val mutation =
+        insertOrUpdateMutation("HeraldContinuationTokens") {
+          set("Presence").to(true)
+          set("ContinuationToken").to(continuationToken)
+          set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+        }
+      ctx.buffer(mutation)
     }
   }
 
-  private fun String.decode(): StreamActiveComputationsContinuationToken =
-    StreamActiveComputationsContinuationToken.parseFrom(this.base64UrlDecode())
+  private fun decodeContinuationToken(token: String): StreamActiveComputationsContinuationToken =
+    StreamActiveComputationsContinuationToken.parseFrom(token.base64UrlDecode())
 }
 
-class InvalidContinuationToken(message: String) : Exception(message) {}
+class InvalidContinuationTokenException(message: String) : Exception(message) {}

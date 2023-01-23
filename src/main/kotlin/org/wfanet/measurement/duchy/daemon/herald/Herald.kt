@@ -38,7 +38,6 @@ import org.wfanet.measurement.duchy.daemon.utils.toMeasurementType
 import org.wfanet.measurement.duchy.service.internal.computations.toGetTokenRequest
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
-import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineStub
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.internal.duchy.deleteComputationRequest
 import org.wfanet.measurement.internal.duchy.finishComputationRequest
@@ -77,7 +76,7 @@ class Herald(
   private val internalComputationsClient: ComputationsCoroutineStub,
   private val systemComputationsClient: SystemComputationsCoroutineStub,
   private val systemComputationParticipantClient: SystemComputationParticipantsCoroutineStub,
-  continuationTokenClient: ContinuationTokensCoroutineStub,
+  private val continuationTokenManager: ContinuationTokenManager,
   private val protocolsSetupConfig: ProtocolsSetupConfig,
   private val clock: Clock,
   private val blobStorageBucket: String = "computation-blob-storage",
@@ -88,7 +87,6 @@ class Herald(
   private val deletableComputationStates: Set<State> = emptySet(),
 ) {
   private val semaphore = Semaphore(maxConcurrency)
-  private val continuationTokenManager = ContinuationTokenManager(continuationTokenClient)
 
   init {
     for (state in deletableComputationStates) {
