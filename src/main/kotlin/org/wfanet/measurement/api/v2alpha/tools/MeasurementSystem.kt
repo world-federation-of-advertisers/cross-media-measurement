@@ -35,13 +35,18 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.Account
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ApiKey
+import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt.ApiKeysCoroutineStub
+import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
-import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt.value as dataProviderEntryValue
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt as DataProviderEntries
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec.Duration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec.Impression
@@ -51,11 +56,17 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt.value as eventGroupEntryValue
+import org.wfanet.measurement.api.v2alpha.PublicKey
+import org.wfanet.measurement.api.v2alpha.PublicKeysGrpcKt.PublicKeysCoroutineStub
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.EventGroupEntryKt as EventGroupEntries
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.activateAccountRequest
+import org.wfanet.measurement.api.v2alpha.apiKey
 import org.wfanet.measurement.api.v2alpha.authenticateRequest
+import org.wfanet.measurement.api.v2alpha.certificate
+import org.wfanet.measurement.api.v2alpha.createApiKeyRequest
+import org.wfanet.measurement.api.v2alpha.createCertificateRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
@@ -67,9 +78,12 @@ import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.publicKey
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
+import org.wfanet.measurement.api.v2alpha.revokeCertificateRequest
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.api.v2alpha.timeInterval
+import org.wfanet.measurement.api.v2alpha.updatePublicKeyRequest
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.api.withIdToken
 import org.wfanet.measurement.common.commandLineMain
@@ -95,9 +109,13 @@ import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
 import picocli.CommandLine
 import picocli.CommandLine.ArgGroup
 import picocli.CommandLine.Command
+import picocli.CommandLine.Mixin
+import picocli.CommandLine.Model.CommandSpec
 import picocli.CommandLine.Option
+import picocli.CommandLine.ParameterException
 import picocli.CommandLine.Parameters
 import picocli.CommandLine.ParentCommand
+import picocli.CommandLine.Spec
 
 private val CHANNEL_SHUTDOWN_TIMEOUT = systemDuration.ofSeconds(30)
 
@@ -108,12 +126,20 @@ private val CHANNEL_SHUTDOWN_TIMEOUT = systemDuration.ofSeconds(30)
     [
       CommandLine.HelpCommand::class,
       Accounts::class,
+      Certificates::class,
+      PublicKeys::class,
       MeasurementConsumers::class,
       Measurements::class,
+      ApiKeys::class,
     ]
 )
 class MeasurementSystem private constructor() : Runnable {
-  @CommandLine.Mixin private lateinit var tlsFlags: TlsFlags
+  @Spec private lateinit var commandSpec: CommandSpec
+
+  val commandLine: CommandLine
+    get() = commandSpec.commandLine()
+
+  @Mixin private lateinit var tlsFlags: TlsFlags
 
   @Option(
     names = ["--kingdom-public-api-target"],
@@ -161,6 +187,7 @@ class MeasurementSystem private constructor() : Runnable {
 
 @Command(
   name = "accounts",
+  subcommands = [CommandLine.HelpCommand::class],
 )
 private class Accounts {
   @ParentCommand
@@ -223,7 +250,158 @@ private class Accounts {
 }
 
 @Command(
+  name = "certificates",
+  subcommands = [CommandLine.HelpCommand::class],
+)
+private class Certificates {
+  @ParentCommand
+  lateinit var parentCommand: MeasurementSystem
+    private set
+
+  @Option(
+    names = ["--api-key"],
+    paramLabel = "<apiKey>",
+    description = ["API authentication key. Required when parent type is MeasurementConsumer."]
+  )
+  var authenticationKey: String? = null
+
+  private val certificatesClient: CertificatesCoroutineStub by lazy {
+    val client = CertificatesCoroutineStub(parentCommand.kingdomChannel)
+    if (authenticationKey == null) client else client.withAuthenticationKey(authenticationKey)
+  }
+
+  @Command(
+    description = ["Creates a Certificate resource"],
+  )
+  fun create(
+    @Option(
+      names = ["--parent"],
+      paramLabel = "<parent>",
+      required = true,
+      description = ["Name of parent resource"]
+    )
+    parent: String,
+    @Option(
+      names = ["--certificate"],
+      paramLabel = "<certPath>",
+      description = ["Path to X.509 certificate in PEM or DER format"],
+      required = true,
+    )
+    certificateFile: File,
+  ) {
+    if (authenticationKey == null && MeasurementConsumerKey.fromName(parent) != null) {
+      throw ParameterException(
+        parentCommand.commandLine,
+        "API authentication key is required when parent type is MeasurementConsumer"
+      )
+    }
+
+    val certificate: X509Certificate = certificateFile.inputStream().use { readCertificate(it) }
+    val request = createCertificateRequest {
+      this.parent = parent
+      this.certificate = certificate { x509Der = certificate.encoded.toByteString() }
+    }
+    val response: Certificate =
+      runBlocking(parentCommand.rpcDispatcher) { certificatesClient.createCertificate(request) }
+    println("Certificate name: ${response.name}")
+  }
+
+  @Command(
+    description = ["Revokes a Certificate"],
+  )
+  fun revoke(
+    @Option(
+      names = ["--revocation-state"],
+      paramLabel = "<revocationState>",
+      required = true,
+    )
+    revocationState: Certificate.RevocationState,
+    @Parameters(index = "0", paramLabel = "<name>", description = ["Resource name"]) name: String,
+  ) {
+    if (authenticationKey == null && MeasurementConsumerCertificateKey.fromName(name) != null) {
+      throw ParameterException(
+        parentCommand.commandLine,
+        "API authentication key is required when parent type is MeasurementConsumer"
+      )
+    }
+
+    val request = revokeCertificateRequest {
+      this.name = name
+      this.revocationState = revocationState
+    }
+    val response =
+      runBlocking(parentCommand.rpcDispatcher) { certificatesClient.revokeCertificate(request) }
+    println(response)
+  }
+}
+
+@Command(
+  name = "public-keys",
+  subcommands = [CommandLine.HelpCommand::class],
+)
+private class PublicKeys {
+  @ParentCommand
+  lateinit var parentCommand: MeasurementSystem
+    private set
+
+  @Option(
+    names = ["--api-key"],
+    paramLabel = "<apiKey>",
+    description = ["API authentication key. Required when parent type is MeasurementConsumer."]
+  )
+  var authenticationKey: String? = null
+
+  private val publicKeysClient: PublicKeysCoroutineStub by lazy {
+    val client = PublicKeysCoroutineStub(parentCommand.kingdomChannel)
+    if (authenticationKey == null) client else client.withAuthenticationKey(authenticationKey)
+  }
+
+  @Command(
+    description = ["Updates a PublicKey resource"],
+  )
+  fun update(
+    @Option(
+      names = ["--public-key"],
+      paramLabel = "<publicKeyFile>",
+      description = ["Path to serialized EncryptionPublicKey message"],
+      required = true,
+    )
+    publicKeyFile: File,
+    @Option(
+      names = ["--public-key-signature"],
+      paramLabel = "<publicKeySignatureFile>",
+      description = ["Path to signature of public key"],
+      required = true,
+    )
+    publicKeySignatureFile: File,
+    @Option(
+      names = ["--certificate"],
+      paramLabel = "<certificate>",
+      description = ["Name of Certificate resource to verify public key signature"],
+      required = true,
+    )
+    certificate: String,
+    @Parameters(index = "0", paramLabel = "<name>", description = ["Resource name"]) name: String,
+  ) {
+    val request = updatePublicKeyRequest {
+      this.publicKey = publicKey {
+        this.name = name
+        this.publicKey = signedData {
+          data = publicKeyFile.readByteString()
+          signature = publicKeySignatureFile.readByteString()
+        }
+        this.certificate = certificate
+      }
+    }
+    val response: PublicKey =
+      runBlocking(parentCommand.rpcDispatcher) { publicKeysClient.updatePublicKey(request) }
+    println(response)
+  }
+}
+
+@Command(
   name = "measurement-consumers",
+  subcommands = [CommandLine.HelpCommand::class],
 )
 private class MeasurementConsumers {
   @ParentCommand
@@ -309,6 +487,7 @@ private class MeasurementConsumers {
   sortOptions = false,
   subcommands =
     [
+      CommandLine.HelpCommand::class,
       CreateMeasurement::class,
       ListMeasurements::class,
       GetMeasurement::class,
@@ -621,14 +800,15 @@ class CreateMeasurement : Runnable {
           dataProviderInput.eventGroupInputs.map {
             eventGroupEntry {
               key = it.name
-              value = eventGroupEntryValue {
-                collectionInterval = timeInterval {
-                  startTime = it.eventStartTime.toProtoTime()
-                  endTime = it.eventEndTime.toProtoTime()
+              value =
+                EventGroupEntries.value {
+                  collectionInterval = timeInterval {
+                    startTime = it.eventStartTime.toProtoTime()
+                    endTime = it.eventEndTime.toProtoTime()
+                  }
+                  if (it.eventFilter.isNotEmpty())
+                    filter = eventFilter { expression = it.eventFilter }
                 }
-                if (it.eventFilter.isNotEmpty())
-                  filter = eventFilter { expression = it.eventFilter }
-              }
             }
           }
         this.measurementPublicKey = measurementEncryptionPublicKey
@@ -642,16 +822,17 @@ class CreateMeasurement : Runnable {
             .withAuthenticationKey(parentCommand.apiAuthenticationKey)
             .getDataProvider(getDataProviderRequest { name = dataProviderInput.name })
         }
-      value = dataProviderEntryValue {
-        dataProviderCertificate = dataProvider.certificate
-        dataProviderPublicKey = dataProvider.publicKey
-        encryptedRequisitionSpec =
-          encryptRequisitionSpec(
-            signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
-            EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
-          )
-        nonceHash = hashSha256(requisitionSpec.nonce)
-      }
+      value =
+        DataProviderEntries.value {
+          dataProviderCertificate = dataProvider.certificate
+          dataProviderPublicKey = dataProvider.publicKey
+          encryptedRequisitionSpec =
+            encryptRequisitionSpec(
+              signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
+              EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
+            )
+          nonceHash = hashSha256(requisitionSpec.nonce)
+        }
     }
   }
 
@@ -689,7 +870,9 @@ class CreateMeasurement : Runnable {
           reachAndFrequency = getReachAndFrequency()
         } else if (measurementTypeParams.impression.selected) {
           impression = getImpression()
-        } else duration = getDuration()
+        } else if (measurementTypeParams.duration.selected) {
+          duration = getDuration()
+        }
       }
 
       this.measurementSpec =
@@ -825,5 +1008,66 @@ class GetMeasurement : Runnable {
         printMeasurementResult(result)
       }
     }
+  }
+}
+
+@Command(
+  name = "api-keys",
+  subcommands = [CommandLine.HelpCommand::class],
+)
+private class ApiKeys {
+  @ParentCommand
+  lateinit var parentCommand: MeasurementSystem
+    private set
+
+  private val apiKeysClient: ApiKeysCoroutineStub by lazy {
+    ApiKeysCoroutineStub(parentCommand.kingdomChannel)
+  }
+
+  @Option(
+    names = ["--id-token"],
+    paramLabel = "<idToken>",
+  )
+  private var idTokenOption: String? = null
+
+  @Command(
+    description = ["Creates an ApiKey resource"],
+  )
+  fun create(
+    @Option(
+      names = ["--measurement-consumer"],
+      paramLabel = "<measurementConsumer>",
+      description = ["API resource name of the MeasurementConsumer"],
+      required = true
+    )
+    measurementConsumer: String,
+    @Option(
+      names = ["--nickname"],
+      paramLabel = "<nickname>",
+      required = true,
+    )
+    nickname: String,
+    @Option(
+      names = ["--description"],
+      paramLabel = "<description>",
+    )
+    description: String?,
+  ) {
+    // TODO(remkop/picocli#882): Use built-in Picocli functionality once available.
+    val idToken: String = idTokenOption ?: String(System.console().readPassword("ID Token: "))
+    val request = createApiKeyRequest {
+      parent = measurementConsumer
+      apiKey = apiKey {
+        this.nickname = nickname
+        if (description != null) {
+          this.description = description
+        }
+      }
+    }
+    val response: ApiKey =
+      runBlocking(parentCommand.rpcDispatcher) {
+        apiKeysClient.withIdToken(idToken).createApiKey(request)
+      }
+    println(response)
   }
 }
