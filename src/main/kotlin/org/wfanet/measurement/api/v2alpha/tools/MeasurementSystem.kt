@@ -56,6 +56,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.activateAccountRequest
 import org.wfanet.measurement.api.v2alpha.authenticateRequest
+import org.wfanet.measurement.api.v2alpha.cancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
@@ -312,6 +313,7 @@ private class MeasurementConsumers {
       CreateMeasurement::class,
       ListMeasurements::class,
       GetMeasurement::class,
+      CancelMeasurement::class,
     ]
 )
 private class Measurements {
@@ -706,6 +708,30 @@ class CreateMeasurement : Runnable {
     println("Measurement Name: ${response.name}")
   }
 }
+
+@Command(name = "cancel", description = ["Cancels a Single Measurement"])
+class CancelMeasurement : Runnable {
+  @ParentCommand private lateinit var parentCommand: Measurements
+
+  @Option(
+    names = ["--measurement"],
+    description = ["API resource name of the Measurement"],
+    required = true
+  )
+  private lateinit var measurement: String
+
+  override fun run() {
+    val response =
+      runBlocking(parentCommand.parentCommand.rpcDispatcher) {
+        parentCommand.measurementStub
+          .withAuthenticationKey(parentCommand.apiAuthenticationKey)
+          .cancelMeasurement(cancelMeasurementRequest { this.name = measurement })
+      }
+    println("Measurement Name: ${response.name}")
+  }
+}
+
+
 
 @Command(name = "list", description = ["Lists Measurements"])
 class ListMeasurements : Runnable {
