@@ -70,9 +70,9 @@ import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoro
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.deleteEventGroupRequest as internalDeleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.eventGroup as internalEventGroup
 import org.wfanet.measurement.internal.kingdom.getEventGroupRequest as internalGetEventGroupRequest
-import org.wfanet.measurement.internal.kingdom.deleteEventGroupRequest as internalDeleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
 
 private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
@@ -591,7 +591,7 @@ class EventGroupsServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-        runBlocking { service.deleteEventGroup(request) }
+          runBlocking { service.deleteEventGroup(request) }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
@@ -615,11 +615,7 @@ class EventGroupsServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withDataProviderPrincipal(DATA_PROVIDER_NAME) {
-          runBlocking {
-            service.deleteEventGroup(
-              deleteEventGroupRequest {}
-            )
-          }
+          runBlocking { service.deleteEventGroup(deleteEventGroupRequest {}) }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
