@@ -29,6 +29,8 @@ service EventGroups {
 
   rpc GetEventGroup(GetEventGroupRequest) returns (EventGroup);
 
+  rpc DeleteEventGroup(DeleteEventGroupRequest) returns (EventGroup);
+
   // Streams EventGroups ordered by create time, ascending.
   rpc StreamEventGroups(StreamEventGroupsRequest) returns (stream EventGroup);
 }
@@ -39,6 +41,13 @@ message UpdateEventGroupRequest {
 
 message GetEventGroupRequest {
   fixed64 external_data_provider_id = 1;
+  fixed64 external_event_group_id = 2;
+}
+
+message DeleteEventGroupRequest {
+  // The external id of `EventGroup Data Provider`. Required.
+  fixed64 external_data_provider_id = 1;
+  // The external id of `EventGroup`. Required.
   fixed64 external_event_group_id = 2;
 }
 

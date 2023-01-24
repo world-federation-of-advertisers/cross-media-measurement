@@ -232,6 +232,15 @@ private val REACH_ONLY_MEASUREMENT_SPEC =
     maximumFrequencyPerUser = REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER
   }
 
+private val timeIntervalComparator: (TimeInterval, TimeInterval) -> Int = { a, b ->
+  val start = Timestamps.compare(a.startTime, b.startTime)
+  if (start != 0) {
+    start
+  } else {
+    Timestamps.compare(a.endTime, b.endTime)
+  }
+}
+
 class ReportsService(
   private val internalReportsStub: InternalReportsCoroutineStub,
   private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
@@ -263,6 +272,7 @@ class ReportsService(
     val reportingMeasurementId: String,
     val weightedMeasurement: WeightedMeasurement,
     val timeInterval: TimeInterval,
+    val reportTimeInterval: TimeInterval,
     var kingdomMeasurementId: String? = null,
   )
 
@@ -1031,11 +1041,11 @@ class ReportsService(
   ): List<MeasurementCalculation> {
     val measurementCalculations = mutableListOf<MeasurementCalculation>()
     setOperationResult.weightedMeasurementInfoList
-      .groupBy { it.timeInterval }
-      .forEach { (timeInterval, weightedMeasurementInfos) ->
+      .groupBy { it.reportTimeInterval }
+      .forEach { (reportTimeInterval, weightedMeasurementInfos) ->
         measurementCalculations.add(
           InternalMetricKt.measurementCalculation {
-            this.timeInterval = timeInterval.toInternal()
+            this.timeInterval = reportTimeInterval.toInternal()
 
             weightedMeasurementInfos.forEach {
               weightedMeasurements +=
@@ -1285,15 +1295,23 @@ class ReportsService(
     private suspend fun compileAllSetOperations(): Map<String, SetOperationResult> {
       val namedSetOperationResults = mutableMapOf<String, SetOperationResult>()
 
-      val timeIntervalsList = report.timeIntervalsList()
+      var hasCumulativeMetric = false
+      for (metric in report.metricsList) {
+        if (metric.cumulative) {
+          hasCumulativeMetric = true
+          break
+        }
+      }
+      val timeIntervalsList = report.timeIntervalsList(hasCumulativeMetric)
+      val sortedTimeIntervalsList = timeIntervalsList.sortedWith(timeIntervalComparator)
       val cumulativeTimeIntervalsList =
-        timeIntervalsList.map { timeInterval ->
-          timeInterval.copy { this.startTime = timeIntervalsList.first().startTime }
+        sortedTimeIntervalsList.map { timeInterval ->
+          timeInterval.copy { this.startTime = sortedTimeIntervalsList.first().startTime }
         }
 
       for (metric in report.metricsList) {
         val metricTimeIntervalsList =
-          if (metric.cumulative) cumulativeTimeIntervalsList else timeIntervalsList
+          if (metric.cumulative) cumulativeTimeIntervalsList else sortedTimeIntervalsList
         val internalMetricDetails: InternalMetricDetails = buildInternalMetricDetails(metric)
 
         for (namedSetOperation in metric.setOperationsList) {
@@ -1311,6 +1329,7 @@ class ReportsService(
               namedSetOperation.setOperation,
               setOperationId,
               metricTimeIntervalsList,
+              sortedTimeIntervalsList
             )
           namedSetOperationResults[setOperationId] =
             SetOperationResult(weightedMeasurementInfoList, internalMetricDetails)
@@ -1352,15 +1371,27 @@ class ReportsService(
       reportingSetExternalIds.add(apiIdToExternalId(reportingSetKey.reportingSetId))
     }
 
-    /** Compiles a [SetOperation] and outputs each result with measurement reference ID. */
+    /**
+     * Compiles a [SetOperation] and outputs each result with measurement reference ID.
+     *
+     * metricTimeIntervalsList and timeIntervalsList are required to be the same size.
+     */
     private suspend fun compileSetOperation(
       setOperation: SetOperation,
       setOperationId: String,
-      timeIntervalsList: List<TimeInterval>,
+      metricTimeIntervalsList: List<TimeInterval>,
+      reportTimeIntervalsList: List<TimeInterval>,
     ): List<WeightedMeasurementInfo> {
+      if (metricTimeIntervalsList.size != reportTimeIntervalsList.size) {
+        throw IllegalArgumentException()
+      }
+      val sortedReportTimeIntervalsList = reportTimeIntervalsList.sortedWith(timeIntervalComparator)
+
       val weightedMeasurementsList = setOperationCompiler.compileSetOperation(setOperation)
 
-      return timeIntervalsList.flatMap { timeInterval ->
+      return metricTimeIntervalsList.sortedWith(timeIntervalComparator).flatMapIndexed {
+        timeIntervalsIndex,
+        timeInterval ->
         weightedMeasurementsList.mapIndexed { index, weightedMeasurement ->
           val measurementReferenceId =
             buildMeasurementReferenceId(
@@ -1369,7 +1400,12 @@ class ReportsService(
               index,
             )
 
-          WeightedMeasurementInfo(measurementReferenceId, weightedMeasurement, timeInterval)
+          WeightedMeasurementInfo(
+            measurementReferenceId,
+            weightedMeasurement,
+            timeInterval = timeInterval,
+            reportTimeInterval = sortedReportTimeIntervalsList[timeIntervalsIndex]
+          )
         }
       }
     }
@@ -1402,11 +1438,14 @@ class ReportsService(
 }
 
 /** Converts the time in [Report] to a list of [TimeInterval]. */
-private fun Report.timeIntervalsList(): List<TimeInterval> {
+private fun Report.timeIntervalsList(hasCumulativeMetric: Boolean): List<TimeInterval> {
   val source = this
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
   return when (source.timeCase) {
     Report.TimeCase.TIME_INTERVALS -> {
+      if (hasCumulativeMetric) {
+        failGrpc(Status.INVALID_ARGUMENT) { "Cannot use TimeIntervals with a cumulative Metric." }
+      }
       grpcRequire(source.timeIntervals.timeIntervalsList.isNotEmpty()) {
         "TimeIntervals timeIntervalsList is empty."
       }
