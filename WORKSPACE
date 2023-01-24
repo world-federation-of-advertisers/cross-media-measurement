@@ -25,11 +25,15 @@ load("@wfa_common_cpp//build:common_cpp_deps.bzl", "common_cpp_deps")
 common_cpp_deps()
 
 # Maven
-load("@wfa_common_jvm//build:common_jvm_maven.bzl", "COMMON_JVM_MAVEN_OVERRIDE_TARGETS", "common_jvm_maven_artifacts")
+load(
+    "@wfa_common_jvm//build:common_jvm_maven.bzl",
+    "COMMON_JVM_MAVEN_OVERRIDE_TARGETS",
+    "common_jvm_maven_artifacts_dict",
+)
 load("@rules_jvm_external//:defs.bzl", "maven_install")
 load("@wfa_common_jvm//build/maven:artifacts.bzl", "artifacts")
 
-ADDITIONAL_MAVEN_ARTIFACTS = artifacts.dict_to_list({
+MAVEN_ARTIFACTS_DICT = dict(common_jvm_maven_artifacts_dict().items() + {
     "software.aws.rds:aws-postgresql-jdbc": "0.1.0",
     "org.projectnessie.cel:cel-core": "0.3.11",
     "io.opentelemetry:opentelemetry-api": "1.19.0",
@@ -38,10 +42,10 @@ ADDITIONAL_MAVEN_ARTIFACTS = artifacts.dict_to_list({
     "io.opentelemetry:opentelemetry-semconv": "1.19.0-alpha",
     "io.kubernetes:client-java": "16.0.0",
     "io.kubernetes:client-java-extended": "16.0.0",
-})
+}.items())
 
 maven_install(
-    artifacts = common_jvm_maven_artifacts() + ADDITIONAL_MAVEN_ARTIFACTS,
+    artifacts = artifacts.dict_to_list(MAVEN_ARTIFACTS_DICT),
     fetch_sources = True,
     generate_compat_repositories = True,
     override_targets = COMMON_JVM_MAVEN_OVERRIDE_TARGETS,
