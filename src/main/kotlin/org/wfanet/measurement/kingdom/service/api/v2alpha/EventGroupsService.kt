@@ -240,7 +240,7 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
       }
       else -> {
         failGrpc(Status.PERMISSION_DENIED) {
-          "Caller does not have permission to delete EventGroups"
+          "Only a DataProvider can delete an EventGroup"
         }
       }
     }
