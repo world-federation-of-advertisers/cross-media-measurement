@@ -37,7 +37,3 @@ data class DuchyCertificateKey(val duchyId: String, override val certificateId: 
     }
   }
 }
-
-fun makeDuchyCertificateName(duchyId: String, certificateId: String): String {
-  return DuchyCertificateKey(duchyId, certificateId).toName()
-}

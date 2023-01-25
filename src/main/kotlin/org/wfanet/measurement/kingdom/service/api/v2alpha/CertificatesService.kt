@@ -38,10 +38,6 @@ import org.wfanet.measurement.api.v2alpha.ModelProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.ReleaseCertificateHoldRequest
 import org.wfanet.measurement.api.v2alpha.RevokeCertificateRequest
 import org.wfanet.measurement.api.v2alpha.certificate
-import org.wfanet.measurement.api.v2alpha.makeDataProviderCertificateName
-import org.wfanet.measurement.api.v2alpha.makeDuchyCertificateName
-import org.wfanet.measurement.api.v2alpha.makeMeasurementConsumerCertificateName
-import org.wfanet.measurement.api.v2alpha.makeModelProviderCertificateName
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -468,19 +464,19 @@ private fun InternalCertificate.toCertificate(): Certificate {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
     when (parentCase) {
       InternalCertificate.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID ->
-        makeMeasurementConsumerCertificateName(
-          externalIdToApiId(externalMeasurementConsumerId),
-          certificateApiId
-        )
+        MeasurementConsumerCertificateKey(
+            externalIdToApiId(externalMeasurementConsumerId),
+            certificateApiId
+          )
+          .toName()
       InternalCertificate.ParentCase.EXTERNAL_DATA_PROVIDER_ID ->
-        makeDataProviderCertificateName(externalIdToApiId(externalDataProviderId), certificateApiId)
+        DataProviderCertificateKey(externalIdToApiId(externalDataProviderId), certificateApiId)
+          .toName()
       InternalCertificate.ParentCase.EXTERNAL_DUCHY_ID ->
-        makeDuchyCertificateName(externalDuchyId, certificateApiId)
+        DuchyCertificateKey(externalDuchyId, certificateApiId).toName()
       InternalCertificate.ParentCase.EXTERNAL_MODEL_PROVIDER_ID ->
-        makeModelProviderCertificateName(
-          externalIdToApiId(externalModelProviderId),
-          certificateApiId
-        )
+        ModelProviderCertificateKey(externalIdToApiId(externalModelProviderId), certificateApiId)
+          .toName()
       InternalCertificate.ParentCase.PARENT_NOT_SET ->
         failGrpc(Status.INTERNAL) { "Parent missing" }
     }
