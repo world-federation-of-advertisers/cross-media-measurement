@@ -34,7 +34,6 @@ jobs:
         uses: world-federation-of-advertisers/actions/bazel-build-test@v1
         with:
           cache-version: 1
-          cache-save-events:
           workspace-path: .
           target-patterns: |
             //...
