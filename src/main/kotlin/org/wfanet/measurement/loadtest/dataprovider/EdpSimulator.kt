@@ -694,16 +694,14 @@ class EdpSimulator(
 
     logger.info("Adding publisher noise to direct reach and frequency...")
     val (noisedReachValue, noisedFrequencyMap) =
-      addPublisherNoise(
-        reachValue,
-        frequencyMap,
-        vidSamplingIntervalWidth,
-        measurementSpec.reachAndFrequency
-      )
+      addPublisherNoise(reachValue, frequencyMap, measurementSpec.reachAndFrequency)
 
+    // Differentially private reach value is calculated by reach_dp = (reach + noise) /
+    // sampling_rate.
+    val scaledNoisedReachValue = (noisedReachValue / vidSamplingIntervalWidth).toLong()
     val requisitionData =
       MeasurementKt.result {
-        reach = reach { value = noisedReachValue }
+        reach = reach { value = scaledNoisedReachValue }
         frequency = frequency { relativeFrequencyDistribution.putAll(noisedFrequencyMap) }
       }
 
@@ -831,30 +829,22 @@ class EdpSimulator(
 
     // TODO(alberthsuu): Create a class for this function when we need to add Gaussian noise
     /**
-     * Add Laplace publisher noise to calculated direct reach and frequency. Noised reach needs to
-     * scale by sampling rate.
+     * Add Laplace publisher noise to calculated direct reach and frequency.
      * @param reachValue Direct reach value.
      * @param frequencyMap Direct frequency.
-     * @param samplingRate Probability of sampling which is vidSamplingIntervalWidth.
      * @param reachAndFrequency ReachAndFrequency from MeasurementSpec.
      * @return Pair of noised reach value and frequency map.
      */
     private fun addPublisherNoise(
       reachValue: Long,
       frequencyMap: Map<Long, Double>,
-      samplingRate: Float,
       reachAndFrequency: MeasurementSpec.ReachAndFrequency
     ): Pair<Long, Map<Long, Double>> {
-      require(samplingRate > 0 && samplingRate <= 1.0) { "Invalid samplingRate $samplingRate" }
-
       val laplaceForReach =
         LaplaceDistribution(0.0, 1 / reachAndFrequency.reachPrivacyParams.epsilon)
       laplaceForReach.reseedRandomGenerator(1)
 
-      // Differentially private reach value is calculated by reach_dp = (reach + noise) /
-      // sampling_rate.
-      val noisedReachValue =
-        ((reachValue + laplaceForReach.sample().toInt()) / samplingRate).toLong()
+      val noisedReachValue = (reachValue + laplaceForReach.sample().toInt())
 
       val laplaceForFrequency =
         LaplaceDistribution(0.0, 1 / reachAndFrequency.frequencyPrivacyParams.epsilon)
