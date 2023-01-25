@@ -799,13 +799,19 @@ class EdpSimulator(
     /**
      * Calculate direct reach and frequency from VIDs in
      * fulfillDirectReachAndFrequencyMeasurement().
-     * @param vidList List of VIDs
-     * @return Pair of reach value and frequency map
+     * @param vidList List of VIDs.
+     * @return Pair of reach value and frequency map.
      */
-    fun calculateDirectReachAndFrequency(
+    private fun calculateDirectReachAndFrequency(
       vidList: List<Long>,
     ): Pair<Long, Map<Long, Double>> {
-
+      // Example: vidList: [1L, 1L, 1L, 2L, 2L, 3L, 4L, 5L]
+      // 5 unique people(1, 2, 3, 4, 5) being reached
+      // reach = 5
+      // 1 reach -> 0.6(3/5)(VID 3L, 4L, 5L)
+      // 2 reach -> 0.2(1/5)(VID 2L)
+      // 3 reach -> 0.2(1/5)(VID 1L)
+      // frequencyMap = {1L: 0.6, 2L to 0.2, 3L: 0.2}
       val reachValue = vidList.toSet().size.toLong()
       val frequencyMap = mutableMapOf<Long, Double>().withDefault { 0.0 }
 
@@ -823,16 +829,17 @@ class EdpSimulator(
       return Pair(reachValue, frequencyMap)
     }
 
+    // TODO(alberthsuu): Create a class for this function when we need to add Gaussian noise
     /**
      * Add Laplace publisher noise to calculated direct reach and frequency. Noised reach needs to
-     * scale by sampling rate
-     * @param reachValue Direct reach value
-     * @param frequencyMap Direct frequency
-     * @param samplingRate Probability of sampling which is vidSamplingIntervalWidth
-     * @param reachAndFrequency ReachAndFrequency from MeasurementSpec
-     * @return Pair of noised reach value and frequency map
+     * scale by sampling rate.
+     * @param reachValue Direct reach value.
+     * @param frequencyMap Direct frequency.
+     * @param samplingRate Probability of sampling which is vidSamplingIntervalWidth.
+     * @param reachAndFrequency ReachAndFrequency from MeasurementSpec.
+     * @return Pair of noised reach value and frequency map.
      */
-    fun addPublisherNoise(
+    private fun addPublisherNoise(
       reachValue: Long,
       frequencyMap: Map<Long, Double>,
       samplingRate: Float,
