@@ -24,3 +24,6 @@ databaseChangeLog:
 - include:
     file: add-event-group-metadata-idempotency-key.sql
     relativeToChangeLogFile: true
+- include:
+    file: add-event-group-state-and-delete-time.sql
+    relativeToChangeLogFile: true
