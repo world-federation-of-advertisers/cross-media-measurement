@@ -93,6 +93,9 @@ CREATE TABLE CompositeReportingSets (
   UNIQUE (MeasurementConsumerId, ExternalReportingSetId)
 );
 
+CREATE INDEX CompositeReportingSetsByExternalReportingSetId
+  ON CompositeReportingSets(MeasurementConsumerId, ExternalReportingSetId);
+
 CREATE TABLE PrimitiveReportingSets (
   MeasurementConsumerId text NOT NULL,
   PrimitiveReportingSetId bigint NOT NULL,
@@ -106,6 +109,26 @@ CREATE TABLE PrimitiveReportingSets (
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId),
   UNIQUE (MeasurementConsumerId, ExternalReportingSetId)
+);
+
+CREATE INDEX PrimitiveReportingSetsByExternalReportingSetId
+  ON PrimitiveReportingSets(MeasurementConsumerId, ExternalReportingSetId);
+
+CREATE TABLE PrimitiveReportingSetEventGroups(
+  MeasurementConsumerId text NOT NULL,
+  DataProviderId bigint NOT NULL,
+  EventGroupId bigint NOT NULL,
+  PrimitiveReportingSetId bigint NOT NULL,
+
+  PRIMARY KEY(MeasurementConsumerId, DataProviderId, EventGroupId, PrimitiveReportingSetId)
+  FOREIGN KEY(MeasurementConsumerId)
+    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+  FOREIGN KEY(MeasurementConsumerId, DataProviderId)
+    REFERENCES DataProviders(MeasurementConsumerId, DataProviderId),
+  FOREIGN KEY(MeasurementConsumerId, DataProviderId, EventGroupId)
+    REFERENCES EventGroups(MeasurementConsumerId, DataProviderId, EventGroupId),
+  FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetId)
+    REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId),
 );
 
 CREATE TABLE ReportingSets (
@@ -198,6 +221,91 @@ CREATE TABLE Measurements (
   UNIQUE (MeasurementConsumerId, CmmsMeasurementId),
 );
 
+CREATE TABLE MetricMeasurements (
+  MeasurementConsumerId text NOT NULL,
+  MetricId bigint NOT NULL,
+  MeasurementId bigint NOT NULL,
+
+  PRIMARY KEY(MeasurementConsumerId, MetricId, MeasurementId)
+  FOREIGN KEY(MeasurementConsumerId)
+    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+  FOREIGN KEY(MeasurementConsumerId, MetricId)
+    REFERENCES Metrics(MeasurementConsumerId, MetricId),
+  FOREIGN KEY(MeasurementConsumerId, MeasurementId)
+    REFERENCES Measurements(MeasurementConsumerId, MeasurementId),
+)
+
+CREATE TABLE Models (
+  MeasurementConsumerId text NOT NULL,
+  ModelId bigint NOT NULL,
+
+  -- org.wfanet.measurement.internal.reporting.MetricModel.State
+  -- protobuf enum encoded as an integer.
+  State smallint NOT NULL,
+
+  -- Serialized org.wfanet.measurement.internal.reporting.MetricModel.Details
+  -- protobuf message.
+  ModelDetails bytea NOT NULL,
+
+  PRIMARY KEY(MeasurementConsumerId, ModelId)
+);
+
+CREATE TABLE ModelMetrics(
+  MeasurementConsumerId text NOT NULL,
+  ModelId bigint NOT NULL,
+  MetricId bigint NOT NULL,
+
+  PRIMARY KEY(MeasurementConsumerId, MetricId, MeasurementId)
+  FOREIGN KEY(MeasurementConsumerId)
+    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+  FOREIGN KEY(MeasurementConsumerId, ModelId)
+    REFERENCES Models(MeasurementConsumerId, ModelId),
+  FOREIGN KEY(MeasurementConsumerId, MetricId)
+    REFERENCES Metrics(MeasurementConsumerId, MetricId),
+);
+
+CREATE TABLE ModelMetricSpecs(
+  MeasurementConsumerId text NOT NULL,
+  ModelId bigint NOT NULL,
+  MetricSpecId bigint NOT NULL,
+
+  PRIMARY KEY(MeasurementConsumerId, MetricId, MeasurementId)
+  FOREIGN KEY(MeasurementConsumerId)
+    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+  FOREIGN KEY(MeasurementConsumerId, ModelId)
+    REFERENCES Models(MeasurementConsumerId, ModelId),
+  FOREIGN KEY(MeasurementConsumerId, MetricSpecId)
+    REFERENCES MetricSpecs(MeasurementConsumerId, MetricSpecId),
+);
+
+CREATE TABLE ModelTimeIntervals(
+  MeasurementConsumerId text NOT NULL,
+  ModelId bigint NOT NULL,
+  TimeIntervalId bigint NOT NULL,
+
+  PRIMARY KEY(MeasurementConsumerId, MetricId, MeasurementId)
+  FOREIGN KEY(MeasurementConsumerId)
+    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+  FOREIGN KEY(MeasurementConsumerId, ModelId)
+    REFERENCES Models(MeasurementConsumerId, ModelId),
+  FOREIGN KEY(MeasurementConsumerId, TimeIntervalId)
+    REFERENCES TimeIntervals(MeasurementConsumerId, TimeIntervalId),
+);
+
+CREATE TABLE ModelReportingSets(
+  MeasurementConsumerId text NOT NULL,
+  ModelId bigint NOT NULL,
+  ReportingSetId bigint NOT NULL,
+
+  PRIMARY KEY(MeasurementConsumerId, MetricId, MeasurementId)
+  FOREIGN KEY(MeasurementConsumerId)
+    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+  FOREIGN KEY(MeasurementConsumerId, ModelId)
+    REFERENCES Models(MeasurementConsumerId, ModelId),
+  FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
+    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId),
+);
+
 CREATE TABLE Reports (
   MeasurementConsumerId text NOT NULL,
   ReportId bigint NOT NULL,
@@ -246,7 +354,7 @@ CREATE TABLE MetricCalculations (
   MetricCalculationId bigint NOT NULL,
   ReportingSetId bigint NOT NULL,
 
-  -- Serialized org.wfanet.measurement.internal.reporting.Report.MetricCalculations.Details
+  -- Serialized org.wfanet.measurement.internal.reporting.Report.MetricCalculation.Details
   -- protobuf message.
   MetricCalculationDetails bytea NOT NULL,
 
@@ -263,6 +371,67 @@ CREATE TABLE MetricCalculationMetrics (
   MeasurementConsumerId text NOT NULL,
   MetricCalculationId bigint NOT NULL,
   MetricId bigint NOT NULL,
+  PRIMARY KEY(MeasurementConsumerId, MetricCalculationId, MetricId),
+  FOREIGN KEY(MeasurementConsumerId)
+    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+  FOREIGN KEY(MeasurementConsumerId, MetricCalculationId)
+    REFERENCES MetricCalculations(MeasurementConsumerId, MetricCalculationId),
+  FOREIGN KEY(MeasurementConsumerId, MetricId)
+    REFERENCES Metrics(MeasurementConsumerId, MetricId),
+);
+
+CREATE TABLE ModelInferenceCalculations (
+  MeasurementConsumerId text NOT NULL,
+  ReportId bigint NOT NULL,
+  ModelInferenceCalculationId bigint NOT NULL,
+  ReportingSetId bigint NOT NULL,
+  ModelId bigint NOT NULL,
+
+  -- Serialized org.wfanet.measurement.internal.reporting.Report.ModelInferenceCalculation.Details
+  -- protobuf message.
+  ModelInferenceCalculationDetails bytea NOT NULL,
+
+  PRIMARY KEY(MeasurementConsumerId, ReportId, ModelInferenceCalculationId),
+  FOREIGN KEY(MeasurementConsumerId)
+    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+  FOREIGN KEY(MeasurementConsumerId, ReportId)
+    REFERENCES Reports(MeasurementConsumerId, ReportId),
+  FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
+    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId),
+  FOREIGN KEY(MeasurementConsumerId, ModelId)
+    REFERENCES Models(MeasurementConsumerId, ModelId),
+);
+
+CREATE TABLE WeightedPrimitiveReportingSetBases (
+  MeasurementConsumerId text NOT NULL,
+  ModelInferenceCalculationId bigint NOT NULL,
+  WeightedPrimitiveReportingSetBasisId bigint NOT NULL,
+  PrimitiveReportingSetId bigint NOT NULL,
+
+  Filter text NOT NULL,
+  Weight bigint NOT NULL,
+
+  PRIMARY KEY(MeasurementConsumerId, ModelInferenceCalculationId, WeightedPrimitiveReportingSetBasisId),
+  FOREIGN KEY(MeasurementConsumerId)
+    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+  FOREIGN KEY(MeasurementConsumerId, ModelInferenceCalculationId)
+    REFERENCES ModelInferenceCalculations(MeasurementConsumerId, ModelInferenceCalculationId),
+  FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetId)
+    REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId),
+);
+
+CREATE TABLE ModelInferenceCalculationModelSpecs (
+  MeasurementConsumerId text NOT NULL,
+  ModelInferenceCalculationId bigint NOT NULL,
+  ModelSpecId bigint NOT NULL,
+
+  PRIMARY KEY(MeasurementConsumerId, ModelInferenceCalculationId, ModelSpecId),
+  FOREIGN KEY(MeasurementConsumerId)
+    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+  FOREIGN KEY(MeasurementConsumerId, ModelInferenceCalculationId)
+    REFERENCES ModelInferenceCalculations(MeasurementConsumerId, ModelInferenceCalculationId),
+  FOREIGN KEY(MeasurementConsumerId, ModelSpecId)
+    REFERENCES ModelSpecs(MeasurementConsumerId, ModelSpecId),
 );
 
 
@@ -336,8 +505,6 @@ CREATE TABLE ReportingSets (
 );
 
 -- changeset tristanvuong2021:create-reporting-sets-by-external-reporting-set-id-index dbms:postgresql
-CREATE INDEX ReportingSetsByExternalReportingSetId
-  ON ReportingSets(MeasurementConsumerId, ExternalReportingSetId);
 
 -- changeset tristanvuong2021:create-reporting-set-event-groups-table dbms:postgresql
 CREATE TABLE ReportingSetEventGroups (
