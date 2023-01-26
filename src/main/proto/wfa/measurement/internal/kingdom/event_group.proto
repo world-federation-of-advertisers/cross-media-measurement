@@ -57,4 +57,19 @@ message EventGroup {
   }
 
   Details details = 8;
+
+  // Time the Event Group was deleted.
+  google.protobuf.Timestamp delete_time = 9;
+
+  // Possible states of Event Group.
+  enum State {
+    // The default value if state is omitted. Should not be used.
+    STATE_UNSPECIFIED = 0;
+    // The Event Group has been created.
+    ACTIVE = 1;
+    // The Event Group has been deleted.
+    DELETED = 2;
+  }
+  // Event Group state. Output-only.
+  State state = 10;
 }
