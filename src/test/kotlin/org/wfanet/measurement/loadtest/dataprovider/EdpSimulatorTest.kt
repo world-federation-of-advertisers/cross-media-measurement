@@ -88,16 +88,11 @@ import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.elGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplate
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplate.Gender
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplateKt.gender
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.PersonKt
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate.AgeRange as PrivacyAgeRange
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplateKt as TestPrivacyBudgetTemplates
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testBannerTemplate
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testPrivacyBudgetTemplate
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.liquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
@@ -109,6 +104,7 @@ import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.common.HexString
+import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.hashSha256
@@ -209,18 +205,21 @@ private val CONSENT_SIGNALING_ELGAMAL_PUBLIC_KEY = elGamalPublicKey {
   element = HexString("0277BF406C5AA4376413E480E0AB8B0EFCA999D362204E6D1686E0BE567811604D").bytes
 }
 
+private val LAST_EVENT_DATE = LocalDate.now()
+private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
+private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
+
 private val REQUISITION_ONE_SPEC = requisitionSpec {
   eventGroups += eventGroupEntry {
     key = "eventGroup/name"
     value =
       RequisitionSpecKt.EventGroupEntryKt.value {
         collectionInterval = timeInterval {
-          startTime =
-            LocalDate.now().minusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
-          endTime = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+          startTime = TIME_RANGE.start.toProtoTime()
+          endTime = TIME_RANGE.endExclusive.toProtoTime()
         }
         filter = eventFilter {
-          expression = "privacy_budget.age.value == 1 || banner_ad.gender.value == 2"
+          expression = "person.age_group.value == 1 && person.gender.value == 2"
         }
       }
   }
@@ -308,7 +307,7 @@ class EdpSimulatorTest {
     PrivacyBudgetManager(PrivacyBucketFilter(TestPrivacyBucketMapper()), backingStore, 10.0f, 0.02f)
 
   private fun getExpectedResult(
-    matchingVids: List<Int>,
+    matchingVids: Iterable<Long>,
     vidSamplingIntervalStart: Float,
     vidSamplingIntervalWidth: Float
   ): AnySketch {
@@ -317,28 +316,29 @@ class EdpSimulatorTest {
 
     matchingVids.forEach {
       if (
-        vidSampler.vidIsInSamplingBucket(
-          it.toLong(),
-          vidSamplingIntervalStart,
-          vidSamplingIntervalWidth
-        )
+        vidSampler.vidIsInSamplingBucket(it, vidSamplingIntervalStart, vidSamplingIntervalWidth)
       ) {
-        expectedResult.insert(it.toLong(), mapOf("frequency" to 1L))
+        expectedResult.insert(it, mapOf("frequency" to 1L))
       }
     }
     return expectedResult
   }
 
-  private fun getEvents(
-    bannerAd: TestBannerTemplate,
-    privacyBudget: TestPrivacyBudgetTemplate,
-    vidRange: IntRange,
-  ): Map<Int, List<TestEvent>> {
-    return vidRange.associateWith {
+  private fun generateEvents(
+    vidRange: LongRange,
+    date: LocalDate,
+    ageGroup: Person.AgeGroup,
+    gender: Person.Gender
+  ): Map<Long, List<TestEvent>> {
+    return vidRange.associateWith { vid ->
       listOf(
         testEvent {
-          this.bannerAd = bannerAd
-          this.privacyBudget = privacyBudget
+          time = date.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+          person = person {
+            this.vid = vid
+            this.ageGroup = PersonKt.ageGroupField { value = ageGroup }
+            this.gender = PersonKt.genderField { value = gender }
+          }
         }
       )
     }
@@ -347,43 +347,39 @@ class EdpSimulatorTest {
   @Test
   fun `filters events, charges privacy budget and generates sketch successfully`() {
     runBlocking {
-      val videoTemplateMatchingVids = (1..10)
-      val bannerTemplateMatchingVids = (11..20)
-      val nonMatchingVids = (21..40)
-      val matchingVids = videoTemplateMatchingVids + bannerTemplateMatchingVids
-
-      val matchingTestPrivacyTemplate = testPrivacyBudgetTemplate {
-        age = TestPrivacyBudgetTemplates.ageRange { value = PrivacyAgeRange.Value.AGE_35_TO_54 }
-      }
-      val matchingTestBannerTemplate = testBannerTemplate {
-        gender = gender { value = Gender.Value.GENDER_FEMALE }
-      }
-
-      val nonMatchingTestPrivacyTemplate = testPrivacyBudgetTemplate {
-        age = TestPrivacyBudgetTemplates.ageRange { value = PrivacyAgeRange.Value.AGE_18_TO_34 }
-      }
-      val nonMatchingTestBannerTemplate = testBannerTemplate {
-        gender = gender { value = Gender.Value.GENDER_MALE }
-      }
-
-      val privacyTemplateMatchingEvents =
-        getEvents(
-          nonMatchingTestBannerTemplate,
-          matchingTestPrivacyTemplate,
-          videoTemplateMatchingVids
+      val matchingEvents =
+        generateEvents(
+          1L..10L,
+          FIRST_EVENT_DATE,
+          Person.AgeGroup.YEARS_18_TO_34,
+          Person.Gender.FEMALE
         )
-
-      val bannerTemplateMatchingEvents =
-        getEvents(
-          matchingTestBannerTemplate,
-          nonMatchingTestPrivacyTemplate,
-          bannerTemplateMatchingVids
-        )
-
       val nonMatchingEvents =
-        getEvents(nonMatchingTestBannerTemplate, nonMatchingTestPrivacyTemplate, nonMatchingVids)
+        generateEvents(
+          11L..15L,
+          FIRST_EVENT_DATE,
+          Person.AgeGroup.YEARS_35_TO_54,
+          Person.Gender.FEMALE
+        ) +
+          generateEvents(
+            16L..20L,
+            FIRST_EVENT_DATE,
+            Person.AgeGroup.YEARS_55_PLUS,
+            Person.Gender.FEMALE
+          ) +
+          generateEvents(
+            21L..25L,
+            FIRST_EVENT_DATE,
+            Person.AgeGroup.YEARS_18_TO_34,
+            Person.Gender.MALE
+          ) +
+          generateEvents(
+            26L..30L,
+            FIRST_EVENT_DATE,
+            Person.AgeGroup.YEARS_35_TO_54,
+            Person.Gender.MALE
+          )
 
-      val matchingEvents = privacyTemplateMatchingEvents + bannerTemplateMatchingEvents
       val allEvents = matchingEvents + nonMatchingEvents
 
       val edpSimulator =
@@ -397,7 +393,7 @@ class EdpSimulatorTest {
           requisitionsStub,
           requisitionFulfillmentStub,
           sketchStore,
-          FilterEventQuery(allEvents),
+          InMemoryEventQuery(allEvents),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           EVENT_TEMPLATES,
           privacyBudgetManager,
@@ -415,33 +411,27 @@ class EdpSimulatorTest {
 
       assertAnySketchEquals(
         anySketchResult,
-        getExpectedResult(matchingVids, vidSamplingIntervalStart, vidSamplingIntervalWidth)
+        getExpectedResult((1L..10L), vidSamplingIntervalStart, vidSamplingIntervalWidth)
       )
 
       val balanceLedger: Map<PrivacyBucketGroup, MutableMap<Charge, PrivacyBudgetBalanceEntry>> =
         backingStore.getBalancesMap()
 
-      // All the Buckets are only charged once, so all entries should have a repetition count of 1.
-      balanceLedger.values
-        .flatMap { it.values }
-        .forEach { assertThat(it.repetitionCount).isEqualTo(1) }
+      // Verify that each bucket is only charged once.
+      for (bucketBalances in balanceLedger.values) {
+        assertThat(bucketBalances).hasSize(1)
+        for (balanceEntry in bucketBalances.values) {
+          assertThat(balanceEntry.repetitionCount).isEqualTo(1)
+        }
+      }
 
       // The list of all the charged privacy bucket groups should be correct based on the filter.
       assertThat(balanceLedger.keys)
         .containsExactly(
           PrivacyBucketGroup(
             MC_NAME,
-            LocalDate.now(),
-            LocalDate.now(),
-            PrivacyLandscapeAge.RANGE_18_34,
-            PrivacyLandscapeGender.MALE,
-            0.0f,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now(),
-            LocalDate.now(),
+            FIRST_EVENT_DATE,
+            FIRST_EVENT_DATE,
             PrivacyLandscapeAge.RANGE_18_34,
             PrivacyLandscapeGender.FEMALE,
             0.0f,
@@ -449,53 +439,8 @@ class EdpSimulatorTest {
           ),
           PrivacyBucketGroup(
             MC_NAME,
-            LocalDate.now(),
-            LocalDate.now(),
-            PrivacyLandscapeAge.RANGE_35_54,
-            PrivacyLandscapeGender.MALE,
-            0.0f,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now(),
-            LocalDate.now(),
-            PrivacyLandscapeAge.RANGE_35_54,
-            PrivacyLandscapeGender.FEMALE,
-            0.0f,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now(),
-            LocalDate.now(),
-            PrivacyLandscapeAge.ABOVE_54,
-            PrivacyLandscapeGender.MALE,
-            0.0f,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now(),
-            LocalDate.now(),
-            PrivacyLandscapeAge.ABOVE_54,
-            PrivacyLandscapeGender.FEMALE,
-            0.0f,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now().minusDays(1),
-            LocalDate.now().minusDays(1),
-            PrivacyLandscapeAge.RANGE_18_34,
-            PrivacyLandscapeGender.MALE,
-            0.0f,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now().minusDays(1),
-            LocalDate.now().minusDays(1),
+            LAST_EVENT_DATE,
+            LAST_EVENT_DATE,
             PrivacyLandscapeAge.RANGE_18_34,
             PrivacyLandscapeGender.FEMALE,
             0.0f,
@@ -503,53 +448,8 @@ class EdpSimulatorTest {
           ),
           PrivacyBucketGroup(
             MC_NAME,
-            LocalDate.now().minusDays(1),
-            LocalDate.now().minusDays(1),
-            PrivacyLandscapeAge.RANGE_35_54,
-            PrivacyLandscapeGender.MALE,
-            0.0f,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now().minusDays(1),
-            LocalDate.now().minusDays(1),
-            PrivacyLandscapeAge.RANGE_35_54,
-            PrivacyLandscapeGender.FEMALE,
-            0.0f,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now().minusDays(1),
-            LocalDate.now().minusDays(1),
-            PrivacyLandscapeAge.ABOVE_54,
-            PrivacyLandscapeGender.MALE,
-            0.0f,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now().minusDays(1),
-            LocalDate.now().minusDays(1),
-            PrivacyLandscapeAge.ABOVE_54,
-            PrivacyLandscapeGender.FEMALE,
-            0.0f,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now(),
-            LocalDate.now(),
-            PrivacyLandscapeAge.RANGE_18_34,
-            PrivacyLandscapeGender.MALE,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now(),
-            LocalDate.now(),
+            FIRST_EVENT_DATE,
+            FIRST_EVENT_DATE,
             PrivacyLandscapeAge.RANGE_18_34,
             PrivacyLandscapeGender.FEMALE,
             PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
@@ -557,94 +457,13 @@ class EdpSimulatorTest {
           ),
           PrivacyBucketGroup(
             MC_NAME,
-            LocalDate.now(),
-            LocalDate.now(),
-            PrivacyLandscapeAge.RANGE_35_54,
-            PrivacyLandscapeGender.MALE,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now(),
-            LocalDate.now(),
-            PrivacyLandscapeAge.RANGE_35_54,
-            PrivacyLandscapeGender.FEMALE,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now(),
-            LocalDate.now(),
-            PrivacyLandscapeAge.ABOVE_54,
-            PrivacyLandscapeGender.MALE,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now(),
-            LocalDate.now(),
-            PrivacyLandscapeAge.ABOVE_54,
-            PrivacyLandscapeGender.FEMALE,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now().minusDays(1),
-            LocalDate.now().minusDays(1),
-            PrivacyLandscapeAge.RANGE_18_34,
-            PrivacyLandscapeGender.MALE,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now().minusDays(1),
-            LocalDate.now().minusDays(1),
+            LAST_EVENT_DATE,
+            LAST_EVENT_DATE,
             PrivacyLandscapeAge.RANGE_18_34,
             PrivacyLandscapeGender.FEMALE,
             PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
             PRIVACY_BUCKET_VID_SAMPLE_WIDTH
           ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now().minusDays(1),
-            LocalDate.now().minusDays(1),
-            PrivacyLandscapeAge.RANGE_35_54,
-            PrivacyLandscapeGender.MALE,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now().minusDays(1),
-            LocalDate.now().minusDays(1),
-            PrivacyLandscapeAge.RANGE_35_54,
-            PrivacyLandscapeGender.FEMALE,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now().minusDays(1),
-            LocalDate.now().minusDays(1),
-            PrivacyLandscapeAge.ABOVE_54,
-            PrivacyLandscapeGender.MALE,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now().minusDays(1),
-            LocalDate.now().minusDays(1),
-            PrivacyLandscapeAge.ABOVE_54,
-            PrivacyLandscapeGender.FEMALE,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          )
         )
     }
   }

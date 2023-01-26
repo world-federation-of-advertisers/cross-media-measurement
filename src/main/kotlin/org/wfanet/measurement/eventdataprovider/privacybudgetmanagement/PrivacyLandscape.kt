@@ -13,12 +13,13 @@
  */
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
-import java.time.LocalDate
+import java.time.Period
+import java.time.chrono.ChronoPeriod
 
 object PrivacyLandscape {
   const val PRIVACY_BUCKET_VID_SAMPLE_WIDTH = 1f / 300f
 
-  val dates: List<LocalDate> = (0..400).map { LocalDate.now().minusDays(it.toLong()) }
+  val datePeriod: ChronoPeriod = Period.ofYears(1)
   val ageGroups: Set<AgeGroup> = AgeGroup.values().toSet()
   val genders = Gender.values().toSet()
 

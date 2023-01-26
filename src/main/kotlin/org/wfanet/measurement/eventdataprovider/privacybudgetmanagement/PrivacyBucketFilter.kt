@@ -14,6 +14,9 @@
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
 import java.time.LocalDate
+import java.time.ZoneOffset
+import org.wfanet.measurement.common.OpenEndTimeRange
+import org.wfanet.measurement.common.rangeTo
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
@@ -37,9 +40,7 @@ class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
       .flatMap {
         getPrivacyBucketGroups(
           measurementConsumerId,
-          it.eventFilter,
-          it.startDate,
-          it.endDate,
+          it,
           privacyLandscapeMask.vidSampleStart,
           privacyLandscapeMask.vidSampleStart + privacyLandscapeMask.vidSampleWidth
         )
@@ -49,23 +50,22 @@ class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
 
   private fun getPrivacyBucketGroups(
     measurementConsumerId: String,
-    eventFilter: String,
-    startDate: LocalDate,
-    endDate: LocalDate,
+    eventSpec: EventGroupSpec,
     vidSamplingIntervalStart: Float,
     vidSamplingIntervalEnd: Float
   ): Sequence<PrivacyBucketGroup> {
-
-    val program = privacyBucketMapper.toPrivacyFilterProgram(eventFilter)
+    val program = privacyBucketMapper.toPrivacyFilterProgram(eventSpec.eventFilter)
 
     val vidsIntervalStartPoints =
       PrivacyLandscape.vidsIntervalStartPoints.filter {
-        it >= vidSamplingIntervalStart && it <= vidSamplingIntervalEnd
+        it in vidSamplingIntervalStart..vidSamplingIntervalEnd
       }
+    val today = LocalDate.now(ZoneOffset.UTC)
     val dates =
-      PrivacyLandscape.dates.filter {
-        (it.isAfter(startDate) || it.isEqual(startDate)) &&
-          (it.isBefore(endDate) || it.isEqual(endDate))
+      (today.minus(PrivacyLandscape.datePeriod)..today).filter {
+        val startOfDay = it.atStartOfDay().toInstant(ZoneOffset.UTC)
+        val endOfDayExclusive = it.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)
+        OpenEndTimeRange(startOfDay, endOfDayExclusive).overlaps(eventSpec.timeRange)
       }
 
     return sequence {

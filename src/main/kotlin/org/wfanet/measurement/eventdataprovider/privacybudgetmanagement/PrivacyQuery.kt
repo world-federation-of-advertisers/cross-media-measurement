@@ -13,7 +13,7 @@
  */
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
-import java.time.LocalDate
+import org.wfanet.measurement.common.OpenEndTimeRange
 
 /** Represents a charge that will be made to a privacy budget */
 data class Charge(val epsilon: Float, val delta: Float)
@@ -30,11 +30,7 @@ data class Reference(
 )
 
 /** Represents a privacy filter for one event group. */
-data class EventGroupSpec(
-  val eventFilter: String,
-  val startDate: LocalDate,
-  val endDate: LocalDate
-)
+data class EventGroupSpec(val eventFilter: String, val timeRange: OpenEndTimeRange)
 
 /** Represents a mask to the PrivacyLandscape. */
 data class LandscapeMask(
