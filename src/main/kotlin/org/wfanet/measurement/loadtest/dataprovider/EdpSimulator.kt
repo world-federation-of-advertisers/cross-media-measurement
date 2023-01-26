@@ -680,8 +680,21 @@ class EdpSimulator(
   ) {
     logger.info("Calculating direct reach and frequency...")
     val vidSampler = VidSampler(VID_SAMPLER_HASH_FUNCTION)
-    val vidSamplingIntervalStart = measurementSpec.vidSamplingInterval.start
-    val vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width
+    val vidSamplingInterval = measurementSpec.vidSamplingInterval
+    val vidSamplingIntervalStart = vidSamplingInterval.start
+    val vidSamplingIntervalWidth = vidSamplingInterval.width
+
+    require(vidSamplingIntervalWidth > 0 && vidSamplingIntervalWidth <= 1.0) {
+      "Invalid vidSamplingIntervalWidth $vidSamplingIntervalWidth"
+    }
+    require(
+      vidSamplingIntervalStart < 1 &&
+        vidSamplingIntervalStart >= 0 &&
+        vidSamplingIntervalWidth > 0 &&
+        vidSamplingIntervalStart + vidSamplingIntervalWidth <= 1
+    ) {
+      "Invalid vidSamplingInterval: $vidSamplingInterval"
+    }
 
     val vidList: List<Long> =
       requisitionSpec.eventGroupsList
@@ -690,15 +703,15 @@ class EdpSimulator(
         .filter { vid ->
           vidSampler.vidIsInSamplingBucket(vid, vidSamplingIntervalStart, vidSamplingIntervalWidth)
         }
-    val (reachValue, frequencyMap) = calculateDirectReachAndFrequency(vidList)
+    val (sampledReachValue, frequencyMap) = calculateDirectReachAndFrequency(vidList)
 
     logger.info("Adding publisher noise to direct reach and frequency...")
-    val (noisedReachValue, noisedFrequencyMap) =
-      addPublisherNoise(reachValue, frequencyMap, measurementSpec.reachAndFrequency)
+    val (sampledNoisedReachValue, noisedFrequencyMap) =
+      addPublisherNoise(sampledReachValue, frequencyMap, measurementSpec.reachAndFrequency)
 
     // Differentially private reach value is calculated by reach_dp = (reach + noise) /
     // sampling_rate.
-    val scaledNoisedReachValue = (noisedReachValue / vidSamplingIntervalWidth).toLong()
+    val scaledNoisedReachValue = (sampledNoisedReachValue / vidSamplingIntervalWidth).toLong()
     val requisitionData =
       MeasurementKt.result {
         reach = reach { value = scaledNoisedReachValue }
@@ -827,9 +840,10 @@ class EdpSimulator(
       return Pair(reachValue, frequencyMap)
     }
 
-    // TODO(alberthsuu): Create a class for this function when we need to add Gaussian noise
+    //
     /**
-     * Add Laplace publisher noise to calculated direct reach and frequency.
+     * Add Laplace publisher noise to calculated direct reach and frequency. TODO(@iverson52000):
+     * Create a noiser class for this function when we need to add Gaussian noise.
      * @param reachValue Direct reach value.
      * @param frequencyMap Direct frequency.
      * @param reachAndFrequency ReachAndFrequency from MeasurementSpec.
@@ -842,6 +856,8 @@ class EdpSimulator(
     ): Pair<Long, Map<Long, Double>> {
       val laplaceForReach =
         LaplaceDistribution(0.0, 1 / reachAndFrequency.reachPrivacyParams.epsilon)
+      // Reseed random number generator so the results can be verified in tests.
+      // TODO(@iverson52000): make randomSeed an input once create noiser class.
       laplaceForReach.reseedRandomGenerator(1)
 
       val noisedReachValue = (reachValue + laplaceForReach.sample().toInt())
