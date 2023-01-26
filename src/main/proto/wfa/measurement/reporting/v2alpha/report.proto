@@ -141,8 +141,14 @@ message Report {
   message MetricCalculationSpecResult {
     // The name of the `MetricCalculationSpecResult`.
     string display_name = 1;
+
     // The reporting set associated with this `MetricCalculationSpec`.
     ReportingSet reporting_set = 2;
+
+    // Whether the results for a given time interval is cumulative with those of
+    // previous time intervals.
+    // Only supported when using `PeriodicTimeInterval`.
+    bool cumulative = 3;
 
     // Contains the attributes of the result, including the group of predicates,
     // time interval, and metric result.
@@ -151,7 +157,11 @@ message Report {
       // of groupings.
       repeated string grouping_predicates = 1;
 
-      // The time over which to calculate the metric cumulatively.
+      // The time interval associated with the metric calculation. If
+      // `cumulative` in `MetricCalculationSpec` is true, the metric result is
+      // calculated cumulatively from the first start time to the end of this
+      // time interval. Otherwise, the result is calculated cumulatively over
+      // this time interval.
       TimeInterval time_interval = 2;
 
       // Histogram result format.
@@ -181,7 +191,7 @@ message Report {
     }
     // The number of results is equal to the size of the Cartesian product of
     // groupings, time intervals, and metric types.
-    repeated ResultAttribute result_attributes = 3;
+    repeated ResultAttribute result_attributes = 4;
   }
 
   // Set only when `state` is `SUCCEEDED`.
