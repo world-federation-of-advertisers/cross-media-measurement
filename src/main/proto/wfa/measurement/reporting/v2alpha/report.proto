@@ -61,24 +61,28 @@ message Report {
   }
   // The specification of metric calculations.
   message MetricCalculationSpec {
+    // The display name will be used as the display name in
+    // `MetricCalculationSpecResult`.
+    string display_name = 1 [(google.api.field_behavior) = REQUIRED];
+
     // A collection of metrics.
-    repeated MetricSpec metric_specs = 1
+    repeated MetricSpec metric_specs = 2
         [(google.api.field_behavior) = REQUIRED];
-    // The final set of groups is the Cartesian product of groupings. The final
-    // set of groups will fan out multiple metrics, each for one group in the
-    // final set.
-    repeated Grouping groupings = 2;
+    // The final set of groups is the Cartesian product of `groupings`. The
+    // final set of groups will fan out multiple metrics per metric spec, i.e.
+    // one metric for one group in the set.
+    repeated Grouping groupings = 3;
     // Whether the results for a given time interval is cumulative with those of
     // previous time intervals.
     // Only supported when using `PeriodicTimeInterval`.
-    bool cumulative = 3;
+    bool cumulative = 4;
     // The resource name of what model to use.
     // If model is empty, compute the metrics using kingdom measurements;
     // otherwise, use the model inferences.
     // The user needs to provide a model that can cover all time intervals and
     // all primitive reporting set bases of the reporting set used for the
     // metric calculations.
-    string model = 4;
+    string model = 5;
   }
   // The specification of metric calculation for a reporting set.
   message ReportingMetricSpec {
@@ -131,44 +135,56 @@ message Report {
   // Report state.
   State state = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
 
-  // The result of all calculations in this report.
-  message Result {
-    // A column with a header and values.
-    message Column {
-      // The header of the column.
-      string column_header = 1;
-      // Must be in the same order as `row_headers`.
-      repeated double values = 2;
-    }
-    // The table that contains the calculation results of a scalar metric
-    message ScalarTable {
-      // Must be in the same order as `column`'s `values`.
-      repeated string row_headers = 1;
-      // Must be in the same order as `row_headers`.
-      repeated Column columns = 2;
-    }
-    // A collection of tables for metrics in scalar type.
-    repeated ScalarTable scalar_tables = 1;
+  // The result of `MetricCalculationSpec` contains multiple results at the
+  // level of granularity of single time interval and single group of the
+  // Cartesian product of groupings.
+  message MetricCalculationSpecResult {
+    // The name of the `MetricCalculationSpecResult`.
+    string display_name = 1;
+    // The reporting set associated with this `MetricCalculationSpec`.
+    ReportingSet reporting_set = 2;
 
-    // `HistogramTable` has an additional field for each row and thus different
-    // from `ScalarTable`.
-    message HistogramTable {
-      // Combine header and bin label as Row.
-      message Row {
-        // Must be in the same order as `column`'s `values`.
-        string row_header = 1;
-        // Bin label of the row
-        string bin_label = 2;
+    // Contains the attributes of the result, including the group of predicates,
+    // time interval, and metric result.
+    message ResultAttribute {
+      // Lists the predicates in the group which is from the Cartesian product
+      // of groupings.
+      repeated string grouping_predicates = 1;
+
+      // The time over which to calculate the metric cumulatively.
+      TimeInterval time_interval = 2;
+
+      // Histogram result format.
+      message Histogram {
+        // The bin in a histogram
+        message Bin {
+          // The label of the bin.
+          string bin_label = 1;
+          // The value of the bin.
+          double value = 2;
+        }
+        // The bins that form a histogram. Ordering is not guaranteed.
+        repeated Bin bins = 1;
       }
-      // Must be in the same order as `column`'s `values`.
-      repeated Row rows = 1;
-      // Must be in the same order as row's `row_headers`.
-      repeated Column columns = 2;
+
+      // The metric result
+      oneof metric_result {
+        // Reach value
+        int64 reach = 3;
+        // Histogram result
+        Histogram frequency_histogram = 4;
+        // Impression counts
+        int64 impression_count = 5;
+        // Watch duration in second
+        double watch_duration = 6;
+      }
     }
-    // Each HistogramTable contains the results of one metric of histogram type.
-    repeated HistogramTable histogram_tables = 2;
+    // The number of results is equal to the size of the Cartesian product of
+    // groupings, time intervals, and metric types.
+    repeated ResultAttribute result_attributes = 3;
   }
 
   // Set only when `state` is `SUCCEEDED`.
-  Result result = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
+  repeated MetricCalculationSpecResult metric_calculation_spec_results = 9
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 }
