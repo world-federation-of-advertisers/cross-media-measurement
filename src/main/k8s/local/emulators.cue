@@ -14,7 +14,8 @@
 
 package k8s
 
-_secret_name: string @tag("secret_name")
+_secret_name:            string @tag("secret_name")
+_spannerEmulatorVersion: string @tag("spanner_emulator_version")
 
 #ComponentName: "testing"
 
@@ -58,7 +59,7 @@ pods: [Name=string]: #Pod & {
 pods: {
 	"spanner-emulator": Pod={
 		spec: _containers: "\(Pod.metadata.name)": {
-			image: "gcr.io/cloud-spanner-emulator/emulator"
+			image: "gcr.io/cloud-spanner-emulator/emulator:\(_spannerEmulatorVersion)"
 		}
 	}
 }
