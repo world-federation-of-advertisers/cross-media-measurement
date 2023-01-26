@@ -37,7 +37,7 @@ message MetricModel {
 
   // The specification of the model.
   message ModelSpec {
-    // The metrics that this model will be estimating. Currently only support
+    // The metrics that this model will be estimating. Currently only supports
     // reach.
     repeated MetricSpec metric_specs = 1
         [(google.api.field_behavior) = REQUIRED];
@@ -74,7 +74,7 @@ message MetricModel {
     // The model is trained and ready to be used. Terminal state.
     ACTIVE = 2;
     // The model training failed. Terminal state.
-    TRAINING_FAILED = 3;
+    FAILED = 3;
   }
 
   // Model state
