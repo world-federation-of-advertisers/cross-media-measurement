@@ -38,6 +38,8 @@ import org.mockito.kotlin.KArgumentCaptor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.atLeastOnce
+import org.mockito.kotlin.eq
+import org.mockito.kotlin.never
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
@@ -70,7 +72,6 @@ import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.Continuati
 import org.wfanet.measurement.internal.duchy.DeleteComputationRequest
 import org.wfanet.measurement.internal.duchy.FinishComputationResponse
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
-import org.wfanet.measurement.internal.duchy.SetContinuationTokenRequest
 import org.wfanet.measurement.internal.duchy.computationToken
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
@@ -321,7 +322,7 @@ class HeraldTest {
 
     nonAggregatorHerald.syncStatuses()
 
-    verifyLastContinuationToken("")
+    verifyBlocking(continuationTokensService, never()) { setContinuationToken(any()) }
   }
 
   @Test
@@ -350,7 +351,9 @@ class HeraldTest {
 
     aggregatorHerald.syncStatuses()
 
-    verifyLastContinuationToken("2")
+    verifyBlocking(continuationTokensService, atLeastOnce()) {
+      setContinuationToken(eq(setContinuationTokenRequest { this.token = "2" }))
+    }
     assertThat(
         fakeComputationDatabase.mapValues { (_, fakeComputation) ->
           fakeComputation.computationStage
@@ -515,7 +518,15 @@ class HeraldTest {
 
     aggregatorHerald.syncStatuses()
 
-    verifyLastContinuationToken(waitingRequisitionsAndKeySet.continuationToken())
+    verifyBlocking(continuationTokensService, atLeastOnce()) {
+      setContinuationToken(
+        eq(
+          setContinuationTokenRequest {
+            this.token = waitingRequisitionsAndKeySet.continuationToken()
+          }
+        )
+      )
+    }
 
     val duchyComputationToken = fakeComputationDatabase.readComputationToken(globalId)!!
     assertThat(duchyComputationToken.computationStage)
@@ -592,7 +603,9 @@ class HeraldTest {
 
     aggregatorHerald.syncStatuses()
 
-    verifyLastContinuationToken("231313")
+    verifyBlocking(continuationTokensService, atLeastOnce()) {
+      setContinuationToken(eq(setContinuationTokenRequest { this.token = "231313" }))
+    }
     assertThat(
         fakeComputationDatabase.mapValues { (_, fakeComputation) ->
           fakeComputation.computationStage
@@ -690,7 +703,9 @@ class HeraldTest {
 
     heraldWithOneRetry.syncStatuses()
 
-    verifyLastContinuationToken(COMPUTATION_GLOBAL_ID)
+    verifyBlocking(continuationTokensService, atLeastOnce()) {
+      setContinuationToken(eq(setContinuationTokenRequest { this.token = COMPUTATION_GLOBAL_ID }))
+    }
     verifyProtoArgument(
         systemComputationParticipants,
         SystemComputationParticipantsCoroutineImplBase::failComputationParticipant
@@ -780,7 +795,9 @@ class HeraldTest {
 
     aggregatorHerald.syncStatuses()
 
-    verifyLastContinuationToken("10")
+    verifyBlocking(continuationTokensService, atLeastOnce()) {
+      setContinuationToken(eq(setContinuationTokenRequest { this.token = "10" }))
+    }
   }
 
   @Test
@@ -822,7 +839,9 @@ class HeraldTest {
 
     herald.syncStatuses()
 
-    verifyLastContinuationToken("3")
+    verifyBlocking(continuationTokensService, atLeastOnce()) {
+      setContinuationToken(eq(setContinuationTokenRequest { this.token = "3" }))
+    }
 
     // Verify that internalComputationService receives delete requests for SUCCEEDED and FAILED
     // Computations
@@ -856,24 +875,6 @@ class HeraldTest {
             .asFlow()
         )
     }
-
-  /** Verify that SetContinuationToken requests contains the expected last token */
-  private fun verifyLastContinuationToken(lastToken: String) {
-    val setContinuationTokenCaptor: KArgumentCaptor<SetContinuationTokenRequest> = argumentCaptor()
-
-    if (lastToken.isEmpty()) {
-      verifyBlocking(continuationTokensService, times(0)) {
-        setContinuationToken(setContinuationTokenCaptor.capture())
-      }
-      return
-    }
-
-    verifyBlocking(continuationTokensService, atLeastOnce()) {
-      setContinuationToken(setContinuationTokenCaptor.capture())
-    }
-    val requests = setContinuationTokenCaptor.allValues
-    assertThat(requests).contains(setContinuationTokenRequest { token = lastToken })
-  }
 
   /**
    * Builds a kingdom system Api Computation using default values for fields not included in the

@@ -107,7 +107,7 @@ class ContinuationTokenManager(
       if (e.status.code == Status.FAILED_PRECONDITION.code) {
         logger.log(Level.WARNING, e) { "Failure happened during setContinuationToken" }
       } else {
-        throw e
+        throw SetContinuationTokenException(e.message ?: "Exception during setContinuationToken")
       }
     }
   }
@@ -116,3 +116,5 @@ class ContinuationTokenManager(
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
+
+class SetContinuationTokenException(message: String) : Exception(message)

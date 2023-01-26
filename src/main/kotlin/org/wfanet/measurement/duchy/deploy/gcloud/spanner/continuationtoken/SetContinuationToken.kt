@@ -26,18 +26,18 @@ class SetContinuationToken(val continuationToken: String) {
   suspend fun execute(databaseClient: AsyncDatabaseClient) {
     databaseClient.readWriteTransaction().execute { ctx ->
       val newContinuationToken = decodeContinuationToken(continuationToken)
-      val oldContinuationTokenString =
+      val oldContinuationToken =
         ctx
           .readRow("HeraldContinuationTokens", Key.of(true), listOf("ContinuationToken"))
           ?.getString("ContinuationToken")
-          ?: ""
-      val oldContinuationToken = decodeContinuationToken(oldContinuationTokenString)
+          ?.let { decodeContinuationToken(it) }
 
       if (
-        Timestamps.compare(
-          newContinuationToken.updateTimeSince,
-          oldContinuationToken.updateTimeSince
-        ) < 0
+        oldContinuationToken != null &&
+          Timestamps.compare(
+            newContinuationToken.updateTimeSince,
+            oldContinuationToken.updateTimeSince
+          ) < 0
       ) {
         throw InvalidContinuationTokenException(
           "ContinuationToken to set cannot have older timestamp."
