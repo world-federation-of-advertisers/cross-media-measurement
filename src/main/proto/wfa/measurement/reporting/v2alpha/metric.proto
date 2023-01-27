@@ -85,32 +85,29 @@ message MetricSpec {
 
 // The calculation result of a metric
 message MetricResult {
-  // Scalar metric result. Ex: reach, impression count.
-  message ScalarResult {
-    // The value of the scalar result
-    double value = 1;
-  }
-  // Histogram metric result. Ex: frequency histogram.
-  message HistogramResult {
-    // The histogram bin with a label and a value.
-    message HistogramBin {
+  // Histogram result format.
+  message Histogram {
+    // The bin in a histogram
+    message Bin {
       // The label of the bin.
-      string label = 1;
+      string bin_label = 1;
       // The value of the bin.
       double value = 2;
     }
-    // The histogram bins that form a histogram.
-    repeated HistogramBin bins = 1;
+    // The bins that form a histogram. Ordering is not guaranteed.
+    repeated Bin bins = 1;
   }
+
+  // The metric result
   oneof result {
-    // Reach result
-    ScalarResult reach = 1;
-    // Frequency histogram result
-    HistogramResult frequency_histogram = 2;
-    // Impression count result
-    ScalarResult impression_count = 3;
-    // Watch duration result in seconds.
-    ScalarResult watch_duration = 4;
+    // Reach value.
+    int64 reach = 3;
+    // Histogram result.
+    Histogram frequency_histogram = 4;
+    // Impression counts.
+    int64 impression_count = 5;
+    // Watch duration in second.
+    double watch_duration = 6;
   }
 }
 
