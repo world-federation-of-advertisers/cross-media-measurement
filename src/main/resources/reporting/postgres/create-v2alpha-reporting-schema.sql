@@ -18,18 +18,31 @@
 --
 -- Table hierarchy:
 --   Root
---   ├── Reports
---   │   ├── TimeIntervals
---   │   ├── PeriodicTimeIntervals
---   │   ├── Metrics
---   │       └── NamedSetOperations
---   │           ├── SetOperations
---   │           └── MeasurementCalculations
---   │               └── WeightedMeasurements
---   │   └── ReportMeasurements
---   ├── Measurements
---   └── ReportingSets
---       └── ReportingSetEventGroups
+--   └── MeasurementConsumers
+--       ├── DataProviders
+--       │   └── EventGroups
+--       ├── TimeIntervals
+--       ├── ReportingSets
+--       │   ├── PrimitiveReportingSets
+--       │   │   └── PrimitiveReportingSetEventGroups
+--       │   └── CompositeReportingSets
+--       │       └── SetExpressions
+--       ├── Metrics
+--       │   └── MetricMeasurements
+--       ├── MetricSpecs
+--       ├── Measurements
+--       ├── Models
+--       │   ├── ModelMetrics
+--       │   ├── ModelMetricSpecs
+--       │   ├── ModelTimeIntervals
+--       │   └── ModelReportingSets
+--       └── Reports
+--           ├── ReportTimeIntervals
+--           ├── MetricCalculations
+--           │   └── MetricCalculationMetrics
+--           └── ModelInferenceCalculations
+--               ├── WeightedPrimitiveReportingSetBases
+--               └── ModelInferenceCalculationModelSpecs
 
 -- changeset riemanli:create-v2alpha-reports-table dbms:postgresql
 CREATE TABLE MeasurementConsumers (
@@ -84,6 +97,7 @@ CREATE INDEX TimeIntervalsByStartEndExclusive
 CREATE TABLE CompositeReportingSets (
   MeasurementConsumerId text NOT NULL,
   CompositeReportingSetId bigint NOT NULL,
+  SetExpressionId bigint NOT NULL,
 
   ExternalReportingSetId bigint NOT NULL,
 
@@ -94,10 +108,40 @@ CREATE TABLE CompositeReportingSets (
   UNIQUE (MeasurementConsumerId, ExternalReportingSetId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId),
+  FOREIGN KEY(MeasurementConsumerId, SetExpressionId)
+    REFERENCES SetExpressions(MeasurementConsumerId, SetExpressionId),
 );
 
 CREATE INDEX CompositeReportingSetsByExternalReportingSetId
   ON CompositeReportingSets(MeasurementConsumerId, ExternalReportingSetId);
+
+CREATE TABLE SetExpressions (
+  MeasurementConsumerId text NOT NULL,
+  SetExpressionId bigint NOT NULL,
+
+  -- org.wfanet.measurement.internal.reporting.SetOperation.Operation
+  -- protobuf enum encoded as an integer.
+  Operation smallint NOT NULL,
+
+  LeftHandSetOperationId bigint,
+  LeftHandCompositeReportingSetId bigint,
+  LeftHandPrimitiveReportingSetId bigint,
+  RightHandSetOperationId bigint,
+  RightHandCompositeReportingSetId bigint,
+  RightHandPrimitiveReportingSetId bigint,
+
+  PRIMARY KEY(MeasurementConsumerId, SetExpressionId),
+  FOREIGN KEY(MeasurementConsumerId)
+    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+  FOREIGN KEY(MeasurementConsumerId, LeftHandCompositeReportingSetId)
+    REFERENCES CompositeReportingSets(MeasurementConsumerId, CompositeReportingSetId),
+  FOREIGN KEY(MeasurementConsumerId, LeftHandPrimitiveReportingSetId)
+    REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId),
+  FOREIGN KEY(MeasurementConsumerId, RightHandCompositeReportingSetId)
+    REFERENCES CompositeReportingSets(MeasurementConsumerId, CompositeReportingSetId),
+  FOREIGN KEY(MeasurementConsumerId, RightHandPrimitiveReportingSetId)
+    REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId),
+);
 
 CREATE TABLE PrimitiveReportingSets (
   MeasurementConsumerId text NOT NULL,
@@ -337,7 +381,7 @@ CREATE TABLE Reports (
 );
 
 CREATE INDEX ReportsByExternalReportId
-  ON Reports(MeasurementConsumerReferenceId, ExternalReportId);
+  ON Reports(MeasurementConsumerId, ExternalReportId);
 
 CREATE TABLE ReportTimeIntervals (
   MeasurementConsumerId text NOT NULL,
