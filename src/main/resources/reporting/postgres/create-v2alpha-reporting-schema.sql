@@ -1,6 +1,6 @@
 -- liquibase formatted sql
 
--- Copyright 2022 The Cross-Media Measurement Authors
+-- Copyright 2023 The Cross-Media Measurement Authors
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -86,12 +86,11 @@ CREATE TABLE TimeIntervals (
   EndExclusive TIMESTAMP NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, TimeIntervalId),
-  UNIQUE (MeasurementConsumerId, Start, EndExclusive),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId),
 );
 
-CREATE INDEX TimeIntervalsByStartEndExclusive
+CREATE UNIQUE INDEX TimeIntervalsByStartEndExclusive
   ON TimeIntervals(MeasurementConsumerId, Start, EndExclusive);
 
 CREATE TABLE CompositeReportingSets (
@@ -105,28 +104,27 @@ CREATE TABLE CompositeReportingSets (
   DisplayName text NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, CompositeReportingSetId),
-  UNIQUE (MeasurementConsumerId, ExternalReportingSetId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId),
   FOREIGN KEY(MeasurementConsumerId, SetExpressionId)
     REFERENCES SetExpressions(MeasurementConsumerId, SetExpressionId),
 );
 
-CREATE INDEX CompositeReportingSetsByExternalReportingSetId
+CREATE UNIQUE INDEX CompositeReportingSetsByExternalReportingSetId
   ON CompositeReportingSets(MeasurementConsumerId, ExternalReportingSetId);
 
 CREATE TABLE SetExpressions (
   MeasurementConsumerId text NOT NULL,
   SetExpressionId bigint NOT NULL,
 
-  -- org.wfanet.measurement.internal.reporting.SetOperation.Operation
+  -- org.wfanet.measurement.internal.reporting.SetExpression.Operation
   -- protobuf enum encoded as an integer.
   Operation smallint NOT NULL,
 
-  LeftHandSetOperationId bigint,
+  LeftHandSetExpressionId bigint,
   LeftHandCompositeReportingSetId bigint,
   LeftHandPrimitiveReportingSetId bigint,
-  RightHandSetOperationId bigint,
+  RightHandSetExpressionId bigint,
   RightHandCompositeReportingSetId bigint,
   RightHandPrimitiveReportingSetId bigint,
 
@@ -153,12 +151,11 @@ CREATE TABLE PrimitiveReportingSets (
   DisplayName text NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, PrimitiveReportingSetId),
-  UNIQUE (MeasurementConsumerId, ExternalReportingSetId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId),
 );
 
-CREATE INDEX PrimitiveReportingSetsByExternalReportingSetId
+CREATE UNIQUE INDEX PrimitiveReportingSetsByExternalReportingSetId
   ON PrimitiveReportingSets(MeasurementConsumerId, ExternalReportingSetId);
 
 CREATE TABLE PrimitiveReportingSetEventGroups(
@@ -305,7 +302,7 @@ CREATE TABLE ModelMetrics(
   ModelId bigint NOT NULL,
   MetricId bigint NOT NULL,
 
-  PRIMARY KEY(MeasurementConsumerId, MetricId, MeasurementId),
+  PRIMARY KEY(MeasurementConsumerId, ModelId, MetricId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId),
   FOREIGN KEY(MeasurementConsumerId, ModelId)
@@ -319,7 +316,7 @@ CREATE TABLE ModelMetricSpecs(
   ModelId bigint NOT NULL,
   MetricSpecId bigint NOT NULL,
 
-  PRIMARY KEY(MeasurementConsumerId, MetricId, MeasurementId),
+  PRIMARY KEY(MeasurementConsumerId, ModelId, MetricSpecId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId),
   FOREIGN KEY(MeasurementConsumerId, ModelId)
@@ -333,7 +330,7 @@ CREATE TABLE ModelTimeIntervals(
   ModelId bigint NOT NULL,
   TimeIntervalId bigint NOT NULL,
 
-  PRIMARY KEY(MeasurementConsumerId, MetricId, MeasurementId),
+  PRIMARY KEY(MeasurementConsumerId, ModelId, TimeIntervalId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId),
   FOREIGN KEY(MeasurementConsumerId, ModelId)
@@ -347,7 +344,7 @@ CREATE TABLE ModelReportingSets(
   ModelId bigint NOT NULL,
   ReportingSetId bigint NOT NULL,
 
-  PRIMARY KEY(MeasurementConsumerId, MetricId, MeasurementId),
+  PRIMARY KEY(MeasurementConsumerId, ModelId, ReportingSetId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId),
   FOREIGN KEY(MeasurementConsumerId, ModelId)
@@ -481,168 +478,4 @@ CREATE TABLE ModelInferenceCalculationModelSpecs (
     REFERENCES ModelInferenceCalculations(MeasurementConsumerId, ModelInferenceCalculationId),
   FOREIGN KEY(MeasurementConsumerId, ModelSpecId)
     REFERENCES ModelSpecs(MeasurementConsumerId, ModelSpecId),
-);
-
-
-
-
-
-
-
-
-
-
-CREATE TABLE Metrics (
-  MeasurementConsumerId text NOT NULL,
-  ReportId bigint NOT NULL,
-  MetricId bigint NOT NULL,
-
-  -- Serialized org.wfanet.measurement.internal.reporting.Metric.Details
-  -- protobuf message.
-  MetricDetails bytea NOT NULL,
-
-  PRIMARY KEY(MeasurementConsumerId, ReportId, MetricId),
-  FOREIGN KEY(MeasurementConsumerId, ReportId)
-    REFERENCES Reports(MeasurementConsumerId, ReportId)
-);
-
--- changeset tristanvuong2021:create-measurements-table dbms:postgresql
-CREATE TABLE Measurements (
-  MeasurementConsumerId text NOT NULL,
-  MeasurementReferenceId text NOT NULL,
-
-  -- org.wfanet.measurement.internal.reporting.Report.MeasurementInfo.State
-  -- protobuf enum encoded as an integer.
-  State smallint NOT NULL,
-
-  -- Serialized org.wfanet.measurement.internal.reporting.Measurement.Failure
-  -- protobuf message.
-  Failure bytea,
-
-  -- Serialized org.wfanet.measurement.internal.reporting.Measurement.Result
-  -- protobuf message.
-  Result bytea,
-
-  PRIMARY KEY(MeasurementConsumerId, MeasurementReferenceId)
-);
-
--- changeset tristanvuong2021:create-report-measurements-table dbms:postgresql
-CREATE TABLE ReportMeasurements (
-  MeasurementConsumerId text NOT NULL,
-  MeasurementReferenceId text NOT NULL,
-  ReportId bigint NOT NULL,
-
-  PRIMARY KEY(MeasurementConsumerId, MeasurementReferenceId, ReportId),
-  FOREIGN KEY(MeasurementConsumerId, ReportId)
-      REFERENCES Reports(MeasurementConsumerId, ReportId),
-  FOREIGN KEY(MeasurementConsumerId, MeasurementReferenceId)
-        REFERENCES Measurements(MeasurementConsumerId, MeasurementReferenceId)
-);
-
--- changeset tristanvuong2021:create-reporting-sets-table dbms:postgresql
-CREATE TABLE ReportingSets (
-  MeasurementConsumerId text NOT NULL,
-  ReportingSetId bigint NOT NULL,
-
-  ExternalReportingSetId bigint NOT NULL,
-
-  Filter text NOT NULL,
-  DisplayName text NOT NULL,
-
-  PRIMARY KEY(MeasurementConsumerId, ReportingSetId),
-  UNIQUE (MeasurementConsumerId, ExternalReportingSetId)
-);
-
--- changeset tristanvuong2021:create-reporting-sets-by-external-reporting-set-id-index dbms:postgresql
-
--- changeset tristanvuong2021:create-reporting-set-event-groups-table dbms:postgresql
-CREATE TABLE ReportingSetEventGroups (
-  MeasurementConsumerId text NOT NULL,
-  DataProviderReferenceId text NOT NULL,
-  EventGroupReferenceId text NOT NULL,
-  ReportingSetId bigint NOT NULL,
-
-  PRIMARY KEY(MeasurementConsumerId, DataProviderReferenceId, EventGroupReferenceId, ReportingSetId),
-  FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
-    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
-);
-
--- changeset tristanvuong2021:create-set-operations-table dbms:postgresql
-CREATE TABLE SetOperations (
-  MeasurementConsumerId text NOT NULL,
-  ReportId bigint NOT NULL,
-  MetricId bigint NOT NULL,
-  SetOperationId bigint NOT NULL,
-
-  -- org.wfanet.measurement.internal.reporting.Metric.SetOperation.Type
-  -- protobuf enum encoded as an integer.
-  Type smallint NOT NULL,
-
-  LeftHandSetOperationId bigint,
-  RightHandSetOperationId bigint,
-
-  LeftHandReportingSetId bigint,
-  RightHandReportingSetId bigint,
-
-
-  PRIMARY KEY(MeasurementConsumerId, ReportId, MetricId, SetOperationId),
-  FOREIGN KEY(MeasurementConsumerId, LeftHandReportingSetId)
-    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId),
-  FOREIGN KEY(MeasurementConsumerId, RightHandReportingSetId)
-    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId),
-  FOREIGN KEY(MeasurementConsumerId, ReportId, MetricId)
-    REFERENCES Metrics(MeasurementConsumerId, ReportId, MetricId)
-);
-
--- changeset tristanvuong2021:create-named-set-operations-table dbms:postgresql
-CREATE TABLE NamedSetOperations (
-  MeasurementConsumerId text NOT NULL,
-  ReportId bigint NOT NULL,
-  MetricId bigint NOT NULL,
-  NamedSetOperationId bigint NOT NULL,
-
-  DisplayName text NOT NULL,
-  SetOperationId bigint NOT NULL,
-
-  PRIMARY KEY(MeasurementConsumerId, ReportId, MetricId, NamedSetOperationId),
-  FOREIGN KEY(MeasurementConsumerId, ReportId, MetricId)
-    REFERENCES Metrics(MeasurementConsumerId, ReportId, MetricId),
-  FOREIGN KEY(MeasurementConsumerId, ReportId, MetricId, SetOperationId)
-    REFERENCES SetOperations(MeasurementConsumerId, ReportId, MetricId, SetOperationId)
-);
-
--- changeset tristanvuong2021:create-measurement-calculations-table dbms:postgresql
-CREATE TABLE MeasurementCalculations (
-  MeasurementConsumerId text NOT NULL,
-  ReportId bigint NOT NULL,
-  MetricId bigint NOT NULL,
-  NamedSetOperationId bigint NOT NULL,
-  MeasurementCalculationId bigint NOT NULL,
-
-  TimeIntervalId bigint NOT NULL,
-
-  PRIMARY KEY(MeasurementConsumerId, ReportId, MetricId, NamedSetOperationId, MeasurementCalculationId),
-  FOREIGN KEY(MeasurementConsumerId, ReportId, TimeIntervalId)
-    REFERENCES TimeIntervals(MeasurementConsumerId, ReportId, TimeIntervalId),
-  FOREIGN KEY(MeasurementConsumerId, ReportId, MetricId, NamedSetOperationId)
-    REFERENCES NamedSetOperations(MeasurementConsumerId, ReportId, MetricId, NamedSetOperationId)
-);
-
--- changeset tristanvuong2021:create-weighted-measurements-table dbms:postgresql
-CREATE TABLE WeightedMeasurements (
-  MeasurementConsumerId text NOT NULL,
-  ReportId bigint NOT NULL,
-  MetricId bigint NOT NULL,
-  NamedSetOperationId bigint NOT NULL,
-  MeasurementCalculationId bigint NOT NULL,
-  WeightedMeasurementId bigint NOT NULL,
-
-  MeasurementReferenceId text NOT NULL,
-  Coefficient integer NOT NULL,
-
-  PRIMARY KEY(MeasurementConsumerId, ReportId, MetricId, NamedSetOperationId, MeasurementCalculationId, WeightedMeasurementId),
-  FOREIGN KEY(MeasurementConsumerId, ReportId, MetricId, NamedSetOperationId, MeasurementCalculationId)
-    REFERENCES MeasurementCalculations(MeasurementConsumerId, ReportId, MetricId, NamedSetOperationId, MeasurementCalculationId),
-  FOREIGN KEY(MeasurementConsumerId, MeasurementReferenceId)
-    REFERENCES Measurements(MeasurementConsumerId, MeasurementReferenceId)
 );
