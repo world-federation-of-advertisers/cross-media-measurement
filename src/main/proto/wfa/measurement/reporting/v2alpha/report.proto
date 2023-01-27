@@ -153,8 +153,8 @@ message Report {
     // Contains the attributes of the result, including the group of predicates,
     // time interval, and metric result.
     message ResultAttribute {
-      // Lists the predicates in the group which is from the Cartesian product
-      // of groupings.
+      // Lists the predicates in the group which is one of the groups in the
+      // Cartesian product of groupings.
       repeated string grouping_predicates = 1;
 
       // The time interval associated with the metric calculation. If
@@ -164,30 +164,9 @@ message Report {
       // cumulatively over this time interval.
       TimeInterval time_interval = 2;
 
-      // Histogram result format.
-      message Histogram {
-        // The bin in a histogram
-        message Bin {
-          // The label of the bin.
-          string bin_label = 1;
-          // The value of the bin.
-          double value = 2;
-        }
-        // The bins that form a histogram. Ordering is not guaranteed.
-        repeated Bin bins = 1;
-      }
-
-      // The metric result
-      oneof metric_result {
-        // Reach value
-        int64 reach = 3;
-        // Histogram result
-        Histogram frequency_histogram = 4;
-        // Impression counts
-        int64 impression_count = 5;
-        // Watch duration in second
-        double watch_duration = 6;
-      }
+      // The metric result calculated on the reporting set with the setup in the
+      // attribute.
+      MetricResult metric_result = 3;
     }
     // The number of results is equal to the size of the Cartesian product of
     // groupings, time intervals, and metric types.
