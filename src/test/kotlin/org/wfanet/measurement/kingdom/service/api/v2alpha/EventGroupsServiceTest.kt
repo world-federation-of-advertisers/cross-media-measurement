@@ -44,6 +44,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.deleteEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
@@ -69,6 +70,7 @@ import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoro
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.deleteEventGroupRequest as internalDeleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.eventGroup as internalEventGroup
 import org.wfanet.measurement.internal.kingdom.getEventGroupRequest as internalGetEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
@@ -161,6 +163,7 @@ class EventGroupsServiceTest {
       onBlocking { getEventGroup(any()) }.thenReturn(INTERNAL_EVENT_GROUP)
       onBlocking { createEventGroup(any()) }.thenReturn(INTERNAL_EVENT_GROUP)
       onBlocking { updateEventGroup(any()) }.thenReturn(INTERNAL_EVENT_GROUP)
+      onBlocking { deleteEventGroup(any()) }.thenReturn(INTERNAL_EVENT_GROUP)
       onBlocking { streamEventGroups(any()) }
         .thenReturn(
           flowOf(
@@ -546,6 +549,73 @@ class EventGroupsServiceTest {
               }
             )
           }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `deleteEventGroup returns event group when edp caller is found`() {
+    val request = deleteEventGroupRequest { name = EVENT_GROUP_NAME }
+
+    val result =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.deleteEventGroup(request) }
+      }
+
+    val expected = EVENT_GROUP
+
+    verifyProtoArgument(internalEventGroupsMock, EventGroupsCoroutineImplBase::deleteEventGroup)
+      .isEqualTo(
+        internalDeleteEventGroupRequest {
+          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+          externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
+        }
+      )
+    assertThat(result).isEqualTo(expected)
+  }
+
+  @Test
+  fun `deleteEventGroup throws UNAUTHENTICATED when no principal is found`() {
+    val request = deleteEventGroupRequest { name = EVENT_GROUP_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.deleteEventGroup(request) } }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `deleteEventGroup throws PERMISSION_DENIED when principal without authorization is found`() {
+    val request = deleteEventGroupRequest { name = EVENT_GROUP_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.deleteEventGroup(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `deleteEventGroup throws PERMISSION_DENIED when edp caller does not match`() {
+    val request = deleteEventGroupRequest { name = EVENT_GROUP_NAME }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME_2) {
+          runBlocking { service.deleteEventGroup(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `deleteEventGroup throws INVALID_ARGUMENT when name is missing or invalid`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.deleteEventGroup(deleteEventGroupRequest {}) }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
