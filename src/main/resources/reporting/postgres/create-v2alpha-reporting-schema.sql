@@ -46,9 +46,9 @@ CREATE TABLE DataProviders (
   CmmsDataProviderId text NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, DataProviderId),
+  UNIQUE (MeasurementConsumerId, CmmsDataProviderId),
   FOREIGN KEY(MeasurementConsumerId)
       REFERENCES MeasurementConsumers(MeasurementConsumerId),
-  UNIQUE (MeasurementConsumerId, CmmsDataProviderId)
 );
 
 CREATE TABLE EventGroups (
@@ -58,25 +58,28 @@ CREATE TABLE EventGroups (
   CmmsEventGroupId text NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, DataProviderId, EventGroupId),
+  UNIQUE (MeasurementConsumerId, DataProviderId, CmmsEventGroupId),
   FOREIGN KEY(MeasurementConsumerId)
         REFERENCES MeasurementConsumers(MeasurementConsumerId),
   FOREIGN KEY(MeasurementConsumerId, DataProviderId)
           REFERENCES DataProviders(MeasurementConsumerId, DataProviderId),
-  UNIQUE (MeasurementConsumerId, DataProviderId, CmmsEventGroupId)
 );
 
 CREATE TABLE TimeIntervals (
   MeasurementConsumerId text NOT NULL,
   TimeIntervalId bigint NOT NULL,
 
-  Start TIMESTAMP,
-  EndExclusive TIMESTAMP,
+  Start TIMESTAMP NOT NULL,
+  EndExclusive TIMESTAMP NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, TimeIntervalId),
+  UNIQUE (MeasurementConsumerId, Start, EndExclusive),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId),
-  UNIQUE (MeasurementConsumerId, Start, EndExclusive),
 );
+
+CREATE INDEX TimeIntervalsByStartEndExclusive
+  ON TimeIntervals(MeasurementConsumerId, Start, EndExclusive);
 
 CREATE TABLE CompositeReportingSets (
   MeasurementConsumerId text NOT NULL,
@@ -88,9 +91,9 @@ CREATE TABLE CompositeReportingSets (
   DisplayName text NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, CompositeReportingSetId),
+  UNIQUE (MeasurementConsumerId, ExternalReportingSetId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId),
-  UNIQUE (MeasurementConsumerId, ExternalReportingSetId)
 );
 
 CREATE INDEX CompositeReportingSetsByExternalReportingSetId
@@ -106,9 +109,9 @@ CREATE TABLE PrimitiveReportingSets (
   DisplayName text NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, PrimitiveReportingSetId),
+  UNIQUE (MeasurementConsumerId, ExternalReportingSetId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId),
-  UNIQUE (MeasurementConsumerId, ExternalReportingSetId)
 );
 
 CREATE INDEX PrimitiveReportingSetsByExternalReportingSetId
@@ -120,7 +123,7 @@ CREATE TABLE PrimitiveReportingSetEventGroups(
   EventGroupId bigint NOT NULL,
   PrimitiveReportingSetId bigint NOT NULL,
 
-  PRIMARY KEY(MeasurementConsumerId, DataProviderId, EventGroupId, PrimitiveReportingSetId)
+  PRIMARY KEY(MeasurementConsumerId, DataProviderId, EventGroupId, PrimitiveReportingSetId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId),
   FOREIGN KEY(MeasurementConsumerId, DataProviderId)
@@ -135,8 +138,9 @@ CREATE TABLE ReportingSets (
   MeasurementConsumerId text NOT NULL,
   ReportingSetId bigint NOT NULL,
 
-  CompositeReportingSetId bigint NOT NULL,
-  PrimitiveReportingSetId bigint NOT NULL,
+  -- it's either CompositeReportingSet or PrimitiveReportingSet
+  CompositeReportingSetId bigint,
+  PrimitiveReportingSetId bigint,
 
   PRIMARY KEY(MeasurementConsumerId, ReportingSetId),
   FOREIGN KEY(MeasurementConsumerId)
@@ -155,8 +159,9 @@ CREATE TABLE MetricSpecs (
   -- protobuf enum encoded as an integer.
   MetricType smallint NOT NULL,
 
-  MaximumFrequencyPerUser bigint NOT NULL,
-  MaximumWatchDurationPerUser bigint NOT NULL,
+  -- Depending on what metric type is used, the parameters can be null.
+  MaximumFrequencyPerUser bigint,
+  MaximumWatchDurationPerUser bigint,
 
   PRIMARY KEY(MeasurementConsumerId, MetricSpecId),
   FOREIGN KEY(MeasurementConsumerId)
@@ -209,7 +214,8 @@ CREATE TABLE Measurements (
   -- protobuf message.
   Result bytea,
 
-  PRIMARY KEY(MeasurementConsumerId, MeasurementId)
+  PRIMARY KEY(MeasurementConsumerId, MeasurementId),
+  UNIQUE (MeasurementConsumerId, CmmsMeasurementId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId),
   FOREIGN KEY(MeasurementConsumerId, TimeIntervalId)
@@ -218,15 +224,15 @@ CREATE TABLE Measurements (
     REFERENCES MetricSpecs(MeasurementConsumerId, MetricSpecId),
   FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
     REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId),
-  UNIQUE (MeasurementConsumerId, CmmsMeasurementId),
 );
 
 CREATE TABLE MetricMeasurements (
   MeasurementConsumerId text NOT NULL,
   MetricId bigint NOT NULL,
   MeasurementId bigint NOT NULL,
+  Coefficient integer NOT NULL,
 
-  PRIMARY KEY(MeasurementConsumerId, MetricId, MeasurementId)
+  PRIMARY KEY(MeasurementConsumerId, MetricId, MeasurementId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId),
   FOREIGN KEY(MeasurementConsumerId, MetricId)
@@ -255,7 +261,7 @@ CREATE TABLE ModelMetrics(
   ModelId bigint NOT NULL,
   MetricId bigint NOT NULL,
 
-  PRIMARY KEY(MeasurementConsumerId, MetricId, MeasurementId)
+  PRIMARY KEY(MeasurementConsumerId, MetricId, MeasurementId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId),
   FOREIGN KEY(MeasurementConsumerId, ModelId)
@@ -269,7 +275,7 @@ CREATE TABLE ModelMetricSpecs(
   ModelId bigint NOT NULL,
   MetricSpecId bigint NOT NULL,
 
-  PRIMARY KEY(MeasurementConsumerId, MetricId, MeasurementId)
+  PRIMARY KEY(MeasurementConsumerId, MetricId, MeasurementId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId),
   FOREIGN KEY(MeasurementConsumerId, ModelId)
@@ -283,7 +289,7 @@ CREATE TABLE ModelTimeIntervals(
   ModelId bigint NOT NULL,
   TimeIntervalId bigint NOT NULL,
 
-  PRIMARY KEY(MeasurementConsumerId, MetricId, MeasurementId)
+  PRIMARY KEY(MeasurementConsumerId, MetricId, MeasurementId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId),
   FOREIGN KEY(MeasurementConsumerId, ModelId)
@@ -297,7 +303,7 @@ CREATE TABLE ModelReportingSets(
   ModelId bigint NOT NULL,
   ReportingSetId bigint NOT NULL,
 
-  PRIMARY KEY(MeasurementConsumerId, MetricId, MeasurementId)
+  PRIMARY KEY(MeasurementConsumerId, MetricId, MeasurementId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId),
   FOREIGN KEY(MeasurementConsumerId, ModelId)
@@ -311,6 +317,9 @@ CREATE TABLE Reports (
   ReportId bigint NOT NULL,
 
   ExternalReportId bigint NOT NULL,
+  ReportIdempotencyKey text NOT NULL,
+
+  CreateTime timestamp NOT NULL,
 
   -- org.wfanet.measurement.internal.reporting.Report.State
   -- protobuf enum encoded as an integer.
@@ -320,15 +329,11 @@ CREATE TABLE Reports (
   -- protobuf message.
   ReportDetails bytea NOT NULL,
 
-  ReportIdempotencyKey text NOT NULL,
-
-  CreateTime timestamp NOT NULL,
-
   PRIMARY KEY(MeasurementConsumerId, ReportId),
-  FOREIGN KEY(MeasurementConsumerId)
-          REFERENCES MeasurementConsumers(MeasurementConsumerId),
   UNIQUE (MeasurementConsumerId, ExternalReportId),
-  UNIQUE (MeasurementConsumerId, ReportIdempotencyKey)
+  UNIQUE (MeasurementConsumerId, ReportIdempotencyKey),
+  FOREIGN KEY(MeasurementConsumerId)
+    REFERENCES MeasurementConsumers(MeasurementConsumerId),
 );
 
 CREATE INDEX ReportsByExternalReportId
