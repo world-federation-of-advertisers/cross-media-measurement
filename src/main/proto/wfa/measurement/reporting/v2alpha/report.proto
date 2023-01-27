@@ -159,9 +159,9 @@ message Report {
 
       // The time interval associated with the metric calculation. If
       // `cumulative` in `MetricCalculationSpec` is true, the metric result is
-      // calculated cumulatively from the first start time to the end of this
-      // time interval. Otherwise, the result is calculated cumulatively over
-      // this time interval.
+      // calculated cumulatively from the first start time defined in the report
+      // to the end of this time interval. Otherwise, the result is calculated
+      // cumulatively over this time interval.
       TimeInterval time_interval = 2;
 
       // Histogram result format.
