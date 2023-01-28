@@ -371,13 +371,12 @@ CREATE TABLE Reports (
   ReportDetails bytea NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, ReportId),
-  UNIQUE (MeasurementConsumerId, ExternalReportId),
   UNIQUE (MeasurementConsumerId, ReportIdempotencyKey),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId),
 );
 
-CREATE INDEX ReportsByExternalReportId
+CREATE UNIQUE INDEX ReportsByExternalReportId
   ON Reports(MeasurementConsumerId, ExternalReportId);
 
 CREATE TABLE ReportTimeIntervals (
