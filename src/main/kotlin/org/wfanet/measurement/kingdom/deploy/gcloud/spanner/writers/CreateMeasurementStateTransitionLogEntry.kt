@@ -8,9 +8,13 @@ import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.Measurement
 
 private const val DEFAULT_INITIAL_STATE = -1L
+private val MEASUREMENT_LOG_DETAILS by lazy { org.wfanet.measurement.internal.kingdom.MeasurementLogEntry.Details.getDefaultInstance() }
+
+
 private data class MeasurementStateTransition(
   val priorMeasurementState: Long,
   val currentMeasurementState: Long
@@ -44,6 +48,8 @@ internal fun SpannerWriter.TransactionScope.insertMeasurementLogEntry(
     set("MeasurementConsumerId" to measurementConsumerId)
     set("MeasurementId" to measurementId)
     set("CreateTime" to Value.COMMIT_TIMESTAMP)
+    set("MeasurementLogDetails" to MEASUREMENT_LOG_DETAILS)
+    setJson("MeasurementLogDetailsJson" to MEASUREMENT_LOG_DETAILS)
   }
 }
 
