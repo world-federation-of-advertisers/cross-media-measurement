@@ -73,6 +73,7 @@ class PortForwarder(
    * @return the local socket address
    */
   @Synchronized
+  @Blocking
   fun start(): InetSocketAddress {
     check(!started) { "Already started" }
     serverSocketChannel =

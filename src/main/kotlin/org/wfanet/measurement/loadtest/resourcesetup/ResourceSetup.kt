@@ -22,11 +22,14 @@ import io.grpc.StatusException
 import java.io.File
 import java.time.Clock
 import java.util.logging.Logger
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.retry
 import kotlinx.coroutines.flow.single
+import kotlinx.coroutines.withContext
+import org.jetbrains.annotations.Blocking
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.AccountKey
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineStub
@@ -163,12 +166,13 @@ class ResourceSetup(
       )
     }
 
-    writeOutput(resources)
+    withContext(Dispatchers.IO) { writeOutput(resources) }
     logger.info("Resource setup was successful.")
 
     return resources
   }
 
+  @Blocking
   private fun writeOutput(resources: Iterable<Resources.Resource>) {
     val output = outputDir?.let { FileOutput(it) } ?: ConsoleOutput
 
