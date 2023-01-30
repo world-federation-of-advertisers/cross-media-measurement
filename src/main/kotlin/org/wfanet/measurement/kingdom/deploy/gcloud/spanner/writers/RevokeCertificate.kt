@@ -213,7 +213,7 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
     return checkNotNull(transactionResult)
   }
 
-  private fun TransactionScope.failMeasurement(
+  private suspend fun TransactionScope.failMeasurement(
     measurementConsumerId: InternalId,
     measurementId: InternalId,
     details: Measurement.Details

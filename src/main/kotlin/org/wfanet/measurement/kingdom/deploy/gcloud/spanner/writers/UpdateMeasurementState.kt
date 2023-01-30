@@ -22,7 +22,7 @@ import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.gcloud.spanner.updateMutation
 import org.wfanet.measurement.internal.kingdom.Measurement
 
-internal fun SpannerWriter.TransactionScope.updateMeasurementState(
+internal suspend fun SpannerWriter.TransactionScope.updateMeasurementState(
   measurementConsumerId: InternalId,
   measurementId: InternalId,
   state: Measurement.State,
@@ -39,4 +39,6 @@ internal fun SpannerWriter.TransactionScope.updateMeasurementState(
       }
     }
     .bufferTo(transactionContext)
+
+  createMeasurementStateTransitionLogEntry(measurementConsumerId,measurementId,state)
 }
