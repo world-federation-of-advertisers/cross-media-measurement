@@ -131,6 +131,8 @@ CREATE TABLE SetExpressions (
   PRIMARY KEY(MeasurementConsumerId, SetExpressionId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId),
+  FOREIGN KEY(MeasurementConsumerId, LeftHandSetExpressionId)
+    REFERENCES SetExpressions(MeasurementConsumerId, SetExpressionId),
   FOREIGN KEY(MeasurementConsumerId, LeftHandCompositeReportingSetId)
     REFERENCES CompositeReportingSets(MeasurementConsumerId, CompositeReportingSetId),
   FOREIGN KEY(MeasurementConsumerId, LeftHandPrimitiveReportingSetId)
@@ -139,6 +141,8 @@ CREATE TABLE SetExpressions (
     REFERENCES CompositeReportingSets(MeasurementConsumerId, CompositeReportingSetId),
   FOREIGN KEY(MeasurementConsumerId, RightHandPrimitiveReportingSetId)
     REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId),
+  FOREIGN KEY(MeasurementConsumerId, RightHandSetExpressionId)
+    REFERENCES SetExpressions(MeasurementConsumerId, SetExpressionId),
 );
 
 CREATE TABLE PrimitiveReportingSets (
