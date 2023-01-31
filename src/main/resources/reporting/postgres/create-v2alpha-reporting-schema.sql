@@ -98,8 +98,6 @@ CREATE TABLE CompositeReportingSets (
   CompositeReportingSetId bigint NOT NULL,
   SetExpressionId bigint NOT NULL,
 
-  ExternalReportingSetId bigint NOT NULL,
-
   Filter text,
   DisplayName text NOT NULL,
 
@@ -110,50 +108,9 @@ CREATE TABLE CompositeReportingSets (
     REFERENCES SetExpressions(MeasurementConsumerId, SetExpressionId),
 );
 
-CREATE UNIQUE INDEX CompositeReportingSetsByExternalReportingSetId
-  ON CompositeReportingSets(MeasurementConsumerId, ExternalReportingSetId);
-
-CREATE TABLE SetExpressions (
-  MeasurementConsumerId bigint NOT NULL,
-  SetExpressionId bigint NOT NULL,
-
-  -- org.wfanet.measurement.internal.reporting.SetExpression.Operation
-  -- protobuf enum encoded as an integer.
-  Operation integer NOT NULL,
-
-  -- The left-hand-side (lhs) operand in a binary set expression. Exactly
-  -- one lhs field has to be non-NULL.
-  LeftHandSetExpressionId bigint,
-  LeftHandCompositeReportingSetId bigint,
-  LeftHandPrimitiveReportingSetId bigint,
-  -- The right-hand-side (rhs) operand in a binary set expression. At most
-  -- one rhs field can be non-NULL.
-  RightHandSetExpressionId bigint,
-  RightHandCompositeReportingSetId bigint,
-  RightHandPrimitiveReportingSetId bigint,
-
-  PRIMARY KEY(MeasurementConsumerId, SetExpressionId),
-  FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId),
-  FOREIGN KEY(MeasurementConsumerId, LeftHandSetExpressionId)
-    REFERENCES SetExpressions(MeasurementConsumerId, SetExpressionId),
-  FOREIGN KEY(MeasurementConsumerId, LeftHandCompositeReportingSetId)
-    REFERENCES CompositeReportingSets(MeasurementConsumerId, CompositeReportingSetId),
-  FOREIGN KEY(MeasurementConsumerId, LeftHandPrimitiveReportingSetId)
-    REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId),
-  FOREIGN KEY(MeasurementConsumerId, RightHandCompositeReportingSetId)
-    REFERENCES CompositeReportingSets(MeasurementConsumerId, CompositeReportingSetId),
-  FOREIGN KEY(MeasurementConsumerId, RightHandPrimitiveReportingSetId)
-    REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId),
-  FOREIGN KEY(MeasurementConsumerId, RightHandSetExpressionId)
-    REFERENCES SetExpressions(MeasurementConsumerId, SetExpressionId),
-);
-
 CREATE TABLE PrimitiveReportingSets (
   MeasurementConsumerId bigint NOT NULL,
   PrimitiveReportingSetId bigint NOT NULL,
-
-  ExternalReportingSetId bigint NOT NULL,
 
   Filter text,
   DisplayName text NOT NULL,
@@ -162,9 +119,6 @@ CREATE TABLE PrimitiveReportingSets (
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId),
 );
-
-CREATE UNIQUE INDEX PrimitiveReportingSetsByExternalReportingSetId
-  ON PrimitiveReportingSets(MeasurementConsumerId, ExternalReportingSetId);
 
 CREATE TABLE PrimitiveReportingSetEventGroups(
   MeasurementConsumerId bigint NOT NULL,
@@ -187,6 +141,8 @@ CREATE TABLE ReportingSets (
   MeasurementConsumerId bigint NOT NULL,
   ReportingSetId bigint NOT NULL,
 
+  ExternalReportingSetId bigint NOT NULL,
+
   -- Exactly one of (CompositeReportingSet, PrimitiveReportingSet) must be
   -- non-null
   CompositeReportingSetId bigint,
@@ -199,6 +155,39 @@ CREATE TABLE ReportingSets (
     REFERENCES CompositeReportingSets(MeasurementConsumerId, CompositeReportingSetId),
   FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetId)
     REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId),
+);
+
+CREATE UNIQUE INDEX ReportingSetsByExternalReportingSetId
+  ON ReportingSets(MeasurementConsumerId, ExternalReportingSetId);
+
+CREATE TABLE SetExpressions (
+  MeasurementConsumerId bigint NOT NULL,
+  SetExpressionId bigint NOT NULL,
+
+  -- org.wfanet.measurement.internal.reporting.SetExpression.Operation
+  -- protobuf enum encoded as an integer.
+  Operation integer NOT NULL,
+
+  -- The left-hand-side (lhs) operand in a binary set expression. Exactly
+  -- one lhs field has to be non-NULL.
+  LeftHandSetExpressionId bigint,
+  LeftHandReportingSetId bigint,
+  -- The right-hand-side (rhs) operand in a binary set expression. At most
+  -- one rhs field can be non-NULL.
+  RightHandSetExpressionId bigint,
+  RightHandReportingSetId bigint,
+
+  PRIMARY KEY(MeasurementConsumerId, SetExpressionId),
+  FOREIGN KEY(MeasurementConsumerId)
+    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+  FOREIGN KEY(MeasurementConsumerId, LeftHandSetExpressionId)
+    REFERENCES SetExpressions(MeasurementConsumerId, SetExpressionId),
+  FOREIGN KEY(MeasurementConsumerId, LeftHandReportingSetId)
+    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId),
+  FOREIGN KEY(MeasurementConsumerId, RightHandSetExpressionId)
+    REFERENCES SetExpressions(MeasurementConsumerId, SetExpressionId),
+  FOREIGN KEY(MeasurementConsumerId, RightHandReportingSetId)
+    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId),
 );
 
 CREATE TABLE MetricSpecs (
