@@ -46,7 +46,7 @@
 
 -- changeset riemanli:create-v2alpha-reports-table dbms:postgresql
 CREATE TABLE MeasurementConsumers (
-  MeasurementConsumerId text NOT NULL,
+  MeasurementConsumerId bigint NOT NULL,
   CmmsMeasurementConsumerId text NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId),
@@ -54,8 +54,8 @@ CREATE TABLE MeasurementConsumers (
 );
 
 CREATE TABLE DataProviders (
-  MeasurementConsumerId text NOT NULL,
-  DataProviderId text NOT NULL,
+  MeasurementConsumerId bigint NOT NULL,
+  DataProviderId bigint NOT NULL,
   CmmsDataProviderId text NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, DataProviderId),
@@ -65,9 +65,9 @@ CREATE TABLE DataProviders (
 );
 
 CREATE TABLE EventGroups (
-  MeasurementConsumerId text NOT NULL,
-  DataProviderId text NOT NULL,
-  EventGroupId text NOT NULL,
+  MeasurementConsumerId bigint NOT NULL,
+  DataProviderId bigint NOT NULL,
+  EventGroupId bigint NOT NULL,
   CmmsEventGroupId text NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, DataProviderId, EventGroupId),
@@ -79,7 +79,7 @@ CREATE TABLE EventGroups (
 );
 
 CREATE TABLE TimeIntervals (
-  MeasurementConsumerId text NOT NULL,
+  MeasurementConsumerId bigint NOT NULL,
   TimeIntervalId bigint NOT NULL,
 
   Start TIMESTAMP NOT NULL,
@@ -94,7 +94,7 @@ CREATE UNIQUE INDEX TimeIntervalsByStartEndExclusive
   ON TimeIntervals(MeasurementConsumerId, Start, EndExclusive);
 
 CREATE TABLE CompositeReportingSets (
-  MeasurementConsumerId text NOT NULL,
+  MeasurementConsumerId bigint NOT NULL,
   CompositeReportingSetId bigint NOT NULL,
   SetExpressionId bigint NOT NULL,
 
@@ -114,16 +114,20 @@ CREATE UNIQUE INDEX CompositeReportingSetsByExternalReportingSetId
   ON CompositeReportingSets(MeasurementConsumerId, ExternalReportingSetId);
 
 CREATE TABLE SetExpressions (
-  MeasurementConsumerId text NOT NULL,
+  MeasurementConsumerId bigint NOT NULL,
   SetExpressionId bigint NOT NULL,
 
   -- org.wfanet.measurement.internal.reporting.SetExpression.Operation
   -- protobuf enum encoded as an integer.
-  Operation smallint NOT NULL,
+  Operation integer NOT NULL,
 
+  -- The left-hand-side (lhs) operand in a binary set expression. Exactly
+  -- one lhs field has to be non-NULL.
   LeftHandSetExpressionId bigint,
   LeftHandCompositeReportingSetId bigint,
   LeftHandPrimitiveReportingSetId bigint,
+  -- The right-hand-side (rhs) operand in a binary set expression. At most
+  -- one rhs field can be non-NULL.
   RightHandSetExpressionId bigint,
   RightHandCompositeReportingSetId bigint,
   RightHandPrimitiveReportingSetId bigint,
@@ -146,7 +150,7 @@ CREATE TABLE SetExpressions (
 );
 
 CREATE TABLE PrimitiveReportingSets (
-  MeasurementConsumerId text NOT NULL,
+  MeasurementConsumerId bigint NOT NULL,
   PrimitiveReportingSetId bigint NOT NULL,
 
   ExternalReportingSetId bigint NOT NULL,
@@ -163,7 +167,7 @@ CREATE UNIQUE INDEX PrimitiveReportingSetsByExternalReportingSetId
   ON PrimitiveReportingSets(MeasurementConsumerId, ExternalReportingSetId);
 
 CREATE TABLE PrimitiveReportingSetEventGroups(
-  MeasurementConsumerId text NOT NULL,
+  MeasurementConsumerId bigint NOT NULL,
   DataProviderId bigint NOT NULL,
   EventGroupId bigint NOT NULL,
   PrimitiveReportingSetId bigint NOT NULL,
@@ -180,10 +184,11 @@ CREATE TABLE PrimitiveReportingSetEventGroups(
 );
 
 CREATE TABLE ReportingSets (
-  MeasurementConsumerId text NOT NULL,
+  MeasurementConsumerId bigint NOT NULL,
   ReportingSetId bigint NOT NULL,
 
-  -- it's either CompositeReportingSet or PrimitiveReportingSet
+  -- Exactly one of (CompositeReportingSet, PrimitiveReportingSet) must be
+  -- non-null
   CompositeReportingSetId bigint,
   PrimitiveReportingSetId bigint,
 
@@ -197,15 +202,16 @@ CREATE TABLE ReportingSets (
 );
 
 CREATE TABLE MetricSpecs (
-  MeasurementConsumerId text NOT NULL,
+  MeasurementConsumerId bigint NOT NULL,
   MetricSpecId bigint NOT NULL,
 
   -- org.wfanet.measurement.internal.reporting.MetricSpec.MetricType
   -- protobuf enum encoded as an integer.
-  MetricType smallint NOT NULL,
+  MetricType integer NOT NULL,
 
-  -- Depending on what metric type is used, the parameters can be null.
+  -- Must not be NULL if MetricType is FREQUENCY_HISTOGRAM or IMPRESSION_COUNT
   MaximumFrequencyPerUser bigint,
+  -- Must not be NULL if MetricType is WATCH_DURATION
   MaximumWatchDurationPerUser bigint,
 
   PRIMARY KEY(MeasurementConsumerId, MetricSpecId),
@@ -214,7 +220,7 @@ CREATE TABLE MetricSpecs (
 );
 
 CREATE TABLE Metrics (
-  MeasurementConsumerId text NOT NULL,
+  MeasurementConsumerId bigint NOT NULL,
   MetricId bigint NOT NULL,
   TimeIntervalId bigint NOT NULL,
   MetricSpecId bigint NOT NULL,
@@ -222,7 +228,7 @@ CREATE TABLE Metrics (
 
   -- org.wfanet.measurement.internal.reporting.Metric.State
   -- protobuf enum encoded as an integer.
-  State smallint NOT NULL,
+  State integer NOT NULL,
 
   -- Serialized org.wfanet.measurement.internal.reporting.Metric.Details
   -- protobuf message.
@@ -240,8 +246,8 @@ CREATE TABLE Metrics (
 );
 
 CREATE TABLE Measurements (
-  MeasurementConsumerId text NOT NULL,
-  MeasurementId text NOT NULL,
+  MeasurementConsumerId bigint NOT NULL,
+  MeasurementId bigint NOT NULL,
   CmmsMeasurementId text NOT NULL,
   TimeIntervalId bigint NOT NULL,
   MetricSpecId bigint NOT NULL,
@@ -249,7 +255,7 @@ CREATE TABLE Measurements (
 
   -- org.wfanet.measurement.internal.reporting.Report.Measurement.State
   -- protobuf enum encoded as an integer.
-  State smallint NOT NULL,
+  State integer NOT NULL,
 
   -- Serialized org.wfanet.measurement.internal.reporting.Measurement.Failure
   -- protobuf message.
@@ -272,7 +278,7 @@ CREATE TABLE Measurements (
 );
 
 CREATE TABLE MetricMeasurements (
-  MeasurementConsumerId text NOT NULL,
+  MeasurementConsumerId bigint NOT NULL,
   MetricId bigint NOT NULL,
   MeasurementId bigint NOT NULL,
   Coefficient integer NOT NULL,
@@ -287,12 +293,13 @@ CREATE TABLE MetricMeasurements (
 )
 
 CREATE TABLE Models (
-  MeasurementConsumerId text NOT NULL,
+  MeasurementConsumerId bigint NOT NULL,
   ModelId bigint NOT NULL,
+  ExternalModelId bigint NOT NULL,
 
   -- org.wfanet.measurement.internal.reporting.MetricModel.State
   -- protobuf enum encoded as an integer.
-  State smallint NOT NULL,
+  State integer NOT NULL,
 
   -- Serialized org.wfanet.measurement.internal.reporting.MetricModel.Details
   -- protobuf message.
@@ -301,8 +308,11 @@ CREATE TABLE Models (
   PRIMARY KEY(MeasurementConsumerId, ModelId)
 );
 
+CREATE UNIQUE INDEX ModelsByExternalModelId
+  ON Models(MeasurementConsumerId, ExternalModelId);
+
 CREATE TABLE ModelMetrics(
-  MeasurementConsumerId text NOT NULL,
+  MeasurementConsumerId bigint NOT NULL,
   ModelId bigint NOT NULL,
   MetricId bigint NOT NULL,
 
@@ -316,7 +326,7 @@ CREATE TABLE ModelMetrics(
 );
 
 CREATE TABLE ModelMetricSpecs(
-  MeasurementConsumerId text NOT NULL,
+  MeasurementConsumerId bigint NOT NULL,
   ModelId bigint NOT NULL,
   MetricSpecId bigint NOT NULL,
 
@@ -330,7 +340,7 @@ CREATE TABLE ModelMetricSpecs(
 );
 
 CREATE TABLE ModelTimeIntervals(
-  MeasurementConsumerId text NOT NULL,
+  MeasurementConsumerId bigint NOT NULL,
   ModelId bigint NOT NULL,
   TimeIntervalId bigint NOT NULL,
 
@@ -344,7 +354,7 @@ CREATE TABLE ModelTimeIntervals(
 );
 
 CREATE TABLE ModelReportingSets(
-  MeasurementConsumerId text NOT NULL,
+  MeasurementConsumerId bigint NOT NULL,
   ModelId bigint NOT NULL,
   ReportingSetId bigint NOT NULL,
 
@@ -358,7 +368,7 @@ CREATE TABLE ModelReportingSets(
 );
 
 CREATE TABLE Reports (
-  MeasurementConsumerId text NOT NULL,
+  MeasurementConsumerId bigint NOT NULL,
   ReportId bigint NOT NULL,
 
   ExternalReportId bigint NOT NULL,
@@ -368,7 +378,7 @@ CREATE TABLE Reports (
 
   -- org.wfanet.measurement.internal.reporting.Report.State
   -- protobuf enum encoded as an integer.
-  State smallint NOT NULL,
+  State integer NOT NULL,
 
   -- Serialized org.wfanet.measurement.internal.reporting.Report.Details
   -- protobuf message.
@@ -384,7 +394,7 @@ CREATE UNIQUE INDEX ReportsByExternalReportId
   ON Reports(MeasurementConsumerId, ExternalReportId);
 
 CREATE TABLE ReportTimeIntervals (
-  MeasurementConsumerId text NOT NULL,
+  MeasurementConsumerId bigint NOT NULL,
   ReportId bigint NOT NULL,
   TimeIntervalId bigint NOT NULL,
 
@@ -398,7 +408,7 @@ CREATE TABLE ReportTimeIntervals (
 );
 
 CREATE TABLE MetricCalculations (
-  MeasurementConsumerId text NOT NULL,
+  MeasurementConsumerId bigint NOT NULL,
   ReportId bigint NOT NULL,
   MetricCalculationId bigint NOT NULL,
   ReportingSetId bigint NOT NULL,
@@ -417,7 +427,7 @@ CREATE TABLE MetricCalculations (
 );
 
 CREATE TABLE MetricCalculationMetrics (
-  MeasurementConsumerId text NOT NULL,
+  MeasurementConsumerId bigint NOT NULL,
   MetricCalculationId bigint NOT NULL,
   MetricId bigint NOT NULL,
   PRIMARY KEY(MeasurementConsumerId, MetricCalculationId, MetricId),
@@ -430,7 +440,7 @@ CREATE TABLE MetricCalculationMetrics (
 );
 
 CREATE TABLE ModelInferenceCalculations (
-  MeasurementConsumerId text NOT NULL,
+  MeasurementConsumerId bigint NOT NULL,
   ReportId bigint NOT NULL,
   ModelInferenceCalculationId bigint NOT NULL,
   ReportingSetId bigint NOT NULL,
@@ -452,7 +462,7 @@ CREATE TABLE ModelInferenceCalculations (
 );
 
 CREATE TABLE WeightedPrimitiveReportingSetBases (
-  MeasurementConsumerId text NOT NULL,
+  MeasurementConsumerId bigint NOT NULL,
   ModelInferenceCalculationId bigint NOT NULL,
   WeightedPrimitiveReportingSetBasisId bigint NOT NULL,
   PrimitiveReportingSetId bigint NOT NULL,
@@ -470,7 +480,7 @@ CREATE TABLE WeightedPrimitiveReportingSetBases (
 );
 
 CREATE TABLE ModelInferenceCalculationModelSpecs (
-  MeasurementConsumerId text NOT NULL,
+  MeasurementConsumerId bigint NOT NULL,
   ModelInferenceCalculationId bigint NOT NULL,
   ModelSpecId bigint NOT NULL,
 
