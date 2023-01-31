@@ -56,6 +56,7 @@ message MetricModel {
     bool cumulative = 4;
 
     // Specifies the list of primitive reporting sets as the bases of the model.
+    //
     // Once trained, the model can then estimate metrics of any composite
     // reporting sets whose primitive reporting set bases are the subset of the
     // span of the specified primitive reporting sets.
