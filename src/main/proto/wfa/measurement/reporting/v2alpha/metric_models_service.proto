@@ -145,7 +145,10 @@ message ApplyMetricModelRequest {
   ];
   // The resource name of the reporting set that the model estimates the metric
   // on.
-  ReportingSet reporting_set = 2 [(google.api.field_behavior) = REQUIRED];
+  string reporting_set = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = { type: "halo.wfanet.org/ReportingSet" }
+  ];
 
   // The time over which to calculate the metric cumulatively.
   TimeInterval time_interval = 3 [(google.api.field_behavior) = REQUIRED];
