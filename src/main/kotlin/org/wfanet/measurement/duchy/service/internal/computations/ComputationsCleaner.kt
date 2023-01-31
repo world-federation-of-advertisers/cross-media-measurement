@@ -48,11 +48,14 @@ class ComputationsCleaner(
       backgroundScope.launch {
         while (true) {
           delay(period)
-          computationsService.deleteOutdatedComputations(
-            deleteOutdatedComputationsRequest {
-              this.ttlSecond = this@ComputationsCleaner.ttlSecond
-            }
-          )
+          logger.info("ComputationCleaner task starts...")
+          val response =
+            computationsService.deleteOutdatedComputations(
+              deleteOutdatedComputationsRequest {
+                this.ttlSecond = this@ComputationsCleaner.ttlSecond
+              }
+            )
+          logger.info("ComputationCleaner task finishes. ${response.count} Computations cleaned")
         }
       }
   }

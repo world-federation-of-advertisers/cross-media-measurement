@@ -17,6 +17,7 @@ package org.wfanet.measurement.duchy.deploy.common.server
 import io.grpc.ManagedChannel
 import java.time.Duration
 import kotlin.properties.Delegates
+import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
@@ -97,6 +98,7 @@ abstract class ComputationsServer : Runnable {
         flags.computationsTtlDays,
         flags.computationsCleanerPeriodSeconds
       )
+    computationsCleaner.start()
 
     CommonServer.fromFlags(
         flags.server,
@@ -107,6 +109,8 @@ abstract class ComputationsServer : Runnable {
       )
       .start()
       .blockUntilShutdown()
+
+    runBlocking { computationsCleaner.stop() }
   }
 
   private fun newComputationsDatabase(
