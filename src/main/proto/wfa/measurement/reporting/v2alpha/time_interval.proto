@@ -26,7 +26,7 @@ option java_multiple_files = true;
 option java_outer_classname = "TimeIntervalProto";
 
 extend google.protobuf.OneofOptions {
-  optional int32 oneof_required_option = 12345;
+  optional int32 oneof_time_required_option = 12345;
 }
 
 // A time interval.
