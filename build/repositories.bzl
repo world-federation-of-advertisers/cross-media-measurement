@@ -24,8 +24,8 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_common_jvm",
         repo = "common-jvm",
-        sha256 = "dd5a1184f01c8ddc67eef5280fbeecbba090602f9f3ac262a0d4241f8ce0e869",
-        version = "0.50.0",
+        sha256 = "3678943b7fa7e375c728398ce8b56897f6eb82a3c2754f4fe224d99ea8238b5c",
+        version = "0.51.0",
     )
 
     wfa_repo_archive(
@@ -38,8 +38,8 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "wfa_measurement_proto",
         repo = "cross-media-measurement-api",
-        sha256 = "4fb33696b16dfcd2baeb3808f53b56b49e4c18884c0e0cbd9dbcb1700fe55934",
-        version = "0.25.0",
+        sha256 = "93f4977014fd1b97aac83931082ff3ea621c343ca97e7bb84c16fd6f2cc7e827",
+        version = "0.26.0",
     )
 
     wfa_repo_archive(

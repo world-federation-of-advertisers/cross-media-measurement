@@ -209,7 +209,7 @@ class FrontendSimulator(
     logger.info("Got direct reach and frequency result from Kingdom: $reachAndFrequencyResult")
 
     // For InProcessLifeOfAMeasurementIntegrationTest, EdpSimulator sets to those values with seeded
-    // random VIDs and Laplace noise.
+    // random VIDs and Laplace publisher noise.
     val expectedReachValue = 948L
     val expectedFrequencyMap =
       mapOf(
