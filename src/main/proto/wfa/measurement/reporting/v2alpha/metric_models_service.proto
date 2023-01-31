@@ -154,5 +154,5 @@ message ApplyMetricModelRequest {
 // Response message for `ApplyMetricModel` method.
 message ApplyMetricModelResponse {
   // The metric result estimated by the model specified in the request.
-  MetricResult metric_result = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+  MetricResult metric_result = 1;
 }
