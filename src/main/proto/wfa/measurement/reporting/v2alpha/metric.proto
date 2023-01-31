@@ -71,9 +71,10 @@ message MetricSpec {
   oneof type {
     // The count of unique audiences reached given a set of event groups.
     ReachParams reach = 1;
-    // The reach frequency histogram given a set of event groups. Currently, we
-    // only support union operations for frequency histograms. Any other
-    // operations on frequency histograms won't guarantee the result is a
+    // The reach frequency histogram given a set of event groups.
+    //
+    // Currently, we only support union operations for frequency histograms. Any
+    // other operations on frequency histograms won't guarantee the result is a
     // frequency histogram.
     FrequencyHistogramParams frequency_histogram = 2;
     // The impression count given a set of event groups.
@@ -111,9 +112,10 @@ message MetricResult {
   }
 }
 
-// A `Metric` is a resource that will calculate a particular quantity as defined
-// by `MetricSpec` cumulatively over a time interval for the given
-// `ReportingSet`. The metric value once calculated is stored in `MetricResult`.
+// A resource that will calculate a particular quantity as defined by
+// `MetricSpec` cumulatively over a time interval for the given `ReportingSet`.
+//
+// The metric value once calculated is stored in `MetricResult`.
 message Metric {
   option (google.api.resource) = {
     type: "reporting.halo-cmm.org/Metric"
