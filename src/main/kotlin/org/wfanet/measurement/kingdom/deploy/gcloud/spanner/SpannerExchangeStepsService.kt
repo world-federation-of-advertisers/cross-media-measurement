@@ -97,7 +97,8 @@ class SpannerExchangeStepsService(
 
     ExchangeStepAttemptReader.forExpiredAttempts(
         externalModelProviderId = externalModelProviderId,
-        externalDataProviderId = externalDataProviderId
+        externalDataProviderId = externalDataProviderId,
+        clock
       )
       .execute(client.singleUse())
       .map { it.exchangeStepAttempt }
