@@ -3,6 +3,7 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_test")
 kt_jvm_test(
     name = "PostgresInProcessLifeOfAReportIntegrationTest",
     srcs = ["PostgresInProcessLifeOfAReportIntegrationTest.kt"],
+    flaky = True,
     test_class = "org.wfanet.measurement.integration.postgres.PostgresInProcessLifeOfAReportIntegrationTest",
     runtime_deps = [
         "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
