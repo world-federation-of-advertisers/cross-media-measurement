@@ -58,19 +58,24 @@ message Report {
   message MetricCalculationSpec {
     // The display name will be used as the display name in
     // `MetricCalculationSpecResult`.
-    string display_name = 1 [(google.api.field_behavior) = REQUIRED];
+    string display_name = 1 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.field_behavior) = IMMUTABLE
+    ];
 
     // A collection of metrics.
-    repeated MetricSpec metric_specs = 2
-        [(google.api.field_behavior) = REQUIRED];
+    repeated MetricSpec metric_specs = 2 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.field_behavior) = IMMUTABLE
+    ];
     // The final set of groups is the Cartesian product of `groupings`. The
     // final set of groups will fan out multiple metrics per metric spec, i.e.
     // one metric for one group in the set.
-    repeated Grouping groupings = 3;
+    repeated Grouping groupings = 3 [(google.api.field_behavior) = IMMUTABLE];
     // Whether the results for a given time interval is cumulative with those of
     // previous time intervals.
     // Only supported when using `PeriodicTimeInterval`.
-    bool cumulative = 4;
+    bool cumulative = 4 [(google.api.field_behavior) = IMMUTABLE];
     // The resource name of what model to use.
     //
     // If model is empty, compute the metrics using kingdom measurements;
@@ -78,13 +83,15 @@ message Report {
     // The user needs to provide a model that can cover all time intervals and
     // all primitive reporting set bases of the reporting set used for the
     // metric calculations.
-    string model = 5;
+    string model = 5 [(google.api.field_behavior) = IMMUTABLE];
   }
   // The specification of metric calculation for a reporting set.
   message ReportingMetricSpec {
     // A collection of metric calculations.
-    repeated MetricCalculationSpec metric_calculation_specs = 1
-        [(google.api.field_behavior) = REQUIRED];
+    repeated MetricCalculationSpec metric_calculation_specs = 1 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.field_behavior) = IMMUTABLE
+    ];
   }
 
   // Define metric calculations with a reporting set.
@@ -94,7 +101,7 @@ message Report {
       // Key of the map entry.
       ReportingSet key = 1 [(google.api.field_behavior) = REQUIRED];
       // Value of the map entry.
-      ReportingMetricSpec value = 2;
+      ReportingMetricSpec value = 2 [(google.api.field_behavior) = IMMUTABLE];
     }
 
     // A Map with `ReportingSet`s as the keys and `ReportingMetricSpec`s as the

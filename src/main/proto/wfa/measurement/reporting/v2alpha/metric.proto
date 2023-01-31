@@ -70,17 +70,20 @@ message MetricSpec {
   // Types of metric with parameters.
   oneof type {
     // The count of unique audiences reached given a set of event groups.
-    ReachParams reach = 1;
+    ReachParams reach = 1 [(google.api.field_behavior) = IMMUTABLE];
     // The reach frequency histogram given a set of event groups.
     //
     // Currently, we only support union operations for frequency histograms. Any
     // other operations on frequency histograms won't guarantee the result is a
     // frequency histogram.
-    FrequencyHistogramParams frequency_histogram = 2;
+    FrequencyHistogramParams frequency_histogram = 2
+        [(google.api.field_behavior) = IMMUTABLE];
     // The impression count given a set of event groups.
-    ImpressionCountParams impression_count = 3;
+    ImpressionCountParams impression_count = 3
+        [(google.api.field_behavior) = IMMUTABLE];
     // The watch duration given a set of event groups.
-    WatchDurationParams watch_duration = 4;
+    WatchDurationParams watch_duration = 4
+        [(google.api.field_behavior) = IMMUTABLE];
   }
 }
 
@@ -131,7 +134,10 @@ message Metric {
   TimeInterval time_interval = 3 [(google.api.field_behavior) = REQUIRED];
 
   // The specification of what metric to calculate
-  MetricSpec metric_spec = 4 [(google.api.field_behavior) = REQUIRED];
+  MetricSpec metric_spec = 4 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
 
   // Possible states of a `Metric`.
   enum State {
