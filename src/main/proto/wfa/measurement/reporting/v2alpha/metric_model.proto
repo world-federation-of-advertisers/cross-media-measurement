@@ -47,7 +47,7 @@ message MetricModel {
     // Types of time intervals that the model covers.
     // REQUIRED
     oneof time {
-      option (oneof_required_option) = 1111;
+      option (oneof_time_required_option) = 1111;
       // A list of time intervals with different start times and end times.
       TimeIntervals time_intervals = 2
           [(google.api.field_behavior) = IMMUTABLE];
