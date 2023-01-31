@@ -36,11 +36,6 @@ message Report {
   // Resource name.
   string name = 1 [(google.api.field_behavior) = REQUIRED];
 
-  // Used as the prefix of the idempotency keys of internal measurements. This
-  // value must be unique among `Report`s for the parent `MeasurementConsumer`.
-  // TODO(@riemanli) Moved the idempotency key to request messages.
-  // string report_idempotency_key = 2 [(google.api.field_behavior) = REQUIRED];
-  //
   // Representation of a Measurement Consumer entity.
   string measurement_consumer = 2 [
     (google.api.field_behavior) = REQUIRED,
@@ -77,6 +72,7 @@ message Report {
     // Only supported when using `PeriodicTimeInterval`.
     bool cumulative = 4;
     // The resource name of what model to use.
+    //
     // If model is empty, compute the metrics using kingdom measurements;
     // otherwise, use the model inferences.
     // The user needs to provide a model that can cover all time intervals and
@@ -157,11 +153,12 @@ message Report {
       // Cartesian product of groupings.
       repeated string grouping_predicates = 1;
 
-      // The time interval associated with the metric calculation. If
-      // `cumulative` in `MetricCalculationSpec` is true, the metric result is
-      // calculated cumulatively from the first start time defined in the report
-      // to the end of this time interval. Otherwise, the result is calculated
-      // cumulatively over this time interval.
+      // The time interval associated with the metric calculation.
+      //
+      // If `cumulative` in `MetricCalculationSpec` is true, the metric result
+      // is calculated cumulatively from the first start time defined in the
+      // report to the end of this time interval. Otherwise, the result is
+      // calculated cumulatively over this time interval.
       TimeInterval time_interval = 2;
 
       // The metric result calculated on the reporting set with the setup in the
