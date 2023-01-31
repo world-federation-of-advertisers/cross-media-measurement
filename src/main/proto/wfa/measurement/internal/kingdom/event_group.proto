@@ -58,9 +58,6 @@ message EventGroup {
 
   Details details = 8;
 
-  // Time the Event Group was deleted.
-  google.protobuf.Timestamp delete_time = 9;
-
   // Possible states of Event Group.
   enum State {
     // The default value if state is omitted. Should not be used.
@@ -71,5 +68,5 @@ message EventGroup {
     DELETED = 2;
   }
   // Event Group state. Output-only.
-  State state = 10;
+  State state = 9;
 }

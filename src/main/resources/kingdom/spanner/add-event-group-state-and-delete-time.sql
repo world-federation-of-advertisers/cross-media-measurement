@@ -18,9 +18,6 @@
 START BATCH DDL;
 
 ALTER TABLE EventGroups
-  ADD COLUMN DeleteTime TIMESTAMP OPTIONS (allow_commit_timestamp = true);
-
-ALTER TABLE EventGroups
   -- EventGroup.State enum as int with default to ACTIVE.
   ADD COLUMN State INT64 NOT NULL DEFAULT (1);
 
