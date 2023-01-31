@@ -98,9 +98,6 @@ CREATE TABLE CompositeReportingSets (
   CompositeReportingSetId bigint NOT NULL,
   SetExpressionId bigint NOT NULL,
 
-  Filter text,
-  DisplayName text NOT NULL,
-
   PRIMARY KEY(MeasurementConsumerId, CompositeReportingSetId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId),
@@ -111,9 +108,6 @@ CREATE TABLE CompositeReportingSets (
 CREATE TABLE PrimitiveReportingSets (
   MeasurementConsumerId bigint NOT NULL,
   PrimitiveReportingSetId bigint NOT NULL,
-
-  Filter text,
-  DisplayName text NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, PrimitiveReportingSetId),
   FOREIGN KEY(MeasurementConsumerId)
@@ -142,6 +136,9 @@ CREATE TABLE ReportingSets (
   ReportingSetId bigint NOT NULL,
 
   ExternalReportingSetId bigint NOT NULL,
+
+  DisplayName text NOT NULL,
+  Filter text,
 
   -- Exactly one of (CompositeReportingSet, PrimitiveReportingSet) must be
   -- non-null
