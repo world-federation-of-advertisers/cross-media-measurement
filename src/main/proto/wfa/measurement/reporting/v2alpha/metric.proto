@@ -143,7 +143,10 @@ message Metric {
   string name = 1 [(google.api.field_behavior) = REQUIRED];
 
   // The resource name of the reporting set to calculate the metric on.
-  ReportingSet reporting_set = 2 [(google.api.field_behavior) = REQUIRED];
+  string reporting_set = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = { type: "halo.wfanet.org/ReportingSet" }
+  ];
 
   // The time over which to calculate the metric cumulatively.
   TimeInterval time_interval = 3 [(google.api.field_behavior) = REQUIRED];
