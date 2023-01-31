@@ -100,7 +100,7 @@ CREATE TABLE CompositeReportingSets (
 
   ExternalReportingSetId bigint NOT NULL,
 
-  Filter text NOT NULL,
+  Filter text,
   DisplayName text NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, CompositeReportingSetId),
@@ -155,7 +155,7 @@ CREATE TABLE PrimitiveReportingSets (
 
   ExternalReportingSetId bigint NOT NULL,
 
-  Filter text NOT NULL,
+  Filter text,
   DisplayName text NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, PrimitiveReportingSetId),
@@ -467,7 +467,7 @@ CREATE TABLE WeightedPrimitiveReportingSetBases (
   WeightedPrimitiveReportingSetBasisId bigint NOT NULL,
   PrimitiveReportingSetId bigint NOT NULL,
 
-  Filter text NOT NULL,
+  Filter text,
   Weight bigint NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, ModelInferenceCalculationId, WeightedPrimitiveReportingSetBasisId),
