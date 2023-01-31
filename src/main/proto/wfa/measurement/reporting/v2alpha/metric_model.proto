@@ -62,12 +62,14 @@ message MetricModel {
 
     // Specifies the list of primitive reporting sets as the bases of the model.
     //
-    // Once trained, the model can then estimate metrics of any composite
-    // reporting sets whose primitive reporting set bases are the subset of the
-    // span of the specified primitive reporting sets.
-    repeated string primitive_reporting_sets = 5 [
+    // Note that the reporting sets must be primitive reporting sets.
+    // Once trained, the model can then estimate metrics of any reporting sets
+    // whose primitive reporting set bases are the subset of the span of the
+    // specified primitive reporting sets.
+    repeated string reporting_sets = 5 [
       (google.api.field_behavior) = REQUIRED,
-      (google.api.field_behavior) = IMMUTABLE
+      (google.api.field_behavior) = IMMUTABLE,
+      (google.api.resource_reference) = { type: "halo.wfanet.org/ReportingSet" }
     ];
   }
   // Model spec
