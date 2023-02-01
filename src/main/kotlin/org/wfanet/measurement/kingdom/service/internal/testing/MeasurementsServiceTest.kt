@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.service.internal.testing
 
+import com.google.cloud.spanner.Struct
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
@@ -125,6 +126,14 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
 
+  private suspend fun readMeasurement(externalComputationId: Long): Measurement {
+    return measurementsService.getMeasurementByComputationId(
+      getMeasurementByComputationIdRequest {
+        this.externalComputationId = externalComputationId
+      }
+    )
+  }
+
   @Before
   fun initService() {
     val services = newServices(idGenerator)
@@ -140,9 +149,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   fun `getMeasurementByComputationId fails for missing Measurement`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        measurementsService.getMeasurementByComputationId(
-          getMeasurementByComputationIdRequest { externalComputationId = 1L }
-        )
+        readMeasurement(1L)
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
@@ -625,17 +632,13 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         }
       )
 
-    val measurement =
-      measurementsService.getMeasurementByComputationId(
-        getMeasurementByComputationIdRequest {
-          externalComputationId = createdMeasurement.externalComputationId
-        }
-      )
+    val measurement = readMeasurement(createdMeasurement.externalComputationId)
 
     assertThat(measurement)
       .ignoringFields(
         Measurement.REQUISITIONS_FIELD_NUMBER,
-        Measurement.COMPUTATION_PARTICIPANTS_FIELD_NUMBER
+        Measurement.COMPUTATION_PARTICIPANTS_FIELD_NUMBER,
+        Measurement.MEASUREMENT_STATE_LOG_ENTRY_FIELD_NUMBER
       )
       .isEqualTo(createdMeasurement)
   }
@@ -680,17 +683,13 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           }
         )
 
-      val measurement =
-        measurementsService.getMeasurementByComputationId(
-          getMeasurementByComputationIdRequest {
-            externalComputationId = createdMeasurement.externalComputationId
-          }
-        )
+      val measurement = readMeasurement(createdMeasurement.externalComputationId)
 
       assertThat(measurement)
         .ignoringFields(
           Measurement.REQUISITIONS_FIELD_NUMBER,
-          Measurement.COMPUTATION_PARTICIPANTS_FIELD_NUMBER
+          Measurement.COMPUTATION_PARTICIPANTS_FIELD_NUMBER,
+          Measurement.MEASUREMENT_STATE_LOG_ENTRY_FIELD_NUMBER
         )
         .isEqualTo(createdMeasurement.copy { dataProviders.clear() })
       assertThat(measurement.requisitionsList)
@@ -1232,4 +1231,46 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
     assertThat(measurements).containsExactly(succeededMeasurement)
   }
+
+  @Test
+  fun `measurementState is consistent when creating and cancelling a Measurement`(): Unit = runBlocking {
+    var measurement: Measurement
+    var measurementStateTransition: Measurement
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    measurement =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+
+    measurementStateTransition = readMeasurement(measurement.externalComputationId)
+
+    assertThat(measurementStateTransition.measurementStateLogEntryCount).isEqualTo(1)
+    assertThat(measurementStateTransition.measurementStateLogEntryList.get(0).currentState).isEqualTo(
+      Measurement.State.PENDING_REQUISITION_PARAMS)
+    assertThat(measurementStateTransition.measurementStateLogEntryList.get(0).priorState).isEqualTo(
+      Measurement.State.STATE_UNSPECIFIED)
+
+    measurement =
+      measurementsService.cancelMeasurement(
+        cancelMeasurementRequest {
+          externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+          externalMeasurementId = measurement.externalMeasurementId
+        }
+      )
+
+    measurementStateTransition =  readMeasurement(measurement.externalComputationId)
+
+    assertThat(measurementStateTransition.measurementStateLogEntryCount).isEqualTo(2)
+    assertThat(measurementStateTransition.measurementStateLogEntryList.get(0).currentState).isEqualTo(
+      Measurement.State.CANCELLED)
+    assertThat(measurementStateTransition.measurementStateLogEntryList.get(0).priorState).isEqualTo(
+      Measurement.State.PENDING_REQUISITION_PARAMS)
+
+  }
+
 }

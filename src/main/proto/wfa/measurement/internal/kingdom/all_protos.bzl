@@ -55,7 +55,6 @@ KINGDOM_INTERNAL_ENTITY_PROTOS = [
     "//src/main/proto/wfa/measurement/internal/kingdom:measurement_consumer_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:measurement_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:measurement_log_entry_kt_jvm_proto",
-    "//src/main/proto/wfa/measurement/internal/kingdom:measurement_state_transition_log_entry_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:model_provider_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_kt_jvm_proto",
     "//src/main/proto/wfa/measurement/internal/common:provider_kt_jvm_proto",
