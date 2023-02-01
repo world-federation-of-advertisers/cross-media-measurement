@@ -24,12 +24,9 @@ import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
 import org.wfanet.measurement.gcloud.spanner.getInternalId
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
-import org.wfanet.measurement.internal.kingdom.Measurement
-import org.wfanet.measurement.internal.kingdom.MeasurementKt
+import org.wfanet.measurement.internal.kingdom.*
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
-import org.wfanet.measurement.internal.kingdom.Requisition
-import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 
 class MeasurementReader(private val view: Measurement.View) :
@@ -230,6 +227,21 @@ class MeasurementReader(private val view: Measurement.View) :
       ) AS ComputationParticipants,
       ARRAY(
         SELECT AS STRUCT
+          StateTransitionMeasurementLogEntries.CreateTime,
+          StateTransitionMeasurementLogEntries.PriorMeasurementState,
+          StateTransitionMeasurementLogEntries.CurrentMeasurementState,
+          StateTransitionMeasurementLogEntries.MeasurementConsumerId,
+          StateTransitionMeasurementLogEntries.MeasurementId
+        FROM
+          StateTransitionMeasurementLogEntries
+          JOIN MeasurementLogEntries USING (MeasurementConsumerId, MeasurementId, CreateTime)
+        WHERE
+          StateTransitionMeasurementLogEntries.MeasurementConsumerId = Measurements.MeasurementConsumerId
+          AND StateTransitionMeasurementLogEntries.MeasurementId = Measurements.MeasurementId
+        ORDER BY MeasurementLogEntries.CreateTime DESC
+      ) AS StateTransitionMeasurementLogEntries,
+      ARRAY(
+        SELECT AS STRUCT
           DuchyMeasurementResults.DuchyId,
           ExternalDuchyCertificateId,
           EncryptedResult
@@ -350,5 +362,25 @@ private fun MeasurementKt.Dsl.fillComputationView(struct: Struct) {
         participantStructs,
         dataProvidersCount
       )
+  }
+
+  val stateTransitionMeasurementStructs = struct.getStructList("StateTransitionMeasurementLogEntries")
+  for (stateTransitionMeasurementStruct in stateTransitionMeasurementStructs) {
+    measurementStateLogEntry += measurementStateLogEntry {
+      this.currentState = stateTransitionMeasurementStruct.getProtoEnum(
+        "CurrentMeasurementState",
+        Measurement.State::forNumber
+      )
+      this.priorState = stateTransitionMeasurementStruct.getProtoEnum(
+        "PriorMeasurementState",
+        Measurement.State::forNumber
+      ) ?: Measurement.State.STATE_UNSPECIFIED
+      this.logEntry = measurementLogEntry {
+        this.createTime = stateTransitionMeasurementStruct.getTimestamp("CreateTime").toProto()
+        this.externalMeasurementId = stateTransitionMeasurementStruct.getLong("MeasurementId")
+        this.externalMeasurementConsumerId =
+          stateTransitionMeasurementStruct.getLong("MeasurementConsumerId")
+      }
+    }
   }
 }

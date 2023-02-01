@@ -21,6 +21,7 @@ import "wfa/measurement/internal/kingdom/certificate.proto";
 import "wfa/measurement/internal/kingdom/computation_participant.proto";
 import "wfa/measurement/internal/kingdom/duchy_protocol_config.proto";
 import "wfa/measurement/internal/kingdom/protocol_config.proto";
+import "wfa/measurement/internal/kingdom/measurement_log_entry.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
@@ -150,6 +151,11 @@ message Measurement {
   //
   // Only set for COMPUTATION view.
   repeated ComputationParticipant computation_participants = 13;
+
+  // Measurement State Transition of this Measurement. Output-only.
+  //
+  // Only set for COMPUTATION view.
+  repeated MeasurementStateLogEntry measurement_state_log_entry = 14;
 }
 
 message Requisition {
@@ -283,4 +289,10 @@ message Requisition {
   }
   // Denormalized fields from the parent Measurement. Output-only.
   ParentMeasurement parent_measurement = 12;
+}
+
+message MeasurementStateLogEntry {
+  MeasurementLogEntry log_entry = 1;
+  Measurement.State prior_state = 2;
+  Measurement.State current_state = 3;
 }
