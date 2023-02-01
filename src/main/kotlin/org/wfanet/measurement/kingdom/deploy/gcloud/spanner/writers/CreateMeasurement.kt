@@ -97,6 +97,9 @@ class CreateMeasurement(private val measurement: Measurement) :
       initialMeasurementState
     )
 
+    // Log state change
+    createMeasurementStateTransitionLogEntry(measurementConsumerId,measurementId,initialMeasurementState)
+
     // Insert into Requisitions for each EDP
     insertRequisitions(
       measurementConsumerId,
@@ -135,6 +138,9 @@ class CreateMeasurement(private val measurement: Measurement) :
       null,
       initialMeasurementState
     )
+
+    // Log state change
+    createMeasurementStateTransitionLogEntry(measurementConsumerId,measurementId,initialMeasurementState)
 
     // Insert into Requisitions for each EDP
     insertRequisitions(

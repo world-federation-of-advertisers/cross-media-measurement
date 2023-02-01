@@ -6,18 +6,20 @@ import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.numberAsLong
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry.Details
 
-private const val DEFAULT_INITIAL_STATE = -1L
-private val MEASUREMENT_LOG_DETAILS by lazy { org.wfanet.measurement.internal.kingdom.MeasurementLogEntry.Details.getDefaultInstance() }
+private val DEFAULT_INITIAL_STATE by lazy { InternalId(-1L) }
+private val MEASUREMENT_LOG_DETAILS by lazy { Details.getDefaultInstance() }
 
 
 private data class MeasurementStateTransition(
-  val priorMeasurementState: Long,
-  val currentMeasurementState: Long
+  val priorMeasurementState: InternalId,
+  val currentMeasurementState: InternalId
 )
 internal suspend fun SpannerWriter.TransactionScope.createMeasurementStateTransitionLogEntry(
   measurementConsumerId: InternalId,
@@ -25,17 +27,22 @@ internal suspend fun SpannerWriter.TransactionScope.createMeasurementStateTransi
   nextState: Measurement.State,
 ) {
 
-  val previousStateTransition = getPreviousState(measurementConsumerId, measurementId)
+  val previousStateTransition = getPreviousState(measurementId, measurementConsumerId)
   val priorMeasurementState = previousStateTransition?.currentMeasurementState ?: DEFAULT_INITIAL_STATE
+  val nextMeasurementState = InternalId(nextState.numberAsLong)
 
-  insertMeasurementLogEntry(measurementId, measurementConsumerId)
+  if (priorMeasurementState != nextMeasurementState) {
 
-  insertMeasurementStateTransitionLogEntry(
-    measurementId,
-    measurementConsumerId,
-    InternalId(priorMeasurementState),
-    InternalId(nextState.number.toLong())
-  )
+    insertMeasurementLogEntry(measurementId, measurementConsumerId)
+
+    insertMeasurementStateTransitionLogEntry(
+      measurementId,
+      measurementConsumerId,
+      priorMeasurementState,
+      nextMeasurementState
+    )
+
+  }
 
 }
 
@@ -70,15 +77,14 @@ private fun SpannerWriter.TransactionScope.insertMeasurementStateTransitionLogEn
 
 private fun translateToInternalStates(struct: Struct): MeasurementStateTransition =
   MeasurementStateTransition(
-    struct.getLong("PriorMeasurementState"),
-    struct.getLong("CurrentMeasurementState")
+    InternalId(struct.getLong("PriorMeasurementState")),
+    InternalId(struct.getLong("CurrentMeasurementState"))
   )
 
 private suspend fun SpannerWriter.TransactionScope.getPreviousState(
   measurementId: InternalId,
   measurementConsumerId: InternalId
 ): MeasurementStateTransition? {
-
   return transactionContext
     .executeQuery(
       Statement.newBuilder(
