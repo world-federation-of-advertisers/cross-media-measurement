@@ -14,6 +14,10 @@
 
 package org.wfanet.measurement.duchy.daemon.herald
 
+import io.grpc.Status
+import io.grpc.StatusException
+import java.util.logging.Level
+import java.util.logging.Logger
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineStub
 import org.wfanet.measurement.internal.duchy.getContinuationTokenRequest
 import org.wfanet.measurement.internal.duchy.setContinuationTokenRequest
@@ -97,6 +101,20 @@ class ContinuationTokenManager(
       }
 
     // TODO(@renjiez): Throttle the calling of the api if needed.
-    continuationTokenClient.setContinuationToken(setRequest)
+    try {
+      continuationTokenClient.setContinuationToken(setRequest)
+    } catch (e: StatusException) {
+      if (e.status.code == Status.FAILED_PRECONDITION.code) {
+        logger.log(Level.WARNING, e) { "Failure happened during setContinuationToken" }
+      } else {
+        throw SetContinuationTokenException(e.message ?: "Exception during setContinuationToken")
+      }
+    }
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
+
+class SetContinuationTokenException(message: String) : Exception(message)

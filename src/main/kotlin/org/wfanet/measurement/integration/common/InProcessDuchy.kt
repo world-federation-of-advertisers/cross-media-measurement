@@ -45,6 +45,7 @@ import org.wfanet.measurement.common.identity.testing.withMetadataDuchyIdentitie
 import org.wfanet.measurement.common.identity.withDuchyId
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.duchy.daemon.herald.ContinuationTokenManager
 import org.wfanet.measurement.duchy.daemon.herald.Herald
 import org.wfanet.measurement.duchy.daemon.mill.Certificate
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.LiquidLegionsV2Mill
@@ -189,7 +190,7 @@ class InProcessDuchy(
             internalComputationsClient = computationsClient,
             systemComputationsClient = systemComputationsClient,
             systemComputationParticipantClient = systemComputationParticipantsClient,
-            continuationTokenClient = continuationTokensClient,
+            continuationTokenManager = ContinuationTokenManager(continuationTokensClient),
             protocolsSetupConfig = protocolsSetupConfig,
             clock = Clock.systemUTC(),
           )
