@@ -15,31 +15,33 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
 import com.google.common.truth.Truth.assertThat
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneOffset
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
 
 private const val MEASUREMENT_CONSUMER_ID = "ACME"
-
-private const val FILTER_EXPRESSION =
-  "privacy_budget.gender.value==1 && privacy_budget.age.value==1 && " +
-    "banner_ad.gender.value == 1"
+private const val FILTER_EXPRESSION = "person.gender.value==1 && person.age_group.value==1"
 
 @RunWith(JUnit4::class)
 class PrivacyBudgetManagerTest {
+  private val today: LocalDateTime = LocalDate.now().atTime(4, 20)
+  private val yesterday: LocalDateTime = today.minusDays(1)
+  private val startOfTomorrow: LocalDateTime = today.plusDays(1).toLocalDate().atStartOfDay()
+  private val timeRange =
+    OpenEndTimeRange(yesterday.toInstant(ZoneOffset.UTC), startOfTomorrow.toInstant(ZoneOffset.UTC))
+
   private val privacyBucketFilter = PrivacyBucketFilter(TestPrivacyBucketMapper())
 
   private fun createQuery(referenceId: String, expression: String = FILTER_EXPRESSION) =
     Query(
       Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
-      LandscapeMask(
-        listOf(EventGroupSpec(expression, LocalDate.now().minusDays(1), LocalDate.now())),
-        0.01f,
-        0.02f
-      ),
+      LandscapeMask(listOf(EventGroupSpec(expression, timeRange)), 0.01f, 0.02f),
       Charge(0.6f, 0.02f)
     )
 

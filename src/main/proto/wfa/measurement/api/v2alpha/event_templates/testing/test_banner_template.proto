@@ -28,18 +28,15 @@ message TestBannerTemplate {
     description: "A simple Event Template for a banner ad."
   };
 
-  message Gender {
+  message ViewableField {
     option (.wfa.measurement.api.v2alpha.event_field) = {
-      display_name: "Gender"
+      display_name: "Viewable"
     };
 
-    enum Value {
-      GENDER_UNSPECIFIED = 0;
-      GENDER_MALE = 1;
-      GENDER_FEMALE = 2;
-    }
-    Value value = 1;
+    bool value = 1;
   }
-
-  Gender gender = 1;
+  // Whether the ad was shown for more than 2 seconds with at least 50% of the
+  // pixels on the screen. If not specified, viewability may not have been
+  // measured.
+  ViewableField viewable = 1;
 }

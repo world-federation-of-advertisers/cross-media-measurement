@@ -13,13 +13,10 @@
  */
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha
 
-import com.google.protobuf.Timestamp
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec.MeasurementTypeCase
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
+import org.wfanet.measurement.api.v2alpha.toRange
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Charge
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.EventGroupSpec
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.LandscapeMask
@@ -83,12 +80,8 @@ object PrivacyQueryMapper {
     return Query(
       reference,
       LandscapeMask(
-        requisitionSpec.getEventGroupsList().map {
-          EventGroupSpec(
-            it.value.filter.expression,
-            it.value.collectionInterval.startTime.toLocalDate("UTC"),
-            it.value.collectionInterval.endTime.toLocalDate("UTC")
-          )
+        requisitionSpec.eventGroupsList.map {
+          EventGroupSpec(it.value.filter.expression, it.value.collectionInterval.toRange())
         },
         measurementSpec.vidSamplingInterval.start,
         measurementSpec.vidSamplingInterval.width
@@ -96,10 +89,4 @@ object PrivacyQueryMapper {
       charge
     )
   }
-
-  // TODO(@uakyol): Update time conversion after getting alignment on civil calendar days.
-  private fun Timestamp.toLocalDate(timeZone: String): LocalDate =
-    Instant.ofEpochSecond(this.getSeconds(), this.getNanos().toLong())
-      .atZone(ZoneId.of(timeZone))
-      .toLocalDate()
 }

@@ -35,7 +35,10 @@ proto_library(
     name = "event_proto",
     srcs = ["test_event.proto"],
     strip_import_prefix = IMPORT_PREFIX,
-    deps = [":event_templates_proto"],
+    deps = [
+        ":event_templates_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
 )
 
 java_proto_library(
