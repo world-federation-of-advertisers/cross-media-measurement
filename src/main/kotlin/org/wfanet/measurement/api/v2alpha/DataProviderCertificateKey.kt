@@ -42,7 +42,3 @@ data class DataProviderCertificateKey(
     }
   }
 }
-
-fun makeDataProviderCertificateName(dataProviderId: String, certificateId: String): String {
-  return DataProviderCertificateKey(dataProviderId, certificateId).toName()
-}

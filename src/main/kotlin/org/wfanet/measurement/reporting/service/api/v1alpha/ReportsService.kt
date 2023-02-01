@@ -550,8 +550,8 @@ class ReportsService(
     signingConfig: SigningConfig,
     internalReportingSetMap: Map<Long, InternalReportingSet>
   ): Measurement {
-    val dataProviderNameToInternalEventGroupEntriesList =
-      aggregateInternalEventGroupEntryByDataProviderName(
+    val eventGroupEntriesByDataProvider =
+      groupEventGroupEntriesByDataProvider(
         weightedMeasurementInfo.weightedMeasurement.reportingSets,
         weightedMeasurementInfo.timeInterval.toMeasurementTimeInterval(),
         reportInfo.eventGroupFilters,
@@ -561,7 +561,7 @@ class ReportsService(
     val createMeasurementRequest: CreateMeasurementRequest =
       buildCreateMeasurementRequest(
         measurementConsumer,
-        dataProviderNameToInternalEventGroupEntriesList,
+        eventGroupEntriesByDataProvider,
         internalMetricDetails,
         weightedMeasurementInfo.reportingMeasurementId,
         apiAuthenticationKey,
@@ -1063,7 +1063,7 @@ class ReportsService(
   /** Builds a [CreateMeasurementRequest]. */
   private suspend fun buildCreateMeasurementRequest(
     measurementConsumer: MeasurementConsumer,
-    dataProviderNameToInternalEventGroupEntriesList: Map<String, List<EventGroupEntry>>,
+    eventGroupEntriesByDataProvider: Map<DataProviderKey, List<EventGroupEntry>>,
     internalMetricDetails: InternalMetricDetails,
     measurementReferenceId: String,
     apiAuthenticationKey: String,
@@ -1089,7 +1089,7 @@ class ReportsService(
 
       dataProviders +=
         buildDataProviderEntries(
-          dataProviderNameToInternalEventGroupEntriesList,
+          eventGroupEntriesByDataProvider,
           measurementEncryptionPublicKey,
           measurementConsumerSigningKey,
           apiAuthenticationKey,
@@ -1111,77 +1111,63 @@ class ReportsService(
     return createMeasurementRequest { this.measurement = measurement }
   }
 
-  /** Builds a map of data provider resource name to a list of [EventGroupEntry]s. */
-  private fun aggregateInternalEventGroupEntryByDataProviderName(
+  /**
+   * Converts internal event group entries into [EventGroupEntry] messages, grouping them by
+   * DataProvider.
+   */
+  private fun groupEventGroupEntriesByDataProvider(
     reportingSetNames: List<String>,
     timeInterval: MeasurementTimeInterval,
     eventGroupFilters: Map<String, String>,
     internalReportingSetMap: Map<Long, InternalReportingSet>
-  ): Map<String, List<EventGroupEntry>> {
-    val internalReportingSetsList = mutableListOf<InternalReportingSet>()
-
-    for (reportingSetName in reportingSetNames) {
-      val reportingSetKey =
-        grpcRequireNotNull(ReportingSetKey.fromName(reportingSetName)) {
-          "Invalid reporting set name $reportingSetName."
-        }
-
-      internalReportingSetsList +=
-        internalReportingSetMap.getValue(apiIdToExternalId(reportingSetKey.reportingSetId))
-    }
-
-    val dataProviderNameToInternalEventGroupEntriesList =
-      mutableMapOf<String, MutableList<EventGroupEntry>>()
-
-    for (internalReportingSet in internalReportingSetsList) {
-      for (eventGroupKey in internalReportingSet.eventGroupKeysList) {
-        val dataProviderName = DataProviderKey(eventGroupKey.dataProviderReferenceId).toName()
-        val eventGroupName =
-          EventGroupKey(
-              eventGroupKey.measurementConsumerReferenceId,
-              eventGroupKey.dataProviderReferenceId,
-              eventGroupKey.eventGroupReferenceId
+  ): Map<DataProviderKey, List<EventGroupEntry>> {
+    return reportingSetNames
+      .flatMap {
+        val reportingSetKey =
+          grpcRequireNotNull(ReportingSetKey.fromName(it)) { "Invalid reporting set name $it" }
+        val internalReportingSet =
+          internalReportingSetMap.getValue(apiIdToExternalId(reportingSetKey.reportingSetId))
+        internalReportingSet.eventGroupKeysList.map { internalEventGroupKey ->
+          val eventGroupKey =
+            EventGroupKey(
+              internalEventGroupKey.measurementConsumerReferenceId,
+              internalEventGroupKey.dataProviderReferenceId,
+              internalEventGroupKey.eventGroupReferenceId
             )
-            .toName()
+          val eventGroupName = eventGroupKey.toName()
+          val filter =
+            combineEventGroupFilters(internalReportingSet.filter, eventGroupFilters[eventGroupName])
 
-        dataProviderNameToInternalEventGroupEntriesList.getOrPut(
-          dataProviderName,
-          ::mutableListOf
-        ) +=
-          RequisitionSpecKt.eventGroupEntry {
-            key = eventGroupName
-            value =
-              RequisitionSpecKt.EventGroupEntryKt.value {
-                collectionInterval = timeInterval
-
-                val filter =
-                  combineEventGroupFilters(
-                    internalReportingSet.filter,
-                    eventGroupFilters[eventGroupName]
-                  )
-                if (filter != null) {
-                  this.filter = RequisitionSpecKt.eventFilter { expression = filter }
+          eventGroupKey to
+            RequisitionSpecKt.eventGroupEntry {
+              key = eventGroupName
+              value =
+                RequisitionSpecKt.EventGroupEntryKt.value {
+                  collectionInterval = timeInterval
+                  if (filter != null) {
+                    this.filter = RequisitionSpecKt.eventFilter { expression = filter }
+                  }
                 }
-              }
-          }
+            }
+        }
       }
-    }
-
-    return dataProviderNameToInternalEventGroupEntriesList.mapValues { it.value.toList() }.toMap()
+      .groupBy(
+        { (eventGroupKey, _) -> DataProviderKey(eventGroupKey.dataProviderReferenceId) },
+        { (_, eventGroupEntry) -> eventGroupEntry }
+      )
   }
 
-  /** Builds a list of [DataProviderEntry]s from lists of [EventGroupEntry]s. */
+  /** Builds a [List] of [DataProviderEntry] messages from [eventGroupEntriesByDataProvider]. */
   private suspend fun buildDataProviderEntries(
-    dataProviderNameToInternalEventGroupEntriesList: Map<String, List<EventGroupEntry>>,
+    eventGroupEntriesByDataProvider: Map<DataProviderKey, List<EventGroupEntry>>,
     measurementEncryptionPublicKey: ByteString,
     measurementConsumerSigningKey: SigningKeyHandle,
     apiAuthenticationKey: String,
   ): List<DataProviderEntry> {
-    return dataProviderNameToInternalEventGroupEntriesList.map {
-      (dataProviderName, eventGroupEntriesList) ->
+    return eventGroupEntriesByDataProvider.map { (dataProviderKey, eventGroupEntries) ->
       dataProviderEntry {
         val requisitionSpec = requisitionSpec {
-          eventGroups += eventGroupEntriesList
+          eventGroups += eventGroupEntries
           this.measurementPublicKey = measurementEncryptionPublicKey
           nonce = secureRandom.nextLong()
         }
@@ -1190,9 +1176,9 @@ class ReportsService(
           try {
             dataProvidersStub
               .withAuthenticationKey(apiAuthenticationKey)
-              .getDataProvider(getDataProviderRequest { name = dataProviderName })
+              .getDataProvider(getDataProviderRequest { name = dataProviderKey.toName() })
           } catch (e: StatusException) {
-            throw Exception("Unable to retrieve the data provider [$dataProviderName].", e)
+            throw Exception("Unable to retrieve the data provider [$dataProviderKey].", e)
           }
 
         key = dataProvider.name
