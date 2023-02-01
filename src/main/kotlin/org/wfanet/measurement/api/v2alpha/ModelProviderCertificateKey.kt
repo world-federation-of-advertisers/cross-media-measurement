@@ -43,7 +43,3 @@ data class ModelProviderCertificateKey(
     }
   }
 }
-
-fun makeModelProviderCertificateName(modelProviderId: String, certificateId: String): String {
-  return ModelProviderCertificateKey(modelProviderId, certificateId).toName()
-}
