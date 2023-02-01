@@ -87,7 +87,7 @@ message CompositeReportingSet {
 message ReportingSet {
   option (google.api.resource) = {
     type: "reporting.halo-cmm.org/ReportingSet"
-    pattern: "measurementConsumers/{measurement_consumer}/reportingSet/{reporting_set}"
+    pattern: "measurementConsumers/{measurement_consumer}/reportingSets/{reporting_set}"
   };
 
   // Resource name.
