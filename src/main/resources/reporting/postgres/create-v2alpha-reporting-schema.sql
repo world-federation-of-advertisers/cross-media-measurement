@@ -465,16 +465,16 @@ CREATE TABLE WeightedPrimitiveReportingSetBases (
     REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId),
 );
 
-CREATE TABLE ModelInferenceCalculationModelSpecs (
+CREATE TABLE ModelInferenceCalculationMetricSpecs (
   MeasurementConsumerId bigint NOT NULL,
   ModelInferenceCalculationId bigint NOT NULL,
-  ModelSpecId bigint NOT NULL,
+  MetricSpecId bigint NOT NULL,
 
-  PRIMARY KEY(MeasurementConsumerId, ModelInferenceCalculationId, ModelSpecId),
+  PRIMARY KEY(MeasurementConsumerId, ModelInferenceCalculationId, MetricSpecId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId),
   FOREIGN KEY(MeasurementConsumerId, ModelInferenceCalculationId)
     REFERENCES ModelInferenceCalculations(MeasurementConsumerId, ModelInferenceCalculationId),
-  FOREIGN KEY(MeasurementConsumerId, ModelSpecId)
-    REFERENCES ModelSpecs(MeasurementConsumerId, ModelSpecId),
+  FOREIGN KEY(MeasurementConsumerId, MetricSpecId)
+    REFERENCES MetricSpecs(MeasurementConsumerId, MetricSpecId),
 );
