@@ -18,12 +18,7 @@ import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
-import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
-import org.wfanet.measurement.gcloud.spanner.appendClause
-import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
-import org.wfanet.measurement.gcloud.spanner.getInternalId
-import org.wfanet.measurement.gcloud.spanner.getProtoEnum
-import org.wfanet.measurement.gcloud.spanner.getProtoMessage
+import org.wfanet.measurement.gcloud.spanner.*
 import org.wfanet.measurement.internal.kingdom.*
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
@@ -46,6 +41,7 @@ class MeasurementReader(private val view: Measurement.View) :
         throw IllegalArgumentException("View field of GetMeasurementRequest is not set")
     }
   }
+
   override val baseSql: String = constructBaseSql(view)
 
   override suspend fun translate(struct: Struct): Result =
@@ -61,17 +57,17 @@ class MeasurementReader(private val view: Measurement.View) :
     externalMeasurementId: ExternalId
   ): Result? {
     return fillStatementBuilder {
-        appendClause(
-          """
+      appendClause(
+        """
           WHERE ExternalMeasurementConsumerId = @externalMeasurementConsumerId
             AND ExternalMeasurementId = @externalMeasurementId
           """
-        )
-        bind("externalMeasurementConsumerId").to(externalMeasurementConsumerId.value)
-        bind("externalMeasurementId").to(externalMeasurementId.value)
+      )
+      bind("externalMeasurementConsumerId").to(externalMeasurementConsumerId.value)
+      bind("externalMeasurementId").to(externalMeasurementId.value)
 
-        appendClause("LIMIT 1")
-      }
+      appendClause("LIMIT 1")
+    }
       .execute(readContext)
       .singleOrNull()
   }
@@ -81,10 +77,10 @@ class MeasurementReader(private val view: Measurement.View) :
     externalComputationId: ExternalId,
   ): Result? {
     return fillStatementBuilder {
-        appendClause("WHERE ExternalComputationId = @externalComputationId")
-        bind("externalComputationId").to(externalComputationId.value)
-        appendClause("LIMIT 1")
-      }
+      appendClause("WHERE ExternalComputationId = @externalComputationId")
+      bind("externalComputationId").to(externalComputationId.value)
+      appendClause("LIMIT 1")
+    }
       .execute(readContext)
       .singleOrNull()
   }
@@ -364,7 +360,8 @@ private fun MeasurementKt.Dsl.fillComputationView(struct: Struct) {
       )
   }
 
-  val stateTransitionMeasurementStructs = struct.getStructList("StateTransitionMeasurementLogEntries")
+  val stateTransitionMeasurementStructs =
+    struct.getStructList("StateTransitionMeasurementLogEntries")
   for (stateTransitionMeasurementStruct in stateTransitionMeasurementStructs) {
     measurementStateLogEntry += measurementStateLogEntry {
       this.currentState = stateTransitionMeasurementStruct.getProtoEnum(
