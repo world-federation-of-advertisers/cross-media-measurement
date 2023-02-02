@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.kingdom.service.internal.testing
 
-import com.google.cloud.spanner.Struct
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
@@ -91,7 +90,8 @@ private val MEASUREMENT = measurement {
 @RunWith(JUnit4::class)
 abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
-  @get:Rule val duchyIdSetter = DuchyIdSetter(EXTERNAL_DUCHY_IDS)
+  @get:Rule
+  val duchyIdSetter = DuchyIdSetter(EXTERNAL_DUCHY_IDS)
 
   protected data class Services<T>(
     val measurementsService: T,
@@ -1233,44 +1233,49 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
-  fun `measurementState is consistent when creating and cancelling a Measurement`(): Unit = runBlocking {
-    var measurement: Measurement
-    var measurementStateTransition: Measurement
-    val measurementConsumer =
-      population.createMeasurementConsumer(measurementConsumersService, accountsService)
-    measurement =
-      measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
-        }
+  fun `measurementState is consistent when creating and cancelling a Measurement`(): Unit =
+    runBlocking {
+      var measurement: Measurement
+      var measurementStateTransition: Measurement
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      measurement =
+        measurementsService.createMeasurement(
+          MEASUREMENT.copy {
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            externalMeasurementConsumerCertificateId =
+              measurementConsumer.certificate.externalCertificateId
+          }
+        )
+
+      measurementStateTransition = readMeasurement(measurement.externalComputationId)
+
+      assertThat(measurementStateTransition.measurementStateLogEntryCount).isEqualTo(1)
+      assertThat(measurementStateTransition.measurementStateLogEntryList.get(0).currentState).isEqualTo(
+        Measurement.State.PENDING_REQUISITION_PARAMS
+      )
+      assertThat(measurementStateTransition.measurementStateLogEntryList.get(0).priorState).isEqualTo(
+        Measurement.State.STATE_UNSPECIFIED
       )
 
-    measurementStateTransition = readMeasurement(measurement.externalComputationId)
+      measurement =
+        measurementsService.cancelMeasurement(
+          cancelMeasurementRequest {
+            externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+            externalMeasurementId = measurement.externalMeasurementId
+          }
+        )
 
-    assertThat(measurementStateTransition.measurementStateLogEntryCount).isEqualTo(1)
-    assertThat(measurementStateTransition.measurementStateLogEntryList.get(0).currentState).isEqualTo(
-      Measurement.State.PENDING_REQUISITION_PARAMS)
-    assertThat(measurementStateTransition.measurementStateLogEntryList.get(0).priorState).isEqualTo(
-      Measurement.State.STATE_UNSPECIFIED)
+      measurementStateTransition = readMeasurement(measurement.externalComputationId)
 
-    measurement =
-      measurementsService.cancelMeasurement(
-        cancelMeasurementRequest {
-          externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
-          externalMeasurementId = measurement.externalMeasurementId
-        }
+      assertThat(measurementStateTransition.measurementStateLogEntryCount).isEqualTo(2)
+      assertThat(measurementStateTransition.measurementStateLogEntryList.get(0).currentState).isEqualTo(
+        Measurement.State.CANCELLED
+      )
+      assertThat(measurementStateTransition.measurementStateLogEntryList.get(0).priorState).isEqualTo(
+        Measurement.State.PENDING_REQUISITION_PARAMS
       )
 
-    measurementStateTransition =  readMeasurement(measurement.externalComputationId)
-
-    assertThat(measurementStateTransition.measurementStateLogEntryCount).isEqualTo(2)
-    assertThat(measurementStateTransition.measurementStateLogEntryList.get(0).currentState).isEqualTo(
-      Measurement.State.CANCELLED)
-    assertThat(measurementStateTransition.measurementStateLogEntryList.get(0).priorState).isEqualTo(
-      Measurement.State.PENDING_REQUISITION_PARAMS)
-
-  }
+    }
 
 }
