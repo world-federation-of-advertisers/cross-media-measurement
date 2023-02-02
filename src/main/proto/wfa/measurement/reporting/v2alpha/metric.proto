@@ -157,6 +157,10 @@ message Metric {
     (google.api.field_behavior) = IMMUTABLE
   ];
 
+  // Additional filters that will be combined with AND boolean operation and
+  // applied to the reporting set. If unspecified, evaluates to `true`
+  repeated string filters = 5;
+
   // Possible states of a `Metric`.
   enum State {
     // Default value. This value is unused.
@@ -170,8 +174,8 @@ message Metric {
   }
 
   // Metric state.
-  State state = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+  State state = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // The result of calculating the metric.
-  MetricResult result = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+  MetricResult result = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
