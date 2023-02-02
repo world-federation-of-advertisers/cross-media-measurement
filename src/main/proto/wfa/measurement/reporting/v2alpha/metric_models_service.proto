@@ -152,6 +152,13 @@ message ApplyMetricModelRequest {
 
   // The time over which to calculate the metric cumulatively.
   TimeInterval time_interval = 3 [(google.api.field_behavior) = REQUIRED];
+
+  // The specification of what metric to estimate
+  MetricSpec metric_spec = 4;
+
+  // Additional filters that will be combined with AND boolean operation and
+  // applied to the reporting set. If unspecified, evaluates to `true`
+  repeated string filters = 5;
 }
 
 // Response message for `ApplyMetricModel` method.
