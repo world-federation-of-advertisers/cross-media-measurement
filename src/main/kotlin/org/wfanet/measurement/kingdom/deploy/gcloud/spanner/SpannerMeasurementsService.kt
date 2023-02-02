@@ -41,7 +41,6 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementSt
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurements
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CancelMeasurement
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateDuchyMeasurementLogEntry
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateMeasurement
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetMeasurementResult
 
