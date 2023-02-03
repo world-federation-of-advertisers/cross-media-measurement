@@ -57,17 +57,17 @@ class MeasurementReader(private val view: Measurement.View) :
     externalMeasurementId: ExternalId
   ): Result? {
     return fillStatementBuilder {
-      appendClause(
-        """
+        appendClause(
+          """
           WHERE ExternalMeasurementConsumerId = @externalMeasurementConsumerId
             AND ExternalMeasurementId = @externalMeasurementId
           """
-      )
-      bind("externalMeasurementConsumerId").to(externalMeasurementConsumerId.value)
-      bind("externalMeasurementId").to(externalMeasurementId.value)
+        )
+        bind("externalMeasurementConsumerId").to(externalMeasurementConsumerId.value)
+        bind("externalMeasurementId").to(externalMeasurementId.value)
 
-      appendClause("LIMIT 1")
-    }
+        appendClause("LIMIT 1")
+      }
       .execute(readContext)
       .singleOrNull()
   }
@@ -77,10 +77,10 @@ class MeasurementReader(private val view: Measurement.View) :
     externalComputationId: ExternalId,
   ): Result? {
     return fillStatementBuilder {
-      appendClause("WHERE ExternalComputationId = @externalComputationId")
-      bind("externalComputationId").to(externalComputationId.value)
-      appendClause("LIMIT 1")
-    }
+        appendClause("WHERE ExternalComputationId = @externalComputationId")
+        bind("externalComputationId").to(externalComputationId.value)
+        appendClause("LIMIT 1")
+      }
       .execute(readContext)
       .singleOrNull()
   }
@@ -364,14 +364,17 @@ private fun MeasurementKt.Dsl.fillComputationView(struct: Struct) {
     struct.getStructList("StateTransitionMeasurementLogEntries")
   for (stateTransitionMeasurementStruct in stateTransitionMeasurementStructs) {
     measurementStateLogEntry += measurementStateLogEntry {
-      this.currentState = stateTransitionMeasurementStruct.getProtoEnum(
-        "CurrentMeasurementState",
-        Measurement.State::forNumber
-      )
-      this.priorState = stateTransitionMeasurementStruct.getProtoEnum(
-        "PriorMeasurementState",
-        Measurement.State::forNumber
-      ) ?: Measurement.State.STATE_UNSPECIFIED
+      this.currentState =
+        stateTransitionMeasurementStruct.getProtoEnum(
+          "CurrentMeasurementState",
+          Measurement.State::forNumber
+        )
+      this.priorState =
+        stateTransitionMeasurementStruct.getProtoEnum(
+          "PriorMeasurementState",
+          Measurement.State::forNumber
+        )
+          ?: Measurement.State.STATE_UNSPECIFIED
       this.logEntry = measurementLogEntry {
         this.createTime = stateTransitionMeasurementStruct.getTimestamp("CreateTime").toProto()
         this.externalMeasurementId = stateTransitionMeasurementStruct.getLong("MeasurementId")

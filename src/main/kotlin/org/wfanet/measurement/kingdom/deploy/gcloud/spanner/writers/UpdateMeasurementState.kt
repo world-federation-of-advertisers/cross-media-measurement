@@ -29,15 +29,15 @@ internal suspend fun SpannerWriter.TransactionScope.updateMeasurementState(
   details: Measurement.Details? = null,
 ) {
   updateMutation("Measurements") {
-    set("MeasurementConsumerId" to measurementConsumerId)
-    set("MeasurementId" to measurementId)
-    set("State" to state)
-    set("UpdateTime" to Value.COMMIT_TIMESTAMP)
-    if (details != null) {
-      set("MeasurementDetails" to details)
-      setJson("MeasurementDetailsJson" to details)
+      set("MeasurementConsumerId" to measurementConsumerId)
+      set("MeasurementId" to measurementId)
+      set("State" to state)
+      set("UpdateTime" to Value.COMMIT_TIMESTAMP)
+      if (details != null) {
+        set("MeasurementDetails" to details)
+        setJson("MeasurementDetailsJson" to details)
+      }
     }
-  }
     .bufferTo(transactionContext)
 
   createMeasurementStateTransitionLogEntry(measurementConsumerId, measurementId, state)

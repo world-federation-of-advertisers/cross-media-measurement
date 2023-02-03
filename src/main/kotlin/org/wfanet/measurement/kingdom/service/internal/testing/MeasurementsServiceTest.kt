@@ -90,8 +90,7 @@ private val MEASUREMENT = measurement {
 @RunWith(JUnit4::class)
 abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
-  @get:Rule
-  val duchyIdSetter = DuchyIdSetter(EXTERNAL_DUCHY_IDS)
+  @get:Rule val duchyIdSetter = DuchyIdSetter(EXTERNAL_DUCHY_IDS)
 
   protected data class Services<T>(
     val measurementsService: T,
@@ -128,9 +127,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   private suspend fun readMeasurement(externalComputationId: Long): Measurement {
     return measurementsService.getMeasurementByComputationId(
-      getMeasurementByComputationIdRequest {
-        this.externalComputationId = externalComputationId
-      }
+      getMeasurementByComputationIdRequest { this.externalComputationId = externalComputationId }
     )
   }
 
@@ -147,10 +144,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `getMeasurementByComputationId fails for missing Measurement`() = runBlocking {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        readMeasurement(1L)
-      }
+    val exception = assertFailsWith<StatusRuntimeException> { readMeasurement(1L) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception).hasMessageThat().contains("Measurement not found")
@@ -1251,12 +1245,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       measurementStateTransition = readMeasurement(measurement.externalComputationId)
 
       assertThat(measurementStateTransition.measurementStateLogEntryCount).isEqualTo(1)
-      assertThat(measurementStateTransition.measurementStateLogEntryList.get(0).currentState).isEqualTo(
-        Measurement.State.PENDING_REQUISITION_PARAMS
-      )
-      assertThat(measurementStateTransition.measurementStateLogEntryList.get(0).priorState).isEqualTo(
-        Measurement.State.STATE_UNSPECIFIED
-      )
+      assertThat(measurementStateTransition.measurementStateLogEntryList.get(0).currentState)
+        .isEqualTo(Measurement.State.PENDING_REQUISITION_PARAMS)
+      assertThat(measurementStateTransition.measurementStateLogEntryList.get(0).priorState)
+        .isEqualTo(Measurement.State.STATE_UNSPECIFIED)
 
       measurement =
         measurementsService.cancelMeasurement(
@@ -1269,13 +1261,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       measurementStateTransition = readMeasurement(measurement.externalComputationId)
 
       assertThat(measurementStateTransition.measurementStateLogEntryCount).isEqualTo(2)
-      assertThat(measurementStateTransition.measurementStateLogEntryList.get(0).currentState).isEqualTo(
-        Measurement.State.CANCELLED
-      )
-      assertThat(measurementStateTransition.measurementStateLogEntryList.get(0).priorState).isEqualTo(
-        Measurement.State.PENDING_REQUISITION_PARAMS
-      )
-
+      assertThat(measurementStateTransition.measurementStateLogEntryList.get(0).currentState)
+        .isEqualTo(Measurement.State.CANCELLED)
+      assertThat(measurementStateTransition.measurementStateLogEntryList.get(0).priorState)
+        .isEqualTo(Measurement.State.PENDING_REQUISITION_PARAMS)
     }
-
 }

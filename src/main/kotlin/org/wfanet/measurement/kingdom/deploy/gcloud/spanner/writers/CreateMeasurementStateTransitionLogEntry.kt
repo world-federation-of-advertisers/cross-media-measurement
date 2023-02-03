@@ -30,7 +30,6 @@ import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry.Details
 private val DEFAULT_INITIAL_STATE by lazy { InternalId(-1L) }
 private val MEASUREMENT_LOG_DETAILS by lazy { Details.getDefaultInstance() }
 
-
 private data class MeasurementStateTransition(
   val priorMeasurementState: InternalId,
   val currentMeasurementState: InternalId
@@ -57,9 +56,7 @@ internal suspend fun SpannerWriter.TransactionScope.createMeasurementStateTransi
       priorMeasurementState,
       nextMeasurementState
     )
-
   }
-
 }
 
 internal fun SpannerWriter.TransactionScope.insertMeasurementLogEntry(
@@ -104,7 +101,7 @@ private suspend fun SpannerWriter.TransactionScope.getPreviousState(
   return transactionContext
     .executeQuery(
       Statement.newBuilder(
-        """
+          """
         SELECT
           StateTransitionMeasurementLogEntries.PriorMeasurementState,
           StateTransitionMeasurementLogEntries.CurrentMeasurementState,
@@ -114,11 +111,10 @@ private suspend fun SpannerWriter.TransactionScope.getPreviousState(
         ORDER BY StateTransitionMeasurementLogEntries.CreateTime DESC
         LIMIT 1
       """
-          .trimIndent()
-      )
+            .trimIndent()
+        )
         .build()
     )
     .map(::translateToInternalStates)
     .singleOrNull()
 }
-
