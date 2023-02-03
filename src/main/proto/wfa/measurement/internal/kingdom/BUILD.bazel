@@ -317,8 +317,8 @@ proto_and_java_proto_library(
         ":certificate_proto",
         ":computation_participant_proto",
         ":duchy_protocol_config_proto",
-        ":protocol_config_proto",
         ":measurement_log_entry_proto",
+        ":protocol_config_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
