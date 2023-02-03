@@ -25,12 +25,16 @@
 --       ├── ReportingSets
 --       │   ├── PrimitiveReportingSets
 --       │   │   └── PrimitiveReportingSetEventGroups
---       │   └── CompositeReportingSets
---       │       └── SetExpressions
+--       │   ├── CompositeReportingSets
+--       │   │   └── SetExpressions
+--       │   └── WeightedSubsetUnions
+--       │       └── PrimitiveReportingSetBases
+--       │           └── PrimitiveReportingSetBasisFilters
 --       ├── Metrics
 --       │   └── MetricMeasurements
 --       ├── MetricSpecs
 --       ├── Measurements
+--       │   └── MeasurementPrimitiveReportingSetBases
 --       ├── Models
 --       │   ├── ModelMetrics
 --       │   ├── ModelMetricSpecs
@@ -41,7 +45,6 @@
 --           ├── MetricCalculations
 --           │   └── MetricCalculationMetrics
 --           └── ModelInferenceCalculations
---               ├── WeightedPrimitiveReportingSetBases
 --               └── ModelInferenceCalculationModelSpecs
 
 -- changeset riemanli:create-v2alpha-reports-table dbms:postgresql
