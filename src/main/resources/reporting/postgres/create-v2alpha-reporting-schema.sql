@@ -157,6 +157,53 @@ CREATE TABLE ReportingSets (
 CREATE UNIQUE INDEX ReportingSetsByExternalReportingSetId
   ON ReportingSets(MeasurementConsumerId, ExternalReportingSetId);
 
+CREATE TABLE WeightedSubsetUnions (
+  MeasurementConsumerId bigint NOT NULL,
+  ReportingSetId bigint NOT NULL,
+  WeightedSubsetUnionId bigint NOT NULL,
+
+  weight bigint NOT NULL,
+
+  PRIMARY KEY(MeasurementConsumerId, ReportingSetId, WeightedSubsetUnionId),
+  FOREIGN KEY(MeasurementConsumerId)
+    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+  FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
+    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId),
+);
+
+CREATE TABLE PrimitiveReportingSetBases (
+  MeasurementConsumerId bigint NOT NULL,
+  WeightedSubsetUnionId bigint NOT NULL,
+  PrimitiveReportingSetId bigint NOT NULL,
+
+  PRIMARY KEY(MeasurementConsumerId, WeightedSubsetUnionId, PrimitiveReportingSetId),
+  FOREIGN KEY(MeasurementConsumerId)
+    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+  FOREIGN KEY(MeasurementConsumerId, WeightedSubsetUnionId)
+    REFERENCES WeightedSubsetUnions(MeasurementConsumerId, WeightedSubsetUnionId),
+  FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetId)
+    REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId),
+)
+
+CREATE TABLE PrimitiveReportingSetBasisFilters (
+  MeasurementConsumerId bigint NOT NULL,
+  WeightedSubsetUnionId bigint NOT NULL,
+  PrimitiveReportingSetId bigint NOT NULL,
+  PrimitiveReportingSetBasisFilterId bigint NOT NULL,
+
+  Filter text NOT NULL,
+
+  PRIMARY KEY(MeasurementConsumerId, WeightedSubsetUnionId, PrimitiveReportingSetId, PrimitiveReportingSetBasisFilter),
+  FOREIGN KEY(MeasurementConsumerId)
+    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+  FOREIGN KEY(MeasurementConsumerId, WeightedSubsetUnionId)
+    REFERENCES WeightedSubsetUnions(MeasurementConsumerId, WeightedSubsetUnionId),
+  FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetId)
+    REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId),
+  FOREIGN KEY(MeasurementConsumerId, WeightedSubsetUnionId, PrimitiveReportingSetId)
+    REFERENCES PrimitiveReportingSetBases(MeasurementConsumerId, WeightedSubsetUnionId, PrimitiveReportingSetId),
+)
+
 CREATE TABLE SetExpressions (
   MeasurementConsumerId bigint NOT NULL,
   SetExpressionId bigint NOT NULL,
@@ -234,10 +281,9 @@ CREATE TABLE Metrics (
 CREATE TABLE Measurements (
   MeasurementConsumerId bigint NOT NULL,
   MeasurementId bigint NOT NULL,
-  CmmsMeasurementId text NOT NULL,
+  CmmsMeasurementId text,
   TimeIntervalId bigint NOT NULL,
   MetricSpecId bigint NOT NULL,
-  ReportingSetId bigint NOT NULL,
 
   -- org.wfanet.measurement.internal.reporting.Report.Measurement.State
   -- protobuf enum encoded as an integer.
@@ -262,6 +308,25 @@ CREATE TABLE Measurements (
   FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
     REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId),
 );
+
+CREATE TABLE MeasurementPrimitiveReportingSetBases (
+  MeasurementConsumerId bigint NOT NULL,
+  MeasurementId bigint NOT NULL,
+  WeightedSubsetUnionId bigint NOT NULL,
+  PrimitiveReportingSetId bigint NOT NULL,
+
+  PRIMARY KEY(MeasurementConsumerId, MeasurementId, WeightedSubsetUnionId, PrimitiveReportingSetId),
+  FOREIGN KEY(MeasurementConsumerId)
+    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+  FOREIGN KEY(MeasurementConsumerId, MeasurementId)
+    REFERENCES Measurements(MeasurementConsumerId, MeasurementId),
+  FOREIGN KEY(MeasurementConsumerId, WeightedSubsetUnionId)
+    REFERENCES WeightedSubsetUnions(MeasurementConsumerId, WeightedSubsetUnionId),
+  FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetId)
+    REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId),
+  FOREIGN KEY(MeasurementConsumerId, WeightedSubsetUnionId, PrimitiveReportingSetId)
+    REFERENCES PrimitiveReportingSetBases(MeasurementConsumerId, WeightedSubsetUnionId, PrimitiveReportingSetId),
+)
 
 CREATE TABLE MetricMeasurements (
   MeasurementConsumerId bigint NOT NULL,
