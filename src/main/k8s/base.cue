@@ -525,6 +525,45 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	}
 }
 
+// K8s CronJob
+#CronJob: {
+	_name:        string
+	_secretName?: string
+	_container:   #Container & {
+		imagePullPolicy: imagePullPolicy | *"Always"
+	}
+
+	apiVersion: "batch/v1"
+	kind:       "CronJob"
+	metadata: {
+		name: _name + "-cronjob"
+		labels: {
+			"app.kubernetes.io/name":    _name
+			"app.kubernetes.io/part-of": #AppName
+		}
+	}
+	spec: {
+		schedule:      string
+		backoffLimit?: uint
+		jobTemplate: {
+			spec: {
+				template: {
+					metadata: labels: app: _name + "-app"
+					spec: #PodSpec & {
+						if _secretName != _|_ {
+							_mounts: "\(_name)-files": {
+								volume: secret: secretName: _secretName
+							}
+						}
+						_containers: "\(_name)-container": _container
+						restartPolicy: restartPolicy | *"OnFailure"
+					}
+				}
+			}
+		}
+	}
+}
+
 // K8s NetworkPolicyPort.
 #NetworkPolicyPort: {
 	port?:     #PortNumber

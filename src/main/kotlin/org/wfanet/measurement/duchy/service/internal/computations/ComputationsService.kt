@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.service.internal.computations
 
 import com.google.protobuf.Empty
 import io.grpc.Status
+import io.grpc.StatusException
 import java.time.Clock
 import java.util.logging.Logger
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -124,12 +125,23 @@ class ComputationsService(
   private suspend fun deleteComputation(localId: Long) {
     val computationBlobKeys = computationsDatabase.readComputationBlobKeys(localId)
     for (blobKey in computationBlobKeys) {
-      computationStorageClient.get(blobKey)?.delete()
+      try {
+        computationStorageClient.get(blobKey)?.delete()
+      } catch (e: StatusException) {
+        if (e.status.code != Status.NOT_FOUND.code) {
+          throw e
+        }
+      }
     }
-
     val requisitionBlobKeys = computationsDatabase.readRequisitionBlobKeys(localId)
     for (blobKey in requisitionBlobKeys) {
-      requisitionStorageClient.get(blobKey)?.delete()
+      try {
+        requisitionStorageClient.get(blobKey)?.delete()
+      } catch (e: StatusException) {
+        if (e.status.code != Status.NOT_FOUND.code) {
+          throw e
+        }
+      }
     }
     computationsDatabase.deleteComputation(localId)
   }

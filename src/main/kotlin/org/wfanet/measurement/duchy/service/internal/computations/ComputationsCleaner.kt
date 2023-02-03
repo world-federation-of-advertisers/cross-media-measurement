@@ -16,55 +16,29 @@ package org.wfanet.measurement.duchy.service.internal.computations
 
 import java.time.Duration
 import java.util.logging.Logger
-import kotlin.coroutines.CoroutineContext
-import kotlinx.coroutines.CoroutineName
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.deleteOutdatedComputationsRequest
 
 class ComputationsCleaner(
-  private val computationsService: ComputationsService,
+  private val computationsService: ComputationsCoroutineStub,
   ttlDays: Long,
-  periodSeconds: Long,
-  coroutineContext: CoroutineContext = Dispatchers.Default,
 ) {
-  private val backgroundScope =
-    CoroutineScope(coroutineContext + CoroutineName(javaClass.simpleName))
-
-  private lateinit var cleanerJob: Job
-
-  private val period = Duration.ofSeconds(periodSeconds).toMillis()
   private val ttlSecond = Duration.ofDays(ttlDays).toSeconds()
 
-  fun start() {
-    if (period == 0L) {
+  fun run() {
+    if (ttlSecond == 0L) {
+      logger.warning("Computation Ttl cannot be 0 seconds.")
       return
     }
-    cleanerJob =
-      backgroundScope.launch {
-        while (true) {
-          delay(period)
-          logger.info("ComputationCleaner task starts...")
-          val response =
-            computationsService.deleteOutdatedComputations(
-              deleteOutdatedComputationsRequest {
-                this.ttlSecond = this@ComputationsCleaner.ttlSecond
-              }
-            )
-          logger.info("ComputationCleaner task finishes. ${response.count} Computations cleaned")
-        }
-      }
-  }
 
-  suspend fun stop() {
-    if (period == 0L) {
-      return
+    logger.info("ComputationCleaner task starts...")
+    val response = runBlocking {
+      computationsService.deleteOutdatedComputations(
+        deleteOutdatedComputationsRequest { this.ttlSecond = this@ComputationsCleaner.ttlSecond }
+      )
     }
-    cleanerJob.cancelAndJoin()
+    logger.info("ComputationCleaner task finishes. ${response.count} Computations cleaned")
   }
 
   companion object {
