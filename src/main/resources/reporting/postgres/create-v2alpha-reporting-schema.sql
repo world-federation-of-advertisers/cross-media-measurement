@@ -517,24 +517,6 @@ CREATE TABLE ModelInferenceCalculations (
     REFERENCES Models(MeasurementConsumerId, ModelId),
 );
 
-CREATE TABLE WeightedPrimitiveReportingSetBases (
-  MeasurementConsumerId bigint NOT NULL,
-  ModelInferenceCalculationId bigint NOT NULL,
-  WeightedPrimitiveReportingSetBasisId bigint NOT NULL,
-  PrimitiveReportingSetId bigint NOT NULL,
-
-  Filter text,
-  Weight bigint NOT NULL,
-
-  PRIMARY KEY(MeasurementConsumerId, ModelInferenceCalculationId, WeightedPrimitiveReportingSetBasisId),
-  FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId),
-  FOREIGN KEY(MeasurementConsumerId, ModelInferenceCalculationId)
-    REFERENCES ModelInferenceCalculations(MeasurementConsumerId, ModelInferenceCalculationId),
-  FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetId)
-    REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId),
-);
-
 CREATE TABLE ModelInferenceCalculationMetricSpecs (
   MeasurementConsumerId bigint NOT NULL,
   ModelInferenceCalculationId bigint NOT NULL,
