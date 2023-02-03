@@ -47,7 +47,7 @@
 --           └── ModelInferenceCalculations
 --               └── ModelInferenceCalculationModelSpecs
 
--- changeset riemanli:create-v2alpha-reports-table dbms:postgresql
+-- changeset riemanli:create-reports-table dbms:postgresql
 CREATE TABLE MeasurementConsumers (
   MeasurementConsumerId bigint NOT NULL,
   CmmsMeasurementConsumerId text NOT NULL,
@@ -56,6 +56,7 @@ CREATE TABLE MeasurementConsumers (
   UNIQUE (CmmsMeasurementConsumerId)
 );
 
+-- changeset riemanli:create-data-providers-table dbms:postgresql
 CREATE TABLE DataProviders (
   MeasurementConsumerId bigint NOT NULL,
   DataProviderId bigint NOT NULL,
@@ -67,6 +68,7 @@ CREATE TABLE DataProviders (
       REFERENCES MeasurementConsumers(MeasurementConsumerId),
 );
 
+-- changeset riemanli:create-event-groups-table dbms:postgresql
 CREATE TABLE EventGroups (
   MeasurementConsumerId bigint NOT NULL,
   DataProviderId bigint NOT NULL,
@@ -81,6 +83,7 @@ CREATE TABLE EventGroups (
           REFERENCES DataProviders(MeasurementConsumerId, DataProviderId),
 );
 
+-- changeset riemanli:create-time-intervals-table dbms:postgresql
 CREATE TABLE TimeIntervals (
   MeasurementConsumerId bigint NOT NULL,
   TimeIntervalId bigint NOT NULL,
@@ -93,9 +96,11 @@ CREATE TABLE TimeIntervals (
     REFERENCES MeasurementConsumers(MeasurementConsumerId),
 );
 
+-- changeset riemanli:create-time-intervals-by-start-end-exclusive-index dbms:postgresql
 CREATE UNIQUE INDEX TimeIntervalsByStartEndExclusive
   ON TimeIntervals(MeasurementConsumerId, Start, EndExclusive);
 
+-- changeset riemanli:create-composite-reporting-sets-table dbms:postgresql
 CREATE TABLE CompositeReportingSets (
   MeasurementConsumerId bigint NOT NULL,
   CompositeReportingSetId bigint NOT NULL,
@@ -108,6 +113,7 @@ CREATE TABLE CompositeReportingSets (
     REFERENCES SetExpressions(MeasurementConsumerId, SetExpressionId),
 );
 
+-- changeset riemanli:create-primitive-reporting-sets-table dbms:postgresql
 CREATE TABLE PrimitiveReportingSets (
   MeasurementConsumerId bigint NOT NULL,
   PrimitiveReportingSetId bigint NOT NULL,
@@ -117,6 +123,7 @@ CREATE TABLE PrimitiveReportingSets (
     REFERENCES MeasurementConsumers(MeasurementConsumerId),
 );
 
+-- changeset riemanli:create-primitive-reporting-set-event-groups-table dbms:postgresql
 CREATE TABLE PrimitiveReportingSetEventGroups(
   MeasurementConsumerId bigint NOT NULL,
   DataProviderId bigint NOT NULL,
@@ -134,6 +141,7 @@ CREATE TABLE PrimitiveReportingSetEventGroups(
     REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId),
 );
 
+-- changeset riemanli:create-reporting-sets-table dbms:postgresql
 CREATE TABLE ReportingSets (
   MeasurementConsumerId bigint NOT NULL,
   ReportingSetId bigint NOT NULL,
@@ -157,9 +165,11 @@ CREATE TABLE ReportingSets (
     REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId),
 );
 
+-- changeset riemanli:create-reporting-sets-by-external-reporting-set-id-index dbms:postgresql
 CREATE UNIQUE INDEX ReportingSetsByExternalReportingSetId
   ON ReportingSets(MeasurementConsumerId, ExternalReportingSetId);
 
+-- changeset riemanli:create-weighted-subset-unions-table dbms:postgresql
 CREATE TABLE WeightedSubsetUnions (
   MeasurementConsumerId bigint NOT NULL,
   ReportingSetId bigint NOT NULL,
@@ -174,6 +184,7 @@ CREATE TABLE WeightedSubsetUnions (
     REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId),
 );
 
+-- changeset riemanli:create-primitive-reporting-set-bases-table dbms:postgresql
 CREATE TABLE PrimitiveReportingSetBases (
   MeasurementConsumerId bigint NOT NULL,
   WeightedSubsetUnionId bigint NOT NULL,
@@ -188,6 +199,7 @@ CREATE TABLE PrimitiveReportingSetBases (
     REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId),
 )
 
+-- changeset riemanli:create-primitive-reporting-set-basis-filters-table dbms:postgresql
 CREATE TABLE PrimitiveReportingSetBasisFilters (
   MeasurementConsumerId bigint NOT NULL,
   WeightedSubsetUnionId bigint NOT NULL,
@@ -207,6 +219,7 @@ CREATE TABLE PrimitiveReportingSetBasisFilters (
     REFERENCES PrimitiveReportingSetBases(MeasurementConsumerId, WeightedSubsetUnionId, PrimitiveReportingSetId),
 )
 
+-- changeset riemanli:create-set-expressions-table dbms:postgresql
 CREATE TABLE SetExpressions (
   MeasurementConsumerId bigint NOT NULL,
   SetExpressionId bigint NOT NULL,
@@ -237,6 +250,7 @@ CREATE TABLE SetExpressions (
     REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId),
 );
 
+-- changeset riemanli:create-metric-specs-table dbms:postgresql
 CREATE TABLE MetricSpecs (
   MeasurementConsumerId bigint NOT NULL,
   MetricSpecId bigint NOT NULL,
@@ -255,6 +269,7 @@ CREATE TABLE MetricSpecs (
     REFERENCES MeasurementConsumers(MeasurementConsumerId),
 );
 
+-- changeset riemanli:create-metrics-table dbms:postgresql
 CREATE TABLE Metrics (
   MeasurementConsumerId bigint NOT NULL,
   MetricId bigint NOT NULL,
@@ -281,6 +296,7 @@ CREATE TABLE Metrics (
     REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId),
 );
 
+-- changeset riemanli:create-measurements-table dbms:postgresql
 CREATE TABLE Measurements (
   MeasurementConsumerId bigint NOT NULL,
   MeasurementId bigint NOT NULL,
@@ -312,6 +328,7 @@ CREATE TABLE Measurements (
     REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId),
 );
 
+-- changeset riemanli:create-measurement-primitive-reporting-set-bases-table dbms:postgresql
 CREATE TABLE MeasurementPrimitiveReportingSetBases (
   MeasurementConsumerId bigint NOT NULL,
   MeasurementId bigint NOT NULL,
@@ -331,6 +348,7 @@ CREATE TABLE MeasurementPrimitiveReportingSetBases (
     REFERENCES PrimitiveReportingSetBases(MeasurementConsumerId, WeightedSubsetUnionId, PrimitiveReportingSetId),
 )
 
+-- changeset riemanli:create-metric-measurements-table dbms:postgresql
 CREATE TABLE MetricMeasurements (
   MeasurementConsumerId bigint NOT NULL,
   MetricId bigint NOT NULL,
@@ -346,6 +364,7 @@ CREATE TABLE MetricMeasurements (
     REFERENCES Measurements(MeasurementConsumerId, MeasurementId),
 )
 
+-- changeset riemanli:create-models-table dbms:postgresql
 CREATE TABLE Models (
   MeasurementConsumerId bigint NOT NULL,
   ModelId bigint NOT NULL,
@@ -362,9 +381,11 @@ CREATE TABLE Models (
   PRIMARY KEY(MeasurementConsumerId, ModelId)
 );
 
+-- changeset riemanli:create-models-by-external-model-id-index dbms:postgresql
 CREATE UNIQUE INDEX ModelsByExternalModelId
   ON Models(MeasurementConsumerId, ExternalModelId);
 
+-- changeset riemanli:create-model-metrics-table dbms:postgresql
 CREATE TABLE ModelMetrics(
   MeasurementConsumerId bigint NOT NULL,
   ModelId bigint NOT NULL,
@@ -379,6 +400,7 @@ CREATE TABLE ModelMetrics(
     REFERENCES Metrics(MeasurementConsumerId, MetricId),
 );
 
+-- changeset riemanli:create-model-metric-specs-table dbms:postgresql
 CREATE TABLE ModelMetricSpecs(
   MeasurementConsumerId bigint NOT NULL,
   ModelId bigint NOT NULL,
@@ -393,6 +415,7 @@ CREATE TABLE ModelMetricSpecs(
     REFERENCES MetricSpecs(MeasurementConsumerId, MetricSpecId),
 );
 
+-- changeset riemanli:create-model-time-intervals-table dbms:postgresql
 CREATE TABLE ModelTimeIntervals(
   MeasurementConsumerId bigint NOT NULL,
   ModelId bigint NOT NULL,
@@ -407,6 +430,7 @@ CREATE TABLE ModelTimeIntervals(
     REFERENCES TimeIntervals(MeasurementConsumerId, TimeIntervalId),
 );
 
+-- changeset riemanli:create-model-reporting-sets-table dbms:postgresql
 CREATE TABLE ModelReportingSets(
   MeasurementConsumerId bigint NOT NULL,
   ModelId bigint NOT NULL,
@@ -421,6 +445,7 @@ CREATE TABLE ModelReportingSets(
     REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId),
 );
 
+-- changeset riemanli:create-reports-table dbms:postgresql
 CREATE TABLE Reports (
   MeasurementConsumerId bigint NOT NULL,
   ReportId bigint NOT NULL,
@@ -444,9 +469,11 @@ CREATE TABLE Reports (
     REFERENCES MeasurementConsumers(MeasurementConsumerId),
 );
 
+-- changeset riemanli:create-reports-by-external-report-id-index dbms:postgresql
 CREATE UNIQUE INDEX ReportsByExternalReportId
   ON Reports(MeasurementConsumerId, ExternalReportId);
 
+-- changeset riemanli:create-report-time-intervals-table dbms:postgresql
 CREATE TABLE ReportTimeIntervals (
   MeasurementConsumerId bigint NOT NULL,
   ReportId bigint NOT NULL,
@@ -461,6 +488,7 @@ CREATE TABLE ReportTimeIntervals (
     REFERENCES TimeIntervals(MeasurementConsumerId, TimeIntervalId),
 );
 
+-- changeset riemanli:create-metric-calculations-table dbms:postgresql
 CREATE TABLE MetricCalculations (
   MeasurementConsumerId bigint NOT NULL,
   ReportId bigint NOT NULL,
@@ -480,6 +508,7 @@ CREATE TABLE MetricCalculations (
     REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId),
 );
 
+-- changeset riemanli:create-metric-calculation-metrics-table dbms:postgresql
 CREATE TABLE MetricCalculationMetrics (
   MeasurementConsumerId bigint NOT NULL,
   MetricCalculationId bigint NOT NULL,
@@ -498,6 +527,7 @@ CREATE TABLE MetricCalculationMetrics (
     REFERENCES Metrics(MeasurementConsumerId, MetricId),
 );
 
+-- changeset riemanli:create-model-inference-calculations-table dbms:postgresql
 CREATE TABLE ModelInferenceCalculations (
   MeasurementConsumerId bigint NOT NULL,
   ReportId bigint NOT NULL,
@@ -520,6 +550,7 @@ CREATE TABLE ModelInferenceCalculations (
     REFERENCES Models(MeasurementConsumerId, ModelId),
 );
 
+-- changeset riemanli:create-model-inference-calculation-metric-specs-table dbms:postgresql
 CREATE TABLE ModelInferenceCalculationMetricSpecs (
   MeasurementConsumerId bigint NOT NULL,
   ModelInferenceCalculationId bigint NOT NULL,
