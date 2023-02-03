@@ -65,7 +65,7 @@ CREATE TABLE DataProviders (
   PRIMARY KEY(MeasurementConsumerId, DataProviderId),
   UNIQUE (MeasurementConsumerId, CmmsDataProviderId),
   FOREIGN KEY(MeasurementConsumerId)
-      REFERENCES MeasurementConsumers(MeasurementConsumerId),
+    REFERENCES MeasurementConsumers(MeasurementConsumerId),
 );
 
 -- changeset riemanli:create-event-groups-table dbms:postgresql
@@ -78,9 +78,9 @@ CREATE TABLE EventGroups (
   PRIMARY KEY(MeasurementConsumerId, DataProviderId, EventGroupId),
   UNIQUE (MeasurementConsumerId, DataProviderId, CmmsEventGroupId),
   FOREIGN KEY(MeasurementConsumerId)
-        REFERENCES MeasurementConsumers(MeasurementConsumerId),
+    REFERENCES MeasurementConsumers(MeasurementConsumerId),
   FOREIGN KEY(MeasurementConsumerId, DataProviderId)
-          REFERENCES DataProviders(MeasurementConsumerId, DataProviderId),
+    REFERENCES DataProviders(MeasurementConsumerId, DataProviderId),
 );
 
 -- changeset riemanli:create-time-intervals-table dbms:postgresql
