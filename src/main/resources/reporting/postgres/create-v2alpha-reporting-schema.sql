@@ -65,7 +65,8 @@ CREATE TABLE DataProviders (
   PRIMARY KEY(MeasurementConsumerId, DataProviderId),
   UNIQUE (MeasurementConsumerId, CmmsDataProviderId),
   FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE,
 );
 
 -- changeset riemanli:create-event-groups-table dbms:postgresql
@@ -78,9 +79,11 @@ CREATE TABLE EventGroups (
   PRIMARY KEY(MeasurementConsumerId, DataProviderId, EventGroupId),
   UNIQUE (MeasurementConsumerId, DataProviderId, CmmsEventGroupId),
   FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, DataProviderId)
-    REFERENCES DataProviders(MeasurementConsumerId, DataProviderId),
+    REFERENCES DataProviders(MeasurementConsumerId, DataProviderId)
+    ON DELETE CASCADE,
 );
 
 -- changeset riemanli:create-time-intervals-table dbms:postgresql
@@ -93,7 +96,8 @@ CREATE TABLE TimeIntervals (
 
   PRIMARY KEY(MeasurementConsumerId, TimeIntervalId),
   FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE,
 );
 
 -- changeset riemanli:create-time-intervals-by-start-end-exclusive-index dbms:postgresql
@@ -108,9 +112,11 @@ CREATE TABLE CompositeReportingSets (
 
   PRIMARY KEY(MeasurementConsumerId, CompositeReportingSetId),
   FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, SetExpressionId)
-    REFERENCES SetExpressions(MeasurementConsumerId, SetExpressionId),
+    REFERENCES SetExpressions(MeasurementConsumerId, SetExpressionId)
+    ON DELETE CASCADE,
 );
 
 -- changeset riemanli:create-primitive-reporting-sets-table dbms:postgresql
@@ -120,7 +126,8 @@ CREATE TABLE PrimitiveReportingSets (
 
   PRIMARY KEY(MeasurementConsumerId, PrimitiveReportingSetId),
   FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE,
 );
 
 -- changeset riemanli:create-primitive-reporting-set-event-groups-table dbms:postgresql
@@ -130,15 +137,19 @@ CREATE TABLE PrimitiveReportingSetEventGroups(
   EventGroupId bigint NOT NULL,
   PrimitiveReportingSetId bigint NOT NULL,
 
-  PRIMARY KEY(MeasurementConsumerId, DataProviderId, EventGroupId, PrimitiveReportingSetId),
+  PRIMARY KEY(MeasurementConsumerId, PrimitiveReportingSetId, DataProviderId, EventGroupId),
   FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId),
-  FOREIGN KEY(MeasurementConsumerId, DataProviderId)
-    REFERENCES DataProviders(MeasurementConsumerId, DataProviderId),
-  FOREIGN KEY(MeasurementConsumerId, DataProviderId, EventGroupId)
-    REFERENCES EventGroups(MeasurementConsumerId, DataProviderId, EventGroupId),
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetId)
-    REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId),
+    REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId)
+    ON DELETE CASCADE,
+  FOREIGN KEY(MeasurementConsumerId, DataProviderId)
+    REFERENCES DataProviders(MeasurementConsumerId, DataProviderId)
+    ON DELETE CASCADE,
+  FOREIGN KEY(MeasurementConsumerId, DataProviderId, EventGroupId)
+    REFERENCES EventGroups(MeasurementConsumerId, DataProviderId, EventGroupId)
+    ON DELETE CASCADE,
 );
 
 -- changeset riemanli:create-reporting-sets-table dbms:postgresql
@@ -158,11 +169,14 @@ CREATE TABLE ReportingSets (
 
   PRIMARY KEY(MeasurementConsumerId, ReportingSetId),
   FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, CompositeReportingSetId)
-    REFERENCES CompositeReportingSets(MeasurementConsumerId, CompositeReportingSetId),
+    REFERENCES CompositeReportingSets(MeasurementConsumerId, CompositeReportingSetId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetId)
-    REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId),
+    REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId)
+    ON DELETE CASCADE,
 );
 
 -- changeset riemanli:create-reporting-sets-by-external-reporting-set-id-index dbms:postgresql
@@ -179,9 +193,11 @@ CREATE TABLE WeightedSubsetUnions (
 
   PRIMARY KEY(MeasurementConsumerId, ReportingSetId, WeightedSubsetUnionId),
   FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
-    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId),
+    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
+    ON DELETE CASCADE,
 );
 
 -- changeset riemanli:create-primitive-reporting-set-bases-table dbms:postgresql
@@ -192,11 +208,14 @@ CREATE TABLE PrimitiveReportingSetBases (
 
   PRIMARY KEY(MeasurementConsumerId, WeightedSubsetUnionId, PrimitiveReportingSetId),
   FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, WeightedSubsetUnionId)
-    REFERENCES WeightedSubsetUnions(MeasurementConsumerId, WeightedSubsetUnionId),
+    REFERENCES WeightedSubsetUnions(MeasurementConsumerId, WeightedSubsetUnionId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetId)
-    REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId),
+    REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId)
+    ON DELETE CASCADE,
 )
 
 -- changeset riemanli:create-primitive-reporting-set-basis-filters-table dbms:postgresql
@@ -210,13 +229,17 @@ CREATE TABLE PrimitiveReportingSetBasisFilters (
 
   PRIMARY KEY(MeasurementConsumerId, WeightedSubsetUnionId, PrimitiveReportingSetId, PrimitiveReportingSetBasisFilter),
   FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, WeightedSubsetUnionId)
-    REFERENCES WeightedSubsetUnions(MeasurementConsumerId, WeightedSubsetUnionId),
+    REFERENCES WeightedSubsetUnions(MeasurementConsumerId, WeightedSubsetUnionId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetId)
-    REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId),
+    REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, WeightedSubsetUnionId, PrimitiveReportingSetId)
-    REFERENCES PrimitiveReportingSetBases(MeasurementConsumerId, WeightedSubsetUnionId, PrimitiveReportingSetId),
+    REFERENCES PrimitiveReportingSetBases(MeasurementConsumerId, WeightedSubsetUnionId, PrimitiveReportingSetId)
+    ON DELETE CASCADE,
 )
 
 -- changeset riemanli:create-set-expressions-table dbms:postgresql
@@ -239,15 +262,20 @@ CREATE TABLE SetExpressions (
 
   PRIMARY KEY(MeasurementConsumerId, SetExpressionId),
   FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, LeftHandSetExpressionId)
-    REFERENCES SetExpressions(MeasurementConsumerId, SetExpressionId),
+    REFERENCES SetExpressions(MeasurementConsumerId, SetExpressionId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, LeftHandReportingSetId)
-    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId),
+    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, RightHandSetExpressionId)
-    REFERENCES SetExpressions(MeasurementConsumerId, SetExpressionId),
+    REFERENCES SetExpressions(MeasurementConsumerId, SetExpressionId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, RightHandReportingSetId)
-    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId),
+    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
+    ON DELETE CASCADE,
 );
 
 -- changeset riemanli:create-metric-specs-table dbms:postgresql
@@ -266,7 +294,8 @@ CREATE TABLE MetricSpecs (
 
   PRIMARY KEY(MeasurementConsumerId, MetricSpecId),
   FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE,
 );
 
 -- changeset riemanli:create-metrics-table dbms:postgresql
@@ -287,13 +316,17 @@ CREATE TABLE Metrics (
 
   PRIMARY KEY(MeasurementConsumerId, MetricId),
   FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, TimeIntervalId)
-    REFERENCES TimeIntervals(MeasurementConsumerId, TimeIntervalId),
+    REFERENCES TimeIntervals(MeasurementConsumerId, TimeIntervalId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, MetricSpecId)
-    REFERENCES MetricSpecs(MeasurementConsumerId, MetricSpecId),
+    REFERENCES MetricSpecs(MeasurementConsumerId, MetricSpecId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
-    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId),
+    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
+    ON DELETE CASCADE,
 );
 
 -- changeset riemanli:create-measurements-table dbms:postgresql
@@ -319,13 +352,17 @@ CREATE TABLE Measurements (
   PRIMARY KEY(MeasurementConsumerId, MeasurementId),
   UNIQUE (MeasurementConsumerId, CmmsMeasurementId),
   FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, TimeIntervalId)
-    REFERENCES TimeIntervals(MeasurementConsumerId, TimeIntervalId),
+    REFERENCES TimeIntervals(MeasurementConsumerId, TimeIntervalId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, MetricSpecId)
-    REFERENCES MetricSpecs(MeasurementConsumerId, MetricSpecId),
+    REFERENCES MetricSpecs(MeasurementConsumerId, MetricSpecId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
-    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId),
+    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
+    ON DELETE CASCADE,
 );
 
 -- changeset riemanli:create-measurement-primitive-reporting-set-bases-table dbms:postgresql
@@ -337,15 +374,20 @@ CREATE TABLE MeasurementPrimitiveReportingSetBases (
 
   PRIMARY KEY(MeasurementConsumerId, MeasurementId, WeightedSubsetUnionId, PrimitiveReportingSetId),
   FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, MeasurementId)
-    REFERENCES Measurements(MeasurementConsumerId, MeasurementId),
+    REFERENCES Measurements(MeasurementConsumerId, MeasurementId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, WeightedSubsetUnionId)
-    REFERENCES WeightedSubsetUnions(MeasurementConsumerId, WeightedSubsetUnionId),
+    REFERENCES WeightedSubsetUnions(MeasurementConsumerId, WeightedSubsetUnionId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetId)
-    REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId),
+    REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, WeightedSubsetUnionId, PrimitiveReportingSetId)
-    REFERENCES PrimitiveReportingSetBases(MeasurementConsumerId, WeightedSubsetUnionId, PrimitiveReportingSetId),
+    REFERENCES PrimitiveReportingSetBases(MeasurementConsumerId, WeightedSubsetUnionId, PrimitiveReportingSetId)
+    ON DELETE CASCADE,
 )
 
 -- changeset riemanli:create-metric-measurements-table dbms:postgresql
@@ -357,11 +399,14 @@ CREATE TABLE MetricMeasurements (
 
   PRIMARY KEY(MeasurementConsumerId, MetricId, MeasurementId),
   FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, MetricId)
-    REFERENCES Metrics(MeasurementConsumerId, MetricId),
+    REFERENCES Metrics(MeasurementConsumerId, MetricId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, MeasurementId)
-    REFERENCES Measurements(MeasurementConsumerId, MeasurementId),
+    REFERENCES Measurements(MeasurementConsumerId, MeasurementId)
+    ON DELETE CASCADE,
 )
 
 -- changeset riemanli:create-models-table dbms:postgresql
@@ -379,6 +424,9 @@ CREATE TABLE Models (
   ModelDetails bytea NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, ModelId)
+  FOREIGN KEY(MeasurementConsumerId)
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE,
 );
 
 -- changeset riemanli:create-models-by-external-model-id-index dbms:postgresql
@@ -393,11 +441,14 @@ CREATE TABLE ModelMetrics(
 
   PRIMARY KEY(MeasurementConsumerId, ModelId, MetricId),
   FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, ModelId)
-    REFERENCES Models(MeasurementConsumerId, ModelId),
+    REFERENCES Models(MeasurementConsumerId, ModelId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, MetricId)
-    REFERENCES Metrics(MeasurementConsumerId, MetricId),
+    REFERENCES Metrics(MeasurementConsumerId, MetricId)
+    ON DELETE CASCADE,
 );
 
 -- changeset riemanli:create-model-metric-specs-table dbms:postgresql
@@ -408,11 +459,14 @@ CREATE TABLE ModelMetricSpecs(
 
   PRIMARY KEY(MeasurementConsumerId, ModelId, MetricSpecId),
   FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, ModelId)
-    REFERENCES Models(MeasurementConsumerId, ModelId),
+    REFERENCES Models(MeasurementConsumerId, ModelId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, MetricSpecId)
-    REFERENCES MetricSpecs(MeasurementConsumerId, MetricSpecId),
+    REFERENCES MetricSpecs(MeasurementConsumerId, MetricSpecId)
+    ON DELETE CASCADE,
 );
 
 -- changeset riemanli:create-model-time-intervals-table dbms:postgresql
@@ -423,11 +477,14 @@ CREATE TABLE ModelTimeIntervals(
 
   PRIMARY KEY(MeasurementConsumerId, ModelId, TimeIntervalId),
   FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, ModelId)
-    REFERENCES Models(MeasurementConsumerId, ModelId),
+    REFERENCES Models(MeasurementConsumerId, ModelId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, TimeIntervalId)
-    REFERENCES TimeIntervals(MeasurementConsumerId, TimeIntervalId),
+    REFERENCES TimeIntervals(MeasurementConsumerId, TimeIntervalId)
+    ON DELETE CASCADE,
 );
 
 -- changeset riemanli:create-model-reporting-sets-table dbms:postgresql
@@ -438,11 +495,14 @@ CREATE TABLE ModelReportingSets(
 
   PRIMARY KEY(MeasurementConsumerId, ModelId, ReportingSetId),
   FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, ModelId)
-    REFERENCES Models(MeasurementConsumerId, ModelId),
+    REFERENCES Models(MeasurementConsumerId, ModelId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
-    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId),
+    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
+    ON DELETE CASCADE,
 );
 
 -- changeset riemanli:create-reports-table dbms:postgresql
@@ -466,7 +526,8 @@ CREATE TABLE Reports (
   PRIMARY KEY(MeasurementConsumerId, ReportId),
   UNIQUE (MeasurementConsumerId, ReportIdempotencyKey),
   FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE,
 );
 
 -- changeset riemanli:create-reports-by-external-report-id-index dbms:postgresql
@@ -481,11 +542,14 @@ CREATE TABLE ReportTimeIntervals (
 
   PRIMARY KEY(MeasurementConsumerId, ReportId, TimeIntervalId),
   FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, ReportId)
-    REFERENCES Reports(MeasurementConsumerId, ReportId),
+    REFERENCES Reports(MeasurementConsumerId, ReportId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, TimeIntervalId)
-    REFERENCES TimeIntervals(MeasurementConsumerId, TimeIntervalId),
+    REFERENCES TimeIntervals(MeasurementConsumerId, TimeIntervalId)
+    ON DELETE CASCADE,
 );
 
 -- changeset riemanli:create-metric-calculations-table dbms:postgresql
@@ -501,11 +565,14 @@ CREATE TABLE MetricCalculations (
 
   PRIMARY KEY(MeasurementConsumerId, ReportId, MetricCalculationId),
   FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, ReportId)
-    REFERENCES Reports(MeasurementConsumerId, ReportId),
+    REFERENCES Reports(MeasurementConsumerId, ReportId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
-    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId),
+    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
+    ON DELETE CASCADE,
 );
 
 -- changeset riemanli:create-metric-calculation-metrics-table dbms:postgresql
@@ -520,11 +587,14 @@ CREATE TABLE MetricCalculationMetrics (
 
   PRIMARY KEY(MeasurementConsumerId, MetricCalculationId, MetricId),
   FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, MetricCalculationId)
-    REFERENCES MetricCalculations(MeasurementConsumerId, MetricCalculationId),
+    REFERENCES MetricCalculations(MeasurementConsumerId, MetricCalculationId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, MetricId)
-    REFERENCES Metrics(MeasurementConsumerId, MetricId),
+    REFERENCES Metrics(MeasurementConsumerId, MetricId)
+    ON DELETE CASCADE,
 );
 
 -- changeset riemanli:create-model-inference-calculations-table dbms:postgresql
@@ -541,13 +611,17 @@ CREATE TABLE ModelInferenceCalculations (
 
   PRIMARY KEY(MeasurementConsumerId, ReportId, ModelInferenceCalculationId),
   FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, ReportId)
-    REFERENCES Reports(MeasurementConsumerId, ReportId),
+    REFERENCES Reports(MeasurementConsumerId, ReportId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
-    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId),
+    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, ModelId)
-    REFERENCES Models(MeasurementConsumerId, ModelId),
+    REFERENCES Models(MeasurementConsumerId, ModelId)
+    ON DELETE CASCADE,
 );
 
 -- changeset riemanli:create-model-inference-calculation-metric-specs-table dbms:postgresql
@@ -558,9 +632,12 @@ CREATE TABLE ModelInferenceCalculationMetricSpecs (
 
   PRIMARY KEY(MeasurementConsumerId, ModelInferenceCalculationId, MetricSpecId),
   FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId),
+    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, ModelInferenceCalculationId)
-    REFERENCES ModelInferenceCalculations(MeasurementConsumerId, ModelInferenceCalculationId),
+    REFERENCES ModelInferenceCalculations(MeasurementConsumerId, ModelInferenceCalculationId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, MetricSpecId)
-    REFERENCES MetricSpecs(MeasurementConsumerId, MetricSpecId),
+    REFERENCES MetricSpecs(MeasurementConsumerId, MetricSpecId)
+    ON DELETE CASCADE,
 );
