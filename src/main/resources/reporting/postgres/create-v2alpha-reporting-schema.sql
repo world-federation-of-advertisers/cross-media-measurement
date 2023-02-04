@@ -168,11 +168,17 @@ CREATE TABLE PrimitiveReportingSetEventGroups(
   FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetId)
     REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId)
     ON DELETE CASCADE,
+  FOREIGN KEY(DataProviderId)
+    REFERENCES DataProviders(DataProviderId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, DataProviderId)
-    REFERENCES DataProviders(MeasurementConsumerId, DataProviderId)
+    REFERENCES MeasurementConsumerDataProviders(MeasurementConsumerId, DataProviderId)
+    ON DELETE CASCADE,
+  FOREIGN KEY(DataProviderId, EventGroupId)
+    REFERENCES EventGroups(DataProviderId, EventGroupId)
     ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, DataProviderId, EventGroupId)
-    REFERENCES EventGroups(MeasurementConsumerId, DataProviderId, EventGroupId)
+    REFERENCES MeasurementConsumerEventGroups(MeasurementConsumerId, DataProviderId, EventGroupId)
     ON DELETE CASCADE,
 );
 
