@@ -95,14 +95,11 @@ CREATE TABLE TimeIntervals (
   EndExclusive TIMESTAMP NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, TimeIntervalId),
+  UNIQUE (MeasurementConsumerId, Start, EndExclusive),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId)
     ON DELETE CASCADE,
 );
-
--- changeset riemanli:create-time-intervals-by-start-end-exclusive-index dbms:postgresql
-CREATE UNIQUE INDEX TimeIntervalsByStartEndExclusive
-  ON TimeIntervals(MeasurementConsumerId, Start, EndExclusive);
 
 -- changeset riemanli:create-composite-reporting-sets-table dbms:postgresql
 CREATE TABLE CompositeReportingSets (
@@ -168,6 +165,7 @@ CREATE TABLE ReportingSets (
   PrimitiveReportingSetId bigint,
 
   PRIMARY KEY(MeasurementConsumerId, ReportingSetId),
+  UNIQUE (MeasurementConsumerId, ExternalReportingSetId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId)
     ON DELETE CASCADE,
@@ -178,10 +176,6 @@ CREATE TABLE ReportingSets (
     REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId)
     ON DELETE CASCADE,
 );
-
--- changeset riemanli:create-reporting-sets-by-external-reporting-set-id-index dbms:postgresql
-CREATE UNIQUE INDEX ReportingSetsByExternalReportingSetId
-  ON ReportingSets(MeasurementConsumerId, ExternalReportingSetId);
 
 -- changeset riemanli:create-weighted-subset-unions-table dbms:postgresql
 CREATE TABLE WeightedSubsetUnions (
@@ -424,14 +418,11 @@ CREATE TABLE Models (
   ModelDetails bytea NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, ModelId)
+  UNIQUE (MeasurementConsumerId, ExternalModelId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId)
     ON DELETE CASCADE,
 );
-
--- changeset riemanli:create-models-by-external-model-id-index dbms:postgresql
-CREATE UNIQUE INDEX ModelsByExternalModelId
-  ON Models(MeasurementConsumerId, ExternalModelId);
 
 -- changeset riemanli:create-model-metrics-table dbms:postgresql
 CREATE TABLE ModelMetrics(
@@ -525,14 +516,11 @@ CREATE TABLE Reports (
 
   PRIMARY KEY(MeasurementConsumerId, ReportId),
   UNIQUE (MeasurementConsumerId, ReportIdempotencyKey),
+  UNIQUE (MeasurementConsumerId, ExternalReportId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId)
     ON DELETE CASCADE,
 );
-
--- changeset riemanli:create-reports-by-external-report-id-index dbms:postgresql
-CREATE UNIQUE INDEX ReportsByExternalReportId
-  ON Reports(MeasurementConsumerId, ExternalReportId);
 
 -- changeset riemanli:create-report-time-intervals-table dbms:postgresql
 CREATE TABLE ReportTimeIntervals (
