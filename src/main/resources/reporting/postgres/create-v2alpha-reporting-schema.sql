@@ -387,9 +387,6 @@ CREATE TABLE Measurements (
   FOREIGN KEY(MeasurementConsumerId, MetricSpecId)
     REFERENCES MetricSpecs(MeasurementConsumerId, MetricSpecId)
     ON DELETE CASCADE,
-  FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
-    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
-    ON DELETE CASCADE,
 );
 
 -- changeset riemanli:create-measurement-primitive-reporting-set-bases-table dbms:postgresql
