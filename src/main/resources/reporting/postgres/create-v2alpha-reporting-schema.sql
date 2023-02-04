@@ -58,14 +58,24 @@ CREATE TABLE MeasurementConsumers (
 
 -- changeset riemanli:create-data-providers-table dbms:postgresql
 CREATE TABLE DataProviders (
-  MeasurementConsumerId bigint NOT NULL,
   DataProviderId bigint NOT NULL,
   CmmsDataProviderId text NOT NULL,
 
+  PRIMARY KEY(DataProviderId),
+  UNIQUE (CmmsDataProviderId),
+);
+
+-- changeset riemanli:create-measurement-consumer-data-providers-table dbms:postgresql
+CREATE TABLE MeasurementConsumerDataProviders (
+  MeasurementConsumerId bigint NOT NULL,
+  DataProviderId bigint NOT NULL,
+
   PRIMARY KEY(MeasurementConsumerId, DataProviderId),
-  UNIQUE (MeasurementConsumerId, CmmsDataProviderId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE,
+  FOREIGN KEY(DataProviderId)
+    REFERENCES DataProviders(DataProviderId)
     ON DELETE CASCADE,
 );
 
