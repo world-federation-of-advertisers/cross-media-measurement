@@ -47,7 +47,7 @@
 --           └── ModelInferenceCalculations
 --               └── ModelInferenceCalculationModelSpecs
 
--- changeset riemanli:create-reports-table dbms:postgresql
+-- changeset riemanli:create-measurement-consumers-table dbms:postgresql
 CREATE TABLE MeasurementConsumers (
   MeasurementConsumerId bigint NOT NULL,
   CmmsMeasurementConsumerId text NOT NULL,
@@ -81,18 +81,35 @@ CREATE TABLE MeasurementConsumerDataProviders (
 
 -- changeset riemanli:create-event-groups-table dbms:postgresql
 CREATE TABLE EventGroups (
-  MeasurementConsumerId bigint NOT NULL,
   DataProviderId bigint NOT NULL,
   EventGroupId bigint NOT NULL,
   CmmsEventGroupId text NOT NULL,
 
+  PRIMARY KEY(DataProviderId, EventGroupId),
+  UNIQUE (DataProviderId, CmmsEventGroupId),
+  FOREIGN KEY(DataProviderId)
+    REFERENCES DataProviders(DataProviderId)
+    ON DELETE CASCADE,
+);
+
+-- changeset riemanli:create-event-groups-table dbms:postgresql
+CREATE TABLE MeasurementConsumerEventGroups (
+  MeasurementConsumerId bigint NOT NULL,
+  DataProviderId bigint NOT NULL,
+  EventGroupId bigint NOT NULL,
+
   PRIMARY KEY(MeasurementConsumerId, DataProviderId, EventGroupId),
-  UNIQUE (MeasurementConsumerId, DataProviderId, CmmsEventGroupId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId)
     ON DELETE CASCADE,
+  FOREIGN KEY(DataProviderId)
+    REFERENCES DataProviders(DataProviderId)
+    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, DataProviderId)
-    REFERENCES DataProviders(MeasurementConsumerId, DataProviderId)
+    REFERENCES MeasurementConsumerDataProviders(MeasurementConsumerId, DataProviderId)
+    ON DELETE CASCADE,
+  FOREIGN KEY(DataProviderId, EventGroupId)
+    REFERENCES EventGroups(DataProviderId, EventGroupId)
     ON DELETE CASCADE,
 );
 
