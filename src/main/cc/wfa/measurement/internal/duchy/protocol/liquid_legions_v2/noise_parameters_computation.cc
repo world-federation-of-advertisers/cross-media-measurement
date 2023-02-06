@@ -31,7 +31,7 @@ int ComputateMuPolya(double epsilon, double delta, int sensitivity, int n) {
 }  // namespace
 
 math::DistributedGeometricRandomComponentOptions GetBlindHistogramNoiseOptions(
-    const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
+    const wfa::measurement::internal::duchy::DifferentialPrivacyParams &params,
     int uncorrupted_party_count) {
   ABSL_ASSERT(uncorrupted_party_count > 0);
   double success_ratio = std::exp(-params.epsilon() / 2);
@@ -47,7 +47,7 @@ math::DistributedGeometricRandomComponentOptions GetBlindHistogramNoiseOptions(
 
 math::DistributedGeometricRandomComponentOptions
 GetNoiseForPublisherNoiseOptions(
-    const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
+    const wfa::measurement::internal::duchy::DifferentialPrivacyParams &params,
     int publisher_count, int uncorrupted_party_count) {
   ABSL_ASSERT(publisher_count > 0);
   ABSL_ASSERT(uncorrupted_party_count > 0);
@@ -63,7 +63,7 @@ GetNoiseForPublisherNoiseOptions(
 }
 
 math::DistributedGeometricRandomComponentOptions GetGlobalReachDpNoiseOptions(
-    const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
+    const wfa::measurement::internal::duchy::DifferentialPrivacyParams &params,
     int uncorrupted_party_count) {
   ABSL_ASSERT(uncorrupted_party_count > 0);
   double success_ratio = std::exp(-params.epsilon());
@@ -78,7 +78,7 @@ math::DistributedGeometricRandomComponentOptions GetGlobalReachDpNoiseOptions(
 }
 
 math::DistributedGeometricRandomComponentOptions GetFrequencyNoiseOptions(
-    const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
+    const wfa::measurement::internal::duchy::DifferentialPrivacyParams &params,
     int uncorrupted_party_count) {
   ABSL_ASSERT(uncorrupted_party_count > 0);
   double success_ratio = std::exp(-params.epsilon() / 2);
@@ -90,6 +90,26 @@ math::DistributedGeometricRandomComponentOptions GetFrequencyNoiseOptions(
       .truncate_threshold = offset,
       .shift_offset = offset,
   };
+}
+
+double ComputeSigma(
+    const wfa::measurement::internal::duchy::DifferentialPrivacyParams
+        &params) {
+  double epsilon = params.epsilon();
+  double delta = params.delta();
+
+  ABSL_ASSERT(epsilon > 0);
+  ABSL_ASSERT(delta > 0);
+
+  // TODO(@iverson52000): Update formula to sigma = 1 / sqrt(2 * rho) once
+  // Almost Concentrated DP (ACDP) for accounting is implemented
+
+  // The sigma calculation formula is a closed-form formula from The Algorithmic
+  // Foundations of Differential Privacy p.265 Theorem A.1
+  // https://www.cis.upenn.edu/~aaroth/Papers/privacybook.pdf
+  // This formula generally works for epsilon <= 1 but not epsilon > 1
+
+  return std::sqrt(2 * std::log(1.25 / delta)) / epsilon;
 }
 
 }  // namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2
