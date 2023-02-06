@@ -22,40 +22,30 @@ import "wfa/measurement/api/v2alpha/event_annotations.proto";
 option java_package = "org.wfanet.measurement.api.v2alpha.event_templates.testing";
 option java_multiple_files = true;
 
-message TestPrivacyBudgetTemplate {
+message Video {
   option (.wfa.measurement.api.v2alpha.event_template) = {
-    name: "test_privacy_budget_template"
-    display_name: "Privacy Budget"
-    description: "An Event Template to specify privacy regions to charge."
+    name: "video_ad"
+    display_name: "Video Ad"
+    description: "A simple template for events related to a video ad."
   };
 
-  message AgeRange {
+  message LengthField {
     option (.wfa.measurement.api.v2alpha.event_field) = {
-      display_name: "Age Range"
+      display_name: "Video Length"
     };
 
-    enum Value {
-      AGE_RANGE_UNSPECIFIED = 0;
-      AGE_18_TO_34 = 1;
-      AGE_35_TO_54 = 2;
-      AGE_OVER_54 = 3;
-    }
-    Value value = 1;
+    google.protobuf.Duration value = 1;
   }
+  LengthField length = 1;
 
-  message Gender {
+  message ViewedFractionField {
     option (.wfa.measurement.api.v2alpha.event_field) = {
-      display_name: "Gender"
+      display_name: "Viewed Fraction"
     };
 
-    enum Value {
-      GENDER_UNSPECIFIED = 0;
-      GENDER_MALE = 1;
-      GENDER_FEMALE = 2;
-    }
-    Value value = 1;
+    // In the range [0, 1] of what fraction of the video was viewed.
+    double value = 1;
   }
-
-  AgeRange age = 1;
-  Gender gender = 2;
+  // Fraction of video that was viewed.
+  ViewedFractionField viewed_fraction = 2;
 }
