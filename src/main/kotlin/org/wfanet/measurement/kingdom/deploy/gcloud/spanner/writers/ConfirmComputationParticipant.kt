@@ -120,7 +120,8 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
       updateMeasurementState(
         InternalId(measurementConsumerId),
         InternalId(measurementId),
-        Measurement.State.PENDING_COMPUTATION
+        Measurement.State.PENDING_COMPUTATION,
+        measurementState
       )
     }
 
