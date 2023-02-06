@@ -91,7 +91,9 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
           if (request.hasComputedParams()) Measurement.State.PENDING_PARTICIPANT_CONFIRMATION
           else Measurement.State.SUCCEEDED
         // All other Requisitions are already FULFILLED, so update Measurement state.
-        nextState.also { updateMeasurementState(measurementConsumerId, measurementId, it) }
+        nextState.also {
+          updateMeasurementState(measurementConsumerId, measurementId, it, measurementState)
+        }
       } else {
         null
       }
