@@ -1,0 +1,137 @@
+# proto-file: wfa/measurement/reporting/v2alpha/report.proto
+# proto-message: Report
+
+measurement_consumer: "measurementConsumers/VCTqwV_vFXw"
+
+reporting_metric_calculation {
+  # Slide p6 - incremental reach for A
+  reporting_metric_entries {
+    key: "measurementConsumers/VCTqwV_vFXw/reportingSets/G7OUlGMoAe8"
+    value {
+      metric_calculation_specs {
+        display_name: "incremental_reach_for_A"
+        metric_spec {
+          type {
+            reach {}
+          }
+        }
+        cumulative: false
+      }
+    }
+  }
+  # Slide p6 - Skipped incremental reach for B and C. It's simliar to above.
+  
+  # Slide p11, p12 - reach and impression count for pub A
+  reporting_metric_entries {
+    key: "measurementConsumers/VCTqwV_vFXw/reportingSets/pub-A-ID"
+    value {
+      metric_calculation_specs {
+        display_name: "cumulative_reach_impression_for_pub_A_age_18+"
+        metric_spec {
+          type {
+            reach {}
+          }
+        }
+        metric_spec {
+          type {
+            impression_count {
+              maximum_frequency_per_user: 4000
+            }
+          }
+        }
+        cumulative: true
+      }
+    }
+  }
+  # Slide p11, p12 - reach and impression count for pub B
+  reporting_metric_entries {
+    key: "measurementConsumers/VCTqwV_vFXw/reportingSets/pub-B-ID"
+    value {
+      metric_calculation_specs {
+        display_name: "cumulative_reach_impression_for_pub_B_age_18+"
+        metric_spec {
+          type {
+            reach {}
+          }
+        }
+        metric_spec {
+          type {
+            impression_count {
+              maximum_frequency_per_user: 4000
+            }
+          }
+        }
+        cumulative: true
+      }
+    }
+  }
+  # Slide p11, p12 - reach and impression count for pub C
+  reporting_metric_entries {
+    key: "measurementConsumers/VCTqwV_vFXw/reportingSets/pub-C-ID"
+    value {
+      metric_calculation_specs {
+        display_name: "cumulative_reach_impression_for_pub_C_age_18+"
+        metric_spec {
+          type {
+            reach {}
+          }
+        }
+        metric_spec {
+          type {
+            impression_count {
+              maximum_frequency_per_user: 4000
+            }
+          }
+        }
+        cumulative: true
+      }
+    }
+  }
+  # Slide p30 - reach efficiency by frequency bands for A
+  reporting_metric_entries {
+    key: "measurementConsumers/VCTqwV_vFXw/reportingSets/pub-A-ID"
+    value {
+      metric_calculation_specs {
+        display_name: "reach_efficiency_by_frequency_bands_for_A"
+        metric_spec {
+          type {
+            frequency_histogram {
+              maximum_frequency_per_user: 10
+            }
+          }
+        }
+        groupings {
+          predicates: "privacy_budget.gender == M"
+          predicates: "privacy_budget.gender == F"
+        }
+        groupings {
+          # age 18-34
+          predicates: "privacy_budget.age == 18_34"
+          # age 35-54
+          predicates: "privacy_budget.age == 35_54"
+          # age 55+
+          predicates: "privacy_budget.age == 55+"
+        }
+        cumulative: true
+      }
+    }
+  }
+
+}
+
+time {
+  time_intervals {
+    time_intervals {
+      start_time: "2021-03-01T00:00:00.01Z"
+      end_time: "2021-03-01T23:59:59.99Z"
+    }
+    time_intervals {
+      start_time: "2021-03-02T00:00:00.01Z"
+      end_time: "2021-03-02T23:59:59.99Z"
+    }
+    time_intervals {
+      start_time: "2021-03-03T00:00:00.01Z"
+      end_time: "2021-03-03T23:59:59.99Z"
+    }
+  }
+}
