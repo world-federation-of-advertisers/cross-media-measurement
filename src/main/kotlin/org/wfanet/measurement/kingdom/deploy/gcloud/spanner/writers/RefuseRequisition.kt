@@ -74,6 +74,7 @@ class RefuseRequisition(private val request: RefuseRequisitionRequest) :
       measurementConsumerId,
       measurementId,
       Measurement.State.FAILED,
+      measurementState,
       updatedMeasurementDetails
     )
 

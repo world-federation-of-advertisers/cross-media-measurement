@@ -25,13 +25,15 @@ import org.wfanet.measurement.internal.kingdom.Measurement
 internal suspend fun SpannerWriter.TransactionScope.updateMeasurementState(
   measurementConsumerId: InternalId,
   measurementId: InternalId,
-  state: Measurement.State,
+  nextState: Measurement.State,
+  previousState: Measurement.State = Measurement.State.STATE_UNSPECIFIED,
   details: Measurement.Details? = null,
 ) {
+
   updateMutation("Measurements") {
       set("MeasurementConsumerId" to measurementConsumerId)
       set("MeasurementId" to measurementId)
-      set("State" to state)
+      set("State" to nextState)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       if (details != null) {
         set("MeasurementDetails" to details)
@@ -40,5 +42,10 @@ internal suspend fun SpannerWriter.TransactionScope.updateMeasurementState(
     }
     .bufferTo(transactionContext)
 
-  createMeasurementStateTransitionLogEntry(measurementConsumerId, measurementId, state)
+  createMeasurementStateTransitionLogEntry(
+    measurementConsumerId,
+    measurementId,
+    nextState,
+    previousState
+  )
 }

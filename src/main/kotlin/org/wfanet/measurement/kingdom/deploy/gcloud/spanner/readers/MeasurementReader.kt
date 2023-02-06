@@ -18,10 +18,20 @@ import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
-import org.wfanet.measurement.gcloud.spanner.*
-import org.wfanet.measurement.internal.kingdom.*
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.appendClause
+import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
+import org.wfanet.measurement.gcloud.spanner.getInternalId
+import org.wfanet.measurement.gcloud.spanner.getProtoEnum
+import org.wfanet.measurement.gcloud.spanner.getProtoMessage
+import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
+import org.wfanet.measurement.internal.kingdom.Requisition
+import org.wfanet.measurement.internal.kingdom.measurement
+import org.wfanet.measurement.internal.kingdom.measurementLogEntry
+import org.wfanet.measurement.internal.kingdom.measurementStateLogEntry
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 
 class MeasurementReader(private val view: Measurement.View) :
@@ -374,7 +384,6 @@ private fun MeasurementKt.Dsl.fillComputationView(struct: Struct) {
           "PriorMeasurementState",
           Measurement.State::forNumber
         )
-          ?: Measurement.State.STATE_UNSPECIFIED
       this.logEntry = measurementLogEntry {
         this.createTime = stateTransitionMeasurementStruct.getTimestamp("CreateTime").toProto()
         this.externalMeasurementId = stateTransitionMeasurementStruct.getLong("MeasurementId")

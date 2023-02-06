@@ -36,6 +36,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFound
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelProviderCertificateNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurement
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurements
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurementsByDataProviderCertificate
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurementsByDuchyCertificate
@@ -145,6 +146,7 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
 
     when (request.parentCase) {
       RevokeCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> {
+
         val filter =
           StreamMeasurementsRequestKt.filter {
             externalMeasurementConsumerId = request.externalMeasurementConsumerId
@@ -218,6 +220,17 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
     measurementId: InternalId,
     details: Measurement.Details
   ) {
-    updateMeasurementState(measurementConsumerId, measurementId, Measurement.State.FAILED, details)
+
+    StreamMeasurement(Measurement.View.DEFAULT, measurementConsumerId, measurementId)
+      .execute(transactionContext)
+      .collect {
+        updateMeasurementState(
+          measurementConsumerId,
+          measurementId,
+          Measurement.State.FAILED,
+          it.measurement.state,
+          details
+        )
+      }
   }
 }
