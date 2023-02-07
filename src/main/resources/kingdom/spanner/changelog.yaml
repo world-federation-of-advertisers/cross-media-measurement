@@ -30,3 +30,6 @@ databaseChangeLog:
 - include:
     file: create-measurements-by-token-index.sql
     relativeToChangeLogFile: true
+- include:
+    file: create-state-transition-measurement-log-entry-schema.sql
+    relativeToChangeLogFile: true

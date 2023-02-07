@@ -67,10 +67,10 @@ class CancelMeasurement(
     }
 
     updateMeasurementState(
-      measurementConsumerId,
-      measurementId,
-      Measurement.State.CANCELLED,
-      measurement.state
+      measurementConsumerId = measurementConsumerId,
+      measurementId = measurementId,
+      nextState = Measurement.State.CANCELLED,
+      previousState = measurement.state
     )
 
     return measurement.copy { this.state = Measurement.State.CANCELLED }

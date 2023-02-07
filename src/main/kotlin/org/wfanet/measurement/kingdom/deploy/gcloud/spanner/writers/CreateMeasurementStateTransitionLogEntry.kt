@@ -24,7 +24,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry.Details
 
 private val MEASUREMENT_LOG_DETAILS by lazy { Details.getDefaultInstance() }
 
-internal suspend fun SpannerWriter.TransactionScope.createMeasurementStateTransitionLogEntry(
+internal fun SpannerWriter.TransactionScope.createMeasurementStateTransitionLogEntry(
   measurementConsumerId: InternalId,
   measurementId: InternalId,
   nextMeasurementState: Measurement.State,
@@ -66,7 +66,7 @@ private fun SpannerWriter.TransactionScope.insertMeasurementStateTransitionLogEn
     set("MeasurementConsumerId" to measurementConsumerId)
     set("MeasurementId" to measurementId)
     set("CreateTime" to Value.COMMIT_TIMESTAMP)
-    set("PriorMeasurementState" to priorMeasurementState)
+    set("PreviousMeasurementState" to priorMeasurementState)
     set("CurrentMeasurementState" to currentMeasurementState)
   }
 }

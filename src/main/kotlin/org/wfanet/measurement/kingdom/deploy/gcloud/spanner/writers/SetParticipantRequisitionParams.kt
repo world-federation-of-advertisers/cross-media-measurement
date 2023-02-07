@@ -148,10 +148,10 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
       )
     ) {
       updateMeasurementState(
-        InternalId(measurementConsumerId),
-        InternalId(measurementId),
-        Measurement.State.PENDING_REQUISITION_FULFILLMENT,
-        computationParticipantResult.measurementState
+        measurementConsumerId = InternalId(measurementConsumerId),
+        measurementId = InternalId(measurementId),
+        nextState = Measurement.State.PENDING_REQUISITION_FULFILLMENT,
+        previousState = computationParticipantResult.measurementState
       )
 
       StreamRequisitions(
