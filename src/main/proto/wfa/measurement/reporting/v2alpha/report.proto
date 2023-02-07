@@ -38,12 +38,11 @@ message Report {
 
   // Contain the grouping predicates.
   message Grouping {
-    // All predicates need to be applied on the same field in an Event Template
-    // but doesn't need to be disjoint. Each predicate is used to determine the
-    // groups for the grouping operation.
+    // Each predicate is an element in this grouping set. They will used in the
+    // Cartesian product of all groupings.
     // Note that the field indicated in the predicates must be in an Event
     // Template shared by all event groups associated with the reporting sets
-    // implied in the metric calculation
+    // implied in the metric calculation.
     repeated string predicates = 1 [(google.api.field_behavior) = REQUIRED];
   }
   // The specification of metric calculations.
