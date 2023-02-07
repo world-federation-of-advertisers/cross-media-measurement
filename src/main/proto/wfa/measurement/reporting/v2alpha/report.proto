@@ -109,7 +109,6 @@ message Report {
   // Types of time intervals for metric aggregation.
   // REQUIRED
   oneof time {
-    option (oneof_time_required_option) = 1111;
     // A list of time intervals with different start times and end times.
     TimeIntervals time_intervals = 3;
     // A series of time intervals with the same length.
