@@ -55,7 +55,7 @@ message Report {
   // The specification of metric calculations.
   message MetricCalculationSpec {
     // The display name will be used as the display name in
-    // `MetricCalculationSpecResult`.
+    // `MetricCalculationResult`.
     string display_name = 1 [
       (google.api.field_behavior) = REQUIRED,
       (google.api.field_behavior) = IMMUTABLE
@@ -145,8 +145,8 @@ message Report {
   // The result of `MetricCalculationSpec` contains multiple results at the
   // level of granularity of single time interval and single group of the
   // Cartesian product of groupings.
-  message MetricCalculationSpecResult {
-    // The name of the `MetricCalculationSpecResult`.
+  message MetricCalculationResult {
+    // The name of the `MetricCalculationResult`.
     string display_name = 1;
 
     // The reporting set associated with this `MetricCalculationSpec`.
@@ -184,6 +184,6 @@ message Report {
   }
 
   // Set only when `state` is `SUCCEEDED`.
-  repeated MetricCalculationSpecResult metric_calculation_spec_results = 6
+  repeated MetricCalculationResult metric_calculation_results = 6
       [(google.api.field_behavior) = OUTPUT_ONLY];
 }
