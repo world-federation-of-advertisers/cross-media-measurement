@@ -38,8 +38,10 @@ message Report {
 
   // Contain the grouping predicates.
   message Grouping {
-    // Each predicate is an element in this grouping set. They will used in the
-    // Cartesian product of all groupings.
+    // The CEL expressions that are applied to the corresponding event message
+    // for the specified event groups. Each predicate is an element of this
+    // grouping set. They will used in the Cartesian product with the elements
+    // in other groupings.
     // Note that the field indicated in the predicates must be in an Event
     // Template shared by all event groups associated with the reporting sets
     // implied in the metric calculation.
