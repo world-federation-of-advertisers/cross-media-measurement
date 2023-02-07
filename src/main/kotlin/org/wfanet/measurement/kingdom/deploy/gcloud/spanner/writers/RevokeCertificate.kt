@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import java.lang.IllegalStateException
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
@@ -222,16 +223,17 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
     details: Measurement.Details
   ) {
 
-    StreamMeasurement(Measurement.View.DEFAULT, measurementConsumerId, measurementId)
-      .execute(transactionContext)
-      .collect {
-        updateMeasurementState(
-          measurementConsumerId,
-          measurementId,
-          Measurement.State.FAILED,
-          it.measurement.state,
-          details
-        )
-      }
+    val measurementReader =
+      StreamMeasurement(Measurement.View.DEFAULT, measurementConsumerId, measurementId)
+        .execute(transactionContext)
+        .single()
+
+    updateMeasurementState(
+      measurementConsumerId = measurementConsumerId,
+      measurementId = measurementId,
+      nextState = Measurement.State.FAILED,
+      previousState = measurementReader.measurement.state,
+      details = details
+    )
   }
 }

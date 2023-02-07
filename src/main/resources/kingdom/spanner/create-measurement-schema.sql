@@ -400,17 +400,6 @@ CREATE TABLE MeasurementLogEntries (
 ) PRIMARY KEY (MeasurementConsumerId, MeasurementId, CreateTime),
   INTERLEAVE IN PARENT Measurements ON DELETE CASCADE;
 
--- Child table used for logging measurement state transitions.
--- Each entry corresponds to a state change (prior-state != current-state)
-CREATE TABLE StateTransitionMeasurementLogEntries (
-  MeasurementConsumerId INT64 NOT NULL,
-  MeasurementId INT64 NOT NULL,
-  CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
-  PriorMeasurementState INT64 NOT NULL,
-  CurrentMeasurementState INT64 NOT NULL,
-) PRIMARY KEY (MeasurementConsumerId, MeasurementId, CreateTime),
-  INTERLEAVE IN PARENT MeasurementLogEntries ON DELETE CASCADE;
-
 -- Duchy-specific information for a Measurement log entry. There should be a row
 -- in this table for every row in MeasurementLogEntries where the source of the
 -- log event is a Duchy.

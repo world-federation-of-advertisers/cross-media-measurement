@@ -148,7 +148,22 @@ class MeasurementReader(private val view: Measurement.View) :
         WHERE
           DuchyMeasurementResults.MeasurementConsumerId = Measurements.MeasurementConsumerId
           AND DuchyMeasurementResults.MeasurementId = Measurements.MeasurementId
-      ) AS DuchyResults
+      ) AS DuchyResults,
+      ARRAY(
+        SELECT AS STRUCT
+          StateTransitionMeasurementLogEntries.CreateTime,
+          StateTransitionMeasurementLogEntries.PreviousMeasurementState,
+          StateTransitionMeasurementLogEntries.CurrentMeasurementState,
+          StateTransitionMeasurementLogEntries.MeasurementConsumerId,
+          StateTransitionMeasurementLogEntries.MeasurementId
+        FROM
+          StateTransitionMeasurementLogEntries
+          JOIN MeasurementLogEntries USING (MeasurementConsumerId, MeasurementId, CreateTime)
+        WHERE
+          StateTransitionMeasurementLogEntries.MeasurementConsumerId = Measurements.MeasurementConsumerId
+          AND StateTransitionMeasurementLogEntries.MeasurementId = Measurements.MeasurementId
+        ORDER BY MeasurementLogEntries.CreateTime DESC
+      ) AS StateTransitionMeasurementLogEntries,
     FROM
       Measurements
       JOIN MeasurementConsumers USING (MeasurementConsumerId)
@@ -233,21 +248,6 @@ class MeasurementReader(private val view: Measurement.View) :
       ) AS ComputationParticipants,
       ARRAY(
         SELECT AS STRUCT
-          StateTransitionMeasurementLogEntries.CreateTime,
-          StateTransitionMeasurementLogEntries.PriorMeasurementState,
-          StateTransitionMeasurementLogEntries.CurrentMeasurementState,
-          StateTransitionMeasurementLogEntries.MeasurementConsumerId,
-          StateTransitionMeasurementLogEntries.MeasurementId
-        FROM
-          StateTransitionMeasurementLogEntries
-          JOIN MeasurementLogEntries USING (MeasurementConsumerId, MeasurementId, CreateTime)
-        WHERE
-          StateTransitionMeasurementLogEntries.MeasurementConsumerId = Measurements.MeasurementConsumerId
-          AND StateTransitionMeasurementLogEntries.MeasurementId = Measurements.MeasurementId
-        ORDER BY MeasurementLogEntries.CreateTime DESC
-      ) AS StateTransitionMeasurementLogEntries,
-      ARRAY(
-        SELECT AS STRUCT
           DuchyMeasurementResults.DuchyId,
           ExternalDuchyCertificateId,
           EncryptedResult
@@ -322,6 +322,30 @@ private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {
       }
     }
   }
+
+  val stateTransitionMeasurementStructs =
+    struct.getStructList("StateTransitionMeasurementLogEntries")
+  for (stateTransitionMeasurementStruct in stateTransitionMeasurementStructs) {
+    measurementStateLogEntry += measurementStateLogEntry {
+      this.currentState =
+        stateTransitionMeasurementStruct.getProtoEnum(
+          "CurrentMeasurementState",
+          Measurement.State::forNumber
+        )
+      this.previousState =
+        stateTransitionMeasurementStruct.getProtoEnum(
+          "PreviousMeasurementState",
+          Measurement.State::forNumber
+        )
+          ?: Measurement.State.STATE_UNSPECIFIED
+      this.logEntry = measurementLogEntry {
+        this.createTime = stateTransitionMeasurementStruct.getTimestamp("CreateTime").toProto()
+        this.externalMeasurementId = stateTransitionMeasurementStruct.getLong("MeasurementId")
+        this.externalMeasurementConsumerId =
+          stateTransitionMeasurementStruct.getLong("MeasurementConsumerId")
+      }
+    }
+  }
 }
 
 private fun MeasurementKt.Dsl.fillComputationView(struct: Struct) {
@@ -368,28 +392,5 @@ private fun MeasurementKt.Dsl.fillComputationView(struct: Struct) {
         participantStructs,
         dataProvidersCount
       )
-  }
-
-  val stateTransitionMeasurementStructs =
-    struct.getStructList("StateTransitionMeasurementLogEntries")
-  for (stateTransitionMeasurementStruct in stateTransitionMeasurementStructs) {
-    measurementStateLogEntry += measurementStateLogEntry {
-      this.currentState =
-        stateTransitionMeasurementStruct.getProtoEnum(
-          "CurrentMeasurementState",
-          Measurement.State::forNumber
-        )
-      this.priorState =
-        stateTransitionMeasurementStruct.getProtoEnum(
-          "PriorMeasurementState",
-          Measurement.State::forNumber
-        )
-      this.logEntry = measurementLogEntry {
-        this.createTime = stateTransitionMeasurementStruct.getTimestamp("CreateTime").toProto()
-        this.externalMeasurementId = stateTransitionMeasurementStruct.getLong("MeasurementId")
-        this.externalMeasurementConsumerId =
-          stateTransitionMeasurementStruct.getLong("MeasurementConsumerId")
-      }
-    }
   }
 }
