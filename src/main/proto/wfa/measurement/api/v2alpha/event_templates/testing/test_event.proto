@@ -16,15 +16,18 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha.event_templates.testing;
 
-import "wfa/measurement/api/v2alpha/event_templates/testing/test_banner_template.proto";
-import "wfa/measurement/api/v2alpha/event_templates/testing/test_video_template.proto";
-import "wfa/measurement/api/v2alpha/event_templates/testing/test_privacy_budget_template.proto";
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/api/v2alpha/event_templates/testing/banner_ad.proto";
+import "wfa/measurement/api/v2alpha/event_templates/testing/person.proto";
+import "wfa/measurement/api/v2alpha/event_templates/testing/video.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha.event_templates.testing";
 option java_multiple_files = true;
 
 message TestEvent {
-  optional TestVideoTemplate video_ad = 1;
-  optional TestBannerTemplate banner_ad = 2;
-  optional TestPrivacyBudgetTemplate privacy_budget = 3;
+  google.protobuf.Timestamp time = 1;
+
+  Person person = 2;
+  Video video_ad = 3;
+  Banner banner_ad = 4;
 }

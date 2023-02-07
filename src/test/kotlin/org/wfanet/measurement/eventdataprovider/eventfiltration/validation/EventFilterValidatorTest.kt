@@ -18,8 +18,10 @@ import com.google.api.expr.v1alpha1.Constant
 import com.google.api.expr.v1alpha1.Decl
 import com.google.api.expr.v1alpha1.Expr
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoFluentAssertion
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import kotlin.test.assertFailsWith
+import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -27,47 +29,51 @@ import org.projectnessie.cel.Env
 import org.projectnessie.cel.EnvOption
 import org.projectnessie.cel.checker.Decls
 import org.projectnessie.cel.common.types.pb.ProtoTypeRegistry
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testBannerTemplate
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testPrivacyBudgetTemplate
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testVideoTemplate
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Banner
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Video
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException.Code as Code
 
 private const val TEMPLATE_PREFIX = "wfa.measurement.api.v2alpha.event_templates.testing"
+private val OPERATIVE_FIELDS =
+  setOf("person.age_group.value", "person.gender.value", "person.social_grade_group.value")
 
 @RunWith(JUnit4::class)
 class EventFilterValidatorTest {
   private fun env(vararg vars: Decl): Env {
     return Env.newEnv(EnvOption.declarations(*vars))
   }
+
   private val booleanVar = { name: String -> Decls.newVar(name, Decls.Bool) }
   private val intVar = { name: String -> Decls.newVar(name, Decls.Int) }
   private val stringVar = { name: String -> Decls.newVar(name, Decls.String) }
-  private fun bannerTemplateVar(name: String): Decl {
+  private fun bannerTemplateVar(): Decl {
     return Decls.newVar(
-      name,
-      Decls.newObjectType("$TEMPLATE_PREFIX.TestBannerTemplate"),
-    )
-  }
-  private fun videoTemplateVar(name: String): Decl {
-    return Decls.newVar(
-      name,
-      Decls.newObjectType("$TEMPLATE_PREFIX.TestVideoTemplate"),
+      "banner",
+      Decls.newObjectType("$TEMPLATE_PREFIX.Banner"),
     )
   }
 
-  private fun privacyTemplateVar(name: String): Decl {
+  private fun videoTemplateVar(): Decl {
     return Decls.newVar(
-      name,
-      Decls.newObjectType("$TEMPLATE_PREFIX.TestPrivacyBudgetTemplate"),
+      "video",
+      Decls.newObjectType("$TEMPLATE_PREFIX.Video"),
+    )
+  }
+
+  private fun personTemplateVar(): Decl {
+    return Decls.newVar(
+      "person",
+      Decls.newObjectType("$TEMPLATE_PREFIX.Person"),
     )
   }
 
   private fun envWithTestTemplateVars(vararg vars: Decl): Env {
-    var typeRegistry: ProtoTypeRegistry =
+    val typeRegistry: ProtoTypeRegistry =
       ProtoTypeRegistry.newRegistry(
-        testBannerTemplate {},
-        testVideoTemplate {},
-        testPrivacyBudgetTemplate {}
+        Banner.getDefaultInstance(),
+        Video.getDefaultInstance(),
+        Person.getDefaultInstance(),
       )
     return Env.newEnv(
       EnvOption.customTypeAdapter(typeRegistry),
@@ -77,41 +83,39 @@ class EventFilterValidatorTest {
   }
 
   private fun compile(celExpression: String, env: Env): Expr =
-    EventFilterValidator.compile(celExpression, env).getExpr()
+    EventFilterValidator.compile(env, celExpression, emptySet()).expr
 
   private fun compileToNormalForm(
     celExpression: String,
     env: Env,
     operativeFields: Set<String>
-  ): Expr =
-    EventFilterValidator.compileToOperativeNegationNormalForm(celExpression, env, operativeFields)
-      .getExpr()
+  ): Expr = EventFilterValidator.compile(env, celExpression, operativeFields).expr
 
-  private fun assertFailsWithCode(celExpression: String, code: Code, env: Env = Env.newEnv()) {
-    val e =
-      assertFailsWith(EventFilterValidationException::class) {
-        EventFilterValidator.compile(celExpression, env)
-      }
-    assertThat(e.code).isEqualTo(code)
+  private inline fun assertFailsWithCode(
+    code: Code,
+    block: () -> Unit
+  ): EventFilterValidationException {
+    return assertFailsWith<EventFilterValidationException> { block() }
+      .also { assertThat(it.code).isEqualTo(code) }
   }
 
-  private fun Expr.assertEqualsIgnoreIds(other: Expr) {
-    assertThat(this).ignoringFields(Expr.ID_FIELD_NUMBER).isEqualTo(other)
+  private fun assertIgnoringId(expr: Expr): ProtoFluentAssertion {
+    return assertThat(expr).ignoringFields(Expr.ID_FIELD_NUMBER)
   }
 
   @Test
   fun `fails on invalid operation`() {
-    assertFailsWithCode("1 + 1", Code.UNSUPPORTED_OPERATION)
+    assertFailsWithCode(Code.UNSUPPORTED_OPERATION) { compile("1 + 1", Env.newEnv()) }
   }
 
   @Test
   fun `fails on invalid expression`() {
-    assertFailsWithCode("+", Code.INVALID_CEL_EXPRESSION)
+    assertFailsWithCode(Code.INVALID_CEL_EXPRESSION) { compile("+", Env.newEnv()) }
   }
 
   @Test
   fun `works on supported operation`() {
-    EventFilterValidator.compile(
+    compile(
       "age > 30",
       env(intVar("age")),
     )
@@ -119,28 +123,25 @@ class EventFilterValidatorTest {
 
   @Test
   fun `fails on comparing string to int`() {
-    assertFailsWithCode(
-      "age > 30",
-      Code.INVALID_CEL_EXPRESSION,
-      env(stringVar("age")),
-    )
+    assertFailsWithCode(Code.INVALID_CEL_EXPRESSION) { compile("age > 30", env(stringVar("age"))) }
   }
 
   @Test
   fun `fails on comparing int to boolean conditional`() {
-    assertFailsWithCode(
-      "age && (date > 10)",
-      Code.INVALID_CEL_EXPRESSION,
-      env(
-        intVar("age"),
-        intVar("date"),
+    assertFailsWithCode(Code.INVALID_CEL_EXPRESSION) {
+      compile(
+        "age && (date > 10)",
+        env(
+          intVar("age"),
+          intVar("date"),
+        )
       )
-    )
+    }
   }
 
   @Test
   fun `comparing field to a list of constants is valid`() {
-    EventFilterValidator.compile(
+    compile(
       "age in [10, 20, 30]",
       env(intVar("age")),
     )
@@ -148,53 +149,55 @@ class EventFilterValidatorTest {
 
   @Test
   fun `comparing field to a list of constants fails if types don't match`() {
-    assertFailsWithCode(
-      "age in [10, 20, 30]",
-      Code.INVALID_CEL_EXPRESSION,
-      env(stringVar("age")),
-    )
+    assertFailsWithCode(Code.INVALID_CEL_EXPRESSION) {
+      compile("age in [10, 20, 30]", env(stringVar("age")))
+    }
   }
 
   @Test
   fun `variable is invalid within a list`() {
-    assertFailsWithCode(
-      "age in [a, b, c]",
-      Code.INVALID_VALUE_TYPE,
-      env(
-        intVar("age"),
-        intVar("a"),
-        intVar("b"),
-        intVar("c"),
+    assertFailsWithCode(Code.INVALID_VALUE_TYPE) {
+      compile(
+        "age in [a, b, c]",
+        env(
+          intVar("age"),
+          intVar("a"),
+          intVar("b"),
+          intVar("c"),
+        )
       )
-    )
+    }
   }
 
   @Test
   fun `constant is invalid at the left side of IN operator`() {
-    assertFailsWithCode("10 in [10, 20, 30]", Code.INVALID_VALUE_TYPE)
+    assertFailsWithCode(Code.INVALID_VALUE_TYPE) { compile("10 in [10, 20, 30]", Env.newEnv()) }
   }
 
   @Test
   fun `a single expression is invalid`() {
-    assertFailsWithCode("age", Code.EXPRESSION_IS_NOT_CONDITIONAL, env(stringVar("age")))
+    assertFailsWithCode(Code.EXPRESSION_IS_NOT_CONDITIONAL) {
+      compile("age", env(stringVar("age")))
+    }
   }
 
   @Test
   fun `list is not valid outside @in operator`() {
-    assertFailsWithCode("[1, 2, 3] == [1, 2, 3]", Code.INVALID_VALUE_TYPE)
+    assertFailsWithCode(Code.INVALID_VALUE_TYPE) { compile("[1, 2, 3] == [1, 2, 3]", Env.newEnv()) }
   }
 
   @Test
   fun `fields should be compared only at leafs`() {
-    assertFailsWithCode(
-      "field1 == (field2 != field3)",
-      Code.FIELD_COMPARISON_OUTSIDE_LEAF,
-      env(
-        booleanVar("field1"),
-        stringVar("field2"),
-        stringVar("field3"),
-      ),
-    )
+    assertFailsWithCode(Code.FIELD_COMPARISON_OUTSIDE_LEAF) {
+      compile(
+        "field1 == (field2 != field3)",
+        env(
+          booleanVar("field1"),
+          stringVar("field2"),
+          stringVar("field3"),
+        )
+      )
+    }
   }
 
   @Test
@@ -204,16 +207,17 @@ class EventFilterValidatorTest {
 
   @Test
   fun `it disallows operator outside leafs`() {
-    assertFailsWithCode(
-      "(a == b) <= (field2 < field3)",
-      Code.INVALID_OPERATION_OUTSIDE_LEAF,
-      env(
-        intVar("a"),
-        intVar("b"),
-        stringVar("field2"),
-        stringVar("field3"),
-      ),
-    )
+    assertFailsWithCode(Code.INVALID_OPERATION_OUTSIDE_LEAF) {
+      compile(
+        "(a == b) <= (field2 < field3)",
+        env(
+          intVar("a"),
+          intVar("b"),
+          stringVar("field2"),
+          stringVar("field3"),
+        )
+      )
+    }
   }
 
   @Test
@@ -228,185 +232,184 @@ class EventFilterValidatorTest {
   }
 
   @Test
-  fun `fails on inexistant template field`() {
-    assertFailsWithCode(
-      "vt.date == 10",
-      Code.INVALID_CEL_EXPRESSION,
-      envWithTestTemplateVars(videoTemplateVar("vt"))
-    )
+  fun `fails on non-existent template field`() {
+    assertFailsWithCode(Code.INVALID_CEL_EXPRESSION) {
+      compile("vt.date == 10", envWithTestTemplateVars(videoTemplateVar()))
+    }
   }
 
   @Test
   fun `can use valid template fields on comparison`() {
     compile(
-      "bt.gender.value == 2 && vt.age.value == 1",
+      "banner.viewable.value == true && person.age_group.value == 1",
       envWithTestTemplateVars(
-        bannerTemplateVar("bt"),
-        videoTemplateVar("vt"),
+        bannerTemplateVar(),
+        personTemplateVar(),
       )
     )
   }
 
   @Test
   fun `can use template with IN operator`() {
-    compile("vt.age.value in [0, 1]", envWithTestTemplateVars(videoTemplateVar("vt")))
+    compile("person.age_group.value in [0, 1]", envWithTestTemplateVars(personTemplateVar()))
   }
 
   @Test
   fun `can use template with has operator`() {
-    compile("has(vt.age.value)", envWithTestTemplateVars(videoTemplateVar("vt")))
+    compile("has(person.age_group)", envWithTestTemplateVars(personTemplateVar()))
   }
 
   @Test
   fun `can use template with has operator with other operators`() {
     compile(
-      "has(vt.age.value) && vt.age.value in [0, 1]",
-      envWithTestTemplateVars(videoTemplateVar("vt"))
+      "has(person.age_group) && person.age_group.value in [0, 1]",
+      envWithTestTemplateVars(personTemplateVar())
     )
   }
 
   @Test
   fun `compiles to Normal Form correctly with single operative field`() {
+    val env = envWithTestTemplateVars(personTemplateVar())
 
-    val env = envWithTestTemplateVars(videoTemplateVar("vt"))
+    val expression = "person.age_group.value in [0, 1]"
+    val expectedNormalizedExpression = "person.age_group.value in [0, 1]"
 
-    val expression = "vt.age.value in [0, 1]"
-    val operativeFields = setOf("vt.age.value")
-    val expectedNormalizedExpression = "vt.age.value in [0, 1]"
+    assertIgnoringId(compileToNormalForm(expression, env, OPERATIVE_FIELDS))
+      .isEqualTo(compile(expectedNormalizedExpression, env))
+  }
 
-    compileToNormalForm(expression, env, operativeFields)
-      .assertEqualsIgnoreIds(compile(expectedNormalizedExpression, env))
+  @Test
+  @Ignore("Not implemented") // TODO(world-federation-of-advertisers/cross-media-measurement#819)
+  fun `compiles to Normal Form correctly with non-scalar operative field child`() {
+    val env =
+      envWithTestTemplateVars(
+        videoTemplateVar(),
+        personTemplateVar(),
+      )
+    // Note that this is a contrived example, as this field would be non-operative in practice.
+    val operativeFields = OPERATIVE_FIELDS.plus("video.length")
+    val expression = "video.length.value.seconds > 30"
+
+    assertIgnoringId(compileToNormalForm(expression, env, operativeFields))
+      .isEqualTo(compile(expression, env))
   }
 
   @Test
   fun `compiles to Normal Form correctly with single non operative field`() {
-
     val env =
       envWithTestTemplateVars(
-        videoTemplateVar("vt"),
-        privacyTemplateVar("pt"),
+        videoTemplateVar(),
+        personTemplateVar(),
       )
 
-    val expression = "vt.age.value in [0, 1]"
-    val operativeFields = setOf("pt.age.value")
+    val expression = "video.viewed_fraction.value > 0.25"
     val expectedCompiledNormalizedExpression =
       Expr.newBuilder().setConstExpr(Constant.newBuilder().setBoolValue(true)).build()
 
-    compileToNormalForm(expression, env, operativeFields)
-      .assertEqualsIgnoreIds(expectedCompiledNormalizedExpression)
+    assertIgnoringId(compileToNormalForm(expression, env, OPERATIVE_FIELDS))
+      .isEqualTo(expectedCompiledNormalizedExpression)
   }
 
   @Test
   fun `compiles to Normal Form correctly with single non operative field with presence check`() {
+    val env = envWithTestTemplateVars(videoTemplateVar(), personTemplateVar())
 
-    val env =
-      envWithTestTemplateVars(
-        videoTemplateVar("vt"),
-        privacyTemplateVar("pt"),
-      )
-
-    val expression = "has(vt.age.value)"
-    val operativeFields = setOf("pt.age.value")
+    val expression = "has(video.viewed_fraction)"
     val expectedCompiledNormalizedExpression =
       Expr.newBuilder().setConstExpr(Constant.newBuilder().setBoolValue(true)).build()
 
-    compileToNormalForm(expression, env, operativeFields)
-      .assertEqualsIgnoreIds(expectedCompiledNormalizedExpression)
+    assertIgnoringId(compileToNormalForm(expression, env, OPERATIVE_FIELDS))
+      .isEqualTo(expectedCompiledNormalizedExpression)
   }
 
   @Test
   fun `compiles to Normal Form correctly with single operative field with presence check`() {
-
     val env =
       envWithTestTemplateVars(
-        videoTemplateVar("vt"),
-        privacyTemplateVar("pt"),
+        videoTemplateVar(),
+        personTemplateVar(),
       )
 
-    val expression = "has(vt.age.value)"
-    val operativeFields = setOf("vt.age.value")
-    val expectedNormalizedExpression = "has(vt.age.value)"
+    // Note that this is a contrived example, as the value field is scalar and therefore always
+    // present. In practice, presence checks are only useful on wrapper messages.
+    val expression = "has(person.age_group.value)"
+    val expectedNormalizedExpression = "has(person.age_group.value)"
 
-    compileToNormalForm(expression, env, operativeFields)
-      .assertEqualsIgnoreIds(compile(expectedNormalizedExpression, env))
+    assertIgnoringId(compileToNormalForm(expression, env, OPERATIVE_FIELDS))
+      .isEqualTo(compile(expectedNormalizedExpression, env))
   }
 
   @Test
   fun `compiles to Normal Form correctly with non operative fields`() {
-
     val env =
       envWithTestTemplateVars(
-        bannerTemplateVar("bt"),
-        videoTemplateVar("vt"),
+        bannerTemplateVar(),
+        personTemplateVar(),
       )
 
-    val expression = "bt.gender.value == 2 && vt.age.value == 1"
-    val operativeFields = setOf("vt.age.value")
-    val expectedNormalizedExpression = "true && vt.age.value == 1"
+    val expression = "banner.viewable.value == true && person.age_group.value == 1"
+    val expectedNormalizedExpression = "true && person.age_group.value == 1"
 
-    compileToNormalForm(expression, env, operativeFields)
-      .assertEqualsIgnoreIds(compile(expectedNormalizedExpression, env))
+    assertIgnoringId(compileToNormalForm(expression, env, OPERATIVE_FIELDS))
+      .isEqualTo(compile(expectedNormalizedExpression, env))
   }
 
   @Test
   fun `compiles to Normal Form correctly with no non operative fields and negation`() {
-
     val env =
       envWithTestTemplateVars(
-        privacyTemplateVar("pt"),
+        personTemplateVar(),
       )
-    val expression =
-      "(has(pt.gender.value) && has(pt.age.value)) && " +
-        "!(pt.gender.value == 2 && pt.age.value == 1)"
-    val operativeFields = setOf("pt.age.value", "pt.gender.value")
-    val expectedNormalizedExpression =
-      "(has(pt.gender.value) && has(pt.age.value)) && " +
-        "(pt.gender.value == 2 || pt.age.value == 1)"
+    val expression = "!(person.gender.value == 2 && person.age_group.value == 1)"
+    val expectedNormalizedExpression = "person.gender.value == 2 || person.age_group.value == 1"
 
-    compileToNormalForm(expression, env, operativeFields)
-      .assertEqualsIgnoreIds(compile(expectedNormalizedExpression, env))
+    assertIgnoringId(compileToNormalForm(expression, env, OPERATIVE_FIELDS))
+      .isEqualTo(compile(expectedNormalizedExpression, env))
   }
 
   @Test
   fun `compiles to Normal Form correctly with non operative fields and negation`() {
-
     val env =
       envWithTestTemplateVars(
-        privacyTemplateVar("pt"),
-        videoTemplateVar("vt"),
+        personTemplateVar(),
+        videoTemplateVar(),
       )
 
     val expression =
-      "(has(pt.gender.value) && has(vt.age.value)) && " +
-        "!(pt.gender.value == 2 && pt.age.value == 1) && !(vt.age.value == 2)"
-    val operativeFields = setOf("pt.age.value", "pt.gender.value")
+      "!(person.gender.value == 2 && person.age_group.value == 1) && " +
+        "!(video.viewed_fraction.value > 0.25)"
     val expectedNormalizedExpression =
-      "(has(pt.gender.value) && true) && (pt.gender.value == 2 || pt.age.value == 1) && true"
+      "(person.gender.value == 2 || person.age_group.value == 1) && true"
 
-    compileToNormalForm(expression, env, operativeFields)
-      .assertEqualsIgnoreIds(compile(expectedNormalizedExpression, env))
+    assertIgnoringId(compileToNormalForm(expression, env, OPERATIVE_FIELDS))
+      .isEqualTo(compile(expectedNormalizedExpression, env))
   }
 
   @Test
   fun `compiles to Normal Form correctly with complex expression`() {
-
     val env =
       envWithTestTemplateVars(
-        privacyTemplateVar("pt"),
-        videoTemplateVar("vt"),
+        personTemplateVar(),
+        videoTemplateVar(),
       )
 
     val expression =
-      "!(has(pt.gender.value) && (pt.gender.value == 2  || vt.age.value == 1)) && !(pt.age.value == 1 || " +
-        "(pt.age.value == 2 || !(has(vt.age.value) && (vt.age.value == 1 && vt.age.value == 2))))"
-
-    val operativeFields = setOf("pt.age.value", "pt.gender.value")
+      """
+      !(person.gender.value == 2  || video.viewed_fraction.value > 0.25) && !(
+        person.age_group.value == 1 || (
+          person.age_group.value == 2 || !(
+            (video.viewed_fraction.value > 0.25 && video.viewed_fraction.value < 1.0)
+          )
+        )
+      )
+      """
+        .trim()
 
     val expectedNormalizedExpression =
-      "(!has(pt.gender.value) || (pt.gender.value == 2  && true)) && (pt.age.value == 1 && " +
-        "(pt.age.value == 2 && (true && (true && true))) )"
+      "(person.gender.value == 2  && true) && (person.age_group.value == 1 && " +
+        "(person.age_group.value == 2 && ((true && true))) )"
 
-    compileToNormalForm(expression, env, operativeFields)
-      .assertEqualsIgnoreIds(compile(expectedNormalizedExpression, env))
+    assertIgnoringId(compileToNormalForm(expression, env, OPERATIVE_FIELDS))
+      .isEqualTo(compile(expectedNormalizedExpression, env))
   }
 }
