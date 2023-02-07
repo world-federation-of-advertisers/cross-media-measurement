@@ -152,9 +152,9 @@ message Report {
     string display_name = 1;
 
     // The reporting set associated with this `MetricCalculationSpec`.
-    string reporting_set = 2 [
-      (google.api.resource_reference) = { type: "reporting.halo-cmm.org/ReportingSet" }
-    ];
+    string reporting_set = 2 [(google.api.resource_reference) = {
+      type: "reporting.halo-cmm.org/ReportingSet"
+    }];
 
     // Whether the results for a given time interval is cumulative with those of
     // previous time intervals.
