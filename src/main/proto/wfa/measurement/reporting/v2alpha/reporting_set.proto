@@ -18,15 +18,10 @@ package wfa.measurement.reporting.v2alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
-import "google/protobuf/descriptor.proto";
 
 option java_package = "org.wfanet.measurement.reporting.v2alpha";
 option java_multiple_files = true;
 option java_outer_classname = "ReportingSetProto";
-
-extend google.protobuf.OneofOptions {
-  optional int32 oneof_reporting_set_required_option = 12346;
-}
 
 // Represents a binary set expression.
 message SetExpression {
@@ -102,7 +97,6 @@ message ReportingSet {
 
   // Type of reporting set it is.
   oneof type {
-    option (oneof_reporting_set_required_option) = 1111;
     // The basis building block in the set expression.
     PrimitiveReportingSet primitive_reporting_set = 4;
     // The composite of different types of reporting sets.
