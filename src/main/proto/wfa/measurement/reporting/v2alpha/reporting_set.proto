@@ -91,7 +91,7 @@ message ReportingSet {
   };
 
   // Resource name.
-  string name = 1 [(google.api.field_behavior) = REQUIRED];
+  string name = 1;
 
   // Human-readable name for display purposes.
   string display_name = 2;

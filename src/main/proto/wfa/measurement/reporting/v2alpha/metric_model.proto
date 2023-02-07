@@ -33,7 +33,7 @@ message MetricModel {
   };
 
   // Resource name.
-  string name = 1 [(google.api.field_behavior) = REQUIRED];
+  string name = 1;
 
   // The specification of the model.
   message ModelSpec {
