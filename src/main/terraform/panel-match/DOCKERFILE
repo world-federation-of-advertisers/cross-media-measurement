@@ -45,3 +45,12 @@ RUN apt-get update && apt-get install -y ca-certificates curl gnupg lsb-release 
 RUN mkdir Repos \
   && cd Repos \
   && git clone https://github.com/world-federation-of-advertisers/panel-exchange-client.git
+
+# install jq
+RUN apt-get install -y jq
+
+# install eksctl
+RUN \
+  curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp \
+  && sudo mv /tmp/eksctl /usr/local/bin
+

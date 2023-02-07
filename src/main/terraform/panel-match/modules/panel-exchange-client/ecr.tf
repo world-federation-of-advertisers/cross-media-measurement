@@ -12,12 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-resource "aws_kms_key" "k8s_key" {
-  description             = "key for ocmm"
-  deletion_window_in_days = 7
-}
+resource "aws_ecr_repository" "edp_image" {
+  name = var.repository_name
 
-resource "aws_kms_alias" "k8s_key_alias" {
-  name          = "alias/${var.kms_alias_name}"
-  target_key_id = aws_kms_key.k8s_key.key_id
+  force_delete = true
 }
