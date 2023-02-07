@@ -24,10 +24,10 @@ import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsContinuatio
 
 class SetContinuationToken(val continuationToken: String) {
   suspend fun execute(databaseClient: AsyncDatabaseClient) {
-    databaseClient.readWriteTransaction().execute { ctx ->
+    databaseClient.readWriteTransaction().execute {
       val newContinuationToken = decodeContinuationToken(continuationToken)
       val oldContinuationToken =
-        ctx
+        txn
           .readRow("HeraldContinuationTokens", Key.of(true), listOf("ContinuationToken"))
           ?.getString("ContinuationToken")
           ?.let { decodeContinuationToken(it) }
@@ -49,7 +49,7 @@ class SetContinuationToken(val continuationToken: String) {
           set("ContinuationToken").to(continuationToken)
           set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
         }
-      ctx.buffer(mutation)
+      txn.buffer(mutation)
     }
   }
 
