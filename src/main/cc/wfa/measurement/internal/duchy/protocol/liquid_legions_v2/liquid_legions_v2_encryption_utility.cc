@@ -82,10 +82,10 @@ using ::wfa::measurement::internal::duchy::ElGamalPublicKey;
 // sub_permutation would be ignored during SameKeyAggregation.
 absl::Status MergeCountsUsingSameKeyAggregation(
     absl::Span<const size_t> sub_permutation, absl::string_view registers,
-    ProtocolCryptor &protocol_cryptor,
-    const ElGamalEcPointPair &destroyed_key_constant_ec_pair,
-    const ElGamalEcPointPair &blinded_histogram_noise_key_constant_ec_pair,
-    int total_sketches_count, std::string &response) {
+    ProtocolCryptor& protocol_cryptor,
+    const ElGamalEcPointPair& destroyed_key_constant_ec_pair,
+    const ElGamalEcPointPair& blinded_histogram_noise_key_constant_ec_pair,
+    int total_sketches_count, std::string& response) {
   if (sub_permutation.empty()) {
     return absl::InternalError("Empty sub permutation.");
   }
@@ -156,10 +156,10 @@ absl::Status MergeCountsUsingSameKeyAggregation(
 // the counts in each group using the SameKeyAggregation algorithm. Then, append
 // the (flag, count) result of each group to the response.
 absl::Status JoinRegistersByIndexAndMergeCounts(
-    ProtocolCryptor &protocol_cryptor, absl::string_view registers,
-    const std::vector<std::string> &blinded_register_indexes,
+    ProtocolCryptor& protocol_cryptor, absl::string_view registers,
+    const std::vector<std::string>& blinded_register_indexes,
     absl::Span<const size_t> permutation, int total_sketches_count,
-    std::string &response) {
+    std::string& response) {
   ASSIGN_OR_RETURN(size_t register_count,
                    GetNumberOfBlocks(registers, kBytesPerCipherRegister));
 
@@ -221,7 +221,7 @@ absl::StatusOr<int64_t> EstimateReach(double liquid_legions_decay_rate,
 }
 
 absl::StatusOr<std::vector<ElGamalEcPointPair>> GetSameKeyAggregatorMatrixBase(
-    ProtocolCryptor &protocol_cryptor, int64_t max_frequency) {
+    ProtocolCryptor& protocol_cryptor, int64_t max_frequency) {
   // Result[i] =  - encrypted_one * (i+1)
   std::vector<ElGamalEcPointPair> result;
   ASSIGN_OR_RETURN(ElGamalEcPointPair one_ec,
@@ -239,8 +239,8 @@ absl::StatusOr<std::vector<ElGamalEcPointPair>> GetSameKeyAggregatorMatrixBase(
 }
 
 absl::Status EncryptCompositeElGamalAndAppendToString(
-    ProtocolCryptor &protocol_cryptor, CompositeType composite_type,
-    absl::string_view plaintext_ec, std::string &data) {
+    ProtocolCryptor& protocol_cryptor, CompositeType composite_type,
+    absl::string_view plaintext_ec, std::string& data) {
   ASSIGN_OR_RETURN(
       ElGamalCiphertext key,
       protocol_cryptor.EncryptCompositeElGamal(plaintext_ec, composite_type));
@@ -252,15 +252,15 @@ absl::Status EncryptCompositeElGamalAndAppendToString(
 // Adds encrypted blinded-histogram-noise registers to the end of data.
 // returns the number of such noise registers added.
 absl::StatusOr<int64_t> AddBlindedHistogramNoise(
-    ProtocolCryptor &protocol_cryptor, int total_sketches_count,
-    const math::DistributedGeometricRandomComponentOptions &options,
-    double sigma, std::string &data) {
+    ProtocolCryptor& protocol_cryptor, int total_sketches_count,
+    const math::DistributedGeometricRandomComponentOptions& options,
+    double sigma, std::string& data) {
   ASSIGN_OR_RETURN(
       std::string blinded_histogram_noise_key_ec,
       protocol_cryptor.MapToCurve(kBlindedHistogramNoiseRegisterKey));
 
   int64_t noise_register_added = 0;
-  math::DistributedRandomNoise *pDistributedRandomNoise;
+  math::DistributedRandomNoise* pDistributedRandomNoise;
 
   pDistributedRandomNoise = new math::DistributedGeometricRandomNoise(options);
 
@@ -303,13 +303,13 @@ absl::StatusOr<int64_t> AddBlindedHistogramNoise(
 // Adds encrypted noise-for-publisher-noise registers to the end of data.
 // returns the number of such noise registers added.
 absl::StatusOr<int64_t> AddNoiseForPublisherNoise(
-    ProtocolCryptor &protocol_cryptor,
-    const math::DistributedGeometricRandomComponentOptions &options,
-    double sigma, std::string &data) {
+    ProtocolCryptor& protocol_cryptor,
+    const math::DistributedGeometricRandomComponentOptions& options,
+    double sigma, std::string& data) {
   ASSIGN_OR_RETURN(std::string publisher_noise_register_id_ec,
                    protocol_cryptor.MapToCurve(kPublisherNoiseRegisterId));
 
-  math::DistributedRandomNoise *pDistributedRandomNoise;
+  math::DistributedRandomNoise* pDistributedRandomNoise;
 
   pDistributedRandomNoise = new math::DistributedGeometricRandomNoise(options);
 
@@ -340,13 +340,13 @@ absl::StatusOr<int64_t> AddNoiseForPublisherNoise(
 // Adds encrypted global-reach-DP-noise registers to the end of data.
 // returns the number of such noise registers added.
 absl::StatusOr<int64_t> AddGlobalReachDpNoise(
-    ProtocolCryptor &protocol_cryptor,
-    const math::DistributedGeometricRandomComponentOptions &options,
-    double sigma, std::string &data) {
+    ProtocolCryptor& protocol_cryptor,
+    const math::DistributedGeometricRandomComponentOptions& options,
+    double sigma, std::string& data) {
   ASSIGN_OR_RETURN(std::string destroyed_register_key_ec,
                    protocol_cryptor.MapToCurve(kDestroyedRegisterKey));
 
-  math::DistributedRandomNoise *pDistributedRandomNoise;
+  math::DistributedRandomNoise* pDistributedRandomNoise;
 
   pDistributedRandomNoise = new math::DistributedGeometricRandomNoise(options);
 
@@ -378,8 +378,8 @@ absl::StatusOr<int64_t> AddGlobalReachDpNoise(
 }
 
 // Adds encrypted padding-noise registers to the end of data.
-absl::Status AddPaddingReachNoise(ProtocolCryptor &protocol_cryptor,
-                                  int64_t count, std::string &data) {
+absl::Status AddPaddingReachNoise(ProtocolCryptor& protocol_cryptor,
+                                  int64_t count, std::string& data) {
   if (count < 0) {
     return absl::InvalidArgumentError("Count should >= 0.");
   }
@@ -408,13 +408,13 @@ absl::Status AddPaddingReachNoise(ProtocolCryptor &protocol_cryptor,
 // Adds 4 tuples with flag values equal to (0,R_1,R_2) to the end of data for
 // each count value in [1, maximum_frequency], where R_i are random numbers.
 absl::StatusOr<int64_t> AddFrequencyDpNoise(
-    ProtocolCryptor &protocol_cryptor, int maximum_frequency, int curve_id,
-    const math::DistributedGeometricRandomComponentOptions &options,
-    double sigma, std::string &data) {
+    ProtocolCryptor& protocol_cryptor, int maximum_frequency, int curve_id,
+    const math::DistributedGeometricRandomComponentOptions& options,
+    double sigma, std::string& data) {
   ASSIGN_OR_RETURN(std::vector<std::string> count_values_plaintext,
                    GetCountValuesPlaintext(maximum_frequency, curve_id));
   int total_noise_tuples_added = 0;
-  math::DistributedRandomNoise *pDistributedRandomNoise;
+  math::DistributedRandomNoise* pDistributedRandomNoise;
 
   pDistributedRandomNoise = new math::DistributedGeometricRandomNoise(options);
 
@@ -455,10 +455,10 @@ absl::StatusOr<int64_t> AddFrequencyDpNoise(
 // Adds 4 tuples with flag values equal to (R1,R2,R3) and count value equal to
 // R4 to the end of data, where Ri are random numbers.
 absl::StatusOr<int64_t> AddDestroyedFrequencyNoise(
-    ProtocolCryptor &protocol_cryptor,
-    const math::DistributedGeometricRandomComponentOptions &options,
-    double sigma, std::string &data) {
-  math::DistributedRandomNoise *pDistributedRandomNoise;
+    ProtocolCryptor& protocol_cryptor,
+    const math::DistributedGeometricRandomComponentOptions& options,
+    double sigma, std::string& data) {
+  math::DistributedRandomNoise* pDistributedRandomNoise;
 
   pDistributedRandomNoise = new math::DistributedGeometricRandomNoise(options);
 
@@ -489,9 +489,9 @@ absl::StatusOr<int64_t> AddDestroyedFrequencyNoise(
 
 // Adds 4 tuples with flag values equal to (0,0,R1) and count value equal to R2
 // to the end of data, where Ri are random numbers.
-absl::Status AddPaddingFrequencyNoise(ProtocolCryptor &protocol_cryptor,
+absl::Status AddPaddingFrequencyNoise(ProtocolCryptor& protocol_cryptor,
                                       int noise_tuples_count,
-                                      std::string &data) {
+                                      std::string& data) {
   if (noise_tuples_count < 0) {
     return absl::InvalidArgumentError("Count should >= 0.");
   }
@@ -521,7 +521,7 @@ absl::Status AddPaddingFrequencyNoise(ProtocolCryptor &protocol_cryptor,
 }
 
 absl::Status ValidateSetupNoiseParameters(
-    const RegisterNoiseGenerationParameters &parameters) {
+    const RegisterNoiseGenerationParameters& parameters) {
   if (parameters.contributors_count() < 1) {
     return absl::InvalidArgumentError("contributors_count should be positive.");
   }
@@ -551,7 +551,7 @@ absl::Status ValidateSetupNoiseParameters(
 }
 
 absl::Status ValidateFrequencyNoiseParameters(
-    const FlagCountTupleNoiseGenerationParameters &parameters) {
+    const FlagCountTupleNoiseGenerationParameters& parameters) {
   if (parameters.contributors_count() < 1) {
     return absl::InvalidArgumentError("contributors_count should be positive.");
   }
@@ -569,9 +569,9 @@ absl::Status ValidateFrequencyNoiseParameters(
 }
 
 absl::Status AddAllFrequencyNoise(
-    ProtocolCryptor &protocol_cryptor, int curve_id,
-    const FlagCountTupleNoiseGenerationParameters &noise_parameters,
-    std::string &data) {
+    ProtocolCryptor& protocol_cryptor, int curve_id,
+    const FlagCountTupleNoiseGenerationParameters& noise_parameters,
+    std::string& data) {
   RETURN_IF_ERROR(ValidateFrequencyNoiseParameters(noise_parameters));
 
   auto options = GetFrequencyNoiseOptions(
@@ -601,7 +601,7 @@ absl::Status AddAllFrequencyNoise(
 // Copies encrypted registers, replacing all keys with
 // the destroyed register flag and all counts with random values.
 absl::StatusOr<std::string> DestroyKeysAndCounts(
-    const CompleteSetupPhaseRequest &request) {
+    const CompleteSetupPhaseRequest& request) {
   std::string source = request.combined_register_vector();
   std::string dest;
 
@@ -679,7 +679,7 @@ absl::StatusOr<std::string> DestroyKeysAndCounts(
 }  // namespace
 
 absl::StatusOr<CompleteInitializationPhaseResponse> CompleteInitializationPhase(
-    const CompleteInitializationPhaseRequest &request) {
+    const CompleteInitializationPhaseRequest& request) {
   StartedThreadCpuTimer timer;
 
   ASSIGN_OR_RETURN(
@@ -700,11 +700,11 @@ absl::StatusOr<CompleteInitializationPhaseResponse> CompleteInitializationPhase(
 }
 
 absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
-    const CompleteSetupPhaseRequest &request) {
+    const CompleteSetupPhaseRequest& request) {
   StartedThreadCpuTimer timer;
 
   CompleteSetupPhaseResponse response;
-  std::string *response_crv = response.mutable_combined_register_vector();
+  std::string* response_crv = response.mutable_combined_register_vector();
 
   if (request.maximum_frequency() == 1) {
     *response_crv = *DestroyKeysAndCounts(request);
@@ -713,7 +713,7 @@ absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
   }
 
   if (request.has_noise_parameters()) {
-    const RegisterNoiseGenerationParameters &noise_parameters =
+    const RegisterNoiseGenerationParameters& noise_parameters =
         request.noise_parameters();
     auto blind_histogram_noise_options = GetBlindHistogramNoiseOptions(
         noise_parameters.dp_params().blind_histogram(),
@@ -788,7 +788,7 @@ absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
 }
 
 absl::StatusOr<CompleteExecutionPhaseOneResponse> CompleteExecutionPhaseOne(
-    const CompleteExecutionPhaseOneRequest &request) {
+    const CompleteExecutionPhaseOneRequest& request) {
   StartedThreadCpuTimer timer;
 
   ASSIGN_OR_RETURN(size_t register_count,
@@ -809,7 +809,7 @@ absl::StatusOr<CompleteExecutionPhaseOneResponse> CompleteExecutionPhaseOne(
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   CompleteExecutionPhaseOneResponse response;
-  std::string *response_crv = response.mutable_combined_register_vector();
+  std::string* response_crv = response.mutable_combined_register_vector();
   // The output crv is the same size with the input crv.
   response_crv->reserve(request.combined_register_vector().size());
 
@@ -831,7 +831,7 @@ absl::StatusOr<CompleteExecutionPhaseOneResponse> CompleteExecutionPhaseOne(
 
 absl::StatusOr<CompleteExecutionPhaseOneAtAggregatorResponse>
 CompleteExecutionPhaseOneAtAggregator(
-    const CompleteExecutionPhaseOneAtAggregatorRequest &request) {
+    const CompleteExecutionPhaseOneAtAggregatorRequest& request) {
   StartedThreadCpuTimer timer;
 
   ASSIGN_OR_RETURN(size_t register_count,
@@ -866,7 +866,7 @@ CompleteExecutionPhaseOneAtAggregator(
   });
 
   CompleteExecutionPhaseOneAtAggregatorResponse response;
-  std::string *response_data = response.mutable_flag_count_tuples();
+  std::string* response_data = response.mutable_flag_count_tuples();
   RETURN_IF_ERROR(JoinRegistersByIndexAndMergeCounts(
       *protocol_cryptor, request.combined_register_vector(),
       blinded_register_indexes, permutation, request.total_sketches_count(),
@@ -886,7 +886,7 @@ CompleteExecutionPhaseOneAtAggregator(
 }
 
 absl::StatusOr<CompleteExecutionPhaseTwoResponse> CompleteExecutionPhaseTwo(
-    const CompleteExecutionPhaseTwoRequest &request) {
+    const CompleteExecutionPhaseTwoRequest& request) {
   StartedThreadCpuTimer timer;
 
   ASSIGN_OR_RETURN(
@@ -909,7 +909,7 @@ absl::StatusOr<CompleteExecutionPhaseTwoResponse> CompleteExecutionPhaseTwo(
       "Failed to create the protocol cipher, invalid curveId or keys.");
 
   CompleteExecutionPhaseTwoResponse response;
-  std::string *response_data = response.mutable_flag_count_tuples();
+  std::string* response_data = response.mutable_flag_count_tuples();
   // Without noise, the output flag_count_tuples is the same size as the input
   // flag_count_tuples.
   response_data->reserve(request.flag_count_tuples().size());
@@ -940,7 +940,7 @@ absl::StatusOr<CompleteExecutionPhaseTwoResponse> CompleteExecutionPhaseTwo(
 
 absl::StatusOr<CompleteExecutionPhaseTwoAtAggregatorResponse>
 CompleteExecutionPhaseTwoAtAggregator(
-    const CompleteExecutionPhaseTwoAtAggregatorRequest &request) {
+    const CompleteExecutionPhaseTwoAtAggregatorRequest& request) {
   StartedThreadCpuTimer timer;
 
   ASSIGN_OR_RETURN(
@@ -966,7 +966,7 @@ CompleteExecutionPhaseTwoAtAggregator(
                                                   request.maximum_frequency()));
 
   CompleteExecutionPhaseTwoAtAggregatorResponse response;
-  std::string *response_ska_matrix =
+  std::string* response_ska_matrix =
       response.mutable_same_key_aggregator_matrix();
 
   int64_t blinded_histogram_noise_count = 0;
@@ -1017,7 +1017,7 @@ CompleteExecutionPhaseTwoAtAggregator(
     non_empty_register_count -= global_reach_dp_noise_baseline;
   }
   if (request.has_frequency_noise_parameters()) {
-    const FlagCountTupleNoiseGenerationParameters &noise_parameters =
+    const FlagCountTupleNoiseGenerationParameters& noise_parameters =
         request.frequency_noise_parameters();
     auto options = GetFrequencyNoiseOptions(
         noise_parameters.dp_params(), noise_parameters.contributors_count());
@@ -1045,7 +1045,7 @@ CompleteExecutionPhaseTwoAtAggregator(
 }
 
 absl::StatusOr<CompleteExecutionPhaseThreeResponse> CompleteExecutionPhaseThree(
-    const CompleteExecutionPhaseThreeRequest &request) {
+    const CompleteExecutionPhaseThreeRequest& request) {
   StartedThreadCpuTimer timer;
 
   ASSIGN_OR_RETURN(size_t ciphertext_counts,
@@ -1082,7 +1082,7 @@ absl::StatusOr<CompleteExecutionPhaseThreeResponse> CompleteExecutionPhaseThree(
 
 absl::StatusOr<CompleteExecutionPhaseThreeAtAggregatorResponse>
 CompleteExecutionPhaseThreeAtAggregator(
-    const CompleteExecutionPhaseThreeAtAggregatorRequest &request) {
+    const CompleteExecutionPhaseThreeAtAggregatorRequest& request) {
   StartedThreadCpuTimer timer;
 
   ASSIGN_OR_RETURN(size_t ciphertext_counts,
@@ -1163,7 +1163,7 @@ CompleteExecutionPhaseThreeAtAggregator(
   }
 
   CompleteExecutionPhaseThreeAtAggregatorResponse response;
-  google::protobuf::Map<int64_t, double> &distribution =
+  google::protobuf::Map<int64_t, double>& distribution =
       *response.mutable_frequency_distribution();
   for (int i = 0; i < maximum_frequency; ++i) {
     if (histogram[i] != 0) {

@@ -22,24 +22,24 @@
 namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
 
 math::DistributedGeometricRandomComponentOptions GetBlindHistogramNoiseOptions(
-    const wfa::measurement::internal::duchy::DifferentialPrivacyParams &params,
+    const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
     int uncorrupted_party_count);
 
 math::DistributedGeometricRandomComponentOptions
 GetNoiseForPublisherNoiseOptions(
-    const wfa::measurement::internal::duchy::DifferentialPrivacyParams &params,
+    const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
     int publisher_count, int uncorrupted_party_count);
 
 math::DistributedGeometricRandomComponentOptions GetGlobalReachDpNoiseOptions(
-    const wfa::measurement::internal::duchy::DifferentialPrivacyParams &params,
+    const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
     int uncorrupted_party_count);
 
 math::DistributedGeometricRandomComponentOptions GetFrequencyNoiseOptions(
-    const wfa::measurement::internal::duchy::DifferentialPrivacyParams &params,
+    const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
     int uncorrupted_party_count);
 
 double ComputeSigma(
-    const wfa::measurement::internal::duchy::DifferentialPrivacyParams &params);
+    const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params);
 
 }  // namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2
 
