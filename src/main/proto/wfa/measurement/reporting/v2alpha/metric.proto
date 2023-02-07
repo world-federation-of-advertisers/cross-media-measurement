@@ -136,7 +136,7 @@ message Metric {
     pattern: "measurementConsumers/{measurement_consumer}/metrics/{metric}"
   };
   // Resource name
-  string name = 1 [(google.api.field_behavior) = REQUIRED];
+  string name = 1;
 
   // The resource name of the reporting set to calculate the metric on.
   string reporting_set = 2 [

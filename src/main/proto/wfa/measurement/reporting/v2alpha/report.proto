@@ -34,7 +34,7 @@ message Report {
   };
 
   // Resource name.
-  string name = 1 [(google.api.field_behavior) = REQUIRED];
+  string name = 1;
 
   // Representation of a Measurement Consumer entity.
   string measurement_consumer = 2 [
