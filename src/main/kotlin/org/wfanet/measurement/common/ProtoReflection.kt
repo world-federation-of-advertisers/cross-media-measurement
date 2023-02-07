@@ -77,6 +77,12 @@ object ProtoReflection {
     }
   }
 
+  /** Direct and transitive dependencies of this [Descriptors.FileDescriptor]. */
+  val Descriptors.FileDescriptor.allDependencies: Set<Descriptors.FileDescriptor>
+    get() {
+      return mutableSetOf<Descriptors.FileDescriptor>().also { it.addDeps(this) }
+    }
+
   /** Adds all direct and transitive dependencies of [fileDescriptor] to this [MutableSet]. */
   private fun MutableSet<Descriptors.FileDescriptor>.addDeps(
     fileDescriptor: Descriptors.FileDescriptor

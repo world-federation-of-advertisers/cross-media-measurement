@@ -16,30 +16,36 @@ syntax = "proto3";
 
 package wfa.measurement.api.v2alpha.event_templates.testing;
 
+import "google/protobuf/duration.proto";
 import "wfa/measurement/api/v2alpha/event_annotations.proto";
 
 option java_package = "org.wfanet.measurement.api.v2alpha.event_templates.testing";
 option java_multiple_files = true;
 
-message TestBannerTemplate {
+message Video {
   option (.wfa.measurement.api.v2alpha.event_template) = {
-    name: "test_banner_template"
-    display_name: "Banner Ad"
-    description: "A simple Event Template for a banner ad."
+    name: "video_ad"
+    display_name: "Video Ad"
+    description: "A simple template for events related to a video ad."
   };
 
-  message Gender {
+  message LengthField {
     option (.wfa.measurement.api.v2alpha.event_field) = {
-      display_name: "Gender"
+      display_name: "Video Length"
     };
 
-    enum Value {
-      GENDER_UNSPECIFIED = 0;
-      GENDER_MALE = 1;
-      GENDER_FEMALE = 2;
-    }
-    Value value = 1;
+    google.protobuf.Duration value = 1;
   }
+  LengthField length = 1;
 
-  Gender gender = 1;
+  message ViewedFractionField {
+    option (.wfa.measurement.api.v2alpha.event_field) = {
+      display_name: "Viewed Fraction"
+    };
+
+    // In the range [0, 1] of what fraction of the video was viewed.
+    double value = 1;
+  }
+  // Fraction of video that was viewed.
+  ViewedFractionField viewed_fraction = 2;
 }

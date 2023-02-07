@@ -26,5 +26,5 @@ enum class PrivacyBudgetManagerExceptionType(val errorMessage: String) {
 class PrivacyBudgetManagerException(
   // TODO(@uakyol @duliomatos) refactor this exception to use a sealed exception class hierarchy
   val errorType: PrivacyBudgetManagerExceptionType,
-  val privacyBuckets: List<PrivacyBucketGroup>
-) : Exception(errorType.errorMessage)
+  cause: Throwable? = null
+) : Exception(errorType.errorMessage, cause)
