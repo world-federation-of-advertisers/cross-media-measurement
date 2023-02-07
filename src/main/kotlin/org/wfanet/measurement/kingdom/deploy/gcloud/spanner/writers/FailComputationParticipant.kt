@@ -111,11 +111,11 @@ class FailComputationParticipant(private val request: FailComputationParticipant
             }
         }
       updateMeasurementState(
-        InternalId(measurementConsumerId),
-        InternalId(measurementId),
-        Measurement.State.FAILED,
-        measurementState,
-        updatedMeasurementDetails
+        measurementConsumerId = InternalId(measurementConsumerId),
+        measurementId = InternalId(measurementId),
+        nextState = Measurement.State.FAILED,
+        previousState = measurementState,
+        details = updatedMeasurementDetails
       )
     }
 

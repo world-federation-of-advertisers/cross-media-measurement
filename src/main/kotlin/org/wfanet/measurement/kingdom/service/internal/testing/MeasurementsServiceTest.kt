@@ -125,9 +125,20 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
 
-  private suspend fun readMeasurement(externalComputationId: Long): Measurement {
+  private suspend fun readMeasurementByComputationId(externalComputationId: Long): Measurement {
     return measurementsService.getMeasurementByComputationId(
       getMeasurementByComputationIdRequest { this.externalComputationId = externalComputationId }
+    )
+  }
+  private suspend fun readMeasurement(
+    externalMeasurementConsumerId: Long,
+    externalMeasurementId: Long
+  ): Measurement {
+    return measurementsService.getMeasurement(
+      getMeasurementRequest {
+        this.externalMeasurementConsumerId = externalMeasurementConsumerId
+        this.externalMeasurementId = externalMeasurementId
+      }
     )
   }
 
@@ -144,7 +155,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
   @Test
   fun `getMeasurementByComputationId fails for missing Measurement`() = runBlocking {
-    val exception = assertFailsWith<StatusRuntimeException> { readMeasurement(1L) }
+    val exception = assertFailsWith<StatusRuntimeException> { readMeasurementByComputationId(1L) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception).hasMessageThat().contains("Measurement not found")
@@ -509,11 +520,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
     val createdMeasurement = measurementsService.createMeasurement(measurement)
     val retrievedMeasurement =
-      measurementsService.getMeasurement(
-        getMeasurementRequest {
-          externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
-          externalMeasurementId = createdMeasurement.externalMeasurementId
-        }
+      readMeasurement(
+        createdMeasurement.externalMeasurementConsumerId,
+        createdMeasurement.externalMeasurementId
       )
 
     assertThat(retrievedMeasurement.externalComputationId).isEqualTo(0L)
@@ -580,7 +589,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
               measurementConsumer.certificate.externalCertificateId
           }
         )
-      assertThat(secondCreateMeasurementAttempt).isEqualTo(createdMeasurement)
+      assertThat(secondCreateMeasurementAttempt)
+        .ignoringFields(Measurement.MEASUREMENT_STATE_LOG_ENTRY_FIELD_NUMBER)
+        .isEqualTo(createdMeasurement)
     }
 
   @Test
@@ -626,7 +637,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         }
       )
 
-    val measurement = readMeasurement(createdMeasurement.externalComputationId)
+    val measurement = readMeasurementByComputationId(createdMeasurement.externalComputationId)
 
     assertThat(measurement)
       .ignoringFields(
@@ -651,13 +662,14 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       )
 
     val measurement =
-      measurementsService.getMeasurement(
-        getMeasurementRequest {
-          externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
-          externalMeasurementId = createdMeasurement.externalMeasurementId
-        }
+      readMeasurement(
+        createdMeasurement.externalMeasurementConsumerId,
+        createdMeasurement.externalMeasurementId
       )
-    assertThat(measurement).isEqualTo(createdMeasurement)
+
+    assertThat(measurement)
+      .ignoringFields(Measurement.MEASUREMENT_STATE_LOG_ENTRY_FIELD_NUMBER)
+      .isEqualTo(createdMeasurement)
   }
 
   @Test
@@ -677,7 +689,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           }
         )
 
-      val measurement = readMeasurement(createdMeasurement.externalComputationId)
+      val measurement = readMeasurementByComputationId(createdMeasurement.externalComputationId)
 
       assertThat(measurement)
         .ignoringFields(
@@ -817,7 +829,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     assertThat(response.updateTime.toInstant())
       .isGreaterThan(createdMeasurement.updateTime.toInstant())
     assertThat(response)
-      .ignoringFields(Measurement.UPDATE_TIME_FIELD_NUMBER)
+      .ignoringFields(
+        Measurement.UPDATE_TIME_FIELD_NUMBER,
+        Measurement.MEASUREMENT_STATE_LOG_ENTRY_FIELD_NUMBER
+      )
       .isEqualTo(
         createdMeasurement.copy {
           state = Measurement.State.SUCCEEDED
@@ -830,11 +845,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       )
 
     val succeededMeasurement =
-      measurementsService.getMeasurement(
-        getMeasurementRequest {
-          externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
-          externalMeasurementId = createdMeasurement.externalMeasurementId
-        }
+      readMeasurement(
+        createdMeasurement.externalMeasurementConsumerId,
+        createdMeasurement.externalMeasurementId
       )
     assertThat(response).isEqualTo(succeededMeasurement)
     assertThat(succeededMeasurement.resultsList.size).isEqualTo(1)
@@ -864,12 +877,11 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     assertThat(response.state).isEqualTo(Measurement.State.CANCELLED)
     assertThat(response.updateTime.toInstant()).isGreaterThan(measurement.updateTime.toInstant())
     assertThat(response)
+      .ignoringFields(Measurement.MEASUREMENT_STATE_LOG_ENTRY_FIELD_NUMBER)
       .isEqualTo(
-        measurementsService.getMeasurement(
-          getMeasurementRequest {
-            externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
-            externalMeasurementId = measurement.externalMeasurementId
-          }
+        readMeasurement(
+          measurement.externalMeasurementConsumerId,
+          measurement.externalMeasurementId
         )
       )
   }
@@ -954,6 +966,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         .toList()
 
     assertThat(measurements)
+      .ignoringFields(Measurement.MEASUREMENT_STATE_LOG_ENTRY_FIELD_NUMBER)
       .comparingExpectedFieldsOnly()
       .containsExactly(measurement2, cancelledMeasurement)
       .inOrder()
@@ -1037,7 +1050,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       measurementsService.streamMeasurements(streamMeasurementsRequest).toList()
 
     assertThat(measurements).hasSize(1)
-    assertThat(measurements).contains(measurement1)
+    assertThat(measurements)
+      .ignoringFields(Measurement.MEASUREMENT_STATE_LOG_ENTRY_FIELD_NUMBER)
+      .contains(measurement1)
 
     val measurements2: List<Measurement> =
       measurementsService
@@ -1053,7 +1068,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         .toList()
 
     assertThat(measurements2).hasSize(1)
-    assertThat(measurements2).contains(measurement2)
+    assertThat(measurements2)
+      .ignoringFields(Measurement.MEASUREMENT_STATE_LOG_ENTRY_FIELD_NUMBER)
+      .contains(measurement2)
   }
 
   @Test
@@ -1242,12 +1259,16 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           }
         )
 
-      measurementStateTransition = readMeasurement(measurement.externalComputationId)
+      measurementStateTransition =
+        readMeasurement(
+          measurement.externalMeasurementConsumerId,
+          measurement.externalMeasurementId
+        )
 
       assertThat(measurementStateTransition.measurementStateLogEntryCount).isEqualTo(1)
       assertThat(measurementStateTransition.measurementStateLogEntryList.get(0).currentState)
         .isEqualTo(Measurement.State.PENDING_REQUISITION_PARAMS)
-      assertThat(measurementStateTransition.measurementStateLogEntryList.get(0).priorState)
+      assertThat(measurementStateTransition.measurementStateLogEntryList.get(0).previousState)
         .isEqualTo(Measurement.State.STATE_UNSPECIFIED)
 
       measurement =
@@ -1258,12 +1279,16 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           }
         )
 
-      measurementStateTransition = readMeasurement(measurement.externalComputationId)
+      measurementStateTransition =
+        readMeasurement(
+          measurement.externalMeasurementConsumerId,
+          measurement.externalMeasurementId
+        )
 
       assertThat(measurementStateTransition.measurementStateLogEntryCount).isEqualTo(2)
       assertThat(measurementStateTransition.measurementStateLogEntryList.get(0).currentState)
         .isEqualTo(Measurement.State.CANCELLED)
-      assertThat(measurementStateTransition.measurementStateLogEntryList.get(0).priorState)
+      assertThat(measurementStateTransition.measurementStateLogEntryList.get(0).previousState)
         .isEqualTo(Measurement.State.PENDING_REQUISITION_PARAMS)
     }
 }

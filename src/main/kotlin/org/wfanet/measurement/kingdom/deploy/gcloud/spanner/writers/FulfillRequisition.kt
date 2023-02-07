@@ -91,7 +91,12 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
           else Measurement.State.SUCCEEDED
         // All other Requisitions are already FULFILLED, so update Measurement state.
         nextState.also {
-          updateMeasurementState(measurementConsumerId, measurementId, it, measurementState)
+          updateMeasurementState(
+            measurementConsumerId = measurementConsumerId,
+            measurementId = measurementId,
+            nextState = it,
+            previousState = measurementState
+          )
         }
       } else {
         null

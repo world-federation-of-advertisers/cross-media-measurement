@@ -71,11 +71,11 @@ class RefuseRequisition(private val request: RefuseRequisitionRequest) :
       }
     updateRequisition(readResult, Requisition.State.REFUSED, updatedDetails)
     updateMeasurementState(
-      measurementConsumerId,
-      measurementId,
-      Measurement.State.FAILED,
-      measurementState,
-      updatedMeasurementDetails
+      measurementConsumerId = measurementConsumerId,
+      measurementId = measurementId,
+      nextState = Measurement.State.FAILED,
+      previousState = measurementState,
+      details = updatedMeasurementDetails
     )
 
     return requisition.copy {
