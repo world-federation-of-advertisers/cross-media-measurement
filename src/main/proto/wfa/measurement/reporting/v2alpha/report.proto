@@ -36,14 +36,6 @@ message Report {
   // Resource name.
   string name = 1;
 
-  // Representation of a Measurement Consumer entity.
-  string measurement_consumer = 2 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = {
-      type: "halo.wfanet.org/MeasurementConsumer"
-    }
-  ];
-
   // Contain the grouping predicates.
   message Grouping {
     // All predicates need to be applied on the same field in an Event Template
@@ -116,7 +108,7 @@ message Report {
   }
 
   // The calculations defined for specific reporting sets.
-  ReportingMetricCalculation reporting_metric_calculation = 4
+  ReportingMetricCalculation reporting_metric_calculation = 2
       [(google.api.field_behavior) = REQUIRED];
 
   // Types of time intervals for metric aggregation.
@@ -124,9 +116,9 @@ message Report {
   oneof time {
     option (oneof_time_required_option) = 1111;
     // A list of time intervals with different start times and end times.
-    TimeIntervals time_intervals = 5;
+    TimeIntervals time_intervals = 3;
     // A series of time intervals with the same length.
-    PeriodicTimeInterval periodic_time_interval = 6;
+    PeriodicTimeInterval periodic_time_interval = 4;
   }
 
   // Possible states of a `Report`.
@@ -142,7 +134,7 @@ message Report {
   }
 
   // Report state.
-  State state = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+  State state = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // The result of `MetricCalculationSpec` contains multiple results at the
   // level of granularity of single time interval and single group of the
@@ -186,6 +178,6 @@ message Report {
   }
 
   // Set only when `state` is `SUCCEEDED`.
-  repeated MetricCalculationSpecResult metric_calculation_spec_results = 9
+  repeated MetricCalculationSpecResult metric_calculation_spec_results = 6
       [(google.api.field_behavior) = OUTPUT_ONLY];
 }
