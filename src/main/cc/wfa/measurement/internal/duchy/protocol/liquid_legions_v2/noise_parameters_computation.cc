@@ -31,7 +31,7 @@ int ComputateMuPolya(double epsilon, double delta, int sensitivity, int n) {
 }  // namespace
 
 math::DistributedGeometricRandomComponentOptions GetBlindHistogramNoiseOptions(
-    const wfa::measurement::internal::duchy::DifferentialPrivacyParams &params,
+    const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
     int uncorrupted_party_count) {
   ABSL_ASSERT(uncorrupted_party_count > 0);
   double success_ratio = std::exp(-params.epsilon() / 2);
@@ -47,7 +47,7 @@ math::DistributedGeometricRandomComponentOptions GetBlindHistogramNoiseOptions(
 
 math::DistributedGeometricRandomComponentOptions
 GetNoiseForPublisherNoiseOptions(
-    const wfa::measurement::internal::duchy::DifferentialPrivacyParams &params,
+    const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
     int publisher_count, int uncorrupted_party_count) {
   ABSL_ASSERT(publisher_count > 0);
   ABSL_ASSERT(uncorrupted_party_count > 0);
@@ -63,7 +63,7 @@ GetNoiseForPublisherNoiseOptions(
 }
 
 math::DistributedGeometricRandomComponentOptions GetGlobalReachDpNoiseOptions(
-    const wfa::measurement::internal::duchy::DifferentialPrivacyParams &params,
+    const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
     int uncorrupted_party_count) {
   ABSL_ASSERT(uncorrupted_party_count > 0);
   double success_ratio = std::exp(-params.epsilon());
@@ -78,7 +78,7 @@ math::DistributedGeometricRandomComponentOptions GetGlobalReachDpNoiseOptions(
 }
 
 math::DistributedGeometricRandomComponentOptions GetFrequencyNoiseOptions(
-    const wfa::measurement::internal::duchy::DifferentialPrivacyParams &params,
+    const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
     int uncorrupted_party_count) {
   ABSL_ASSERT(uncorrupted_party_count > 0);
   double success_ratio = std::exp(-params.epsilon() / 2);
@@ -93,8 +93,8 @@ math::DistributedGeometricRandomComponentOptions GetFrequencyNoiseOptions(
 }
 
 double ComputeSigma(
-    const wfa::measurement::internal::duchy::DifferentialPrivacyParams
-        &params) {
+    const wfa::measurement::internal::duchy::DifferentialPrivacyParams&
+        params) {
   double epsilon = params.epsilon();
   double delta = params.delta();
 
