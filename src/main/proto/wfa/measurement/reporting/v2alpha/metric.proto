@@ -78,7 +78,7 @@ message MetricSpec {
     // Recommended maximum_watch_duration_per_user = cap on the total watch
     // duration of all the impressions of a user = 4000 sec for the case with
     // over 1M audience size. Enforced on a per EDP basis.
-    int32 maximum_watch_duration_per_user = 2
+    int32 maximum_watch_duration_per_user = 1
         [(google.api.field_behavior) = REQUIRED];
   }
 
