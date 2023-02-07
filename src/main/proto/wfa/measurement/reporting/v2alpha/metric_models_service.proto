@@ -58,7 +58,9 @@ service MetricModels {
   }
 
   // Applies the metric model to estimate the metric result.
-  // Will return a RPC error if the model hasn't been trained yet.
+  //
+  // Results in a `FAILED_PRECONDITION` error if the model hasn't been trained
+  // yet.
   rpc ApplyMetricModel(ApplyMetricModelRequest)
       returns (ApplyMetricModelResponse) {
     option (google.api.http) = {
