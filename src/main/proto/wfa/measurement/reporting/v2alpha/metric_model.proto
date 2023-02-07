@@ -69,7 +69,9 @@ message MetricModel {
     repeated string reporting_sets = 5 [
       (google.api.field_behavior) = REQUIRED,
       (google.api.field_behavior) = IMMUTABLE,
-      (google.api.resource_reference) = { type: "reporting.halo-cmm.org/ReportingSet" }
+      (google.api.resource_reference) = {
+        type: "reporting.halo-cmm.org/ReportingSet"
+      }
     ];
   }
   // Model spec
