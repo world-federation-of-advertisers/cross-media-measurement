@@ -142,11 +142,16 @@ message Metric {
   string reporting_set = 2 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE,
-    (google.api.resource_reference) = { type: "reporting.halo-cmm.org/ReportingSet" }
+    (google.api.resource_reference) = {
+      type: "reporting.halo-cmm.org/ReportingSet"
+    }
   ];
 
   // The time over which to calculate the metric cumulatively.
-  TimeInterval time_interval = 3 [(google.api.field_behavior) = REQUIRED];
+  TimeInterval time_interval = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
 
   // The specification of what metric to calculate
   MetricSpec metric_spec = 4 [
@@ -156,7 +161,7 @@ message Metric {
 
   // Additional filters that will be combined with AND boolean operation and
   // applied to the reporting set. If unspecified, evaluates to `true`
-  repeated string filters = 5;
+  repeated string filters = 5 [(google.api.field_behavior) = IMMUTABLE];
 
   // Possible states of a `Metric`.
   enum State {
