@@ -141,7 +141,8 @@ message Metric {
   // The resource name of the reporting set to calculate the metric on.
   string reporting_set = 2 [
     (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = { type: "halo.wfanet.org/ReportingSet" }
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.resource_reference) = { type: "reporting.halo-cmm.org/ReportingSet" }
   ];
 
   // The time over which to calculate the metric cumulatively.
