@@ -40,8 +40,8 @@ resource "aws_acmpca_certificate_authority" "root_ca" {
     signing_algorithm = "SHA256WITHRSA"
 
     subject {
-      organization = var.resource_config.ca_org_name
-      common_name = var.resource_config.ca_common_name
+      organization = var.ca_org_name
+      common_name = var.ca_common_name
       # can add other parameters later
     }
   }

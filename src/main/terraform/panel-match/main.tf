@@ -15,27 +15,27 @@
 module "panel_exchange_client" {
   source = "./modules/panel-exchange-client"
 
-  cluster_config = {
-    availability_zones_count = 2
-    project = "tftest"
-    vpc_cidr = "10.0.0.0/16"
-    subnet_cidr_bits = 8
-  }
+  # EKS vars
+  availability_zones_count = 2
+  project = "tftest"
+  vpc_cidr = "10.0.0.0/16"
+  subnet_cidr_bits = 8
 
-  resource_config = {
-    bucket_name = "tf-test-blob-storage"
-    kms_alias_name = "my-key-alias"
-    ca_org_name = "WFA"
-    ca_common_name = "WFA AWS MP CA"
-  }
+  # General MP vars
+  bucket_name = "tf-test-blob-storage"
+  kms_alias_name = "my-key-alias"
+  ca_org_name = "WFA"
+  ca_common_name = "WFA AWS MP CA"
+  ca_dns = "example.com"
 
-  k8s_config = {
-    use_test_secrets = true
-    image_name = "push_aws_example_daemon_image"
-    build_target_name = "example_edp_daemon_aws"
-    manifest_name = "example_edp_daemon_aws.yaml"
-    repository_name = "example-panel-exchange-daemon"
-    path_to_secrets = "../k8s/testing/secretfiles"
-    k8s_account_service_name = "edp-workflow"
-  }
+  # EKS Config vars
+  use_test_secrets = true
+  image_name = "push_aws_example_daemon_image"
+  build_target_name = "example_mp_daemon_aws"
+  manifest_name = "example_mp_daemon_aws.yaml"
+  repository_name = "example-panel-exchange-daemon"
+  path_to_secrets = "../k8s/testing/secretfiles"
+  path_to_cue = "../k8s/dev/example_mp_daemon_aws.cue"
+  k8s_account_service_name = "mp-workflow"
+  kingdom_endpoint = "public.kingdom.dev.halo-cmm.org:8443"
 }
