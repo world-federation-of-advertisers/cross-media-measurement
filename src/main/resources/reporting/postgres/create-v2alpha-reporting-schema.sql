@@ -189,7 +189,7 @@ CREATE TABLE ReportingSets (
 
   ExternalReportingSetId bigint NOT NULL,
 
-  DisplayName text NOT NULL,
+  DisplayName text,
   Filter text,
 
   -- Exactly one of (CompositeReportingSet, PrimitiveReportingSet) must be
