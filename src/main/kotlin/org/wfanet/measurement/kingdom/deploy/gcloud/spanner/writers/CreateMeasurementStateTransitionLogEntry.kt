@@ -28,7 +28,7 @@ internal fun SpannerWriter.TransactionScope.createMeasurementStateTransitionLogE
   measurementConsumerId: InternalId,
   measurementId: InternalId,
   nextMeasurementState: Measurement.State,
-  previousMeasurementState: Measurement.State = Measurement.State.STATE_UNSPECIFIED
+  previousMeasurementState: Measurement.State? = null
 ) {
   if (previousMeasurementState != nextMeasurementState) {
     insertMeasurementLogEntry(measurementId, measurementConsumerId)
@@ -36,8 +36,8 @@ internal fun SpannerWriter.TransactionScope.createMeasurementStateTransitionLogE
     insertMeasurementStateTransitionLogEntry(
       measurementId,
       measurementConsumerId,
+      nextMeasurementState,
       previousMeasurementState,
-      nextMeasurementState
     )
   }
 }
@@ -59,14 +59,16 @@ internal fun SpannerWriter.TransactionScope.insertMeasurementLogEntry(
 private fun SpannerWriter.TransactionScope.insertMeasurementStateTransitionLogEntry(
   measurementId: InternalId,
   measurementConsumerId: InternalId,
-  priorMeasurementState: Measurement.State,
-  currentMeasurementState: Measurement.State
+  currentMeasurementState: Measurement.State,
+  previousMeasurementState: Measurement.State?,
 ) {
   transactionContext.bufferInsertMutation("StateTransitionMeasurementLogEntries") {
     set("MeasurementConsumerId" to measurementConsumerId)
     set("MeasurementId" to measurementId)
     set("CreateTime" to Value.COMMIT_TIMESTAMP)
-    set("PreviousMeasurementState" to priorMeasurementState)
     set("CurrentMeasurementState" to currentMeasurementState)
+    if (previousMeasurementState != null) {
+      set("PreviousMeasurementState" to previousMeasurementState)
+    }
   }
 }
