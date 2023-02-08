@@ -35,8 +35,7 @@ message EventGroup {
   // Resource name.
   string name = 1;
 
-  // Kingdom resource name of the `DataProvider` associated with this
-  // `EventGroup`.
+  // Resource name of the `DataProvider` associated with this `EventGroup`.
   string data_provider = 2 [
     (google.api.field_behavior) = IMMUTABLE,
     (google.api.resource_reference).type = "halo.wfanet.org/DataProvider"
