@@ -297,7 +297,7 @@ class GcpSpannerComputationsDatabaseTransactor<
       val writeTime = clock.gcloudTimestamp()
       // If the Computation is already in the endingStage, release the lock.
       if (token.stage == endingStage) {
-        ctx.buffer(
+        txn.buffer(
           computationMutations.updateComputation(
             localId = token.localId,
             updateTime = writeTime,
