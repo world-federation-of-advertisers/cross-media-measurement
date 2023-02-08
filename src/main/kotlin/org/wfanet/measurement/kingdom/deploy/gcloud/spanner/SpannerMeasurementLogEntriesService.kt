@@ -15,16 +15,21 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
+import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.CreateDuchyMeasurementLogEntryRequest
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
+import org.wfanet.measurement.internal.kingdom.GetMeasurementStateTransitionLogEntryRequest
+import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry.ErrorDetails.Type.TRANSIENT
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementLogEntryReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateDuchyMeasurementLogEntry
 
 class SpannerMeasurementLogEntriesService(
@@ -51,5 +56,18 @@ class SpannerMeasurementLogEntriesService(
     } catch (e: KingdomInternalException) {
       e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error" }
     }
+  }
+
+  override suspend fun getMeasurementStateLogEntries(
+    request: GetMeasurementStateTransitionLogEntryRequest
+  ): Measurement {
+    return MeasurementLogEntryReader()
+      .readStateTransitionLogByExternalIds(
+        client.singleUse(),
+        ExternalId(request.externalMeasurementConsumerId),
+        ExternalId(request.externalMeasurementId)
+      )
+      ?.measurement
+      ?: failGrpc(Status.NOT_FOUND) { "Measurement not found" }
   }
 }

@@ -32,13 +32,16 @@ import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntryKt
+import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.createDuchyMeasurementLogEntryRequest
 import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
+import org.wfanet.measurement.internal.kingdom.getMeasurementStateTransitionLogEntryRequest
 import org.wfanet.measurement.internal.kingdom.measurementLogEntry
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
@@ -76,6 +79,18 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
     private set
 
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
+
+  private suspend fun readMeasurementStateLog(
+    externalMeasurementConsumerId: Long,
+    externalMeasurementId: Long
+  ): Measurement {
+    return measurementLogEntriesService.getMeasurementStateLogEntries(
+      getMeasurementStateTransitionLogEntryRequest {
+        this.externalMeasurementConsumerId = externalMeasurementConsumerId
+        this.externalMeasurementId = externalMeasurementId
+      }
+    )
+  }
 
   @Before
   fun initService() {
@@ -270,4 +285,54 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
     assertThat(createdDuchyMeasurementLogEntry.logEntry.createTime.seconds).isGreaterThan(0L)
     assertThat(createdDuchyMeasurementLogEntry).isEqualTo(expectedDuchyMeasurementLogEntry)
   }
+
+  @Test
+  fun `measurementState is consistent when creating and cancelling a Measurement`(): Unit =
+    runBlocking {
+      var measurement: Measurement
+      var measurementStateTransition: Measurement
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val dataProvider = population.createDataProvider(dataProvidersService)
+
+      measurement =
+        population.createComputedMeasurement(
+          measurementsService,
+          measurementConsumer,
+          "measurement 1",
+          dataProvider
+        )
+
+      measurementStateTransition =
+        readMeasurementStateLog(
+          measurement.externalMeasurementConsumerId,
+          measurement.externalMeasurementId
+        )
+
+      assertThat(measurementStateTransition.measurementStateLogEntryCount).isEqualTo(1)
+      assertThat(measurementStateTransition.measurementStateLogEntryList.get(0).currentState)
+        .isEqualTo(Measurement.State.PENDING_REQUISITION_PARAMS)
+      assertThat(measurementStateTransition.measurementStateLogEntryList.get(0).previousState)
+        .isEqualTo(Measurement.State.STATE_UNSPECIFIED)
+
+      measurement =
+        measurementsService.cancelMeasurement(
+          cancelMeasurementRequest {
+            externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+            externalMeasurementId = measurement.externalMeasurementId
+          }
+        )
+
+      measurementStateTransition =
+        readMeasurementStateLog(
+          measurement.externalMeasurementConsumerId,
+          measurement.externalMeasurementId
+        )
+
+      assertThat(measurementStateTransition.measurementStateLogEntryCount).isEqualTo(2)
+      assertThat(measurementStateTransition.measurementStateLogEntryList.get(0).currentState)
+        .isEqualTo(Measurement.State.CANCELLED)
+      assertThat(measurementStateTransition.measurementStateLogEntryList.get(0).previousState)
+        .isEqualTo(Measurement.State.PENDING_REQUISITION_PARAMS)
+    }
 }

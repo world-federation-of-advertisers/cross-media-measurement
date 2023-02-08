@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.kingdom;
 
 import "wfa/measurement/internal/kingdom/measurement_log_entry.proto";
+import "wfa/measurement/internal/kingdom/measurement.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
@@ -29,6 +30,9 @@ service MeasurementLogEntries {
   // service can be used instead to create such an entry.
   rpc CreateDuchyMeasurementLogEntry(CreateDuchyMeasurementLogEntryRequest)
       returns (DuchyMeasurementLogEntry);
+
+  // Retriece all measurement state transition log entries for a given measurement
+  rpc GetMeasurementStateLogEntries(GetMeasurementStateTransitionLogEntryRequest) returns (Measurement);
 }
 
 message CreateDuchyMeasurementLogEntryRequest {
@@ -37,4 +41,9 @@ message CreateDuchyMeasurementLogEntryRequest {
 
   MeasurementLogEntry.Details measurement_log_entry_details = 3;
   DuchyMeasurementLogEntry.Details details = 4;
+}
+
+message GetMeasurementStateTransitionLogEntryRequest {
+  fixed64 external_measurement_consumer_id = 1;
+  fixed64 external_measurement_id = 2;
 }
