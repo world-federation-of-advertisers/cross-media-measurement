@@ -29,7 +29,6 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.random.Random
-import kotlin.test.assertFails
 import kotlinx.coroutines.runBlocking
 import org.junit.BeforeClass
 import org.junit.ClassRule
@@ -43,6 +42,7 @@ import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.stub
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.AnySketch.Register
@@ -61,10 +61,13 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCorouti
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyKey
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
@@ -86,18 +89,16 @@ import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCorouti
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.elGamalPublicKey
+import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplate
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplate.Gender
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestBannerTemplateKt.gender
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.PersonKt
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate.AgeRange as PrivacyAgeRange
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplateKt as TestPrivacyBudgetTemplates
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testBannerTemplate
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testPrivacyBudgetTemplate
+import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.liquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
@@ -109,6 +110,7 @@ import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.common.HexString
+import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.hashSha256
@@ -129,6 +131,7 @@ import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.duchy.signElgamalPublicKey
+import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
@@ -150,11 +153,7 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 private const val TEMPLATE_PREFIX = "wfa.measurement.api.v2alpha.event_templates.testing"
 private const val MC_NAME = "mc"
 private val EVENT_TEMPLATES =
-  listOf(
-    "$TEMPLATE_PREFIX.TestVideoTemplate",
-    "$TEMPLATE_PREFIX.TestBannerTemplate",
-    "$TEMPLATE_PREFIX.TestPrivacyBudgetTemplate"
-  )
+  listOf("$TEMPLATE_PREFIX.Video", "$TEMPLATE_PREFIX.BannerAd", "$TEMPLATE_PREFIX.Person")
 private const val EDP_DISPLAY_NAME = "edp1"
 private val SECRET_FILES_PATH: Path =
   checkNotNull(
@@ -202,12 +201,21 @@ private val MEASUREMENT_CONSUMER_CERTIFICATE = certificate {
   x509Der = MEASUREMENT_CONSUMER_CERTIFICATE_DER
 }
 private val MEASUREMENT_PUBLIC_KEY =
-  SECRET_FILES_PATH.resolve("${MC_NAME}_enc_public.tink").toFile().readByteString()
+  encryptionPublicKey {
+      format = EncryptionPublicKey.Format.TINK_KEYSET
+      data = SECRET_FILES_PATH.resolve("${MC_NAME}_enc_public.tink").toFile().readByteString()
+    }
+    .toByteString()
+
 private val CONSENT_SIGNALING_ELGAMAL_PUBLIC_KEY = elGamalPublicKey {
   ellipticCurveId = 415
   generator = HexString("036B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C296").bytes
   element = HexString("0277BF406C5AA4376413E480E0AB8B0EFCA999D362204E6D1686E0BE567811604D").bytes
 }
+
+private val LAST_EVENT_DATE = LocalDate.now()
+private val FIRST_EVENT_DATE = LAST_EVENT_DATE.minusDays(1)
+private val TIME_RANGE = OpenEndTimeRange.fromClosedDateRange(FIRST_EVENT_DATE..LAST_EVENT_DATE)
 
 private val REQUISITION_ONE_SPEC = requisitionSpec {
   eventGroups += eventGroupEntry {
@@ -215,12 +223,11 @@ private val REQUISITION_ONE_SPEC = requisitionSpec {
     value =
       RequisitionSpecKt.EventGroupEntryKt.value {
         collectionInterval = timeInterval {
-          startTime =
-            LocalDate.now().minusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
-          endTime = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+          startTime = TIME_RANGE.start.toProtoTime()
+          endTime = TIME_RANGE.endExclusive.toProtoTime()
         }
         filter = eventFilter {
-          expression = "privacy_budget.age.value == 1 || banner_ad.gender.value == 2"
+          expression = "person.age_group.value == 1 && person.gender.value == 2"
         }
       }
   }
@@ -264,7 +271,7 @@ class EdpSimulatorTest {
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
     onBlocking { listRequisitions(any()) }
       .thenReturn(listRequisitionsResponse { requisitions += REQUISITION_ONE })
-      .thenReturn(listRequisitionsResponse {})
+    onBlocking { fulfillDirectRequisition(any()) }.thenReturn(fulfillDirectRequisitionResponse {})
   }
   private val requisitionFulfillmentServiceMock: RequisitionFulfillmentCoroutineImplBase =
     mockService()
@@ -308,7 +315,7 @@ class EdpSimulatorTest {
     PrivacyBudgetManager(PrivacyBucketFilter(TestPrivacyBucketMapper()), backingStore, 10.0f, 0.02f)
 
   private fun getExpectedResult(
-    matchingVids: List<Int>,
+    matchingVids: Iterable<Long>,
     vidSamplingIntervalStart: Float,
     vidSamplingIntervalWidth: Float
   ): AnySketch {
@@ -317,28 +324,29 @@ class EdpSimulatorTest {
 
     matchingVids.forEach {
       if (
-        vidSampler.vidIsInSamplingBucket(
-          it.toLong(),
-          vidSamplingIntervalStart,
-          vidSamplingIntervalWidth
-        )
+        vidSampler.vidIsInSamplingBucket(it, vidSamplingIntervalStart, vidSamplingIntervalWidth)
       ) {
-        expectedResult.insert(it.toLong(), mapOf("frequency" to 1L))
+        expectedResult.insert(it, mapOf("frequency" to 1L))
       }
     }
     return expectedResult
   }
 
-  private fun getEvents(
-    bannerAd: TestBannerTemplate,
-    privacyBudget: TestPrivacyBudgetTemplate,
-    vidRange: IntRange,
-  ): Map<Int, List<TestEvent>> {
-    return vidRange.associateWith {
+  private fun generateEvents(
+    vidRange: LongRange,
+    date: LocalDate,
+    ageGroup: Person.AgeGroup,
+    gender: Person.Gender
+  ): Map<Long, List<TestEvent>> {
+    return vidRange.associateWith { vid ->
       listOf(
         testEvent {
-          this.bannerAd = bannerAd
-          this.privacyBudget = privacyBudget
+          time = date.atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+          person = person {
+            this.vid = vid
+            this.ageGroup = PersonKt.ageGroupField { value = ageGroup }
+            this.gender = PersonKt.genderField { value = gender }
+          }
         }
       )
     }
@@ -347,43 +355,39 @@ class EdpSimulatorTest {
   @Test
   fun `filters events, charges privacy budget and generates sketch successfully`() {
     runBlocking {
-      val videoTemplateMatchingVids = (1..10)
-      val bannerTemplateMatchingVids = (11..20)
-      val nonMatchingVids = (21..40)
-      val matchingVids = videoTemplateMatchingVids + bannerTemplateMatchingVids
-
-      val matchingTestPrivacyTemplate = testPrivacyBudgetTemplate {
-        age = TestPrivacyBudgetTemplates.ageRange { value = PrivacyAgeRange.Value.AGE_35_TO_54 }
-      }
-      val matchingTestBannerTemplate = testBannerTemplate {
-        gender = gender { value = Gender.Value.GENDER_FEMALE }
-      }
-
-      val nonMatchingTestPrivacyTemplate = testPrivacyBudgetTemplate {
-        age = TestPrivacyBudgetTemplates.ageRange { value = PrivacyAgeRange.Value.AGE_18_TO_34 }
-      }
-      val nonMatchingTestBannerTemplate = testBannerTemplate {
-        gender = gender { value = Gender.Value.GENDER_MALE }
-      }
-
-      val privacyTemplateMatchingEvents =
-        getEvents(
-          nonMatchingTestBannerTemplate,
-          matchingTestPrivacyTemplate,
-          videoTemplateMatchingVids
+      val matchingEvents =
+        generateEvents(
+          1L..10L,
+          FIRST_EVENT_DATE,
+          Person.AgeGroup.YEARS_18_TO_34,
+          Person.Gender.FEMALE
         )
-
-      val bannerTemplateMatchingEvents =
-        getEvents(
-          matchingTestBannerTemplate,
-          nonMatchingTestPrivacyTemplate,
-          bannerTemplateMatchingVids
-        )
-
       val nonMatchingEvents =
-        getEvents(nonMatchingTestBannerTemplate, nonMatchingTestPrivacyTemplate, nonMatchingVids)
+        generateEvents(
+          11L..15L,
+          FIRST_EVENT_DATE,
+          Person.AgeGroup.YEARS_35_TO_54,
+          Person.Gender.FEMALE
+        ) +
+          generateEvents(
+            16L..20L,
+            FIRST_EVENT_DATE,
+            Person.AgeGroup.YEARS_55_PLUS,
+            Person.Gender.FEMALE
+          ) +
+          generateEvents(
+            21L..25L,
+            FIRST_EVENT_DATE,
+            Person.AgeGroup.YEARS_18_TO_34,
+            Person.Gender.MALE
+          ) +
+          generateEvents(
+            26L..30L,
+            FIRST_EVENT_DATE,
+            Person.AgeGroup.YEARS_35_TO_54,
+            Person.Gender.MALE
+          )
 
-      val matchingEvents = privacyTemplateMatchingEvents + bannerTemplateMatchingEvents
       val allEvents = matchingEvents + nonMatchingEvents
 
       val edpSimulator =
@@ -397,7 +401,7 @@ class EdpSimulatorTest {
           requisitionsStub,
           requisitionFulfillmentStub,
           sketchStore,
-          FilterEventQuery(allEvents),
+          InMemoryEventQuery(allEvents),
           MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
           EVENT_TEMPLATES,
           privacyBudgetManager,
@@ -415,33 +419,27 @@ class EdpSimulatorTest {
 
       assertAnySketchEquals(
         anySketchResult,
-        getExpectedResult(matchingVids, vidSamplingIntervalStart, vidSamplingIntervalWidth)
+        getExpectedResult((1L..10L), vidSamplingIntervalStart, vidSamplingIntervalWidth)
       )
 
       val balanceLedger: Map<PrivacyBucketGroup, MutableMap<Charge, PrivacyBudgetBalanceEntry>> =
         backingStore.getBalancesMap()
 
-      // All the Buckets are only charged once, so all entries should have a repetition count of 1.
-      balanceLedger.values
-        .flatMap { it.values }
-        .forEach { assertThat(it.repetitionCount).isEqualTo(1) }
+      // Verify that each bucket is only charged once.
+      for (bucketBalances in balanceLedger.values) {
+        assertThat(bucketBalances).hasSize(1)
+        for (balanceEntry in bucketBalances.values) {
+          assertThat(balanceEntry.repetitionCount).isEqualTo(1)
+        }
+      }
 
       // The list of all the charged privacy bucket groups should be correct based on the filter.
       assertThat(balanceLedger.keys)
         .containsExactly(
           PrivacyBucketGroup(
             MC_NAME,
-            LocalDate.now(),
-            LocalDate.now(),
-            PrivacyLandscapeAge.RANGE_18_34,
-            PrivacyLandscapeGender.MALE,
-            0.0f,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now(),
-            LocalDate.now(),
+            FIRST_EVENT_DATE,
+            FIRST_EVENT_DATE,
             PrivacyLandscapeAge.RANGE_18_34,
             PrivacyLandscapeGender.FEMALE,
             0.0f,
@@ -449,53 +447,8 @@ class EdpSimulatorTest {
           ),
           PrivacyBucketGroup(
             MC_NAME,
-            LocalDate.now(),
-            LocalDate.now(),
-            PrivacyLandscapeAge.RANGE_35_54,
-            PrivacyLandscapeGender.MALE,
-            0.0f,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now(),
-            LocalDate.now(),
-            PrivacyLandscapeAge.RANGE_35_54,
-            PrivacyLandscapeGender.FEMALE,
-            0.0f,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now(),
-            LocalDate.now(),
-            PrivacyLandscapeAge.ABOVE_54,
-            PrivacyLandscapeGender.MALE,
-            0.0f,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now(),
-            LocalDate.now(),
-            PrivacyLandscapeAge.ABOVE_54,
-            PrivacyLandscapeGender.FEMALE,
-            0.0f,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now().minusDays(1),
-            LocalDate.now().minusDays(1),
-            PrivacyLandscapeAge.RANGE_18_34,
-            PrivacyLandscapeGender.MALE,
-            0.0f,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now().minusDays(1),
-            LocalDate.now().minusDays(1),
+            LAST_EVENT_DATE,
+            LAST_EVENT_DATE,
             PrivacyLandscapeAge.RANGE_18_34,
             PrivacyLandscapeGender.FEMALE,
             0.0f,
@@ -503,53 +456,8 @@ class EdpSimulatorTest {
           ),
           PrivacyBucketGroup(
             MC_NAME,
-            LocalDate.now().minusDays(1),
-            LocalDate.now().minusDays(1),
-            PrivacyLandscapeAge.RANGE_35_54,
-            PrivacyLandscapeGender.MALE,
-            0.0f,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now().minusDays(1),
-            LocalDate.now().minusDays(1),
-            PrivacyLandscapeAge.RANGE_35_54,
-            PrivacyLandscapeGender.FEMALE,
-            0.0f,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now().minusDays(1),
-            LocalDate.now().minusDays(1),
-            PrivacyLandscapeAge.ABOVE_54,
-            PrivacyLandscapeGender.MALE,
-            0.0f,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now().minusDays(1),
-            LocalDate.now().minusDays(1),
-            PrivacyLandscapeAge.ABOVE_54,
-            PrivacyLandscapeGender.FEMALE,
-            0.0f,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now(),
-            LocalDate.now(),
-            PrivacyLandscapeAge.RANGE_18_34,
-            PrivacyLandscapeGender.MALE,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now(),
-            LocalDate.now(),
+            FIRST_EVENT_DATE,
+            FIRST_EVENT_DATE,
             PrivacyLandscapeAge.RANGE_18_34,
             PrivacyLandscapeGender.FEMALE,
             PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
@@ -557,149 +465,14 @@ class EdpSimulatorTest {
           ),
           PrivacyBucketGroup(
             MC_NAME,
-            LocalDate.now(),
-            LocalDate.now(),
-            PrivacyLandscapeAge.RANGE_35_54,
-            PrivacyLandscapeGender.MALE,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now(),
-            LocalDate.now(),
-            PrivacyLandscapeAge.RANGE_35_54,
-            PrivacyLandscapeGender.FEMALE,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now(),
-            LocalDate.now(),
-            PrivacyLandscapeAge.ABOVE_54,
-            PrivacyLandscapeGender.MALE,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now(),
-            LocalDate.now(),
-            PrivacyLandscapeAge.ABOVE_54,
-            PrivacyLandscapeGender.FEMALE,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now().minusDays(1),
-            LocalDate.now().minusDays(1),
-            PrivacyLandscapeAge.RANGE_18_34,
-            PrivacyLandscapeGender.MALE,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now().minusDays(1),
-            LocalDate.now().minusDays(1),
+            LAST_EVENT_DATE,
+            LAST_EVENT_DATE,
             PrivacyLandscapeAge.RANGE_18_34,
             PrivacyLandscapeGender.FEMALE,
             PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
             PRIVACY_BUCKET_VID_SAMPLE_WIDTH
           ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now().minusDays(1),
-            LocalDate.now().minusDays(1),
-            PrivacyLandscapeAge.RANGE_35_54,
-            PrivacyLandscapeGender.MALE,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now().minusDays(1),
-            LocalDate.now().minusDays(1),
-            PrivacyLandscapeAge.RANGE_35_54,
-            PrivacyLandscapeGender.FEMALE,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now().minusDays(1),
-            LocalDate.now().minusDays(1),
-            PrivacyLandscapeAge.ABOVE_54,
-            PrivacyLandscapeGender.MALE,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          ),
-          PrivacyBucketGroup(
-            MC_NAME,
-            LocalDate.now().minusDays(1),
-            LocalDate.now().minusDays(1),
-            PrivacyLandscapeAge.ABOVE_54,
-            PrivacyLandscapeGender.FEMALE,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH,
-            PRIVACY_BUCKET_VID_SAMPLE_WIDTH
-          )
         )
-    }
-  }
-  @Test
-  fun `calculateDirectReachAndFrequency fails with sampling rate 0`() {
-    runBlocking {
-      val vidList = listOf(1L, 1L, 1L, 2L, 2L, 3L, 4L, 5L)
-
-      assertFails { EdpSimulator.calculateDirectReachAndFrequency(vidList, 0.0f) }
-    }
-  }
-
-  @Test
-  fun `calculateDirectReachAndFrequency fails with sampling rate bigger than 1`() {
-    runBlocking {
-      val vidList = listOf(1L, 1L, 1L, 2L, 2L, 3L, 4L, 5L)
-
-      assertFails { EdpSimulator.calculateDirectReachAndFrequency(vidList, 1.1f) }
-    }
-  }
-
-  @Test
-  fun `calculate direct reach and frequency correctly with sampling rate 1`() {
-    runBlocking {
-      val vidList = listOf(1L, 1L, 1L, 2L, 2L, 3L, 4L, 5L)
-      val (reachValue, frequencyMap) = EdpSimulator.calculateDirectReachAndFrequency(vidList, 1.0f)
-
-      // 5 unique people(1, 2, 3, 4, 5) being reached
-      val expectedReachValue = 5
-      // 1 reach -> 0.6(3/5)(VID 3L, 4L, 5L)
-      // 2 reach -> 0.2(1/5)(VID 2L)
-      // 3 reach -> 0.2(1/5)(VID 1L)
-      val expectedFrequencyMap = mapOf(1L to 0.6, 2L to 0.2, 3L to 0.2)
-
-      assertThat(reachValue).isEqualTo(expectedReachValue)
-      frequencyMap.forEach { (frequency, percentage) ->
-        assertThat(percentage).isEqualTo(expectedFrequencyMap[frequency])
-      }
-    }
-  }
-
-  @Test
-  fun `calculate direct reach and frequency correctly with sampling rate smaller than 1`() {
-    runBlocking {
-      val vidList = listOf(1L, 1L, 1L, 2L, 2L, 3L, 4L, 5L)
-      val (reachValue, frequencyMap) = EdpSimulator.calculateDirectReachAndFrequency(vidList, 0.1f)
-
-      // Scale reach by multiplying 1/samplingRate
-      val expectedReachValue = 50
-      val expectedFrequencyMap = mapOf(1L to 0.6, 2L to 0.2, 3L to 0.2)
-
-      assertThat(reachValue).isEqualTo(expectedReachValue)
-      frequencyMap.forEach { (frequency, percentage) ->
-        assertThat(percentage).isEqualTo(expectedFrequencyMap[frequency])
-      }
     }
   }
 
@@ -764,6 +537,150 @@ class EdpSimulatorTest {
     verifyBlocking(requisitionsServiceMock, never()) { fulfillDirectRequisition(any()) }
   }
 
+  @Test
+  fun `fulfill direct reach and frequency requisition correctly with sampling rate equal to 1`() {
+    val throttlerMock = mock<Throttler>()
+    val eventQuery = RandomEventQuery(SketchGenerationParams(reach = 1000, universeSize = 10000))
+    val simulator =
+      EdpSimulator(
+        EDP_DATA,
+        MC_NAME,
+        measurementConsumersStub,
+        certificatesStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        sketchStore,
+        eventQuery,
+        throttlerMock,
+        listOf(),
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES
+      )
+
+    val vidSamplingIntervalWidth = 1f
+    val newMeasurementSpec =
+      MEASUREMENT_SPEC.copy {
+        vidSamplingInterval = vidSamplingInterval.copy { width = vidSamplingIntervalWidth }
+      }
+    val requisition =
+      REQUISITION_ONE.copy {
+        name = "requisition_direct"
+        protocolConfig =
+          protocolConfig.copy {
+            protocols += ProtocolConfigKt.protocol { direct = ProtocolConfigKt.direct {} }
+          }
+        measurementSpec = signMeasurementSpec(newMeasurementSpec, MC_SIGNING_KEY)
+      }
+
+    requisitionsServiceMock.stub {
+      onBlocking { requisitionsServiceMock.listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+    }
+
+    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+
+    val fulfillDirectRequisitionRequest: FulfillDirectRequisitionRequest =
+      verifyAndCapture(
+        requisitionsServiceMock,
+        RequisitionsCoroutineImplBase::fulfillDirectRequisition
+      )
+
+    val signedResult = decryptResult(fulfillDirectRequisitionRequest.encryptedData, MC_PRIVATE_KEY)
+    val reachAndFrequencyResult = Measurement.Result.parseFrom(signedResult.data)
+
+    val expectedReachValue = 948L
+    val expectedFrequencyMap =
+      mapOf(
+        1L to 0.947389665261748,
+        2L to 0.04805005905234108,
+        3L to 0.0038138458821366963,
+        4L to 9.558853281715655E-5
+      )
+
+    assertThat(reachAndFrequencyResult.reach.value).isEqualTo(expectedReachValue)
+    reachAndFrequencyResult.frequency.relativeFrequencyDistributionMap.forEach {
+      (frequency, percentage) ->
+      assertThat(percentage).isEqualTo(expectedFrequencyMap[frequency])
+    }
+
+    verifyBlocking(requisitionFulfillmentServiceMock, never()) { fulfillRequisition(any()) }
+    verifyBlocking(requisitionsServiceMock, times(1)) { fulfillDirectRequisition(any()) }
+  }
+
+  @Test
+  fun `fulfill direct reach and frequency requisition correctly with sampling rate smaller than 1`() {
+    val throttlerMock = mock<Throttler>()
+    val eventQuery = RandomEventQuery(SketchGenerationParams(reach = 1000, universeSize = 10000))
+    val simulator =
+      EdpSimulator(
+        EDP_DATA,
+        MC_NAME,
+        measurementConsumersStub,
+        certificatesStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        sketchStore,
+        eventQuery,
+        throttlerMock,
+        listOf(),
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES
+      )
+
+    val vidSamplingIntervalWidth = 0.1f
+    val newMeasurementSpec =
+      MEASUREMENT_SPEC.copy {
+        vidSamplingInterval = vidSamplingInterval.copy { width = vidSamplingIntervalWidth }
+      }
+    val requisition =
+      REQUISITION_ONE.copy {
+        name = "requisition_direct"
+        protocolConfig =
+          protocolConfig.copy {
+            protocols += ProtocolConfigKt.protocol { direct = ProtocolConfigKt.direct {} }
+          }
+        measurementSpec = signMeasurementSpec(newMeasurementSpec, MC_SIGNING_KEY)
+      }
+
+    requisitionsServiceMock.stub {
+      onBlocking { requisitionsServiceMock.listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+    }
+
+    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+
+    val fulfillDirectRequisitionRequest: FulfillDirectRequisitionRequest =
+      verifyAndCapture(
+        requisitionsServiceMock,
+        RequisitionsCoroutineImplBase::fulfillDirectRequisition
+      )
+
+    val signedResult = decryptResult(fulfillDirectRequisitionRequest.encryptedData, MC_PRIVATE_KEY)
+    val reachAndFrequencyResult = Measurement.Result.parseFrom(signedResult.data)
+
+    // vidList is first filtered by vidSampler and noised reach is scaled by sampling rate which is
+    // vidSamplingInterval.
+    val expectedReachValue = 1010L
+    val expectedFrequencyMap =
+      mapOf(
+        1L to 0.9614979640529286,
+        2L to 0.01568143177129103,
+      )
+
+    assertThat(reachAndFrequencyResult.reach.value).isEqualTo(expectedReachValue)
+    reachAndFrequencyResult.frequency.relativeFrequencyDistributionMap.forEach {
+      (frequency, percentage) ->
+      assertThat(percentage).isEqualTo(expectedFrequencyMap[frequency])
+    }
+
+    verifyBlocking(requisitionFulfillmentServiceMock, never()) { fulfillRequisition(any()) }
+    verifyBlocking(requisitionsServiceMock, times(1)) { fulfillDirectRequisition(any()) }
+  }
+
   companion object {
     private val MC_SIGNING_KEY =
       loadSigningKey("${MC_NAME}_cs_cert.der", "${MC_NAME}_cs_private.der")
@@ -778,7 +695,10 @@ class EdpSimulatorTest {
 
     private val MEASUREMENT_SPEC = measurementSpec {
       measurementPublicKey = org.wfanet.measurement.loadtest.dataprovider.MEASUREMENT_PUBLIC_KEY
-      reachAndFrequency = reachAndFrequency {}
+      reachAndFrequency = reachAndFrequency {
+        reachPrivacyParams = differentialPrivacyParams { epsilon = 1.0 }
+        frequencyPrivacyParams = differentialPrivacyParams { epsilon = 1.0 }
+      }
       vidSamplingInterval = vidSamplingInterval {
         start = 0.0f
         width = PRIVACY_BUCKET_VID_SAMPLE_WIDTH
@@ -789,6 +709,8 @@ class EdpSimulatorTest {
     private val MC_PUBLIC_KEY =
       loadPublicKey(SECRET_FILES_PATH.resolve("mc_enc_public.tink").toFile())
         .toEncryptionPublicKey()
+    private val MC_PRIVATE_KEY =
+      loadPrivateKey(SECRET_FILES_PATH.resolve("mc_enc_private.tink").toFile())
     private val MEASUREMENT_PUBLIC_KEY =
       loadPublicKey(SECRET_FILES_PATH.resolve("${EDP_DISPLAY_NAME}_enc_public.tink").toFile())
         .toEncryptionPublicKey()

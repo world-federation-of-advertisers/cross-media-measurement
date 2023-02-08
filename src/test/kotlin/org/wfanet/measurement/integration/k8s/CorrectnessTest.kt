@@ -35,6 +35,7 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.time.delay
+import kotlinx.coroutines.time.withTimeout
 import kotlinx.coroutines.withContext
 import org.jetbrains.annotations.Blocking
 import org.junit.AfterClass
@@ -58,6 +59,7 @@ import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.jceProvider
+import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
@@ -86,17 +88,17 @@ import org.wfanet.measurement.storage.forwarded.ForwardedStorageClient
 /** Test for correctness of the CMMS on [KinD](https://kind.sigs.k8s.io/). */
 @RunWith(JUnit4::class)
 class CorrectnessTest {
-  @Test(timeout = 2 * 60 * 1000)
+  @Test(timeout = 1 * 60 * 1000)
   fun `impression measurement completes with expected result`() = runBlocking {
     testHarness.executeImpression("$runId-impression")
   }
 
-  @Test(timeout = 2 * 60 * 1000)
+  @Test(timeout = 1 * 60 * 1000)
   fun `duration measurement completes with expected result`() = runBlocking {
     testHarness.executeDuration("$runId-duration")
   }
 
-  @Test(timeout = 10 * 60 * 1000)
+  @Test(timeout = 8 * 60 * 1000)
   fun `reach and frequency measurement completes with expected result`() = runBlocking {
     testHarness.executeReachAndFrequency("$runId-reach-and-freq")
   }
@@ -309,31 +311,38 @@ class CorrectnessTest {
 
     @BeforeClass
     @JvmStatic
-    fun initCluster() {
-      val apiClient = k8sClient.apiClient
-      apiClient.httpClient =
-        apiClient.httpClient.newBuilder().readTimeout(Duration.ofHours(1L)).build()
-      Configuration.setDefaultApiClient(apiClient)
+    fun initCluster() = runBlocking {
+      withTimeout(Duration.ofMinutes(5)) {
+        val apiClient = k8sClient.apiClient
+        apiClient.httpClient =
+          apiClient.httpClient.newBuilder().readTimeout(Duration.ofHours(1L)).build()
+        Configuration.setDefaultApiClient(apiClient)
 
-      val duchyCerts =
-        ALL_DUCHY_NAMES.map { DuchyCert(it, loadTestCertDerFile("${it}_cs_cert.der")) }
-      val edpEntityContents = EDP_DISPLAY_NAMES.map { createEntityContent(it) }
-      val measurementConsumerContent = createEntityContent(MC_DISPLAY_NAME)
+        val duchyCerts =
+          ALL_DUCHY_NAMES.map { DuchyCert(it, loadTestCertDerFile("${it}_cs_cert.der")) }
+        val edpEntityContents = EDP_DISPLAY_NAMES.map { createEntityContent(it) }
+        val measurementConsumerContent =
+          withContext(Dispatchers.IO) { createEntityContent(MC_DISPLAY_NAME) }
 
-      loadEmulators()
-      val resourceInfo =
-        ResourceInfo.from(loadKingdom(duchyCerts, edpEntityContents, measurementConsumerContent))
-      val measurementConsumerData =
-        MeasurementConsumerData(
-          resourceInfo.measurementConsumer,
-          measurementConsumerContent.signingKey,
-          loadEncryptionPrivateKey("${MC_DISPLAY_NAME}_enc_private.tink"),
-          resourceInfo.apiKey
-        )
+        loadEmulators()
+        val resourceInfo =
+          ResourceInfo.from(loadKingdom(duchyCerts, edpEntityContents, measurementConsumerContent))
+        val encryptionPrivateKey: TinkPrivateKeyHandle =
+          withContext(Dispatchers.IO) {
+            loadEncryptionPrivateKey("${MC_DISPLAY_NAME}_enc_private.tink")
+          }
+        val measurementConsumerData =
+          MeasurementConsumerData(
+            resourceInfo.measurementConsumer,
+            measurementConsumerContent.signingKey,
+            encryptionPrivateKey,
+            resourceInfo.apiKey
+          )
 
-      loadDuchiesAndEdps(resourceInfo)
+        loadDuchiesAndEdps(resourceInfo)
 
-      testHarness = createTestHarness(measurementConsumerData)
+        testHarness = createTestHarness(measurementConsumerData)
+      }
     }
 
     @AfterClass
@@ -357,12 +366,14 @@ class CorrectnessTest {
       kindCluster.exportLogs(BAZEL_TEST_OUTPUTS_DIR)
     }
 
-    private fun loadDuchiesAndEdps(resourceInfo: ResourceInfo) {
-      for (imageArchivePath in DUCHY_IMAGE_ARCHIVES) {
-        loadImage(imageArchivePath)
-      }
-      for (imageArchivePath in SIMULATOR_IMAGE_ARCHIVES) {
-        loadImage(imageArchivePath)
+    private suspend fun loadDuchiesAndEdps(resourceInfo: ResourceInfo) {
+      withContext(Dispatchers.IO) {
+        for (imageArchivePath in DUCHY_IMAGE_ARCHIVES) {
+          loadImage(imageArchivePath)
+        }
+        for (imageArchivePath in SIMULATOR_IMAGE_ARCHIVES) {
+          loadImage(imageArchivePath)
+        }
       }
 
       val duchiesAndEdpsConfig =
@@ -380,42 +391,41 @@ class CorrectnessTest {
             }
             config
           }
-      val appliedObjects: List<KubernetesObject> = kubectlApply(duchiesAndEdpsConfig)
-      runBlocking {
-        appliedObjects.filterIsInstance(V1Deployment::class.java).forEach {
-          waitUntilDeploymentReady(it)
-        }
+      val appliedObjects: List<KubernetesObject> =
+        withContext(Dispatchers.IO) { kubectlApply(duchiesAndEdpsConfig) }
+      appliedObjects.filterIsInstance(V1Deployment::class.java).forEach {
+        waitUntilDeploymentReady(it)
       }
     }
 
-    private fun createTestHarness(
+    private suspend fun createTestHarness(
       measurementConsumerData: MeasurementConsumerData
     ): FrontendSimulator {
-      val kingdomPublicPod: V1Pod = runBlocking {
+      val kingdomPublicPod: V1Pod =
         k8sClient
           .listPodsByMatchLabels(waitUntilDeploymentReady(KINGDOM_PUBLIC_DEPLOYMENT_NAME))
           .items
           .first()
-      }
 
       val publicApiForwarder = PortForwarder(kingdomPublicPod, SERVER_PORT)
       portForwarders.add(publicApiForwarder)
 
-      val forwardedStoragePod: V1Pod = runBlocking {
+      val forwardedStoragePod: V1Pod =
         k8sClient
           .listPodsByMatchLabels(waitUntilDeploymentReady(FORWARDED_STORAGE_DEPLOYMENT_NAME))
           .items
           .first()
-      }
       val storageForwarder = PortForwarder(forwardedStoragePod, SERVER_PORT)
       portForwarders.add(storageForwarder)
 
-      val publicApiAddress: InetSocketAddress = publicApiForwarder.start()
+      val publicApiAddress: InetSocketAddress =
+        withContext(Dispatchers.IO) { publicApiForwarder.start() }
       val publicApiChannel: Channel =
         buildMutualTlsChannel(publicApiAddress.toTarget(), measurementConsumerSigningCerts)
           .also { channels.add(it) }
           .withDefaultDeadline(DEFAULT_RPC_DEADLINE)
-      val storageAddress: InetSocketAddress = storageForwarder.start()
+      val storageAddress: InetSocketAddress =
+        withContext(Dispatchers.IO) { storageForwarder.start() }
       val storageChannel: Channel =
         buildMutualTlsChannel(storageAddress.toTarget(), kingdomSigningCerts)
           .also { channels.add(it) }
@@ -438,55 +448,59 @@ class CorrectnessTest {
           EventFilters.EVENT_TEMPLATES_TO_FILTERS_MAP
         )
         .also {
-          runBlocking {
-            eventGroupsClient.waitForEventGroups(
-              measurementConsumerData.name,
-              measurementConsumerData.apiAuthenticationKey
-            )
-          }
+          eventGroupsClient.waitForEventGroups(
+            measurementConsumerData.name,
+            measurementConsumerData.apiAuthenticationKey
+          )
         }
     }
 
-    @Blocking
-    private fun loadEmulators() {
-      for (imageArchivePath in EMULATOR_IMAGE_ARCHIVES) {
-        loadImage(imageArchivePath)
+    private suspend fun loadEmulators() {
+      withContext(Dispatchers.IO) {
+        for (imageArchivePath in EMULATOR_IMAGE_ARCHIVES) {
+          loadImage(imageArchivePath)
+        }
       }
 
       // Wait until default service account has been created. See
       // https://github.com/kubernetes/kubernetes/issues/66689.
-      runBlocking { k8sClient.waitForServiceAccount("default", timeout = READY_TIMEOUT) }
+      k8sClient.waitForServiceAccount("default", timeout = READY_TIMEOUT)
 
-      val emulatorsConfig: File = checkNotNull(getRuntimePath(EMULATORS_CONFIG_PATH)).toFile()
-      kubectlApply(emulatorsConfig)
+      withContext(Dispatchers.IO) {
+        val emulatorsConfig: File = checkNotNull(getRuntimePath(EMULATORS_CONFIG_PATH)).toFile()
+        kubectlApply(emulatorsConfig)
+      }
     }
 
-    @Blocking
-    private fun loadKingdom(
+    private suspend fun loadKingdom(
       duchyCerts: List<DuchyCert>,
       edpEntityContents: List<EntityContent>,
       measurementConsumerContent: EntityContent
     ): List<Resources.Resource> {
-      for (imageArchivePath in KINGDOM_IMAGE_ARCHIVES) {
-        loadImage(imageArchivePath)
+      withContext(Dispatchers.IO) {
+        for (imageArchivePath in KINGDOM_IMAGE_ARCHIVES) {
+          loadImage(imageArchivePath)
+        }
       }
 
-      val kingdomConfig: File = checkNotNull(getRuntimePath(KINGDOM_CONFIG_PATH)).toFile()
-      kubectlApply(kingdomConfig)
-      val resourceSetupOutput = tempDir.newFolder("resource-setup")
+      withContext(Dispatchers.IO) {
+        val kingdomConfig: File = checkNotNull(getRuntimePath(KINGDOM_CONFIG_PATH)).toFile()
+        kubectlApply(kingdomConfig)
+      }
+      val resourceSetupOutput = withContext(Dispatchers.IO) { tempDir.newFolder("resource-setup") }
 
-      val resources = runBlocking {
-        val kingdomInternalPod =
-          k8sClient
-            .listPodsByMatchLabels(waitUntilDeploymentReady(KINGDOM_INTERNAL_DEPLOYMENT_NAME))
-            .items
-            .first()
-        val kingdomPublicPod =
-          k8sClient
-            .listPodsByMatchLabels(waitUntilDeploymentReady(KINGDOM_PUBLIC_DEPLOYMENT_NAME))
-            .items
-            .first()
+      val kingdomInternalPod =
+        k8sClient
+          .listPodsByMatchLabels(waitUntilDeploymentReady(KINGDOM_INTERNAL_DEPLOYMENT_NAME))
+          .items
+          .first()
+      val kingdomPublicPod =
+        k8sClient
+          .listPodsByMatchLabels(waitUntilDeploymentReady(KINGDOM_PUBLIC_DEPLOYMENT_NAME))
+          .items
+          .first()
 
+      val resources =
         PortForwarder(kingdomInternalPod, SERVER_PORT).use { internalForward ->
           val internalAddress: InetSocketAddress =
             withContext(Dispatchers.IO) { internalForward.start() }
@@ -509,29 +523,30 @@ class CorrectnessTest {
                   runId,
                   outputDir = resourceSetupOutput
                 )
-              resourceSetup
-                .process(edpEntityContents, measurementConsumerContent, duchyCerts)
-                .also { publicChannel.shutdown() }
+              withContext(Dispatchers.IO) {
+                resourceSetup
+                  .process(edpEntityContents, measurementConsumerContent, duchyCerts)
+                  .also { publicChannel.shutdown() }
+              }
             }
             .also { internalChannel.shutdown() }
         }
-      }
 
       val akidPrincipalMap: String =
-        resourceSetupOutput
-          .resolve(ResourceSetup.AKID_PRINCIPAL_MAP_FILE)
-          .readText(StandardCharsets.UTF_8)
+        withContext(Dispatchers.IO) {
+          resourceSetupOutput
+            .resolve(ResourceSetup.AKID_PRINCIPAL_MAP_FILE)
+            .readText(StandardCharsets.UTF_8)
+        }
 
-      runBlocking {
-        k8sClient.updateConfigMap(
-          CONFIG_FILES_NAME,
-          ResourceSetup.AKID_PRINCIPAL_MAP_FILE,
-          akidPrincipalMap
-        )
+      k8sClient.updateConfigMap(
+        CONFIG_FILES_NAME,
+        ResourceSetup.AKID_PRINCIPAL_MAP_FILE,
+        akidPrincipalMap
+      )
 
-        // Restart public API server to pick up updated ConfigMap.
-        k8sClient.restartDeployment(KINGDOM_PUBLIC_DEPLOYMENT_NAME)
-      }
+      // Restart public API server to pick up updated ConfigMap.
+      k8sClient.restartDeployment(KINGDOM_PUBLIC_DEPLOYMENT_NAME)
 
       return resources
     }

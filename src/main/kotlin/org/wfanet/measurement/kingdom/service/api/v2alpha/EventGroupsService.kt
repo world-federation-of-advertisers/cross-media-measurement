@@ -26,6 +26,7 @@ import org.wfanet.measurement.api.v2.alpha.listEventGroupsPageToken
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
+import org.wfanet.measurement.api.v2alpha.DeleteEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.EventGroupKt.eventTemplate
@@ -55,6 +56,7 @@ import org.wfanet.measurement.internal.kingdom.EventGroupKt.details
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.deleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.eventGroup as internalEventGroup
 import org.wfanet.measurement.internal.kingdom.getEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
@@ -217,6 +219,44 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
         Status.Code.FAILED_PRECONDITION ->
           failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition." }
         Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "EventGroup not found." }
+        else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+      }
+    }
+  }
+
+  override suspend fun deleteEventGroup(request: DeleteEventGroupRequest): EventGroup {
+    val eventGroupKey =
+      grpcRequireNotNull(EventGroupKey.fromName(request.name)) {
+        "EventGroup name is either unspecified or invalid"
+      }
+
+    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
+      is DataProviderPrincipal -> {
+        if (principal.resourceKey.dataProviderId != eventGroupKey.dataProviderId) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot delete EventGroups for another DataProvider"
+          }
+        }
+      }
+      else -> {
+        failGrpc(Status.PERMISSION_DENIED) { "Only a DataProvider can delete an EventGroup" }
+      }
+    }
+
+    val deleteRequest = deleteEventGroupRequest {
+      externalDataProviderId = apiIdToExternalId(eventGroupKey.dataProviderId)
+      externalEventGroupId = apiIdToExternalId(eventGroupKey.eventGroupId)
+    }
+
+    return try {
+      internalEventGroupsStub.deleteEventGroup(deleteRequest).toEventGroup()
+    } catch (ex: StatusException) {
+      when (ex.status.code) {
+        Status.Code.INVALID_ARGUMENT ->
+          failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid.." }
+        Status.Code.FAILED_PRECONDITION ->
+          failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition.." }
+        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "EventGroup not found.." }
         else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
       }
     }

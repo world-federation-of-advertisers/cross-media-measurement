@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - name: Check out revision
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Bazel build and test
         uses: world-federation-of-advertisers/actions/bazel-build-test@v1
@@ -41,16 +41,19 @@ jobs:
             --compilation_mode=opt
             --host_platform=//build/platforms:ubuntu_20_04
 
-# TODO(world-federation-of-advertisers/cross-media-measurement#805): Re-enable once fixed.
-#      - name: Bazel build and test K8s Correctness Test
-#        uses: world-federation-of-advertisers/actions/bazel-build-test@v1
-#        with:
-#          cache-version: 1
-#          restore-cache: false
-#          workspace-path: .
-#          target-patterns: |
-#            //src/test/kotlin/org/wfanet/measurement/integration/k8s:CorrectnessTest
-#          build-options: |
-#            --compilation_mode=opt
-#            --host_platform=//build/platforms:ubuntu_20_04
-#          test-output: streamed
+      # Clear memory held from previous Bazel build to save on resources.
+      - name: Shut down Bazel server
+        run: bazel shutdown
+
+      - name: Bazel build and test K8s Correctness Test
+        uses: world-federation-of-advertisers/actions/bazel-build-test@v1
+        with:
+          cache-version: 1
+          restore-cache: false
+          workspace-path: .
+          target-patterns: |
+            //src/test/kotlin/org/wfanet/measurement/integration/k8s:CorrectnessTest
+          build-options: |
+            --compilation_mode=opt
+            --host_platform=//build/platforms:ubuntu_20_04
+          test-output: streamed

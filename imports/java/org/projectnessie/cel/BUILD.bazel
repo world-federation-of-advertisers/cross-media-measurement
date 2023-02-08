@@ -1,6 +1,6 @@
 package(default_visibility = ["//visibility:public"])
 
 alias(
-    name = "core",
+    name = "cel",
     actual = "@maven//:org_projectnessie_cel_cel_core",
 )

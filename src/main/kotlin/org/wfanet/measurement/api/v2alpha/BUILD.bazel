@@ -19,29 +19,6 @@ package_group(
 )
 
 kt_jvm_library(
-    name = "event_templates",
-    srcs = ["EventTemplates.kt"],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_data_classes",
-        "//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_java_proto",
-        "@wfa_common_jvm//imports/java/com/google/common:guava",
-        "@wfa_common_jvm//imports/java/com/google/protobuf",
-        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
-    ],
-)
-
-kt_jvm_library(
-    name = "event_group_metadata_parser",
-    srcs = ["EventGroupMetadataParser.kt"],
-    deps = [
-        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha:event_group_metadata_descriptor_kt_jvm_proto",
-        "@wfa_common_jvm//imports/java/com/google/protobuf",
-        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
-    ],
-)
-
-kt_jvm_library(
     name = "resource_key",
     srcs = glob(["*Key.kt"]) + ["IdVariable.kt"],
     deps = [
@@ -100,19 +77,6 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "event_data_classes",
-    srcs = [
-        "EventField.kt",
-        "EventTemplate.kt",
-    ],
-    deps = [
-        "//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_java_proto",
-        "@wfa_common_jvm//imports/java/com/google/protobuf",
-        "@wfa_common_jvm//imports/kotlin/kotlin/test",
-    ],
-)
-
-kt_jvm_library(
     name = "akid_principal_lookup",
     srcs = [
         "AkidPrincipalLookup.kt",
@@ -123,6 +87,16 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/proto/wfa/measurement/config:authority_key_to_principal_map_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
+    name = "time_intervals",
+    srcs = ["TimeIntervals.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )

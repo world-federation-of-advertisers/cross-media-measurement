@@ -16,8 +16,6 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.Timestamp
 import com.google.cloud.spanner.SpannerException
-import com.google.cloud.spanner.TransactionContext
-import java.time.Clock
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.logging.Logger
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -34,18 +32,21 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
  * This provides some conveniences, like running in the right dispatcher for Spanner.
  */
 abstract class SpannerWriter<T, R> {
-  data class TransactionScope(
-    val transactionContext: AsyncDatabaseClient.TransactionContext,
+  class TransactionScope(
+    delegate: AsyncDatabaseClient.TransactionScope,
     val idGenerator: IdGenerator
-  )
+  ) : AsyncDatabaseClient.TransactionScope(delegate.txn, delegate.coroutineContext) {
+    val transactionContext: AsyncDatabaseClient.TransactionContext
+      get() = txn
+  }
 
   data class ResultScope<T>(val transactionResult: T?, val commitTimestamp: Timestamp)
 
   /**
    * Override this to perform the body of the Spanner transaction.
    *
-   * This runs in the scope of a [TransactionScope], so it has convenient access to the
-   * [TransactionContext], an [IdGenerator], and a [Clock].
+   * This uses a [TransactionScope] receiver, so it has convenient access to the
+   * [AsyncDatabaseClient.TransactionContext] and [IdGenerator].
    */
   protected abstract suspend fun TransactionScope.runTransaction(): T
 
@@ -63,10 +64,7 @@ abstract class SpannerWriter<T, R> {
     idGenerator: IdGenerator
   ): T? {
     return try {
-      runner.execute { transactionContext ->
-        val scope = TransactionScope(transactionContext, idGenerator)
-        scope.runTransaction()
-      }
+      runner.execute { TransactionScope(this, idGenerator).runTransaction() }
     } catch (e: SpannerException) {
       handleSpannerException(e)
     }

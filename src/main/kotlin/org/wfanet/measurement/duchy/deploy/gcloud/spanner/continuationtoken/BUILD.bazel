@@ -11,7 +11,9 @@ kt_jvm_library(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/common",
         "//src/main/proto/wfa/measurement/internal/duchy:continuation_tokens_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/system/v1alpha:computations_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
     ],
 )
