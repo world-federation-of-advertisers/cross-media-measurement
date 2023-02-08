@@ -63,7 +63,7 @@ message SetExpression {
 // It's the minimum building block of a set expression.
 message PrimitiveReportingSet {
   // Set of EventGroup resource names.
-  repeated string event_groups = 2 [
+  repeated string event_groups = 1 [
     (google.api.resource_reference).type = "reporting.halo-cmm.org/EventGroup",
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
@@ -75,7 +75,7 @@ message PrimitiveReportingSet {
 // `SetExpression`.
 message CompositeReportingSet {
   // A nested expression of binary set expressions.
-  SetExpression expression = 2 [(google.api.field_behavior) = REQUIRED];
+  SetExpression expression = 1 [(google.api.field_behavior) = REQUIRED];
 }
 
 // The resource name of a reporting set.
@@ -96,7 +96,7 @@ message ReportingSet {
   string filter = 3 [(google.api.field_behavior) = IMMUTABLE];
 
   // Type of reporting set it is.
-  oneof type {
+  oneof value {
     // The basis building block in the set expression.
     PrimitiveReportingSet primitive_reporting_set = 4;
     // The composite of different types of reporting sets.
