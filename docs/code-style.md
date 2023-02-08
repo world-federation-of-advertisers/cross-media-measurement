@@ -1,32 +1,101 @@
 # Code Style
 
+Rather than providing a complete style guide, this section outlines some
+specific code style issues that tend to come up in code reviews. Besides
+familiarizing yourself with these, please feel free to link to particular
+sections of this when reviewing others’ code.
+
+## General
+
+*   Code should be thoroughly unit tested:
+    *   Test the contract (public API), not the implementation.
+        *   Corollary: Internal functionality that is not part of the public API
+            should not be exposed just so it can be tested directly.
+        *   See
+            [Prefer Testing Public APIs Over Implementation-Detail Classes](https://testing.googleblog.com/2015/01/testing-on-toilet-prefer-testing-public.html)
+    *   For dependencies in tests, carefully consider when to use fakes, mocks,
+        stubs, or the real dependency. See
+        [this article](https://testing.googleblog.com/2013/07/testing-on-toilet-know-your-test-doubles.html)
+        for definitions and
+        [this one](https://testing.googleblog.com/2013/05/testing-on-toilet-dont-overuse-mocks.html)
+        for some guidance.
+    *   Bias towards more, smaller test cases.
+*   Code should be autoformatted and linted
+*   Eliminate compiler warnings when practical, using language-appropriate
+    suppression annotations as appropriate (with a comment explaining why).
+*   Limit usage of unnecessary third party dependencies. Due to the privacy
+    requirements of this project, we prefer avoiding unaudited dependencies.
+
+## Conventions
+
+*   Tests go into the `src/test/` tree.
+*   Test infrastructure that either is complex enough to warrant being tested
+    itself or is used by more than one package goes into a `testing` subpackage
+    of the `src/main/` tree, with its Bazel targets marked as `testonly`.
+*   All public service APIs (those called by a different component) follow the
+    [AIPs](https://aip.dev/), with specific exceptions where noted.
+*   Database access is restricted to servers hosting internal APIs.
+*   Database internal IDs must not be exposed outside of internal API servers,
+    i.e. they are not included in the internal API.
+*   The term "reference ID" refers to an ID from an external system.
+*   Names of protobuf messages for the serialized portion of a database row end
+    in `Details`.
+
 ## Languages
 
 ### Kotlin
 
-We mostly adhere to the
-[Google Android Kotlin style guide](https://developer.android.com/kotlin/style-guide).
-The one exception is that we use two spaces instead of four for indentation.
+*   Follow the
+    [Google Android Kotlin style guide](https://developer.android.com/kotlin/style-guide).
+    *   Exception: Use two spaces instead of four for indentation.
+*   Use the [Truth](https://truth.dev/) library for test assertions, importing
+    `assertThat`.
+    *   Make sure to import the [ProtoTruth](https://truth.dev/protobufs)
+        version of `assertThat` as well if you have protobuf message subjects.
+    *   Exception: Use the `kotlin.test` package for expected exceptions,
+        e.g.[`assertFailsWith`](https://kotlinlang.org/api/latest/kotlin.test/kotlin.test/assert-fails-with.html).
+*   Prefer using Kotlin DSL builders for protocol buffers. See
+    [Kotlin Generated Code](https://developers.google.com/protocol-buffers/docs/reference/kotlin-generated)
+    in the Protocol Buffers Developer Guide.
+*   Specify types explicitly except when they are obvious.
+    *   For example, assignments from constructors or factory functions.
+    *   "Superfluous" explicit types are fine except in cases where they clearly
+        hurt readability or safety.
+*   Use (companion) objects for constants and static properties.
+    *   This avoids polluting the global namespace.
+    *   This is a light recommendation, as much code has already been written in
+        this repository that does not follow this.
+*   Avoid defining extensions on common types when it may appear that they could
+    work on all instances of that type.
+    *   For example, `String.toFoo()` where the String must be a specific
+        serialization of a `Foo` to work. This is version of the "stringly
+        typed" anti-pattern.
+*   Catch `StatusException` from RPCs immediately at the call site.
+    *   This prevents gRPC statuses from being incorrectly propagated from gRPC
+        servers that are also gRPC clients.
+    *   If you need to re-throw the exception to be handled at a higher level,
+        wrap it in another exception type.
+*   See the
+    [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conventions.html)
+    when neither this document nor the style guide offer an opinion.
 
-In addition to the style guide, please observe these guidelines:
+### C++
 
-1.  Write unit tests for all code.
-    1.  Please only mock interfaces and abstract classes in tests.
-    1.  Write test cases per behavior. Bias towards more, smaller test cases.
-1.  Avoid third-party libraries where possible. Due to the privacy requirements
-    of this project, we prefer avoiding unaudited dependencies.
-1.  Avoid weirdness.
-    1.  Don't unnecessarily define infix functions.
-    1.  Avoid reflection.
-    1.  Keep code predictable. If a code reviewer struggles to understand it,
-        please add comments or refactor it to be clearer.
+*   Follow the
+    [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html)
+*   Follow [Abseil’s Tips of the Week](http://abseil.io/tips)
+*   Don’t rely on transitive includes.
+    *   You may be able to use the
+        [include-what-you-use](https://include-what-you-use.org) tool to help.
 
 ### Bazel BUILD and Starlark
 
-Follow the Bazel
-[BUILD style guide](https://docs.bazel.build/versions/master/skylark/build-style.html)
-and
-[.bzl style guide](https://docs.bazel.build/versions/master/skylark/bzl-style.html)
+*   Follow the Bazel
+    [BUILD style guide](https://docs.bazel.build/versions/master/skylark/build-style.html)
+    and
+    [.bzl style guide](https://docs.bazel.build/versions/master/skylark/bzl-style.html)
+*   Do not rely on transitive dependencies. Include all directly referenced
+    dependencies in that target's `deps`.
 
 ### Protocol Buffers
 
@@ -52,12 +121,7 @@ your code prior to submitting.
 
 Kotlin formatting is done by
 [`ktfmt`](https://github.com/facebookincubator/ktfmt) with the `--google-style`
-option. Please keep code `ktlint`-formatted.
-
-[`ktlint`](https://ktlint.github.io/) is the Kotlin linter, which also has the
-ability to automatically apply some fixes. Our `.editorconfig` file has the
-appropriate settings to ensure that `ktlint` produces code that is compliant
-with the style guide and doesn't conflict with `ktfmt`.
+option. Please keep code `ktfmt`-formatted.
 
 There is a
 [`ktfmt` IntelliJ plugin](https://plugins.jetbrains.com/plugin/14912-ktfmt) that
@@ -112,4 +176,5 @@ This means that if someone wants more information about this TODO, the best
 person to ask would be GitHub user @SanjayVas.
 
 ## See Also
+
 The [Dev Standards](dev-standards.md) guide has more useful information.
