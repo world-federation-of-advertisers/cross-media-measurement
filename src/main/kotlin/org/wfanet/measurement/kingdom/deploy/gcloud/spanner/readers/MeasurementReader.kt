@@ -95,13 +95,11 @@ class MeasurementReader(private val view: Measurement.View) :
 
   private fun buildMeasurement(struct: Struct): Measurement {
     return measurement {
-      return measurement {
-        when (view) {
-          Measurement.View.DEFAULT -> fillDefaultView(struct)
-          Measurement.View.COMPUTATION -> fillComputationView(struct)
-          Measurement.View.UNRECOGNIZED ->
-            throw IllegalArgumentException("View field of GetMeasurementRequest is not set")
-        }
+      when (view) {
+        Measurement.View.DEFAULT -> fillDefaultView(struct)
+        Measurement.View.COMPUTATION -> fillComputationView(struct)
+        Measurement.View.UNRECOGNIZED ->
+          throw IllegalArgumentException("View field of GetMeasurementRequest is not set")
       }
     }
   }
