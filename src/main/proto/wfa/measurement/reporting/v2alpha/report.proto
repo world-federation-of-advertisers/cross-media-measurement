@@ -75,14 +75,6 @@ message Report {
     // previous time intervals.
     // Only supported when using `PeriodicTimeInterval`.
     bool cumulative = 4 [(google.api.field_behavior) = IMMUTABLE];
-    // The resource name of what model to use.
-    //
-    // If model is empty, compute the metrics using kingdom measurements;
-    // otherwise, use the model inferences.
-    // The user needs to provide a model that can cover all time intervals and
-    // all primitive reporting set bases of the reporting set used for the
-    // metric calculations.
-    string model = 5 [(google.api.field_behavior) = IMMUTABLE];
   }
   // The specification of metric calculation for a reporting set.
   message ReportingMetricSpec {
