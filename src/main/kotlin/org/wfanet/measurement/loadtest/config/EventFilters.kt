@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.loadtest.config
 
+import com.google.common.hash.HashFunction
 import com.google.common.hash.Hashing
 
 private const val TEMPLATE_PREFIX = "wfa.measurement.api.v2alpha.event_templates.testing"
@@ -25,11 +26,12 @@ object EventFilters {
    *
    * For purposes of this simulation, all of the EDPs register the same templates and receive the
    * same filter from the MC.
-   *
-   * TODO(@uakyol): Add [date], [socialGrade], [gender] fields once filtration is implemented.
    */
   val EVENT_TEMPLATES_TO_FILTERS_MAP =
-    mapOf("$TEMPLATE_PREFIX.TestVideoTemplate" to "video_ad.age.value == 1")
+    mapOf(
+      "$TEMPLATE_PREFIX.Person" to
+        "person.age_group.value == $TEMPLATE_PREFIX.Person.AgeGroup.YEARS_18_TO_34"
+    )
 
-  val VID_SAMPLER_HASH_FUNCTION = Hashing.farmHashFingerprint64()
+  val VID_SAMPLER_HASH_FUNCTION: HashFunction = Hashing.farmHashFingerprint64()
 }
