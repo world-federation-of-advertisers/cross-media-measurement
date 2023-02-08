@@ -370,6 +370,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":measurement_log_entry_proto",
+        ":measurement_proto",
     ],
 )
 
