@@ -297,6 +297,19 @@ class GcpSpannerComputationsDatabaseTransactor<
     }
     runIfTokenFromLastUpdate(token) { ctx ->
       val writeTime = clock.gcloudTimestamp()
+      // If the Computation is already in the endingStage, reset lockOwner and lockExpirationTime.
+      if (token.stage == endingStage) {
+        ctx.buffer(
+          computationMutations.updateComputation(
+            localId = token.localId,
+            updateTime = writeTime,
+            lockOwner = WRITE_NULL_STRING,
+            lockExpirationTime = WRITE_NULL_TIMESTAMP,
+          )
+        )
+        return@runIfTokenFromLastUpdate
+      }
+
       val detailsBytes =
         ctx
           .readRow("Computations", Key.of(token.localId), listOf("ComputationDetails"))
