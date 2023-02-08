@@ -52,6 +52,9 @@ message EventGroup {
   // The template that events associated with this `EventGroup` conform to.
   message EventTemplate {
     // The type of the Event Template. A fully-qualified protobuf message type.
+    //
+    // The user needs to make sure that the specified template type already
+    // exists and is accessible.
     string type = 1 [(google.api.field_behavior) = REQUIRED];
   }
   // The `EventTemplate`s that events associated with this `EventGroup` conform
