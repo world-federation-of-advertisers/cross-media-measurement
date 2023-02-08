@@ -15,13 +15,13 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing
 
 import com.google.protobuf.Message
 import org.projectnessie.cel.Program
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplate.AgeRange
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplateKt
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestPrivacyBudgetTemplateKt.ageRange
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.PersonKt.ageGroupField
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.PersonKt.genderField
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testPrivacyBudgetTemplate
-import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
+import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters.compileProgram
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Gender
@@ -30,40 +30,39 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
 
+/** [PrivacyBucketMapper] for [TestEvent] instances. */
 class TestPrivacyBucketMapper : PrivacyBucketMapper {
   override fun toPrivacyFilterProgram(filterExpression: String): Program =
     try {
-      EventFilters.compileProgram(
+      compileProgram(
+        TestEvent.getDescriptor(),
         filterExpression,
-        testEvent {},
-        setOf("privacy_budget.age.value", "privacy_budget.gender.value")
+        setOf("person.age_group.value", "person.gender.value")
       )
     } catch (e: EventFilterValidationException) {
       throw PrivacyBudgetManagerException(
         PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER,
-        emptyList()
+        e
       )
     }
 
   override fun toEventMessage(privacyBucketGroup: PrivacyBucketGroup): Message {
     return testEvent {
-      privacyBudget = testPrivacyBudgetTemplate {
-        when (privacyBucketGroup.ageGroup) {
-          AgeGroup.RANGE_18_34 -> age = ageRange { value = AgeRange.Value.AGE_18_TO_34 }
-          AgeGroup.RANGE_35_54 -> age = ageRange { value = AgeRange.Value.AGE_35_TO_54 }
-          AgeGroup.ABOVE_54 -> age = ageRange { value = AgeRange.Value.AGE_OVER_54 }
+      person = person {
+        ageGroup = ageGroupField {
+          value =
+            when (privacyBucketGroup.ageGroup) {
+              AgeGroup.RANGE_18_34 -> Person.AgeGroup.YEARS_18_TO_34
+              AgeGroup.RANGE_35_54 -> Person.AgeGroup.YEARS_35_TO_54
+              AgeGroup.ABOVE_54 -> Person.AgeGroup.YEARS_55_PLUS
+            }
         }
-        when (privacyBucketGroup.gender) {
-          Gender.MALE ->
-            gender =
-              TestPrivacyBudgetTemplateKt.gender {
-                value = TestPrivacyBudgetTemplate.Gender.Value.GENDER_MALE
-              }
-          Gender.FEMALE ->
-            gender =
-              TestPrivacyBudgetTemplateKt.gender {
-                value = TestPrivacyBudgetTemplate.Gender.Value.GENDER_FEMALE
-              }
+        gender = genderField {
+          value =
+            when (privacyBucketGroup.gender) {
+              Gender.MALE -> Person.Gender.MALE
+              Gender.FEMALE -> Person.Gender.FEMALE
+            }
         }
       }
     }

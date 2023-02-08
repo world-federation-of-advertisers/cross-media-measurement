@@ -128,10 +128,7 @@ class PrivacyBudgetLedger(
   ) {
     val failedBucketList = getExceededPrivacyBuckets(context, privacyBucketGroups, charges)
     if (!failedBucketList.isEmpty()) {
-      throw PrivacyBudgetManagerException(
-        PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED,
-        failedBucketList
-      )
+      throw PrivacyBudgetManagerException(PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED)
     }
   }
 

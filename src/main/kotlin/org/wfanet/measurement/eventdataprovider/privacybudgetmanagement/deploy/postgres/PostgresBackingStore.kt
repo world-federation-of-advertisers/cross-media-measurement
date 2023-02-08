@@ -48,13 +48,11 @@ class PostgresBackingStore(createConnection: () -> Connection) : PrivacyBudgetLe
     if (!previousTransactionIsClosed) {
       throw PrivacyBudgetManagerException(
         PrivacyBudgetManagerExceptionType.NESTED_TRANSACTION,
-        emptyList(),
       )
     }
     if (connection.isClosed) {
       throw PrivacyBudgetManagerException(
         PrivacyBudgetManagerExceptionType.BACKING_STORE_CLOSED,
-        emptyList(),
       )
     }
     connection.createStatement().use { statement: Statement ->
@@ -81,7 +79,6 @@ class PostgresBackingStoreTransactionContext(
     if (transactionHasEnded) {
       throw PrivacyBudgetManagerException(
         PrivacyBudgetManagerExceptionType.UPDATE_AFTER_COMMIT,
-        privacyBucketGroups,
       )
     }
   }
