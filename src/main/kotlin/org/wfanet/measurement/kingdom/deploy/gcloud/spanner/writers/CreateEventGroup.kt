@@ -100,9 +100,14 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
         set("EventGroupDetails" to eventGroup.details)
         setJson("EventGroupDetailsJson" to eventGroup.details)
       }
+      set("State" to EventGroup.State.ACTIVE)
     }
 
-    return eventGroup.toBuilder().setExternalEventGroupId(externalEventGroupId.value).build()
+    return eventGroup
+      .toBuilder()
+      .setExternalEventGroupId(externalEventGroupId.value)
+      .setState(EventGroup.State.ACTIVE)
+      .build()
   }
 
   private suspend fun TransactionScope.findExistingEventGroup(dataProviderId: Long): EventGroup? {
