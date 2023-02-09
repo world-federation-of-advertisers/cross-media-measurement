@@ -53,45 +53,45 @@ message ReportingSet {
     ];
   }
 
+  // Represents a binary set expression.
+  message SetExpression {
+    // Operation of binary set expression.
+    enum Operation {
+      // Default value. This value is unused.
+      OPERATION_UNSPECIFIED = 0;
+      // The set union operation.
+      UNION = 1;
+      // The set difference operation.
+      DIFFERENCE = 2;
+      // The set intersection operation.
+      INTERSECTION = 3;
+    }
+    // The operation of binary set expression that will be applied on the
+    // operands.
+    Operation operation = 1 [(google.api.field_behavior) = REQUIRED];
+
+    // The object of a set operation.
+    message Operand {
+      oneof operand {
+        // Resource name of a `ReportingSet` describing a set operand.
+        string reporting_set = 1 [(google.api.resource_reference).type =
+          "reporting.halo-cmm.org/ReportingSet"];
+        // Nested `SetExpression` to allow for expressions with more terms.
+        SetExpression expression = 2;
+      }
+    }
+
+    // Left-hand side operand of the operation.
+    Operand lhs = 3 [(google.api.field_behavior) = REQUIRED];
+    // Right-hand side operand of the operation. If not specified, implies the
+    // empty set.
+    Operand rhs = 4;
+  }
+
   // Describes a set expression with a event filter. It's a
   // composite of `PrimitiveReportingSet`, `CompositeReportingSet`, and
   // `SetExpression`.
   message Composite {
-    // Represents a binary set expression.
-    message SetExpression {
-      // Operation of binary set expression.
-      enum Operation {
-        // Default value. This value is unused.
-        OPERATION_UNSPECIFIED = 0;
-        // The set union operation.
-        UNION = 1;
-        // The set difference operation.
-        DIFFERENCE = 2;
-        // The set intersection operation.
-        INTERSECTION = 3;
-      }
-      // The operation of binary set expression that will be applied on the
-      // operands.
-      Operation operation = 1 [(google.api.field_behavior) = REQUIRED];
-
-      // The object of a set operation.
-      message Operand {
-        oneof operand {
-          // Resource name of a `ReportingSet` describing a set operand.
-          string reporting_set = 1 [(google.api.resource_reference).type =
-                                        "reporting.halo-cmm.org/ReportingSet"];
-          // Nested `SetExpression` to allow for expressions with more terms.
-          SetExpression expression = 2;
-        }
-      }
-
-      // Left-hand side operand of the operation.
-      Operand lhs = 3 [(google.api.field_behavior) = REQUIRED];
-      // Right-hand side operand of the operation. If not specified, implies the
-      // empty set.
-      Operand rhs = 4;
-    }
-
     // A nested expression of binary set expressions.
     SetExpression expression = 1 [
       (google.api.field_behavior) = REQUIRED,
