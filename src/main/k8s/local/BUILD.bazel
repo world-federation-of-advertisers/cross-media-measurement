@@ -393,6 +393,7 @@ k8s_apply(
 
 k8s_apply(
     name = "edp_simulators_csv_kind",
+    testonly = True,
     srcs = [":edp_simulators_csv_kustomization"],
     delete_selector = "app.kubernetes.io/part-of=halo-cmms,app.kubernetes.io/component=simulator",
     imports = EDP_SIMULATOR_IMAGE_IMPORTS,
