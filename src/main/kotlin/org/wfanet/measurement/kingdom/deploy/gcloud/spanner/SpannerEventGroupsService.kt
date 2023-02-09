@@ -21,6 +21,7 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.internal.kingdom.DeleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest
@@ -36,6 +37,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementCo
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamEventGroups
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateEventGroup
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.DeleteEventGroup
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.UpdateEventGroup
 
 class SpannerEventGroupsService(
@@ -90,14 +92,45 @@ class SpannerEventGroupsService(
   }
 
   override suspend fun getEventGroup(request: GetEventGroupRequest): EventGroup {
-    return EventGroupReader()
-      .readByExternalIds(
-        client.singleUse(),
-        request.externalDataProviderId,
-        request.externalEventGroupId
-      )
-      ?.eventGroup
-      ?: failGrpc(Status.NOT_FOUND) { "EventGroup not found" }
+    val eventGroup =
+      EventGroupReader()
+        .readByExternalIds(
+          client.singleUse(),
+          request.externalDataProviderId,
+          request.externalEventGroupId,
+        )
+        ?.eventGroup
+        ?: failGrpc(Status.NOT_FOUND) { "EventGroup not found" }
+    if (eventGroup.state == EventGroup.State.DELETED && !request.showDeleted) {
+      failGrpc(Status.NOT_FOUND) { "EventGroup not found" }
+    }
+
+    return eventGroup
+  }
+
+  override suspend fun deleteEventGroup(request: DeleteEventGroupRequest): EventGroup {
+    grpcRequire(request.externalDataProviderId > 0L) { "ExternalDataProviderId unspecified" }
+    grpcRequire(request.externalEventGroupId > 0L) { "ExternalEventGroupId unspecified" }
+
+    val eventGroup =
+      EventGroup.newBuilder()
+        .setExternalEventGroupId(request.externalEventGroupId)
+        .setExternalDataProviderId(request.externalDataProviderId)
+        .build()
+
+    try {
+      return DeleteEventGroup(eventGroup).execute(client, idGenerator)
+    } catch (e: EventGroupInvalidArgsException) {
+      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT) {
+        "EventGroup modification param is invalid."
+      }
+    } catch (e: DataProviderNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Data Provider not found." }
+    } catch (e: EventGroupNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "EventGroup not found." }
+    } catch (e: KingdomInternalException) {
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+    }
   }
 
   override fun streamEventGroups(request: StreamEventGroupsRequest): Flow<EventGroup> {

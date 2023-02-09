@@ -19,6 +19,7 @@ import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
+import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.Exchange
 import org.wfanet.measurement.api.v2alpha.ExchangeKey
 import org.wfanet.measurement.api.v2alpha.ExchangeStep
@@ -56,6 +57,7 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.internal.kingdom.DifferentialPrivacyParams as InternalDifferentialPrivacyParams
+import org.wfanet.measurement.internal.kingdom.EventGroup as InternalEventGroup
 import org.wfanet.measurement.internal.kingdom.Exchange as InternalExchange
 import org.wfanet.measurement.internal.kingdom.ExchangeStep as InternalExchangeStep
 import org.wfanet.measurement.internal.kingdom.ExchangeStepAttempt as InternalExchangeStepAttempt
@@ -505,5 +507,14 @@ fun ExchangeWorkflow.Party.toInternal(): InternalExchangeWorkflow.Party {
     ExchangeWorkflow.Party.PARTY_UNSPECIFIED,
     ExchangeWorkflow.Party.UNRECOGNIZED ->
       throw IllegalArgumentException("Provider is not set for the Exchange Step.")
+  }
+}
+
+fun InternalEventGroup.State.toV2Alpha(): EventGroup.State {
+  return when (this) {
+    InternalEventGroup.State.STATE_UNSPECIFIED,
+    InternalEventGroup.State.UNRECOGNIZED -> EventGroup.State.STATE_UNSPECIFIED
+    InternalEventGroup.State.ACTIVE -> EventGroup.State.ACTIVE
+    InternalEventGroup.State.DELETED -> EventGroup.State.DELETED
   }
 }
