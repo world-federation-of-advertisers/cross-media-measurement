@@ -131,20 +131,8 @@ CREATE TABLE PrimitiveReportingSetEventGroups(
   PrimitiveReportingSetId bigint NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, PrimitiveReportingSetId, DataProviderId, EventGroupId),
-  FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId)
-    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetId)
     REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId)
-    ON DELETE CASCADE,
-  FOREIGN KEY(DataProviderId)
-    REFERENCES DataProviders(DataProviderId)
-    ON DELETE CASCADE,
-  FOREIGN KEY(MeasurementConsumerId, DataProviderId)
-    REFERENCES MeasurementConsumerDataProviders(MeasurementConsumerId, DataProviderId)
-    ON DELETE CASCADE,
-  FOREIGN KEY(DataProviderId, EventGroupId)
-    REFERENCES EventGroups(DataProviderId, EventGroupId)
     ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, DataProviderId, EventGroupId)
     REFERENCES MeasurementConsumerEventGroups(MeasurementConsumerId, DataProviderId, EventGroupId)
@@ -188,9 +176,6 @@ CREATE TABLE WeightedSubsetUnions (
   weight bigint NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, ReportingSetId, WeightedSubsetUnionId),
-  FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId)
-    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
     REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
     ON DELETE CASCADE,
@@ -203,9 +188,6 @@ CREATE TABLE PrimitiveReportingSetBases (
   PrimitiveReportingSetId bigint NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, WeightedSubsetUnionId, PrimitiveReportingSetId),
-  FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId)
-    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, WeightedSubsetUnionId)
     REFERENCES WeightedSubsetUnions(MeasurementConsumerId, WeightedSubsetUnionId)
     ON DELETE CASCADE,
@@ -224,15 +206,6 @@ CREATE TABLE PrimitiveReportingSetBasisFilters (
   Filter text NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, WeightedSubsetUnionId, PrimitiveReportingSetId, PrimitiveReportingSetBasisFilter),
-  FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId)
-    ON DELETE CASCADE,
-  FOREIGN KEY(MeasurementConsumerId, WeightedSubsetUnionId)
-    REFERENCES WeightedSubsetUnions(MeasurementConsumerId, WeightedSubsetUnionId)
-    ON DELETE CASCADE,
-  FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetId)
-    REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId)
-    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, WeightedSubsetUnionId, PrimitiveReportingSetId)
     REFERENCES PrimitiveReportingSetBases(MeasurementConsumerId, WeightedSubsetUnionId, PrimitiveReportingSetId)
     ON DELETE CASCADE,
@@ -311,9 +284,6 @@ CREATE TABLE Metrics (
   MetricDetails bytea NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, MetricId),
-  FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId)
-    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, TimeIntervalId)
     REFERENCES TimeIntervals(MeasurementConsumerId, TimeIntervalId)
     ON DELETE CASCADE,
@@ -347,9 +317,6 @@ CREATE TABLE Measurements (
 
   PRIMARY KEY(MeasurementConsumerId, MeasurementId),
   UNIQUE (MeasurementConsumerId, CmmsMeasurementId),
-  FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId)
-    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, TimeIntervalId)
     REFERENCES TimeIntervals(MeasurementConsumerId, TimeIntervalId)
     ON DELETE CASCADE,
@@ -366,17 +333,8 @@ CREATE TABLE MeasurementPrimitiveReportingSetBases (
   PrimitiveReportingSetId bigint NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, MeasurementId, WeightedSubsetUnionId, PrimitiveReportingSetId),
-  FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId)
-    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, MeasurementId)
     REFERENCES Measurements(MeasurementConsumerId, MeasurementId)
-    ON DELETE CASCADE,
-  FOREIGN KEY(MeasurementConsumerId, WeightedSubsetUnionId)
-    REFERENCES WeightedSubsetUnions(MeasurementConsumerId, WeightedSubsetUnionId)
-    ON DELETE CASCADE,
-  FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetId)
-    REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId)
     ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, WeightedSubsetUnionId, PrimitiveReportingSetId)
     REFERENCES PrimitiveReportingSetBases(MeasurementConsumerId, WeightedSubsetUnionId, PrimitiveReportingSetId)
@@ -391,9 +349,6 @@ CREATE TABLE MetricMeasurements (
   Coefficient integer NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, MetricId, MeasurementId),
-  FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId)
-    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, MetricId)
     REFERENCES Metrics(MeasurementConsumerId, MetricId)
     ON DELETE CASCADE,
@@ -430,9 +385,6 @@ CREATE TABLE ModelMetrics(
   MetricId bigint NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, ModelId, MetricId),
-  FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId)
-    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, ModelId)
     REFERENCES Models(MeasurementConsumerId, ModelId)
     ON DELETE CASCADE,
@@ -448,9 +400,6 @@ CREATE TABLE ModelMetricSpecs(
   MetricSpecId bigint NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, ModelId, MetricSpecId),
-  FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId)
-    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, ModelId)
     REFERENCES Models(MeasurementConsumerId, ModelId)
     ON DELETE CASCADE,
@@ -466,9 +415,6 @@ CREATE TABLE ModelTimeIntervals(
   TimeIntervalId bigint NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, ModelId, TimeIntervalId),
-  FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId)
-    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, ModelId)
     REFERENCES Models(MeasurementConsumerId, ModelId)
     ON DELETE CASCADE,
@@ -484,9 +430,6 @@ CREATE TABLE ModelReportingSets(
   ReportingSetId bigint NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, ModelId, ReportingSetId),
-  FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId)
-    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, ModelId)
     REFERENCES Models(MeasurementConsumerId, ModelId)
     ON DELETE CASCADE,
@@ -528,9 +471,6 @@ CREATE TABLE ReportTimeIntervals (
   TimeIntervalId bigint NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, ReportId, TimeIntervalId),
-  FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId)
-    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, ReportId)
     REFERENCES Reports(MeasurementConsumerId, ReportId)
     ON DELETE CASCADE,
@@ -551,9 +491,6 @@ CREATE TABLE MetricCalculations (
   MetricCalculationDetails bytea NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, ReportId, MetricCalculationId),
-  FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId)
-    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, ReportId)
     REFERENCES Reports(MeasurementConsumerId, ReportId)
     ON DELETE CASCADE,
@@ -573,9 +510,6 @@ CREATE TABLE MetricCalculationMetrics (
   MetricCalculationMetricsDetails bytea NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, MetricCalculationId, MetricId),
-  FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId)
-    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, MetricCalculationId)
     REFERENCES MetricCalculations(MeasurementConsumerId, MetricCalculationId)
     ON DELETE CASCADE,
@@ -597,9 +531,6 @@ CREATE TABLE ModelInferenceCalculations (
   ModelInferenceCalculationDetails bytea NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, ReportId, ModelInferenceCalculationId),
-  FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId)
-    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, ReportId)
     REFERENCES Reports(MeasurementConsumerId, ReportId)
     ON DELETE CASCADE,
@@ -618,9 +549,6 @@ CREATE TABLE ModelInferenceCalculationMetricSpecs (
   MetricSpecId bigint NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, ModelInferenceCalculationId, MetricSpecId),
-  FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId)
-    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, ModelInferenceCalculationId)
     REFERENCES ModelInferenceCalculations(MeasurementConsumerId, ModelInferenceCalculationId)
     ON DELETE CASCADE,
