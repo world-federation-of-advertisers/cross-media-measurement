@@ -110,6 +110,8 @@ class FailComputationParticipant(private val request: FailComputationParticipant
               message = "Computation Participant failed. ${request.errorMessage}"
             }
         }
+      // TODO(@marcopremier): FailComputationParticipant should insert a single MeasurementLogEntry
+      // with two children: a StateTransitionMeasurementLogEntries and a DuchyMeasurementLogEntries
       updateMeasurementState(
         measurementConsumerId = InternalId(measurementConsumerId),
         measurementId = InternalId(measurementId),
