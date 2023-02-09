@@ -96,6 +96,7 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
     val getRequest = getEventGroupRequest {
       externalDataProviderId = apiIdToExternalId(key.dataProviderId)
       externalEventGroupId = apiIdToExternalId(key.eventGroupId)
+      showDeleted = request.showDeleted
     }
 
     val eventGroup =
@@ -301,7 +302,13 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
     val results: List<InternalEventGroup> =
       try {
         internalEventGroupsStub
-          .streamEventGroups(listEventGroupsPageToken.toStreamEventGroupsRequest())
+          .streamEventGroups(
+            listEventGroupsPageToken
+              .toStreamEventGroupsRequest()
+              .toBuilder()
+              .also { filter { showDeleted = request.showDeleted } }
+              .build()
+          )
           .toList()
       } catch (e: StatusException) {
         throw when (e.status.code) {
@@ -366,6 +373,7 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
       details.eventTemplatesList.map { event -> eventTemplate { type = event.fullyQualifiedType } }
     )
     encryptedMetadata = details.encryptedMetadata
+    state = this@toEventGroup.state.toV2Alpha()
   }
 }
 
