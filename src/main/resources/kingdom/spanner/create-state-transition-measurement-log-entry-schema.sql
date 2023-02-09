@@ -15,7 +15,6 @@
 -- limitations under the License.
 
 -- changeset marcopremier:5 dbms:cloudspanner
-START BATCH DDL;
 
 -- Cloud Spanner database schema for the Kingdom StateTransitionMeasurementLogEntries table.
 --
@@ -34,5 +33,3 @@ CREATE TABLE StateTransitionMeasurementLogEntries (
     CurrentMeasurementState INT64 NOT NULL,
 ) PRIMARY KEY (MeasurementConsumerId, MeasurementId, CreateTime),
   INTERLEAVE IN PARENT MeasurementLogEntries ON DELETE CASCADE;
-
-RUN BATCH;
