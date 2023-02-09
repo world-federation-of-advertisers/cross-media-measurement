@@ -75,7 +75,7 @@ message ReportingSet {
       oneof operand {
         // Resource name of a `ReportingSet` describing a set operand.
         string reporting_set = 1 [(google.api.resource_reference).type =
-          "reporting.halo-cmm.org/ReportingSet"];
+                                      "reporting.halo-cmm.org/ReportingSet"];
         // Nested `SetExpression` to allow for expressions with more terms.
         SetExpression expression = 2;
       }
