@@ -48,6 +48,12 @@ class UpdateEventGroup(private val eventGroup: EventGroup) :
           ExternalId(eventGroup.externalDataProviderId),
           ExternalId(eventGroup.externalEventGroupId)
         )
+    if (internalEventGroupResult.eventGroup.state == EventGroup.State.DELETED) {
+      throw EventGroupNotFoundException(
+        ExternalId(eventGroup.externalEventGroupId),
+        ExternalId(eventGroup.externalEventGroupId),
+      )
+    }
     if (
       internalEventGroupResult.eventGroup.externalMeasurementConsumerId !=
         eventGroup.externalMeasurementConsumerId
