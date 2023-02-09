@@ -50,6 +50,7 @@ import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2.alpha.ListReportsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2.alpha.listReportsPageToken
+import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
@@ -2654,6 +2655,63 @@ class ReportsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
+
+  @Test
+  fun `createReport throws FAILED_PRECONDITION when EDP cert is revoked`() = runBlocking {
+    val dataProvider = DATA_PROVIDERS.values.first()
+    whenever(
+        certificateMock.getCertificate(
+          eq(getCertificateRequest { name = dataProvider.certificate })
+        )
+      )
+      .thenReturn(
+        certificate {
+          name = dataProvider.certificate
+          x509Der = DATA_PROVIDER_SIGNING_KEY.certificate.encoded.toByteString()
+          revocationState = Certificate.RevocationState.REVOKED
+        }
+      )
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      report = PENDING_REACH_REPORT.copy { clearState() }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+
+    assertThat(exception).hasMessageThat().ignoringCase().contains("revoked")
+  }
+
+  @Test
+  fun `createReport throws FAILED_PRECONDITION when EDP public key signature is invalid`() =
+    runBlocking {
+      val dataProvider = DATA_PROVIDERS.values.first()
+      whenever(
+          dataProvidersMock.getDataProvider(eq(getDataProviderRequest { name = dataProvider.name }))
+        )
+        .thenReturn(
+          dataProvider.copy {
+            publicKey = publicKey.copy { signature = "invalid sig".toByteStringUtf8() }
+          }
+        )
+      val request = createReportRequest {
+        parent = MEASUREMENT_CONSUMERS.values.first().name
+        report = PENDING_REACH_REPORT.copy { clearState() }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+            runBlocking { service.createReport(request) }
+          }
+        }
+
+      assertThat(exception).hasMessageThat().ignoringCase().contains("signature")
+    }
 
   @Test
   fun `createReport throws exception from getReportByIdempotencyKey when status isn't NOT_FOUND`() =
