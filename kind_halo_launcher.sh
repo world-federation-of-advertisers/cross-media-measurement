@@ -205,6 +205,37 @@ function deploy_duchies {
   wait_for worker2-spanner-computations-server 1/1Running
 }
 
+function wait_for_edp() {
+  timeout=24
+  edp_id=$1
+  state=$2
+
+  until [ $timeout -le 0 ] || (edp_is_in_state $edp_id "$state"); do
+    echo waiting for edp$edp_id to enter state Executing requisitionFulfillingWorkflow
+    sleep 5
+    timeout=$((timeout - 1))
+  done
+
+  if [ $timeout -le 0 ]; then
+    return 1
+  fi
+
+  echo edp$edp_id is in state Executing requisitionFulfillingWorkflow
+}
+
+function edp_is_in_state() {
+  edp_id=$1
+  state=$2
+  edp_pod_id=$(kubectl get pods | grep edp$edp_id | awk '{print $1}')
+  edp_status=$(kubectl logs $edp_pod_id -c edp$edp_id-simulator-container| tail -1)
+
+  if [ "$edp_status" = "$state" ]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
 function deploy_edp_simulators {
   echo
   echo DEPLOYING EDP SIMULATORS
@@ -247,12 +278,12 @@ function deploy_edp_simulators {
   edp_pod_name=$(kubectl get pods | grep edp6 | awk '{print $1}' | head -1)
   kubectl cp $DATASET_PATH $edp_pod_name:/data/csvfiles/synthetic-labelled-events.csv -c edp6-simulator-container
 
-  wait_for edp1-simulator "INFO: Executing requisitionFulfillingWorkflow..."
-  wait_for edp2-simulator "INFO: Executing requisitionFulfillingWorkflow..."
-  wait_for edp3-simulator "INFO: Executing requisitionFulfillingWorkflow..."
-  wait_for edp4-simulator "INFO: Executing requisitionFulfillingWorkflow..."
-  wait_for edp5-simulator "INFO: Executing requisitionFulfillingWorkflow..."
-  wait_for edp6-simulator "INFO: Executing requisitionFulfillingWorkflow..."
+  wait_for_edp 1 "INFO: Executing requisitionFulfillingWorkflow..."
+  wait_for_edp 2 "INFO: Executing requisitionFulfillingWorkflow..."
+  wait_for_edp 3 "INFO: Executing requisitionFulfillingWorkflow..."
+  wait_for_edp 4 "INFO: Executing requisitionFulfillingWorkflow..."
+  wait_for_edp 5 "INFO: Executing requisitionFulfillingWorkflow..."
+  wait_for_edp 6 "INFO: Executing requisitionFulfillingWorkflow..."
 }
 
 function do_front_end_correctness_test {
@@ -304,13 +335,13 @@ function check_command_line_arguments {
   fi
 }
 
-#check_working_directory
-#check_command_line_arguments $1
-#initialize_cluster
+check_working_directory
+check_command_line_arguments $1
+initialize_cluster
 get_resource_names
-#build_principal_map
-#redeploy_kingdom
-#deploy_duchies
+build_principal_map
+redeploy_kingdom
+deploy_duchies
 deploy_edp_simulators
 
 if [ "$1" == "--end-to-end-test" ] ; then
