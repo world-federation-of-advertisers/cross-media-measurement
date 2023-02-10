@@ -1,6 +1,7 @@
 import subprocess
 import os
 from time import sleep
+from datetime import datetime
 
 
 ###################
@@ -75,7 +76,8 @@ BENCHMARK_BAZEL_TARGET = "src/main/kotlin/org/wfanet/measurement/api/v2alpha/too
 
 OUTPUT_DIR = "/usr/local/google/home/riemanli/Data/benchmarking/outputs"
 
-NUM_PUBLISHERS = 1
+NUM_REPLICAS = 2
+NUM_PUBLISHERS = 2
 NUM_DEMOGRAPHY_TYPES = 1
 DEMOGRAPHY_TYPES = [f".{i + 1}" for i in range(NUM_DEMOGRAPHY_TYPES)]
 
@@ -104,10 +106,10 @@ METRIC_DP_SETUP_DICT = {
 }
 
 EVENT_FILTER_DICT = {
-    ".1": "video_ad.gender.value == 1 && video_ad.age.value == 1",
-    ".2": "video_ad.age.value == 1",
-    ".3": "video_ad.gender.value == 1",
-    ".4": "video_ad.gender.value in [0,1,2]",
+    ".1": "person.gender.value == 1 && person.age_group.value == 1",
+    ".2": "person.age_group.value == 1",
+    ".3": "person.gender.value == 1",
+    ".4": "person.gender.value in [0,1,2]",
 }
 
 EVENT_FILTER_DICT = {demo_type: EVENT_FILTER_DICT[demo_type] for demo_type in DEMOGRAPHY_TYPES}
@@ -128,10 +130,12 @@ def build_execution_const(HALO_MC, HALO_MC_APIKEY):
   --private-key-der-file=src/main/k8s/testing/secretfiles/mc_cs_private.der \
   --encryption-private-key-file=src/main/k8s/testing/secretfiles/mc_enc_private.tink \
   --reach-and-frequency \
-  --repetition-count=20'
+  --repetition-count={NUM_REPLICAS}'
 
 def build_output_path(number_publisher, demography_type, metric_type):
-    return f"{OUTPUT_DIR}/benchmark-results-A{metric_type}-{number_publisher}{demography_type}-kind.csv"
+    now = datetime.now()
+    current_time = now.strftime("%H:%M:%S")
+    return f"{OUTPUT_DIR}/benchmark-results-A{metric_type}-{number_publisher}{demography_type}-kind-{current_time}.csv"
 
 def build_execution_command(number_publisher, demography_type, metric_type, execution_const):
     execution_metric_dp_setup = METRIC_DP_SETUP_DICT[metric_type]
