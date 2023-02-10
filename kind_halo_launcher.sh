@@ -37,6 +37,7 @@
 export HALO_PRINCIPAL_MAP=/tmp/authority_key_identifier_to_principal_map.textproto
 export REPORTING_KEY_PAIR=/tmp/encryption_key_pair_config.textproto
 export REPORTING_MC_CONFIG=/tmp/measurement_consumer_config.textproto
+export DATASET_PATH=/usr/local/google/home/riemanli/Data/benchmarking/event_logs/synthetic-labelled-events.csv
 
 function wait_for() {
   timeout=24
@@ -141,13 +142,13 @@ function initialize_cluster {
 
 function get_resource_names {
   export HALO_SECRETNAME=`kubectl get secrets | grep 'certs-and-configs' | awk '{ print $1; }'`
-  export HALO_DATAPROVIDERS=(`kubectl logs jobs/resource-setup-job | grep 'Successfully created data provider' | awk '{print $6;}'`)
-  export HALO_AGGREGATORCERT=`kubectl logs jobs/resource-setup-job | grep 'Successfully created certificate duchies/aggregator' | awk '{print $5;}'`
-  export HALO_WORKER1CERT=`kubectl logs jobs/resource-setup-job | grep 'Successfully created certificate duchies/worker1' | awk '{print $5;}'`
-  export HALO_WORKER2CERT=`kubectl logs jobs/resource-setup-job | grep 'Successfully created certificate duchies/worker2' | awk '{print $5;}'`
-  export HALO_MC=`kubectl logs jobs/resource-setup-job | grep 'Successfully created measurement consumer:' | awk '{print $6;}'`
-  export HALO_MC_APIKEY=`kubectl logs jobs/resource-setup-job | grep 'API key for measurement consumer' | awk '{print $8;}'`
-  export HALO_MC_SIGNING_CERT=`kubectl logs jobs/resource-setup-job | grep 'Successfully created measurement consumer signing certificate' | awk '{print $8;}'`
+  export HALO_DATAPROVIDERS=(`kubectl logs jobs/resource-setup-job -c resource-setup-container | grep 'Successfully created data provider' | awk '{print $6;}'`)
+  export HALO_AGGREGATORCERT=`kubectl logs jobs/resource-setup-job -c resource-setup-container | grep 'Successfully created certificate duchies/aggregator' | awk '{print $5;}'`
+  export HALO_WORKER1CERT=`kubectl logs jobs/resource-setup-job -c resource-setup-container | grep 'Successfully created certificate duchies/worker1' | awk '{print $5;}'`
+  export HALO_WORKER2CERT=`kubectl logs jobs/resource-setup-job -c resource-setup-container | grep 'Successfully created certificate duchies/worker2' | awk '{print $5;}'`
+  export HALO_MC=`kubectl logs jobs/resource-setup-job -c resource-setup-container | grep 'Successfully created measurement consumer:' | awk '{print $6;}'`
+  export HALO_MC_APIKEY=`kubectl logs jobs/resource-setup-job -c resource-setup-container | grep 'API key for measurement consumer' | awk '{print $8;}'`
+  export HALO_MC_SIGNING_CERT=`kubectl logs jobs/resource-setup-job -c resource-setup-container | grep 'Successfully created measurement consumer signing certificate' | awk '{print $8;}'`
   
   export DB_AUTH_SECRETNAME=`kubectl get secrets | grep 'db-auth' | awk '{ print $1; }'`
   export MC_CONFIG_SECRETNAME=`kubectl get secrets | grep 'mc-config' | awk '{ print $1; }'`
@@ -225,6 +226,33 @@ function deploy_edp_simulators {
   wait_for edp4-simulator 1/1Running
   wait_for edp5-simulator 1/1Running
   wait_for edp6-simulator 1/1Running
+
+  sleep 5
+  echo Copying CSV file from $DATASET_PATH for edp1...
+  edp_pod_name=$(kubectl get pods | grep edp1 | awk '{print $1}' | head -1)
+  kubectl cp $DATASET_PATH $edp_pod_name:/data/csvfiles/synthetic-labelled-events.csv -c edp1-simulator-container
+  echo Copying CSV file for edp2...
+  edp_pod_name=$(kubectl get pods | grep edp2 | awk '{print $1}' | head -1)
+  kubectl cp $DATASET_PATH $edp_pod_name:/data/csvfiles/synthetic-labelled-events.csv -c edp2-simulator-container
+  echo Copying CSV file for edp3...
+  edp_pod_name=$(kubectl get pods | grep edp3 | awk '{print $1}' | head -1)
+  kubectl cp $DATASET_PATH $edp_pod_name:/data/csvfiles/synthetic-labelled-events.csv -c edp3-simulator-container
+  echo Copying CSV file for edp4...
+  edp_pod_name=$(kubectl get pods | grep edp4 | awk '{print $1}' | head -1)
+  kubectl cp $DATASET_PATH $edp_pod_name:/data/csvfiles/synthetic-labelled-events.csv -c edp4-simulator-container
+  echo Copying CSV file for edp5...
+  edp_pod_name=$(kubectl get pods | grep edp5 | awk '{print $1}' | head -1)
+  kubectl cp $DATASET_PATH $edp_pod_name:/data/csvfiles/synthetic-labelled-events.csv -c edp5-simulator-container
+  echo Copying CSV file for edp6...
+  edp_pod_name=$(kubectl get pods | grep edp6 | awk '{print $1}' | head -1)
+  kubectl cp $DATASET_PATH $edp_pod_name:/data/csvfiles/synthetic-labelled-events.csv -c edp6-simulator-container
+
+  wait_for edp1-simulator "INFO: Executing requisitionFulfillingWorkflow..."
+  wait_for edp2-simulator "INFO: Executing requisitionFulfillingWorkflow..."
+  wait_for edp3-simulator "INFO: Executing requisitionFulfillingWorkflow..."
+  wait_for edp4-simulator "INFO: Executing requisitionFulfillingWorkflow..."
+  wait_for edp5-simulator "INFO: Executing requisitionFulfillingWorkflow..."
+  wait_for edp6-simulator "INFO: Executing requisitionFulfillingWorkflow..."
 }
 
 function do_front_end_correctness_test {
@@ -276,13 +304,13 @@ function check_command_line_arguments {
   fi
 }
 
-check_working_directory
-check_command_line_arguments $1
-initialize_cluster
+#check_working_directory
+#check_command_line_arguments $1
+#initialize_cluster
 get_resource_names
-build_principal_map
-redeploy_kingdom
-deploy_duchies
+#build_principal_map
+#redeploy_kingdom
+#deploy_duchies
 deploy_edp_simulators
 
 if [ "$1" == "--end-to-end-test" ] ; then

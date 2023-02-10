@@ -229,7 +229,7 @@ the target `edp_simulators_csv_kind`, and each edp deployment is in the status
 you local machine to the edp container:
 
 ```shell
-kubectl cp </path/to/your/file.csv> <edp-podname>:/data/csvfiles/synthetic-labelled-events.csv
+kubectl cp </path/to/your/file.csv> <edp-podname>:/data/csvfiles/synthetic-labelled-events.csv -c edp<index>-simulator-container
 ```
 
 You can get `<edp-podname>` by running `kubectl get pods`. The default volume
