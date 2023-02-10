@@ -30,7 +30,10 @@ edpSimulators: {
 			deployment: {
 				_container:
 				{
-					_javaOptions: maxRamPercentage: 30.0
+					_javaOptions: {
+					  initialHeapSize: "256M"
+            maxHeapSize: "512M"
+					}
 					resources: #EdpSimulatorsResourceRequirements
 				}
 				spec: template: spec: {

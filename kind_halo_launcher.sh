@@ -37,7 +37,7 @@
 export HALO_PRINCIPAL_MAP=/tmp/authority_key_identifier_to_principal_map.textproto
 export REPORTING_KEY_PAIR=/tmp/encryption_key_pair_config.textproto
 export REPORTING_MC_CONFIG=/tmp/measurement_consumer_config.textproto
-export DATASET_PATH=/usr/local/google/home/riemanli/Data/benchmarking/event_logs/synthetic-labelled-events.csv
+export DATASET_PATH=/usr/local/google/home/riemanli/Data/benchmarking/event_logs/benchmark_data_small.csv
 
 function wait_for() {
   timeout=24
@@ -126,6 +126,30 @@ function initialize_cluster {
   wait_for fake-storage-server 1/1Running
 
   echo
+  echo DEPLOYING CERT MANAGER ...
+  echo
+  kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.9.1/cert-manager.yaml
+  sleep 60s
+
+  echo
+  echo DEPLOYING OPEN TELEMETRY OPERATOR ...
+  echo
+  kubectl apply -f https://github.com/open-telemetry/opentelemetry-operator/releases/download/v0.60.0/opentelemetry-operator.yaml
+  sleep 60s
+
+  echo
+  echo DEPLOYING OPEN TELEMETRY RESOURCE ...
+  echo
+  tools/bazel-container-run //src/main/k8s/local:open_telemetry_kind
+  wait_for default-collector 1/1Running
+
+  echo
+  echo DEPLOYING PROMETHEUS SERVER ...
+  echo
+  tools/bazel-container-run //src/main/k8s/local:prometheus_kind
+  wait_for prometheus-pod 1/1Running
+
+  echo
   echo DEPLOYING KINGDOM
   echo
   bazel run //src/main/k8s/local:kingdom_kind
@@ -206,7 +230,7 @@ function deploy_duchies {
 }
 
 function wait_for_edp() {
-  timeout=24
+  timeout=60
   edp_id=$1
   state=$2
 
@@ -312,6 +336,16 @@ function setup_port_forwarding {
   else
     echo Turning on port forwarding ...
     kubectl port-forward `kubectl get pods | grep v2alpha-public-api-server | awk '{ print $1; }'` 8443:8443 &
+    sleep 1
+  fi
+
+  prometheus_port_forwarding_active=`ps ax | grep "kubectl port-forward prometheus-pod" | grep -v grep | wc -l`
+  echo prometheus_port_forwarding_active=$prometheus_port_forwarding_active
+  if [ $prometheus_port_forwarding_active -eq 1 ]; then
+    echo It appears that port forwarding for Prometheus is already active.
+  else
+    echo Turning on port forwarding ...
+    kubectl port-forward `kubectl get pods | grep prometheus-pod | awk '{ print $1; }'` 31111:9090 &
     sleep 1
   fi
 }
