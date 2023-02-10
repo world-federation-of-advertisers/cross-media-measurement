@@ -31,8 +31,8 @@ service MeasurementLogEntries {
   rpc CreateDuchyMeasurementLogEntry(CreateDuchyMeasurementLogEntryRequest)
       returns (DuchyMeasurementLogEntry);
 
-  // Retriece all measurement state transition log entries for a given measurement
-  rpc GetMeasurementStateLogEntries(GetMeasurementStateTransitionLogEntryRequest) returns (Measurement);
+  // Retrieve all measurement state transition log entries for a given measurement
+  rpc StreamStateTransitionMeasurementLogEntries(GetMeasurementStateTransitionLogEntryRequest) returns (Measurement);
 }
 
 message CreateDuchyMeasurementLogEntryRequest {

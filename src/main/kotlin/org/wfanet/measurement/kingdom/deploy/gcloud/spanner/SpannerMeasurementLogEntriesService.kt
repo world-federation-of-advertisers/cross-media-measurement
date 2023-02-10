@@ -58,7 +58,7 @@ class SpannerMeasurementLogEntriesService(
     }
   }
 
-  override suspend fun getMeasurementStateLogEntries(
+  override suspend fun streamStateTransitionMeasurementLogEntries(
     request: GetMeasurementStateTransitionLogEntryRequest
   ): Measurement {
     return MeasurementLogEntryReader()
