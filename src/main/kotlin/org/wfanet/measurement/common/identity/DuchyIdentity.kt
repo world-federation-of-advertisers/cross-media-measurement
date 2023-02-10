@@ -62,6 +62,7 @@ val DUCHY_ID_METADATA_KEY: Metadata.Key<String> =
  * ```
  *    yourService.withDuchyIdentities()
  * ```
+ *
  * On the client side, use [withDuchyId].
  */
 class DuchyTlsIdentityInterceptor : ServerInterceptor {

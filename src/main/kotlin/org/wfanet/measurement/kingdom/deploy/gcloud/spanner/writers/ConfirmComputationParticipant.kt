@@ -38,9 +38,10 @@ private val NEXT_COMPUTATION_PARTICIPANT_STATE = ComputationParticipant.State.RE
  * Sets participant details for a computationParticipant in the database.
  *
  * Throws a subclass of [KingdomInternalException] on [execute].
+ *
  * @throws [ComputationParticipantNotFoundByComputationException] ComputationParticipant not found
  * @throws [ComputationParticipantStateIllegalException] ComputationParticipant state is not
- * REQUISITION_PARAMS_SET
+ *   REQUISITION_PARAMS_SET
  * @throws [DuchyNotFoundException] Duchy not found
  */
 class ConfirmComputationParticipant(private val request: ConfirmComputationParticipantRequest) :

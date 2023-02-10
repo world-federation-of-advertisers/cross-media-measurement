@@ -53,6 +53,7 @@ private val PENDING_MEASUREMENT_STATES =
  * Revokes a certificate in the database.
  *
  * Throws a subclass of [KingdomInternalException] on [execute].
+ *
  * @throws [DataProviderCertificateNotFoundException] Certificate not found
  * @throws [MeasurementConsumerCertificateNotFoundException] Certificate not found
  * @throws [DuchyCertificateNotFoundException] Certificate not found

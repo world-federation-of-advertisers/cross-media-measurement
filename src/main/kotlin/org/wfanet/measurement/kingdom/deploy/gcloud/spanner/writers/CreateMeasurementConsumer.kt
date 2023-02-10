@@ -34,6 +34,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
  * Creates a measurement consumer in the database.
  *
  * Throws a subclass of [KingdomInternalException] on [execute].
+ *
  * @throws [PermissionDeniedException] MeasurementConsumer CreationToken not found
  * @throws [AccountNotFoundException] Account not found
  * @throws [AccountActivationStateIllegalException] Account is not in state of ACTIVATED

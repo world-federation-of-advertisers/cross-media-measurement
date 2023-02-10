@@ -30,6 +30,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
  * Add an [Account] as a new owner of a [MeasurementConsumer] in the database.
  *
  * Throws a subclass of [KingdomInternalException] on [execute].
+ *
  * @throws [MeasurementConsumerNotFoundException] MeasurementConsumer not found
  * @throws [AccountNotFoundException] Account not found
  */

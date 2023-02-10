@@ -30,6 +30,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
  * Creates an account in the database.
  *
  * Throws a subclass of [KingdomInternalException] on [execute].
+ *
  * @throws [PermissionDeniedException] Permission denied due to ownership of MeasurementConsumer
  * @throws [AccountNotFoundException] Creator's Account not found
  */

@@ -29,6 +29,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
  * Deletes an [ApiKey] from the database.
  *
  * Throws a subclass of [KingdomInternalException] on [execute].
+ *
  * @throws [ApiKeyNotFoundException] Api key not found
  * @throws [MeasurementConsumerNotFoundException] MeasurementConsumer not found
  */

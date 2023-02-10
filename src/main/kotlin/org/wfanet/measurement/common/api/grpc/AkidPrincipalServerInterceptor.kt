@@ -39,7 +39,7 @@ import org.wfanet.measurement.common.grpc.SuspendableServerInterceptor
  * single [Principal].
  *
  * @param principalContextKey [Context.Key] for the [Principal]. If the current RPC context already
- * has a value for this key, then this interceptor does nothing.
+ *   has a value for this key, then this interceptor does nothing.
  * @param akidsContextKey [Context.Key] containing AKIDs
  * @param akidPrincipalLookup [PrincipalLookup] where the lookup key is an AKID
  */
