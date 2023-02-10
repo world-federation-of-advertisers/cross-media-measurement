@@ -104,10 +104,10 @@ METRIC_DP_SETUP_DICT = {
 }
 
 EVENT_FILTER_DICT = {
-    ".1": "privacy_budget.gender.value == 1 && privacy_budget.age.value == 1",
-    ".2": "privacy_budget.age.value == 1",
-    ".3": "privacy_budget.gender.value == 1",
-    ".4": "privacy_budget.gender.value in [0,1,2]",
+    ".1": "video_ad.gender.value == 1 && video_ad.age.value == 1",
+    ".2": "video_ad.age.value == 1",
+    ".3": "video_ad.gender.value == 1",
+    ".4": "video_ad.gender.value in [0,1,2]",
 }
 
 EVENT_FILTER_DICT = {demo_type: EVENT_FILTER_DICT[demo_type] for demo_type in DEMOGRAPHY_TYPES}
