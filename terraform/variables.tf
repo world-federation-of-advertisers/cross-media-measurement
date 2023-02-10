@@ -37,3 +37,8 @@ variable project {
   default = "my-project-test-373810"
   description = "The project ID"
 }
+
+variable gke_service_account_name {
+  default = "kingdom"
+  description = "kingdom SA"
+}
