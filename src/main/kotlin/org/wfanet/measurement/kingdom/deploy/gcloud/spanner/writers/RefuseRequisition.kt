@@ -18,6 +18,7 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.RefuseRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.copy
@@ -70,12 +71,17 @@ class RefuseRequisition(private val request: RefuseRequisitionRequest) :
           }
       }
     updateRequisition(readResult, Requisition.State.REFUSED, updatedDetails)
+    val measurementLogEntryDetails =
+      MeasurementLogEntryKt.details {
+        logMessage = "Measurement failed due to a requisition refusal"
+      }
     updateMeasurementState(
       measurementConsumerId = measurementConsumerId,
       measurementId = measurementId,
       nextState = Measurement.State.FAILED,
       previousState = measurementState,
-      details = updatedMeasurementDetails
+      details = updatedMeasurementDetails,
+      logDetails = measurementLogEntryDetails
     )
 
     return requisition.copy {

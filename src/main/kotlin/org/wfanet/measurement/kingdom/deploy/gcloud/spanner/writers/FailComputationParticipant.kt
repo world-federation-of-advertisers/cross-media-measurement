@@ -23,6 +23,7 @@ import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.FailComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundByComputationException
@@ -110,6 +111,11 @@ class FailComputationParticipant(private val request: FailComputationParticipant
               message = "Computation Participant failed. ${request.errorMessage}"
             }
         }
+
+      val measurementLogEntryDetails =
+        MeasurementLogEntryKt.details {
+          logMessage = "Measurement failed due to a failing computation participant"
+        }
       // TODO(@marcopremier): FailComputationParticipant should insert a single MeasurementLogEntry
       // with two children: a StateTransitionMeasurementLogEntries and a DuchyMeasurementLogEntries
       updateMeasurementState(
@@ -117,7 +123,8 @@ class FailComputationParticipant(private val request: FailComputationParticipant
         measurementId = InternalId(measurementId),
         nextState = Measurement.State.FAILED,
         previousState = measurementState,
-        details = updatedMeasurementDetails
+        details = updatedMeasurementDetails,
+        logDetails = measurementLogEntryDetails
       )
     }
 
