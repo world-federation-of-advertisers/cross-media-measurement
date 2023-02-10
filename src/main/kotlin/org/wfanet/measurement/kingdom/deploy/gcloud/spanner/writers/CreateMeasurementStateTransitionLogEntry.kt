@@ -22,22 +22,21 @@ import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry.Details
 
-private val MEASUREMENT_LOG_DETAILS by lazy { Details.getDefaultInstance() }
-
 internal fun SpannerWriter.TransactionScope.createMeasurementStateTransitionLogEntry(
   measurementConsumerId: InternalId,
   measurementId: InternalId,
   nextMeasurementState: Measurement.State,
-  previousMeasurementState: Measurement.State? = null
+  previousMeasurementState: Measurement.State? = null,
+  logDetails: Details
 ) {
   if (previousMeasurementState != nextMeasurementState) {
-    insertMeasurementLogEntry(measurementId, measurementConsumerId)
+    insertMeasurementLogEntry(measurementId, measurementConsumerId, logDetails)
 
     insertMeasurementStateTransitionLogEntry(
       measurementId,
       measurementConsumerId,
       nextMeasurementState,
-      previousMeasurementState,
+      previousMeasurementState
     )
   }
 }
@@ -45,14 +44,15 @@ internal fun SpannerWriter.TransactionScope.createMeasurementStateTransitionLogE
 internal fun SpannerWriter.TransactionScope.insertMeasurementLogEntry(
   measurementId: InternalId,
   measurementConsumerId: InternalId,
+  logDetails: Details
 ) {
 
   transactionContext.bufferInsertMutation("MeasurementLogEntries") {
     set("MeasurementConsumerId" to measurementConsumerId)
     set("MeasurementId" to measurementId)
     set("CreateTime" to Value.COMMIT_TIMESTAMP)
-    set("MeasurementLogDetails" to MEASUREMENT_LOG_DETAILS)
-    setJson("MeasurementLogDetailsJson" to MEASUREMENT_LOG_DETAILS)
+    set("MeasurementLogDetails" to logDetails)
+    setJson("MeasurementLogDetailsJson" to logDetails)
   }
 }
 

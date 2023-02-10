@@ -26,6 +26,7 @@ import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.Certificate.RevocationState
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.RevokeCertificateRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.copy
@@ -228,12 +229,18 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
         .execute(transactionContext)
         .single()
 
+    val measurementLogEntryDetails =
+      MeasurementLogEntryKt.details {
+        logMessage = "Measurement failed due to a certificate revoked"
+      }
+
     updateMeasurementState(
       measurementConsumerId = measurementConsumerId,
       measurementId = measurementId,
       nextState = Measurement.State.FAILED,
       previousState = measurementReader.measurement.state,
-      details = details
+      details = details,
+      logDetails = measurementLogEntryDetails
     )
   }
 }

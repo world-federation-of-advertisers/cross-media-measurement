@@ -84,7 +84,7 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
     externalMeasurementConsumerId: Long,
     externalMeasurementId: Long
   ): Measurement {
-    return measurementLogEntriesService.getMeasurementStateLogEntries(
+    return measurementLogEntriesService.streamStateTransitionMeasurementLogEntries(
       getMeasurementStateTransitionLogEntryRequest {
         this.externalMeasurementConsumerId = externalMeasurementConsumerId
         this.externalMeasurementId = externalMeasurementId

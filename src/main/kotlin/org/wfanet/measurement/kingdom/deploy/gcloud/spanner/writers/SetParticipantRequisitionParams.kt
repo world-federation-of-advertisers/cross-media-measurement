@@ -27,6 +27,7 @@ import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.SetParticipantRequisitionParamsRequest
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
@@ -147,11 +148,14 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
         NEXT_COMPUTATION_PARTICIPANT_STATE
       )
     ) {
+      val measurementLogEntryDetails =
+        MeasurementLogEntryKt.details { logMessage = "Pending requisition fulfillment" }
       updateMeasurementState(
         measurementConsumerId = InternalId(measurementConsumerId),
         measurementId = InternalId(measurementId),
         nextState = Measurement.State.PENDING_REQUISITION_FULFILLMENT,
-        previousState = computationParticipantResult.measurementState
+        previousState = computationParticipantResult.measurementState,
+        logDetails = measurementLogEntryDetails
       )
 
       StreamRequisitions(
