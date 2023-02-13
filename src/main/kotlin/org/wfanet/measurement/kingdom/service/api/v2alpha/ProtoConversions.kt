@@ -289,6 +289,7 @@ fun Map.Entry<Long, DataProviderValue>.toDataProviderEntry(): DataProviderEntry 
 
 /**
  * Converts a public [Measurement] to an internal [InternalMeasurement] for creation.
+ *
  * @throws [IllegalStateException] if MeasurementType not specified
  */
 fun Measurement.toInternal(

@@ -23,7 +23,7 @@ data class Duchy(val name: String, val publicKey: String)
  * Order the duchies by their public keys and the globalComputationId.
  *
  * @param nodes the duchies that participant in the ordering. For LLV2, nodes contain
- * non-aggregators.
+ *   non-aggregators.
  * @param globalComputationId the id of the computation this order is used for.
  * @return the list of ordered duchy names.
  */
@@ -40,7 +40,7 @@ fun getDuchyOrderByPublicKeysAndComputationId(
  * @param duchyOrder the ordered duchy list.
  * @param currentDuchy the id of the current duchy.
  * @return the id of the next duchy in the ring. If the current duchy is the last one in the list,
- * the first duchy will be returned.
+ *   the first duchy will be returned.
  */
 fun getNextDuchy(duchyOrder: List<String>, currentDuchy: String): String {
   require(duchyOrder.contains(currentDuchy)) { "$currentDuchy is not in the $duchyOrder" }
@@ -53,7 +53,7 @@ fun getNextDuchy(duchyOrder: List<String>, currentDuchy: String): String {
  * @param duchyOrder the ordered duchy list.
  * @param currentDuchy the id of the current duchy.
  * @return the id of the following duchy in the ring. If the current duchy is the last one in the
- * list, an empty list is returned.
+ *   list, an empty list is returned.
  */
 fun getFollowingDuchies(duchyOrder: List<String>, currentDuchy: String): List<String> {
   require(duchyOrder.contains(currentDuchy)) { "$currentDuchy is not in the $duchyOrder" }

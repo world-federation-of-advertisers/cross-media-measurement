@@ -80,15 +80,15 @@ import org.wfanet.measurement.system.v1alpha.setComputationResultRequest
  * @param signingKey handle to a signing private key for consent signaling.
  * @param consentSignalCert The [Certificate] used for consent signaling.
  * @param dataClients clients that have access to local computation storage, i.e., spanner table and
- * blob store.
+ *   blob store.
  * @param systemComputationParticipantsClient client of the kingdom's system
- * ComputationParticipantsService.
+ *   ComputationParticipantsService.
  * @param systemComputationsClient client of the kingdom's system computationsService.
  * @param systemComputationLogEntriesClient client of the kingdom's system
- * computationLogEntriesService.
+ *   computationLogEntriesService.
  * @param computationStatsClient client of the duchy's internal ComputationStatsService.
  * @param throttler A throttler used to rate limit the frequency of the mill polling from the
- * computation table.
+ *   computation table.
  * @param computationType The [ComputationType] this mill is working on.
  * @param requestChunkSizeBytes The size of data chunk when sending result to other duchies.
  * @param maximumAttempts The maximum number of attempts on a computation at the same stage.

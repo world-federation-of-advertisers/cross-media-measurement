@@ -1,11 +1,11 @@
-/**
+/*
  * Copyright 2022 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
- * ```
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * ```
+ *
  * Unless required by applicable law or agreed to in writing, software distributed under the License
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
  * or implied. See the License for the specific language governing permissions and limitations under
@@ -32,7 +32,7 @@ private const val MAX_BATCH_INSERT = 1000
  * A [PrivacyBudgetLedgerBackingStore] implemented in Postgres compatible SQL.
  *
  * @param createConnection is a function that creates a postgres JDBC connection that will be owned
- * by the backing store and should not be used outside this backing store.
+ *   by the backing store and should not be used outside this backing store.
  */
 class PostgresBackingStore(createConnection: () -> Connection) : PrivacyBudgetLedgerBackingStore {
   // TODO(@duliomatos1) : redesign this to reduce connection lifetime, e.g. using a Connection for

@@ -122,7 +122,7 @@ class AsyncComputationControlService(private val computationsClient: Computation
    * Records the blob key for the output blob of a stage for a [LiquidLegionsV2Stages]
    *
    * @return the [ComputationToken] after recording the output path. If the output was already
-   * recorded in the token, then the token itself is returned.
+   *   recorded in the token, then the token itself is returned.
    */
   private suspend fun recordOutputBlobPath(
     token: ComputationToken,

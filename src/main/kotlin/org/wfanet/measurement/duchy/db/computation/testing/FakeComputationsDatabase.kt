@@ -146,7 +146,7 @@ private constructor(
    *
    * @param tokenToUpdate token of the computation that will be changed.
    * @param changedTokenBuilderFunc function which returns a [ComputationToken.Builder] used to
-   * replace the [tokenToUpdate]. The version of the token is always incremented.
+   *   replace the [tokenToUpdate]. The version of the token is always incremented.
    */
   @OptIn(ExperimentalTypeInference::class)
   @OverloadResolutionByLambdaReturnType

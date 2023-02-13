@@ -38,6 +38,7 @@ import org.wfanet.measurement.common.identity.DuchyIdentity
  * ```
  *    yourService.withMetadataDuchyIdentities()
  * ```
+ *
  * On the client side, use [withDuchyId].
  */
 class MetadataDuchyIdInterceptor : ServerInterceptor {

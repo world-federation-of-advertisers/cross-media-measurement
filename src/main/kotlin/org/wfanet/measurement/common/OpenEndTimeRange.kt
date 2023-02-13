@@ -24,7 +24,6 @@ import java.time.ZoneOffset
  * Represents a range of [Instant]s where the upper bound is not included in the range.
  *
  * TODO(@SanjayVas): Move to common-jvm.
- *
  * TODO(world-federation-of-advertisers/common-jvm#170): Implement OpenEndRange.
  */
 data class OpenEndTimeRange(val start: Instant, val endExclusive: Instant) {

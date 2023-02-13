@@ -65,11 +65,13 @@ import org.wfanet.measurement.internal.duchy.requisitionEntry
 
 /**
  * Protocol Zero: +--------------+ | | | v A -> B -> C -> E
+ *
  * ```
  *      |         ^
  *      v         |
  *      D --------+
  * ```
+ *
  * Protocol One: X -> Y -> Z
  */
 enum class FakeProtocolStages {

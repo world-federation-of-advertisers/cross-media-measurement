@@ -40,7 +40,7 @@ class AkidPrincipalLookup(
    *
    * @param akidConfig a [File] containing an [AuthorityKeyToPrincipalMap] message in text format
    * @param measurementConsumerConfigs a [File] containing a [MeasurementConsumerConfigs] message in
-   * text format
+   *   text format
    */
   constructor(
     akidConfig: File,
