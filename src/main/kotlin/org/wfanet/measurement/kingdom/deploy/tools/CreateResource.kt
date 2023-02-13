@@ -140,6 +140,16 @@ private class CreateMcCreationTokenCommand : Runnable {
 
 @Command(name = "data-provider", description = ["Creates a DataProvider"])
 private class CreateDataProviderCommand : CreatePrincipalCommand() {
+
+  @Option(
+    names = ["--duchy-include-list"],
+    description =
+      [
+        "The list of duchies externals IDS that must be included in all computations involving this DataProvider"
+      ],
+    required = true,
+  )
+  private lateinit var duchyIncludeList: Array<Long>
   override fun run() {
     val dataProvider = dataProvider {
       certificate = this@CreateDataProviderCommand.certificate
@@ -150,6 +160,10 @@ private class CreateDataProviderCommand : CreatePrincipalCommand() {
           publicKey = serializedEncryptionPublicKey
           publicKeySignature = this@CreateDataProviderCommand.encryptionPublicKeySignature
         }
+
+      for (duchyExternalId in duchyIncludeList) {
+        externalDuchyId.add(duchyExternalId)
+      }
     }
 
     val dataProvidersStub = DataProvidersCoroutineStub(parent.channel)

@@ -138,6 +138,7 @@ private val DATA_PROVIDER = dataProvider {
     publicKey = ByteString.copyFromUtf8("This is a  public key.")
     publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
   }
+  externalDuchyId.addAll(mutableListOf(1234L, 5678L))
 }
 
 @RunWith(JUnit4::class)

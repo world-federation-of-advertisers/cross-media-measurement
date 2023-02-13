@@ -44,7 +44,14 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
       Certificates.NotValidBefore,
       Certificates.NotValidAfter,
       Certificates.RevocationState,
-      Certificates.CertificateDetails
+      Certificates.CertificateDetails,
+      ARRAY(
+        SELECT AS STRUCT
+          DataProviderDuchyIncludeList.ExternalDuchyId
+        FROM
+          DataProviders
+          JOIN DataProviderDuchyIncludeList USING (DataProviderId)
+      ) AS DataProviderDuchyIncludeList,
     FROM DataProviders
     JOIN DataProviderCertificates USING (DataProviderId)
     JOIN Certificates USING (CertificateId)
@@ -73,8 +80,17 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
         externalDataProviderId = struct.getLong("ExternalDataProviderId")
         details = struct.getProtoMessage("DataProviderDetails", DataProvider.Details.parser())
         certificate = buildCertificate(struct)
+        addAllExternalDuchyId(buildExternalDuchyIdList(struct))
       }
       .build()
+
+  private fun buildExternalDuchyIdList(struct: Struct): MutableList<Long> {
+    val duchiesExternalIdList = mutableListOf<Long>()
+    for (duchyIncludeListValue in struct.getStructList("DataProviderDuchyIncludeList")) {
+      duchiesExternalIdList.add(duchyIncludeListValue.getLong("ExternalDuchyId"))
+    }
+    return duchiesExternalIdList
+  }
 
   // TODO(uakyol) : Move this function to CertificateReader when it is implemented.
   private fun buildCertificate(struct: Struct): Certificate =
