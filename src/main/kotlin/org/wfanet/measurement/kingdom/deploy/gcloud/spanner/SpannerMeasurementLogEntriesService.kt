@@ -22,10 +22,10 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.CreateDuchyMeasurementLogEntryRequest
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
-import org.wfanet.measurement.internal.kingdom.GetMeasurementStateTransitionLogEntryRequest
-import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry.ErrorDetails.Type.TRANSIENT
+import org.wfanet.measurement.internal.kingdom.MeasurementStateLogEntryList
+import org.wfanet.measurement.internal.kingdom.StreamStateTransitionMeasurementLogEntriesRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundException
@@ -58,16 +58,16 @@ class SpannerMeasurementLogEntriesService(
     }
   }
 
-  override suspend fun streamStateTransitionMeasurementLogEntries(
-    request: GetMeasurementStateTransitionLogEntryRequest
-  ): Measurement {
+  override suspend fun streamStateTransitionMeasurementLogEntry(
+    request: StreamStateTransitionMeasurementLogEntriesRequest
+  ): MeasurementStateLogEntryList {
     return StateTransitionMeasurementLogEntryReader()
       .readStateTransitionLogByExternalIds(
         client.singleUse(),
         ExternalId(request.externalMeasurementConsumerId),
         ExternalId(request.externalMeasurementId)
       )
-      ?.measurement
-      ?: failGrpc(Status.NOT_FOUND) { "Measurement not found" }
+      ?.measurementStateLogEntryList
+      ?: failGrpc(Status.NOT_FOUND) { "Measurement state log entries not found" }
   }
 }
