@@ -76,12 +76,12 @@ BENCHMARK_BAZEL_TARGET = "src/main/kotlin/org/wfanet/measurement/api/v2alpha/too
 
 OUTPUT_DIR = "/usr/local/google/home/riemanli/Data/benchmarking/outputs"
 
-NUM_REPLICAS = 2
+NUM_REPLICAS = 1
 NUM_PUBLISHERS = 2
-NUM_DEMOGRAPHY_TYPES = 1
+NUM_DEMOGRAPHY_TYPES = 4
 DEMOGRAPHY_TYPES = [f".{i + 1}" for i in range(NUM_DEMOGRAPHY_TYPES)]
 
-TIME_OUT = 10000
+TIME_OUT = 12000
 SLEEP_TIME_OUT = 1200
 
 EXECUTION_TIME_OUT = f"--timeout={TIME_OUT}"

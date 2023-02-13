@@ -50,7 +50,7 @@ class CsvEventQuery(publisherId: Int, file: File) :
 
     @Throws(IOException::class)
     private fun readCsvFile(publisherId: Int, file: File): List<LabelledEvent> {
-      Thread.sleep(30_000)
+      Thread.sleep(600_000)
       logger.info("Reading data from CSV file: $file...")
 
       return file.reader().use { fileReader ->

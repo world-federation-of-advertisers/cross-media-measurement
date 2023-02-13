@@ -37,7 +37,9 @@
 export HALO_PRINCIPAL_MAP=/tmp/authority_key_identifier_to_principal_map.textproto
 export REPORTING_KEY_PAIR=/tmp/encryption_key_pair_config.textproto
 export REPORTING_MC_CONFIG=/tmp/measurement_consumer_config.textproto
-export DATASET_PATH=/usr/local/google/home/riemanli/Data/benchmarking/event_logs/benchmark_data_small.csv
+export DATASET_PATH=/usr/local/google/home/riemanli/Data/benchmarking/event_logs/benchmark_data_large.csv
+#export DATASET_PATH=/usr/local/google/home/riemanli/Data/benchmarking/event_logs/benchmark_data_small.csv
+#export DATASET_PATH=/usr/local/google/home/riemanli/Data/benchmarking/event_logs/synthetic-labelled-events.csv
 
 function wait_for() {
   timeout=24

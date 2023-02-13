@@ -31,8 +31,8 @@ edpSimulators: {
 				_container:
 				{
 					_javaOptions: {
-					  initialHeapSize: "256M"
-            maxHeapSize: "512M"
+					  initialHeapSize: "2048M"
+            maxHeapSize: "3072M"
 					}
 					resources: #EdpSimulatorsResourceRequirements
 				}
