@@ -166,10 +166,7 @@ package k8s
 		}
 		"system-api-server": {
 			_app_label: "system-api-server-app"
-			_destinationMatchLabels: [
-				"gcp-kingdom-data-server-app",
-				"opentelemetry-collector-app",
-			]
+			_destinationMatchLabels: ["gcp-kingdom-data-server-app"]
 			_ingresses: {
 				// External API server; allow ingress from anywhere to service port.
 				gRpc: {
