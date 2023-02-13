@@ -116,6 +116,7 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
             publicKey = PUBLIC_KEY
             publicKeySignature = PUBLIC_KEY_SIGNATURE
           }
+          addAllExternalDuchyId(mutableListOf(1234L, 5678L))
         }
         .build()
     val createdDataProvider = dataProvidersService.createDataProvider(dataProvider)
@@ -150,6 +151,7 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
             publicKey = PUBLIC_KEY
             publicKeySignature = PUBLIC_KEY_SIGNATURE
           }
+          addAllExternalDuchyId(mutableListOf(1234L, 5678L))
         }
         .build()
 

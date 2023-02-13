@@ -139,6 +139,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
             publicKey = "EDP public key".toByteStringUtf8()
             publicKeySignature = "EDP public key signature".toByteStringUtf8()
           }
+        externalDuchyId.addAll(mutableListOf(1234L, 5678))
       }
     )
   }

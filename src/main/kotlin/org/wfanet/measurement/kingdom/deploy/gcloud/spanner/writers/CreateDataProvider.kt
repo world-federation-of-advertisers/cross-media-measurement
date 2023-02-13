@@ -39,6 +39,13 @@ class CreateDataProvider(private val dataProvider: DataProvider) :
       setJson("DataProviderDetailsJson" to dataProvider.details)
     }
 
+    for (externalDuchyId in dataProvider.externalDuchyIdList) {
+      transactionContext.bufferInsertMutation("DataProviderDuchyIncludeList") {
+        set("DataProviderId" to internalDataProviderId)
+        set("ExternalDuchyId" to externalDuchyId)
+      }
+    }
+
     val externalDataProviderCertificateId = idGenerator.generateExternalId()
 
     transactionContext.bufferInsertMutation("DataProviderCertificates") {

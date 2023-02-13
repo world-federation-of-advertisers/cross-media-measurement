@@ -38,4 +38,7 @@ message DataProvider {
     bytes public_key_signature = 3;
   }
   Details details = 3;
+
+  // The list of duchies that must be included in all computations involving the DataProvider
+  repeated int64 external_duchy_id = 4;
 }
