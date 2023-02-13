@@ -508,7 +508,7 @@ CREATE TABLE MetricCalculationMetrics (
 
   PRIMARY KEY(MeasurementConsumerId, ReportId, MetricCalculationId, MetricId),
   FOREIGN KEY(MeasurementConsumerId, ReportId, MetricCalculationId)
-    REFERENCES MetricCalculations(MeasurementConsumerId, MetricCalculationId)
+    REFERENCES MetricCalculations(MeasurementConsumerId, ReportId, MetricCalculationId)
     ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, MetricId)
     REFERENCES Metrics(MeasurementConsumerId, MetricId)
@@ -542,12 +542,13 @@ CREATE TABLE ModelInferenceCalculations (
 -- changeset riemanli:create-model-inference-calculation-metric-specs-table dbms:postgresql
 CREATE TABLE ModelInferenceCalculationMetricSpecs (
   MeasurementConsumerId bigint NOT NULL,
+  ReportId bigint NOT NULL,
   ModelInferenceCalculationId bigint NOT NULL,
   MetricSpecId bigint NOT NULL,
 
-  PRIMARY KEY(MeasurementConsumerId, ModelInferenceCalculationId, MetricSpecId),
-  FOREIGN KEY(MeasurementConsumerId, ModelInferenceCalculationId)
-    REFERENCES ModelInferenceCalculations(MeasurementConsumerId, ModelInferenceCalculationId)
+  PRIMARY KEY(MeasurementConsumerId, ReportId, ModelInferenceCalculationId, MetricSpecId),
+  FOREIGN KEY(MeasurementConsumerId, ReportId, ModelInferenceCalculationId)
+    REFERENCES ModelInferenceCalculations(MeasurementConsumerId, ReportId, ModelInferenceCalculationId)
     ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, MetricSpecId)
     REFERENCES MetricSpecs(MeasurementConsumerId, MetricSpecId)
