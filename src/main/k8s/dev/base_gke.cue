@@ -23,6 +23,12 @@ package k8s
 				port:     988
 			}]
 		}
+		openTelemetryCollector: {
+			to: [{podSelector: matchLabels: app: "opentelemetry-collector-app"}]
+			ports: [{
+				port: #OpenTelemetryReceiverPort
+			}]
+		}
 	}
 
 	_ingresses: {
