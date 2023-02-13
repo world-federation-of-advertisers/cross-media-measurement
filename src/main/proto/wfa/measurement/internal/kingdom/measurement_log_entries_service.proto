@@ -17,7 +17,8 @@ syntax = "proto3";
 package wfa.measurement.internal.kingdom;
 
 import "wfa/measurement/internal/kingdom/measurement_log_entry.proto";
-import "wfa/measurement/internal/kingdom/measurement.proto";
+import "wfa/measurement/internal/kingdom/duchy_measurement_log_entry.proto";
+import "wfa/measurement/internal/kingdom/state_transition_measurement_log_entry.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
@@ -32,7 +33,7 @@ service MeasurementLogEntries {
       returns (DuchyMeasurementLogEntry);
 
   // Retrieve all measurement state transition log entries for a given measurement
-  rpc StreamStateTransitionMeasurementLogEntries(GetMeasurementStateTransitionLogEntryRequest) returns (Measurement);
+  rpc StreamStateTransitionMeasurementLogEntry(StreamStateTransitionMeasurementLogEntriesRequest) returns (MeasurementStateLogEntryList);
 }
 
 message CreateDuchyMeasurementLogEntryRequest {
@@ -43,7 +44,7 @@ message CreateDuchyMeasurementLogEntryRequest {
   DuchyMeasurementLogEntry.Details details = 4;
 }
 
-message GetMeasurementStateTransitionLogEntryRequest {
+message StreamStateTransitionMeasurementLogEntriesRequest {
   fixed64 external_measurement_consumer_id = 1;
   fixed64 external_measurement_id = 2;
 }

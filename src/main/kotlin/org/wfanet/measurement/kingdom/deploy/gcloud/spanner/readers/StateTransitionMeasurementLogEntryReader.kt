@@ -21,15 +21,17 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.internal.kingdom.Measurement
-import org.wfanet.measurement.internal.kingdom.MeasurementKt
+import org.wfanet.measurement.internal.kingdom.MeasurementStateLogEntryList
+import org.wfanet.measurement.internal.kingdom.MeasurementStateLogEntryListKt
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.measurementLogEntry
 import org.wfanet.measurement.internal.kingdom.measurementStateLogEntry
+import org.wfanet.measurement.internal.kingdom.measurementStateLogEntryList
 
 class StateTransitionMeasurementLogEntryReader :
   SpannerReader<StateTransitionMeasurementLogEntryReader.Result>() {
 
-  data class Result(val measurement: Measurement)
+  data class Result(val measurementStateLogEntryList: MeasurementStateLogEntryList)
 
   override val baseSql: String =
     """
@@ -58,7 +60,7 @@ class StateTransitionMeasurementLogEntryReader :
       .trimIndent()
 
   override suspend fun translate(struct: Struct): Result =
-    Result(measurement { fillStateTransitionLogView(struct) })
+    Result(measurementStateLogEntryList { fillStateTransitionLogView(struct) })
 
   suspend fun readStateTransitionLogByExternalIds(
     readContext: AsyncDatabaseClient.ReadContext,
@@ -79,7 +81,7 @@ class StateTransitionMeasurementLogEntryReader :
       .singleOrNull()
   }
 
-  private fun MeasurementKt.Dsl.fillStateTransitionLogView(struct: Struct) {
+  private fun MeasurementStateLogEntryListKt.Dsl.fillStateTransitionLogView(struct: Struct) {
     val stateTransitionMeasurementStructs =
       struct.getStructList("StateTransitionMeasurementLogEntries")
     for (stateTransitionMeasurementStruct in stateTransitionMeasurementStructs) {
@@ -87,15 +89,15 @@ class StateTransitionMeasurementLogEntryReader :
         this.currentState =
           stateTransitionMeasurementStruct.getProtoEnum(
             "CurrentMeasurementState",
-            Measurement.State::forNumber
+            org.wfanet.measurement.internal.kingdom.Measurement.State::forNumber
           )
         this.previousState =
           if (stateTransitionMeasurementStruct.isNull("PreviousMeasurementState"))
-            Measurement.State.STATE_UNSPECIFIED
+            org.wfanet.measurement.internal.kingdom.Measurement.State.STATE_UNSPECIFIED
           else
             stateTransitionMeasurementStruct.getProtoEnum(
               "PreviousMeasurementState",
-              Measurement.State::forNumber
+              org.wfanet.measurement.internal.kingdom.Measurement.State::forNumber
             )
         this.logEntry = measurementLogEntry {
           this.createTime = stateTransitionMeasurementStruct.getTimestamp("CreateTime").toProto()

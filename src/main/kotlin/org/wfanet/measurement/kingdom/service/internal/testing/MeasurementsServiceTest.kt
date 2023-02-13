@@ -589,9 +589,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
               measurementConsumer.certificate.externalCertificateId
           }
         )
-      assertThat(secondCreateMeasurementAttempt)
-        .ignoringFields(Measurement.MEASUREMENT_STATE_LOG_ENTRY_FIELD_NUMBER)
-        .isEqualTo(createdMeasurement)
+      assertThat(secondCreateMeasurementAttempt).isEqualTo(createdMeasurement)
     }
 
   @Test
@@ -642,8 +640,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     assertThat(measurement)
       .ignoringFields(
         Measurement.REQUISITIONS_FIELD_NUMBER,
-        Measurement.COMPUTATION_PARTICIPANTS_FIELD_NUMBER,
-        Measurement.MEASUREMENT_STATE_LOG_ENTRY_FIELD_NUMBER
+        Measurement.COMPUTATION_PARTICIPANTS_FIELD_NUMBER
       )
       .isEqualTo(createdMeasurement)
   }
@@ -667,9 +664,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         createdMeasurement.externalMeasurementId
       )
 
-    assertThat(measurement)
-      .ignoringFields(Measurement.MEASUREMENT_STATE_LOG_ENTRY_FIELD_NUMBER)
-      .isEqualTo(createdMeasurement)
+    assertThat(measurement).isEqualTo(createdMeasurement)
   }
 
   @Test
@@ -694,8 +689,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       assertThat(measurement)
         .ignoringFields(
           Measurement.REQUISITIONS_FIELD_NUMBER,
-          Measurement.COMPUTATION_PARTICIPANTS_FIELD_NUMBER,
-          Measurement.MEASUREMENT_STATE_LOG_ENTRY_FIELD_NUMBER
+          Measurement.COMPUTATION_PARTICIPANTS_FIELD_NUMBER
         )
         .isEqualTo(createdMeasurement.copy { dataProviders.clear() })
       assertThat(measurement.requisitionsList)
@@ -829,10 +823,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     assertThat(response.updateTime.toInstant())
       .isGreaterThan(createdMeasurement.updateTime.toInstant())
     assertThat(response)
-      .ignoringFields(
-        Measurement.UPDATE_TIME_FIELD_NUMBER,
-        Measurement.MEASUREMENT_STATE_LOG_ENTRY_FIELD_NUMBER
-      )
+      .ignoringFields(Measurement.UPDATE_TIME_FIELD_NUMBER)
       .isEqualTo(
         createdMeasurement.copy {
           state = Measurement.State.SUCCEEDED
@@ -877,7 +868,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     assertThat(response.state).isEqualTo(Measurement.State.CANCELLED)
     assertThat(response.updateTime.toInstant()).isGreaterThan(measurement.updateTime.toInstant())
     assertThat(response)
-      .ignoringFields(Measurement.MEASUREMENT_STATE_LOG_ENTRY_FIELD_NUMBER)
       .isEqualTo(
         readMeasurement(
           measurement.externalMeasurementConsumerId,
@@ -966,7 +956,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         .toList()
 
     assertThat(measurements)
-      .ignoringFields(Measurement.MEASUREMENT_STATE_LOG_ENTRY_FIELD_NUMBER)
       .comparingExpectedFieldsOnly()
       .containsExactly(measurement2, cancelledMeasurement)
       .inOrder()
@@ -1050,9 +1039,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       measurementsService.streamMeasurements(streamMeasurementsRequest).toList()
 
     assertThat(measurements).hasSize(1)
-    assertThat(measurements)
-      .ignoringFields(Measurement.MEASUREMENT_STATE_LOG_ENTRY_FIELD_NUMBER)
-      .contains(measurement1)
+    assertThat(measurements).contains(measurement1)
 
     val measurements2: List<Measurement> =
       measurementsService
@@ -1068,9 +1055,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         .toList()
 
     assertThat(measurements2).hasSize(1)
-    assertThat(measurements2)
-      .ignoringFields(Measurement.MEASUREMENT_STATE_LOG_ENTRY_FIELD_NUMBER)
-      .contains(measurement2)
+    assertThat(measurements2).contains(measurement2)
   }
 
   @Test
