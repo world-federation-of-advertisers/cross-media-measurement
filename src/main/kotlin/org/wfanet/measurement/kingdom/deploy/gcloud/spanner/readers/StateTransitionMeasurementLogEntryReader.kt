@@ -26,7 +26,8 @@ import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.measurementLogEntry
 import org.wfanet.measurement.internal.kingdom.measurementStateLogEntry
 
-class MeasurementLogEntryReader : SpannerReader<MeasurementLogEntryReader.Result>() {
+class StateTransitionMeasurementLogEntryReader :
+  SpannerReader<StateTransitionMeasurementLogEntryReader.Result>() {
 
   data class Result(val measurement: Measurement)
 

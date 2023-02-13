@@ -15,37 +15,22 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Value
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
+import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry.Details
-
-internal fun SpannerWriter.TransactionScope.createMeasurementStateTransitionLogEntry(
-  measurementConsumerId: InternalId,
-  measurementId: InternalId,
-  nextMeasurementState: Measurement.State,
-  previousMeasurementState: Measurement.State? = null,
-  logDetails: Details
-) {
-  if (previousMeasurementState != nextMeasurementState) {
-    insertMeasurementLogEntry(measurementId, measurementConsumerId, logDetails)
-
-    insertMeasurementStateTransitionLogEntry(
-      measurementId,
-      measurementConsumerId,
-      nextMeasurementState,
-      previousMeasurementState
-    )
-  }
-}
 
 internal fun SpannerWriter.TransactionScope.insertMeasurementLogEntry(
   measurementId: InternalId,
   measurementConsumerId: InternalId,
   logDetails: Details
 ) {
+
+  require(logDetails.logMessage != null && !logDetails.logMessage.isEmpty())
 
   transactionContext.bufferInsertMutation("MeasurementLogEntries") {
     set("MeasurementConsumerId" to measurementConsumerId)
@@ -56,19 +41,41 @@ internal fun SpannerWriter.TransactionScope.insertMeasurementLogEntry(
   }
 }
 
-private fun SpannerWriter.TransactionScope.insertMeasurementStateTransitionLogEntry(
+internal fun SpannerWriter.TransactionScope.insertMeasurementStateTransitionLogEntry(
   measurementId: InternalId,
   measurementConsumerId: InternalId,
   currentMeasurementState: Measurement.State,
-  previousMeasurementState: Measurement.State?,
+  previousMeasurementState: Measurement.State,
 ) {
+
+  require(previousMeasurementState != currentMeasurementState)
+
   transactionContext.bufferInsertMutation("StateTransitionMeasurementLogEntries") {
     set("MeasurementConsumerId" to measurementConsumerId)
     set("MeasurementId" to measurementId)
     set("CreateTime" to Value.COMMIT_TIMESTAMP)
     set("CurrentMeasurementState" to currentMeasurementState)
-    if (previousMeasurementState != null) {
-      set("PreviousMeasurementState" to previousMeasurementState)
-    }
+    set("PreviousMeasurementState" to previousMeasurementState)
   }
+}
+
+internal fun SpannerWriter.TransactionScope.insertDuchyMeasurementLogEntry(
+  measurementId: InternalId,
+  measurementConsumerId: InternalId,
+  duchyId: InternalId,
+  logDetails: DuchyMeasurementLogEntry.Details
+): ExternalId {
+  val externalComputationLogEntryId = idGenerator.generateExternalId()
+
+  transactionContext.bufferInsertMutation("DuchyMeasurementLogEntries") {
+    set("MeasurementConsumerId" to measurementConsumerId)
+    set("MeasurementId" to measurementId)
+    set("CreateTime" to Value.COMMIT_TIMESTAMP)
+    set("DuchyId" to duchyId)
+    set("ExternalComputationLogEntryId" to externalComputationLogEntryId)
+    set("DuchyMeasurementLogDetails" to logDetails)
+    setJson("DuchyMeasurementLogDetailsJson" to logDetails)
+  }
+
+  return externalComputationLogEntryId
 }

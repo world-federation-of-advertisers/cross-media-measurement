@@ -14,18 +14,21 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.api.gax.rpc.ErrorDetails
+import com.google.protobuf.type
 import java.lang.IllegalStateException
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.single
+import java.time.Clock
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.Certificate.RevocationState
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.RevokeCertificateRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
@@ -38,11 +41,11 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFound
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelProviderCertificateNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurement
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurements
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurementsByDataProviderCertificate
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurementsByDuchyCertificate
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 
 private val PENDING_MEASUREMENT_STATES =
   listOf(
@@ -224,23 +227,30 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
     details: Measurement.Details
   ) {
 
-    val measurementReader =
-      StreamMeasurement(Measurement.View.DEFAULT, measurementConsumerId, measurementId)
-        .execute(transactionContext)
-        .single()
+    val measurementState =
+      MeasurementReader.readMeasurementState(
+        transactionContext,
+        measurementConsumerId,
+        measurementId
+      )
 
     val measurementLogEntryDetails =
       MeasurementLogEntryKt.details {
         logMessage = "Measurement failed due to a certificate revoked"
+        this.error =
+          MeasurementLogEntryKt.errorDetails {
+            this.type = MeasurementLogEntry.ErrorDetails.Type.PERMANENT
+            this.errorTime = Clock.systemUTC().protoTimestamp()
+          }
       }
 
     updateMeasurementState(
       measurementConsumerId = measurementConsumerId,
       measurementId = measurementId,
       nextState = Measurement.State.FAILED,
-      previousState = measurementReader.measurement.state,
-      details = details,
-      logDetails = measurementLogEntryDetails
+      previousState = measurementState,
+      logDetails = measurementLogEntryDetails,
+      details = details
     )
   }
 }

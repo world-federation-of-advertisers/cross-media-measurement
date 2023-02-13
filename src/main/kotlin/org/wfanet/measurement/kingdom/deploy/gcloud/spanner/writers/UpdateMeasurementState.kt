@@ -27,9 +27,9 @@ internal fun SpannerWriter.TransactionScope.updateMeasurementState(
   measurementConsumerId: InternalId,
   measurementId: InternalId,
   nextState: Measurement.State,
-  previousState: Measurement.State = Measurement.State.STATE_UNSPECIFIED,
-  details: Measurement.Details? = null,
-  logDetails: MeasurementLogEntry.Details = MeasurementLogEntry.Details.getDefaultInstance()
+  previousState: Measurement.State,
+  logDetails: MeasurementLogEntry.Details,
+  details: Measurement.Details? = null
 ) {
 
   updateMutation("Measurements") {
@@ -44,11 +44,15 @@ internal fun SpannerWriter.TransactionScope.updateMeasurementState(
     }
     .bufferTo(transactionContext)
 
-  createMeasurementStateTransitionLogEntry(
-    measurementConsumerId = measurementConsumerId,
+  if (nextState == Measurement.State.FAILED) {
+    require(logDetails.hasError())
+  }
+  insertMeasurementLogEntry(measurementId, measurementConsumerId, logDetails)
+
+  insertMeasurementStateTransitionLogEntry(
     measurementId = measurementId,
-    nextMeasurementState = nextState,
-    previousMeasurementState = previousState,
-    logDetails = logDetails
+    measurementConsumerId = measurementConsumerId,
+    currentMeasurementState = nextState,
+    previousMeasurementState = previousState
   )
 }
