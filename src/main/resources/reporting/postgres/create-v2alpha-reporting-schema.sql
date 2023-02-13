@@ -56,30 +56,19 @@ CREATE TABLE MeasurementConsumers (
   UNIQUE (CmmsMeasurementConsumerId)
 );
 
--- changeset riemanli:create-data-providers-table dbms:postgresql
-CREATE TABLE DataProviders (
-  DataProviderId bigint NOT NULL,
-  CmmsDataProviderId text NOT NULL,
-
-  PRIMARY KEY(DataProviderId),
-  UNIQUE (CmmsDataProviderId),
-);
-
 -- changeset riemanli:create-event-groups-table dbms:postgresql
 CREATE TABLE EventGroups (
   MeasurementConsumerId bigint NOT NULL,
-  DataProviderId bigint NOT NULL,
   EventGroupId bigint NOT NULL,
+  CmmsDataProviderId text NOT NULL,
   CmmsEventGroupId text NOT NULL,
 
-  PRIMARY KEY(MeasurementConsumerId, DataProviderId, EventGroupId),
-  UNIQUE (MeasurementConsumerId, DataProviderId, CmmsEventGroupId),
+  PRIMARY KEY(MeasurementConsumerId, EventGroupId),
+  UNIQUE (MeasurementConsumerId, CmmsEventGroupId),
+  UNIQUE (CmmsDataProviderId, CmmsEventGroupId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId)
-    ON DELETE CASCADE,
-  FOREIGN KEY(DataProviderId)
-    REFERENCES DataProviders(DataProviderId)
-    ON DELETE CASCADE,
+    ON DELETE CASCADE
 );
 
 -- changeset riemanli:create-time-intervals-table dbms:postgresql
@@ -126,16 +115,15 @@ CREATE TABLE PrimitiveReportingSets (
 -- changeset riemanli:create-primitive-reporting-set-event-groups-table dbms:postgresql
 CREATE TABLE PrimitiveReportingSetEventGroups(
   MeasurementConsumerId bigint NOT NULL,
-  DataProviderId bigint NOT NULL,
   EventGroupId bigint NOT NULL,
   PrimitiveReportingSetId bigint NOT NULL,
 
-  PRIMARY KEY(MeasurementConsumerId, PrimitiveReportingSetId, DataProviderId, EventGroupId),
+  PRIMARY KEY(MeasurementConsumerId, PrimitiveReportingSetId, EventGroupId),
   FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetId)
     REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId)
     ON DELETE CASCADE,
-  FOREIGN KEY(MeasurementConsumerId, DataProviderId, EventGroupId)
-    REFERENCES MeasurementConsumerEventGroups(MeasurementConsumerId, DataProviderId, EventGroupId)
+  FOREIGN KEY(MeasurementConsumerId, EventGroupId)
+    REFERENCES EventGroups(MeasurementConsumerId, EventGroupId)
     ON DELETE CASCADE,
 );
 
