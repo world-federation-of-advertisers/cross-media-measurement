@@ -8,8 +8,8 @@ display_name: "incremental_reporting_set_for_A_age_18+"
 # For age 18-34, 35-54, 55+
 filter: "person.age==18_34 || person.age==35_54 || person.age==55+"
 
-type {
-  composite_reporting_set {
+value {
+  composite {
     expression {
       operation: "DIFFERENCE"
       lhs: "measurementConsumers/VCTqwV_vFXw/reportingSets/union_all"
