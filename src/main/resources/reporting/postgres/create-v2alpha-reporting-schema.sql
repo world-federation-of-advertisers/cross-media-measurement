@@ -502,11 +502,12 @@ CREATE TABLE MetricCalculations (
 -- changeset riemanli:create-metric-calculation-metrics-table dbms:postgresql
 CREATE TABLE MetricCalculationMetrics (
   MeasurementConsumerId bigint NOT NULL,
+  ReportId bigint NOT NULL,
   MetricCalculationId bigint NOT NULL,
   MetricId bigint NOT NULL,
 
-  PRIMARY KEY(MeasurementConsumerId, MetricCalculationId, MetricId),
-  FOREIGN KEY(MeasurementConsumerId, MetricCalculationId)
+  PRIMARY KEY(MeasurementConsumerId, ReportId, MetricCalculationId, MetricId),
+  FOREIGN KEY(MeasurementConsumerId, ReportId, MetricCalculationId)
     REFERENCES MetricCalculations(MeasurementConsumerId, MetricCalculationId)
     ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, MetricId)
