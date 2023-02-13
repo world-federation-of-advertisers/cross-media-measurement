@@ -29,7 +29,7 @@ CREATE TABLE StateTransitionMeasurementLogEntries (
     MeasurementConsumerId INT64 NOT NULL,
     MeasurementId INT64 NOT NULL,
     CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
-    PreviousMeasurementState INT64,
+    PreviousMeasurementState INT64 NOT NULL,
     CurrentMeasurementState INT64 NOT NULL,
 ) PRIMARY KEY (MeasurementConsumerId, MeasurementId, CreateTime),
   INTERLEAVE IN PARENT MeasurementLogEntries ON DELETE CASCADE;
