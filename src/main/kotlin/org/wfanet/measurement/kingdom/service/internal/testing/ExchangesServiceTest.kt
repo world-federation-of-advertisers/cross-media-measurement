@@ -99,6 +99,7 @@ private val DATA_PROVIDER: DataProvider =
         publicKey = ByteString.copyFromUtf8("This is a  public key.")
         publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
       }
+      addAllExternalDuchyId(mutableListOf(1234L, 5678L))
     }
     .build()
 

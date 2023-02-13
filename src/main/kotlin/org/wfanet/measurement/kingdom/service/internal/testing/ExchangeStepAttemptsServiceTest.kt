@@ -123,6 +123,7 @@ private val DATA_PROVIDER = dataProvider {
     publicKey = ByteString.copyFromUtf8("This is a  public key.")
     publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
   }
+  externalDuchyId.addAll(mutableListOf(1234L, 5678L))
 }
 
 private val MODEL_PROVIDER = modelProvider { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
