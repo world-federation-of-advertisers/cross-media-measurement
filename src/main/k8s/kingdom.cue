@@ -126,6 +126,7 @@ package k8s
 					_internal_api_cert_host_flag,
 					_akid_to_principal_map_file_flag,
 					_open_id_redirect_uri_flag,
+					_duchy_info_config_flag,
 				] + Container._commonServerFlags
 			}
 			spec: template: spec: {
