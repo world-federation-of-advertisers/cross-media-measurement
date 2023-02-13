@@ -10,7 +10,7 @@ reporting_metric_entries {
     metric_calculation_specs {
       display_name: "incremental_reach_for_A"
       metric_spec {
-        value {
+        type {
           reach {}
         }
       }
@@ -18,11 +18,11 @@ reporting_metric_entries {
     }
   }
 }
-# Slide p6 - Skipped incremental reach for B and C. It's similar to above.
+# Slide p6 - Skip incremental reach for B and C. It's similar to above.
 
 # Slide p11, p12 - reach and impression count for pub A
 reporting_metric_entries {
-  key: "measurementConsumers/VCTqwV_vFXw/reportingSets/pub-A-ID"
+  key: "measurementConsumers/VCTqwV_vFXw/reportingSets/publisher_A"
   value {
     metric_calculation_specs {
       display_name: "cumulative_reach_impression_for_pub_A_age_18+"
@@ -42,9 +42,9 @@ reporting_metric_entries {
     }
   }
 }
-# Slide p11, p12 - reach and impression count for pub B
+# Slide p11, p12 - reach and impression count for pub B.
 reporting_metric_entries {
-  key: "measurementConsumers/VCTqwV_vFXw/reportingSets/pub-B-ID"
+  key: "measurementConsumers/VCTqwV_vFXw/reportingSets/publisher_B"
   value {
     metric_calculation_specs {
       display_name: "cumulative_reach_impression_for_pub_B_age_18+"
@@ -66,7 +66,7 @@ reporting_metric_entries {
 }
 # Slide p11, p12 - reach and impression count for pub C
 reporting_metric_entries {
-  key: "measurementConsumers/VCTqwV_vFXw/reportingSets/pub-C-ID"
+  key: "measurementConsumers/VCTqwV_vFXw/reportingSets/publisher_C"
   value {
     metric_calculation_specs {
       display_name: "cumulative_reach_impression_for_pub_C_age_18+"
@@ -88,7 +88,7 @@ reporting_metric_entries {
 }
 # Slide p30 - reach efficiency by frequency bands for A
 reporting_metric_entries {
-  key: "measurementConsumers/VCTqwV_vFXw/reportingSets/pub-A-ID"
+  key: "measurementConsumers/VCTqwV_vFXw/reportingSets/publisher_A"
   value {
     metric_calculation_specs {
       display_name: "reach_efficiency_by_frequency_bands_for_A"
@@ -100,16 +100,16 @@ reporting_metric_entries {
         }
       }
       groupings {
-        predicates: "privacy_budget.gender == M"
-        predicates: "privacy_budget.gender == F"
+        predicates: "person.gender == M"
+        predicates: "person.gender == F"
       }
       groupings {
         # age 18-34
-        predicates: "privacy_budget.age == 18_34"
+        predicates: "person.age == 18_34"
         # age 35-54
-        predicates: "privacy_budget.age == 35_54"
+        predicates: "person.age == 35_54"
         # age 55+
-        predicates: "privacy_budget.age == 55+"
+        predicates: "person.age == 55+"
       }
       cumulative: true
     }

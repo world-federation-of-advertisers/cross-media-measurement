@@ -1,15 +1,16 @@
 # proto-file: wfa/measurement/reporting/v2alpha/reporting_set.proto
 # proto-message: ReportingSet
 
-# name: "measurementConsumers/VCTqwV_vFXw/reportingSets/union_all_but_A"
+# name: "measurementConsumers/VCTqwV_vFXw/reportingSets/publisher_B"
 
-display_name: "union_all_but_A"
+display_name: "pub_B_age_18+"
+
+# For age 18-34, 35-54, 55+
+filter: "person.age==18_34 || person.age==35_54 || person.age==55+"
 
 value {
   primitive {
     # Pub B
     event_groups: "measurementConsumers/VCTqwV_vFXw/dataProviders/publisher_B/eventGroups/eg_from_pub_B"
-    # Pub C
-    event_groups: "measurementConsumers/VCTqwV_vFXw/dataProviders/publisher_C/eventGroups/eg_from_pub_C"
   }
 }

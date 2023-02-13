@@ -5,8 +5,8 @@
 
 display_name: "union_all"
 
-type {
-  primitive_reporting_set {
+value {
+  primitive {
     # Pub A
     event_groups: "measurementConsumers/VCTqwV_vFXw/dataProviders/publisher_A/eventGroups/eg_from_pub_A"
     # Pub B
