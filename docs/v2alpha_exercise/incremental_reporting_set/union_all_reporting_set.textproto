@@ -1,0 +1,17 @@
+# proto-file: wfa/measurement/reporting/v2alpha/reporting_set.proto
+# proto-message: ReportingSet
+
+# name: "measurementConsumers/VCTqwV_vFXw/reportingSets/union_all"
+
+display_name: "union_all"
+
+type {
+  primitive_reporting_set {
+    # Pub A
+    event_groups: "measurementConsumers/VCTqwV_vFXw/dataProviders/publisher_A/eventGroups/eg_from_pub_A"
+    # Pub B
+    event_groups: "measurementConsumers/VCTqwV_vFXw/dataProviders/publisher_B/eventGroups/eg_from_pub_B"
+    # Pub C
+    event_groups: "measurementConsumers/VCTqwV_vFXw/dataProviders/publisher_C/eventGroups/eg_from_pub_C"
+  }
+}
