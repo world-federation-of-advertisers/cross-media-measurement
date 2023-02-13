@@ -505,10 +505,6 @@ CREATE TABLE MetricCalculationMetrics (
   MetricCalculationId bigint NOT NULL,
   MetricId bigint NOT NULL,
 
-  -- Serialized org.wfanet.measurement.internal.reporting.Report.MetricCalculation.Details
-  -- protobuf message.
-  MetricCalculationMetricsDetails bytea NOT NULL,
-
   PRIMARY KEY(MeasurementConsumerId, MetricCalculationId, MetricId),
   FOREIGN KEY(MeasurementConsumerId, MetricCalculationId)
     REFERENCES MetricCalculations(MeasurementConsumerId, MetricCalculationId)
