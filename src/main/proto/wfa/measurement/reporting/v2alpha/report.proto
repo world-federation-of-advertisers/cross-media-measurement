@@ -77,7 +77,7 @@ message Report {
     bool cumulative = 4 [(google.api.field_behavior) = IMMUTABLE];
   }
   // The specification of metric calculation for a reporting set.
-  message ReportingMetricSpec {
+  message ReportingMetricCalculationSpec {
     // A collection of metric calculations.
     repeated MetricCalculationSpec metric_calculation_specs = 1 [
       (google.api.field_behavior) = REQUIRED,
@@ -85,29 +85,23 @@ message Report {
     ];
   }
 
-  // Define metric calculations with a reporting set.
-  message ReportingMetricCalculation {
-    // Map entry of `ReportingSet` to `ReportingMetricSpec`.
-    message ReportingMetricEntry {
-      // Key of the map entry.
-      string key = 1 [
-        (google.api.field_behavior) = REQUIRED,
-        (google.api.resource_reference) = {
-          type: "reporting.halo-cmm.org/ReportingSet"
-        }
-      ];
-      // Value of the map entry.
-      ReportingMetricSpec value = 2 [(google.api.field_behavior) = IMMUTABLE];
-    }
-
-    // A Map with `ReportingSet`s as the keys and `ReportingMetricSpec`s as the
-    // values.
-    repeated ReportingMetricEntry reporting_metric_entries = 1
-        [(google.api.field_behavior) = REQUIRED];
+  // Map entry of `ReportingSet` to `ReportingMetricCalculationSpec`. Each entry
+  // defines the metric calculations with a reporting set.
+  message ReportingMetricEntry {
+    // Key of the map entry.
+    string key = 1 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.resource_reference) = {
+        type: "reporting.halo-cmm.org/ReportingSet"
+      }
+    ];
+    // Value of the map entry.
+    ReportingMetricCalculationSpec value = 2
+        [(google.api.field_behavior) = IMMUTABLE];
   }
 
   // The calculations defined for specific reporting sets.
-  ReportingMetricCalculation reporting_metric_calculation = 2
+  repeated ReportingMetricEntry reporting_metric_entries = 2
       [(google.api.field_behavior) = REQUIRED];
 
   // Types of time intervals for metric aggregation.
