@@ -14,10 +14,13 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import java.time.Clock
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.RefuseRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Requisition
@@ -75,14 +78,20 @@ class RefuseRequisition(private val request: RefuseRequisitionRequest) :
     val measurementLogEntryDetails =
       MeasurementLogEntryKt.details {
         logMessage = "Measurement failed due to a requisition refusal"
+        this.error =
+          MeasurementLogEntryKt.errorDetails {
+            this.type = MeasurementLogEntry.ErrorDetails.Type.PERMANENT
+            this.errorTime = Clock.systemUTC().protoTimestamp()
+          }
       }
+
     updateMeasurementState(
       measurementConsumerId = measurementConsumerId,
       measurementId = measurementId,
       nextState = Measurement.State.FAILED,
       previousState = measurementState,
-      details = updatedMeasurementDetails,
-      logDetails = measurementLogEntryDetails
+      logDetails = measurementLogEntryDetails,
+      details = updatedMeasurementDetails
     )
 
     return requisition.copy {

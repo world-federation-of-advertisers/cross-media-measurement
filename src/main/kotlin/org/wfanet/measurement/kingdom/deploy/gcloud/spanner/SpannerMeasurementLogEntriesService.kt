@@ -29,7 +29,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry.ErrorDetails.
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementLogEntryReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.StateTransitionMeasurementLogEntryReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateDuchyMeasurementLogEntry
 
 class SpannerMeasurementLogEntriesService(
@@ -61,7 +61,7 @@ class SpannerMeasurementLogEntriesService(
   override suspend fun streamStateTransitionMeasurementLogEntries(
     request: GetMeasurementStateTransitionLogEntryRequest
   ): Measurement {
-    return MeasurementLogEntryReader()
+    return StateTransitionMeasurementLogEntryReader()
       .readStateTransitionLogByExternalIds(
         client.singleUse(),
         ExternalId(request.externalMeasurementConsumerId),

@@ -27,7 +27,6 @@ import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.Measurement
-import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionKt
@@ -95,16 +94,6 @@ class CreateMeasurement(private val measurement: Measurement) :
       initialMeasurementState
     )
 
-    // Log state change
-    val measurementLogEntryDetails =
-      MeasurementLogEntryKt.details { logMessage = "Computed measurement created" }
-    createMeasurementStateTransitionLogEntry(
-      measurementConsumerId,
-      measurementId,
-      initialMeasurementState,
-      logDetails = measurementLogEntryDetails
-    )
-
     // Insert into Requisitions for each EDP
     insertRequisitions(
       measurementConsumerId,
@@ -142,16 +131,6 @@ class CreateMeasurement(private val measurement: Measurement) :
       externalMeasurementId,
       null,
       initialMeasurementState
-    )
-
-    // Log state change
-    val measurementLogEntryDetails =
-      MeasurementLogEntryKt.details { logMessage = "Direct measurement created" }
-    createMeasurementStateTransitionLogEntry(
-      measurementConsumerId,
-      measurementId,
-      initialMeasurementState,
-      logDetails = measurementLogEntryDetails
     )
 
     // Insert into Requisitions for each EDP
