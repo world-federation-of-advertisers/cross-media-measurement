@@ -849,15 +849,12 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
 
     assertThat(deletedEventGroup)
       .isEqualTo(
-        createdEventGroup
-          .toBuilder()
-          .also {
-            it.externalMeasurementConsumerCertificateId = 0L
-            it.updateTime = deletedEventGroup.updateTime
-            it.details = EventGroup.Details.getDefaultInstance()
-            it.state = EventGroup.State.DELETED
-          }
-          .build()
+        createdEventGroup.copy {
+          this.externalMeasurementConsumerCertificateId = 0L
+          this.updateTime = deletedEventGroup.updateTime
+          this.details = EventGroup.Details.getDefaultInstance()
+          this.state = EventGroup.State.DELETED
+        }
       )
   }
 

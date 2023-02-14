@@ -104,11 +104,10 @@ class CreateEventGroup(private val eventGroup: EventGroup) :
       set("State" to EventGroup.State.ACTIVE)
     }
 
-    return eventGroup
-      .toBuilder()
-      .setExternalEventGroupId(externalEventGroupId.value)
-      .setState(EventGroup.State.ACTIVE)
-      .build()
+    return eventGroup.copy {
+      this.externalEventGroupId = externalEventGroupId.value
+      this.state = EventGroup.State.ACTIVE
+    }
   }
 
   private suspend fun TransactionScope.findExistingEventGroup(dataProviderId: Long): EventGroup? {
