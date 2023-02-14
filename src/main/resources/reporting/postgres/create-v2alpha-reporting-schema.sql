@@ -65,7 +65,6 @@ CREATE TABLE EventGroups (
   CmmsEventGroupId text NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, EventGroupId),
-  UNIQUE (MeasurementConsumerId, CmmsEventGroupId),
   UNIQUE (CmmsDataProviderId, CmmsEventGroupId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId)
