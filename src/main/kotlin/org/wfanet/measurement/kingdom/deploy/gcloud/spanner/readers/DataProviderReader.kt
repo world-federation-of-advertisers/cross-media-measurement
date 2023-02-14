@@ -26,6 +26,7 @@ import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.DataProvider
+import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 
 class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
@@ -47,11 +48,11 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
       Certificates.CertificateDetails,
       ARRAY(
         SELECT AS STRUCT
-          DataProviderDuchyIncludeList.ExternalDuchyId
+          DataProviderRequiredDuchies.DuchyId
         FROM
           DataProviders
-          JOIN DataProviderDuchyIncludeList USING (DataProviderId)
-      ) AS DataProviderDuchyIncludeList,
+          JOIN DataProviderRequiredDuchies USING (DataProviderId)
+      ) AS DataProviderRequiredDuchies,
     FROM DataProviders
     JOIN DataProviderCertificates USING (DataProviderId)
     JOIN Certificates USING (CertificateId)
@@ -80,16 +81,19 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
         externalDataProviderId = struct.getLong("ExternalDataProviderId")
         details = struct.getProtoMessage("DataProviderDetails", DataProvider.Details.parser())
         certificate = buildCertificate(struct)
-        addAllExternalDuchyId(buildExternalDuchyIdList(struct))
+        addAllRequiredExternalDuchyIds(buildExternalDuchyIdList(struct))
       }
       .build()
 
-  private fun buildExternalDuchyIdList(struct: Struct): MutableList<Long> {
-    val duchiesExternalIdList = mutableListOf<Long>()
-    for (duchyIncludeListValue in struct.getStructList("DataProviderDuchyIncludeList")) {
-      duchiesExternalIdList.add(duchyIncludeListValue.getLong("ExternalDuchyId"))
-    }
-    return duchiesExternalIdList
+  private fun buildExternalDuchyIdList(struct: Struct): Iterable<String?> {
+    return struct
+      .getStructList("DataProviderRequiredDuchies")
+      .map {
+        checkNotNull(DuchyIds.getExternalId(it.getLong("DuchyId"))) {
+          "Duchy with internal ID ${it.getLong("DuchyId")} not found"
+        }
+      }
+      .asIterable()
   }
 
   // TODO(uakyol) : Move this function to CertificateReader when it is implemented.

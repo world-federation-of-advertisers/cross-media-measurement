@@ -19,6 +19,7 @@ import com.google.protobuf.ByteString
 import kotlin.test.assertFails
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -36,6 +37,7 @@ import org.wfanet.measurement.internal.kingdom.GetExchangeRequest
 import org.wfanet.measurement.internal.kingdom.ModelProvider
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
+import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val INTERNAL_RECURRING_EXCHANGE_ID = 111L
 private const val EXTERNAL_RECURRING_EXCHANGE_ID = 222L
@@ -54,6 +56,8 @@ private const val INTERNAL_MODEL_PROVIDER_ID = 555L
 private const val EXTERNAL_MODEL_PROVIDER_ID = 666L
 private val MODEL_ID_GENERATOR =
   FixedIdGenerator(InternalId(INTERNAL_MODEL_PROVIDER_ID), ExternalId(EXTERNAL_MODEL_PROVIDER_ID))
+
+private val EXTERNAL_DUCHY_IDS = listOf("worker1", "worker2")
 
 private val RECURRING_EXCHANGE: RecurringExchange =
   RecurringExchange.newBuilder()
@@ -99,12 +103,15 @@ private val DATA_PROVIDER: DataProvider =
         publicKey = ByteString.copyFromUtf8("This is a  public key.")
         publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
       }
-      addAllExternalDuchyId(mutableListOf(1234L, 5678L))
+      addAllRequiredExternalDuchyIds(mutableListOf("worker1", "worker2"))
     }
     .build()
 
 /** Base test class for [ExchangesCoroutineImplBase] implementations. */
 abstract class ExchangesServiceTest {
+
+  @get:Rule val duchyIdSetter = DuchyIdSetter(EXTERNAL_DUCHY_IDS)
+
   /**
    * Creates a ModelProvider using [idGenerator] to generate internal and external ids.
    *

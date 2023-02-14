@@ -40,5 +40,5 @@ message DataProvider {
   Details details = 3;
 
   // The list of duchies that must be included in all computations involving the DataProvider
-  repeated int64 external_duchy_id = 4;
+  repeated string required_external_duchy_ids = 4;
 }
