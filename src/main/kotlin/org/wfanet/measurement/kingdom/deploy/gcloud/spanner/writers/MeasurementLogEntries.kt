@@ -41,7 +41,7 @@ internal fun SpannerWriter.TransactionScope.insertMeasurementLogEntry(
   }
 }
 
-internal fun SpannerWriter.TransactionScope.insertMeasurementStateTransitionLogEntry(
+internal fun SpannerWriter.TransactionScope.insertStateTransitionMeasurementLogEntry(
   measurementId: InternalId,
   measurementConsumerId: InternalId,
   currentMeasurementState: Measurement.State,

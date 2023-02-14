@@ -15,7 +15,8 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
-import org.wfanet.measurement.common.grpc.failGrpc
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -24,12 +25,12 @@ import org.wfanet.measurement.internal.kingdom.CreateDuchyMeasurementLogEntryReq
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry.ErrorDetails.Type.TRANSIENT
-import org.wfanet.measurement.internal.kingdom.MeasurementStateLogEntryList
+import org.wfanet.measurement.internal.kingdom.StateTransitionMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.StreamStateTransitionMeasurementLogEntriesRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.StateTransitionMeasurementLogEntryReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamStateTransitionMeasurementLogEntries
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateDuchyMeasurementLogEntry
 
 class SpannerMeasurementLogEntriesService(
@@ -39,14 +40,12 @@ class SpannerMeasurementLogEntriesService(
   override suspend fun createDuchyMeasurementLogEntry(
     request: CreateDuchyMeasurementLogEntryRequest
   ): DuchyMeasurementLogEntry {
-
     if (request.measurementLogEntryDetails.hasError()) {
       grpcRequire(request.measurementLogEntryDetails.error.type == TRANSIENT) {
         "MeasurementLogEntries Service only supports TRANSIENT errors, " +
           "use FailComputationParticipant instead."
       }
     }
-
     try {
       return CreateDuchyMeasurementLogEntry(request).execute(client, idGenerator)
     } catch (e: MeasurementNotFoundException) {
@@ -58,16 +57,13 @@ class SpannerMeasurementLogEntriesService(
     }
   }
 
-  override suspend fun streamStateTransitionMeasurementLogEntry(
+  override fun streamStateTransitionMeasurementLogEntry(
     request: StreamStateTransitionMeasurementLogEntriesRequest
-  ): MeasurementStateLogEntryList {
-    return StateTransitionMeasurementLogEntryReader()
-      .readStateTransitionLogByExternalIds(
-        client.singleUse(),
-        ExternalId(request.externalMeasurementConsumerId),
-        ExternalId(request.externalMeasurementId)
+  ): Flow<StateTransitionMeasurementLogEntry> {
+    return StreamStateTransitionMeasurementLogEntries(
+        ExternalId(request.externalMeasurementId),
       )
-      ?.measurementStateLogEntryList
-      ?: failGrpc(Status.NOT_FOUND) { "Measurement state log entries not found" }
+      .execute(client.singleUse())
+      .map { it.stateTransitionMeasurementLogEntry }
   }
 }

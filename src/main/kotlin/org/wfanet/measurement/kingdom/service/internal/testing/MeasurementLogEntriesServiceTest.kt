@@ -21,6 +21,9 @@ import io.grpc.StatusRuntimeException
 import java.time.Clock
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.count
+import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -37,8 +40,8 @@ import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.Measur
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
-import org.wfanet.measurement.internal.kingdom.MeasurementStateLogEntryList
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.StateTransitionMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.createDuchyMeasurementLogEntryRequest
 import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
@@ -81,13 +84,11 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
 
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
 
-  private suspend fun readMeasurementStateLog(
-    externalMeasurementConsumerId: Long,
+  private fun readMeasurementStateLog(
     externalMeasurementId: Long
-  ): MeasurementStateLogEntryList {
+  ): Flow<StateTransitionMeasurementLogEntry> {
     return measurementLogEntriesService.streamStateTransitionMeasurementLogEntry(
       streamStateTransitionMeasurementLogEntriesRequest {
-        this.externalMeasurementConsumerId = externalMeasurementConsumerId
         this.externalMeasurementId = externalMeasurementId
       }
     )
@@ -203,6 +204,7 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
           MeasurementLogEntryKt.errorDetails {
             type = MeasurementLogEntry.ErrorDetails.Type.TRANSIENT
           }
+        logMessage = "some log message"
       }
 
     val duchyMeasurementLogEntryDetails =
@@ -291,7 +293,6 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
   fun `measurementState is consistent when creating and cancelling a Measurement`(): Unit =
     runBlocking {
       var measurement: Measurement
-      var measurementStateTransitionLogEntryList: MeasurementStateLogEntryList
       val measurementConsumer =
         population.createMeasurementConsumer(measurementConsumersService, accountsService)
       val dataProvider = population.createDataProvider(dataProvidersService)
@@ -304,13 +305,8 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
           dataProvider
         )
 
-      measurementStateTransitionLogEntryList =
-        readMeasurementStateLog(
-          measurement.externalMeasurementConsumerId,
-          measurement.externalMeasurementId
-        )
-
-      assertThat(measurementStateTransitionLogEntryList.measurementStateLogEntryCount).isEqualTo(0)
+      assertThat(readMeasurementStateLog(measurement.externalMeasurementConsumerId).count())
+        .isEqualTo(0)
 
       measurement =
         measurementsService.cancelMeasurement(
@@ -320,20 +316,12 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
           }
         )
 
-      measurementStateTransitionLogEntryList =
-        readMeasurementStateLog(
-          measurement.externalMeasurementConsumerId,
-          measurement.externalMeasurementId
-        )
+      val measurementStateTransitionLogEntry: StateTransitionMeasurementLogEntry =
+        readMeasurementStateLog(measurement.externalMeasurementId).single()
 
-      assertThat(measurementStateTransitionLogEntryList.measurementStateLogEntryCount).isEqualTo(1)
-      assertThat(
-          measurementStateTransitionLogEntryList.measurementStateLogEntryList.get(0).currentState
-        )
+      assertThat(measurementStateTransitionLogEntry.currentState)
         .isEqualTo(Measurement.State.CANCELLED)
-      assertThat(
-          measurementStateTransitionLogEntryList.measurementStateLogEntryList.get(0).previousState
-        )
+      assertThat(measurementStateTransitionLogEntry.previousState)
         .isEqualTo(Measurement.State.PENDING_REQUISITION_PARAMS)
     }
 }
