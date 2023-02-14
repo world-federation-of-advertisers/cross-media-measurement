@@ -156,6 +156,9 @@ CREATE TABLE ReportingSets (
 );
 
 -- changeset riemanli:create-weighted-subset-unions-table dbms:postgresql
+-- A WeightedSubsetUnion is a weighted union of a subset of
+-- PrimitiveReportingSetBases. That is, one WeightedSubsetUnion has at least
+-- one PrimitiveReportingSetBasis.
 CREATE TABLE WeightedSubsetUnions (
   MeasurementConsumerId bigint NOT NULL,
   -- ReportingSets and WeightedSubsetUnions are one-to-many. A reporting set can
@@ -187,9 +190,6 @@ CREATE TABLE PrimitiveReportingSetBases (
 CREATE TABLE WeightedSubsetUnionPrimitiveReportingSetBases (
   MeasurementConsumerId bigint NOT NULL,
   ReportingSetId bigint NOT NULL,
-  -- A WeightedSubsetUnion is a weighted union of a subset of
-  -- PrimitiveReportingSetBases. That is, one WeightedSubsetUnion has at least
-  -- one PrimitiveReportingSetBasis.
   WeightedSubsetUnionId bigint NOT NULL,
   PrimitiveReportingSetBasisId bigint NOT NULL,
 
@@ -197,8 +197,8 @@ CREATE TABLE WeightedSubsetUnionPrimitiveReportingSetBases (
   FOREIGN KEY(MeasurementConsumerId, ReportingSetId, WeightedSubsetUnionId)
     REFERENCES WeightedSubsetUnions(MeasurementConsumerId, ReportingSetId, WeightedSubsetUnionId)
     ON DELETE CASCADE,
-  FOREIGN KEY(MeasurementConsumerId, WeightedSubsetUnionId, PrimitiveReportingSetBasisId)
-    REFERENCES PrimitiveReportingSetBases(MeasurementConsumerId, WeightedSubsetUnionId, PrimitiveReportingSetBasisId)
+  FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetBasisId)
+    REFERENCES PrimitiveReportingSetBases(MeasurementConsumerId, PrimitiveReportingSetBasisId)
     ON DELETE CASCADE,
 );
 
@@ -306,7 +306,6 @@ CREATE TABLE Measurements (
   MeasurementId bigint NOT NULL,
   CmmsMeasurementId text,
   TimeIntervalId bigint NOT NULL,
-  MetricSpecId bigint NOT NULL,
 
   -- org.wfanet.measurement.internal.reporting.Report.Measurement.State
   -- protobuf enum encoded as an integer.
@@ -324,9 +323,6 @@ CREATE TABLE Measurements (
   UNIQUE (MeasurementConsumerId, CmmsMeasurementId),
   FOREIGN KEY(MeasurementConsumerId, TimeIntervalId)
     REFERENCES TimeIntervals(MeasurementConsumerId, TimeIntervalId)
-    ON DELETE CASCADE,
-  FOREIGN KEY(MeasurementConsumerId, MetricSpecId)
-    REFERENCES MetricSpecs(MeasurementConsumerId, MetricSpecId)
     ON DELETE CASCADE,
 );
 
