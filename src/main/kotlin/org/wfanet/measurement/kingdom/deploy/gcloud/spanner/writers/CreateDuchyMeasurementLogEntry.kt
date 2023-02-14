@@ -57,6 +57,7 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
         ) {
           "Measurement for external computation ID ${request.externalComputationId} not found"
         }
+
     val duchyId =
       DuchyIds.getInternalId(request.externalDuchyId)
         ?: throw DuchyNotFoundException(request.externalDuchyId)
@@ -74,6 +75,7 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
         InternalId(duchyId),
         request.details
       )
+
     return duchyMeasurementLogEntry {
       this.externalComputationLogEntryId = externalComputationLogEntryId.value
       details = request.details

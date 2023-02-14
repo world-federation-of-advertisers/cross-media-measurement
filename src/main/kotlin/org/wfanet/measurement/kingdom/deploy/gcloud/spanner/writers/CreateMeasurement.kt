@@ -86,6 +86,7 @@ class CreateMeasurement(private val measurement: Measurement) :
     val measurementId: InternalId = idGenerator.generateInternalId()
     val externalMeasurementId: ExternalId = idGenerator.generateExternalId()
     val externalComputationId: ExternalId = idGenerator.generateExternalId()
+
     insertMeasurement(
       measurementConsumerId,
       measurementId,

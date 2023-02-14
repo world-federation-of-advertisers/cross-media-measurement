@@ -45,11 +45,12 @@ internal fun SpannerWriter.TransactionScope.updateMeasurementState(
     .bufferTo(transactionContext)
 
   if (nextState == Measurement.State.FAILED) {
-    require(logDetails.hasError())
+    require(logDetails.hasError()) { "$logDetails must have an error when state is FAILED." }
   }
+
   insertMeasurementLogEntry(measurementId, measurementConsumerId, logDetails)
 
-  insertMeasurementStateTransitionLogEntry(
+  insertStateTransitionMeasurementLogEntry(
     measurementId = measurementId,
     measurementConsumerId = measurementConsumerId,
     currentMeasurementState = nextState,
