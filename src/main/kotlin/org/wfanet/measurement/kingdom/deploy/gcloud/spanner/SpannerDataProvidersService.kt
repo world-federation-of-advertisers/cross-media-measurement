@@ -38,7 +38,6 @@ class SpannerDataProvidersService(
     ) {
       "Details field of DataProvider is missing fields."
     }
-    grpcRequire(request.externalDuchyIdCount > 0) { "ExternalDuchyId list is empty" }
     return CreateDataProvider(request).execute(client, idGenerator)
   }
   override suspend fun getDataProvider(request: GetDataProviderRequest): DataProvider {

@@ -65,7 +65,7 @@ import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 private const val RANDOM_SEED = 1L
 private const val NONCE_1 = 3127743798281582205L
 private const val NONCE_2 = -7004399847946251733L
-private val EXTERNAL_DUCHY_IDS = listOf("Buck", "Rippon", "Shoaks")
+private val EXTERNAL_DUCHY_IDS = listOf("Buck", "Rippon", "Shoaks", "worker1", "worker2")
 private val REQUISITION_ENCRYPTED_DATA = "foo".toByteStringUtf8()
 
 private val REFUSAL = refusal {
@@ -588,6 +588,10 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         "Rippon",
         Requisition.DuchyValue.getDefaultInstance(),
         "Shoaks",
+        Requisition.DuchyValue.getDefaultInstance(),
+        "worker1",
+        Requisition.DuchyValue.getDefaultInstance(),
+        "worker2",
         Requisition.DuchyValue.getDefaultInstance()
       )
     assertThat(requisition).isEqualTo(listedRequisition)

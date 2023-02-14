@@ -43,7 +43,7 @@ import org.wfanet.measurement.internal.kingdom.measurementLogEntry
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val RANDOM_SEED = 1
-private val EXTERNAL_DUCHY_IDS = listOf("Buck", "Rippon", "Shoaks")
+private val EXTERNAL_DUCHY_IDS = listOf("Buck", "Rippon", "Shoaks", "worker1", "worker2")
 
 @RunWith(JUnit4::class)
 abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCoroutineImplBase> {

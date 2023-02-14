@@ -15,9 +15,9 @@
 -- limitations under the License.
 
 -- changeset marcopremier:6 dbms:cloudspanner
-CREATE TABLE DataProviderDuchyIncludeList (
+CREATE TABLE DataProviderRequiredDuchies (
     DataProviderId INT64 NOT NULL,
-    -- Duchy external id that must be included in every computation that involves this DP id.
-    ExternalDuchyId INT64 NOT NULL,
-) PRIMARY KEY (DataProviderId, ExternalDuchyId),
+    -- Duchy internal id that must be included in every computation that involves this DP id.
+    DuchyId INT64 NOT NULL,
+) PRIMARY KEY (DataProviderId, DuchyId),
   INTERLEAVE IN PARENT DataProviders ON DELETE CASCADE;

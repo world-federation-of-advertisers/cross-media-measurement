@@ -61,7 +61,7 @@ import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val RANDOM_SEED = 1
 private const val EXTERNAL_CERTIFICATE_ID = 123L
-private val EXTERNAL_DUCHY_IDS = listOf("duchy_1", "duchy_2", "duchy_3")
+private val EXTERNAL_DUCHY_IDS = listOf("worker1", "worker2")
 private const val NOT_AN_ID = 13579L
 
 private val CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certificate der.")
