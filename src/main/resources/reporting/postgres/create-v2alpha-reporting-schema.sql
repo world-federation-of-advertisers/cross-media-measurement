@@ -21,7 +21,6 @@
 --   └── MeasurementConsumers
 --       ├── DataProviders
 --       │   └── EventGroups
---       ├── TimeIntervals
 --       ├── ReportingSets
 --       │   ├── PrimitiveReportingSets
 --       │   │   └── PrimitiveReportingSetEventGroups
@@ -39,10 +38,8 @@
 --       ├── Models
 --       │   ├── ModelMetrics
 --       │   ├── ModelMetricSpecs
---       │   ├── ModelTimeIntervals
 --       │   └── ModelReportingSets
 --       └── Reports
---           ├── ReportTimeIntervals
 --           ├── MetricCalculations
 --           │   └── MetricCalculationMetrics
 --           └── ModelInferenceCalculations
@@ -69,21 +66,6 @@ CREATE TABLE EventGroups (
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId)
     ON DELETE CASCADE
-);
-
--- changeset riemanli:create-time-intervals-table dbms:postgresql
-CREATE TABLE TimeIntervals (
-  MeasurementConsumerId bigint NOT NULL,
-  TimeIntervalId bigint NOT NULL,
-
-  Start TIMESTAMP NOT NULL,
-  EndExclusive TIMESTAMP NOT NULL,
-
-  PRIMARY KEY(MeasurementConsumerId, TimeIntervalId),
-  UNIQUE (MeasurementConsumerId, Start, EndExclusive),
-  FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId)
-    ON DELETE CASCADE,
 );
 
 -- changeset riemanli:create-composite-reporting-sets-table dbms:postgresql
@@ -276,9 +258,11 @@ CREATE TABLE MetricSpecs (
 CREATE TABLE Metrics (
   MeasurementConsumerId bigint NOT NULL,
   MetricId bigint NOT NULL,
-  TimeIntervalId bigint NOT NULL,
   MetricSpecId bigint NOT NULL,
   ReportingSetId bigint NOT NULL,
+
+  TimeIntervalStart TIMESTAMP NOT NULL,
+  TimeIntervalEndExclusive TIMESTAMP NOT NULL,
 
   -- org.wfanet.measurement.internal.reporting.Metric.State
   -- protobuf enum encoded as an integer.
@@ -289,9 +273,6 @@ CREATE TABLE Metrics (
   MetricDetails bytea NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, MetricId),
-  FOREIGN KEY(MeasurementConsumerId, TimeIntervalId)
-    REFERENCES TimeIntervals(MeasurementConsumerId, TimeIntervalId)
-    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, MetricSpecId)
     REFERENCES MetricSpecs(MeasurementConsumerId, MetricSpecId)
     ON DELETE CASCADE,
@@ -305,7 +286,9 @@ CREATE TABLE Measurements (
   MeasurementConsumerId bigint NOT NULL,
   MeasurementId bigint NOT NULL,
   CmmsMeasurementId text,
-  TimeIntervalId bigint NOT NULL,
+
+  TimeIntervalStart TIMESTAMP NOT NULL,
+  TimeIntervalEndExclusive TIMESTAMP NOT NULL,
 
   -- org.wfanet.measurement.internal.reporting.Report.Measurement.State
   -- protobuf enum encoded as an integer.
@@ -321,9 +304,6 @@ CREATE TABLE Measurements (
 
   PRIMARY KEY(MeasurementConsumerId, MeasurementId),
   UNIQUE (MeasurementConsumerId, CmmsMeasurementId),
-  FOREIGN KEY(MeasurementConsumerId, TimeIntervalId)
-    REFERENCES TimeIntervals(MeasurementConsumerId, TimeIntervalId)
-    ON DELETE CASCADE,
 );
 
 -- changeset riemanli:create-measurement-primitive-reporting-set-bases-table dbms:postgresql
@@ -412,14 +392,12 @@ CREATE TABLE ModelMetricSpecs(
 CREATE TABLE ModelTimeIntervals(
   MeasurementConsumerId bigint NOT NULL,
   ModelId bigint NOT NULL,
-  TimeIntervalId bigint NOT NULL,
+  TimeIntervalStart TIMESTAMP NOT NULL,
+  TimeIntervalEndExclusive TIMESTAMP NOT NULL,
 
-  PRIMARY KEY(MeasurementConsumerId, ModelId, TimeIntervalId),
+  PRIMARY KEY(MeasurementConsumerId, ModelId, TimeIntervalStart, TimeIntervalEndExclusive),
   FOREIGN KEY(MeasurementConsumerId, ModelId)
     REFERENCES Models(MeasurementConsumerId, ModelId)
-    ON DELETE CASCADE,
-  FOREIGN KEY(MeasurementConsumerId, TimeIntervalId)
-    REFERENCES TimeIntervals(MeasurementConsumerId, TimeIntervalId)
     ON DELETE CASCADE,
 );
 
@@ -468,14 +446,12 @@ CREATE TABLE Reports (
 CREATE TABLE ReportTimeIntervals (
   MeasurementConsumerId bigint NOT NULL,
   ReportId bigint NOT NULL,
-  TimeIntervalId bigint NOT NULL,
+  TimeIntervalStart TIMESTAMP NOT NULL,
+  TimeIntervalEndExclusive TIMESTAMP NOT NULL,
 
-  PRIMARY KEY(MeasurementConsumerId, ReportId, TimeIntervalId),
+  PRIMARY KEY(MeasurementConsumerId, ReportId, TimeIntervalStart, TimeIntervalEndExclusive),
   FOREIGN KEY(MeasurementConsumerId, ReportId)
     REFERENCES Reports(MeasurementConsumerId, ReportId)
-    ON DELETE CASCADE,
-  FOREIGN KEY(MeasurementConsumerId, TimeIntervalId)
-    REFERENCES TimeIntervals(MeasurementConsumerId, TimeIntervalId)
     ON DELETE CASCADE,
 );
 
