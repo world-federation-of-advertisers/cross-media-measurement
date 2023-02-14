@@ -28,6 +28,7 @@ import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -73,6 +74,7 @@ import org.wfanet.measurement.internal.kingdom.modelProvider
 import org.wfanet.measurement.internal.kingdom.recurringExchange
 import org.wfanet.measurement.internal.kingdom.recurringExchangeDetails
 import org.wfanet.measurement.internal.kingdom.streamExchangeStepsRequest
+import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val INTERNAL_RECURRING_EXCHANGE_ID = 111L
 private const val EXTERNAL_RECURRING_EXCHANGE_ID = 222L
@@ -98,6 +100,7 @@ private val idGenerator =
   FixedIdGenerator(InternalId(FIXED_GENERATED_INTERNAL_ID), ExternalId(FIXED_GENERATED_EXTERNAL_ID))
 
 private const val STEP_INDEX = 1
+private val EXTERNAL_DUCHY_IDS = listOf("worker1", "worker2")
 
 private val EXCHANGE_WORKFLOW = exchangeWorkflow {
   steps += step {
@@ -138,11 +141,14 @@ private val DATA_PROVIDER = dataProvider {
     publicKey = ByteString.copyFromUtf8("This is a  public key.")
     publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
   }
-  externalDuchyId.addAll(mutableListOf(1234L, 5678L))
+  requiredExternalDuchyIds.addAll(mutableListOf("worker1", "worker2"))
 }
 
 @RunWith(JUnit4::class)
 abstract class ExchangeStepsServiceTest {
+
+  @get:Rule val duchyIdSetter = DuchyIdSetter(EXTERNAL_DUCHY_IDS)
+
   /** Creates a /RecurringExchanges service implementation using [idGenerator]. */
   protected abstract fun newRecurringExchangesService(
     idGenerator: IdGenerator

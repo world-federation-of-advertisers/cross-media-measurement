@@ -69,7 +69,7 @@ import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 private const val RANDOM_SEED = 1
 private const val API_VERSION = "v2alpha"
 private const val PROVIDED_MEASUREMENT_ID = "ProvidedMeasurementId"
-private val EXTERNAL_DUCHY_IDS = listOf("Buck", "Rippon", "Shoaks")
+private val EXTERNAL_DUCHY_IDS = listOf("Buck", "Rippon", "Shoaks", "worker1", "worker2")
 
 private val MEASUREMENT = measurement {
   providedMeasurementId = PROVIDED_MEASUREMENT_ID
@@ -725,6 +725,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             duchies["Buck"] = Requisition.DuchyValue.getDefaultInstance()
             duchies["Rippon"] = Requisition.DuchyValue.getDefaultInstance()
             duchies["Shoaks"] = Requisition.DuchyValue.getDefaultInstance()
+            duchies["worker1"] = Requisition.DuchyValue.getDefaultInstance()
+            duchies["worker2"] = Requisition.DuchyValue.getDefaultInstance()
           }
         )
 
@@ -745,7 +747,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         .containsExactly(
           templateParticipant.copy { externalDuchyId = "Buck" },
           templateParticipant.copy { externalDuchyId = "Rippon" },
-          templateParticipant.copy { externalDuchyId = "Shoaks" }
+          templateParticipant.copy { externalDuchyId = "Shoaks" },
+          templateParticipant.copy { externalDuchyId = "worker1" },
+          templateParticipant.copy { externalDuchyId = "worker2" }
         )
     }
 

@@ -22,6 +22,7 @@ import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -32,6 +33,7 @@ import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetDataProviderRequest
+import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val EXTERNAL_DATA_PROVIDER_ID = 123L
 private const val FIXED_GENERATED_INTERNAL_ID = 2345L
@@ -39,9 +41,11 @@ private const val FIXED_GENERATED_EXTERNAL_ID = 6789L
 private val PUBLIC_KEY = ByteString.copyFromUtf8("This is a  public key.")
 private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("This is a  public key signature.")
 private val CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certificate der.")
+private val EXTERNAL_DUCHY_IDS = listOf("worker1", "worker2")
 
 @RunWith(JUnit4::class)
 abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
+  @get:Rule val duchyIdSetter = DuchyIdSetter(EXTERNAL_DUCHY_IDS)
 
   protected val idGenerator =
     FixedIdGenerator(
@@ -116,7 +120,41 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
             publicKey = PUBLIC_KEY
             publicKeySignature = PUBLIC_KEY_SIGNATURE
           }
-          addAllExternalDuchyId(mutableListOf(1234L, 5678L))
+          addAllRequiredExternalDuchyIds(mutableListOf("worker1", "worker2"))
+        }
+        .build()
+    val createdDataProvider = dataProvidersService.createDataProvider(dataProvider)
+
+    assertThat(createdDataProvider)
+      .isEqualTo(
+        dataProvider
+          .toBuilder()
+          .apply {
+            externalDataProviderId = FIXED_GENERATED_EXTERNAL_ID
+            certificateBuilder.apply {
+              externalDataProviderId = FIXED_GENERATED_EXTERNAL_ID
+              externalCertificateId = FIXED_GENERATED_EXTERNAL_ID
+            }
+          }
+          .build()
+      )
+  }
+
+  @Test
+  fun `createDataProvider succeeds when requiredExternalDuchyIds is empty`() = runBlocking {
+    val dataProvider =
+      DataProvider.newBuilder()
+        .apply {
+          certificateBuilder.apply {
+            notValidBeforeBuilder.seconds = 12345
+            notValidAfterBuilder.seconds = 23456
+            detailsBuilder.x509Der = CERTIFICATE_DER
+          }
+          detailsBuilder.apply {
+            apiVersion = "v2alpha"
+            publicKey = PUBLIC_KEY
+            publicKeySignature = PUBLIC_KEY_SIGNATURE
+          }
         }
         .build()
     val createdDataProvider = dataProvidersService.createDataProvider(dataProvider)
@@ -151,7 +189,7 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
             publicKey = PUBLIC_KEY
             publicKeySignature = PUBLIC_KEY_SIGNATURE
           }
-          addAllExternalDuchyId(mutableListOf(1234L, 5678L))
+          addAllRequiredExternalDuchyIds(mutableListOf("worker1", "worker2"))
         }
         .build()
 

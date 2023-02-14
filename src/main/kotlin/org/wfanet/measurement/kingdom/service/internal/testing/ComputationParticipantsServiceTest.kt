@@ -61,7 +61,7 @@ import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val RANDOM_SEED = 1
 private const val PROVIDED_MEASUREMENT_ID = "measurement"
-private val EXTERNAL_DUCHY_IDS = listOf("duchy_1", "duchy_2")
+private val EXTERNAL_DUCHY_IDS = listOf("worker1", "worker2")
 
 private val EL_GAMAL_PUBLIC_KEY = ByteString.copyFromUtf8("This is an ElGamal Public Key.")
 private val EL_GAMAL_PUBLIC_KEY_SIGNATURE =

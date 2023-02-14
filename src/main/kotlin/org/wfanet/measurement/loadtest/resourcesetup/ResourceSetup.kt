@@ -242,7 +242,7 @@ class ResourceSetup(
                 publicKey = signedPublicKey.data
                 publicKeySignature = signedPublicKey.signature
               }
-            externalDuchyId.addAll(mutableListOf(1234L, 5678L))
+            requiredExternalDuchyIds.addAll(mutableListOf("worker1", "worker2"))
           }
         )
       } catch (e: StatusException) {
