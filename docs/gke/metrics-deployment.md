@@ -72,12 +72,6 @@ Monitoring (e.g. the `roles/iam.workloadIdentityUser` role). See
 [Configure a service account for Workload Identity](https://cloud.google.com/stackdriver/docs/managed-prometheus/query#gmp-wli-svcacct).
 For the `dev` configuration, the K8s service account is named `gmp-monitoring`.
 
-If you want to collect Spanner database metrics, you'll need a K8s service
-account that can impersonate an IAM service account with access to your Spanner
-database. See the relevant section in
-[Cluster configuration](cluster-config.md#granting-cloud-spanner-database-access).
-For the `dev` configuration, the K8s service account is named `otel-collector`.
-
 ## Create the K8s Object Configurations
 
 Deploying to the cluster is generally done by applying a K8s object
@@ -91,14 +85,9 @@ You do any customization in to the CUE files, or in the generated YAML file.
 
 The default `dev` configuration for OpenTelemetry collection is in
 [`open_telemetry_gke.cue`](../../src/main/k8s/dev/open_telemetry_gke.cue), which
-depends on [`open_telemetry.cue`](../../src/main/k8s/open_telemetry.cue). The
-alternative configuration which includes Spanner metrics is in
-[`open_telemetry_gke_spanner.cue`](../../src/main/k8s/dev/open_telemetry_gke_spanner.cue).
+depends on [`open_telemetry.cue`](../../src/main/k8s/open_telemetry.cue).
 
-The default build target is `//src/main/k8s/dev:open_telemetry_gke`. For Spanner
-collection, there are separate targets for each database. For example, the
-target for the `worker1_duchy_computations` database is
-``//src/main/k8s/dev:open_telemetry_spanner_worker1_duchy_computations`.
+The default build target is `//src/main/k8s/dev:open_telemetry_gke`.
 
 ### Prometheus Monitoring and Rules
 
@@ -310,9 +299,9 @@ should be seeing results for every target that is up.
 
 ## Adding Additional Metrics
 
-The above adds OpenTelemetry JVM and RPC metrics, and Cloud Spanner metrics, as
-well as self-monitoring of the Managed Prometheus collectors. With the above as
-a base, it is possible to add other metrics that can be scraped.
+The above adds OpenTelemetry JVM and RPC metrics, as well as self-monitoring of 
+the Managed Prometheus collectors. With the above as a base, it is possible to 
+add other metrics that can be scraped.
 
 ### kubelet and cAdvisor
 
@@ -360,47 +349,3 @@ See
 
 -   rpc_client_request_rate_per_second
 -   rpc_client_request_error_rate_per_second
-
-### Cloud Spanner Metrics Exported using OpenTelemetry Receiver
-
--   database_spanner_active_queries_summary_active_count
--   database_spanner_active_queries_summary_count_older_than_100s
--   database_spanner_active_queries_summary_count_older_than_10s
--   database_spanner_active_queries_summary_count_older_than_1s
--   database_spanner_lock_stats_total_total_lock_wait_seconds
--   database_spanner_query_stats_top_all_failed_avg_latency_seconds
--   database_spanner_query_stats_top_all_failed_execution_count
--   database_spanner_query_stats_top_avg_bytes
--   database_spanner_query_stats_top_avg_cpu_seconds
--   database_spanner_query_stats_top_avg_latency_seconds
--   database_spanner_query_stats_top_avg_rows
--   database_spanner_query_stats_top_avg_rows_scanned
--   database_spanner_query_stats_top_cancelled_or_disconnected_execution_count
--   database_spanner_query_stats_top_execution_count
--   database_spanner_query_stats_top_timed_out_execution_count
--   database_spanner_query_stats_total_all_failed_avg_latency_seconds
--   database_spanner_query_stats_total_all_failed_execution_count
--   database_spanner_query_stats_total_avg_bytes
--   database_spanner_query_stats_total_avg_cpu_seconds
--   database_spanner_query_stats_total_avg_latency_seconds
--   database_spanner_query_stats_total_avg_rows
--   database_spanner_query_stats_total_avg_rows_scanned
--   database_spanner_query_stats_total_cancelled_or_disconnected_execution_count
--   database_spanner_query_stats_total_execution_count
--   database_spanner_query_stats_total_timed_out_execution_count
--   database_spanner_txn_stats_top_avg_bytes
--   database_spanner_txn_stats_top_avg_commit_latency_seconds
--   database_spanner_txn_stats_top_avg_participants
--   database_spanner_txn_stats_top_avg_total_latency_seconds
--   database_spanner_txn_stats_total_commit_abort_count
--   database_spanner_txn_stats_top_commit_attempt_count
--   database_spanner_txn_stats_top_commit_failed_precondition_count
--   database_spanner_txn_stats_top_commit_retry_count
--   database_spanner_txn_stats_total_avg_bytes
--   database_spanner_txn_stats_total_avg_commit_latency_seconds
--   database_spanner_txn_stats_total_avg_participants
--   database_spanner_txn_stats_total_avg_total_latency_seconds
--   database_spanner_txn_stats_total_commit_abort_count
--   database_spanner_txn_stats_total_commit_attempt_count
--   database_spanner_txn_stats_total_commit_failed_precondition_count
--   database_spanner_txn_stats_total_commit_retry_count
