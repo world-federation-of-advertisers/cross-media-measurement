@@ -120,10 +120,6 @@ class SpannerEventGroupsService(
 
     try {
       return DeleteEventGroup(eventGroup).execute(client, idGenerator)
-    } catch (e: EventGroupInvalidArgsException) {
-      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT) {
-        "EventGroup modification param is invalid."
-      }
     } catch (e: DataProviderNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "Data Provider not found." }
     } catch (e: EventGroupNotFoundException) {
