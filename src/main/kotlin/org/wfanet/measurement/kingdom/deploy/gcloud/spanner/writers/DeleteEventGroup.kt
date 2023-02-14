@@ -63,12 +63,11 @@ class DeleteEventGroup(private val eventGroup: EventGroup) :
       set("State" to EventGroup.State.DELETED)
     }
 
-    return internalEventGroupResult.eventGroup
-      .toBuilder()
-      .setExternalMeasurementConsumerCertificateId(0L)
-      .setDetails(EventGroup.Details.getDefaultInstance())
-      .setState(EventGroup.State.DELETED)
-      .build()
+    return internalEventGroupResult.eventGroup.copy {
+      this.externalMeasurementConsumerCertificateId= 0L
+      this.details = EventGroup.Details.getDefaultInstance()
+      this.state = EventGroup.State.DELETED
+    }
   }
 
   override fun ResultScope<EventGroup>.buildResult(): EventGroup {
