@@ -302,13 +302,7 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
     val results: List<InternalEventGroup> =
       try {
         internalEventGroupsStub
-          .streamEventGroups(
-            listEventGroupsPageToken
-              .toStreamEventGroupsRequest()
-              .toBuilder()
-              .also { filter { showDeleted = request.showDeleted } }
-              .build()
-          )
+          .streamEventGroups(listEventGroupsPageToken.toStreamEventGroupsRequest())
           .toList()
       } catch (e: StatusException) {
         throw when (e.status.code) {
@@ -465,6 +459,7 @@ private fun ListEventGroupsRequest.toListEventGroupPageToken(): ListEventGroupsP
       ) {
         pageSize = source.pageSize
       }
+      this.showDeleted = source.showDeleted
     }
   } else {
     listEventGroupsPageToken {
@@ -477,6 +472,7 @@ private fun ListEventGroupsRequest.toListEventGroupPageToken(): ListEventGroupsP
 
       this.externalDataProviderId = externalDataProviderId
       externalMeasurementConsumerIds += externalMeasurementConsumerIdsList
+      this.showDeleted = source.showDeleted
     }
   }
 }
@@ -492,6 +488,7 @@ private fun ListEventGroupsPageToken.toStreamEventGroupsRequest(): StreamEventGr
       externalMeasurementConsumerIds += source.externalMeasurementConsumerIdsList
       externalDataProviderIdAfter = source.lastEventGroup.externalDataProviderId
       externalEventGroupIdAfter = source.lastEventGroup.externalEventGroupId
+      showDeleted = source.showDeleted
     }
   }
 }
