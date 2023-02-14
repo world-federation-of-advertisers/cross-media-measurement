@@ -105,20 +105,20 @@ import org.wfanet.measurement.system.v1alpha.SetParticipantRequisitionParamsRequ
  * @param consentSignalCert The [Certificate] used for consent signaling.
  * @param trustedCertificates [Map] of SKID to trusted certificate
  * @param dataClients clients that have access to local computation storage, i.e., spanner table and
- * blob store.
+ *   blob store.
  * @param systemComputationParticipantsClient client of the kingdom's system
- * ComputationParticipantsService.
+ *   ComputationParticipantsService.
  * @param systemComputationsClient client of the kingdom's system computationsService.
  * @param systemComputationLogEntriesClient client of the kingdom's system
- * computationLogEntriesService.
+ *   computationLogEntriesService.
  * @param computationStatsClient client of the duchy's internal ComputationStatsService.
  * @param throttler A throttler used to rate limit the frequency of the mill polling from the
- * computation table.
+ *   computation table.
  * @param requestChunkSizeBytes The size of data chunk when sending result to other duchies.
  * @param clock A clock
  * @param maximumAttempts The maximum number of attempts on a computation at the same stage.
  * @param workerStubs A map from other duchies' Ids to their corresponding
- * computationControlClients, used for passing computation to other duchies.
+ *   computationControlClients, used for passing computation to other duchies.
  * @param cryptoWorker The cryptoWorker that performs the actual computation.
  */
 class LiquidLegionsV2Mill(

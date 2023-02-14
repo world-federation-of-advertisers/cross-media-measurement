@@ -1,11 +1,11 @@
-/**
+/*
  * Copyright 2022 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
- * ```
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * ```
+ *
  * Unless required by applicable law or agreed to in writing, software distributed under the License
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
  * or implied. See the License for the specific language governing permissions and limitations under
@@ -22,10 +22,10 @@ private const val MAXIMUM_DELTA_PER_BUCKET = 1.0e-9f
  *
  * @param filter: An object that maps [PrivacyBucketGroup]s to Event messages.
  * @param backingStore: An object that provides persistent storage of privacy budget data in a
- * consistent and atomic manner.
+ *   consistent and atomic manner.
  * @param maximumPrivacyBudget: The maximum privacy budget that can be used in any privacy bucket.
  * @param maximumTotalDelta: Maximum total value of the delta parameter that can be used in any
- * privacy bucket.
+ *   privacy bucket.
  */
 class PrivacyBudgetManager(
   val filter: PrivacyBucketFilter,
@@ -44,8 +44,8 @@ class PrivacyBudgetManager(
    *
    * @param query represents the [Query] that specifies charges and buckets to be charged.
    * @throws PrivacyBudgetManagerException if an error occurs in handling this request. Possible
-   * exceptions could include running out of privacy budget or a failure to commit the transaction
-   * to the database.
+   *   exceptions could include running out of privacy budget or a failure to commit the transaction
+   *   to the database.
    */
   suspend fun chargingWillExceedPrivacyBudget(query: Query) =
     ledger.chargingWillExceedPrivacyBudget(
@@ -60,11 +60,11 @@ class PrivacyBudgetManager(
    * @param Reference representing the reference key and if the charge is a refund.
    * @param measurementConsumerId that the charges are for.
    * @param requisitionSpec The requisitionSpec protobuf that is associated with the query. The date
-   * range and demo groups are obtained from this.
+   *   range and demo groups are obtained from this.
    * @param measurementSpec The measurementSpec protobuf that is associated with the query. The VID
-   * sampling interval is obtained from from this.
+   *   sampling interval is obtained from from this.
    * @throws PrivacyBudgetManagerException if an error occurs in handling this request. Possible
-   * exceptions could include a failure to commit the transaction to the database.
+   *   exceptions could include a failure to commit the transaction to the database.
    */
   suspend fun chargePrivacyBudget(query: Query) =
     ledger.charge(

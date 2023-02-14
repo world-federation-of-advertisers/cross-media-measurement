@@ -26,6 +26,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementR
  * Cancels a [Measurement], transitioning its state to [Measurement.State.CANCELLED].
  *
  * Throws a subclass of [KingdomInternalException] on [execute]
+ *
  * @throws [MeasurementNotFoundByMeasurementConsumerException] Measurement not found
  * @throws [MeasurementStateIllegalException] Measurement state is not in pending
  */

@@ -38,6 +38,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNo
  * Creates a DuchyMeasurementLogEntry and MeasurementLogEntry in the database.
  *
  * Throws a subclass of [KingdomInternalException] on [execute].
+ *
  * @throws [MeasurementNotFoundByComputationException] Measurement not found
  * @throws [DuchyNotFoundException] Duchy not found
  */

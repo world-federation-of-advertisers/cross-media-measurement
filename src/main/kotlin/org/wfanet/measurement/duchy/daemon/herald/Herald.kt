@@ -65,7 +65,7 @@ private val TERMINAL_STATES = listOf(State.SUCCEEDED, State.FAILED, State.CANCEL
  *
  * @param internalComputationsClient manages interactions with duchy internal computations service.
  * @param systemComputationsClient stub for communicating with the Kingdom's system Computations
- * Service.
+ *   Service.
  * @param protocolsSetupConfig duchy's local protocolsSetupConfig
  * @param blobStorageBucket blob storage path prefix.
  * @param maxAttempts maximum number of attempts to start a computation.
@@ -261,7 +261,7 @@ class Herald(
    * computation state and the herald retrieving a systemComputation update from the kingdom.
    *
    * TODO(world-federation-of-advertisers/cross-media-measurement#585): Be more specific about retry
-   * conditions rather than unconditionally retrying.
+   *   conditions rather than unconditionally retrying.
    */
   private suspend fun <R> runWithRetries(
     systemComputation: Computation,
@@ -391,9 +391,9 @@ class Herald(
  * Returns `true` if the error may be transient, i.e. retrying the request may succeed.
  *
  * TODO(world-federation-of-advertisers/cross-media-measurement#695): Use service config to apply
- * per-method retry logic. Whether a status code indicates that a method is safe to retry depends on
- * the method. e.g. [DEADLINE_EXCEEDED][Status.Code.DEADLINE_EXCEEDED] is not necessarily safe to
- * retry if the method is non-idempotent.
+ *   per-method retry logic. Whether a status code indicates that a method is safe to retry depends
+ *   on the method. e.g. [DEADLINE_EXCEEDED][Status.Code.DEADLINE_EXCEEDED] is not necessarily safe
+ *   to retry if the method is non-idempotent.
  */
 fun mayBeTransientGrpcError(error: Exception): Boolean {
   val statusCode = error.grpcStatusCode() ?: return false

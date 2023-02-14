@@ -1,12 +1,10 @@
-/**
+/*
  * Copyright 2022 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
  *
- * ```
  *      http://www.apache.org/licenses/LICENSE-2.0
- * ```
  *
  * Unless required by applicable law or agreed to in writing, software distributed under the License
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
@@ -38,15 +36,15 @@ object EventFilters {
    * be filtered or not, based on the filtering [celExpr].
    *
    * @param eventMessageDescriptor protobuf descriptor of the event message type. This message type
-   * should contain fields of types that have been annotated with the
-   * `wfa.measurement.api.v2alpha.EventTemplateDescriptor` option.
+   *   should contain fields of types that have been annotated with the
+   *   `wfa.measurement.api.v2alpha.EventTemplateDescriptor` option.
    * @param celExpr Common Expression Language (CEL) expression defining the predicate to apply to
-   * event messages
+   *   event messages
    * @param operativeFields fields in [celExpr] that will be not be altered after the normalization
-   * operation. If provided, [celExpr] is normalized to operative negation normal form by bubbling
-   * down all the negation operations to the leafs by applying De Morgan's laws recursively and by
-   * setting all the leaf comparison nodes (e.g. x == 47 ) that contain any field other than the
-   * operative fields to true.
+   *   operation. If provided, [celExpr] is normalized to operative negation normal form by bubbling
+   *   down all the negation operations to the leafs by applying De Morgan's laws recursively and by
+   *   setting all the leaf comparison nodes (e.g. x == 47 ) that contain any field other than the
+   *   operative fields to true.
    * @throws [EventFilterValidationException] if [celExpr] is not valid.
    */
   fun compileProgram(
@@ -101,7 +99,7 @@ object EventFilters {
    * [compileProgram] function.
    *
    * @param event is a protobuf Message that contains each type of event template as fields. See
-   * `event_annotations.proto`.
+   *   `event_annotations.proto`.
    *
    * Throws a [EventFilterException] with the following codes:
    * * [EventFilterException.Code.EVALUATION_ERROR]

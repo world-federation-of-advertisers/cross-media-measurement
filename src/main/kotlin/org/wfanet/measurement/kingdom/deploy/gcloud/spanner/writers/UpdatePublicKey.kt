@@ -36,8 +36,9 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
  * Updates the public key details for a [MeasurementConsumer] or a [DataProvider].
  *
  * Throws a subclass of [KingdomInternalException] on [execute].
+ *
  * @throws [MeasurementConsumerCertificateNotFoundException] MeasurementConsumer's Certificate not
- * found
+ *   found
  * @throws [DataProviderNotFoundException] DataProvider not found
  * @throws [MeasurementConsumerNotFoundException] MeasurementConsumer not found
  */

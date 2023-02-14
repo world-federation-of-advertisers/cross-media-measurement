@@ -176,10 +176,10 @@ parameters in the Frontend simulator and create different measurements.)***
     -   Set "create table from" to `upload`
     -   Select the local file `halo-cmm-test-labelled-events.csv` in your local
         branch
-    -   Set Destination Table to `labelled-events`
+    -   Set Destination Table to `labelled_events`
     -   Check the Schema -> Auto detect box
     -   Click `CREATE TABLE`
-    -   You should see a table named `labelled-events` being created. But the
+    -   You should see a table named `labelled_events` being created. But the
         `create table` window might still be open, just click `CANCEL` to quit
         it.
 4.  Check the table is valid

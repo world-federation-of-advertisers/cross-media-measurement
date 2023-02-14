@@ -38,8 +38,10 @@ import org.wfanet.measurement.api.v2.alpha.ListReportsPageToken
 import org.wfanet.measurement.api.v2.alpha.ListReportsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2.alpha.copy
 import org.wfanet.measurement.api.v2.alpha.listReportsPageToken
+import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
@@ -87,6 +89,7 @@ import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
+import org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
 import org.wfanet.measurement.internal.reporting.CreateReportRequest as InternalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.CreateReportRequest.MeasurementKey as InternalMeasurementKey
@@ -1164,34 +1167,76 @@ class ReportsService(
     measurementConsumerSigningKey: SigningKeyHandle,
     apiAuthenticationKey: String,
   ): List<DataProviderEntry> {
-    return eventGroupEntriesByDataProvider.map { (dataProviderKey, eventGroupEntries) ->
+    return eventGroupEntriesByDataProvider.map { (dataProviderKey, eventGroupEntriesList) ->
+      // TODO(@SanjayVas): Consider caching the public key and certificate.
       val dataProviderName: String = dataProviderKey.toName()
-      dataProviderEntry {
-        val requisitionSpec = requisitionSpec {
-          eventGroups += eventGroupEntries
-          this.measurementPublicKey = measurementEncryptionPublicKey
-          nonce = secureRandom.nextLong()
+      val dataProvider: DataProvider =
+        try {
+          dataProvidersStub
+            .withAuthenticationKey(apiAuthenticationKey)
+            .getDataProvider(getDataProviderRequest { name = dataProviderName })
+        } catch (e: StatusException) {
+          throw when (e.status.code) {
+              Status.Code.NOT_FOUND ->
+                Status.FAILED_PRECONDITION.withDescription("$dataProviderName not found")
+              else -> Status.UNKNOWN.withDescription("Unable to retrieve $dataProviderName")
+            }
+            .withCause(e)
+            .asRuntimeException()
         }
 
-        val dataProvider =
-          try {
-            dataProvidersStub
-              .withAuthenticationKey(apiAuthenticationKey)
-              .getDataProvider(getDataProviderRequest { name = dataProviderName })
-          } catch (e: StatusException) {
-            throw Exception("Unable to retrieve $dataProviderName", e)
-          }
+      val certificate: Certificate =
+        try {
+          certificateStub
+            .withAuthenticationKey(apiAuthenticationKey)
+            .getCertificate(getCertificateRequest { name = dataProvider.certificate })
+        } catch (e: StatusException) {
+          throw Exception("Unable to retrieve Certificate ${dataProvider.certificate}", e)
+        }
+      if (certificate.revocationState != Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED) {
+        throw Status.FAILED_PRECONDITION.withDescription(
+            "${certificate.name} revocation state is ${certificate.revocationState}"
+          )
+          .asRuntimeException()
+      }
 
+      val x509Certificate: X509Certificate = readCertificate(certificate.x509Der)
+      val trustedIssuer: X509Certificate =
+        trustedCertificates[checkNotNull(x509Certificate.authorityKeyIdentifier)]
+          ?: throw Status.FAILED_PRECONDITION.withDescription(
+              "${certificate.name} not issued by trusted CA"
+            )
+            .asRuntimeException()
+      try {
+        verifyEncryptionPublicKey(dataProvider.publicKey, x509Certificate, trustedIssuer)
+      } catch (e: CertPathValidatorException) {
+        throw Status.FAILED_PRECONDITION.withCause(e)
+          .withDescription("Certificate path for ${certificate.name} is invalid")
+          .asRuntimeException()
+      } catch (e: SignatureException) {
+        throw Status.FAILED_PRECONDITION.withCause(e)
+          .withDescription("DataProvider public key signature is invalid")
+          .asRuntimeException()
+      }
+
+      val requisitionSpec = requisitionSpec {
+        eventGroups += eventGroupEntriesList
+        measurementPublicKey = measurementEncryptionPublicKey
+        nonce = secureRandom.nextLong()
+      }
+      val encryptRequisitionSpec =
+        encryptRequisitionSpec(
+          signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
+          EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
+        )
+
+      dataProviderEntry {
         key = dataProvider.name
         value =
           DataProviderEntryKt.value {
-            dataProviderCertificate = dataProvider.certificate
+            dataProviderCertificate = certificate.name
             dataProviderPublicKey = dataProvider.publicKey
-            encryptedRequisitionSpec =
-              encryptRequisitionSpec(
-                signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
-                EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
-              )
+            this.encryptedRequisitionSpec = encryptRequisitionSpec
             nonceHash = hashSha256(requisitionSpec.nonce)
           }
       }

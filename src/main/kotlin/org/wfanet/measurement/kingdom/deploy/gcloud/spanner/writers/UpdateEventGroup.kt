@@ -30,6 +30,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.checkValidCe
  * Update [EventGroup] in the database.
  *
  * Throws a subclass of [KingdomInternalException] on [execute].
+ *
  * @throws [EventGroupNotFoundException] EventGroup not found
  * @throws [EventGroupInvalidArgsException] MeasurementConsumer ids mismatch
  */

@@ -74,6 +74,7 @@ class ReportingSetReader {
    * Reads a Reporting Set using external ID.
    *
    * Throws a subclass of [ReportingInternalException].
+   *
    * @throws [ReportingSetNotFoundException] Reporting Set not found.
    */
   suspend fun readReportingSetByExternalId(

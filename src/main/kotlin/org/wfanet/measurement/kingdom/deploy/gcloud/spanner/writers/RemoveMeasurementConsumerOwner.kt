@@ -33,6 +33,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
  * Remove an [Account] as a new owner of a [MeasurementConsumer] from the database.
  *
  * Throws a subclass of [KingdomInternalException] on [execute].
+ *
  * @throws [MeasurementConsumerNotFoundException] MeasurementConsumer not found
  * @throws [AccountNotFoundException] Account not found
  * @throws [PermissionDeniedException] Permission denied due to ownership of MeasurementConsumer

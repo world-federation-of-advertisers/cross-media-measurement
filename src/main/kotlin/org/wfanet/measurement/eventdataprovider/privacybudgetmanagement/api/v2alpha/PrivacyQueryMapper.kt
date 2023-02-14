@@ -1,11 +1,11 @@
-/**
+/*
  * Copyright 2022 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
- * ```
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * ```
+ *
  * Unless required by applicable law or agreed to in writing, software distributed under the License
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
  * or implied. See the License for the specific language governing permissions and limitations under
@@ -29,12 +29,12 @@ object PrivacyQueryMapper {
    *
    * @param reference representing the reference key and if the charge is a refund.
    * @param measurementSpec The measurementSpec protobuf that is associated with the query. The VID
-   * sampling interval is obtained from from this.
+   *   sampling interval is obtained from from this.
    * @param requisitionSpec The requisitionSpec protobuf that is associated with the query. The date
-   * range and demo groups are obtained from this.
+   *   range and demo groups are obtained from this.
    * @throws PrivacyBudgetManagerException if an error occurs in handling this request. Possible
-   * exceptions could include running out of privacy budget or a failure to commit the transaction
-   * to the database.
+   *   exceptions could include running out of privacy budget or a failure to commit the transaction
+   *   to the database.
    */
   fun getPrivacyQuery(
     reference: Reference,

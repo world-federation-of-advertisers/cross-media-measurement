@@ -568,7 +568,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	}
 	_egresses: {
 		if len(_destinationMatchLabels) > 0 {
-			pods: {
+			grpc: {
 				to: [ for appLabel in _destinationMatchLabels {
 					podSelector: matchLabels: app: appLabel
 				}]

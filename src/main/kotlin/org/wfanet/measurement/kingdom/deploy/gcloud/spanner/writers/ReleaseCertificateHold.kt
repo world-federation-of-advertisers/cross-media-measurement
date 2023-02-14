@@ -38,15 +38,16 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateR
  * Revokes a certificate in the database.
  *
  * Throws a subclass of [KingdomInternalException] on [execute].
+ *
  * @throws [MeasurementConsumerCertificateNotFoundException] Certificate not found
  * @throws [DataProviderCertificateNotFoundException] Certificate not found
  * @throws [DuchyCertificateNotFoundException] Certificate not found
  * @throws [DuchyNotFoundException] Duchy not found
  * @throws [CertificateRevocationStateIllegalException] CertificateRevocation state is REVOKED or
- * not specified
+ *   not specified
  *
  * TODO(world-federation-of-advertisers/cross-media-measurement#305) : Consider cancelling all
- * associated active measurements if a certificate is revoked
+ *   associated active measurements if a certificate is revoked
  */
 class ReleaseCertificateHold(private val request: ReleaseCertificateHoldRequest) :
   SpannerWriter<Certificate, Certificate>() {

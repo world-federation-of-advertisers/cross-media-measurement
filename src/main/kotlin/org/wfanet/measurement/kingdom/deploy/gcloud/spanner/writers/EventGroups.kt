@@ -27,8 +27,9 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateR
  * Checks that a given Measurement Consumer certificate is valid and returns its ID.
  *
  * Throws a subclass of [KingdomInternalException].
+ *
  * @throws [MeasurementConsumerCertificateNotFoundException] Measurement Consumer's Certificate is
- * not found
+ *   not found
  * @throws [CertificateIsInvalidException] Certificate is not valid
  */
 suspend fun checkValidCertificate(

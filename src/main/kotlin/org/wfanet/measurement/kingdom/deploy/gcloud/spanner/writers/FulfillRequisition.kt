@@ -44,8 +44,9 @@ private object Params {
  * Fulfills a [Requisition].
  *
  * Throws a subclass of [KingdomInternalException] on [execute].
+ *
  * @throws [MeasurementStateIllegalException] Measurement state is not
- * PENDING_REQUISITION_FULFILLMENT
+ *   PENDING_REQUISITION_FULFILLMENT
  * @throws [RequisitionStateIllegalException] Requisition state is not UNFULFILLED
  * @throws [RequisitionNotFoundByComputationException] Requisition not found
  * @throws [RequisitionNotFoundByDataProviderException] Requisition not found

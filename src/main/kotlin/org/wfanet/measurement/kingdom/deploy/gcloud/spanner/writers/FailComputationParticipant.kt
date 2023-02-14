@@ -37,6 +37,7 @@ private val NEXT_COMPUTATION_PARTICIPANT_STATE = ComputationParticipant.State.FA
  * Sets participant details for a ComputationParticipant in the database.
  *
  * Throws a subclass of [KingdomInternalException] on [execute].
+ *
  * @throws [ComputationParticipantNotFoundByComputationException] ComputationParticipant not found
  * @throws [DuchyNotFoundException] Duchy not found
  * @throws [MeasurementStateIllegalException] Measurement is not in state of pending

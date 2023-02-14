@@ -827,6 +827,7 @@ class EdpSimulator(
     /**
      * Calculate direct reach and frequency from VIDs in
      * fulfillDirectReachAndFrequencyMeasurement().
+     *
      * @param vidList List of VIDs.
      * @return Pair of reach value and frequency map.
      */
@@ -861,6 +862,7 @@ class EdpSimulator(
     /**
      * Add Laplace publisher noise to calculated direct reach and frequency. TODO(@iverson52000):
      * Create a noiser class for this function when we need to add Gaussian noise.
+     *
      * @param reachValue Direct reach value.
      * @param frequencyMap Direct frequency.
      * @param reachAndFrequency ReachAndFrequency from MeasurementSpec.
