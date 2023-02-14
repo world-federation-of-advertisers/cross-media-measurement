@@ -121,6 +121,8 @@ class FailComputationParticipant(private val request: FailComputationParticipant
           this.error =
             MeasurementLogEntryKt.errorDetails {
               this.type = MeasurementLogEntry.ErrorDetails.Type.PERMANENT
+              // TODO(@marcopremier): plumb in a clock instance dependency not to hardcode the
+              // system one
               this.errorTime = Clock.systemUTC().protoTimestamp()
             }
         }

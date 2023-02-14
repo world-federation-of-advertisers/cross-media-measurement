@@ -15,96 +15,45 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
-import kotlinx.coroutines.flow.singleOrNull
-import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
-import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.internal.kingdom.Measurement
-import org.wfanet.measurement.internal.kingdom.MeasurementStateLogEntryList
-import org.wfanet.measurement.internal.kingdom.MeasurementStateLogEntryListKt
-import org.wfanet.measurement.internal.kingdom.measurement
+import org.wfanet.measurement.internal.kingdom.StateTransitionMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.measurementLogEntry
-import org.wfanet.measurement.internal.kingdom.measurementStateLogEntry
-import org.wfanet.measurement.internal.kingdom.measurementStateLogEntryList
+import org.wfanet.measurement.internal.kingdom.stateTransitionMeasurementLogEntry
 
 class StateTransitionMeasurementLogEntryReader :
   SpannerReader<StateTransitionMeasurementLogEntryReader.Result>() {
 
-  data class Result(val measurementStateLogEntryList: MeasurementStateLogEntryList)
+  data class Result(val stateTransitionMeasurementLogEntry: StateTransitionMeasurementLogEntry)
 
   override val baseSql: String =
     """
     SELECT
-      Measurements.MeasurementId,
-      Measurements.MeasurementConsumerId,
-      ARRAY(
-        SELECT AS STRUCT
-          StateTransitionMeasurementLogEntries.CreateTime,
-          StateTransitionMeasurementLogEntries.PreviousMeasurementState,
-          StateTransitionMeasurementLogEntries.CurrentMeasurementState,
-          StateTransitionMeasurementLogEntries.MeasurementConsumerId,
-          StateTransitionMeasurementLogEntries.MeasurementId
-        FROM
-          StateTransitionMeasurementLogEntries
-          JOIN MeasurementLogEntries USING (MeasurementConsumerId, MeasurementId, CreateTime)
-        WHERE
-          StateTransitionMeasurementLogEntries.MeasurementConsumerId = Measurements.MeasurementConsumerId
-          AND StateTransitionMeasurementLogEntries.MeasurementId = Measurements.MeasurementId
-        ORDER BY MeasurementLogEntries.CreateTime DESC
-      ) AS StateTransitionMeasurementLogEntries
+      StateTransitionMeasurementLogEntries.CreateTime,
+      StateTransitionMeasurementLogEntries.PreviousMeasurementState,
+      StateTransitionMeasurementLogEntries.CurrentMeasurementState,
+      StateTransitionMeasurementLogEntries.MeasurementConsumerId,
+      StateTransitionMeasurementLogEntries.MeasurementId
     FROM
-      Measurements
-      JOIN MeasurementConsumers USING (MeasurementConsumerId)
+      StateTransitionMeasurementLogEntries
+      JOIN MeasurementLogEntries USING (MeasurementConsumerId, MeasurementId, CreateTime)
+      JOIN Measurements USING (MeasurementConsumerId)
     """
       .trimIndent()
 
   override suspend fun translate(struct: Struct): Result =
-    Result(measurementStateLogEntryList { fillStateTransitionLogView(struct) })
+    Result(fillStateTransitionLogView(struct))
 
-  suspend fun readStateTransitionLogByExternalIds(
-    readContext: AsyncDatabaseClient.ReadContext,
-    externalMeasurementConsumerId: ExternalId,
-    externalMeasurementId: ExternalId
-  ): Result? {
-    return fillStatementBuilder {
-        appendClause(
-          """
-            WHERE ExternalMeasurementConsumerId = @externalMeasurementConsumerId
-              AND ExternalMeasurementId = @externalMeasurementId
-            """
-        )
-        bind("externalMeasurementConsumerId").to(externalMeasurementConsumerId.value)
-        bind("externalMeasurementId").to(externalMeasurementId.value)
-      }
-      .execute(readContext)
-      .singleOrNull()
-  }
-
-  private fun MeasurementStateLogEntryListKt.Dsl.fillStateTransitionLogView(struct: Struct) {
-    val stateTransitionMeasurementStructs =
-      struct.getStructList("StateTransitionMeasurementLogEntries")
-    for (stateTransitionMeasurementStruct in stateTransitionMeasurementStructs) {
-      measurementStateLogEntry += measurementStateLogEntry {
-        this.currentState =
-          stateTransitionMeasurementStruct.getProtoEnum(
-            "CurrentMeasurementState",
-            org.wfanet.measurement.internal.kingdom.Measurement.State::forNumber
-          )
-        this.previousState =
-          if (stateTransitionMeasurementStruct.isNull("PreviousMeasurementState"))
-            org.wfanet.measurement.internal.kingdom.Measurement.State.STATE_UNSPECIFIED
-          else
-            stateTransitionMeasurementStruct.getProtoEnum(
-              "PreviousMeasurementState",
-              org.wfanet.measurement.internal.kingdom.Measurement.State::forNumber
-            )
-        this.logEntry = measurementLogEntry {
-          this.createTime = stateTransitionMeasurementStruct.getTimestamp("CreateTime").toProto()
-          this.externalMeasurementId = stateTransitionMeasurementStruct.getLong("MeasurementId")
-          this.externalMeasurementConsumerId =
-            stateTransitionMeasurementStruct.getLong("MeasurementConsumerId")
-        }
+  private fun fillStateTransitionLogView(struct: Struct): StateTransitionMeasurementLogEntry {
+    return stateTransitionMeasurementLogEntry {
+      this.currentState =
+        struct.getProtoEnum("CurrentMeasurementState", Measurement.State::forNumber)
+      this.previousState =
+        if (struct.isNull("PreviousMeasurementState")) Measurement.State.STATE_UNSPECIFIED
+        else struct.getProtoEnum("PreviousMeasurementState", Measurement.State::forNumber)
+      this.logEntry = measurementLogEntry {
+        this.createTime = struct.getTimestamp("CreateTime").toProto()
+        this.externalMeasurementId = struct.getLong("MeasurementId")
       }
     }
   }
