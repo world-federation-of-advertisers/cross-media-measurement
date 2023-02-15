@@ -49,15 +49,15 @@ bazel-bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/Benchmark \
   --measurement-consumer ${HALO_MC} \
   --private-key-der-file=src/main/k8s/testing/secretfiles/mc_cs_private.der \
   --encryption-private-key-file=src/main/k8s/testing/secretfiles/mc_enc_private.tink \
-  --output-file="${OUTPUT_DIR}/benchmark-RF-4pubs-originalLlv2-results-kind-large-memory.csv" \
+  --output-file="${OUTPUT_DIR}/benchmark-results-kind-large-memory-RF-4pubs-noVidSampling-decayRate=1.01-sketchSize=1M.csv" \
   --timeout=5000 \
   --reach-and-frequency \
   --reach-privacy-epsilon=0.0033 \
   --reach-privacy-delta=0.0000000001 \
   --frequency-privacy-epsilon=0.115 \
   --frequency-privacy-delta=0.0000000001 \
-  --vid-sampling-start=0.16 \
-  --vid-sampling-width=0.016667 \
+  --vid-sampling-start=0.0 \
+  --vid-sampling-width=1.0 \
   --vid-bucket-count=50 \
   --max-frequency-for-reach=10 \
   --repetition-count=1 \
