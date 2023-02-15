@@ -50,6 +50,7 @@ message StreamReportingSetsRequest {
   message Filter {
     // `MeasurementConsumer` ID from the CMMS public API.
     string measurement_consumer_reference_id = 1;
+    // Skips to results with an external id greater than this.
     fixed64 external_reporting_set_id_after = 2;
   }
   Filter filter = 1;
