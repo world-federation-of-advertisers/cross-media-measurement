@@ -32,7 +32,6 @@
 --       │       └── WeightedSubsetUnionPrimitiveReportingSetBases
 --       ├── Metrics
 --       │   └── MetricMeasurements
---       ├── MetricSpecs
 --       ├── Measurements
 --       │   └── MeasurementPrimitiveReportingSetBases
 --       ├── Models
@@ -45,7 +44,7 @@
 --           ├── MetricCalculations
 --           │   └── MetricCalculationMetrics
 --           └── ModelInferenceCalculations
---               └── ModelInferenceCalculationModelSpecs
+--               └── ModelInferenceCalculationMetricSpecs
 
 -- changeset riemanli:create-measurement-consumers-table dbms:postgresql
 CREATE TABLE MeasurementConsumers (
@@ -236,10 +235,14 @@ CREATE TABLE SetExpressions (
     ON DELETE CASCADE,
 );
 
--- changeset riemanli:create-metric-specs-table dbms:postgresql
-CREATE TABLE MetricSpecs (
+-- changeset riemanli:create-metrics-table dbms:postgresql
+CREATE TABLE Metrics (
   MeasurementConsumerId bigint NOT NULL,
-  MetricSpecId bigint NOT NULL,
+  MetricId bigint NOT NULL,
+  ReportingSetId bigint NOT NULL,
+
+  TimeIntervalStart TIMESTAMP NOT NULL,
+  TimeIntervalEndExclusive TIMESTAMP NOT NULL,
 
   -- org.wfanet.measurement.internal.reporting.MetricSpec.MetricType
   -- protobuf enum encoded as an integer.
@@ -250,22 +253,6 @@ CREATE TABLE MetricSpecs (
   -- Must not be NULL if MetricType is WATCH_DURATION
   MaximumWatchDurationPerUser bigint,
 
-  PRIMARY KEY(MeasurementConsumerId, MetricSpecId),
-  FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId)
-    ON DELETE CASCADE,
-);
-
--- changeset riemanli:create-metrics-table dbms:postgresql
-CREATE TABLE Metrics (
-  MeasurementConsumerId bigint NOT NULL,
-  MetricId bigint NOT NULL,
-  MetricSpecId bigint NOT NULL,
-  ReportingSetId bigint NOT NULL,
-
-  TimeIntervalStart TIMESTAMP NOT NULL,
-  TimeIntervalEndExclusive TIMESTAMP NOT NULL,
-
   -- org.wfanet.measurement.internal.reporting.Metric.State
   -- protobuf enum encoded as an integer.
   State integer NOT NULL,
@@ -275,9 +262,6 @@ CREATE TABLE Metrics (
   MetricDetails bytea NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, MetricId),
-  FOREIGN KEY(MeasurementConsumerId, MetricSpecId)
-    REFERENCES MetricSpecs(MeasurementConsumerId, MetricSpecId)
-    ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
     REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
     ON DELETE CASCADE,
@@ -379,14 +363,20 @@ CREATE TABLE ModelMetrics(
 CREATE TABLE ModelMetricSpecs(
   MeasurementConsumerId bigint NOT NULL,
   ModelId bigint NOT NULL,
-  MetricSpecId bigint NOT NULL,
+  ModelMetricSpecId NOT NULL,
 
-  PRIMARY KEY(MeasurementConsumerId, ModelId, MetricSpecId),
+  -- org.wfanet.measurement.internal.reporting.MetricSpec.MetricType
+  -- protobuf enum encoded as an integer.
+  MetricType integer NOT NULL,
+
+  -- Must not be NULL if MetricType is FREQUENCY_HISTOGRAM or IMPRESSION_COUNT
+  MaximumFrequencyPerUser bigint,
+  -- Must not be NULL if MetricType is WATCH_DURATION
+  MaximumWatchDurationPerUser bigint,
+
+  PRIMARY KEY(MeasurementConsumerId, ModelId, ModelMetricSpecId),
   FOREIGN KEY(MeasurementConsumerId, ModelId)
     REFERENCES Models(MeasurementConsumerId, ModelId)
-    ON DELETE CASCADE,
-  FOREIGN KEY(MeasurementConsumerId, MetricSpecId)
-    REFERENCES MetricSpecs(MeasurementConsumerId, MetricSpecId)
     ON DELETE CASCADE,
 );
 
@@ -522,13 +512,19 @@ CREATE TABLE ModelInferenceCalculationMetricSpecs (
   MeasurementConsumerId bigint NOT NULL,
   ReportId bigint NOT NULL,
   ModelInferenceCalculationId bigint NOT NULL,
-  MetricSpecId bigint NOT NULL,
+  ModelInferenceCalculationMetricSpecId bigint NOT NULL,
 
-  PRIMARY KEY(MeasurementConsumerId, ReportId, ModelInferenceCalculationId, MetricSpecId),
+  -- org.wfanet.measurement.internal.reporting.MetricSpec.MetricType
+  -- protobuf enum encoded as an integer.
+  MetricType integer NOT NULL,
+
+  -- Must not be NULL if MetricType is FREQUENCY_HISTOGRAM or IMPRESSION_COUNT
+  MaximumFrequencyPerUser bigint,
+  -- Must not be NULL if MetricType is WATCH_DURATION
+  MaximumWatchDurationPerUser bigint,
+
+  PRIMARY KEY(MeasurementConsumerId, ReportId, ModelInferenceCalculationId, ModelInferenceCalculationMetricSpecId),
   FOREIGN KEY(MeasurementConsumerId, ReportId, ModelInferenceCalculationId)
     REFERENCES ModelInferenceCalculations(MeasurementConsumerId, ReportId, ModelInferenceCalculationId)
-    ON DELETE CASCADE,
-  FOREIGN KEY(MeasurementConsumerId, MetricSpecId)
-    REFERENCES MetricSpecs(MeasurementConsumerId, MetricSpecId)
     ON DELETE CASCADE,
 );
