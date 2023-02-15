@@ -35,6 +35,7 @@ import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.modelProvider
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
+import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.EXTERNAL_DUCHY_IDS
 
 private const val INTERNAL_RECURRING_EXCHANGE_ID = 111L
 private const val EXTERNAL_RECURRING_EXCHANGE_ID = 222L
@@ -53,8 +54,6 @@ private const val INTERNAL_MODEL_PROVIDER_ID = 555L
 private const val EXTERNAL_MODEL_PROVIDER_ID = 666L
 private val MODEL_ID_GENERATOR =
   FixedIdGenerator(InternalId(INTERNAL_MODEL_PROVIDER_ID), ExternalId(EXTERNAL_MODEL_PROVIDER_ID))
-
-private val EXTERNAL_DUCHY_IDS = listOf("worker1", "worker2")
 
 private val RECURRING_EXCHANGE: RecurringExchange =
   RecurringExchange.newBuilder()
@@ -88,7 +87,7 @@ private val DATA_PROVIDER: DataProvider =
         publicKey = ByteString.copyFromUtf8("This is a  public key.")
         publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
       }
-      addAllRequiredExternalDuchyIds(mutableListOf("worker1", "worker2"))
+      addAllRequiredExternalDuchyIds(EXTERNAL_DUCHY_IDS)
     }
     .build()
 

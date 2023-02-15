@@ -122,4 +122,15 @@ class ResourceSetupFlags {
       .withZone(ZoneOffset.UTC)
       .format(Instant.now())
     private set
+
+  @CommandLine.Option(
+    names = ["--required-duchies"],
+    description =
+      [
+        "The set of duchies externals IDS that must be included in all computations involving this DataProvider."
+      ],
+    required = false
+  )
+  lateinit var requiredDuchies: List<String>
+    private set
 }

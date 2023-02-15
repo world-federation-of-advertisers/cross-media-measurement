@@ -45,12 +45,10 @@ private const val API_VERSION = "v2alpha"
 private val PUBLIC_KEY = ByteString.copyFromUtf8("public key")
 private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("public key signature")
 
-private val EXTERNAL_DUCHY_IDS = listOf("worker1", "worker2")
-
 @RunWith(JUnit4::class)
 abstract class PublicKeysServiceTest<T : PublicKeysCoroutineImplBase> {
 
-  @get:Rule val duchyIdSetter = DuchyIdSetter(EXTERNAL_DUCHY_IDS)
+  @get:Rule val duchyIdSetter = DuchyIdSetter(Population.EXTERNAL_DUCHY_IDS)
 
   protected data class Services<T>(
     val publicKeysService: T,
