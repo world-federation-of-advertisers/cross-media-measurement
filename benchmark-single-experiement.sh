@@ -50,7 +50,7 @@ bazel-bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/Benchmark \
   --private-key-der-file=src/main/k8s/testing/secretfiles/mc_cs_private.der \
   --encryption-private-key-file=src/main/k8s/testing/secretfiles/mc_enc_private.tink \
   --output-file="${OUTPUT_DIR}/benchmark-results-kind-large-memory-RF-4pubs-noVidSampling-decayRate=1.01-sketchSize=1M.csv" \
-  --timeout=5000 \
+  --timeout=36000 \
   --reach-and-frequency \
   --reach-privacy-epsilon=0.0033 \
   --reach-privacy-delta=0.0000000001 \

@@ -84,6 +84,10 @@ import ("strings")
 		_secretName:      _duchy_secret_name
 		_system:          "duchy"
 		_container: {
+      _javaOptions: {
+        initialHeapSize: "96M"
+        maxHeapSize: "3072M"
+      }
 			image:           _images[_unprefixed_name]
 			imagePullPolicy: _duchy_image_pull_policy
 		}
