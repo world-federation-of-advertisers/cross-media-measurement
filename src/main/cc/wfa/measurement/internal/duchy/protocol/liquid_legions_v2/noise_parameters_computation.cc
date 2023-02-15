@@ -30,7 +30,8 @@ int ComputateMuPolya(double epsilon, double delta, int sensitivity, int n) {
 
 }  // namespace
 
-math::DistributedGeometricRandomComponentOptions GetBlindHistogramNoiseOptions(
+math::DistributedGeometricNoiseComponentOptions
+GetBlindHistogramGeometricNoiseOptions(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
     int uncorrupted_party_count) {
   ABSL_ASSERT(uncorrupted_party_count > 0);
@@ -38,15 +39,15 @@ math::DistributedGeometricRandomComponentOptions GetBlindHistogramNoiseOptions(
   int offset = ComputateMuPolya(params.epsilon(), params.delta(), 2,
                                 uncorrupted_party_count);
   return {
-      .num = uncorrupted_party_count,
+      .contributor_count = uncorrupted_party_count,
       .p = success_ratio,
       .truncate_threshold = offset,
       .shift_offset = offset,
   };
 }
 
-math::DistributedGeometricRandomComponentOptions
-GetNoiseForPublisherNoiseOptions(
+math::DistributedGeometricNoiseComponentOptions
+GetNoiseForPublisherGeometricNoiseOptions(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
     int publisher_count, int uncorrupted_party_count) {
   ABSL_ASSERT(publisher_count > 0);
@@ -55,14 +56,15 @@ GetNoiseForPublisherNoiseOptions(
   int offset = ComputateMuPolya(params.epsilon(), params.delta(),
                                 publisher_count, uncorrupted_party_count);
   return {
-      .num = uncorrupted_party_count,
+      .contributor_count = uncorrupted_party_count,
       .p = success_ratio,
       .truncate_threshold = offset,
       .shift_offset = offset,
   };
 }
 
-math::DistributedGeometricRandomComponentOptions GetGlobalReachDpNoiseOptions(
+math::DistributedGeometricNoiseComponentOptions
+GetGlobalReachDpGeometricNoiseOptions(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
     int uncorrupted_party_count) {
   ABSL_ASSERT(uncorrupted_party_count > 0);
@@ -70,14 +72,15 @@ math::DistributedGeometricRandomComponentOptions GetGlobalReachDpNoiseOptions(
   int offset = ComputateMuPolya(params.epsilon(), params.delta(), 1,
                                 uncorrupted_party_count);
   return {
-      .num = uncorrupted_party_count,
+      .contributor_count = uncorrupted_party_count,
       .p = success_ratio,
       .truncate_threshold = offset,
       .shift_offset = offset,
   };
 }
 
-math::DistributedGeometricRandomComponentOptions GetFrequencyNoiseOptions(
+math::DistributedGeometricNoiseComponentOptions
+GetFrequencyGeometricNoiseOptions(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
     int uncorrupted_party_count) {
   ABSL_ASSERT(uncorrupted_party_count > 0);
@@ -85,31 +88,11 @@ math::DistributedGeometricRandomComponentOptions GetFrequencyNoiseOptions(
   int offset = ComputateMuPolya(params.epsilon(), params.delta(), 2,
                                 uncorrupted_party_count);
   return {
-      .num = uncorrupted_party_count,
+      .contributor_count = uncorrupted_party_count,
       .p = success_ratio,
       .truncate_threshold = offset,
       .shift_offset = offset,
   };
-}
-
-double ComputeSigma(
-    const wfa::measurement::internal::duchy::DifferentialPrivacyParams&
-        params) {
-  double epsilon = params.epsilon();
-  double delta = params.delta();
-
-  ABSL_ASSERT(epsilon > 0);
-  ABSL_ASSERT(delta > 0);
-
-  // TODO(@iverson52000): Update formula to sigma = 1 / sqrt(2 * rho) once
-  // Almost Concentrated DP (ACDP) for accounting is implemented
-
-  // The sigma calculation formula is a closed-form formula from The Algorithmic
-  // Foundations of Differential Privacy p.265 Theorem A.1
-  // https://www.cis.upenn.edu/~aaroth/Papers/privacybook.pdf
-  // This formula generally works for epsilon <= 1 but not epsilon > 1
-
-  return std::sqrt(2 * std::log(1.25 / delta)) / epsilon;
 }
 
 }  // namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2
