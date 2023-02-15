@@ -149,7 +149,7 @@ private class CreateDataProviderCommand : CreatePrincipalCommand() {
       ],
     required = false,
   )
-  private lateinit var requiredDuchies: Array<String>
+  private lateinit var requiredDuchies: List<String>
   override fun run() {
     val dataProvider = dataProvider {
       certificate = this@CreateDataProviderCommand.certificate
@@ -161,9 +161,7 @@ private class CreateDataProviderCommand : CreatePrincipalCommand() {
           publicKeySignature = this@CreateDataProviderCommand.encryptionPublicKeySignature
         }
 
-      for (duchyExternalId in requiredDuchies) {
-        requiredExternalDuchyIds.add(duchyExternalId)
-      }
+      requiredExternalDuchyIds += requiredDuchies
     }
 
     val dataProvidersStub = DataProvidersCoroutineStub(parent.channel)

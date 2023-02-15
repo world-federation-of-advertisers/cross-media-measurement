@@ -49,13 +49,12 @@ private val DETAILS = details {
   apiVersion = Version.V2_ALPHA.string
   descriptorSet = FileDescriptorSet.getDefaultInstance()
 }
-private val EXTERNAL_DUCHY_IDS = listOf("worker1", "worker2")
 
 @RunWith(JUnit4::class)
 abstract class EventGroupMetadataDescriptorsServiceTest<
   T : EventGroupMetadataDescriptorsCoroutineImplBase> {
 
-  @get:Rule val duchyIdSetter = DuchyIdSetter(EXTERNAL_DUCHY_IDS)
+  @get:Rule val duchyIdSetter = DuchyIdSetter(Population.EXTERNAL_DUCHY_IDS)
 
   private val testClock: Clock = Clock.systemUTC()
   protected val idGenerator = RandomIdGenerator(testClock, Random(RANDOM_SEED))

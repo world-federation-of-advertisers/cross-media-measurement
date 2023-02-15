@@ -42,8 +42,6 @@ class CreateDataProvider(private val dataProvider: DataProvider) :
       setJson("DataProviderDetailsJson" to dataProvider.details)
     }
 
-    // This takes O(n*m) where n is the list of duchies and m the list of required ones. Expected
-    // number of duchies should quite small (~5) and the required <= 2
     for (externalDuchyId in dataProvider.requiredExternalDuchyIdsList) {
 
       val duchyId =

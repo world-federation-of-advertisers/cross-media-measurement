@@ -75,6 +75,7 @@ import org.wfanet.measurement.internal.kingdom.recurringExchange
 import org.wfanet.measurement.internal.kingdom.recurringExchangeDetails
 import org.wfanet.measurement.internal.kingdom.streamExchangeStepsRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
+import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.EXTERNAL_DUCHY_IDS
 
 private const val INTERNAL_RECURRING_EXCHANGE_ID = 111L
 private const val EXTERNAL_RECURRING_EXCHANGE_ID = 222L
@@ -100,7 +101,6 @@ private val idGenerator =
   FixedIdGenerator(InternalId(FIXED_GENERATED_INTERNAL_ID), ExternalId(FIXED_GENERATED_EXTERNAL_ID))
 
 private const val STEP_INDEX = 1
-private val EXTERNAL_DUCHY_IDS = listOf("worker1", "worker2")
 
 private val EXCHANGE_WORKFLOW = exchangeWorkflow {
   steps += step {
@@ -141,7 +141,7 @@ private val DATA_PROVIDER = dataProvider {
     publicKey = ByteString.copyFromUtf8("This is a  public key.")
     publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
   }
-  requiredExternalDuchyIds.addAll(mutableListOf("worker1", "worker2"))
+  requiredExternalDuchyIds += EXTERNAL_DUCHY_IDS
 }
 
 @RunWith(JUnit4::class)
