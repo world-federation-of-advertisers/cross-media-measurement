@@ -16,7 +16,9 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
+import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.StateTransitionMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.measurementLogEntry
 import org.wfanet.measurement.internal.kingdom.stateTransitionMeasurementLogEntry
@@ -29,7 +31,10 @@ class StateTransitionMeasurementLogEntryReader :
   override val baseSql: String =
     """
     SELECT
-      StateTransitionMeasurementLogEntries.CreateTime,
+      Measurements.ExternalMeasurementId,
+      MeasurementConsumers.ExternalMeasurementConsumerId,
+      MeasurementLogEntries.MeasurementLogDetails,
+      MeasurementLogEntries.CreateTime,
       StateTransitionMeasurementLogEntries.PreviousMeasurementState,
       StateTransitionMeasurementLogEntries.CurrentMeasurementState,
       StateTransitionMeasurementLogEntries.MeasurementConsumerId,
@@ -38,22 +43,25 @@ class StateTransitionMeasurementLogEntryReader :
       StateTransitionMeasurementLogEntries
       JOIN MeasurementLogEntries USING (MeasurementConsumerId, MeasurementId, CreateTime)
       JOIN Measurements USING (MeasurementConsumerId)
+      JOIN MeasurementConsumers USING (MeasurementConsumerId)
     """
       .trimIndent()
 
   override suspend fun translate(struct: Struct): Result =
-    Result(fillStateTransitionLogView(struct))
+    Result(buildStateTransitionMeasurementLogEntry(struct))
 
-  private fun fillStateTransitionLogView(struct: Struct): StateTransitionMeasurementLogEntry {
+  private fun buildStateTransitionMeasurementLogEntry(
+    struct: Struct
+  ): StateTransitionMeasurementLogEntry {
     return stateTransitionMeasurementLogEntry {
-      this.currentState =
-        struct.getProtoEnum("CurrentMeasurementState", Measurement.State::forNumber)
-      this.previousState =
-        if (struct.isNull("PreviousMeasurementState")) Measurement.State.STATE_UNSPECIFIED
-        else struct.getProtoEnum("PreviousMeasurementState", Measurement.State::forNumber)
-      this.logEntry = measurementLogEntry {
-        this.createTime = struct.getTimestamp("CreateTime").toProto()
-        this.externalMeasurementId = struct.getLong("MeasurementId")
+      currentState = struct.getProtoEnum("CurrentMeasurementState", Measurement.State::forNumber)
+      previousState = struct.getProtoEnum("PreviousMeasurementState", Measurement.State::forNumber)
+      logEntry = measurementLogEntry {
+        createTime = struct.getTimestamp("CreateTime").toProto()
+        externalMeasurementId = struct.getLong("ExternalMeasurementId")
+        externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
+        details =
+          struct.getProtoMessage("MeasurementLogDetails", MeasurementLogEntry.Details.parser())
       }
     }
   }

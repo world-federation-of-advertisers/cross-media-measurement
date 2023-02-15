@@ -40,12 +40,14 @@ class SpannerMeasurementLogEntriesService(
   override suspend fun createDuchyMeasurementLogEntry(
     request: CreateDuchyMeasurementLogEntryRequest
   ): DuchyMeasurementLogEntry {
+
     if (request.measurementLogEntryDetails.hasError()) {
       grpcRequire(request.measurementLogEntryDetails.error.type == TRANSIENT) {
         "MeasurementLogEntries Service only supports TRANSIENT errors, " +
           "use FailComputationParticipant instead."
       }
     }
+
     try {
       return CreateDuchyMeasurementLogEntry(request).execute(client, idGenerator)
     } catch (e: MeasurementNotFoundException) {
@@ -57,11 +59,12 @@ class SpannerMeasurementLogEntriesService(
     }
   }
 
-  override fun streamStateTransitionMeasurementLogEntry(
+  override fun streamStateTransitionMeasurementLogEntries(
     request: StreamStateTransitionMeasurementLogEntriesRequest
   ): Flow<StateTransitionMeasurementLogEntry> {
     return StreamStateTransitionMeasurementLogEntries(
         ExternalId(request.externalMeasurementId),
+        ExternalId(request.externalMeasurementConsumerId)
       )
       .execute(client.singleUse())
       .map { it.stateTransitionMeasurementLogEntry }
