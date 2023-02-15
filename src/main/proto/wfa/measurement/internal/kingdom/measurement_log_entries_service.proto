@@ -33,7 +33,7 @@ service MeasurementLogEntries {
       returns (DuchyMeasurementLogEntry);
 
   // Retrieve all measurement state transition log entries for a given measurement
-  rpc StreamStateTransitionMeasurementLogEntry(StreamStateTransitionMeasurementLogEntriesRequest) returns (stream StateTransitionMeasurementLogEntry);
+  rpc StreamStateTransitionMeasurementLogEntries(StreamStateTransitionMeasurementLogEntriesRequest) returns (stream StateTransitionMeasurementLogEntry);
 }
 
 message CreateDuchyMeasurementLogEntryRequest {
@@ -45,5 +45,6 @@ message CreateDuchyMeasurementLogEntryRequest {
 }
 
 message StreamStateTransitionMeasurementLogEntriesRequest {
-  fixed64 external_measurement_id = 1;
+  fixed64 external_measurement_consumer_id = 1;
+  fixed64 external_measurement_id = 2;
 }
