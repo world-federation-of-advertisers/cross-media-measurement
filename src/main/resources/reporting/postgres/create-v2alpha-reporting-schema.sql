@@ -19,8 +19,7 @@
 -- Table hierarchy:
 --   Root
 --   └── MeasurementConsumers
---       ├── DataProviders
---       │   └── EventGroups
+--       ├── EventGroups
 --       ├── ReportingSets
 --       │   ├── ReportingSetEventGroups
 --       │   ├── PrimitiveReportingSetBases
@@ -84,6 +83,9 @@ CREATE TABLE ReportingSets (
   UNIQUE (MeasurementConsumerId, ExternalReportingSetId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId)
+    ON DELETE CASCADE,
+  FOREIGN KEY(MeasurementConsumerId, SetExpressionId)
+    REFERENCES SetExpressions(MeasurementConsumerId, SetExpressionId)
     ON DELETE CASCADE,
 );
 
