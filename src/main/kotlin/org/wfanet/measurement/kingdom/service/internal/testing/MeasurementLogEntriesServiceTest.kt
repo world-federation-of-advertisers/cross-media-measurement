@@ -85,11 +85,13 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
 
   private fun readMeasurementStateLog(
-    externalMeasurementId: Long
+    externalMeasurementId: Long,
+    externalMeasurementConsumerId: Long
   ): Flow<StateTransitionMeasurementLogEntry> {
-    return measurementLogEntriesService.streamStateTransitionMeasurementLogEntry(
+    return measurementLogEntriesService.streamStateTransitionMeasurementLogEntries(
       streamStateTransitionMeasurementLogEntriesRequest {
         this.externalMeasurementId = externalMeasurementId
+        this.externalMeasurementConsumerId = externalMeasurementConsumerId
       }
     )
   }
@@ -305,7 +307,13 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
           dataProvider
         )
 
-      assertThat(readMeasurementStateLog(measurement.externalMeasurementConsumerId).count())
+      assertThat(
+          readMeasurementStateLog(
+              measurement.externalMeasurementId,
+              measurement.externalMeasurementConsumerId
+            )
+            .count()
+        )
         .isEqualTo(0)
 
       measurement =
@@ -317,7 +325,11 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
         )
 
       val measurementStateTransitionLogEntry: StateTransitionMeasurementLogEntry =
-        readMeasurementStateLog(measurement.externalMeasurementId).single()
+        readMeasurementStateLog(
+            measurement.externalMeasurementId,
+            measurement.externalMeasurementConsumerId
+          )
+          .single()
 
       assertThat(measurementStateTransitionLogEntry.currentState)
         .isEqualTo(Measurement.State.CANCELLED)

@@ -18,17 +18,21 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.StateTransitionMeasurementLogEntryReader
 
-class StreamStateTransitionMeasurementLogEntries(externalMeasurementId: ExternalId) :
-  SimpleSpannerQuery<StateTransitionMeasurementLogEntryReader.Result>() {
+class StreamStateTransitionMeasurementLogEntries(
+  externalMeasurementId: ExternalId,
+  externalMeasurementConsumerId: ExternalId
+) : SimpleSpannerQuery<StateTransitionMeasurementLogEntryReader.Result>() {
 
   override val reader =
     StateTransitionMeasurementLogEntryReader().fillStatementBuilder {
       appendClause(
         """
         WHERE Measurements.ExternalMeasurementId = @externalMeasurementId
+          AND MeasurementConsumers.ExternalMeasurementConsumerId = @externalMeasurementConsumerId
         """
           .trimIndent()
       )
       bind("externalMeasurementId").to(externalMeasurementId.value)
+      bind("externalMeasurementConsumerId").to(externalMeasurementConsumerId.value)
     }
 }
