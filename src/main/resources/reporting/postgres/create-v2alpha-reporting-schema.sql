@@ -471,24 +471,19 @@ CREATE TABLE ModelInferenceCalculations (
     ON DELETE CASCADE,
 );
 
--- changeset riemanli:create-model-inference-calculation-metric-specs-table dbms:postgresql
-CREATE TABLE ModelInferenceCalculationMetricSpecs (
+-- changeset riemanli:create-model-inference-calculation-model-metric-specs-table dbms:postgresql
+CREATE TABLE ModelInferenceCalculationModelMetricSpecs (
   MeasurementConsumerId bigint NOT NULL,
   ReportId bigint NOT NULL,
   ModelInferenceCalculationId bigint NOT NULL,
-  ModelInferenceCalculationMetricSpecId bigint NOT NULL,
+  ModelId bigint NOT NULL,
+  ModelMetricSpecId bigint NOT NULL,
 
-  -- org.wfanet.measurement.internal.reporting.MetricSpec.MetricType
-  -- protobuf enum encoded as an integer.
-  MetricType integer NOT NULL,
-
-  -- Must not be NULL if MetricType is FREQUENCY_HISTOGRAM or IMPRESSION_COUNT
-  MaximumFrequencyPerUser bigint,
-  -- Must not be NULL if MetricType is WATCH_DURATION
-  MaximumWatchDurationPerUser bigint,
-
-  PRIMARY KEY(MeasurementConsumerId, ReportId, ModelInferenceCalculationId, ModelInferenceCalculationMetricSpecId),
+  PRIMARY KEY(MeasurementConsumerId, ReportId, ModelInferenceCalculationId, ModelId, ModelMetricSpecId),
   FOREIGN KEY(MeasurementConsumerId, ReportId, ModelInferenceCalculationId)
     REFERENCES ModelInferenceCalculations(MeasurementConsumerId, ReportId, ModelInferenceCalculationId)
+    ON DELETE CASCADE,
+  FOREIGN KEY(MeasurementConsumerId, ModelId, ModelMetricSpecId)
+    REFERENCES ModelMetricSpecs(MeasurementConsumerId, ModelId, ModelMetricSpecId)
     ON DELETE CASCADE,
 );
