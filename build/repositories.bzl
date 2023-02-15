@@ -56,7 +56,7 @@ def wfa_measurement_system_repositories():
         #        sha256 = "a30369e28ae3788356b734239559f3d0c035d9121963ab00a797615364d4f0c4",
         #        version = "0.3.0",
         sha256 = None,
-        commit = "7aa81b53214e6d50062f279499979e9b2f3630d5",
+        commit = "44aa9a9e67810e57ad9f71ab55ea6622daf04853",
     )
 
     wfa_repo_archive(

@@ -15,31 +15,31 @@
 #ifndef SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_LIQUID_LEGIONS_V2_NOISE_PARAMETERS_COMPUTATION_H_
 #define SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_LIQUID_LEGIONS_V2_NOISE_PARAMETERS_COMPUTATION_H_
 
-#include "math/distributed_geometric_random_noise.h"
-#include "math/distributed_random_noise.h"
+#include "math/distributed_geometric_noiser.h"
+#include "math/distributed_noiser.h"
 #include "wfa/measurement/internal/duchy/differential_privacy.pb.h"
 
 namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
 
-math::DistributedGeometricRandomComponentOptions GetBlindHistogramNoiseOptions(
+math::DistributedGeometricNoiseComponentOptions
+GetBlindHistogramGeometricNoiseOptions(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
     int uncorrupted_party_count);
 
-math::DistributedGeometricRandomComponentOptions
-GetNoiseForPublisherNoiseOptions(
+math::DistributedGeometricNoiseComponentOptions
+GetNoiseForPublisherGeometricNoiseOptions(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
     int publisher_count, int uncorrupted_party_count);
 
-math::DistributedGeometricRandomComponentOptions GetGlobalReachDpNoiseOptions(
+math::DistributedGeometricNoiseComponentOptions
+GetGlobalReachDpGeometricNoiseOptions(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
     int uncorrupted_party_count);
 
-math::DistributedGeometricRandomComponentOptions GetFrequencyNoiseOptions(
+math::DistributedGeometricNoiseComponentOptions
+GetFrequencyGeometricNoiseOptions(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
     int uncorrupted_party_count);
-
-double ComputeSigma(
-    const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params);
 
 }  // namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2
 
