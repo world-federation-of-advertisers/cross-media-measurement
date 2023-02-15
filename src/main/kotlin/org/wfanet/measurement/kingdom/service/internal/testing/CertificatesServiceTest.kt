@@ -58,10 +58,10 @@ import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
 import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRequest
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
+import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.EXTERNAL_DUCHY_IDS
 
 private const val RANDOM_SEED = 1
 private const val EXTERNAL_CERTIFICATE_ID = 123L
-private val EXTERNAL_DUCHY_IDS = listOf("worker1", "worker2")
 private const val NOT_AN_ID = 13579L
 
 private val CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certificate der.")

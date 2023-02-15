@@ -58,10 +58,10 @@ import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRequest
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
+import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.EXTERNAL_DUCHY_IDS
 
 private const val RANDOM_SEED = 1
 private const val PROVIDED_MEASUREMENT_ID = "measurement"
-private val EXTERNAL_DUCHY_IDS = listOf("worker1", "worker2")
 
 private val EL_GAMAL_PUBLIC_KEY = ByteString.copyFromUtf8("This is an ElGamal Public Key.")
 private val EL_GAMAL_PUBLIC_KEY_SIGNATURE =
@@ -483,6 +483,19 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
           externalDuchyId = EXTERNAL_DUCHY_IDS[1]
           externalDuchyCertificateId =
             duchyCertificates[EXTERNAL_DUCHY_IDS[1]]!!.externalCertificateId
+          liquidLegionsV2 = liquidLegionsV2Details {
+            elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
+            elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE
+          }
+        }
+      )
+
+      computationParticipantsService.setParticipantRequisitionParams(
+        setParticipantRequisitionParamsRequest {
+          this.externalComputationId = externalComputationId
+          externalDuchyId = EXTERNAL_DUCHY_IDS[2]
+          externalDuchyCertificateId =
+            duchyCertificates[EXTERNAL_DUCHY_IDS[2]]!!.externalCertificateId
           liquidLegionsV2 = liquidLegionsV2Details {
             elGamalPublicKey = EL_GAMAL_PUBLIC_KEY
             elGamalPublicKeySignature = EL_GAMAL_PUBLIC_KEY_SIGNATURE

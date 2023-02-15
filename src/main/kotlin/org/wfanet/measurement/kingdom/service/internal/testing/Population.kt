@@ -67,6 +67,14 @@ import org.wfanet.measurement.internal.kingdom.protocolConfig
 private const val API_VERSION = "v2alpha"
 
 class Population(val clock: Clock, val idGenerator: IdGenerator) {
+  companion object {
+    const val WORKER1_DUCHY_EXTERNAL_ID = "worker1"
+    const val WORKER2_DUCHY_EXTERNAL_ID = "worker2"
+    const val AGGREGATOR_DUCHY_EXTERNAL_ID = "aggregator"
+    val EXTERNAL_DUCHY_IDS: List<String> by lazy {
+      listOf(AGGREGATOR_DUCHY_EXTERNAL_ID, WORKER1_DUCHY_EXTERNAL_ID, WORKER2_DUCHY_EXTERNAL_ID)
+    }
+  }
   private fun buildRequestCertificate(
     derUtf8: String,
     skidUtf8: String,
@@ -139,7 +147,8 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
             publicKey = "EDP public key".toByteStringUtf8()
             publicKeySignature = "EDP public key signature".toByteStringUtf8()
           }
-        requiredExternalDuchyIds.addAll(mutableListOf("worker1", "worker2"))
+        requiredExternalDuchyIds += WORKER1_DUCHY_EXTERNAL_ID
+        requiredExternalDuchyIds += WORKER2_DUCHY_EXTERNAL_ID
       }
     )
   }

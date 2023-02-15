@@ -85,15 +85,12 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
       }
       .build()
 
-  private fun buildExternalDuchyIdList(struct: Struct): Iterable<String?> {
-    return struct
-      .getStructList("DataProviderRequiredDuchies")
-      .map {
-        checkNotNull(DuchyIds.getExternalId(it.getLong("DuchyId"))) {
-          "Duchy with internal ID ${it.getLong("DuchyId")} not found"
-        }
+  private fun buildExternalDuchyIdList(struct: Struct): List<String> {
+    return struct.getStructList("DataProviderRequiredDuchies").map {
+      checkNotNull(DuchyIds.getExternalId(it.getLong("DuchyId"))) {
+        "Duchy with internal ID ${it.getLong("DuchyId")} not found"
       }
-      .asIterable()
+    }
   }
 
   // TODO(uakyol) : Move this function to CertificateReader when it is implemented.

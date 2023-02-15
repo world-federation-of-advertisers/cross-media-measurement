@@ -158,7 +158,8 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
         apiKeysClient = publicApiKeysClient,
         internalCertificatesClient = kingdom.internalCertificatesClient,
         measurementConsumersClient = publicMeasurementConsumersClient,
-        runId = "12345"
+        runId = "12345",
+        requiredDuchies = listOf("worker1", "worker2")
       )
     // Create the MC.
     val (measurementConsumer, apiKey) =
