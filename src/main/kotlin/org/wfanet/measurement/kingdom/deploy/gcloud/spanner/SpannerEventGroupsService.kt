@@ -27,6 +27,7 @@ import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoro
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.UpdateEventGroupRequest
+import org.wfanet.measurement.internal.kingdom.eventGroup
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupInvalidArgsException
@@ -112,11 +113,10 @@ class SpannerEventGroupsService(
     grpcRequire(request.externalDataProviderId > 0L) { "ExternalDataProviderId unspecified" }
     grpcRequire(request.externalEventGroupId > 0L) { "ExternalEventGroupId unspecified" }
 
-    val eventGroup =
-      EventGroup.newBuilder()
-        .setExternalEventGroupId(request.externalEventGroupId)
-        .setExternalDataProviderId(request.externalDataProviderId)
-        .build()
+    val eventGroup = eventGroup {
+      externalDataProviderId = request.externalDataProviderId
+      externalEventGroupId = request.externalEventGroupId
+    }
 
     try {
       return DeleteEventGroup(eventGroup).execute(client, idGenerator)
