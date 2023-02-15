@@ -22,12 +22,10 @@
 --       ├── DataProviders
 --       │   └── EventGroups
 --       ├── ReportingSets
---       │   ├── PrimitiveReportingSets
---       │   │   └── PrimitiveReportingSetEventGroups
---       │   │   └── PrimitiveReportingSetBases
---       │   │       └── PrimitiveReportingSetBasisFilters
---       │   ├── CompositeReportingSets
---       │   │   └── SetExpressions
+--       │   ├── ReportingSetEventGroups
+--       │   ├── PrimitiveReportingSetBases
+--       │   │   └── PrimitiveReportingSetBasisFilters
+--       │   ├── SetExpressions
 --       │   └── WeightedSubsetUnions
 --       │       └── WeightedSubsetUnionPrimitiveReportingSetBases
 --       ├── Metrics
@@ -69,47 +67,6 @@ CREATE TABLE EventGroups (
     ON DELETE CASCADE
 );
 
--- changeset riemanli:create-composite-reporting-sets-table dbms:postgresql
-CREATE TABLE CompositeReportingSets (
-  MeasurementConsumerId bigint NOT NULL,
-  CompositeReportingSetId bigint NOT NULL,
-  SetExpressionId bigint NOT NULL,
-
-  PRIMARY KEY(MeasurementConsumerId, CompositeReportingSetId),
-  FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId)
-    ON DELETE CASCADE,
-  FOREIGN KEY(MeasurementConsumerId, SetExpressionId)
-    REFERENCES SetExpressions(MeasurementConsumerId, SetExpressionId)
-    ON DELETE CASCADE,
-);
-
--- changeset riemanli:create-primitive-reporting-sets-table dbms:postgresql
-CREATE TABLE PrimitiveReportingSets (
-  MeasurementConsumerId bigint NOT NULL,
-  PrimitiveReportingSetId bigint NOT NULL,
-
-  PRIMARY KEY(MeasurementConsumerId, PrimitiveReportingSetId),
-  FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId)
-    ON DELETE CASCADE,
-);
-
--- changeset riemanli:create-primitive-reporting-set-event-groups-table dbms:postgresql
-CREATE TABLE PrimitiveReportingSetEventGroups(
-  MeasurementConsumerId bigint NOT NULL,
-  EventGroupId bigint NOT NULL,
-  PrimitiveReportingSetId bigint NOT NULL,
-
-  PRIMARY KEY(MeasurementConsumerId, PrimitiveReportingSetId, EventGroupId),
-  FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetId)
-    REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId)
-    ON DELETE CASCADE,
-  FOREIGN KEY(MeasurementConsumerId, EventGroupId)
-    REFERENCES EventGroups(MeasurementConsumerId, EventGroupId)
-    ON DELETE CASCADE,
-);
-
 -- changeset riemanli:create-reporting-sets-table dbms:postgresql
 CREATE TABLE ReportingSets (
   MeasurementConsumerId bigint NOT NULL,
@@ -120,21 +77,28 @@ CREATE TABLE ReportingSets (
   DisplayName text,
   Filter text,
 
-  -- Exactly one of (CompositeReportingSet, PrimitiveReportingSet) must be
-  -- non-null
-  CompositeReportingSetId bigint,
-  PrimitiveReportingSetId bigint,
+  -- Must be set when the reporting set is composite.
+  SetExpressionId bigint,
 
   PRIMARY KEY(MeasurementConsumerId, ReportingSetId),
   UNIQUE (MeasurementConsumerId, ExternalReportingSetId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId)
     ON DELETE CASCADE,
-  FOREIGN KEY(MeasurementConsumerId, CompositeReportingSetId)
-    REFERENCES CompositeReportingSets(MeasurementConsumerId, CompositeReportingSetId)
+);
+
+-- changeset riemanli:create-reporting-set-event-groups-table dbms:postgresql
+CREATE TABLE ReportingSetEventGroups(
+  MeasurementConsumerId bigint NOT NULL,
+  ReportingSetId bigint NOT NULL,
+  EventGroupId bigint NOT NULL,
+
+  PRIMARY KEY(MeasurementConsumerId, ReportingSetId, EventGroupId),
+  FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
+    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
     ON DELETE CASCADE,
-  FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetId)
-    REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId)
+  FOREIGN KEY(MeasurementConsumerId, EventGroupId)
+    REFERENCES EventGroups(MeasurementConsumerId, EventGroupId)
     ON DELETE CASCADE,
 );
 
@@ -161,11 +125,11 @@ CREATE TABLE WeightedSubsetUnions (
 CREATE TABLE PrimitiveReportingSetBases (
   MeasurementConsumerId bigint NOT NULL,
   PrimitiveReportingSetBasisId bigint NOT NULL,
-  PrimitiveReportingSetId bigint NOT NULL,
+  ReportingSetId bigint NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, PrimitiveReportingSetBasisId),
-  FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetId)
-    REFERENCES PrimitiveReportingSets(MeasurementConsumerId, PrimitiveReportingSetId)
+  FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
+    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
     ON DELETE CASCADE,
 )
 
