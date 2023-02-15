@@ -38,8 +38,10 @@
 --       ├── Models
 --       │   ├── ModelMetrics
 --       │   ├── ModelMetricSpecs
+--       │   ├── ModelTimeIntervals
 --       │   └── ModelReportingSets
 --       └── Reports
+--           ├── ReportTimeIntervals
 --           ├── MetricCalculations
 --           │   └── MetricCalculationMetrics
 --           └── ModelInferenceCalculations
