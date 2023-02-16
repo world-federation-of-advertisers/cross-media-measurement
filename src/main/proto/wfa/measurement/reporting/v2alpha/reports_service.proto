@@ -50,7 +50,7 @@ service Reports {
       post: "/v2alpha/{parent=measurementConsumers/*}/reports"
       body: "report"
     };
-    option (google.api.method_signature) = "parent,report";
+    option (google.api.method_signature) = "parent,report,report_id";
   }
 }
 
@@ -114,6 +114,5 @@ message CreateReportRequest {
 
   // A unique identifier for this request. Restricted to 36 ASCII characters.
   // A random UUID is recommended.
-  // This request is only idempotent if a `request_id` is provided.
-  string request_id = 3;
+  string report_id = 3 [(google.api.field_behavior) = REQUIRED];
 }
