@@ -59,7 +59,7 @@ service Metrics {
       post: "/v2alpha/{parent=measurementConsumers/*}/metrics"
       body: "metric"
     };
-    option (google.api.method_signature) = "parent,metric";
+    option (google.api.method_signature) = "parent,metric,metric_id";
   }
 
   // Creates a batch of `Metric`s. Fail for all resources or succeed for all
@@ -153,6 +153,10 @@ message CreateMetricRequest {
 
   // The metric to create.
   Metric metric = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // A unique identifier for this request. Restricted to 36 ASCII characters.
+  // A random UUID is recommended.
+  string metric_id = 3 [(google.api.field_behavior) = REQUIRED];
 }
 
 // Request message for `BatchCreateMetric` method.

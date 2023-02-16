@@ -171,6 +171,7 @@ message Report {
     repeated ResultAttribute result_attributes = 4;
   }
 
+  // The time when the report is successfully created.
   google.protobuf.Timestamp create_time = 6
       [(google.api.field_behavior) = OUTPUT_ONLY];
 
