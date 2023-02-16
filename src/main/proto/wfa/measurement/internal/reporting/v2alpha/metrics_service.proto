@@ -52,7 +52,6 @@ message BatchGetMetricRequest {
   repeated fixed64 external_metric_ids = 2;
 }
 
-
 message StreamMetricsRequest {
   message Filter {
     // `MeasurementConsumer` ID from the CMMS public API.
