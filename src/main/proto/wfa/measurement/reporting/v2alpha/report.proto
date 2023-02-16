@@ -100,8 +100,10 @@ message Report {
   }
 
   // The calculations defined for specific reporting sets.
-  repeated ReportingMetricEntry reporting_metric_entries = 2
-      [(google.api.field_behavior) = REQUIRED];
+  repeated ReportingMetricEntry reporting_metric_entries = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
 
   // Types of time intervals for metric aggregation.
   // REQUIRED
