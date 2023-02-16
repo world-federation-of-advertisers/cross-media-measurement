@@ -85,7 +85,7 @@ import org.wfanet.measurement.internal.reporting.getReportingSetRequest
 import org.wfanet.measurement.internal.reporting.measurement as internalMeasurement
 import org.wfanet.measurement.internal.reporting.setMeasurementFailureRequest as setInternalMeasurementFailureRequest
 import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest as setInternalMeasurementResultRequest
-import org.wfanet.measurement.reporting.v1alpha.TimeInterval
+import org.wfanet.measurement.reporting.v2alpha.TimeInterval
 
 private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
@@ -180,5 +180,5 @@ class MetricsService(
   private val secureRandom: SecureRandom,
 ) {
 
-  
+
 }
