@@ -25,16 +25,13 @@ option java_multiple_files = true;
 service Metrics {
   rpc CreateMetric(Metric) returns (Metric);
 
-  rpc BatchCreateMetric(BatchCreateMetricRequest)
-    returns (stream Metric);
+  rpc BatchCreateMetric(BatchCreateMetricRequest) returns (stream Metric);
 
   rpc GetMetric(GetMetricRequest) returns (Metric);
 
-  rpc BatchGetMetric(BatchGetMetricRequest)
-    returns (stream Metric);
+  rpc BatchGetMetric(BatchGetMetricRequest) returns (stream Metric);
 
-  rpc StreamMetrics(StreamMetricsRequest)
-    returns (stream Metric);
+  rpc StreamMetrics(StreamMetricsRequest) returns (stream Metric);
 }
 
 message BatchCreateMetricRequest {
