@@ -18,6 +18,7 @@ package wfa.measurement.reporting.v2alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
 import "wfa/measurement/reporting/v2alpha/metric.proto";
 import "wfa/measurement/reporting/v2alpha/time_interval.proto";
 
@@ -170,7 +171,10 @@ message Report {
     repeated ResultAttribute result_attributes = 4;
   }
 
+  google.protobuf.Timestamp create_time = 6
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
   // Set only when `state` is `SUCCEEDED`.
-  repeated MetricCalculationResult metric_calculation_results = 6
+  repeated MetricCalculationResult metric_calculation_results = 7
       [(google.api.field_behavior) = OUTPUT_ONLY];
 }
