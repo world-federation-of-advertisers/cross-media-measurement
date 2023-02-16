@@ -21,7 +21,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:principal_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:reporting_principal",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:resource_key",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:reporting_set_compiler",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:set_expression_compiler",
         "//src/main/proto/wfa/measurement/api/v2alpha:certificate_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:certificates_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:data_providers_service_kt_jvm_grpc_proto",
@@ -32,7 +32,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/reporting:measurements_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/reporting:reporting_sets_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/reporting:reports_service_kt_jvm_grpc_proto",
-        "//src/main/proto/wfa/measurement/reporting/v2alpha:reports_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:metrics_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf/util",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:security_provider",
@@ -64,10 +64,10 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "reporting_set_compiler",
-    srcs = ["ReportingSetCompiler.kt"],
+    name = "set_expression_compiler",
+    srcs = ["SetExpressionCompiler.kt"],
     deps = [
-        "//src/main/proto/wfa/measurement/reporting/v2alpha:report_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:reporting_set_kt_jvm_proto",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )
