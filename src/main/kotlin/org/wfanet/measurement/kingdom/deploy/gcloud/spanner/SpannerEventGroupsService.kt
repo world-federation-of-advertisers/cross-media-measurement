@@ -120,8 +120,6 @@ class SpannerEventGroupsService(
 
     try {
       return DeleteEventGroup(eventGroup).execute(client, idGenerator)
-    } catch (e: DataProviderNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Data Provider not found." }
     } catch (e: EventGroupNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "EventGroup not found." }
     } catch (e: KingdomInternalException) {
