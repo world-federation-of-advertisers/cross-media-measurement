@@ -700,7 +700,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           nonce = NONCE_1
           computedParams = computedRequisitionParams {
             externalComputationId = measurement.externalComputationId
-            externalFulfillingDuchyId = Population.AGGREGATOR_DUCHY_EXTERNAL_ID
+            externalFulfillingDuchyId = Population.WORKER1_DUCHY_EXTERNAL_ID
           }
         }
       )
@@ -760,7 +760,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         nonce = NONCE_1
         computedParams = computedRequisitionParams {
           externalComputationId = measurement.externalComputationId
-          externalFulfillingDuchyId = Population.AGGREGATOR_DUCHY_EXTERNAL_ID
+          externalFulfillingDuchyId = Population.WORKER1_DUCHY_EXTERNAL_ID
         }
       }
     )
@@ -813,7 +813,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
             nonce = NONCE_1
             computedParams = computedRequisitionParams {
               externalComputationId = measurement.externalComputationId
-              externalFulfillingDuchyId = Population.AGGREGATOR_DUCHY_EXTERNAL_ID
+              externalFulfillingDuchyId = Population.WORKER1_DUCHY_EXTERNAL_ID
             }
           }
         )
@@ -899,7 +899,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
               nonce = NONCE_1
               computedParams = computedRequisitionParams {
                 externalComputationId = measurement.externalComputationId
-                externalFulfillingDuchyId = Population.AGGREGATOR_DUCHY_EXTERNAL_ID
+                externalFulfillingDuchyId = Population.WORKER1_DUCHY_EXTERNAL_ID
               }
             }
           )
@@ -949,7 +949,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
             externalRequisitionId = requisition.externalRequisitionId
             computedParams = computedRequisitionParams {
               externalComputationId = measurement.externalComputationId
-              externalFulfillingDuchyId = Population.AGGREGATOR_DUCHY_EXTERNAL_ID
+              externalFulfillingDuchyId = Population.WORKER1_DUCHY_EXTERNAL_ID
             }
           }
         )

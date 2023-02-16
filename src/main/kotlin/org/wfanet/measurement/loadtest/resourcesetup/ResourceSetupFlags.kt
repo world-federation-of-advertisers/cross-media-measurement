@@ -124,10 +124,11 @@ class ResourceSetupFlags {
     private set
 
   @CommandLine.Option(
-    names = ["--required-duchies"],
+    names = ["--required-duchy"],
     description =
       [
-        "The set of duchies externals IDS that must be included in all computations involving this DataProvider."
+        "Duchy ID that must be included in all Measurements for the created DataProvider resources.",
+        "This option may be specified multiple times."
       ],
     required = false
   )
