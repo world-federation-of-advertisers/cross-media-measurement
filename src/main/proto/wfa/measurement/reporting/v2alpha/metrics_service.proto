@@ -59,7 +59,7 @@ service Metrics {
       post: "/v2alpha/{parent=measurementConsumers/*}/metrics"
       body: "metric"
     };
-    option (google.api.method_signature) = "parent,metric";
+    option (google.api.method_signature) = "parent,metric,metric_id";
   }
 
   // Creates a batch of `Metric`s. Fail for all resources or succeed for all
