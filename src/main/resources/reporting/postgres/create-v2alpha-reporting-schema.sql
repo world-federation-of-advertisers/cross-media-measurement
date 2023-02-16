@@ -205,6 +205,7 @@ CREATE TABLE SetExpressions (
 CREATE TABLE Metrics (
   MeasurementConsumerId bigint NOT NULL,
   MetricId bigint NOT NULL,
+  MetricIdempotencyKey text NOT NULL,
   ReportingSetId bigint NOT NULL,
 
   TimeIntervalStart TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -223,11 +224,14 @@ CREATE TABLE Metrics (
   -- protobuf enum encoded as an integer.
   State integer NOT NULL,
 
+  CreateTime TIMESTAMP WITH TIME ZONE NOT NULL,
+
   -- Serialized org.wfanet.measurement.internal.reporting.Metric.Details
   -- protobuf message.
   MetricDetails bytea NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, MetricId),
+  UNIQUE (MeasurementConsumerId, MetricIdempotencyKey),
   FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
     REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
     ON DELETE CASCADE,
