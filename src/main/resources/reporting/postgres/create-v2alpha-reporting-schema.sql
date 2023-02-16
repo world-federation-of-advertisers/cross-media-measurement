@@ -207,8 +207,8 @@ CREATE TABLE Metrics (
   MetricId bigint NOT NULL,
   ReportingSetId bigint NOT NULL,
 
-  TimeIntervalStart TIMESTAMP NOT NULL,
-  TimeIntervalEndExclusive TIMESTAMP NOT NULL,
+  TimeIntervalStart TIMESTAMP WITH TIME ZONE NOT NULL,
+  TimeIntervalEndExclusive TIMESTAMP WITH TIME ZONE NOT NULL,
 
   -- org.wfanet.measurement.internal.reporting.MetricSpec.MetricType
   -- protobuf enum encoded as an integer.
@@ -239,8 +239,8 @@ CREATE TABLE Measurements (
   MeasurementId bigint NOT NULL,
   CmmsMeasurementId text,
 
-  TimeIntervalStart TIMESTAMP NOT NULL,
-  TimeIntervalEndExclusive TIMESTAMP NOT NULL,
+  TimeIntervalStart TIMESTAMP WITH TIME ZONE NOT NULL,
+  TimeIntervalEndExclusive TIMESTAMP WITH TIME ZONE NOT NULL,
 
   -- org.wfanet.measurement.internal.reporting.Report.Measurement.State
   -- protobuf enum encoded as an integer.
@@ -350,8 +350,8 @@ CREATE TABLE ModelMetricSpecs(
 CREATE TABLE ModelTimeIntervals(
   MeasurementConsumerId bigint NOT NULL,
   ModelId bigint NOT NULL,
-  TimeIntervalStart TIMESTAMP NOT NULL,
-  TimeIntervalEndExclusive TIMESTAMP NOT NULL,
+  TimeIntervalStart TIMESTAMP WITH TIME ZONE NOT NULL,
+  TimeIntervalEndExclusive TIMESTAMP WITH TIME ZONE NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, ModelId, TimeIntervalStart, TimeIntervalEndExclusive),
   FOREIGN KEY(MeasurementConsumerId, ModelId)
@@ -382,7 +382,7 @@ CREATE TABLE Reports (
   ExternalReportId bigint NOT NULL,
   ReportIdempotencyKey text NOT NULL,
 
-  CreateTime timestamp NOT NULL,
+  CreateTime TIMESTAMP WITH TIME ZONE NOT NULL,
 
   -- org.wfanet.measurement.internal.reporting.Report.State
   -- protobuf enum encoded as an integer.
@@ -404,8 +404,8 @@ CREATE TABLE Reports (
 CREATE TABLE ReportTimeIntervals (
   MeasurementConsumerId bigint NOT NULL,
   ReportId bigint NOT NULL,
-  TimeIntervalStart TIMESTAMP NOT NULL,
-  TimeIntervalEndExclusive TIMESTAMP NOT NULL,
+  TimeIntervalStart TIMESTAMP WITH TIME ZONE NOT NULL,
+  TimeIntervalEndExclusive TIMESTAMP WITH TIME ZONE NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, ReportId, TimeIntervalStart, TimeIntervalEndExclusive),
   FOREIGN KEY(MeasurementConsumerId, ReportId)
