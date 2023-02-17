@@ -22,6 +22,7 @@ internal enum class IdVariable {
   EVENT_GROUP,
   MEASUREMENT_CONSUMER,
   REPORTING_SET,
+  METRIC,
   REPORT,
 }
 
