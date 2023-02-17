@@ -472,9 +472,6 @@ CREATE TABLE ModelInferenceCalculations (
   FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
     REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
     ON DELETE CASCADE,
-  FOREIGN KEY(MeasurementConsumerId, ModelId)
-    REFERENCES Models(MeasurementConsumerId, ModelId)
-    ON DELETE CASCADE,
 );
 
 -- changeset riemanli:create-model-inference-calculation-model-metric-specs-table dbms:postgresql
