@@ -15,77 +15,31 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.protobuf.ByteString
-import com.google.protobuf.Duration
-import com.google.protobuf.duration
-import com.google.protobuf.util.Durations
 import io.grpc.Status
 import io.grpc.StatusException
 import java.security.PrivateKey
 import java.security.SecureRandom
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
-import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
-import org.wfanet.measurement.api.v2alpha.Measurement
-import org.wfanet.measurement.api.v2alpha.Measurement.DataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
-import org.wfanet.measurement.api.v2alpha.MeasurementKey
-import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt.value as dataProviderEntryValue
-import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec.VidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
-import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
-import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
-import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
-import org.wfanet.measurement.api.v2alpha.TimeInterval as MeasurementTimeInterval
-import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
-import org.wfanet.measurement.api.v2alpha.getCertificateRequest
-import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
-import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
-import org.wfanet.measurement.api.v2alpha.measurement
-import org.wfanet.measurement.api.v2alpha.measurementSpec
-import org.wfanet.measurement.api.v2alpha.requisitionSpec
-import org.wfanet.measurement.api.v2alpha.timeInterval as measurementTimeInterval
-import org.wfanet.measurement.api.withAuthenticationKey
-import org.wfanet.measurement.common.crypto.PrivateKeyHandle
-import org.wfanet.measurement.common.crypto.SigningKeyHandle
-import org.wfanet.measurement.common.crypto.hashSha256
-import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
-import org.wfanet.measurement.common.identity.apiIdToExternalId
-import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
-import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
-import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
-import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
-import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
-import org.wfanet.measurement.internal.reporting.Measurement as InternalMeasurement
-import org.wfanet.measurement.internal.reporting.Measurement.Result as InternalMeasurementResult
-import org.wfanet.measurement.internal.reporting.MeasurementKt.ResultKt.frequency as internalFrequency
-import org.wfanet.measurement.internal.reporting.MeasurementKt.ResultKt.impression as internalImpression
-import org.wfanet.measurement.internal.reporting.MeasurementKt.ResultKt.reach as internalReach
-import org.wfanet.measurement.internal.reporting.MeasurementKt.ResultKt.watchDuration as internalWatchDuration
-import org.wfanet.measurement.internal.reporting.MeasurementKt.failure as internalFailure
-import org.wfanet.measurement.internal.reporting.MeasurementKt.result as internalMeasurementResult
 import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
-import org.wfanet.measurement.internal.reporting.Metric.Details as InternalMetricDetails
-import org.wfanet.measurement.internal.reporting.Metric.Details.MetricTypeCase as InternalMetricTypeCase
-import org.wfanet.measurement.internal.reporting.ReportingSet as InternalReportingSet
+import org.wfanet.measurement.internal.reporting.Metric as InternalMetric
+import org.wfanet.measurement.internal.reporting.MetricsGrpcKt.MetricsCoroutineStub as InternalMetricsCoroutineStub
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
-import org.wfanet.measurement.internal.reporting.SetMeasurementResultRequest as SetInternalMeasurementResultRequest
-import org.wfanet.measurement.internal.reporting.getReportingSetRequest
-import org.wfanet.measurement.internal.reporting.measurement as internalMeasurement
-import org.wfanet.measurement.internal.reporting.setMeasurementFailureRequest as setInternalMeasurementFailureRequest
-import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest as setInternalMeasurementResultRequest
+import org.graalvm.compiler.debug.MetricKey
+import org.wfanet.measurement.internal.reporting.getMetricByIdempotencyKeyRequest
+import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
+import org.wfanet.measurement.reporting.v2alpha.Metric
+import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.TimeInterval
+import org.wfanet.measurement.reporting.v2alpha.metric
 
 private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
@@ -167,18 +121,129 @@ data class WeightedMeasurementInfo(
 
 data class SetOperationResult(
   val weightedMeasurementInfoList: List<WeightedMeasurementInfo>,
-  val internalMetricDetails: InternalMetricDetails,
 )
+
 class MetricsService(
   private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
   private val internalMeasurementsStub: InternalMeasurementsCoroutineStub,
+  private val internalMetricsStub: InternalMetricsCoroutineStub,
   private val dataProvidersStub: DataProvidersCoroutineStub,
   private val measurementsStub: MeasurementsCoroutineStub,
   private val certificateStub: CertificatesCoroutineStub,
   private val measurementConsumer: MeasurementConsumer,
   private val apiAuthenticationKey: String,
   private val secureRandom: SecureRandom,
-) {
+) : MetricsCoroutineImplBase() {
+  private val setExpressionCompiler = SetExpressionCompiler()
 
+  override suspend fun createMetric(request: CreateMetricRequest): Metric {
+    grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
+      "Parent is either unspecified or invalid."
+    }
 
+    val principal: ReportingPrincipal = principalFromCurrentContext
+
+    when (principal) {
+      is MeasurementConsumerPrincipal -> {
+        if (request.parent != principal.resourceKey.toName()) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot create a Metric for another MeasurementConsumer."
+          }
+        }
+      }
+    }
+
+    val resourceKey = principal.resourceKey
+    val apiAuthenticationKey: String = principal.config.apiKey
+
+    grpcRequire(request.hasMetric()) { "Metric is not specified." }
+    grpcRequire(request.metricId.isNotBlank()) { "Metric unique ID is not specified." }
+    grpcRequire(request.metric.reportingSet.isNotBlank()) {
+      "Reporting set in metric is not specified."
+    }
+    grpcRequire(request.metric.hasTimeInterval()) { "Time interval in metric is not specified." }
+    grpcRequire(request.metric.hasMetricSpec()) { "Metric spec in metric is not specified." }
+
+    val existingIntervalMetric: InternalMetric? =
+      getInternalMetric(resourceKey.measurementConsumerId, request.metricId)
+
+    if (existingIntervalMetric != null) return existingIntervalMetric.toMetric()
+
+    // No need of reportInfo
+
+    /**
+     * Compile the reporting set:
+     * 1. Check to see if the reporting set is already compiled.
+     * 2. Otherwise, Expand the set expression to the level of primitive reporting set bases. Store
+     *    the expansion result with Map<ReportingSetId, List<Filter>>, where ReportingSetId should
+     *    be the ID of a primitive reporting server.
+     * 3. Get all primitive reporting sets with checks. See `getReportingSets`.
+     * 4. Compile the set expression to get List<WeightedSubsetUnion>, where WeightedSubsetUnion is
+     *    a wrapper of reportingSets: List<String> and coefficient: Int.
+     * 5. Update the root reporting set with the compilation result and list of primitive reporting
+     *    set bases, i.e. ReportingSet <-> weightedSubsetUnion <-> PrimitiveReportingSetBases. Get
+     *    the IDs of primitive reporting set bases?
+     */
+
+    // Get measurementConsumer and signingConfig
+
+    // Create a unique internal Metric ID based on metricIdempotencyKey, reportingSet,
+    // metricType, timeInterval, and the list of additionalFilters.
+
+    /**
+     * Measurement Supplier - getInternalMeasurementIds
+     * For each WeightedSubsetUnion,
+     *   a. create a unique internal measurement ID for each WeightedSubsetUnion based on the
+     *      internal metric ID and the WeightedSubsetUnionId.
+     *   c. Create an internal measurement resource if not existed in the reporting server with the
+     *      internal IDs. At this stage, cmmsMeasurementId is NULL, and the state is NOT_REQUESTED.
+     * Return Map<internal MeasurementId, weight>
+     */
+
+    // Create an internal metric resource with the list of internal measurement Ids and weights.
+
+    /**
+     * Measurement Supplier - createMeasurements
+     * 1. For each internal measurement,
+     *   a. call createMeasurement
+     *     - request a corresponding kingdom measurement
+     *     - update the cmmsMeasurementId in the internal measurement.
+     */
+
+    // Convert the internal metric to public and return it.
+
+    return metric {}
+  }
+
+  /** Gets an [InternalMetric]. */
+  private suspend fun getInternalMetric(
+    measurementConsumerReferenceId: String,
+    metricIdempotencyKey: String,
+  ): InternalMetric? {
+    return try {
+      internalMetricsStub.getMetricByIdempotencyKey(
+        getMetricByIdempotencyKeyRequest {
+          this.measurementConsumerReferenceId = measurementConsumerReferenceId
+          this.metricIdempotencyKey = metricIdempotencyKey
+        }
+      )
+    } catch (e: StatusException) {
+      if (e.status.code != Status.Code.NOT_FOUND) {
+        throw Exception(
+          "Unable to retrieve a metric from the reporting database using the provided " +
+            "metricIdempotencyKey [$metricIdempotencyKey].",
+          e
+        )
+      }
+      null
+    }
+  }
+}
+
+private fun InternalMetric.toMetric(): Metric {
+  val source = this
+  val metricResourceName = MetricKey(
+    measurementConsumerId = source.measurementConsumerReferenceId,
+
+  )
 }
