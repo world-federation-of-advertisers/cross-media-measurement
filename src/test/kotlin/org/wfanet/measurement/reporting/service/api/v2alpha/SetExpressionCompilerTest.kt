@@ -74,12 +74,12 @@ private const val SET_EXPRESSION_ALL_UNION_DISPLAY_NAME = "SET_EXPRESSION_ALL_UN
 private const val SET_EXPRESSION_ALL_UNION_BUT_ONE_DISPLAY_NAME = "SET_EXPRESSION_ALL_UNION_BUT_ONE"
 
 private val EXPECTED_RESULT_FOR_ALL_UNION_SET_EXPRESSION =
-    listOf(WeightedMeasurement(EXPECTED_REPORTING_SET_NAMES_LIST_ALL_UNION, coefficient = 1))
+    listOf(WeightedSubSetUnion(EXPECTED_REPORTING_SET_NAMES_LIST_ALL_UNION, coefficient = 1))
 
 private val EXPECTED_RESULT_FOR_ALL_UNION_BUT_ONE_SET_EXPRESSION =
     listOf(
-        WeightedMeasurement(EXPECTED_REPORTING_SET_NAMES_LIST_ALL_UNION, coefficient = 1),
-        WeightedMeasurement(
+      WeightedSubSetUnion(EXPECTED_REPORTING_SET_NAMES_LIST_ALL_UNION, coefficient = 1),
+      WeightedSubSetUnion(
             listOf(EXPECTED_REPORTING_SET_NAMES_LIST_ALL_UNION[1]), coefficient = -1))
 
 private val EXPECTED_CACHE_FOR_ALL_UNION_SET_EXPRESSION =
@@ -116,7 +116,7 @@ class SetExpressionCompilerTest {
   }
 
   @Test
-  fun `compileSetExpression returns a list of weightedMeasurements and store it in the cache`() {
+  fun `compileSetExpression returns a list of weightedSubsetUnions and store it in the cache`() {
     val resultAllUnionButOne = runBlocking {
       reportResultCompiler.compileSetExpression(SET_EXPRESSION_ALL_UNION_BUT_ONE)
     }
