@@ -76,7 +76,8 @@ CREATE TABLE ReportingSets (
   DisplayName text,
   Filter text,
 
-  -- Must be set when the reporting set is composite.
+  -- If not NULL then the ReportingSet is a composite one, and will therefore
+  -- have no corresponding rows in ReportingSetEventGroups.
   SetExpressionId bigint,
 
   PRIMARY KEY(MeasurementConsumerId, ReportingSetId),
@@ -459,7 +460,6 @@ CREATE TABLE ModelInferenceCalculations (
   ReportId bigint NOT NULL,
   ModelInferenceCalculationId bigint NOT NULL,
   ReportingSetId bigint NOT NULL,
-  ModelId bigint NOT NULL,
 
   -- Serialized org.wfanet.measurement.internal.reporting.Report.ModelInferenceCalculation.Details
   -- protobuf message.
@@ -482,6 +482,9 @@ CREATE TABLE ModelInferenceCalculationModelMetricSpecs (
   MeasurementConsumerId bigint NOT NULL,
   ReportId bigint NOT NULL,
   ModelInferenceCalculationId bigint NOT NULL,
+  -- ModelId will be the same for all rows with the same
+  -- (MeasurementConsumerId, ReportId, ModelInferenceCalculationId). That is,
+  -- one ModelInferenceCalculation is associated to only one Model.
   ModelId bigint NOT NULL,
   ModelMetricSpecId bigint NOT NULL,
 
