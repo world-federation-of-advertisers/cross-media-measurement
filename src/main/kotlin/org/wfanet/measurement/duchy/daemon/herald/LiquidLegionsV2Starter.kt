@@ -46,7 +46,7 @@ object LiquidLegionsV2Starter {
 
   private val logger: Logger = Logger.getLogger(this::class.java.name)
 
-  val terminalStage = Stage.COMPLETE.toProtocolStage()
+  val TERMINAL_STAGE = Stage.COMPLETE.toProtocolStage()
 
   suspend fun createComputation(
     computationStorageClient: ComputationsCoroutineStub,

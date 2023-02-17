@@ -365,7 +365,7 @@ class Herald(
 
     if (
       token.computationDetails.hasLiquidLegionsV2() &&
-        token.computationStage == LiquidLegionsV2Starter.terminalStage
+        token.computationStage == LiquidLegionsV2Starter.TERMINAL_STAGE
     ) {
       return
     }
@@ -374,7 +374,7 @@ class Herald(
       this.token = token
       endingComputationStage =
         when (token.computationDetails.protocolCase) {
-          ComputationDetails.ProtocolCase.LIQUID_LEGIONS_V2 -> LiquidLegionsV2Starter.terminalStage
+          ComputationDetails.ProtocolCase.LIQUID_LEGIONS_V2 -> LiquidLegionsV2Starter.TERMINAL_STAGE
           else -> error { "Unknown or unsupported protocol." }
         }
       reason = ComputationDetails.CompletedReason.FAILED
