@@ -8,7 +8,7 @@ kt_jvm_test(
         "//imports/java/com/google:cel-generated-pb",
         "//imports/java/org/projectnessie/cel",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration/validation",
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:event_templates_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/org/junit",

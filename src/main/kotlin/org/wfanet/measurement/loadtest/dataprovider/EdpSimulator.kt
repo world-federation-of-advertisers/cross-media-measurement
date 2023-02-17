@@ -81,7 +81,6 @@ import org.wfanet.measurement.api.v2alpha.Requisition.DuchyEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
-import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.api.v2alpha.createEventGroupMetadataDescriptorRequest
@@ -120,6 +119,7 @@ import org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptio
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper
 import org.wfanet.measurement.loadtest.config.EventFilters.VID_SAMPLER_HASH_FUNCTION
@@ -286,6 +286,8 @@ class EdpSimulator(
     } catch (e: PublicKeyMismatchException) {
       throw VerificationException(e.message, e)
     }
+
+    // TODO(@uakyol): Validate that collection interval is not outside of privacy landscape.
 
     return Specifications(measurementSpec, requisitionSpec)
   }
@@ -471,14 +473,14 @@ class EdpSimulator(
   }
 
   private fun populateAnySketch(
-    eventFilter: EventFilter,
+    eventSpec: RequisitionSpec.EventGroupEntry.Value,
     vidSampler: VidSampler,
     vidSamplingIntervalStart: Float,
     vidSamplingIntervalWidth: Float,
     anySketch: AnySketch
   ) {
     eventQuery
-      .getUserVirtualIds(eventFilter)
+      .getUserVirtualIds(eventSpec.collectionInterval, eventSpec.filter)
       .filter {
         vidSampler.vidIsInSamplingBucket(it, vidSamplingIntervalStart, vidSamplingIntervalWidth)
       }
@@ -499,16 +501,29 @@ class EdpSimulator(
         )
       )
     } catch (e: PrivacyBudgetManagerException) {
-      logger.log(
-        Level.WARNING,
-        "RequisitionFulfillmentWorkflow failed due to: Not Enough Privacy Budget",
-        e
-      )
-      refuseRequisition(
-        requisitionName,
-        Requisition.Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET,
-        "Privacy Budget Exceeded."
-      )
+      when (e.errorType) {
+        PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED -> {
+          refuseRequisition(
+            requisitionName,
+            Requisition.Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET,
+            "Privacy budget exceeded"
+          )
+        }
+        PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER -> {
+          refuseRequisition(
+            requisitionName,
+            Requisition.Refusal.Justification.SPECIFICATION_INVALID,
+            "Invalid event filter"
+          )
+        }
+        PrivacyBudgetManagerExceptionType.DATABASE_UPDATE_ERROR,
+        PrivacyBudgetManagerExceptionType.UPDATE_AFTER_COMMIT,
+        PrivacyBudgetManagerExceptionType.NESTED_TRANSACTION,
+        PrivacyBudgetManagerExceptionType.BACKING_STORE_CLOSED -> {
+          throw Exception("Unexpected PBM error", e)
+        }
+      }
+      logger.log(Level.WARNING, "RequisitionFulfillmentWorkflow failed due to ${e.errorType}", e)
     }
 
   private suspend fun generateSketch(
@@ -526,7 +541,7 @@ class EdpSimulator(
 
     requisitionSpec.eventGroupsList.forEach {
       populateAnySketch(
-        it.value.filter,
+        it.value,
         VidSampler(VID_SAMPLER_HASH_FUNCTION),
         vidSamplingIntervalStart,
         vidSamplingIntervalWidth,
@@ -699,7 +714,9 @@ class EdpSimulator(
     val vidList: List<Long> =
       requisitionSpec.eventGroupsList
         .distinctBy { eventGroup -> eventGroup.key }
-        .flatMap { eventGroup -> eventQuery.getUserVirtualIds(eventGroup.value.filter) }
+        .flatMap { eventGroup ->
+          eventQuery.getUserVirtualIds(eventGroup.value.collectionInterval, eventGroup.value.filter)
+        }
         .filter { vid ->
           vidSampler.vidIsInSamplingBucket(vid, vidSamplingIntervalStart, vidSamplingIntervalWidth)
         }
@@ -810,6 +827,7 @@ class EdpSimulator(
     /**
      * Calculate direct reach and frequency from VIDs in
      * fulfillDirectReachAndFrequencyMeasurement().
+     *
      * @param vidList List of VIDs.
      * @return Pair of reach value and frequency map.
      */
@@ -844,6 +862,7 @@ class EdpSimulator(
     /**
      * Add Laplace publisher noise to calculated direct reach and frequency. TODO(@iverson52000):
      * Create a noiser class for this function when we need to add Gaussian noise.
+     *
      * @param reachValue Direct reach value.
      * @param frequencyMap Direct frequency.
      * @param reachAndFrequency ReachAndFrequency from MeasurementSpec.

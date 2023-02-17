@@ -29,6 +29,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementC
  * Creates an [ApiKey] in the database.
  *
  * Throws a subclass of [KingdomInternalException] on [execute].
+ *
  * @throws [MeasurementConsumerNotFoundException] MeasurementConsumer not found
  */
 class CreateApiKey(

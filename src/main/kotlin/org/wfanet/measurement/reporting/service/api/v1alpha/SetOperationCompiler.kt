@@ -203,7 +203,6 @@ class SetOperationCompiler {
    *
    * The algorithm is based on the observation on the linear transformation matrix from primitive
    * regions to union-sets. Ex:
-   *
    * ```
    *           b'01'    b'10'    b'11'
    *     A      0        -1       1

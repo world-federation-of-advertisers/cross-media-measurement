@@ -104,9 +104,10 @@ gcloud projects add-iam-policy-binding halo-cmm-dev \
 ```
 
 ```shell
-bq add-iam-policy-binding --table=true 'demo.labelled_events' \
+bq add-iam-policy-binding --table=true \
   --role=roles/bigquery.dataViewer \
-  --member='serviceAccount:simulator@halo-cmm-dev.iam.gserviceaccount.com'
+  --member='serviceAccount:simulator@halo-cmm-dev.iam.gserviceaccount.com' \
+  'demo.labelled_events'
 ```
 
 ## Network Policy

@@ -4,6 +4,7 @@ kt_jvm_test(
     name = "EdpSimulatorTest",
     srcs = ["EdpSimulatorTest.kt"],
     data = [
+        "CsvEventQueryTestEvents.csv",
         "//src/main/k8s/testing/secretfiles:all_configs",
         "//src/main/k8s/testing/secretfiles:all_der_files",
         "//src/main/k8s/testing/secretfiles:all_tink_keysets",
@@ -16,8 +17,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/privacybudgetmanagement/testing",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:edp_simulator",
         "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:event_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:event_templates_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/org/junit",
@@ -32,23 +32,6 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
-    name = "FilterEventQueryTest",
-    srcs = ["FilterEventQueryTest.kt"],
-    test_class = "org.wfanet.measurement.loadtest.dataprovider.FilterEventQueryTest",
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:edp_simulator",
-        "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:event_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:event_templates_kt_jvm_proto",
-        "@wfa_common_jvm//imports/java/com/google/common/truth",
-        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
-        "@wfa_common_jvm//imports/java/org/junit",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
-    ],
-)
-
-kt_jvm_test(
     name = "CsvEventQueryTest",
     srcs = ["CsvEventQueryTest.kt"],
     data = ["CsvEventQueryTestEvents.csv"],
@@ -57,8 +40,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/eventfiltration:event_filters",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:edp_simulator",
         "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:event_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:event_templates_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//imports/java/org/junit",

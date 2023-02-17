@@ -31,11 +31,12 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.OpenIdConnec
  * Replace an existing account identity with a new username identity in the database.
  *
  * Throws a subclass of [KingdomInternalException] on [execute].
+ *
  * @throws [AccountNotFoundException] Account not found
  * @throws [DuplicateAccountIdentityException] Duplicated Account identity with the same issuer and
- * subject
+ *   subject
  * @throws [AccountActivationStateIllegalException] Account Activation state is UNACTIVATED or
- * identity not found
+ *   identity not found
  */
 class ReplaceAccountIdentityWithNewOpenIdConnectIdentity(
   private val externalAccountId: ExternalId,

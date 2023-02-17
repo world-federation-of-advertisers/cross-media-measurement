@@ -17,7 +17,6 @@
  * and then generates a CSV output file with the measurements that were collected.
  *
  * <p>Following is an example of the use of the benchmark command to measure reach and frequency
- *
  * <pre> bazel-bin/src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools/SimpleReport \
  * ```
  *    --tls-cert-file src/main/k8s/testing/secretfiles/mc_tls.pem \

@@ -1,11 +1,11 @@
-/**
+/*
  * Copyright 2022 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
- * ```
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * ```
+ *
  * Unless required by applicable law or agreed to in writing, software distributed under the License
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
  * or implied. See the License for the specific language governing permissions and limitations under
@@ -46,7 +46,7 @@ interface PrivacyBudgetLedgerBackingStore : AutoCloseable {
    * appear as an atomic update to the database.
    *
    * @return A transaction context that can be used for subsequent interaction with the privacy
-   * budget ledger backing store.
+   *   budget ledger backing store.
    */
   fun startTransaction(): PrivacyBudgetLedgerTransactionContext
 }
@@ -88,10 +88,10 @@ interface PrivacyBudgetLedgerTransactionContext : AutoCloseable {
    *
    * See if there's an existing ledger entry by assuming that the timestamp is either
    * 1. that of the most recent entry if the most recent entry with (MC ID, Reference ID) also has
-   * the same value for isRefund, or
+   *    the same value for isRefund, or
    * 2. now. This can return an inaccurate result if having multiple in-flight entries with the same
-   * (MC ID, reference ID). This is because we only check that isRefund is the opposite of the most
-   * recent recorded ledger entry for that tuple.
+   *    (MC ID, reference ID). This is because we only check that isRefund is the opposite of the
+   *    most recent recorded ledger entry for that tuple.
    */
   suspend fun hasLedgerEntry(reference: Reference): Boolean
 

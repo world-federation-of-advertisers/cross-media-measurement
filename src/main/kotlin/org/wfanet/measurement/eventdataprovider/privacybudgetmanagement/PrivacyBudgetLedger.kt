@@ -1,11 +1,11 @@
-/**
+/*
  * Copyright 2022 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
- * ```
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * ```
+ *
  * Unless required by applicable law or agreed to in writing, software distributed under the License
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
  * or implied. See the License for the specific language governing permissions and limitations under
@@ -56,7 +56,7 @@ class PrivacyBudgetLedger(
    * privacy charges to that group would make anyone of them exceed their budget.
    *
    * @throws PrivacyBudgetManagerException if there is an error commiting the transaction to the
-   * database.
+   *   database.
    */
   suspend fun chargingWillExceedPrivacyBudget(
     privacyBucketGroups: Set<PrivacyBucketGroup>,
@@ -82,8 +82,8 @@ class PrivacyBudgetLedger(
    * charges to that group.
    *
    * @throws PrivacyBudgetManagerException if the attempt to charge the privacy bucket groups was
-   * unsuccessful. Possible causes could include exceeding available privacy budget or an inability
-   * to commit an update to the database.
+   *   unsuccessful. Possible causes could include exceeding available privacy budget or an
+   *   inability to commit an update to the database.
    */
   suspend fun charge(
     reference: Reference,
@@ -128,10 +128,7 @@ class PrivacyBudgetLedger(
   ) {
     val failedBucketList = getExceededPrivacyBuckets(context, privacyBucketGroups, charges)
     if (!failedBucketList.isEmpty()) {
-      throw PrivacyBudgetManagerException(
-        PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED,
-        failedBucketList
-      )
+      throw PrivacyBudgetManagerException(PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED)
     }
   }
 
@@ -172,10 +169,10 @@ class PrivacyBudgetLedger(
    * Tests whether a given privacy bucket is exceeded.
    *
    * @param balanceEntries is a list of [PrivacyBudgetBalanceEntry] that all refer to the same
-   * underlying privacy bucket.
+   *   underlying privacy bucket.
    * @param charges is a list of charges that are to be added to this privacy bucket.
    * @return true if adding the charges would cause the total privacy budget usage for this bucket
-   * to be exceeded.
+   *   to be exceeded.
    */
   private suspend fun privacyBudgetIsExceeded(
     balanceEntries: Set<PrivacyBudgetBalanceEntry>,

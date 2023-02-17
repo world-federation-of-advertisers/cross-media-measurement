@@ -1,11 +1,11 @@
-/**
+/*
  * Copyright 2022 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
- * ```
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * ```
+ *
  * Unless required by applicable law or agreed to in writing, software distributed under the License
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
  * or implied. See the License for the specific language governing permissions and limitations under
@@ -13,7 +13,7 @@
  */
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
-import java.time.LocalDate
+import org.wfanet.measurement.common.OpenEndTimeRange
 
 /** Represents a charge that will be made to a privacy budget */
 data class Charge(val epsilon: Float, val delta: Float)
@@ -30,11 +30,7 @@ data class Reference(
 )
 
 /** Represents a privacy filter for one event group. */
-data class EventGroupSpec(
-  val eventFilter: String,
-  val startDate: LocalDate,
-  val endDate: LocalDate
-)
+data class EventGroupSpec(val eventFilter: String, val timeRange: OpenEndTimeRange)
 
 /** Represents a mask to the PrivacyLandscape. */
 data class LandscapeMask(
