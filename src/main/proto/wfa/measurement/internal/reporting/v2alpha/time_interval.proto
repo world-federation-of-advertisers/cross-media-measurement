@@ -19,7 +19,7 @@ package wfa.measurement.internal.reporting.v2alpha;
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
-option java_package = "org.wfanet.measurement.internal.reporting.v2alphat";
+option java_package = "org.wfanet.measurement.internal.reporting.v2alpha";
 option java_multiple_files = true;
 
 message TimeInterval {
