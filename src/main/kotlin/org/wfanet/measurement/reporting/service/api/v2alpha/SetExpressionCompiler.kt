@@ -80,7 +80,7 @@ private data class SetOperationExpression(
   val rhs: Operand?,
 ) : Operand
 
-data class WeightedMeasurement(val reportingSets: List<String>, val coefficient: Int)
+data class WeightedSubSetUnion(val reportingSets: List<String>, val coefficient: Int)
 
 class SetExpressionCompiler {
 
@@ -93,13 +93,13 @@ class SetExpressionCompiler {
   }
 
   /**
-   * Compiles a set expression to a list of [WeightedMeasurement]s which will be used for the
+   * Compiles a set expression to a list of [WeightedSubSetUnion]s which will be used for the
    * cardinality computation. For example, given a set = primitiveRegion1 UNION primitiveRegion2,
    * Count(set) = Count(primitiveRegion1) + Count(primitiveRegion2) = Count(unionSet1) -
    * Count(unionSet2) + Count(unionSet3) - Count(unionSet2) = Count(unionSet1) + Count(unionSet3) -
    * 2 * Count(unionSet2).
    */
-  suspend fun compileSetExpression(setExpression: SetExpression): List<WeightedMeasurement> {
+  suspend fun compileSetExpression(setExpression: SetExpression): List<WeightedSubSetUnion> {
     val reportingSetNames = mutableSetOf<String>()
     setExpression.storeReportingSetNames(reportingSetNames)
 
@@ -120,23 +120,23 @@ class SetExpressionCompiler {
       convertPrimitiveRegionsToUnionSetCoefficientMap(numReportingSets, primitiveRegions)
 
     return unionSetCoefficientMap.map { (unionSet, coefficient) ->
-      convertUnionSetToWeightedMeasurements(unionSet, coefficient, sortedReportingSetNames)
+      convertUnionSetToWeightedSubsetUnions(unionSet, coefficient, sortedReportingSetNames)
     }
   }
 
-  /** Converts unionSetCoefficientMap to WeightedMeasurements. */
-  private fun convertUnionSetToWeightedMeasurements(
+  /** Converts unionSetCoefficientMap to WeightedSubsetUnions. */
+  private fun convertUnionSetToWeightedSubsetUnions(
     unionSet: UnionSet,
     coefficient: Int,
     sortedReportingSetNames: List<String>
-  ): WeightedMeasurement {
+  ): WeightedSubSetUnion {
     // Find the reporting sets in the union-set.
     val reportingSetNames =
       (sortedReportingSetNames.indices).mapNotNull { bitPosition ->
         if (isBitSet(unionSet, bitPosition)) sortedReportingSetNames[bitPosition] else null
       }
 
-    return WeightedMeasurement(reportingSetNames, coefficient)
+    return WeightedSubSetUnion(reportingSetNames, coefficient)
   }
 
   /**
