@@ -355,10 +355,12 @@ CREATE TABLE ModelMetricSpecs(
 CREATE TABLE ModelTimeIntervals(
   MeasurementConsumerId bigint NOT NULL,
   ModelId bigint NOT NULL,
+  ModelTimeIntervalId bigint NOT NULL,
+
   TimeIntervalStart TIMESTAMP WITH TIME ZONE NOT NULL,
   TimeIntervalEndExclusive TIMESTAMP WITH TIME ZONE NOT NULL,
 
-  PRIMARY KEY(MeasurementConsumerId, ModelId, TimeIntervalStart, TimeIntervalEndExclusive),
+  PRIMARY KEY(MeasurementConsumerId, ModelId, ModelTimeIntervalId),
   FOREIGN KEY(MeasurementConsumerId, ModelId)
     REFERENCES Models(MeasurementConsumerId, ModelId)
     ON DELETE CASCADE,
@@ -368,6 +370,7 @@ CREATE TABLE ModelTimeIntervals(
 CREATE TABLE ModelReportingSets(
   MeasurementConsumerId bigint NOT NULL,
   ModelId bigint NOT NULL,
+  -- This is one of the primitive reporting sets used to train the model.
   ReportingSetId bigint NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, ModelId, ReportingSetId),
@@ -378,6 +381,31 @@ CREATE TABLE ModelReportingSets(
     REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
     ON DELETE CASCADE,
 );
+
+-- changeset riemanli:create-model-subsets-table dbms:postgresql
+CREATE TABLE ModelSubsets(
+  MeasurementConsumerId bigint NOT NULL,
+  ModelId bigint NOT NULL,
+  ModelSubsetId bigint NOT NULL,
+
+  ModelMetricSpecId bigint NOT NULL,
+  ModelTimeIntervalId bigint NOT NULL,
+
+  -- Serialized org.wfanet.measurement.internal.reporting.Model.ModelSubset.Details
+  -- protobuf message.
+  ModelSubsetDetails bytea NOT NULL,
+
+  PRIMARY KEY(MeasurementConsumerId, ModelId, ModelSubsetId),
+  FOREIGN KEY(MeasurementConsumerId, ModelId)
+    REFERENCES Models(MeasurementConsumerId, ModelId)
+    ON DELETE CASCADE,
+  FOREIGN KEY(MeasurementConsumerId, ModelId, ModelMetricSpecId)
+    REFERENCES ModelMetricSpec(MeasurementConsumerId, ModelId, ModelMetricSpecId)
+    ON DELETE CASCADE,
+  FOREIGN KEY(MeasurementConsumerId, ModelId, ModelTimeIntervalId)
+    REFERENCES ModelTimeIntervals(MeasurementConsumerId, ModelId, ModelTimeIntervalId)
+    ON DELETE CASCADE,
+)
 
 -- changeset riemanli:create-reports-table dbms:postgresql
 CREATE TABLE Reports (
