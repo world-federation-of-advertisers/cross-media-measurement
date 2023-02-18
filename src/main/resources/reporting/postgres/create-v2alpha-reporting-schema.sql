@@ -128,10 +128,10 @@ CREATE TABLE WeightedSubsetUnions (
 CREATE TABLE PrimitiveReportingSetBases (
   MeasurementConsumerId bigint NOT NULL,
   PrimitiveReportingSetBasisId bigint NOT NULL,
-  ReportingSetId bigint NOT NULL,
+  PrimitiveReportingSetId bigint NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, PrimitiveReportingSetBasisId),
-  FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
+  FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetId)
     REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
     ON DELETE CASCADE,
 )
