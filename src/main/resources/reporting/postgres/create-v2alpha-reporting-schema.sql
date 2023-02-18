@@ -400,7 +400,7 @@ CREATE TABLE ModelSubsets(
     REFERENCES Models(MeasurementConsumerId, ModelId)
     ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, ModelId, ModelMetricSpecId)
-    REFERENCES ModelMetricSpec(MeasurementConsumerId, ModelId, ModelMetricSpecId)
+    REFERENCES ModelMetricSpecs(MeasurementConsumerId, ModelId, ModelMetricSpecId)
     ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, ModelId, ModelTimeIntervalId)
     REFERENCES ModelTimeIntervals(MeasurementConsumerId, ModelId, ModelTimeIntervalId)
