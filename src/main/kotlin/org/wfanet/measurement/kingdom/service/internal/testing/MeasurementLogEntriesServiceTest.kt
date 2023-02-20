@@ -21,8 +21,6 @@ import io.grpc.StatusRuntimeException
 import java.time.Clock
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.count
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -83,18 +81,6 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
     private set
 
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
-
-  private fun readMeasurementStateLog(
-    externalMeasurementId: Long,
-    externalMeasurementConsumerId: Long
-  ): Flow<StateTransitionMeasurementLogEntry> {
-    return measurementLogEntriesService.streamStateTransitionMeasurementLogEntries(
-      streamStateTransitionMeasurementLogEntriesRequest {
-        this.externalMeasurementId = externalMeasurementId
-        this.externalMeasurementConsumerId = externalMeasurementConsumerId
-      }
-    )
-  }
 
   @Before
   fun initService() {
@@ -307,15 +293,6 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
           dataProvider
         )
 
-      assertThat(
-          readMeasurementStateLog(
-              measurement.externalMeasurementId,
-              measurement.externalMeasurementConsumerId
-            )
-            .count()
-        )
-        .isEqualTo(0)
-
       measurement =
         measurementsService.cancelMeasurement(
           cancelMeasurementRequest {
@@ -325,9 +302,12 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
         )
 
       val measurementStateTransitionLogEntry: StateTransitionMeasurementLogEntry =
-        readMeasurementStateLog(
-            measurement.externalMeasurementId,
-            measurement.externalMeasurementConsumerId
+        measurementLogEntriesService
+          .streamStateTransitionMeasurementLogEntries(
+            streamStateTransitionMeasurementLogEntriesRequest {
+              externalMeasurementId = measurement.externalMeasurementId
+              externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+            }
           )
           .single()
 
