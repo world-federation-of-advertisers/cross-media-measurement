@@ -15,17 +15,14 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Value
-import java.time.Clock
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
-import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.FailComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
-import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
@@ -118,13 +115,7 @@ class FailComputationParticipant(private val request: FailComputationParticipant
       val measurementLogEntryDetails =
         MeasurementLogEntryKt.details {
           logMessage = "Measurement failed due to a failing computation participant"
-          this.error =
-            MeasurementLogEntryKt.errorDetails {
-              this.type = MeasurementLogEntry.ErrorDetails.Type.PERMANENT
-              // TODO(@marcopremier): plumb in a clock instance dependency not to hardcode the
-              // system one
-              this.errorTime = Clock.systemUTC().protoTimestamp()
-            }
+          this.error = request.errorDetails
         }
 
       // TODO(@marcopremier): FailComputationParticipant should insert a single MeasurementLogEntry
