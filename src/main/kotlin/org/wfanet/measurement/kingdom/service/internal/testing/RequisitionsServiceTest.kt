@@ -706,8 +706,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
       )
 
     assertThat(response.state).isEqualTo(Requisition.State.FULFILLED)
-    assertThat(response.externalFulfillingDuchyId)
-      .isEqualTo(Population.WORKER1_DUCHY_EXTERNAL_ID)
+    assertThat(response.externalFulfillingDuchyId).isEqualTo(Population.WORKER1_DUCHY_EXTERNAL_ID)
     assertThat(response.details.nonce).isEqualTo(NONCE_1)
     assertThat(response.updateTime.toInstant()).isGreaterThan(requisition.updateTime.toInstant())
     assertThat(response)
