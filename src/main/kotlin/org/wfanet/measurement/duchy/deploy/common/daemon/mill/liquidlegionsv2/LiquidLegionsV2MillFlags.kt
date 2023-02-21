@@ -114,7 +114,7 @@ class LiquidLegionsV2MillFlags {
 
     @CommandLine.Option(
       names = ["--otel-service-name"],
-      description = ["Service name to be label duchy metrics with."],
+      description = ["Service name to label duchy metrics with."],
       required = true,
     )
     lateinit var otelServiceName: String
