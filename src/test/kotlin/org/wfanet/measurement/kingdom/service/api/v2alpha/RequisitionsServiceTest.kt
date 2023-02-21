@@ -140,8 +140,6 @@ private val VISIBLE_REQUISITION_STATES: Set<InternalRequisition.State> =
     InternalRequisition.State.REFUSED
   )
 
-private const val ALLOW_MPC_PROTOCOLS_FOR_SINGLE_DATA_PROVIDER = true
-
 @RunWith(JUnit4::class)
 class RequisitionsServiceTest {
   private val internalRequisitionMock: RequisitionsCoroutineImplBase = mockService {
@@ -165,11 +163,7 @@ class RequisitionsServiceTest {
 
   @Before
   fun initService() {
-    service =
-      RequisitionsService(
-        ALLOW_MPC_PROTOCOLS_FOR_SINGLE_DATA_PROVIDER,
-        RequisitionsCoroutineStub(grpcTestServerRule.channel)
-      )
+    service = RequisitionsService(RequisitionsCoroutineStub(grpcTestServerRule.channel))
   }
 
   @Test
@@ -1035,9 +1029,6 @@ class RequisitionsServiceTest {
         measurementType = ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
         liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
         protocols += ProtocolConfigKt.protocol { direct = ProtocolConfigKt.direct {} }
-        if (ALLOW_MPC_PROTOCOLS_FOR_SINGLE_DATA_PROVIDER)
-          protocols +=
-            ProtocolConfigKt.protocol { liquidLegionsV2 = this@protocolConfig.liquidLegionsV2 }
       }
       dataProviderCertificate =
         DataProviderCertificateKey(

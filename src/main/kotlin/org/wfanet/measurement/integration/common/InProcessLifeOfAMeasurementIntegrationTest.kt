@@ -57,7 +57,6 @@ private val OUTPUT_DP_PARAMS = differentialPrivacyParams {
 }
 private const val REDIRECT_URI = "https://localhost:2048"
 private val RESULT_POLLING_DELAY = Duration.ofSeconds(10)
-private const val ALLOW_MPC_PROTOCOLS_FOR_SINGLE_DATA_PROVIDER = true
 
 /**
  * Test that everything is wired up properly.
@@ -81,7 +80,6 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
       dataServicesProvider = { kingdomDataServices },
       verboseGrpcLogging = false,
       REDIRECT_URI,
-      ALLOW_MPC_PROTOCOLS_FOR_SINGLE_DATA_PROVIDER
     )
 
   private val duchies: List<InProcessDuchy> by lazy {
