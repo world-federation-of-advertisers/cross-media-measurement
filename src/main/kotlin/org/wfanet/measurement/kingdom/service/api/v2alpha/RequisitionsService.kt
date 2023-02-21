@@ -81,7 +81,6 @@ private const val MAX_PAGE_SIZE = 100
 private const val WILDCARD = "-"
 
 class RequisitionsService(
-  private val allowMpcProtocolsForSingleDataProvider: Boolean,
   private val internalRequisitionStub: RequisitionsCoroutineStub,
   private val callIdentityProvider: () -> Provider = ::getProviderFromContext,
 ) : RequisitionsCoroutineImplBase() {
@@ -161,10 +160,9 @@ class RequisitionsService(
 
     return listRequisitionsResponse {
       requisitions +=
-        results.subList(0, min(results.size, listRequisitionsPageToken.pageSize)).map {
-          internalRequisition ->
-          internalRequisition.toRequisition(allowMpcProtocolsForSingleDataProvider)
-        }
+        results
+          .subList(0, min(results.size, listRequisitionsPageToken.pageSize))
+          .map(InternalRequisition::toRequisition)
 
       if (results.size > listRequisitionsPageToken.pageSize) {
         val pageToken =
@@ -229,7 +227,7 @@ class RequisitionsService(
         }
       }
 
-    return result.toRequisition(allowMpcProtocolsForSingleDataProvider)
+    return result.toRequisition()
   }
 
   override suspend fun fulfillDirectRequisition(
@@ -282,9 +280,7 @@ class RequisitionsService(
 }
 
 /** Converts an internal [Requisition] to a public [Requisition]. */
-private fun InternalRequisition.toRequisition(
-  allowMpcProtocolsForSingleDataProvider: Boolean,
-): Requisition {
+private fun InternalRequisition.toRequisition(): Requisition {
   check(Version.fromString(parentMeasurement.apiVersion) == Version.V2_ALPHA) {
     "Incompatible API version ${parentMeasurement.apiVersion}"
   }
@@ -321,7 +317,6 @@ private fun InternalRequisition.toRequisition(
         parentMeasurement.protocolConfig.toProtocolConfig(
           measurementTypeCase,
           parentMeasurement.dataProvidersCount,
-          allowMpcProtocolsForSingleDataProvider
         )
       } catch (e: Throwable) {
         failGrpc(Status.INVALID_ARGUMENT) { e.message ?: "Failed to convert ProtocolConfig" }
