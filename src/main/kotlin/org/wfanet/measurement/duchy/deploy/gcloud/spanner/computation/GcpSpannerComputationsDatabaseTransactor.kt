@@ -46,14 +46,14 @@ import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
 import org.wfanet.measurement.internal.duchy.RequisitionEntry
+import org.wfanet.measurement.internal.duchy.copy
 
 /** Implementation of [ComputationsDatabaseTransactor] using GCP Spanner Database. */
 class GcpSpannerComputationsDatabaseTransactor<
   ProtocolT, StageT, StageDT : Message, ComputationDT : Message>(
   private val databaseClient: AsyncDatabaseClient,
   private val computationMutations: ComputationMutations<ProtocolT, StageT, StageDT, ComputationDT>,
-  private val clock: Clock = Clock.systemUTC(),
-  private val lockDuration: Duration = Duration.ofMinutes(5)
+  private val clock: Clock = Clock.systemUTC()
 ) : ComputationsDatabaseTransactor<ProtocolT, StageT, StageDT, ComputationDT> {
 
   private val localComputationIdGenerator: LocalComputationIdGenerator =
@@ -130,7 +130,11 @@ class GcpSpannerComputationsDatabaseTransactor<
     }
   }
 
-  override suspend fun claimTask(protocol: ProtocolT, ownerId: String): String? {
+  override suspend fun claimTask(
+    protocol: ProtocolT,
+    ownerId: String,
+    lockDuration: Duration
+  ): String? {
     /** Claim a specific task represented by the results of running the above sql. */
     suspend fun claimSpecificTask(result: UnclaimedTaskQueryResult<StageT>): Boolean =
       databaseClient.readWriteTransaction().execute {
@@ -139,7 +143,8 @@ class GcpSpannerComputationsDatabaseTransactor<
           result.computationStage,
           result.nextAttempt,
           result.updateTime,
-          ownerId
+          ownerId,
+          lockDuration
         )
       }
     return UnclaimedTasksQuery(
@@ -167,7 +172,8 @@ class GcpSpannerComputationsDatabaseTransactor<
     stage: StageT,
     nextAttempt: Long,
     lastUpdate: Timestamp,
-    ownerId: String
+    ownerId: String,
+    lockDuration: Duration
   ): Boolean {
     val currentLockOwnerStruct =
       txn.readRow("Computations", Key.of(computationId), listOf("LockOwner", "UpdateTime"))
@@ -178,15 +184,16 @@ class GcpSpannerComputationsDatabaseTransactor<
 
     // TODO(sanjayvas): Determine whether we can use commit timestamp via
     // spanner.commit_timestamp() in mutation.
-    val writeTime = clock.gcloudTimestamp()
-    txn.buffer(setLockMutation(computationId, ownerId))
+    val writeTime: Instant = clock.instant()
+    val writeTimestamp = writeTime.toGcloudTimestamp()
+    txn.buffer(setLockMutation(computationId, ownerId, writeTime, lockDuration))
     // Create a new attempt of the stage for the nextAttempt.
     txn.buffer(
       computationMutations.insertComputationStageAttempt(
         computationId,
         stage,
         nextAttempt,
-        beginTime = writeTime,
+        beginTime = writeTimestamp,
         details = ComputationStageAttemptDetails.getDefaultInstance()
       )
     )
@@ -218,12 +225,9 @@ class GcpSpannerComputationsDatabaseTransactor<
           localId = computationId,
           stage = stage,
           attempt = currentAttempt,
-          endTime = writeTime,
+          endTime = writeTimestamp,
           details =
-            details
-              .toBuilder()
-              .setReasonEnded(ComputationStageAttemptDetails.EndReason.LOCK_OVERWRITTEN)
-              .build()
+            details.copy { reasonEnded = ComputationStageAttemptDetails.EndReason.LOCK_OVERWRITTEN }
         )
       )
     }
@@ -231,17 +235,19 @@ class GcpSpannerComputationsDatabaseTransactor<
     return true
   }
 
-  private fun setLockMutation(computationId: Long, ownerId: String): Mutation {
+  private fun setLockMutation(
+    computationId: Long,
+    ownerId: String,
+    writeTime: Instant,
+    lockDuration: Duration
+  ): Mutation {
     return computationMutations.updateComputation(
       computationId,
-      clock.gcloudTimestamp(),
+      writeTime.toGcloudTimestamp(),
       lockOwner = ownerId,
-      lockExpirationTime = nextLockExpiration()
+      lockExpirationTime = writeTime.plus(lockDuration).toGcloudTimestamp()
     )
   }
-
-  private fun nextLockExpiration(): Timestamp =
-    clock.instant().plus(lockDuration).toGcloudTimestamp()
 
   override suspend fun updateComputationStage(
     token: ComputationEditToken<ProtocolT, StageT>,
@@ -250,7 +256,8 @@ class GcpSpannerComputationsDatabaseTransactor<
     passThroughBlobPaths: List<String>,
     outputBlobs: Int,
     afterTransition: AfterTransition,
-    nextStageDetails: StageDT
+    nextStageDetails: StageDT,
+    lockExtension: Duration?
   ) {
     require(computationMutations.validTransition(token.stage, nextStage)) {
       "Invalid stage transition ${token.stage} -> $nextStage"
@@ -266,10 +273,18 @@ class GcpSpannerComputationsDatabaseTransactor<
         """
           .trimIndent()
       }
-      val writeTime = clock.gcloudTimestamp()
+      val writeTime = clock.instant()
 
       txn.buffer(
-        mutationsToChangeStages(txn, token, nextStage, writeTime, afterTransition, nextStageDetails)
+        mutationsToChangeStages(
+          txn,
+          token,
+          nextStage,
+          writeTime,
+          afterTransition,
+          nextStageDetails,
+          lockExtension
+        )
       )
 
       txn.buffer(
@@ -405,16 +420,18 @@ class GcpSpannerComputationsDatabaseTransactor<
     ctx: AsyncDatabaseClient.TransactionContext,
     token: ComputationEditToken<ProtocolT, StageT>,
     newStage: StageT,
-    writeTime: Timestamp,
+    writeTime: Instant,
     afterTransition: AfterTransition,
-    nextStageDetails: StageDT
+    nextStageDetails: StageDT,
+    lockExtension: Duration?
   ): List<Mutation> {
+    val writeTimestamp = writeTime.toGcloudTimestamp()
     val mutations = arrayListOf<Mutation>()
 
     mutations.add(
       computationMutations.updateComputation(
         token.localId,
-        writeTime,
+        writeTimestamp,
         stage = newStage,
         lockOwner =
           when (afterTransition) {
@@ -429,9 +446,10 @@ class GcpSpannerComputationsDatabaseTransactor<
             // Null LockExpirationTime values will not be claimed from the work queue.
             AfterTransition.DO_NOT_ADD_TO_QUEUE -> WRITE_NULL_TIMESTAMP
             // The computation is ready for processing by some worker right away.
-            AfterTransition.ADD_UNCLAIMED_TO_QUEUE -> writeTime
+            AfterTransition.ADD_UNCLAIMED_TO_QUEUE -> writeTimestamp
             // The computation lock will expire sometime in the future.
-            AfterTransition.CONTINUE_WORKING -> nextLockExpiration()
+            AfterTransition.CONTINUE_WORKING ->
+              writeTime.plus(requireNotNull(lockExtension)).toGcloudTimestamp()
           }
       )
     )
@@ -441,7 +459,7 @@ class GcpSpannerComputationsDatabaseTransactor<
         localId = token.localId,
         stage = token.stage,
         followingStage = newStage,
-        endTime = writeTime
+        endTime = writeTimestamp
       )
     )
 
@@ -459,7 +477,7 @@ class GcpSpannerComputationsDatabaseTransactor<
         localId = token.localId,
         stage = token.stage,
         attempt = token.attempt.toLong(),
-        endTime = writeTime,
+        endTime = writeTimestamp,
         details =
           attemptDetails
             .toBuilder()
@@ -481,7 +499,7 @@ class GcpSpannerComputationsDatabaseTransactor<
             localId = token.localId,
             stage = newStage,
             attempt = 1,
-            beginTime = writeTime,
+            beginTime = writeTimestamp,
             details = ComputationStageAttemptDetails.getDefaultInstance()
           )
       }
@@ -491,7 +509,7 @@ class GcpSpannerComputationsDatabaseTransactor<
         localId = token.localId,
         stage = newStage,
         previousStage = token.stage,
-        creationTime = writeTime,
+        creationTime = writeTimestamp,
         details = nextStageDetails,
         // nextAttempt is the number of the current attempt of the stage plus one. Adding an Attempt
         // to the new stage while transitioning stage means that an attempt of that new stage is

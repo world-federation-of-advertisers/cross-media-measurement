@@ -23,6 +23,7 @@ import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.time.Clock
+import java.time.Duration
 import java.util.logging.Logger
 import kotlin.math.min
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
@@ -133,8 +134,9 @@ class LiquidLegionsV2Mill(
   systemComputationLogEntriesClient: ComputationLogEntriesCoroutineStub,
   computationStatsClient: ComputationStatsCoroutineStub,
   throttler: MinimumIntervalThrottler,
-  private val workerStubs: Map<String, ComputationControlCoroutineStub>, // 32 KiB
+  private val workerStubs: Map<String, ComputationControlCoroutineStub>,
   private val cryptoWorker: LiquidLegionsV2Encryption,
+  workLockDuration: Duration,
   openTelemetry: OpenTelemetry,
   requestChunkSizeBytes: Int = 1024 * 32,
   maximumAttempts: Int = 10,
@@ -152,6 +154,7 @@ class LiquidLegionsV2Mill(
     computationStatsClient,
     throttler,
     ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
+    workLockDuration,
     requestChunkSizeBytes,
     maximumAttempts,
     clock,

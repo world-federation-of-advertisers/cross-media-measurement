@@ -15,7 +15,6 @@
 package org.wfanet.measurement.integration.gcloud
 
 import com.google.cloud.storage.contrib.nio.testing.LocalStorageHelper
-import java.time.Duration
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.common.testing.ProviderRule
@@ -79,8 +78,7 @@ class DuchyDependencyProviderRule(duchies: Iterable<String>) :
             ComputationTypes,
             ComputationProtocolStages,
             ComputationProtocolStageDetails
-          ),
-        lockDuration = Duration.ofSeconds(1)
+          )
       )
 
     return object :
