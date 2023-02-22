@@ -599,9 +599,14 @@ class EdpSimulator(
       try {
         generateSketch(requisition.name, sketchConfig, measurementSpec, requisitionSpec)
       } catch (e: EventFilterValidationException) {
+        refuseRequisition(
+          requisition.name,
+          Requisition.Refusal.Justification.SPECIFICATION_INVALID,
+          "Invalid event filter (${e.code}): ${e.code.description}"
+        )
         logger.log(
           Level.WARNING,
-          "RequisitionFulfillmentWorkflow failed due to: invalid EventFilter",
+          "RequisitionFulfillmentWorkflow failed due to invalid event filter",
           e
         )
         return
