@@ -34,8 +34,8 @@
 --       ├── Models
 --       │   ├── ModelMetrics
 --       │   ├── ModelMetricSpecs
---       │   ├── ModelTimeIntervals
---       │   └── ModelReportingSets
+--       │   ├── ModelReportingSets
+--       │   └── ModelSubsets
 --       └── Reports
 --           ├── ReportTimeIntervals
 --           ├── MetricCalculations
@@ -351,21 +351,6 @@ CREATE TABLE ModelMetricSpecs(
     ON DELETE CASCADE,
 );
 
--- changeset riemanli:create-model-time-intervals-table dbms:postgresql
-CREATE TABLE ModelTimeIntervals(
-  MeasurementConsumerId bigint NOT NULL,
-  ModelId bigint NOT NULL,
-  ModelTimeIntervalId bigint NOT NULL,
-
-  TimeIntervalStart TIMESTAMP WITH TIME ZONE NOT NULL,
-  TimeIntervalEndExclusive TIMESTAMP WITH TIME ZONE NOT NULL,
-
-  PRIMARY KEY(MeasurementConsumerId, ModelId, ModelTimeIntervalId),
-  FOREIGN KEY(MeasurementConsumerId, ModelId)
-    REFERENCES Models(MeasurementConsumerId, ModelId)
-    ON DELETE CASCADE,
-);
-
 -- changeset riemanli:create-model-reporting-sets-table dbms:postgresql
 CREATE TABLE ModelReportingSets(
   MeasurementConsumerId bigint NOT NULL,
@@ -389,7 +374,9 @@ CREATE TABLE ModelSubsets(
   ModelSubsetId bigint NOT NULL,
 
   ModelMetricSpecId bigint NOT NULL,
-  ModelTimeIntervalId bigint NOT NULL,
+
+  TimeIntervalStart TIMESTAMP WITH TIME ZONE NOT NULL,
+  TimeIntervalEndExclusive TIMESTAMP WITH TIME ZONE NOT NULL,
 
   -- Serialized org.wfanet.measurement.internal.reporting.Model.ModelSubset.Details
   -- protobuf message.
@@ -401,9 +388,6 @@ CREATE TABLE ModelSubsets(
     ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, ModelId, ModelMetricSpecId)
     REFERENCES ModelMetricSpecs(MeasurementConsumerId, ModelId, ModelMetricSpecId)
-    ON DELETE CASCADE,
-  FOREIGN KEY(MeasurementConsumerId, ModelId, ModelTimeIntervalId)
-    REFERENCES ModelTimeIntervals(MeasurementConsumerId, ModelId, ModelTimeIntervalId)
     ON DELETE CASCADE,
 )
 
