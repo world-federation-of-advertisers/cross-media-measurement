@@ -192,6 +192,7 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
         throttler = MinimumIntervalThrottler(Clock.systemUTC(), flags.pollingInterval),
         workerStubs = computationControlClientMap,
         cryptoWorker = JniLiquidLegionsV2Encryption(),
+        workLockDuration = flags.workLockDuration,
         openTelemetry = openTelemetry,
         requestChunkSizeBytes = flags.requestChunkSizeBytes
       )

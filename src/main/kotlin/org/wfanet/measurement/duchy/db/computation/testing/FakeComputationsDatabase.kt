@@ -15,6 +15,7 @@
 package org.wfanet.measurement.duchy.db.computation.testing
 
 import io.grpc.Status
+import java.time.Duration
 import kotlin.experimental.ExperimentalTypeInference
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.duchy.db.computation.AfterTransition
@@ -195,7 +196,8 @@ private constructor(
     passThroughBlobPaths: List<String>,
     outputBlobs: Int,
     afterTransition: AfterTransition,
-    nextStageDetails: ComputationStageDetails
+    nextStageDetails: ComputationStageDetails,
+    lockExtension: Duration?
   ) {
     updateToken(token) { existing ->
       require(validTransition(existing.computationStage, nextStage))
@@ -332,7 +334,11 @@ private constructor(
     }
   }
 
-  override suspend fun claimTask(protocol: ComputationType, ownerId: String): String? {
+  override suspend fun claimTask(
+    protocol: ComputationType,
+    ownerId: String,
+    lockDuration: Duration
+  ): String? {
     val claimed =
       tokens.values
         .asSequence()

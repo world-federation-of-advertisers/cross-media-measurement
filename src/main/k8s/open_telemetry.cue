@@ -93,7 +93,7 @@ service:
 						value: "none"
 					}, {
 						name:  "OTEL_EXPORTER_OTLP_ENDPOINT"
-						value: "http://default-collector-headless.default.svc:\(#OpenTelemetryReceiverPort)"
+						value: #OpenTelemetryCollectorEndpoint
 					}, {
 						name:  "OTEL_EXPORTER_OTLP_TIMEOUT"
 						value: "20000"
