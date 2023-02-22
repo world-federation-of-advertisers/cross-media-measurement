@@ -163,7 +163,6 @@ class MetricsService(
     val apiAuthenticationKey: String = principal.config.apiKey
 
     grpcRequire(request.hasMetric()) { "Metric is not specified." }
-    grpcRequire(request.metricId.isNotBlank()) { "Metric unique ID is not specified." }
     grpcRequire(request.metric.reportingSet.isNotBlank()) {
       "Reporting set in metric is not specified."
     }
@@ -171,7 +170,8 @@ class MetricsService(
     grpcRequire(request.metric.hasMetricSpec()) { "Metric spec in metric is not specified." }
 
     val existingIntervalMetric: InternalMetric? =
-      getInternalMetricByIdempotencyKey(resourceKey.measurementConsumerId, request.metricId)
+      if (request.metricId.isNotBlank()) null
+      else getInternalMetricByIdempotencyKey(resourceKey.measurementConsumerId, request.metricId)
 
     if (existingIntervalMetric != null) return existingIntervalMetric.toMetric()
 
