@@ -909,6 +909,40 @@ class MetricsService(
       )
     }
   }
+
+  /** Gets an [InternalMetric]. */
+  private suspend fun getInternalReportingSet(
+    measurementConsumerReferenceId: String,
+    reportingSetName: String,
+  ): InternalReportingSet {
+    val reportingSetKey =
+      grpcRequireNotNull(ReportingSetKey.fromName(reportingSetName)) {
+        "Invalid reporting set name $reportingSetName."
+      }
+
+    grpcRequire(reportingSetKey.measurementConsumerId == measurementConsumerReferenceId) {
+      "No access to the reporting set [$reportingSetName]."
+    }
+
+    return try {
+      internalReportingSetsStub.getReportingSet(
+        getInternalReportingSetRequest {
+          this.measurementConsumerReferenceId = measurementConsumerReferenceId
+          this.externalReportingSetId = apiIdToExternalId(reportingSetKey.reportingSetId)
+        }
+      )
+    } catch (e: StatusException) {
+      throw Exception(
+        "Unable to retrieve a reporting set from the reporting database using the provided " +
+          "reportingSet [$reportingSetName].",
+        e
+      )
+    }
+  }
+}
+
+private fun InternalSetExpression.toSetExpression(): SetExpression {
+  TODO("Not yet implemented")
 }
 
 /**
