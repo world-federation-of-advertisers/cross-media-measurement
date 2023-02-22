@@ -79,8 +79,8 @@ class FailComputationParticipant(private val request: FailComputationParticipant
       Measurement.State.PENDING_REQUISITION_PARAMS,
       Measurement.State.PENDING_REQUISITION_FULFILLMENT,
       Measurement.State.PENDING_PARTICIPANT_CONFIRMATION,
-      Measurement.State.PENDING_COMPUTATION,
-      Measurement.State.FAILED, -> {}
+      Measurement.State.PENDING_COMPUTATION, -> {}
+      Measurement.State.FAILED,
       Measurement.State.SUCCEEDED,
       Measurement.State.CANCELLED,
       Measurement.State.STATE_UNSPECIFIED,
@@ -103,33 +103,31 @@ class FailComputationParticipant(private val request: FailComputationParticipant
       set("State" to NEXT_COMPUTATION_PARTICIPANT_STATE)
     }
 
-    if (measurementState != Measurement.State.FAILED) {
-      val updatedMeasurementDetails =
-        measurementDetails.copy {
-          failure =
-            MeasurementKt.failure {
-              reason = Measurement.Failure.Reason.COMPUTATION_PARTICIPANT_FAILED
-              message = "Computation Participant failed. ${request.errorMessage}"
-            }
-        }
+    val updatedMeasurementDetails =
+      measurementDetails.copy {
+        failure =
+          MeasurementKt.failure {
+            reason = Measurement.Failure.Reason.COMPUTATION_PARTICIPANT_FAILED
+            message = "Computation Participant failed. ${request.errorMessage}"
+          }
+      }
 
-      val measurementLogEntryDetails =
-        MeasurementLogEntryKt.details {
-          logMessage = "Measurement failed due to a failing computation participant"
-          this.error = request.errorDetails
-        }
+    val measurementLogEntryDetails =
+      MeasurementLogEntryKt.details {
+        logMessage = "Computation Participant failed. ${request.errorMessage}"
+        this.error = request.errorDetails
+      }
 
-      // TODO(@marcopremier): FailComputationParticipant should insert a single MeasurementLogEntry
-      // with two children: a StateTransitionMeasurementLogEntries and a DuchyMeasurementLogEntries
-      updateMeasurementState(
-        measurementConsumerId = InternalId(measurementConsumerId),
-        measurementId = InternalId(measurementId),
-        nextState = Measurement.State.FAILED,
-        previousState = measurementState,
-        logDetails = measurementLogEntryDetails,
-        details = updatedMeasurementDetails
-      )
-    }
+    // TODO(@marcopremier): FailComputationParticipant should insert a single MeasurementLogEntry
+    // with two children: a StateTransitionMeasurementLogEntries and a DuchyMeasurementLogEntries
+    updateMeasurementState(
+      measurementConsumerId = InternalId(measurementConsumerId),
+      measurementId = InternalId(measurementId),
+      nextState = Measurement.State.FAILED,
+      previousState = measurementState,
+      logDetails = measurementLogEntryDetails,
+      details = updatedMeasurementDetails
+    )
 
     return computationParticipant.copy { state = NEXT_COMPUTATION_PARTICIPANT_STATE }
   }
