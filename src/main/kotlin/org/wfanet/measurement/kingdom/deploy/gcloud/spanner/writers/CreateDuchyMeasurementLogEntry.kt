@@ -79,7 +79,10 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
         ) {
           "Cannot create log entry for Measurement in terminal state or unspecified state."
         }
-      else -> {}
+      Measurement.State.PENDING_COMPUTATION,
+      Measurement.State.PENDING_PARTICIPANT_CONFIRMATION,
+      Measurement.State.PENDING_REQUISITION_FULFILLMENT,
+      Measurement.State.PENDING_REQUISITION_PARAMS -> {}
     }
 
     val duchyId =
@@ -150,25 +153,27 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
     )
 
   private suspend fun TransactionScope.readMeasurementInfo(): MeasurementInfo? {
+    val baseSql =
+      """
+      SELECT
+        Measurements.MeasurementId,
+        Measurements.MeasurementConsumerId,
+        Measurements.ExternalMeasurementId,
+        Measurements.ExternalComputationId,
+        MeasurementConsumers.ExternalMeasurementConsumerId,
+        Measurements.State,
+      FROM Measurements
+      JOIN MeasurementConsumers USING (MeasurementConsumerId)
+      WHERE ExternalComputationId = @externalComputationId
+      LIMIT 1
+      """
+        .trimIndent()
 
     return transactionContext
       .executeQuery(
-        Statement.newBuilder(
-            """
-          SELECT
-            Measurements.MeasurementId,
-            Measurements.MeasurementConsumerId,
-            Measurements.ExternalMeasurementId,
-            Measurements.ExternalComputationId,
-            MeasurementConsumers.ExternalMeasurementConsumerId,
-            Measurements.State,
-          FROM Measurements
-          JOIN MeasurementConsumers USING (MeasurementConsumerId)
-          WHERE ExternalComputationId = ${request.externalComputationId}
-          LIMIT 1
-        """
-              .trimIndent()
-          )
+        Statement.newBuilder(baseSql)
+          .bind("externalComputationId")
+          .to(request.externalComputationId)
           .build()
       )
       .map(::translateToInternalMeasurementInfo)
