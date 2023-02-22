@@ -17,10 +17,12 @@ package org.wfanet.measurement.duchy.service.internal.computations
 import com.google.protobuf.Empty
 import io.grpc.Status
 import java.time.Clock
+import java.time.Duration
 import java.util.logging.Logger
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.protoTimestamp
+import org.wfanet.measurement.common.toDuration
 import org.wfanet.measurement.duchy.db.computation.AfterTransition
 import org.wfanet.measurement.duchy.db.computation.BlobRef
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
@@ -68,11 +70,15 @@ class ComputationsService(
   private val computationStorageClient: ComputationStore,
   private val requisitionStorageClient: RequisitionStore,
   private val duchyName: String,
-  private val clock: Clock = Clock.systemUTC()
+  private val clock: Clock = Clock.systemUTC(),
+  private val defaultLockDuration: Duration = Duration.ofMinutes(5)
 ) : ComputationsCoroutineImplBase() {
 
   override suspend fun claimWork(request: ClaimWorkRequest): ClaimWorkResponse {
-    val claimed = computationsDatabase.claimTask(request.computationType, request.owner)
+    val lockDuration =
+      if (request.hasLockDuration()) request.lockDuration.toDuration() else defaultLockDuration
+    val claimed =
+      computationsDatabase.claimTask(request.computationType, request.owner, lockDuration)
     return if (claimed != null) {
       val token = computationsDatabase.readComputationToken(claimed)!!
       sendStatusUpdateToKingdom(
@@ -208,6 +214,8 @@ class ComputationsService(
   override suspend fun advanceComputationStage(
     request: AdvanceComputationStageRequest
   ): AdvanceComputationStageResponse {
+    val lockExtension: Duration =
+      if (request.hasLockExtension()) request.lockExtension.toDuration() else defaultLockDuration
     computationsDatabase.updateComputationStage(
       request.token.toDatabaseEditToken(),
       request.nextComputationStage,
@@ -223,7 +231,8 @@ class ComputationsService(
           AfterTransition.CONTINUE_WORKING
         else -> error("Unsupported AdvanceComputationStageRequest.AfterTransition '$it'. ")
       },
-      request.stageDetails
+      request.stageDetails,
+      lockExtension
     )
 
     sendStatusUpdateToKingdom(
