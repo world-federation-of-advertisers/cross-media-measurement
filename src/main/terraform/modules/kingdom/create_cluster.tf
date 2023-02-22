@@ -13,10 +13,6 @@
 # limitations under the License.
 
 resource "google_container_cluster" "primary_cluster" {
-  depends_on = [
-    null_resource.build-images
-  ]
-
   name     = var.cluster_info.primary_name
   location = data.google_client_config.current.zone
   remove_default_node_pool = true

@@ -20,20 +20,13 @@ module "kingdom" {
 
   cluster_info = {
     account_name = "tf-test-gke-cluster"
-    service_account_name = "tf-test-internal-server"
+    service_account_name = "tf-test-internal-server2"
     primary_name = "tf-test-halo-cmm-kingdom-demo-cluster"
   }
   db_info = {
     instance_name = "tf-test-dev-instance"
     db_name = "tf-test-kingdom"
   }
-  path_to_cmm = "../../cross-media-measurement"
-
-  image_paths = [
-    "src/main/docker/push_kingdom_data_server_image",
-    "src/main/docker/push_kingdom_system_api_server_image",
-    "src/main/docker/push_kingdom_v2alpha_public_api_server_image"
-  ]
 
   kms_data = {
     key_ring_name = "tf-test-key-ring"
