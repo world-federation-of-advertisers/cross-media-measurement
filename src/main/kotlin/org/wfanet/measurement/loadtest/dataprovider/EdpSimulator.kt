@@ -81,7 +81,6 @@ import org.wfanet.measurement.api.v2alpha.Requisition.DuchyEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
-import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.SignedData
 import org.wfanet.measurement.api.v2alpha.createEventGroupMetadataDescriptorRequest
@@ -120,6 +119,7 @@ import org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptio
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManager
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerException
+import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyBudgetManagerExceptionType
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.Reference
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.api.v2alpha.PrivacyQueryMapper
 import org.wfanet.measurement.loadtest.config.EventFilters.VID_SAMPLER_HASH_FUNCTION
@@ -286,6 +286,8 @@ class EdpSimulator(
     } catch (e: PublicKeyMismatchException) {
       throw VerificationException(e.message, e)
     }
+
+    // TODO(@uakyol): Validate that collection interval is not outside of privacy landscape.
 
     return Specifications(measurementSpec, requisitionSpec)
   }
@@ -471,14 +473,14 @@ class EdpSimulator(
   }
 
   private fun populateAnySketch(
-    eventFilter: EventFilter,
+    eventSpec: RequisitionSpec.EventGroupEntry.Value,
     vidSampler: VidSampler,
     vidSamplingIntervalStart: Float,
     vidSamplingIntervalWidth: Float,
     anySketch: AnySketch
   ) {
     eventQuery
-      .getUserVirtualIds(eventFilter)
+      .getUserVirtualIds(eventSpec.collectionInterval, eventSpec.filter)
       .filter {
         vidSampler.vidIsInSamplingBucket(it, vidSamplingIntervalStart, vidSamplingIntervalWidth)
       }
@@ -499,16 +501,29 @@ class EdpSimulator(
         )
       )
     } catch (e: PrivacyBudgetManagerException) {
-      logger.log(
-        Level.WARNING,
-        "RequisitionFulfillmentWorkflow failed due to: Not Enough Privacy Budget",
-        e
-      )
-      refuseRequisition(
-        requisitionName,
-        Requisition.Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET,
-        "Privacy Budget Exceeded."
-      )
+      when (e.errorType) {
+        PrivacyBudgetManagerExceptionType.PRIVACY_BUDGET_EXCEEDED -> {
+          refuseRequisition(
+            requisitionName,
+            Requisition.Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET,
+            "Privacy budget exceeded"
+          )
+        }
+        PrivacyBudgetManagerExceptionType.INVALID_PRIVACY_BUCKET_FILTER -> {
+          refuseRequisition(
+            requisitionName,
+            Requisition.Refusal.Justification.SPECIFICATION_INVALID,
+            "Invalid event filter"
+          )
+        }
+        PrivacyBudgetManagerExceptionType.DATABASE_UPDATE_ERROR,
+        PrivacyBudgetManagerExceptionType.UPDATE_AFTER_COMMIT,
+        PrivacyBudgetManagerExceptionType.NESTED_TRANSACTION,
+        PrivacyBudgetManagerExceptionType.BACKING_STORE_CLOSED -> {
+          throw Exception("Unexpected PBM error", e)
+        }
+      }
+      logger.log(Level.WARNING, "RequisitionFulfillmentWorkflow failed due to ${e.errorType}", e)
     }
 
   private suspend fun generateSketch(
@@ -526,7 +541,7 @@ class EdpSimulator(
 
     requisitionSpec.eventGroupsList.forEach {
       populateAnySketch(
-        it.value.filter,
+        it.value,
         VidSampler(VID_SAMPLER_HASH_FUNCTION),
         vidSamplingIntervalStart,
         vidSamplingIntervalWidth,
@@ -584,9 +599,14 @@ class EdpSimulator(
       try {
         generateSketch(requisition.name, sketchConfig, measurementSpec, requisitionSpec)
       } catch (e: EventFilterValidationException) {
+        refuseRequisition(
+          requisition.name,
+          Requisition.Refusal.Justification.SPECIFICATION_INVALID,
+          "Invalid event filter (${e.code}): ${e.code.description}"
+        )
         logger.log(
           Level.WARNING,
-          "RequisitionFulfillmentWorkflow failed due to: invalid EventFilter",
+          "RequisitionFulfillmentWorkflow failed due to invalid event filter",
           e
         )
         return
@@ -680,40 +700,44 @@ class EdpSimulator(
   ) {
     logger.info("Calculating direct reach and frequency...")
     val vidSampler = VidSampler(VID_SAMPLER_HASH_FUNCTION)
-    val vidSamplingIntervalStart = measurementSpec.vidSamplingInterval.start
-    val vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width
+    val vidSamplingInterval = measurementSpec.vidSamplingInterval
+    val vidSamplingIntervalStart = vidSamplingInterval.start
+    val vidSamplingIntervalWidth = vidSamplingInterval.width
+
+    require(vidSamplingIntervalWidth > 0 && vidSamplingIntervalWidth <= 1.0) {
+      "Invalid vidSamplingIntervalWidth $vidSamplingIntervalWidth"
+    }
+    require(
+      vidSamplingIntervalStart < 1 &&
+        vidSamplingIntervalStart >= 0 &&
+        vidSamplingIntervalWidth > 0 &&
+        vidSamplingIntervalStart + vidSamplingIntervalWidth <= 1
+    ) {
+      "Invalid vidSamplingInterval: $vidSamplingInterval"
+    }
 
     val vidList: List<Long> =
       requisitionSpec.eventGroupsList
         .distinctBy { eventGroup -> eventGroup.key }
-        .flatMap { eventGroup -> eventQuery.getUserVirtualIds(eventGroup.value.filter) }
+        .flatMap { eventGroup ->
+          eventQuery.getUserVirtualIds(eventGroup.value.collectionInterval, eventGroup.value.filter)
+        }
         .filter { vid ->
           vidSampler.vidIsInSamplingBucket(vid, vidSamplingIntervalStart, vidSamplingIntervalWidth)
         }
-
-    val (reachValue, frequencyMap) =
-      calculateDirectReachAndFrequency(vidList, vidSamplingIntervalWidth)
+    val (sampledReachValue, frequencyMap) = calculateDirectReachAndFrequency(vidList)
 
     logger.info("Adding publisher noise to direct reach and frequency...")
-    val laplaceForReach =
-      LaplaceDistribution(0.0, 1 / measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon)
-    laplaceForReach.reseedRandomGenerator(1)
-    val reachNoisedValue = reachValue + laplaceForReach.sample().toInt()
+    val (sampledNoisedReachValue, noisedFrequencyMap) =
+      addPublisherNoise(sampledReachValue, frequencyMap, measurementSpec.reachAndFrequency)
 
-    val laplaceForFrequency =
-      LaplaceDistribution(0.0, 1 / measurementSpec.reachAndFrequency.frequencyPrivacyParams.epsilon)
-    laplaceForFrequency.reseedRandomGenerator(1)
-
-    val frequencyNoisedMap = mutableMapOf<Long, Double>()
-    frequencyMap.forEach { (frequency, percentage) ->
-      frequencyNoisedMap[frequency] =
-        (percentage * reachValue.toDouble() + laplaceForFrequency.sample()) / reachValue.toDouble()
-    }
-
+    // Differentially private reach value is calculated by reach_dp = (reach + noise) /
+    // sampling_rate.
+    val scaledNoisedReachValue = (sampledNoisedReachValue / vidSamplingIntervalWidth).toLong()
     val requisitionData =
       MeasurementKt.result {
-        reach = reach { value = reachNoisedValue }
-        frequency = frequency { relativeFrequencyDistribution.putAll(frequencyNoisedMap) }
+        reach = reach { value = scaledNoisedReachValue }
+        frequency = frequency { relativeFrequencyDistribution.putAll(noisedFrequencyMap) }
       }
 
     fulfillDirectMeasurement(requisition, requisitionSpec, measurementSpec, requisitionData)
@@ -806,19 +830,23 @@ class EdpSimulator(
     }
 
     /**
-     * Function to calculate direct reach and frequency from VIDs in
-     * fulfillDirectReachAndFrequencyMeasurement(). Reach needs to scale by sampling rate
-     * @param vidList List of VIDs
-     * @param samplingRate Probability of sampling which is vidSamplingIntervalWidth
-     * @return Pair of reach value and frequency map
+     * Calculate direct reach and frequency from VIDs in
+     * fulfillDirectReachAndFrequencyMeasurement().
+     *
+     * @param vidList List of VIDs.
+     * @return Pair of reach value and frequency map.
      */
-    fun calculateDirectReachAndFrequency(
+    private fun calculateDirectReachAndFrequency(
       vidList: List<Long>,
-      samplingRate: Float
     ): Pair<Long, Map<Long, Double>> {
-      require(samplingRate > 0 && samplingRate <= 1.0) { "Invalid samplingRate $samplingRate" }
-
-      var reachValue = vidList.toSet().size.toLong()
+      // Example: vidList: [1L, 1L, 1L, 2L, 2L, 3L, 4L, 5L]
+      // 5 unique people(1, 2, 3, 4, 5) being reached
+      // reach = 5
+      // 1 reach -> 0.6(3/5)(VID 3L, 4L, 5L)
+      // 2 reach -> 0.2(1/5)(VID 2L)
+      // 3 reach -> 0.2(1/5)(VID 1L)
+      // frequencyMap = {1L: 0.6, 2L to 0.2, 3L: 0.2}
+      val reachValue = vidList.toSet().size.toLong()
       val frequencyMap = mutableMapOf<Long, Double>().withDefault { 0.0 }
 
       vidList
@@ -832,9 +860,44 @@ class EdpSimulator(
         frequencyMap[frequency] = frequencyMap.getValue(frequency) / reachValue.toDouble()
       }
 
-      reachValue = (reachValue / samplingRate).toLong()
-
       return Pair(reachValue, frequencyMap)
+    }
+
+    //
+    /**
+     * Add Laplace publisher noise to calculated direct reach and frequency. TODO(@iverson52000):
+     * Create a noiser class for this function when we need to add Gaussian noise.
+     *
+     * @param reachValue Direct reach value.
+     * @param frequencyMap Direct frequency.
+     * @param reachAndFrequency ReachAndFrequency from MeasurementSpec.
+     * @return Pair of noised reach value and frequency map.
+     */
+    private fun addPublisherNoise(
+      reachValue: Long,
+      frequencyMap: Map<Long, Double>,
+      reachAndFrequency: MeasurementSpec.ReachAndFrequency
+    ): Pair<Long, Map<Long, Double>> {
+      val laplaceForReach =
+        LaplaceDistribution(0.0, 1 / reachAndFrequency.reachPrivacyParams.epsilon)
+      // Reseed random number generator so the results can be verified in tests.
+      // TODO(@iverson52000): make randomSeed an input once create noiser class.
+      laplaceForReach.reseedRandomGenerator(1)
+
+      val noisedReachValue = (reachValue + laplaceForReach.sample().toInt())
+
+      val laplaceForFrequency =
+        LaplaceDistribution(0.0, 1 / reachAndFrequency.frequencyPrivacyParams.epsilon)
+      laplaceForFrequency.reseedRandomGenerator(1)
+
+      val noisedFrequencyMap = mutableMapOf<Long, Double>()
+      frequencyMap.forEach { (frequency, percentage) ->
+        noisedFrequencyMap[frequency] =
+          (percentage * reachValue.toDouble() + laplaceForFrequency.sample()) /
+            reachValue.toDouble()
+      }
+
+      return Pair(noisedReachValue, noisedFrequencyMap)
     }
   }
 }

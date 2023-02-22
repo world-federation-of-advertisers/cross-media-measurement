@@ -67,7 +67,7 @@ import ("strings")
 	_debug_verbose_grpc_client_logging_flag: "--debug-verbose-grpc-client-logging=\(_verbose_grpc_logging)"
 	_debug_verbose_grpc_server_logging_flag: "--debug-verbose-grpc-server-logging=\(_verbose_grpc_logging)"
 	_computation_control_target_flags: [ for duchyId, target in _computation_control_targets {"--duchy-computation-control-target=\(duchyId)=\(target)"}]
-	_otlpEndpoint: "--otel-exporter-otlp-endpoint=http://0.0.0.0:\(#OpenTelemetryReceiverPort)"
+	_otlpEndpoint: "--otel-exporter-otlp-endpoint=\(#OpenTelemetryCollectorEndpoint)"
 
 	services: [Name=_]: #GrpcService & {
 		_name:   _object_prefix + Name

@@ -22,6 +22,12 @@ import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 private const val DEFAULT_HASH_MINIMUM_BITS = 128
 
 interface EncryptionKeyPairStore {
+  /**
+   * Retrieves the corresponding [PrivateKeyHandle] for a serialized public key.
+   *
+   * @param principal resource name the public key belongs to
+   * @param publicKey `data` field of an [EncryptionPublicKey]
+   */
   suspend fun getPrivateKeyHandle(principal: String, publicKey: ByteString): PrivateKeyHandle?
 }
 
@@ -37,12 +43,6 @@ class InMemoryEncryptionKeyPairStore(
       keyPairs.associate { (publicKey, privateKey) -> fingerprint(publicKey) to privateKey }
     }
 
-  /**
-   * Retrieves the corresponding [PrivateKeyHandle] for a serialized public key.
-   *
-   * @param principal resource name the public key belongs to
-   * @param publicKey `data` field of an [EncryptionPublicKey]
-   */
   override suspend fun getPrivateKeyHandle(
     principal: String,
     publicKey: ByteString

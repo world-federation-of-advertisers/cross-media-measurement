@@ -15,7 +15,9 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Struct
+import java.time.Clock
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.common.toProtoDate
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
@@ -77,6 +79,7 @@ class ExchangeStepAttemptReader : SpannerReader<ExchangeStepAttemptReader.Result
     fun forExpiredAttempts(
       externalModelProviderId: ExternalId?,
       externalDataProviderId: ExternalId?,
+      clock: Clock,
       limit: Long = 10
     ): SpannerReader<Result> {
       require((externalModelProviderId == null) != (externalDataProviderId == null)) {
@@ -88,12 +91,15 @@ class ExchangeStepAttemptReader : SpannerReader<ExchangeStepAttemptReader.Result
           """
           WHERE ExchangeSteps.State = @exchange_step_state
             AND ExchangeStepAttempts.State = @exchange_step_attempt_state
-            AND ExchangeStepAttempts.ExpirationTime <= CURRENT_TIMESTAMP()
+            AND ExchangeStepAttempts.ExpirationTime <= @now
           """
             .trimIndent()
         )
         bind("exchange_step_state").toProtoEnum(ExchangeStep.State.IN_PROGRESS)
         bind("exchange_step_attempt_state").toProtoEnum(ExchangeStepAttempt.State.ACTIVE)
+        // Due to the fact that we set ExpirationTime using the application clock, we should to be
+        // consistent and use the application clock for comparisons rather than DB time.
+        bind("now").to(clock.instant().toGcloudTimestamp())
 
         if (externalModelProviderId != null) {
           appendClause(

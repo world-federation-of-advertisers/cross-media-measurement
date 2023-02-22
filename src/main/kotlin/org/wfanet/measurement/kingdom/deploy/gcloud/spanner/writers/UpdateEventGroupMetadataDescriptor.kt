@@ -27,6 +27,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupMe
  * Update [EventGroupMetadataDescriptor] in the database.
  *
  * Throws a subclass of [KingdomInternalException] on [execute].
+ *
  * @throws [EventGroupMetadataDescriptorNotFoundException] EventGroupMetadataDescriptor not found
  */
 class UpdateEventGroupMetadataDescriptor(

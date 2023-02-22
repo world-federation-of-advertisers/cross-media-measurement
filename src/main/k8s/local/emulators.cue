@@ -14,7 +14,8 @@
 
 package k8s
 
-_secret_name: string @tag("secret_name")
+_secret_name:            string @tag("secret_name")
+_spannerEmulatorVersion: string @tag("spanner_emulator_version")
 
 #ComponentName: "testing"
 
@@ -58,7 +59,7 @@ pods: [Name=string]: #Pod & {
 pods: {
 	"spanner-emulator": Pod={
 		spec: _containers: "\(Pod.metadata.name)": {
-			image: "gcr.io/cloud-spanner-emulator/emulator"
+			image: "gcr.io/cloud-spanner-emulator/emulator:\(_spannerEmulatorVersion)"
 		}
 	}
 }
@@ -73,7 +74,7 @@ deployments: {
 		_container: {
 			image: "bazel/src/main/kotlin/org/wfanet/measurement/storage/filesystem:server_image"
 			args: [
-				"--debug-verbose-grpc-server-logging=true",
+				"--debug-verbose-grpc-server-logging=false",
 				"--port=8443",
 				"--require-client-auth=false",
 				"--tls-cert-file=/var/run/secrets/files/kingdom_tls.pem",

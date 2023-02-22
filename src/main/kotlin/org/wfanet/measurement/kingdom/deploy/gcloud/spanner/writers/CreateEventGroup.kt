@@ -35,6 +35,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.checkValidCe
  * Creates a EventGroup in the database
  *
  * Throws a subclass of [KingdomInternalException] on [execute].
+ *
  * @throws [MeasurementConsumerNotFoundException] MeasurementConsumer not found
  * @throws [DataProviderNotFoundException] DataProvider not found
  */

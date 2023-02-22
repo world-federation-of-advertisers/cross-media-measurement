@@ -37,8 +37,9 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.OpenIdConnec
  * database.
  *
  * Throws a subclass of [KingdomInternalException] on [execute].
+ *
  * @throws [DuplicateAccountIdentityException] Duplicated Account identity with the same issuer and
- * subject
+ *   subject
  * @throws [AccountNotFoundException] Account not found
  * @throws [AccountActivationStateIllegalException] Account activation state is already ACTIVATED
  * @throws [MeasurementConsumerNotFoundException] Owned Measurement Consumer not found

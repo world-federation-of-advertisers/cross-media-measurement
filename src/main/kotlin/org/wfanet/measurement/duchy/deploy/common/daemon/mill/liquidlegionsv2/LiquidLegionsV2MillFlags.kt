@@ -61,6 +61,14 @@ class LiquidLegionsV2MillFlags {
   lateinit var pollingInterval: Duration
     private set
 
+  @CommandLine.Option(
+    names = ["--work-lock-duration"],
+    defaultValue = "5m",
+    description = ["How long to hold work locks."]
+  )
+  lateinit var workLockDuration: Duration
+    private set
+
   @CommandLine.Mixin
   lateinit var systemApiFlags: SystemApiFlags
     private set
@@ -114,7 +122,7 @@ class LiquidLegionsV2MillFlags {
 
     @CommandLine.Option(
       names = ["--otel-service-name"],
-      description = ["Service name to be label duchy metrics with."],
+      description = ["Service name to label duchy metrics with."],
       required = true,
     )
     lateinit var otelServiceName: String

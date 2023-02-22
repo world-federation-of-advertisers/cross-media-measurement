@@ -43,6 +43,9 @@ import org.wfanet.measurement.api.v2alpha.Account
 import org.wfanet.measurement.api.v2alpha.AccountKt
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt
 import org.wfanet.measurement.api.v2alpha.AccountsGrpcKt.AccountsCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.ApiKey
+import org.wfanet.measurement.api.v2alpha.ApiKeysGrpcKt
+import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
@@ -63,14 +66,19 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
+import org.wfanet.measurement.api.v2alpha.PublicKey
+import org.wfanet.measurement.api.v2alpha.PublicKeysGrpcKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.account
 import org.wfanet.measurement.api.v2alpha.activateAccountRequest
+import org.wfanet.measurement.api.v2alpha.apiKey
 import org.wfanet.measurement.api.v2alpha.authenticateRequest
 import org.wfanet.measurement.api.v2alpha.authenticateResponse
 import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.createApiKeyRequest
+import org.wfanet.measurement.api.v2alpha.createCertificateRequest
 import org.wfanet.measurement.api.v2alpha.createMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
@@ -80,9 +88,12 @@ import org.wfanet.measurement.api.v2alpha.listMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.publicKey
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
+import org.wfanet.measurement.api.v2alpha.revokeCertificateRequest
 import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.api.v2alpha.timeInterval
+import org.wfanet.measurement.api.v2alpha.updatePublicKeyRequest
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
@@ -134,7 +145,7 @@ private val SIOP_KEY: File = SECRETS_DIR.resolve("account1_siop_private.tink")
 private val kingdomSigningCerts =
   SigningCerts.fromPemFiles(KINGDOM_TLS_CERT, KINGDOM_TLS_KEY, KINGDOM_TRUSTED_CERTS)
 
-private const val API_KEY = "nR5QPN7ptx"
+private const val AUTHENTICATION_KEY = "nR5QPN7ptx"
 
 private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/1"
 private val MEASUREMENT_CONSUMER_CERTIFICATE_FILE: File = SECRETS_DIR.resolve("mc_cs_cert.der")
@@ -199,6 +210,13 @@ private val LIST_MEASUREMENT_RESPONSE = listMeasurementsResponse {
   }
 }
 
+private val API_KEY = apiKey {
+  name = "$MEASUREMENT_CONSUMER_NAME/apiKeys/103"
+  nickname = "Reporting"
+  description = "Reporting server"
+  authenticationKey = AUTHENTICATION_KEY
+}
+
 @RunWith(JUnit4::class)
 class MeasurementSystemTest {
   private val accountsServiceMock: AccountsCoroutineImplBase = mockService()
@@ -206,6 +224,9 @@ class MeasurementSystemTest {
 
   private val measurementConsumersServiceMock: MeasurementConsumersCoroutineImplBase = mockService {
     onBlocking { getMeasurementConsumer(any()) }.thenReturn(MEASUREMENT_CONSUMER)
+  }
+  private val apiKeysMock: ApiKeysGrpcKt.ApiKeysCoroutineImplBase = mockService {
+    onBlocking { createApiKey(any()) }.thenReturn(API_KEY)
   }
   private val dataProvidersServiceMock: DataProvidersGrpcKt.DataProvidersCoroutineImplBase =
     mockService {
@@ -221,14 +242,17 @@ class MeasurementSystemTest {
     mockService {
       onBlocking { getCertificate(any()) }.thenReturn(AGGREGATOR_CERTIFICATE)
     }
+  private val publicKeysServiceMock: PublicKeysGrpcKt.PublicKeysCoroutineImplBase = mockService()
 
   val services: List<ServerServiceDefinition> =
     listOf(
       ServerInterceptors.intercept(accountsServiceMock, headerInterceptor),
       ServerInterceptors.intercept(measurementsServiceMock, headerInterceptor),
       ServerInterceptors.intercept(measurementConsumersServiceMock, headerInterceptor),
+      ServerInterceptors.intercept(apiKeysMock, headerInterceptor),
       dataProvidersServiceMock.bindService(),
-      certificatesServiceMock.bindService(),
+      ServerInterceptors.intercept(certificatesServiceMock, headerInterceptor),
+      ServerInterceptors.intercept(publicKeysServiceMock, headerInterceptor),
     )
 
   private val publicApiServer: Server =
@@ -374,12 +398,166 @@ class MeasurementSystemTest {
   }
 
   @Test
+  fun `api-keys create prints response`() {
+    val idToken = "fake-id-token"
+    val args =
+      commonArgs +
+        arrayOf(
+          "api-keys",
+          "--id-token=$idToken",
+          "create",
+          "--measurement-consumer=$MEASUREMENT_CONSUMER_NAME",
+          "--nickname=${API_KEY.nickname}",
+          "--description=${API_KEY.description}",
+        )
+
+    val output: String = callCli(args)
+
+    assertThat(
+        headerInterceptor
+          .captured(ApiKeysGrpcKt.createApiKeyMethod)
+          .single()
+          .get(AccountConstants.ID_TOKEN_METADATA_KEY)
+      )
+      .isEqualTo(idToken)
+    verifyProtoArgument(apiKeysMock, ApiKeysGrpcKt.ApiKeysCoroutineImplBase::createApiKey)
+      .isEqualTo(
+        createApiKeyRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          apiKey =
+            API_KEY.copy {
+              clearName()
+              clearAuthenticationKey()
+            }
+        }
+      )
+    assertThat(parseTextProto(output.reader(), ApiKey.getDefaultInstance())).isEqualTo(API_KEY)
+  }
+
+  @Test
+  fun `certificates create prints resource name`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "certificates",
+          "--api-key=$AUTHENTICATION_KEY",
+          "create",
+          "--parent=$MEASUREMENT_CONSUMER_NAME",
+          "--certificate=${MEASUREMENT_CONSUMER_CERTIFICATE_FILE.path}",
+        )
+    val certificate = certificate {
+      name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
+      x509Der = MEASUREMENT_CONSUMER.certificateDer
+    }
+    certificatesServiceMock.stub { onBlocking { createCertificate(any()) }.thenReturn(certificate) }
+
+    val output: String = callCli(args)
+
+    assertThat(
+        headerInterceptor
+          .captured(CertificatesGrpcKt.createCertificateMethod)
+          .single()
+          .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
+      )
+      .isEqualTo(AUTHENTICATION_KEY)
+    verifyProtoArgument(
+        certificatesServiceMock,
+        CertificatesGrpcKt.CertificatesCoroutineImplBase::createCertificate
+      )
+      .isEqualTo(
+        createCertificateRequest {
+          parent = MEASUREMENT_CONSUMER_NAME
+          this.certificate = certificate.copy { clearName() }
+        }
+      )
+    assertThat(output).isEqualTo("Certificate name: ${certificate.name}\n")
+  }
+
+  @Test
+  fun `certificates revoke prints response`() {
+    val certificate = certificate {
+      name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
+      x509Der = MEASUREMENT_CONSUMER.certificateDer
+      revocationState = Certificate.RevocationState.REVOKED
+    }
+    certificatesServiceMock.stub { onBlocking { revokeCertificate(any()) }.thenReturn(certificate) }
+    val args =
+      commonArgs +
+        arrayOf(
+          "certificates",
+          "--api-key=$AUTHENTICATION_KEY",
+          "revoke",
+          "--revocation-state=REVOKED",
+          certificate.name
+        )
+
+    val output: String = callCli(args)
+
+    assertThat(
+        headerInterceptor
+          .captured(CertificatesGrpcKt.revokeCertificateMethod)
+          .single()
+          .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
+      )
+      .isEqualTo(AUTHENTICATION_KEY)
+    verifyProtoArgument(
+        certificatesServiceMock,
+        CertificatesGrpcKt.CertificatesCoroutineImplBase::revokeCertificate
+      )
+      .isEqualTo(
+        revokeCertificateRequest {
+          name = certificate.name
+          revocationState = certificate.revocationState
+        }
+      )
+    assertThat(parseTextProto(output.reader(), Certificate.getDefaultInstance()))
+      .isEqualTo(certificate)
+  }
+
+  @Test
+  fun `public-keys update prints response`() {
+    val publicKey = publicKey {
+      name = "$MEASUREMENT_CONSUMER_NAME/publicKey"
+      publicKey = MEASUREMENT_CONSUMER.publicKey
+      certificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
+    }
+    publicKeysServiceMock.stub { onBlocking { updatePublicKey(any()) }.thenReturn(publicKey) }
+    val args =
+      commonArgs +
+        arrayOf(
+          "public-keys",
+          "--api-key=$AUTHENTICATION_KEY",
+          "update",
+          "--public-key=${MEASUREMENT_CONSUMER_PUBLIC_KEY_FILE.path}",
+          "--public-key-signature=${MEASUREMENT_CONSUMER_PUBLIC_KEY_SIG_FILE.path}",
+          "--certificate=${publicKey.certificate}",
+          publicKey.name,
+        )
+
+    val output: String = callCli(args)
+
+    assertThat(
+        headerInterceptor
+          .captured(PublicKeysGrpcKt.updatePublicKeyMethod)
+          .single()
+          .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
+      )
+      .isEqualTo(AUTHENTICATION_KEY)
+    verifyProtoArgument(
+        publicKeysServiceMock,
+        PublicKeysGrpcKt.PublicKeysCoroutineImplBase::updatePublicKey
+      )
+      .isEqualTo(updatePublicKeyRequest { this.publicKey = publicKey })
+    assertThat(parseTextProto(output.reader(), PublicKey.getDefaultInstance())).isEqualTo(publicKey)
+  }
+
+  @Test
   fun `measurements create calls CreateMeasurement with valid request`() {
     val args =
       commonArgs +
         arrayOf(
           "measurements",
-          "--api-key=$API_KEY",
+          "--api-key=$AUTHENTICATION_KEY",
           "create",
           "--impression",
           "--impression-privacy-epsilon=0.015",
@@ -416,7 +594,7 @@ class MeasurementSystemTest {
           .single()
           .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
       )
-      .isEqualTo(API_KEY)
+      .isEqualTo(AUTHENTICATION_KEY)
 
     val request =
       captureFirst<CreateMeasurementRequest> {
@@ -525,12 +703,12 @@ class MeasurementSystemTest {
   }
 
   @Test
-  fun `Create command call public api with correct REACH_AND_FREQUENCY params`() {
+  fun `measurements create calls CreateMeasurement with correct reach and frequency params`() {
     val args =
       commonArgs +
         arrayOf(
           "measurements",
-          "--api-key=$API_KEY",
+          "--api-key=$AUTHENTICATION_KEY",
           "create",
           "--measurement-consumer=measurementConsumers/777",
           "--reach-and-frequency",
@@ -583,12 +761,12 @@ class MeasurementSystemTest {
   }
 
   @Test
-  fun `Create command call public api with correct IMPRESSION params`() {
+  fun `measurements create calls CreateMeasurement with correct impression params`() {
     val args =
       commonArgs +
         arrayOf(
           "measurements",
-          "--api-key=$API_KEY",
+          "--api-key=$AUTHENTICATION_KEY",
           "create",
           "--measurement-consumer=measurementConsumers/777",
           "--impression",
@@ -635,12 +813,12 @@ class MeasurementSystemTest {
   }
 
   @Test
-  fun `Create command call public api with correct DURATION params`() {
+  fun `measurements create calls CreateMeasurement with correct duration params`() {
     val args =
       commonArgs +
         arrayOf(
           "measurements",
-          "--api-key=$API_KEY",
+          "--api-key=$AUTHENTICATION_KEY",
           "create",
           "--measurement-consumer=measurementConsumers/777",
           "--duration",
@@ -687,12 +865,12 @@ class MeasurementSystemTest {
   }
 
   @Test
-  fun `List command call public api with correct request`() {
+  fun `measurements list calls ListMeasurements with valid request`() {
     val args =
       commonArgs +
         arrayOf(
           "measurements",
-          "--api-key=$API_KEY",
+          "--api-key=$AUTHENTICATION_KEY",
           "list",
           "--measurement-consumer=$MEASUREMENT_CONSUMER_NAME"
         )
@@ -705,7 +883,7 @@ class MeasurementSystemTest {
           .single()
           .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
       )
-      .isEqualTo(API_KEY)
+      .isEqualTo(AUTHENTICATION_KEY)
 
     val request =
       captureFirst<ListMeasurementsRequest> {
@@ -722,7 +900,7 @@ class MeasurementSystemTest {
       commonArgs +
         arrayOf(
           "measurements",
-          "--api-key=$API_KEY",
+          "--api-key=$AUTHENTICATION_KEY",
           "get",
           "--encryption-private-key-file=$SECRETS_DIR/mc_enc_private.tink",
           MEASUREMENT_NAME,
@@ -737,7 +915,7 @@ class MeasurementSystemTest {
           .single()
           .get(ApiKeyConstants.API_AUTHENTICATION_KEY_METADATA_KEY)
       )
-      .isEqualTo(API_KEY)
+      .isEqualTo(AUTHENTICATION_KEY)
 
     val request =
       captureFirst<GetMeasurementRequest> {

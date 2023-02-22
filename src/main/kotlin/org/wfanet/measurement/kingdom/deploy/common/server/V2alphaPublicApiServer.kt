@@ -16,7 +16,6 @@ package org.wfanet.measurement.kingdom.deploy.common.server
 
 import io.grpc.ServerServiceDefinition
 import java.io.File
-import kotlin.properties.Delegates
 import org.wfanet.measurement.api.v2alpha.AkidPrincipalLookup
 import org.wfanet.measurement.api.v2alpha.withPrincipalsFromX509AuthorityKeyIdentifiers
 import org.wfanet.measurement.common.commandLineMain
@@ -25,6 +24,8 @@ import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.grpc.withVerboseLogging
+import org.wfanet.measurement.common.identity.DuchyInfo
+import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineStub as InternalAccountsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ApiKeysGrpcKt.ApiKeysCoroutineStub as InternalApiKeysCoroutineStub
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
@@ -67,9 +68,11 @@ private fun run(
   @CommandLine.Mixin kingdomApiServerFlags: KingdomApiServerFlags,
   @CommandLine.Mixin commonServerFlags: CommonServer.Flags,
   @CommandLine.Mixin llv2ProtocolConfigFlags: Llv2ProtocolConfigFlags,
-  @CommandLine.Mixin v2alphaFlags: V2alphaFlags
+  @CommandLine.Mixin v2alphaFlags: V2alphaFlags,
+  @CommandLine.Mixin duchyInfoFlags: DuchyInfoFlags,
 ) {
   Llv2ProtocolConfig.initializeFromFlags(llv2ProtocolConfigFlags)
+  DuchyInfo.initializeFromFlags(duchyInfoFlags)
 
   val clientCerts =
     SigningCerts.fromPemFiles(
@@ -128,7 +131,6 @@ private fun run(
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup),
       MeasurementsService(
           InternalMeasurementsCoroutineStub(channel),
-          v2alphaFlags.allowMpcProtocolsForSingleDataProvider
         )
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
@@ -142,10 +144,7 @@ private fun run(
       PublicKeysService(InternalPublicKeysCoroutineStub(channel))
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub),
-      RequisitionsService(
-          v2alphaFlags.allowMpcProtocolsForSingleDataProvider,
-          InternalRequisitionsCoroutineStub(channel)
-        )
+      RequisitionsService(InternalRequisitionsCoroutineStub(channel))
         .withPrincipalsFromX509AuthorityKeyIdentifiers(principalLookup)
         .withApiKeyAuthenticationServerInterceptor(internalApiKeysCoroutineStub)
     )
@@ -170,13 +169,5 @@ private class V2alphaFlags {
     required = true
   )
   lateinit var redirectUri: String
-    private set
-
-  @set:CommandLine.Option(
-    names = ["--allow-mpc-protocols-for-single-data-provider"],
-    description = ["Enable mpc-based reach and frequency calculation for single-EDP measurement"],
-    defaultValue = "true"
-  )
-  var allowMpcProtocolsForSingleDataProvider by Delegates.notNull<Boolean>()
     private set
 }

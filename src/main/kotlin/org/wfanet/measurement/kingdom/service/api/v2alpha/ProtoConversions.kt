@@ -135,7 +135,6 @@ fun InternalDifferentialPrivacyParams.toDifferentialPrivacyParams(): Differentia
 fun InternalProtocolConfig.toProtocolConfig(
   measurementTypeCase: MeasurementSpec.MeasurementTypeCase,
   dataProviderCount: Int,
-  allowMpcProtocolsForSingleDataProvider: Boolean,
 ): ProtocolConfig {
   val source = this
 
@@ -180,8 +179,6 @@ fun InternalProtocolConfig.toProtocolConfig(
           protocols += protocol { liquidLegionsV2 = this@protocolConfig.liquidLegionsV2 }
         if (dataProviderCount == 1) {
           protocols += protocol { direct = direct {} }
-          if (allowMpcProtocolsForSingleDataProvider)
-            protocols += protocol { liquidLegionsV2 = this@protocolConfig.liquidLegionsV2 }
         }
       }
       MeasurementSpec.MeasurementTypeCase.IMPRESSION,
@@ -195,9 +192,7 @@ fun InternalProtocolConfig.toProtocolConfig(
 }
 
 /** Converts an internal [InternalMeasurement] to a public [Measurement]. */
-fun InternalMeasurement.toMeasurement(
-  allowMpcProtocolsForSingleDataProvider: Boolean,
-): Measurement {
+fun InternalMeasurement.toMeasurement(): Measurement {
   val source = this
   check(Version.fromString(source.details.apiVersion) == Version.V2_ALPHA) {
     "Incompatible API version ${source.details.apiVersion}"
@@ -229,7 +224,6 @@ fun InternalMeasurement.toMeasurement(
       source.details.protocolConfig.toProtocolConfig(
         measurementTypeCase,
         dataProvidersCount,
-        allowMpcProtocolsForSingleDataProvider
       )
 
     state = source.state.toState()
@@ -289,6 +283,7 @@ fun Map.Entry<Long, DataProviderValue>.toDataProviderEntry(): DataProviderEntry 
 
 /**
  * Converts a public [Measurement] to an internal [InternalMeasurement] for creation.
+ *
  * @throws [IllegalStateException] if MeasurementType not specified
  */
 fun Measurement.toInternal(

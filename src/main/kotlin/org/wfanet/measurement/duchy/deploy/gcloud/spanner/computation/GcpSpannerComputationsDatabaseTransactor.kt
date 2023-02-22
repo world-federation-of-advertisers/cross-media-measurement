@@ -46,14 +46,14 @@ import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
 import org.wfanet.measurement.internal.duchy.ComputationStageAttemptDetails
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
 import org.wfanet.measurement.internal.duchy.RequisitionEntry
+import org.wfanet.measurement.internal.duchy.copy
 
 /** Implementation of [ComputationsDatabaseTransactor] using GCP Spanner Database. */
 class GcpSpannerComputationsDatabaseTransactor<
   ProtocolT, StageT, StageDT : Message, ComputationDT : Message>(
   private val databaseClient: AsyncDatabaseClient,
   private val computationMutations: ComputationMutations<ProtocolT, StageT, StageDT, ComputationDT>,
-  private val clock: Clock = Clock.systemUTC(),
-  private val lockDuration: Duration = Duration.ofMinutes(5)
+  private val clock: Clock = Clock.systemUTC()
 ) : ComputationsDatabaseTransactor<ProtocolT, StageT, StageDT, ComputationDT> {
 
   private val localComputationIdGenerator: LocalComputationIdGenerator =
@@ -110,8 +110,8 @@ class GcpSpannerComputationsDatabaseTransactor<
   }
 
   override suspend fun enqueue(token: ComputationEditToken<ProtocolT, StageT>, delaySecond: Int) {
-    runIfTokenFromLastUpdate(token) { ctx ->
-      ctx.buffer(
+    runIfTokenFromLastUpdate(token) {
+      txn.buffer(
         computationMutations.updateComputation(
           localId = token.localId,
           updateTime = clock.gcloudTimestamp(),
@@ -130,17 +130,21 @@ class GcpSpannerComputationsDatabaseTransactor<
     }
   }
 
-  override suspend fun claimTask(protocol: ProtocolT, ownerId: String): String? {
+  override suspend fun claimTask(
+    protocol: ProtocolT,
+    ownerId: String,
+    lockDuration: Duration
+  ): String? {
     /** Claim a specific task represented by the results of running the above sql. */
     suspend fun claimSpecificTask(result: UnclaimedTaskQueryResult<StageT>): Boolean =
-      databaseClient.readWriteTransaction().execute { ctx ->
+      databaseClient.readWriteTransaction().execute {
         claim(
-          ctx,
           result.computationId,
           result.computationStage,
           result.nextAttempt,
           result.updateTime,
-          ownerId
+          ownerId,
+          lockDuration
         )
       }
     return UnclaimedTasksQuery(
@@ -163,16 +167,16 @@ class GcpSpannerComputationsDatabaseTransactor<
    * Tries to claim a specific computation for an owner, returning the result of the attempt. If a
    * lock is acquired a new row is written to the ComputationStageAttempts table.
    */
-  private suspend fun claim(
-    ctx: AsyncDatabaseClient.TransactionContext,
+  private suspend fun AsyncDatabaseClient.TransactionScope.claim(
     computationId: Long,
     stage: StageT,
     nextAttempt: Long,
     lastUpdate: Timestamp,
-    ownerId: String
+    ownerId: String,
+    lockDuration: Duration
   ): Boolean {
     val currentLockOwnerStruct =
-      ctx.readRow("Computations", Key.of(computationId), listOf("LockOwner", "UpdateTime"))
+      txn.readRow("Computations", Key.of(computationId), listOf("LockOwner", "UpdateTime"))
         ?: error("Failed to claim computation $computationId. It does not exist.")
     // Verify that the row hasn't been updated since the previous, non-transactional read.
     // If it has been updated since that time the lock should not be acquired.
@@ -180,20 +184,21 @@ class GcpSpannerComputationsDatabaseTransactor<
 
     // TODO(sanjayvas): Determine whether we can use commit timestamp via
     // spanner.commit_timestamp() in mutation.
-    val writeTime = clock.gcloudTimestamp()
-    ctx.buffer(setLockMutation(computationId, ownerId))
+    val writeTime: Instant = clock.instant()
+    val writeTimestamp = writeTime.toGcloudTimestamp()
+    txn.buffer(setLockMutation(computationId, ownerId, writeTime, lockDuration))
     // Create a new attempt of the stage for the nextAttempt.
-    ctx.buffer(
+    txn.buffer(
       computationMutations.insertComputationStageAttempt(
         computationId,
         stage,
         nextAttempt,
-        beginTime = writeTime,
+        beginTime = writeTimestamp,
         details = ComputationStageAttemptDetails.getDefaultInstance()
       )
     )
     // And increment NextAttempt column of the computation stage.
-    ctx.buffer(
+    txn.buffer(
       computationMutations.updateComputationStage(
         computationId,
         stage,
@@ -205,7 +210,7 @@ class GcpSpannerComputationsDatabaseTransactor<
       // The current attempt is the one before the nextAttempt
       val currentAttempt = nextAttempt - 1
       val details =
-        ctx
+        txn
           .readRow(
             "ComputationStageAttempts",
             Key.of(computationId, stage.toLongStage(), currentAttempt),
@@ -215,17 +220,14 @@ class GcpSpannerComputationsDatabaseTransactor<
           ?: error("Failed to claim computation $computationId. It does not exist.")
       // If the computation was locked, but that lock was expired we need to finish off the
       // current attempt of the stage.
-      ctx.buffer(
+      txn.buffer(
         computationMutations.updateComputationStageAttempt(
           localId = computationId,
           stage = stage,
           attempt = currentAttempt,
-          endTime = writeTime,
+          endTime = writeTimestamp,
           details =
-            details
-              .toBuilder()
-              .setReasonEnded(ComputationStageAttemptDetails.EndReason.LOCK_OVERWRITTEN)
-              .build()
+            details.copy { reasonEnded = ComputationStageAttemptDetails.EndReason.LOCK_OVERWRITTEN }
         )
       )
     }
@@ -233,17 +235,19 @@ class GcpSpannerComputationsDatabaseTransactor<
     return true
   }
 
-  private fun setLockMutation(computationId: Long, ownerId: String): Mutation {
+  private fun setLockMutation(
+    computationId: Long,
+    ownerId: String,
+    writeTime: Instant,
+    lockDuration: Duration
+  ): Mutation {
     return computationMutations.updateComputation(
       computationId,
-      clock.gcloudTimestamp(),
+      writeTime.toGcloudTimestamp(),
       lockOwner = ownerId,
-      lockExpirationTime = nextLockExpiration()
+      lockExpirationTime = writeTime.plus(lockDuration).toGcloudTimestamp()
     )
   }
-
-  private fun nextLockExpiration(): Timestamp =
-    clock.instant().plus(lockDuration).toGcloudTimestamp()
 
   override suspend fun updateComputationStage(
     token: ComputationEditToken<ProtocolT, StageT>,
@@ -252,15 +256,16 @@ class GcpSpannerComputationsDatabaseTransactor<
     passThroughBlobPaths: List<String>,
     outputBlobs: Int,
     afterTransition: AfterTransition,
-    nextStageDetails: StageDT
+    nextStageDetails: StageDT,
+    lockExtension: Duration?
   ) {
     require(computationMutations.validTransition(token.stage, nextStage)) {
       "Invalid stage transition ${token.stage} -> $nextStage"
     }
 
-    runIfTokenFromLastUpdate(token) { ctx ->
+    runIfTokenFromLastUpdate(token) {
       val unwrittenOutputs =
-        outputBlobIdToPathMap(ctx, token.localId, token.stage).filterValues { it == null }
+        outputBlobIdToPathMap(token.localId, token.stage).filterValues { it == null }
       check(unwrittenOutputs.isEmpty()) {
         """
         Cannot transition computation for $token to stage $nextStage, all outputs have not been written.
@@ -268,13 +273,21 @@ class GcpSpannerComputationsDatabaseTransactor<
         """
           .trimIndent()
       }
-      val writeTime = clock.gcloudTimestamp()
+      val writeTime = clock.instant()
 
-      ctx.buffer(
-        mutationsToChangeStages(ctx, token, nextStage, writeTime, afterTransition, nextStageDetails)
+      txn.buffer(
+        mutationsToChangeStages(
+          txn,
+          token,
+          nextStage,
+          writeTime,
+          afterTransition,
+          nextStageDetails,
+          lockExtension
+        )
       )
 
-      ctx.buffer(
+      txn.buffer(
         mutationsToMakeBlobRefsForNewStage(
           token.localId,
           nextStage,
@@ -295,15 +308,15 @@ class GcpSpannerComputationsDatabaseTransactor<
     require(computationMutations.validTerminalStage(token.protocol, endingStage)) {
       "Invalid terminal stage of computation $endingStage"
     }
-    runIfTokenFromLastUpdate(token) { ctx ->
+    runIfTokenFromLastUpdate(token) {
       val writeTime = clock.gcloudTimestamp()
       val detailsBytes =
-        ctx
+        txn
           .readRow("Computations", Key.of(token.localId), listOf("ComputationDetails"))
           ?.getBytesAsByteArray("ComputationDetails")
           ?: error("Computation missing $token")
       val details = computationMutations.parseComputationDetails(detailsBytes)
-      ctx.buffer(
+      txn.buffer(
         computationMutations.updateComputation(
           localId = token.localId,
           updateTime = writeTime,
@@ -314,7 +327,7 @@ class GcpSpannerComputationsDatabaseTransactor<
           details = computationMutations.setEndingState(details, endComputationReason)
         )
       )
-      ctx.buffer(
+      txn.buffer(
         computationMutations.updateComputationStage(
           localId = token.localId,
           stage = token.stage,
@@ -322,7 +335,7 @@ class GcpSpannerComputationsDatabaseTransactor<
           followingStage = endingStage
         )
       )
-      ctx.buffer(
+      txn.buffer(
         computationMutations.insertComputationStage(
           localId = token.localId,
           stage = endingStage,
@@ -333,7 +346,7 @@ class GcpSpannerComputationsDatabaseTransactor<
         )
       )
       UnfinishedAttemptQuery(computationMutations::longValuesToComputationStageEnum, token.localId)
-        .execute(ctx)
+        .execute(txn)
         .collect { unfinished ->
           // Determine the reason the unfinished computation stage attempt is ending.
           val reason =
@@ -354,7 +367,7 @@ class GcpSpannerComputationsDatabaseTransactor<
               )
               ComputationStageAttemptDetails.EndReason.CANCELLED
             }
-          ctx.buffer(
+          txn.buffer(
             computationMutations.updateComputationStageAttempt(
               localId = unfinished.computationId,
               stage = unfinished.stage,
@@ -372,17 +385,17 @@ class GcpSpannerComputationsDatabaseTransactor<
     computationDetails: ComputationDT,
     requisitions: List<RequisitionEntry>
   ) {
-    runIfTokenFromLastUpdate(token) { ctx ->
+    runIfTokenFromLastUpdate(token) {
       requisitions.forEach {
         val row =
-          ctx.readRowUsingIndex(
+          txn.readRowUsingIndex(
             "Requisitions",
             "RequisitionsByExternalId",
             Key.of(it.key.externalRequisitionId, it.key.requisitionFingerprint.toGcloudByteArray()),
             listOf("ComputationId", "RequisitionId")
           )
             ?: error("No Computation found row for this requisition: ${it.key}")
-        ctx.buffer(
+        txn.buffer(
           computationMutations.updateRequisition(
             localComputationId = row.getLong("ComputationId"),
             requisitionId = row.getLong("RequisitionId"),
@@ -393,7 +406,7 @@ class GcpSpannerComputationsDatabaseTransactor<
         )
       }
       val writeTime = clock.gcloudTimestamp()
-      ctx.buffer(
+      txn.buffer(
         computationMutations.updateComputation(
           localId = token.localId,
           updateTime = writeTime,
@@ -407,16 +420,18 @@ class GcpSpannerComputationsDatabaseTransactor<
     ctx: AsyncDatabaseClient.TransactionContext,
     token: ComputationEditToken<ProtocolT, StageT>,
     newStage: StageT,
-    writeTime: Timestamp,
+    writeTime: Instant,
     afterTransition: AfterTransition,
-    nextStageDetails: StageDT
+    nextStageDetails: StageDT,
+    lockExtension: Duration?
   ): List<Mutation> {
+    val writeTimestamp = writeTime.toGcloudTimestamp()
     val mutations = arrayListOf<Mutation>()
 
     mutations.add(
       computationMutations.updateComputation(
         token.localId,
-        writeTime,
+        writeTimestamp,
         stage = newStage,
         lockOwner =
           when (afterTransition) {
@@ -431,9 +446,10 @@ class GcpSpannerComputationsDatabaseTransactor<
             // Null LockExpirationTime values will not be claimed from the work queue.
             AfterTransition.DO_NOT_ADD_TO_QUEUE -> WRITE_NULL_TIMESTAMP
             // The computation is ready for processing by some worker right away.
-            AfterTransition.ADD_UNCLAIMED_TO_QUEUE -> writeTime
+            AfterTransition.ADD_UNCLAIMED_TO_QUEUE -> writeTimestamp
             // The computation lock will expire sometime in the future.
-            AfterTransition.CONTINUE_WORKING -> nextLockExpiration()
+            AfterTransition.CONTINUE_WORKING ->
+              writeTime.plus(requireNotNull(lockExtension)).toGcloudTimestamp()
           }
       )
     )
@@ -443,7 +459,7 @@ class GcpSpannerComputationsDatabaseTransactor<
         localId = token.localId,
         stage = token.stage,
         followingStage = newStage,
-        endTime = writeTime
+        endTime = writeTimestamp
       )
     )
 
@@ -461,7 +477,7 @@ class GcpSpannerComputationsDatabaseTransactor<
         localId = token.localId,
         stage = token.stage,
         attempt = token.attempt.toLong(),
-        endTime = writeTime,
+        endTime = writeTimestamp,
         details =
           attemptDetails
             .toBuilder()
@@ -483,7 +499,7 @@ class GcpSpannerComputationsDatabaseTransactor<
             localId = token.localId,
             stage = newStage,
             attempt = 1,
-            beginTime = writeTime,
+            beginTime = writeTimestamp,
             details = ComputationStageAttemptDetails.getDefaultInstance()
           )
       }
@@ -493,7 +509,7 @@ class GcpSpannerComputationsDatabaseTransactor<
         localId = token.localId,
         stage = newStage,
         previousStage = token.stage,
-        creationTime = writeTime,
+        creationTime = writeTimestamp,
         details = nextStageDetails,
         // nextAttempt is the number of the current attempt of the stage plus one. Adding an Attempt
         // to the new stage while transitioning stage means that an attempt of that new stage is
@@ -552,12 +568,11 @@ class GcpSpannerComputationsDatabaseTransactor<
     return mutations
   }
 
-  private suspend fun outputBlobIdToPathMap(
-    ctx: AsyncDatabaseClient.TransactionContext,
+  private suspend fun AsyncDatabaseClient.TransactionScope.outputBlobIdToPathMap(
     localId: Long,
     stage: StageT
   ): Map<Long, String?> {
-    return ctx
+    return txn
       .read(
         "ComputationBlobReferences",
         KeySet.prefixRange(Key.of(localId, stage.toLongStage())),
@@ -576,9 +591,9 @@ class GcpSpannerComputationsDatabaseTransactor<
     blobRef: BlobRef
   ) {
     require(blobRef.key.isNotBlank()) { "Cannot insert blank path to blob. $blobRef" }
-    runIfTokenFromLastUpdate(token) { ctx ->
+    runIfTokenFromLastUpdate(token) {
       val type =
-        ctx
+        txn
           .readRow(
             "ComputationBlobReferences",
             Key.of(token.localId, token.stage.toLongStage(), blobRef.idInRelationalDatabase),
@@ -590,7 +605,7 @@ class GcpSpannerComputationsDatabaseTransactor<
               "(${token.localId}, ${token.stage}, ${blobRef.idInRelationalDatabase})"
           )
       require(type == ComputationBlobDependency.OUTPUT) { "Cannot write to $type blob" }
-      ctx.buffer(
+      txn.buffer(
         listOf(
           computationMutations.updateComputation(
             localId = token.localId,
@@ -613,9 +628,9 @@ class GcpSpannerComputationsDatabaseTransactor<
     pathToBlob: String
   ) {
     require(pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $externalRequisitionKey" }
-    databaseClient.readWriteTransaction().execute { ctx ->
+    databaseClient.readWriteTransaction().execute {
       val row =
-        ctx.readRowUsingIndex(
+        txn.readRowUsingIndex(
           "Requisitions",
           "RequisitionsByExternalId",
           Key.of(
@@ -630,7 +645,7 @@ class GcpSpannerComputationsDatabaseTransactor<
       require(localComputationId == token.localId) {
         "The token doesn't match the computation owns the requisition."
       }
-      ctx.buffer(
+      txn.buffer(
         listOf(
           computationMutations.updateComputation(
             localId = localComputationId,
@@ -681,15 +696,15 @@ class GcpSpannerComputationsDatabaseTransactor<
     token: ComputationEditToken<ProtocolT, StageT>,
     readWriteTransactionBlock: TransactionWork<R>
   ): R {
-    return databaseClient.readWriteTransaction().execute { ctx ->
+    return databaseClient.readWriteTransaction().execute {
       val current =
-        ctx.readRow("Computations", Key.of(token.localId), listOf("UpdateTime"))
+        txn.readRow("Computations", Key.of(token.localId), listOf("UpdateTime"))
           ?: error("No row for computation (${token.localId})")
       val updateTime = current.getTimestamp("UpdateTime").toInstant()
       val updateTimeMillis = updateTime.toEpochMilli()
       val tokenTimeMillis = token.editVersion
       if (updateTimeMillis == tokenTimeMillis) {
-        readWriteTransactionBlock(ctx)
+        readWriteTransactionBlock()
       } else {
         val tokenTime = Instant.ofEpochMilli(tokenTimeMillis)
         error(

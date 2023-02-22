@@ -16,15 +16,17 @@ package org.wfanet.measurement.reporting.service.api.v1alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.ByteString
 import com.google.protobuf.duration
+import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.protobuf.timestamp
+import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.nio.file.Paths
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
+import java.time.Duration
 import java.time.Instant
 import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
@@ -48,9 +50,11 @@ import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2.alpha.ListReportsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2.alpha.listReportsPageToken
+import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
@@ -58,6 +62,7 @@ import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Measurement.DataProviderEntry.Value.ENCRYPTED_REQUISITION_SPEC_FIELD_NUMBER
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
@@ -86,12 +91,10 @@ import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
-import org.wfanet.measurement.api.v2alpha.makeDataProviderCertificateName
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
-import org.wfanet.measurement.api.v2alpha.signedData
 import org.wfanet.measurement.api.v2alpha.timeInterval as measurementTimeInterval
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.common.base64UrlEncode
@@ -99,25 +102,27 @@ import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.crypto.readCertificate
-import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
+import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
-import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
+import org.wfanet.measurement.common.toProtoDuration
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
-import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyMeasurementSpec
 import org.wfanet.measurement.consent.client.dataprovider.verifyRequisitionSpec
 import org.wfanet.measurement.consent.client.duchy.encryptResult
 import org.wfanet.measurement.consent.client.duchy.signResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
+import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.internal.reporting.CreateReportRequestKt as InternalCreateReportRequestKt
@@ -136,6 +141,7 @@ import org.wfanet.measurement.internal.reporting.Report as InternalReport
 import org.wfanet.measurement.internal.reporting.ReportKt as InternalReportKt
 import org.wfanet.measurement.internal.reporting.ReportKt.DetailsKt as InternalReportDetailsKt
 import org.wfanet.measurement.internal.reporting.ReportKt.DetailsKt.ResultKt as InternalReportResultKt
+import org.wfanet.measurement.internal.reporting.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.ReportingSetKt as InternalReportingSetKt
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase as InternalReportingSetsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
@@ -156,6 +162,7 @@ import org.wfanet.measurement.internal.reporting.setMeasurementFailureRequest
 import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest
 import org.wfanet.measurement.internal.reporting.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInterval
+import org.wfanet.measurement.internal.reporting.timeIntervals as internalTimeIntervals
 import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.v1alpha.Metric.SetOperation
 import org.wfanet.measurement.reporting.v1alpha.MetricKt.SetOperationKt
@@ -250,222 +257,178 @@ private val SECRETS_DIR =
 private const val API_AUTHENTICATION_KEY = "nR5QPN7ptx"
 
 // Aggregator certificate
-private val AGGREGATOR_CERTIFICATE_DER =
-  SECRETS_DIR.resolve("aggregator_cs_cert.der").readByteString()
-private val AGGREGATOR_PRIVATE_KEY_DER =
-  SECRETS_DIR.resolve("aggregator_cs_private.der").readByteString()
+
 private val AGGREGATOR_SIGNING_KEY: SigningKeyHandle by lazy {
-  val consentSignal509Cert = readCertificate(AGGREGATOR_CERTIFICATE_DER)
-  SigningKeyHandle(
-    consentSignal509Cert,
-    readPrivateKey(AGGREGATOR_PRIVATE_KEY_DER, consentSignal509Cert.publicKey.algorithm)
+  loadSigningKey(
+    SECRETS_DIR.resolve("aggregator_cs_cert.der"),
+    SECRETS_DIR.resolve("aggregator_cs_private.der")
   )
 }
-private val AGGREGATOR_CERTIFICATE = certificate { x509Der = AGGREGATOR_CERTIFICATE_DER }
+private val AGGREGATOR_CERTIFICATE = certificate {
+  name = "duchies/aggregator/certificates/abc123"
+  x509Der = AGGREGATOR_SIGNING_KEY.certificate.encoded.toByteString()
+}
 private val AGGREGATOR_ROOT_CERTIFICATE: X509Certificate =
   readCertificate(SECRETS_DIR.resolve("aggregator_root.pem"))
 
-// Public keys of measurement consumers
-private val MEASUREMENT_PUBLIC_KEY_DATA = SECRETS_DIR.resolve("mc_enc_public.tink").readByteString()
-private val MEASUREMENT_PUBLIC_KEY = encryptionPublicKey {
-  format = EncryptionPublicKey.Format.TINK_KEYSET
-  data = MEASUREMENT_PUBLIC_KEY_DATA
-}
 private val INVALID_MEASUREMENT_PUBLIC_KEY_DATA = "Invalid public key".toByteStringUtf8()
 
-// Private keys of measurement consumers
-private val MEASUREMENT_CONSUMER_CERTIFICATE_DER =
-  SECRETS_DIR.resolve("mc_cs_cert.der").readByteString()
-private val MEASUREMENT_CONSUMER_PRIVATE_KEY_DER =
-  SECRETS_DIR.resolve("mc_cs_private.der").readByteString()
-private val MEASUREMENT_CONSUMER_CERTIFICATE = readCertificate(MEASUREMENT_CONSUMER_CERTIFICATE_DER)
+// Measurement consumer crypto
+
 private val TRUSTED_MEASUREMENT_CONSUMER_ISSUER: X509Certificate =
   readCertificate(SECRETS_DIR.resolve("mc_root.pem"))
-private val MEASUREMENT_CONSUMER_SIGNING_PRIVATE_KEY =
-  readPrivateKey(
-    MEASUREMENT_CONSUMER_PRIVATE_KEY_DER,
-    MEASUREMENT_CONSUMER_CERTIFICATE.publicKey.algorithm
-  )
 private val MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE =
-  SigningKeyHandle(MEASUREMENT_CONSUMER_CERTIFICATE, MEASUREMENT_CONSUMER_SIGNING_PRIVATE_KEY)
-
-// Private key handles of measurement consumers
-private val MEASUREMENT_CONSUMER_PRIVATE_KEY_DATA = SECRETS_DIR.resolve("mc_enc_private.tink")
+  loadSigningKey(SECRETS_DIR.resolve("mc_cs_cert.der"), SECRETS_DIR.resolve("mc_cs_private.der"))
+private val MEASUREMENT_CONSUMER_CERTIFICATE = MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE.certificate
 private val MEASUREMENT_CONSUMER_PRIVATE_KEY_HANDLE: PrivateKeyHandle =
-  loadPrivateKey(MEASUREMENT_CONSUMER_PRIVATE_KEY_DATA)
+  loadPrivateKey(SECRETS_DIR.resolve("mc_enc_private.tink"))
+private val MEASUREMENT_CONSUMER_PUBLIC_KEY = encryptionPublicKey {
+  format = EncryptionPublicKey.Format.TINK_KEYSET
+  data = SECRETS_DIR.resolve("mc_enc_public.tink").readByteString()
+}
 
-// Measurement consumer IDs and names
-private val MEASUREMENT_CONSUMER_EXTERNAL_IDS = listOf(111L, 112L)
-private val MEASUREMENT_CONSUMER_REFERENCE_IDS =
-  MEASUREMENT_CONSUMER_EXTERNAL_IDS.map { externalIdToApiId(it) }
-private val MEASUREMENT_CONSUMER_NAMES =
-  MEASUREMENT_CONSUMER_REFERENCE_IDS.map { MeasurementConsumerKey(it).toName() }
+private val MEASUREMENT_CONSUMERS: Map<MeasurementConsumerKey, MeasurementConsumer> =
+  (1L..2L).associate {
+    val measurementConsumerKey = MeasurementConsumerKey(ExternalId(it + 110L).apiId.value)
+    val certificateKey =
+      MeasurementConsumerCertificateKey(
+        measurementConsumerKey.measurementConsumerId,
+        ExternalId(it + 120L).apiId.value
+      )
+    measurementConsumerKey to
+      measurementConsumer {
+        name = measurementConsumerKey.toName()
+        certificate = certificateKey.toName()
+        certificateDer = MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE.certificate.encoded.toByteString()
+        publicKey =
+          signEncryptionPublicKey(
+            MEASUREMENT_CONSUMER_PUBLIC_KEY,
+            MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
+          )
+      }
+  }
+
+private val CONFIG = measurementConsumerConfig {
+  apiKey = API_AUTHENTICATION_KEY
+  signingCertificateName = MEASUREMENT_CONSUMERS.values.first().certificate
+  signingPrivateKeyPath = "mc_cs_private.der"
+}
 
 // InMemoryEncryptionKeyPairStore
 private val ENCRYPTION_KEY_PAIR_STORE =
   InMemoryEncryptionKeyPairStore(
-    mapOf(
-      MEASUREMENT_CONSUMER_NAMES[0] to
-        listOf(MEASUREMENT_PUBLIC_KEY_DATA to MEASUREMENT_CONSUMER_PRIVATE_KEY_HANDLE)
+    MEASUREMENT_CONSUMERS.values.associateBy(
+      { it.name },
+      {
+        listOf(
+          EncryptionPublicKey.parseFrom(it.publicKey.data).data to
+            MEASUREMENT_CONSUMER_PRIVATE_KEY_HANDLE
+        )
+      }
     )
   )
-
-// Measurement consumer certificate IDs
-private const val MEASUREMENT_CONSUMER_CERTIFICATE_EXTERNAL_ID = 121L
-private val MEASUREMENT_CONSUMER_CERTIFICATE_REFERENCE_ID =
-  externalIdToApiId(MEASUREMENT_CONSUMER_CERTIFICATE_EXTERNAL_ID)
-private val MEASUREMENT_CONSUMER_CERTIFICATE_NAME =
-  MeasurementConsumerCertificateKey(
-      MEASUREMENT_CONSUMER_REFERENCE_IDS[0],
-      MEASUREMENT_CONSUMER_CERTIFICATE_REFERENCE_ID
-    )
-    .toName()
-
-private val CONFIG = measurementConsumerConfig {
-  apiKey = API_AUTHENTICATION_KEY
-  signingCertificateName = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
-  signingPrivateKeyPath = "mc_cs_private.der"
-}
-
-// Measurement consumers
-private val MEASUREMENT_CONSUMER = measurementConsumer {
-  name = MEASUREMENT_CONSUMER_NAMES[0]
-  certificateDer = MEASUREMENT_CONSUMER_CERTIFICATE_DER
-  certificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
-  publicKey = signedData { data = MEASUREMENT_PUBLIC_KEY.toByteString() }
-}
-
-// Reporting set IDs and names
-private val REPORTING_SET_EXTERNAL_IDS = listOf(221L, 222L, 223L, 224L)
-private const val REPORTING_SET_EXTERNAL_ID_FOR_MC_2 = 241L
-
-private val REPORTING_SET_NAMES =
-  REPORTING_SET_EXTERNAL_IDS.map {
-    ReportingSetKey(MEASUREMENT_CONSUMER_REFERENCE_IDS[0], externalIdToApiId(it)).toName()
-  }
-private const val INVALID_REPORTING_SET_NAME = "INVALID_REPORTING_SET_NAME"
-private val REPORTING_SET_NAME_FOR_MC_2 =
-  ReportingSetKey(
-      MEASUREMENT_CONSUMER_REFERENCE_IDS[1],
-      externalIdToApiId(REPORTING_SET_EXTERNAL_ID_FOR_MC_2)
-    )
-    .toName()
 
 // Report IDs and names
 private val REPORT_EXTERNAL_IDS = listOf(331L, 332L, 333L, 334L)
 private val REPORT_NAMES =
   REPORT_EXTERNAL_IDS.map {
-    ReportKey(MEASUREMENT_CONSUMER_REFERENCE_IDS[0], externalIdToApiId(it)).toName()
-  }
-// Typo causes invalid name
-private const val INVALID_REPORT_NAME = "measurementConsumer/AAAAAAAAAG8/report/AAAAAAAAAU0"
-
-// Data provider IDs and names
-private val DATA_PROVIDER_EXTERNAL_IDS = listOf(551L, 552L, 553L)
-private val DATA_PROVIDER_REFERENCE_IDS = DATA_PROVIDER_EXTERNAL_IDS.map { externalIdToApiId(it) }
-
-private val DATA_PROVIDER_PUBLIC_KEY =
-  loadPublicKey(SECRETS_DIR.resolve("edp1_enc_public.tink")).toEncryptionPublicKey()
-private val DATA_PROVIDER_PRIVATE_KEY_HANDLE =
-  loadPrivateKey(SECRETS_DIR.resolve("edp1_enc_private.tink"))
-
-// Data provider certificates
-private val DATA_PROVIDER_CERTIFICATE_EXTERNAL_IDS = listOf(561L, 562L, 563L)
-private val DATA_PROVIDER_CERTIFICATE_REFERENCE_IDS =
-  DATA_PROVIDER_CERTIFICATE_EXTERNAL_IDS.map { externalIdToApiId(it) }
-private val DATA_PROVIDER_CERTIFICATE_NAMES =
-  DATA_PROVIDER_CERTIFICATE_REFERENCE_IDS.mapIndexed { index, referenceId ->
-    makeDataProviderCertificateName(DATA_PROVIDER_REFERENCE_IDS[index], referenceId)
-  }
-
-// Data providers
-private val DATA_PROVIDERS =
-  DATA_PROVIDER_REFERENCE_IDS.mapIndexed { index, dataProviderReferenceId ->
-    dataProvider {
-      name = DataProviderKey(dataProviderReferenceId).toName()
-      certificate = DATA_PROVIDER_CERTIFICATE_NAMES[index]
-      publicKey = signedData { data = DATA_PROVIDER_PUBLIC_KEY.toByteString() }
-    }
-  }
-
-// Event group IDs and names
-private const val NUMBER_COVERED_EVENT_GROUPS = 3
-private val EVENT_GROUP_EXTERNAL_IDS = listOf(661L, 662L, 663L, 664L)
-private val EVENT_GROUP_REFERENCE_IDS = EVENT_GROUP_EXTERNAL_IDS.map { externalIdToApiId(it) }
-
-private val COVERED_EVENT_GROUP_NAMES =
-  (0 until NUMBER_COVERED_EVENT_GROUPS).map { index ->
-    EventGroupKey(
-        MEASUREMENT_CONSUMER_REFERENCE_IDS[0],
-        DATA_PROVIDER_REFERENCE_IDS[index],
-        EVENT_GROUP_REFERENCE_IDS[index]
-      )
+    ReportKey(MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId, externalIdToApiId(it))
       .toName()
   }
 
-private val UNCOVERED_EVENT_GROUP_NAME =
-  EventGroupKey(
-      MEASUREMENT_CONSUMER_REFERENCE_IDS[0],
-      DATA_PROVIDER_REFERENCE_IDS[2],
-      EVENT_GROUP_REFERENCE_IDS[3]
-    )
-    .toName()
+// Typo causes invalid name
+private const val INVALID_REPORT_NAME = "measurementConsumer/AAAAAAAAAG8/report/AAAAAAAAAU0"
+
+private val DATA_PROVIDER_PUBLIC_KEY = encryptionPublicKey {
+  format = EncryptionPublicKey.Format.TINK_KEYSET
+  data = SECRETS_DIR.resolve("edp1_enc_public.tink").readByteString()
+}
+private val DATA_PROVIDER_PRIVATE_KEY_HANDLE =
+  loadPrivateKey(SECRETS_DIR.resolve("edp1_enc_private.tink"))
+private val DATA_PROVIDER_SIGNING_KEY =
+  loadSigningKey(
+    SECRETS_DIR.resolve("edp1_cs_cert.der"),
+    SECRETS_DIR.resolve("edp1_cs_private.der")
+  )
+private val DATA_PROVIDER_ROOT_CERTIFICATE = readCertificate(SECRETS_DIR.resolve("edp1_root.pem"))
+
+// Data providers
+
+private val DATA_PROVIDERS =
+  (1L..3L).associate {
+    val dataProviderKey = DataProviderKey(ExternalId(it + 550L).apiId.value)
+    val certificateKey =
+      DataProviderCertificateKey(dataProviderKey.dataProviderId, ExternalId(it + 560L).apiId.value)
+    dataProviderKey to
+      dataProvider {
+        name = dataProviderKey.toName()
+        certificate = certificateKey.toName()
+        publicKey = signEncryptionPublicKey(DATA_PROVIDER_PUBLIC_KEY, DATA_PROVIDER_SIGNING_KEY)
+      }
+  }
+private val DATA_PROVIDERS_LIST = DATA_PROVIDERS.values.toList()
 
 // Event group keys
-private val COVERED_INTERNAL_EVENT_GROUP_KEYS =
-  (0 until NUMBER_COVERED_EVENT_GROUPS).map { index ->
-    InternalReportingSetKt.eventGroupKey {
-      measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-      dataProviderReferenceId = DATA_PROVIDER_REFERENCE_IDS[index]
-      eventGroupReferenceId = EVENT_GROUP_REFERENCE_IDS[index]
-    }
+
+private val COVERED_EVENT_GROUP_KEYS =
+  DATA_PROVIDERS.keys.mapIndexed { index, dataProviderKey ->
+    val measurementConsumerKey = MEASUREMENT_CONSUMERS.keys.first()
+    EventGroupKey(
+      measurementConsumerKey.measurementConsumerId,
+      dataProviderKey.dataProviderId,
+      ExternalId(index + 660L).apiId.value
+    )
   }
-private val UNCOVERED_INTERNAL_EVENT_GROUP_KEY =
-  InternalReportingSetKt.eventGroupKey {
-    measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-    dataProviderReferenceId = DATA_PROVIDER_REFERENCE_IDS[2]
-    eventGroupReferenceId = EVENT_GROUP_REFERENCE_IDS[3]
-  }
+private val UNCOVERED_EVENT_GROUP_KEY =
+  EventGroupKey(
+    MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
+    DATA_PROVIDERS.keys.last().dataProviderId,
+    ExternalId(664L).apiId.value
+  )
+private val UNCOVERED_EVENT_GROUP_NAME = UNCOVERED_EVENT_GROUP_KEY.toName()
+private val UNCOVERED_INTERNAL_EVENT_GROUP_KEY = UNCOVERED_EVENT_GROUP_KEY.toInternal()
 
 // Reporting sets
 private const val REPORTING_SET_FILTER = "AGE>18"
 
-private val REPORTING_SET_DISPLAY_NAMES = REPORTING_SET_NAMES.map { it + REPORTING_SET_FILTER }
-
 private val INTERNAL_REPORTING_SETS =
-  (0 until NUMBER_COVERED_EVENT_GROUPS).map { index ->
+  COVERED_EVENT_GROUP_KEYS.mapIndexed { index, eventGroupKey ->
     internalReportingSet {
-      measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-      externalReportingSetId = REPORTING_SET_EXTERNAL_IDS[index]
-      eventGroupKeys.add(COVERED_INTERNAL_EVENT_GROUP_KEYS[index])
+      measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+      externalReportingSetId = index + 220L
+      eventGroupKeys += eventGroupKey.toInternal()
       filter = REPORTING_SET_FILTER
-      displayName = REPORTING_SET_DISPLAY_NAMES[index]
+      displayName = "$measurementConsumerReferenceId-$externalReportingSetId-$filter"
     }
   }
 private val UNCOVERED_INTERNAL_REPORTING_SET = internalReportingSet {
-  measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-  externalReportingSetId = REPORTING_SET_EXTERNAL_IDS[3]
-  eventGroupKeys.add(UNCOVERED_INTERNAL_EVENT_GROUP_KEY)
+  measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+  externalReportingSetId = INTERNAL_REPORTING_SETS.last().externalReportingSetId + 1
+  eventGroupKeys += UNCOVERED_INTERNAL_EVENT_GROUP_KEY
   filter = REPORTING_SET_FILTER
-  displayName = REPORTING_SET_DISPLAY_NAMES[3]
+  displayName = "$measurementConsumerReferenceId-$externalReportingSetId-$filter"
 }
+
+// Reporting set IDs and names
+
+private const val REPORTING_SET_EXTERNAL_ID_FOR_MC_2 = 241L
+
+private const val INVALID_REPORTING_SET_NAME = "INVALID_REPORTING_SET_NAME"
+private val REPORTING_SET_NAME_FOR_MC_2 =
+  ReportingSetKey(
+      MEASUREMENT_CONSUMERS.keys.last().measurementConsumerId,
+      externalIdToApiId(REPORTING_SET_EXTERNAL_ID_FOR_MC_2)
+    )
+    .toName()
 
 // Time intervals
 private val START_INSTANT = Instant.now()
-private const val DAY_SECONDS = 86400L
-private val END_INSTANT =
-  Instant.ofEpochSecond(START_INSTANT.epochSecond + DAY_SECONDS, START_INSTANT.nano.toLong())
+private val END_INSTANT = START_INSTANT.plus(Duration.ofDays(1))
 
-private val START_TIME = timestamp {
-  seconds = START_INSTANT.epochSecond
-  nanos = START_INSTANT.nano
-}
-private val TIME_INTERVAL_INCREMENT = duration { seconds = DAY_SECONDS }
+private val START_TIME = START_INSTANT.toProtoTime()
+private val TIME_INTERVAL_INCREMENT = Duration.ofDays(1).toProtoDuration()
 private const val INTERVAL_COUNT = 1
-private val END_TIME = timestamp {
-  seconds = END_INSTANT.epochSecond
-  nanos = END_INSTANT.nano
-}
+private val END_TIME = END_INSTANT.toProtoTime()
 private val MEASUREMENT_TIME_INTERVAL = measurementTimeInterval {
   startTime = START_TIME
   endTime = END_TIME
@@ -516,20 +479,34 @@ private val WATCH_DURATION_MEASUREMENT_REFERENCE_ID =
     "-$START_INSTANT-$END_INSTANT-measurement-0"
 
 private val REACH_MEASUREMENT_NAME =
-  MeasurementKey(MEASUREMENT_CONSUMER_REFERENCE_IDS[0], REACH_MEASUREMENT_REFERENCE_ID).toName()
+  MeasurementKey(
+      MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
+      REACH_MEASUREMENT_REFERENCE_ID
+    )
+    .toName()
 private val REACH_MEASUREMENT_NAME_2 =
-  MeasurementKey(MEASUREMENT_CONSUMER_REFERENCE_IDS[0], REACH_MEASUREMENT_REFERENCE_ID_2).toName()
+  MeasurementKey(
+      MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
+      REACH_MEASUREMENT_REFERENCE_ID_2
+    )
+    .toName()
 private val FREQUENCY_HISTOGRAM_MEASUREMENT_NAME =
   MeasurementKey(
-      MEASUREMENT_CONSUMER_REFERENCE_IDS[0],
+      MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
       FREQUENCY_HISTOGRAM_MEASUREMENT_REFERENCE_ID
     )
     .toName()
 private val IMPRESSION_MEASUREMENT_NAME =
-  MeasurementKey(MEASUREMENT_CONSUMER_REFERENCE_IDS[0], IMPRESSION_MEASUREMENT_REFERENCE_ID)
+  MeasurementKey(
+      MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
+      IMPRESSION_MEASUREMENT_REFERENCE_ID
+    )
     .toName()
 private val WATCH_DURATION_MEASUREMENT_NAME =
-  MeasurementKey(MEASUREMENT_CONSUMER_REFERENCE_IDS[0], WATCH_DURATION_MEASUREMENT_REFERENCE_ID)
+  MeasurementKey(
+      MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId,
+      WATCH_DURATION_MEASUREMENT_REFERENCE_ID
+    )
     .toName()
 
 // Set operations
@@ -539,90 +516,94 @@ private val INTERNAL_SET_OPERATION =
     lhs =
       InternalMetricKt.SetOperationKt.operand {
         reportingSetId = reportingSetKey {
-          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-          externalReportingSetId = REPORTING_SET_EXTERNAL_IDS[0]
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          externalReportingSetId = INTERNAL_REPORTING_SETS[0].externalReportingSetId
         }
       }
     rhs =
       InternalMetricKt.SetOperationKt.operand {
         reportingSetId = reportingSetKey {
-          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-          externalReportingSetId = REPORTING_SET_EXTERNAL_IDS[1]
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          externalReportingSetId = INTERNAL_REPORTING_SETS[1].externalReportingSetId
         }
       }
   }
 
 private val SET_OPERATION = setOperation {
   type = SetOperation.Type.UNION
-  lhs = SetOperationKt.operand { reportingSet = REPORTING_SET_NAMES[0] }
-  rhs = SetOperationKt.operand { reportingSet = REPORTING_SET_NAMES[1] }
+  lhs = SetOperationKt.operand { reportingSet = INTERNAL_REPORTING_SETS[0].resourceName }
+  rhs = SetOperationKt.operand { reportingSet = INTERNAL_REPORTING_SETS[1].resourceName }
 }
-private val DATA_PROVIDER_INDICES_IN_SET_OPERATION = listOf(0, 1)
+private val DATA_PROVIDER_KEYS_IN_SET_OPERATION = DATA_PROVIDERS.keys.take(2)
 
 private val SET_OPERATION_WITH_INVALID_REPORTING_SET = setOperation {
   type = SetOperation.Type.UNION
   lhs = SetOperationKt.operand { reportingSet = INVALID_REPORTING_SET_NAME }
-  rhs = SetOperationKt.operand { reportingSet = REPORTING_SET_NAMES[1] }
+  rhs = SetOperationKt.operand { reportingSet = INTERNAL_REPORTING_SETS[1].resourceName }
 }
 
 private val SET_OPERATION_WITH_INACCESSIBLE_REPORTING_SET = setOperation {
   type = SetOperation.Type.UNION
   lhs = SetOperationKt.operand { reportingSet = REPORTING_SET_NAME_FOR_MC_2 }
-  rhs = SetOperationKt.operand { reportingSet = REPORTING_SET_NAMES[1] }
+  rhs = SetOperationKt.operand { reportingSet = INTERNAL_REPORTING_SETS[1].resourceName }
 }
 
 // Event group filters
 private const val EVENT_GROUP_FILTER = "AGE>20"
-private val EVENT_GROUP_FILTERS_MAP = COVERED_EVENT_GROUP_NAMES.associateWith { EVENT_GROUP_FILTER }
+private val EVENT_GROUP_FILTERS_MAP =
+  COVERED_EVENT_GROUP_KEYS.associateBy(EventGroupKey::toName) { EVENT_GROUP_FILTER }
 
 // Event group entries
 private val EVENT_GROUP_ENTRIES =
-  COVERED_EVENT_GROUP_NAMES.map {
-    eventGroupEntry {
-      key = it
-      value =
-        EventGroupEntryKt.value {
-          collectionInterval = MEASUREMENT_TIME_INTERVAL
-          filter = eventFilter { expression = "($REPORTING_SET_FILTER) AND ($EVENT_GROUP_FILTER)" }
-        }
+  COVERED_EVENT_GROUP_KEYS.groupBy(
+    { DataProviderKey(it.dataProviderReferenceId) },
+    {
+      eventGroupEntry {
+        key = it.toName()
+        value =
+          EventGroupEntryKt.value {
+            collectionInterval = MEASUREMENT_TIME_INTERVAL
+            filter = eventFilter {
+              expression = "($REPORTING_SET_FILTER) AND ($EVENT_GROUP_FILTER)"
+            }
+          }
+      }
     }
-  }
+  )
 
 // Requisition specs
-private val REQUISITION_SPECS =
-  EVENT_GROUP_ENTRIES.map {
+private val REQUISITION_SPECS: Map<DataProviderKey, RequisitionSpec> =
+  EVENT_GROUP_ENTRIES.mapValues {
     requisitionSpec {
-      eventGroups.add(it)
-      measurementPublicKey = MEASUREMENT_CONSUMER.publicKey.data
+      eventGroups += it.value
+      measurementPublicKey = MEASUREMENT_CONSUMERS.values.first().publicKey.data
       nonce = SECURE_RANDOM_OUTPUT_LONG
     }
   }
 
 // Data provider entries
 private val DATA_PROVIDER_ENTRIES =
-  (REQUISITION_SPECS.indices).map { index ->
+  REQUISITION_SPECS.mapValues { (dataProviderKey, requisitionSpec) ->
+    val dataProvider = DATA_PROVIDERS.getValue(dataProviderKey)
     dataProviderEntry {
-      key = DATA_PROVIDERS[index].name
+      key = dataProvider.name
       value =
         DataProviderEntryKt.value {
-          dataProviderCertificate = DATA_PROVIDERS[index].certificate
-          dataProviderPublicKey = DATA_PROVIDERS[index].publicKey
+          dataProviderCertificate = dataProvider.certificate
+          dataProviderPublicKey = dataProvider.publicKey
           encryptedRequisitionSpec =
             encryptRequisitionSpec(
-              signRequisitionSpec(
-                REQUISITION_SPECS[index],
-                MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
-              ),
-              EncryptionPublicKey.parseFrom(DATA_PROVIDERS[index].publicKey.data)
+              signRequisitionSpec(requisitionSpec, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE),
+              EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
             )
-          nonceHash = hashSha256(REQUISITION_SPECS[index].nonce)
+          nonceHash = hashSha256(requisitionSpec.nonce)
         }
     }
   }
 
 // Measurements
 private val BASE_MEASUREMENT = measurement {
-  measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
+  measurementConsumerCertificate = MEASUREMENT_CONSUMERS.values.first().certificate
 }
 
 // Measurement values
@@ -650,7 +631,7 @@ private val PENDING_REACH_MEASUREMENT =
   BASE_REACH_MEASUREMENT.copy { state = Measurement.State.COMPUTING }
 
 private val REACH_ONLY_MEASUREMENT_SPEC = measurementSpec {
-  measurementPublicKey = MEASUREMENT_PUBLIC_KEY.toByteString()
+  measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.toByteString()
 
   nonceHashes.addAll(
     listOf(hashSha256(SECURE_RANDOM_OUTPUT_LONG), hashSha256(SECURE_RANDOM_OUTPUT_LONG))
@@ -676,8 +657,7 @@ private val REACH_ONLY_MEASUREMENT_SPEC = measurementSpec {
 
 private val SUCCEEDED_REACH_MEASUREMENT =
   BASE_REACH_MEASUREMENT.copy {
-    dataProviders +=
-      DATA_PROVIDER_INDICES_IN_SET_OPERATION.map { index -> DATA_PROVIDER_ENTRIES[index] }
+    dataProviders += DATA_PROVIDER_KEYS_IN_SET_OPERATION.map { DATA_PROVIDER_ENTRIES.getValue(it) }
 
     measurementSpec =
       signMeasurementSpec(REACH_ONLY_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
@@ -693,13 +673,14 @@ private val SUCCEEDED_REACH_MEASUREMENT =
               relativeFrequencyDistribution.putAll(FREQUENCY_DISTRIBUTION)
             }
         }
-      encryptedResult = getEncryptedResult(result)
-      certificate = DATA_PROVIDER_CERTIFICATE_NAMES[0]
+      encryptedResult =
+        encryptResult(signResult(result, AGGREGATOR_SIGNING_KEY), MEASUREMENT_CONSUMER_PUBLIC_KEY)
+      certificate = AGGREGATOR_CERTIFICATE.name
     }
   }
 
 private val INTERNAL_PENDING_REACH_MEASUREMENT = internalMeasurement {
-  measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+  measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
   measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
   state = InternalMeasurement.State.PENDING
 }
@@ -724,7 +705,7 @@ private val BASE_REACH_FREQUENCY_HISTOGRAM_MEASUREMENT =
   }
 
 private val REACH_FREQUENCY_MEASUREMENT_SPEC = measurementSpec {
-  measurementPublicKey = MEASUREMENT_PUBLIC_KEY.toByteString()
+  measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.toByteString()
 
   nonceHashes.addAll(
     listOf(hashSha256(SECURE_RANDOM_OUTPUT_LONG), hashSha256(SECURE_RANDOM_OUTPUT_LONG))
@@ -750,8 +731,7 @@ private val REACH_FREQUENCY_MEASUREMENT_SPEC = measurementSpec {
 
 private val SUCCEEDED_FREQUENCY_HISTOGRAM_MEASUREMENT =
   BASE_REACH_FREQUENCY_HISTOGRAM_MEASUREMENT.copy {
-    dataProviders +=
-      DATA_PROVIDER_INDICES_IN_SET_OPERATION.map { index -> DATA_PROVIDER_ENTRIES[index] }
+    dataProviders += DATA_PROVIDER_KEYS_IN_SET_OPERATION.map { DATA_PROVIDER_ENTRIES.getValue(it) }
 
     measurementSpec =
       signMeasurementSpec(REACH_FREQUENCY_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
@@ -766,13 +746,14 @@ private val SUCCEEDED_FREQUENCY_HISTOGRAM_MEASUREMENT =
               relativeFrequencyDistribution.putAll(FREQUENCY_DISTRIBUTION)
             }
         }
-      encryptedResult = getEncryptedResult(result)
-      certificate = DATA_PROVIDER_CERTIFICATE_NAMES[0]
+      encryptedResult =
+        encryptResult(signResult(result, AGGREGATOR_SIGNING_KEY), MEASUREMENT_CONSUMER_PUBLIC_KEY)
+      certificate = AGGREGATOR_CERTIFICATE.name
     }
   }
 
 private val INTERNAL_PENDING_FREQUENCY_HISTOGRAM_MEASUREMENT = internalMeasurement {
-  measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+  measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
   measurementReferenceId = FREQUENCY_HISTOGRAM_MEASUREMENT_REFERENCE_ID
   state = InternalMeasurement.State.PENDING
 }
@@ -798,7 +779,7 @@ private val BASE_IMPRESSION_MEASUREMENT =
   }
 
 private val IMPRESSION_MEASUREMENT_SPEC = measurementSpec {
-  measurementPublicKey = MEASUREMENT_PUBLIC_KEY.toByteString()
+  measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.toByteString()
 
   nonceHashes.addAll(
     listOf(hashSha256(SECURE_RANDOM_OUTPUT_LONG), hashSha256(SECURE_RANDOM_OUTPUT_LONG))
@@ -820,34 +801,34 @@ private val IMPRESSION_MEASUREMENT_SPEC = measurementSpec {
 
 private val SUCCEEDED_IMPRESSION_MEASUREMENT =
   BASE_IMPRESSION_MEASUREMENT.copy {
-    dataProviders +=
-      DATA_PROVIDER_INDICES_IN_SET_OPERATION.map { index -> DATA_PROVIDER_ENTRIES[index] }
+    dataProviders += DATA_PROVIDER_KEYS_IN_SET_OPERATION.map { DATA_PROVIDER_ENTRIES.getValue(it) }
 
     measurementSpec =
       signMeasurementSpec(IMPRESSION_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
 
     state = Measurement.State.SUCCEEDED
 
-    results += resultPair {
-      val result =
-        MeasurementKt.result {
-          impression = MeasurementKt.ResultKt.impression { value = IMPRESSION_VALUES[0] }
+    results +=
+      DATA_PROVIDER_KEYS_IN_SET_OPERATION.zip(IMPRESSION_VALUES).map {
+        (dataProviderKey, numImpressions) ->
+        val dataProvider = DATA_PROVIDERS.getValue(dataProviderKey)
+        resultPair {
+          val result =
+            MeasurementKt.result {
+              impression = MeasurementKt.ResultKt.impression { value = numImpressions }
+            }
+          encryptedResult =
+            encryptResult(
+              signResult(result, DATA_PROVIDER_SIGNING_KEY),
+              MEASUREMENT_CONSUMER_PUBLIC_KEY
+            )
+          certificate = dataProvider.certificate
         }
-      encryptedResult = getEncryptedResult(result)
-      certificate = DATA_PROVIDER_CERTIFICATE_NAMES[0]
-    }
-    results += resultPair {
-      val result =
-        MeasurementKt.result {
-          impression = MeasurementKt.ResultKt.impression { value = IMPRESSION_VALUES[1] }
-        }
-      encryptedResult = getEncryptedResult(result)
-      certificate = DATA_PROVIDER_CERTIFICATE_NAMES[1]
-    }
+      }
   }
 
 private val INTERNAL_PENDING_IMPRESSION_MEASUREMENT = internalMeasurement {
-  measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+  measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
   measurementReferenceId = IMPRESSION_MEASUREMENT_REFERENCE_ID
   state = InternalMeasurement.State.PENDING
 }
@@ -872,7 +853,7 @@ private val PENDING_WATCH_DURATION_MEASUREMENT =
   BASE_WATCH_DURATION_MEASUREMENT.copy { state = Measurement.State.COMPUTING }
 
 private val WATCH_DURATION_MEASUREMENT_SPEC = measurementSpec {
-  measurementPublicKey = MEASUREMENT_PUBLIC_KEY.toByteString()
+  measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.toByteString()
 
   nonceHashes.addAll(
     listOf(hashSha256(SECURE_RANDOM_OUTPUT_LONG), hashSha256(SECURE_RANDOM_OUTPUT_LONG))
@@ -895,34 +876,34 @@ private val WATCH_DURATION_MEASUREMENT_SPEC = measurementSpec {
 
 private val SUCCEEDED_WATCH_DURATION_MEASUREMENT =
   BASE_WATCH_DURATION_MEASUREMENT.copy {
-    dataProviders +=
-      DATA_PROVIDER_INDICES_IN_SET_OPERATION.map { index -> DATA_PROVIDER_ENTRIES[index] }
+    dataProviders += DATA_PROVIDER_KEYS_IN_SET_OPERATION.map { DATA_PROVIDER_ENTRIES.getValue(it) }
 
     measurementSpec =
       signMeasurementSpec(WATCH_DURATION_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
 
     state = Measurement.State.SUCCEEDED
 
-    results += resultPair {
-      val result =
-        MeasurementKt.result {
-          watchDuration = MeasurementKt.ResultKt.watchDuration { value = WATCH_DURATION_LIST[0] }
+    results +=
+      DATA_PROVIDER_KEYS_IN_SET_OPERATION.zip(WATCH_DURATION_LIST).map {
+        (dataProviderKey, watchDuration) ->
+        val dataProvider = DATA_PROVIDERS.getValue(dataProviderKey)
+        resultPair {
+          val result =
+            MeasurementKt.result {
+              this.watchDuration = MeasurementKt.ResultKt.watchDuration { value = watchDuration }
+            }
+          encryptedResult =
+            encryptResult(
+              signResult(result, DATA_PROVIDER_SIGNING_KEY),
+              MEASUREMENT_CONSUMER_PUBLIC_KEY
+            )
+          certificate = dataProvider.certificate
         }
-      encryptedResult = getEncryptedResult(result)
-      certificate = DATA_PROVIDER_CERTIFICATE_NAMES[0]
-    }
-    results += resultPair {
-      val result =
-        MeasurementKt.result {
-          watchDuration = MeasurementKt.ResultKt.watchDuration { value = WATCH_DURATION_LIST[1] }
-        }
-      encryptedResult = getEncryptedResult(result)
-      certificate = DATA_PROVIDER_CERTIFICATE_NAMES[1]
-    }
+      }
   }
 
 private val INTERNAL_PENDING_WATCH_DURATION_MEASUREMENT = internalMeasurement {
-  measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+  measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
   measurementReferenceId = WATCH_DURATION_MEASUREMENT_REFERENCE_ID
   state = InternalMeasurement.State.PENDING
 }
@@ -934,14 +915,6 @@ private val INTERNAL_SUCCEEDED_WATCH_DURATION_MEASUREMENT =
         watchDuration = InternalMeasurementResultKt.watchDuration { value = TOTAL_WATCH_DURATION }
       }
   }
-
-/** Verify and decrypt a measurement result. */
-private fun getEncryptedResult(
-  result: Measurement.Result,
-): ByteString {
-  val signedResult = signResult(result, AGGREGATOR_SIGNING_KEY)
-  return encryptResult(signedResult, MEASUREMENT_PUBLIC_KEY)
-}
 
 // Weighted measurements
 private val WEIGHTED_REACH_MEASUREMENT = weightedMeasurement {
@@ -997,6 +970,7 @@ private val NAMED_REACH_SET_OPERATION = namedSetOperation {
   uniqueName = REACH_SET_OPERATION_UNIQUE_NAME
   setOperation = SET_OPERATION
 }
+
 // Frequency histogram set operation
 private val INTERNAL_NAMED_FREQUENCY_HISTOGRAM_SET_OPERATION =
   InternalMetricKt.namedSetOperation {
@@ -1008,6 +982,7 @@ private val NAMED_FREQUENCY_HISTOGRAM_SET_OPERATION = namedSetOperation {
   uniqueName = FREQUENCY_HISTOGRAM_SET_OPERATION_UNIQUE_NAME
   setOperation = SET_OPERATION
 }
+
 // Impression set operation
 private val INTERNAL_NAMED_IMPRESSION_SET_OPERATION =
   InternalMetricKt.namedSetOperation {
@@ -1019,6 +994,7 @@ private val NAMED_IMPRESSION_SET_OPERATION = namedSetOperation {
   uniqueName = IMPRESSION_SET_OPERATION_UNIQUE_NAME
   setOperation = SET_OPERATION
 }
+
 // Watch duration set operation
 private val INTERNAL_NAMED_WATCH_DURATION_SET_OPERATION =
   InternalMetricKt.namedSetOperation {
@@ -1049,6 +1025,7 @@ private val INTERNAL_REACH_METRIC = internalMetric {
     }
   namedSetOperations.add(INTERNAL_NAMED_REACH_SET_OPERATION)
 }
+
 // Frequency histogram metric
 private val FREQUENCY_HISTOGRAM_METRIC = metric {
   frequencyHistogram = frequencyHistogramParams {
@@ -1068,6 +1045,7 @@ private val INTERNAL_FREQUENCY_HISTOGRAM_METRIC = internalMetric {
     }
   namedSetOperations.add(INTERNAL_NAMED_FREQUENCY_HISTOGRAM_SET_OPERATION)
 }
+
 // Impression metric
 private val IMPRESSION_METRIC = metric {
   impressionCount = impressionCountParams { maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER }
@@ -1085,6 +1063,7 @@ private val INTERNAL_IMPRESSION_METRIC = internalMetric {
     }
   namedSetOperations.add(INTERNAL_NAMED_IMPRESSION_SET_OPERATION)
 }
+
 // Watch duration metric
 private val WATCH_DURATION_METRIC = metric {
   watchDuration = watchDurationParams {
@@ -1110,7 +1089,7 @@ private val INTERNAL_WATCH_DURATION_METRIC = internalMetric {
 // Internal reports with running states
 // Internal reports of reach
 private val INTERNAL_PENDING_REACH_REPORT = internalReport {
-  measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+  measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
   externalReportId = REPORT_EXTERNAL_IDS[0]
   periodicTimeInterval = INTERNAL_PERIODIC_TIME_INTERVAL
   metrics.add(INTERNAL_REACH_METRIC)
@@ -1125,9 +1104,10 @@ private val INTERNAL_SUCCEEDED_REACH_REPORT =
     state = InternalReport.State.SUCCEEDED
     measurements.put(REACH_MEASUREMENT_REFERENCE_ID, INTERNAL_SUCCEEDED_REACH_MEASUREMENT)
   }
+
 // Internal reports of impression
 private val INTERNAL_PENDING_IMPRESSION_REPORT = internalReport {
-  measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+  measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
   externalReportId = REPORT_EXTERNAL_IDS[1]
   periodicTimeInterval = INTERNAL_PERIODIC_TIME_INTERVAL
   metrics.add(INTERNAL_IMPRESSION_METRIC)
@@ -1142,9 +1122,10 @@ private val INTERNAL_SUCCEEDED_IMPRESSION_REPORT =
     state = InternalReport.State.SUCCEEDED
     measurements.put(IMPRESSION_MEASUREMENT_REFERENCE_ID, INTERNAL_SUCCEEDED_IMPRESSION_MEASUREMENT)
   }
+
 // Internal reports of watch duration
 private val INTERNAL_PENDING_WATCH_DURATION_REPORT = internalReport {
-  measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+  measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
   externalReportId = REPORT_EXTERNAL_IDS[2]
   periodicTimeInterval = INTERNAL_PERIODIC_TIME_INTERVAL
   metrics.add(INTERNAL_WATCH_DURATION_METRIC)
@@ -1165,9 +1146,10 @@ private val INTERNAL_SUCCEEDED_WATCH_DURATION_REPORT =
       INTERNAL_SUCCEEDED_WATCH_DURATION_MEASUREMENT
     )
   }
+
 // Internal reports of frequency histogram
 private val INTERNAL_PENDING_FREQUENCY_HISTOGRAM_REPORT = internalReport {
-  measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+  measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
   externalReportId = REPORT_EXTERNAL_IDS[3]
   periodicTimeInterval = INTERNAL_PERIODIC_TIME_INTERVAL
   metrics.add(INTERNAL_FREQUENCY_HISTOGRAM_METRIC)
@@ -1189,17 +1171,14 @@ private val INTERNAL_SUCCEEDED_FREQUENCY_HISTOGRAM_REPORT =
     )
   }
 
-// Event Group Universe
-private val EVENT_GROUP_UNIVERSE_ENTRIES =
-  COVERED_EVENT_GROUP_NAMES.map {
-    EventGroupUniverseKt.eventGroupEntry {
-      key = it
-      value = EVENT_GROUP_FILTER
-    }
-  }
-
 private val EVENT_GROUP_UNIVERSE = eventGroupUniverse {
-  eventGroupEntries += EVENT_GROUP_UNIVERSE_ENTRIES
+  eventGroupEntries +=
+    COVERED_EVENT_GROUP_KEYS.map {
+      EventGroupUniverseKt.eventGroupEntry {
+        key = it.toName()
+        value = EVENT_GROUP_FILTER
+      }
+    }
 }
 
 // Public reports with running states
@@ -1207,18 +1186,19 @@ private val EVENT_GROUP_UNIVERSE = eventGroupUniverse {
 private val PENDING_REACH_REPORT = report {
   name = REPORT_NAMES[0]
   reportIdempotencyKey = REACH_REPORT_IDEMPOTENCY_KEY
-  measurementConsumer = MEASUREMENT_CONSUMER_NAMES[0]
+  measurementConsumer = MEASUREMENT_CONSUMERS.values.first().name
   eventGroupUniverse = EVENT_GROUP_UNIVERSE
   periodicTimeInterval = PERIODIC_TIME_INTERVAL
   metrics.add(REACH_METRIC)
   state = Report.State.RUNNING
 }
 private val SUCCEEDED_REACH_REPORT = PENDING_REACH_REPORT.copy { state = Report.State.SUCCEEDED }
+
 // Reports of impression
 private val PENDING_IMPRESSION_REPORT = report {
   name = REPORT_NAMES[1]
   reportIdempotencyKey = IMPRESSION_REPORT_IDEMPOTENCY_KEY
-  measurementConsumer = MEASUREMENT_CONSUMER_NAMES[0]
+  measurementConsumer = MEASUREMENT_CONSUMERS.values.first().name
   eventGroupUniverse = EVENT_GROUP_UNIVERSE
   periodicTimeInterval = PERIODIC_TIME_INTERVAL
   metrics.add(IMPRESSION_METRIC)
@@ -1226,11 +1206,12 @@ private val PENDING_IMPRESSION_REPORT = report {
 }
 private val SUCCEEDED_IMPRESSION_REPORT =
   PENDING_IMPRESSION_REPORT.copy { state = Report.State.SUCCEEDED }
+
 // Reports of watch duration
 private val PENDING_WATCH_DURATION_REPORT = report {
   name = REPORT_NAMES[2]
   reportIdempotencyKey = WATCH_DURATION_REPORT_IDEMPOTENCY_KEY
-  measurementConsumer = MEASUREMENT_CONSUMER_NAMES[0]
+  measurementConsumer = MEASUREMENT_CONSUMERS.values.first().name
   eventGroupUniverse = EVENT_GROUP_UNIVERSE
   periodicTimeInterval = PERIODIC_TIME_INTERVAL
   metrics.add(WATCH_DURATION_METRIC)
@@ -1238,11 +1219,12 @@ private val PENDING_WATCH_DURATION_REPORT = report {
 }
 private val SUCCEEDED_WATCH_DURATION_REPORT =
   PENDING_WATCH_DURATION_REPORT.copy { state = Report.State.SUCCEEDED }
+
 // Reports of frequency histogram
 private val PENDING_FREQUENCY_HISTOGRAM_REPORT = report {
   name = REPORT_NAMES[3]
   reportIdempotencyKey = FREQUENCY_HISTOGRAM_REPORT_IDEMPOTENCY_KEY
-  measurementConsumer = MEASUREMENT_CONSUMER_NAMES[0]
+  measurementConsumer = MEASUREMENT_CONSUMERS.values.first().name
   eventGroupUniverse = EVENT_GROUP_UNIVERSE
   periodicTimeInterval = PERIODIC_TIME_INTERVAL
   metrics.add(FREQUENCY_HISTOGRAM_METRIC)
@@ -1311,31 +1293,39 @@ class ReportsServiceTest {
   }
 
   private val measurementConsumersMock: MeasurementConsumersCoroutineImplBase = mockService {
-    onBlocking { getMeasurementConsumer(any()) }.thenReturn(MEASUREMENT_CONSUMER)
+    onBlocking { getMeasurementConsumer(any()) }.thenReturn(MEASUREMENT_CONSUMERS.values.first())
   }
 
   private val dataProvidersMock: DataProvidersCoroutineImplBase = mockService {
-    onBlocking { getDataProvider(any()) }.thenReturn(DATA_PROVIDERS[0], DATA_PROVIDERS[1])
+    var stubbing = onBlocking { getDataProvider(any()) }
+    for (dataProvider in DATA_PROVIDERS.values) {
+      stubbing = stubbing.thenReturn(dataProvider)
+    }
   }
 
   private val certificateMock: CertificatesCoroutineImplBase = mockService {
-    onBlocking {
-        getCertificate(eq(getCertificateRequest { name = DATA_PROVIDER_CERTIFICATE_NAMES[0] }))
-      }
-      .thenReturn(AGGREGATOR_CERTIFICATE.copy { name = DATA_PROVIDER_CERTIFICATE_NAMES[0] })
-    onBlocking {
-        getCertificate(eq(getCertificateRequest { name = DATA_PROVIDER_CERTIFICATE_NAMES[1] }))
-      }
-      .thenReturn(AGGREGATOR_CERTIFICATE.copy { name = DATA_PROVIDER_CERTIFICATE_NAMES[1] })
-    onBlocking {
-        getCertificate(eq(getCertificateRequest { name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME }))
-      }
-      .thenReturn(
-        certificate {
-          name = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
-          x509Der = MEASUREMENT_CONSUMER_CERTIFICATE_DER
+    onBlocking { getCertificate(eq(getCertificateRequest { name = AGGREGATOR_CERTIFICATE.name })) }
+      .thenReturn(AGGREGATOR_CERTIFICATE)
+    for (dataProvider in DATA_PROVIDERS.values) {
+      onBlocking { getCertificate(eq(getCertificateRequest { name = dataProvider.certificate })) }
+        .thenReturn(
+          certificate {
+            name = dataProvider.certificate
+            x509Der = DATA_PROVIDER_SIGNING_KEY.certificate.encoded.toByteString()
+          }
+        )
+    }
+    for (measurementConsumer in MEASUREMENT_CONSUMERS.values) {
+      onBlocking {
+          getCertificate(eq(getCertificateRequest { name = measurementConsumer.certificate }))
         }
-      )
+        .thenReturn(
+          certificate {
+            name = measurementConsumer.certificate
+            x509Der = measurementConsumer.certificateDer
+          }
+        )
+    }
   }
 
   private val secureRandomMock: SecureRandom = mock()
@@ -1372,19 +1362,21 @@ class ReportsServiceTest {
         ENCRYPTION_KEY_PAIR_STORE,
         secureRandomMock,
         SECRETS_DIR,
-        mapOf(AGGREGATOR_ROOT_CERTIFICATE.subjectKeyIdentifier!! to AGGREGATOR_ROOT_CERTIFICATE)
+        listOf(AGGREGATOR_ROOT_CERTIFICATE, DATA_PROVIDER_ROOT_CERTIFICATE).associateBy {
+          it.subjectKeyIdentifier!!
+        }
       )
   }
 
   @Test
   fun `createReport returns a report of reach with RUNNING state`() {
     val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       report = PENDING_REACH_REPORT.copy { clearState() }
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
         runBlocking { service.createReport(request) }
       }
 
@@ -1394,7 +1386,7 @@ class ReportsServiceTest {
     verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::getReportByIdempotencyKey)
       .isEqualTo(
         getReportByIdempotencyKeyRequest {
-          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
           reportIdempotencyKey = REACH_REPORT_IDEMPOTENCY_KEY
         }
       )
@@ -1406,9 +1398,9 @@ class ReportsServiceTest {
       )
       .isEqualTo(
         batchGetReportingSetRequest {
-          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-          externalReportingSetIds += REPORTING_SET_EXTERNAL_IDS[0]
-          externalReportingSetIds += REPORTING_SET_EXTERNAL_IDS[1]
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          externalReportingSetIds += INTERNAL_REPORTING_SETS[0].externalReportingSetId
+          externalReportingSetIds += INTERNAL_REPORTING_SETS[1].externalReportingSetId
         }
       )
 
@@ -1417,7 +1409,7 @@ class ReportsServiceTest {
         measurementConsumersMock,
         MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
       )
-      .isEqualTo(getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMER_NAMES[0] })
+      .isEqualTo(getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMERS.values.first().name })
 
     // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
     val dataProvidersCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
@@ -1425,8 +1417,8 @@ class ReportsServiceTest {
     val capturedDataProviderRequests = dataProvidersCaptor.allValues
     assertThat(capturedDataProviderRequests)
       .containsExactly(
-        getDataProviderRequest { name = DATA_PROVIDERS[0].name },
-        getDataProviderRequest { name = DATA_PROVIDERS[1].name }
+        getDataProviderRequest { name = DATA_PROVIDERS_LIST[0].name },
+        getDataProviderRequest { name = DATA_PROVIDERS_LIST[1].name }
       )
 
     // Verify proto argument of MeasurementsCoroutineImplBase::createMeasurement
@@ -1438,7 +1430,7 @@ class ReportsServiceTest {
     val expectedMeasurement =
       BASE_REACH_MEASUREMENT.copy {
         dataProviders +=
-          DATA_PROVIDER_INDICES_IN_SET_OPERATION.map { index -> DATA_PROVIDER_ENTRIES[index] }
+          DATA_PROVIDER_KEYS_IN_SET_OPERATION.map { DATA_PROVIDER_ENTRIES.getValue(it) }
         measurementSpec =
           signMeasurementSpec(REACH_ONLY_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
       }
@@ -1485,7 +1477,7 @@ class ReportsServiceTest {
       )
       .isEqualTo(
         internalMeasurement {
-          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
           measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
           state = InternalMeasurement.State.PENDING
         }
@@ -1505,13 +1497,340 @@ class ReportsServiceTest {
             }
           measurements +=
             InternalCreateReportRequestKt.measurementKey {
-              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+              measurementConsumerReferenceId =
+                MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
               measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
             }
         }
       )
 
     assertThat(result).isEqualTo(expected)
+  }
+
+  @Test
+  fun `createReport returns a report of reach with RUNNING state when timeIntervals set`() {
+    val internalReport =
+      INTERNAL_PENDING_REACH_REPORT.copy {
+        clearTime()
+        timeIntervals = internalTimeIntervals {
+          timeIntervals += internalTimeInterval {
+            startTime = START_TIME
+            endTime = Timestamps.add(START_TIME, TIME_INTERVAL_INCREMENT)
+          }
+        }
+      }
+    runBlocking { whenever(internalReportsMock.createReport(any())).thenReturn(internalReport) }
+
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearState()
+          clearTime()
+          timeIntervals = timeIntervals {
+            timeIntervals += timeInterval {
+              startTime = START_TIME
+              endTime = Timestamps.add(START_TIME, TIME_INTERVAL_INCREMENT)
+            }
+          }
+        }
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+        runBlocking { service.createReport(request) }
+      }
+
+    val expected =
+      PENDING_REACH_REPORT.copy {
+        clearTime()
+        timeIntervals = timeIntervals {
+          timeIntervals += timeInterval {
+            startTime = START_TIME
+            endTime = Timestamps.add(START_TIME, TIME_INTERVAL_INCREMENT)
+          }
+        }
+      }
+
+    // Verify proto argument of ReportsCoroutineImplBase::getReportByIdempotencyKey
+    verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::getReportByIdempotencyKey)
+      .isEqualTo(
+        getReportByIdempotencyKeyRequest {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          reportIdempotencyKey = REACH_REPORT_IDEMPOTENCY_KEY
+        }
+      )
+
+    // Verify proto argument of InternalReportingSetsCoroutineImplBase::batchGetReportingSet
+    verifyProtoArgument(
+        internalReportingSetsMock,
+        InternalReportingSetsCoroutineImplBase::batchGetReportingSet
+      )
+      .isEqualTo(
+        batchGetReportingSetRequest {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          externalReportingSetIds += INTERNAL_REPORTING_SETS[0].externalReportingSetId
+          externalReportingSetIds += INTERNAL_REPORTING_SETS[1].externalReportingSetId
+        }
+      )
+
+    // Verify proto argument of MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
+    verifyProtoArgument(
+        measurementConsumersMock,
+        MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
+      )
+      .isEqualTo(getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMERS.values.first().name })
+
+    // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
+    val dataProvidersCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
+    verifyBlocking(dataProvidersMock, times(2)) { getDataProvider(dataProvidersCaptor.capture()) }
+    val capturedDataProviderRequests = dataProvidersCaptor.allValues
+    assertThat(capturedDataProviderRequests)
+      .containsExactly(
+        getDataProviderRequest { name = DATA_PROVIDERS_LIST[0].name },
+        getDataProviderRequest { name = DATA_PROVIDERS_LIST[1].name }
+      )
+
+    // Verify proto argument of MeasurementsCoroutineImplBase::createMeasurement
+    val capturedMeasurementRequest =
+      captureFirst<CreateMeasurementRequest> {
+        runBlocking { verify(measurementsMock).createMeasurement(capture()) }
+      }
+    val capturedMeasurement = capturedMeasurementRequest.measurement
+    val expectedMeasurement =
+      BASE_REACH_MEASUREMENT.copy {
+        dataProviders +=
+          DATA_PROVIDER_KEYS_IN_SET_OPERATION.map { DATA_PROVIDER_ENTRIES.getValue(it) }
+        measurementSpec =
+          signMeasurementSpec(REACH_ONLY_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
+      }
+
+    assertThat(capturedMeasurement)
+      .ignoringRepeatedFieldOrder()
+      .ignoringFieldDescriptors(
+        Measurement.getDescriptor().findFieldByNumber(Measurement.MEASUREMENT_SPEC_FIELD_NUMBER),
+        Measurement.DataProviderEntry.Value.getDescriptor()
+          .findFieldByNumber(ENCRYPTED_REQUISITION_SPEC_FIELD_NUMBER),
+      )
+      .isEqualTo(expectedMeasurement)
+
+    verifyMeasurementSpec(
+      capturedMeasurement.measurementSpec,
+      MEASUREMENT_CONSUMER_CERTIFICATE,
+      TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+    )
+    val measurementSpec = MeasurementSpec.parseFrom(capturedMeasurement.measurementSpec.data)
+    assertThat(measurementSpec).isEqualTo(REACH_ONLY_MEASUREMENT_SPEC)
+
+    val dataProvidersList = capturedMeasurement.dataProvidersList.sortedBy { it.key }
+
+    dataProvidersList.map { dataProviderEntry ->
+      val signedRequisitionSpec =
+        decryptRequisitionSpec(
+          dataProviderEntry.value.encryptedRequisitionSpec,
+          DATA_PROVIDER_PRIVATE_KEY_HANDLE
+        )
+      val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
+      verifyRequisitionSpec(
+        signedRequisitionSpec,
+        requisitionSpec,
+        measurementSpec,
+        MEASUREMENT_CONSUMER_CERTIFICATE,
+        TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+      )
+    }
+
+    // Verify proto argument of InternalMeasurementsCoroutineImplBase::createMeasurement
+    verifyProtoArgument(
+        internalMeasurementsMock,
+        InternalMeasurementsCoroutineImplBase::createMeasurement
+      )
+      .isEqualTo(
+        internalMeasurement {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
+          state = InternalMeasurement.State.PENDING
+        }
+      )
+
+    // Verify proto argument of InternalReportsCoroutineImplBase::createReport
+    verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::createReport)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        internalCreateReportRequest {
+          report =
+            internalReport.copy {
+              clearState()
+              clearExternalReportId()
+              measurements.clear()
+              clearCreateTime()
+            }
+          measurements +=
+            InternalCreateReportRequestKt.measurementKey {
+              measurementConsumerReferenceId =
+                MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+              measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
+            }
+        }
+      )
+
+    assertThat(result).isEqualTo(expected)
+  }
+
+  @Test
+  fun `createReport returns a report with a cumulative metric`() {
+    val internalCumulativeReport =
+      INTERNAL_PENDING_REACH_REPORT.copy {
+        metrics.clear()
+        metrics +=
+          INTERNAL_PENDING_REACH_REPORT.metricsList[0].copy {
+            details =
+              INTERNAL_PENDING_REACH_REPORT.metricsList[0].details.copy { cumulative = true }
+          }
+      }
+    runBlocking {
+      whenever(internalReportsMock.createReport(any())).thenReturn(internalCumulativeReport)
+    }
+
+    val cumulativeReport =
+      PENDING_REACH_REPORT.copy {
+        metrics.clear()
+        metrics += PENDING_REACH_REPORT.metricsList[0].copy { cumulative = true }
+      }
+
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      report = cumulativeReport.copy { clearState() }
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+        runBlocking { service.createReport(request) }
+      }
+
+    // Verify proto argument of ReportsCoroutineImplBase::getReportByIdempotencyKey
+    verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::getReportByIdempotencyKey)
+      .isEqualTo(
+        getReportByIdempotencyKeyRequest {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          reportIdempotencyKey = REACH_REPORT_IDEMPOTENCY_KEY
+        }
+      )
+
+    // Verify proto argument of InternalReportingSetsCoroutineImplBase::batchGetReportingSet
+    verifyProtoArgument(
+        internalReportingSetsMock,
+        InternalReportingSetsCoroutineImplBase::batchGetReportingSet
+      )
+      .isEqualTo(
+        batchGetReportingSetRequest {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          externalReportingSetIds += INTERNAL_REPORTING_SETS[0].externalReportingSetId
+          externalReportingSetIds += INTERNAL_REPORTING_SETS[1].externalReportingSetId
+        }
+      )
+
+    // Verify proto argument of MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
+    verifyProtoArgument(
+        measurementConsumersMock,
+        MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
+      )
+      .isEqualTo(getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMERS.values.first().name })
+
+    // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
+    val dataProvidersCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
+    verifyBlocking(dataProvidersMock, times(2)) { getDataProvider(dataProvidersCaptor.capture()) }
+    val capturedDataProviderRequests = dataProvidersCaptor.allValues
+    assertThat(capturedDataProviderRequests)
+      .containsExactly(
+        getDataProviderRequest { name = DATA_PROVIDERS_LIST[0].name },
+        getDataProviderRequest { name = DATA_PROVIDERS_LIST[1].name }
+      )
+
+    // Verify proto argument of MeasurementsCoroutineImplBase::createMeasurement
+    val capturedMeasurementRequest =
+      captureFirst<CreateMeasurementRequest> {
+        runBlocking { verify(measurementsMock).createMeasurement(capture()) }
+      }
+    val capturedMeasurement = capturedMeasurementRequest.measurement
+    val expectedMeasurement =
+      BASE_REACH_MEASUREMENT.copy {
+        dataProviders +=
+          DATA_PROVIDER_KEYS_IN_SET_OPERATION.map { DATA_PROVIDER_ENTRIES.getValue(it) }
+        measurementSpec =
+          signMeasurementSpec(REACH_ONLY_MEASUREMENT_SPEC, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
+      }
+
+    assertThat(capturedMeasurement)
+      .ignoringRepeatedFieldOrder()
+      .ignoringFieldDescriptors(
+        Measurement.getDescriptor().findFieldByNumber(Measurement.MEASUREMENT_SPEC_FIELD_NUMBER),
+        Measurement.DataProviderEntry.Value.getDescriptor()
+          .findFieldByNumber(ENCRYPTED_REQUISITION_SPEC_FIELD_NUMBER),
+      )
+      .isEqualTo(expectedMeasurement)
+
+    verifyMeasurementSpec(
+      capturedMeasurement.measurementSpec,
+      MEASUREMENT_CONSUMER_CERTIFICATE,
+      TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+    )
+    val measurementSpec = MeasurementSpec.parseFrom(capturedMeasurement.measurementSpec.data)
+    assertThat(measurementSpec).isEqualTo(REACH_ONLY_MEASUREMENT_SPEC)
+
+    val dataProvidersList = capturedMeasurement.dataProvidersList.sortedBy { it.key }
+
+    dataProvidersList.map { dataProviderEntry ->
+      val signedRequisitionSpec =
+        decryptRequisitionSpec(
+          dataProviderEntry.value.encryptedRequisitionSpec,
+          DATA_PROVIDER_PRIVATE_KEY_HANDLE
+        )
+      val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
+      verifyRequisitionSpec(
+        signedRequisitionSpec,
+        requisitionSpec,
+        measurementSpec,
+        MEASUREMENT_CONSUMER_CERTIFICATE,
+        TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+      )
+    }
+
+    // Verify proto argument of InternalMeasurementsCoroutineImplBase::createMeasurement
+    verifyProtoArgument(
+        internalMeasurementsMock,
+        InternalMeasurementsCoroutineImplBase::createMeasurement
+      )
+      .isEqualTo(
+        internalMeasurement {
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
+          state = InternalMeasurement.State.PENDING
+        }
+      )
+
+    // Verify proto argument of InternalReportsCoroutineImplBase::createReport
+    verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::createReport)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        internalCreateReportRequest {
+          report =
+            internalCumulativeReport.copy {
+              clearState()
+              clearExternalReportId()
+              measurements.clear()
+              clearCreateTime()
+            }
+          measurements +=
+            InternalCreateReportRequestKt.measurementKey {
+              measurementConsumerReferenceId =
+                MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+              measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
+            }
+        }
+      )
+
+    assertThat(result).isEqualTo(cumulativeReport)
   }
 
   @Test
@@ -1563,20 +1882,22 @@ class ReportsServiceTest {
             uniqueName = REACH_SET_OPERATION_UNIQUE_NAME
             setOperation = setOperation {
               type = SetOperation.Type.DIFFERENCE
-              lhs = SetOperationKt.operand { reportingSet = REPORTING_SET_NAMES[0] }
-              rhs = SetOperationKt.operand { reportingSet = REPORTING_SET_NAMES[1] }
+              lhs =
+                SetOperationKt.operand { reportingSet = INTERNAL_REPORTING_SETS[0].resourceName }
+              rhs =
+                SetOperationKt.operand { reportingSet = INTERNAL_REPORTING_SETS[1].resourceName }
             }
           }
         }
       }
 
     val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       report = pendingReachReportWithSetDifference
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
         runBlocking { service.createReport(request) }
       }
 
@@ -1584,7 +1905,7 @@ class ReportsServiceTest {
     verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::getReportByIdempotencyKey)
       .isEqualTo(
         getReportByIdempotencyKeyRequest {
-          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
           reportIdempotencyKey = REACH_REPORT_IDEMPOTENCY_KEY
         }
       )
@@ -1597,9 +1918,9 @@ class ReportsServiceTest {
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
         batchGetReportingSetRequest {
-          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
-          externalReportingSetIds += REPORTING_SET_EXTERNAL_IDS[0]
-          externalReportingSetIds += REPORTING_SET_EXTERNAL_IDS[1]
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          externalReportingSetIds += INTERNAL_REPORTING_SETS[0].externalReportingSetId
+          externalReportingSetIds += INTERNAL_REPORTING_SETS[1].externalReportingSetId
         }
       )
 
@@ -1608,7 +1929,7 @@ class ReportsServiceTest {
         measurementConsumersMock,
         MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
       )
-      .isEqualTo(getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMER_NAMES[0] })
+      .isEqualTo(getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMERS.values.first().name })
 
     // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
     val dataProvidersCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
@@ -1616,9 +1937,9 @@ class ReportsServiceTest {
     val capturedDataProviderRequests = dataProvidersCaptor.allValues
     assertThat(capturedDataProviderRequests)
       .containsExactly(
-        getDataProviderRequest { name = DATA_PROVIDERS[1].name },
-        getDataProviderRequest { name = DATA_PROVIDERS[0].name },
-        getDataProviderRequest { name = DATA_PROVIDERS[1].name }
+        getDataProviderRequest { name = DATA_PROVIDERS_LIST[1].name },
+        getDataProviderRequest { name = DATA_PROVIDERS_LIST[0].name },
+        getDataProviderRequest { name = DATA_PROVIDERS_LIST[1].name }
       )
 
     // Verify proto argument of MeasurementsCoroutineImplBase::createMeasurement
@@ -1644,12 +1965,14 @@ class ReportsServiceTest {
             }
           measurements +=
             InternalCreateReportRequestKt.measurementKey {
-              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+              measurementConsumerReferenceId =
+                MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
               measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
             }
           measurements +=
             InternalCreateReportRequestKt.measurementKey {
-              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+              measurementConsumerReferenceId =
+                MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
               measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID_2
             }
         }
@@ -1665,12 +1988,12 @@ class ReportsServiceTest {
         .thenThrow(StatusRuntimeException(Status.ALREADY_EXISTS))
 
       val request = createReportRequest {
-        parent = MEASUREMENT_CONSUMER_NAMES[0]
+        parent = MEASUREMENT_CONSUMERS.values.first().name
         report = PENDING_REACH_REPORT.copy { clearState() }
       }
 
       val report =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.createReport(request) }
         }
       assertThat(report.state).isEqualTo(Report.State.RUNNING)
@@ -1679,7 +2002,7 @@ class ReportsServiceTest {
   @Test
   fun `createReport throws UNAUTHENTICATED when no principal is found`() {
     val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       report = PENDING_REACH_REPORT.copy { clearState() }
     }
     val exception =
@@ -1690,12 +2013,12 @@ class ReportsServiceTest {
   @Test
   fun `createReport throws PERMISSION_DENIED when MeasurementConsumer caller doesn't match`() {
     val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       report = PENDING_REACH_REPORT.copy { clearState() }
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[1], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.last().name, CONFIG) {
           runBlocking { service.createReport(request) }
         }
       }
@@ -1707,12 +2030,12 @@ class ReportsServiceTest {
   @Test
   fun `createReport throws PERMISSION_DENIED when report doesn't belong to caller`() {
     val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[1]
+      parent = MEASUREMENT_CONSUMERS.values.last().name
       report = PENDING_REACH_REPORT.copy { clearState() }
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.createReport(request) }
         }
       }
@@ -1724,12 +2047,12 @@ class ReportsServiceTest {
   @Test
   fun `createReport throws UNAUTHENTICATED when the caller is not MeasurementConsumer`() {
     val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       report = PENDING_REACH_REPORT.copy { clearState() }
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDERS[0].name) {
+        withDataProviderPrincipal(DATA_PROVIDERS_LIST[0].name) {
           runBlocking { service.createReport(request) }
         }
       }
@@ -1743,7 +2066,7 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.createReport(request) }
         }
       }
@@ -1753,11 +2076,11 @@ class ReportsServiceTest {
 
   @Test
   fun `createReport throws INVALID_ARGUMENT when report is unspecified`() {
-    val request = createReportRequest { parent = MEASUREMENT_CONSUMER_NAMES[0] }
+    val request = createReportRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.createReport(request) }
         }
       }
@@ -1768,7 +2091,7 @@ class ReportsServiceTest {
   @Test
   fun `createReport throws INVALID_ARGUMENT when reportIdempotencyKey is unspecified`() {
     val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       report =
         PENDING_REACH_REPORT.copy {
           clearState()
@@ -1778,7 +2101,7 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.createReport(request) }
         }
       }
@@ -1789,7 +2112,7 @@ class ReportsServiceTest {
   @Test
   fun `createReport throws INVALID_ARGUMENT when eventGroupUniverse in Report is unspecified`() {
     val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       report =
         PENDING_REACH_REPORT.copy {
           clearState()
@@ -1799,7 +2122,7 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.createReport(request) }
         }
       }
@@ -1810,7 +2133,7 @@ class ReportsServiceTest {
   @Test
   fun `createReport throws INVALID_ARGUMENT when eventGroupUniverse entries list is empty`() {
     val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       report =
         PENDING_REACH_REPORT.copy {
           clearState()
@@ -1820,7 +2143,7 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.createReport(request) }
         }
       }
@@ -1830,7 +2153,7 @@ class ReportsServiceTest {
   @Test
   fun `createReport throws INVALID_ARGUMENT when eventGroupUniverse entry is missing key`() {
     val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       report =
         PENDING_REACH_REPORT.copy {
           clearState()
@@ -1842,7 +2165,7 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.createReport(request) }
         }
       }
@@ -1852,7 +2175,7 @@ class ReportsServiceTest {
   @Test
   fun `createReport throws INVALID_ARGUMENT when setOperationName duplicate for same metricType`() {
     val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       report =
         PENDING_REACH_REPORT.copy {
           clearState()
@@ -1862,7 +2185,7 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.createReport(request) }
         }
       }
@@ -1874,7 +2197,7 @@ class ReportsServiceTest {
   @Test
   fun `createReport throws INVALID_ARGUMENT when time in Report is unspecified`() {
     val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       report =
         PENDING_REACH_REPORT.copy {
           clearState()
@@ -1884,7 +2207,7 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.createReport(request) }
         }
       }
@@ -1893,9 +2216,37 @@ class ReportsServiceTest {
   }
 
   @Test
+  fun `createReport throws INVALID_ARGUMENT when TimeIntervals is set and cumulative is true`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearState()
+          clearTime()
+          timeIntervals = timeIntervals {
+            timeIntervals += timeInterval {
+              startTime = timestamp { seconds = 1 }
+              endTime = timestamp { seconds = 5 }
+            }
+          }
+          metrics.clear()
+          metrics += PENDING_REACH_REPORT.metricsList[0].copy { cumulative = true }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
   fun `createReport throws INVALID_ARGUMENT when TimeIntervals timeIntervalsList is empty`() {
     val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       report =
         PENDING_REACH_REPORT.copy {
           clearState()
@@ -1906,7 +2257,7 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.createReport(request) }
         }
       }
@@ -1916,7 +2267,7 @@ class ReportsServiceTest {
   @Test
   fun `createReport throws INVALID_ARGUMENT when TimeInterval startTime is unspecified`() {
     val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       report =
         PENDING_REACH_REPORT.copy {
           clearState()
@@ -1929,7 +2280,7 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.createReport(request) }
         }
       }
@@ -1939,7 +2290,7 @@ class ReportsServiceTest {
   @Test
   fun `createReport throws INVALID_ARGUMENT when TimeInterval endTime is unspecified`() {
     val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       report =
         PENDING_REACH_REPORT.copy {
           clearState()
@@ -1952,7 +2303,7 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.createReport(request) }
         }
       }
@@ -1962,7 +2313,7 @@ class ReportsServiceTest {
   @Test
   fun `createReport throws INVALID_ARGUMENT when TimeInterval endTime is before startTime`() {
     val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       report =
         PENDING_REACH_REPORT.copy {
           clearState()
@@ -1984,7 +2335,7 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.createReport(request) }
         }
       }
@@ -1994,7 +2345,7 @@ class ReportsServiceTest {
   @Test
   fun `createReport throws INVALID_ARGUMENT when PeriodicTimeInterval startTime is unspecified`() {
     val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       report =
         PENDING_REACH_REPORT.copy {
           clearState()
@@ -2008,7 +2359,7 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.createReport(request) }
         }
       }
@@ -2018,7 +2369,7 @@ class ReportsServiceTest {
   @Test
   fun `createReport throws INVALID_ARGUMENT when PeriodicTimeInterval increment is unspecified`() {
     val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       report =
         PENDING_REACH_REPORT.copy {
           clearState()
@@ -2035,7 +2386,7 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.createReport(request) }
         }
       }
@@ -2045,7 +2396,7 @@ class ReportsServiceTest {
   @Test
   fun `createReport throws INVALID_ARGUMENT when PeriodicTimeInterval intervalCount is 0`() {
     val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       report =
         PENDING_REACH_REPORT.copy {
           clearState()
@@ -2062,7 +2413,7 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.createReport(request) }
         }
       }
@@ -2072,7 +2423,7 @@ class ReportsServiceTest {
   @Test
   fun `createReport throws INVALID_ARGUMENT when any metric type in Report is unspecified`() {
     val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       report =
         PENDING_REACH_REPORT.copy {
           clearState()
@@ -2083,7 +2434,7 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.createReport(request) }
         }
       }
@@ -2095,7 +2446,7 @@ class ReportsServiceTest {
   @Test
   fun `createReport throws INVALID_ARGUMENT when metrics list is empty`() {
     val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       report =
         PENDING_REACH_REPORT.copy {
           clearState()
@@ -2105,7 +2456,7 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.createReport(request) }
         }
       }
@@ -2115,7 +2466,7 @@ class ReportsServiceTest {
   @Test
   fun `createReport throws INVALID_ARGUMENT when namedSetOperation uniqueName is unspecified`() {
     val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       report =
         PENDING_REACH_REPORT.copy {
           clearState()
@@ -2125,7 +2476,8 @@ class ReportsServiceTest {
             setOperations += namedSetOperation {
               setOperation = setOperation {
                 type = SetOperation.Type.UNION
-                lhs = SetOperationKt.operand { reportingSet = REPORTING_SET_NAMES[0] }
+                lhs =
+                  SetOperationKt.operand { reportingSet = INTERNAL_REPORTING_SETS[0].resourceName }
               }
             }
           }
@@ -2134,7 +2486,7 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.createReport(request) }
         }
       }
@@ -2144,7 +2496,7 @@ class ReportsServiceTest {
   @Test
   fun `createReport throws INVALID_ARGUMENT when setOperation type is unspecified`() {
     val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       report =
         PENDING_REACH_REPORT.copy {
           clearState()
@@ -2154,7 +2506,8 @@ class ReportsServiceTest {
             setOperations += namedSetOperation {
               uniqueName = "name"
               setOperation = setOperation {
-                lhs = SetOperationKt.operand { reportingSet = REPORTING_SET_NAMES[0] }
+                lhs =
+                  SetOperationKt.operand { reportingSet = INTERNAL_REPORTING_SETS[0].resourceName }
               }
             }
           }
@@ -2163,7 +2516,7 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.createReport(request) }
         }
       }
@@ -2173,7 +2526,7 @@ class ReportsServiceTest {
   @Test
   fun `createReport throws INVALID_ARGUMENT when setOperation lhs is unspecified`() {
     val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       report =
         PENDING_REACH_REPORT.copy {
           clearState()
@@ -2190,7 +2543,7 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.createReport(request) }
         }
       }
@@ -2208,7 +2561,7 @@ class ReportsServiceTest {
     }
 
     val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       report =
         PENDING_REACH_REPORT.copy {
           clearState()
@@ -2219,7 +2572,7 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.createReport(request) }
         }
       }
@@ -2241,7 +2594,7 @@ class ReportsServiceTest {
     }
 
     val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       report =
         PENDING_REACH_REPORT.copy {
           clearState()
@@ -2252,7 +2605,7 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.createReport(request) }
         }
       }
@@ -2267,13 +2620,13 @@ class ReportsServiceTest {
       whenever(internalReportingSetsMock.batchGetReportingSet(any()))
         .thenReturn(flowOf(INTERNAL_REPORTING_SETS[0], UNCOVERED_INTERNAL_REPORTING_SET))
       val request = createReportRequest {
-        parent = MEASUREMENT_CONSUMER_NAMES[0]
+        parent = MEASUREMENT_CONSUMERS.values.first().name
         report = PENDING_REACH_REPORT.copy { clearState() }
       }
 
       val exception =
         assertFailsWith<StatusRuntimeException> {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
             runBlocking { service.createReport(request) }
           }
         }
@@ -2290,18 +2643,75 @@ class ReportsServiceTest {
     whenever(internalReportingSetsMock.batchGetReportingSet(any()))
       .thenReturn(flowOf(INTERNAL_REPORTING_SETS[0]))
     val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       report = PENDING_REACH_REPORT.copy { clearState() }
     }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.createReport(request) }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
+
+  @Test
+  fun `createReport throws FAILED_PRECONDITION when EDP cert is revoked`() = runBlocking {
+    val dataProvider = DATA_PROVIDERS.values.first()
+    whenever(
+        certificateMock.getCertificate(
+          eq(getCertificateRequest { name = dataProvider.certificate })
+        )
+      )
+      .thenReturn(
+        certificate {
+          name = dataProvider.certificate
+          x509Der = DATA_PROVIDER_SIGNING_KEY.certificate.encoded.toByteString()
+          revocationState = Certificate.RevocationState.REVOKED
+        }
+      )
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      report = PENDING_REACH_REPORT.copy { clearState() }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.createReport(request) }
+        }
+      }
+
+    assertThat(exception).hasMessageThat().ignoringCase().contains("revoked")
+  }
+
+  @Test
+  fun `createReport throws FAILED_PRECONDITION when EDP public key signature is invalid`() =
+    runBlocking {
+      val dataProvider = DATA_PROVIDERS.values.first()
+      whenever(
+          dataProvidersMock.getDataProvider(eq(getDataProviderRequest { name = dataProvider.name }))
+        )
+        .thenReturn(
+          dataProvider.copy {
+            publicKey = publicKey.copy { signature = "invalid sig".toByteStringUtf8() }
+          }
+        )
+      val request = createReportRequest {
+        parent = MEASUREMENT_CONSUMERS.values.first().name
+        report = PENDING_REACH_REPORT.copy { clearState() }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+            runBlocking { service.createReport(request) }
+          }
+        }
+
+      assertThat(exception).hasMessageThat().ignoringCase().contains("signature")
+    }
 
   @Test
   fun `createReport throws exception from getReportByIdempotencyKey when status isn't NOT_FOUND`() =
@@ -2310,13 +2720,13 @@ class ReportsServiceTest {
         .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
 
       val request = createReportRequest {
-        parent = MEASUREMENT_CONSUMER_NAMES[0]
+        parent = MEASUREMENT_CONSUMERS.values.first().name
         report = PENDING_REACH_REPORT.copy { clearState() }
       }
 
       val exception =
         assertFailsWith(Exception::class) {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
             runBlocking { service.createReport(request) }
           }
         }
@@ -2332,13 +2742,13 @@ class ReportsServiceTest {
       .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
 
     val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       report = PENDING_REACH_REPORT.copy { clearState() }
     }
 
     val exception =
       assertFailsWith(Exception::class) {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.createReport(request) }
         }
       }
@@ -2353,13 +2763,13 @@ class ReportsServiceTest {
         .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
 
       val request = createReportRequest {
-        parent = MEASUREMENT_CONSUMER_NAMES[0]
+        parent = MEASUREMENT_CONSUMERS.values.first().name
         report = PENDING_REACH_REPORT.copy { clearState() }
       }
 
       val exception =
         assertFailsWith(Exception::class) {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
             runBlocking { service.createReport(request) }
           }
         }
@@ -2375,13 +2785,13 @@ class ReportsServiceTest {
         .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
 
       val request = createReportRequest {
-        parent = MEASUREMENT_CONSUMER_NAMES[0]
+        parent = MEASUREMENT_CONSUMERS.values.first().name
         report = PENDING_REACH_REPORT.copy { clearState() }
       }
 
       val exception =
         assertFailsWith(Exception::class) {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
             runBlocking { service.createReport(request) }
           }
         }
@@ -2396,18 +2806,18 @@ class ReportsServiceTest {
       .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
 
     val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       report = PENDING_REACH_REPORT.copy { clearState() }
     }
 
     val exception =
       assertFailsWith(Exception::class) {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.createReport(request) }
         }
       }
     val expectedExceptionDescription =
-      "Unable to retrieve the measurement consumer [${MEASUREMENT_CONSUMER_NAMES[0]}]."
+      "Unable to retrieve the measurement consumer [${MEASUREMENT_CONSUMERS.values.first().name}]."
     assertThat(exception.message).isEqualTo(expectedExceptionDescription)
   }
 
@@ -2418,12 +2828,12 @@ class ReportsServiceTest {
       .thenThrow(StatusRuntimeException(Status.UNKNOWN))
 
     val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       report = PENDING_REACH_REPORT.copy { clearState() }
     }
 
     assertFails {
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
         runBlocking { service.createReport(request) }
       }
     }
@@ -2435,26 +2845,25 @@ class ReportsServiceTest {
       .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
 
     val request = createReportRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       report = PENDING_REACH_REPORT.copy { clearState() }
     }
 
     val exception =
       assertFailsWith(Exception::class) {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.createReport(request) }
         }
       }
-    val expectedExceptionDescription = "Unable to retrieve the data provider"
-    assertThat(exception.message).contains(expectedExceptionDescription)
+    assertThat(exception).hasMessageThat().contains("dataProviders/")
   }
 
   @Test
   fun `listReports returns without a next page token when there is no previous page token`() {
-    val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAMES[0] }
+    val request = listReportsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
         runBlocking { service.listReports(request) }
       }
 
@@ -2470,7 +2879,8 @@ class ReportsServiceTest {
         streamReportsRequest {
           limit = DEFAULT_PAGE_SIZE + 1
           this.filter = filter {
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+            measurementConsumerReferenceId =
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
           }
         }
       )
@@ -2481,12 +2891,12 @@ class ReportsServiceTest {
   @Test
   fun `listReports returns with a next page token when there is no previous page token`() {
     val request = listReportsRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       pageSize = PAGE_SIZE
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
         runBlocking { service.listReports(request) }
       }
 
@@ -2498,9 +2908,11 @@ class ReportsServiceTest {
       nextPageToken =
         listReportsPageToken {
             pageSize = PAGE_SIZE
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+            measurementConsumerReferenceId =
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
             lastReport = previousPageEnd {
-              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+              measurementConsumerReferenceId =
+                MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
               externalReportId = REPORT_EXTERNAL_IDS[2]
             }
           }
@@ -2513,7 +2925,8 @@ class ReportsServiceTest {
         streamReportsRequest {
           limit = PAGE_SIZE + 1
           this.filter = filter {
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+            measurementConsumerReferenceId =
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
           }
         }
       )
@@ -2524,14 +2937,16 @@ class ReportsServiceTest {
   @Test
   fun `listReports returns with a next page token when there is a previous page token`() {
     val request = listReportsRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       pageSize = PAGE_SIZE
       pageToken =
         listReportsPageToken {
             pageSize = PAGE_SIZE
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+            measurementConsumerReferenceId =
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
             lastReport = previousPageEnd {
-              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+              measurementConsumerReferenceId =
+                MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
               externalReportId = REPORT_EXTERNAL_IDS[0]
             }
           }
@@ -2540,7 +2955,7 @@ class ReportsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
         runBlocking { service.listReports(request) }
       }
 
@@ -2552,9 +2967,11 @@ class ReportsServiceTest {
       nextPageToken =
         listReportsPageToken {
             pageSize = PAGE_SIZE
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+            measurementConsumerReferenceId =
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
             lastReport = previousPageEnd {
-              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+              measurementConsumerReferenceId =
+                MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
               externalReportId = REPORT_EXTERNAL_IDS[2]
             }
           }
@@ -2567,7 +2984,8 @@ class ReportsServiceTest {
         streamReportsRequest {
           limit = PAGE_SIZE + 1
           this.filter = filter {
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+            measurementConsumerReferenceId =
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
             externalReportIdAfter = REPORT_EXTERNAL_IDS[0]
           }
         }
@@ -2580,12 +2998,12 @@ class ReportsServiceTest {
   fun `listReports with page size replaced with a valid value and no previous page token`() {
     val invalidPageSize = MAX_PAGE_SIZE * 2
     val request = listReportsRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       pageSize = invalidPageSize
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
         runBlocking { service.listReports(request) }
       }
 
@@ -2601,7 +3019,8 @@ class ReportsServiceTest {
         streamReportsRequest {
           limit = MAX_PAGE_SIZE + 1
           this.filter = filter {
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+            measurementConsumerReferenceId =
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
           }
         }
       )
@@ -2614,14 +3033,16 @@ class ReportsServiceTest {
     val invalidPageSize = MAX_PAGE_SIZE * 2
     val previousPageSize = PAGE_SIZE
     val request = listReportsRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       pageSize = invalidPageSize
       pageToken =
         listReportsPageToken {
             pageSize = previousPageSize
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+            measurementConsumerReferenceId =
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
             lastReport = previousPageEnd {
-              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+              measurementConsumerReferenceId =
+                MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
               externalReportId = REPORT_EXTERNAL_IDS[0]
             }
           }
@@ -2630,7 +3051,7 @@ class ReportsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
         runBlocking { service.listReports(request) }
       }
 
@@ -2642,9 +3063,11 @@ class ReportsServiceTest {
       nextPageToken =
         listReportsPageToken {
             pageSize = previousPageSize
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+            measurementConsumerReferenceId =
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
             lastReport = previousPageEnd {
-              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+              measurementConsumerReferenceId =
+                MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
               externalReportId = REPORT_EXTERNAL_IDS[2]
             }
           }
@@ -2657,7 +3080,8 @@ class ReportsServiceTest {
         streamReportsRequest {
           limit = previousPageSize + 1
           this.filter = filter {
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+            measurementConsumerReferenceId =
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
             externalReportIdAfter = REPORT_EXTERNAL_IDS[0]
           }
         }
@@ -2671,14 +3095,16 @@ class ReportsServiceTest {
     val newPageSize = PAGE_SIZE
     val previousPageSize = 1
     val request = listReportsRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       pageSize = newPageSize
       pageToken =
         listReportsPageToken {
             pageSize = previousPageSize
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+            measurementConsumerReferenceId =
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
             lastReport = previousPageEnd {
-              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+              measurementConsumerReferenceId =
+                MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
               externalReportId = REPORT_EXTERNAL_IDS[0]
             }
           }
@@ -2687,7 +3113,7 @@ class ReportsServiceTest {
     }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
         runBlocking { service.listReports(request) }
       }
 
@@ -2699,9 +3125,11 @@ class ReportsServiceTest {
       nextPageToken =
         listReportsPageToken {
             pageSize = newPageSize
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+            measurementConsumerReferenceId =
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
             lastReport = previousPageEnd {
-              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+              measurementConsumerReferenceId =
+                MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
               externalReportId = REPORT_EXTERNAL_IDS[2]
             }
           }
@@ -2714,7 +3142,8 @@ class ReportsServiceTest {
         streamReportsRequest {
           limit = newPageSize + 1
           this.filter = filter {
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+            measurementConsumerReferenceId =
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
             externalReportIdAfter = REPORT_EXTERNAL_IDS[0]
           }
         }
@@ -2725,7 +3154,7 @@ class ReportsServiceTest {
 
   @Test
   fun `listReports throws UNAUTHENTICATED when no principal is found`() {
-    val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAMES[0] }
+    val request = listReportsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
     val exception =
       assertFailsWith<StatusRuntimeException> { runBlocking { service.listReports(request) } }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
@@ -2733,10 +3162,10 @@ class ReportsServiceTest {
 
   @Test
   fun `listReports throws PERMISSION_DENIED when MeasurementConsumer caller doesn't match`() {
-    val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAMES[0] }
+    val request = listReportsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[1], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.last().name, CONFIG) {
           runBlocking { service.listReports(request) }
         }
       }
@@ -2747,10 +3176,10 @@ class ReportsServiceTest {
 
   @Test
   fun `listReports throws UNAUTHENTICATED when the caller is not MeasurementConsumer`() {
-    val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAMES[0] }
+    val request = listReportsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDERS[0].name) {
+        withDataProviderPrincipal(DATA_PROVIDERS.values.first().name) {
           runBlocking { service.listReports(request) }
         }
       }
@@ -2761,12 +3190,12 @@ class ReportsServiceTest {
   @Test
   fun `listReports throws INVALID_ARGUMENT when page size is less than 0`() {
     val request = listReportsRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       pageSize = -1
     }
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.listReports(request) }
         }
       }
@@ -2778,7 +3207,7 @@ class ReportsServiceTest {
   fun `listReports throws INVALID_ARGUMENT when parent is unspecified`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.listReports(ListReportsRequest.getDefaultInstance()) }
         }
       }
@@ -2787,13 +3216,14 @@ class ReportsServiceTest {
 
   @Test
   fun `listReports throws INVALID_ARGUMENT when mc id doesn't match one in page token`() {
+    val measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.last().measurementConsumerId
     val request = listReportsRequest {
-      parent = MEASUREMENT_CONSUMER_NAMES[0]
+      parent = MEASUREMENT_CONSUMERS.values.first().name
       pageToken =
         listReportsPageToken {
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[1]
+            this.measurementConsumerReferenceId = measurementConsumerReferenceId
             lastReport = previousPageEnd {
-              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[1]
+              this.measurementConsumerReferenceId = measurementConsumerReferenceId
               externalReportId = REPORT_EXTERNAL_IDS[0]
             }
           }
@@ -2803,7 +3233,7 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.listReports(request) }
         }
       }
@@ -2816,11 +3246,11 @@ class ReportsServiceTest {
       whenever(internalReportsMock.streamReports(any()))
         .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
 
-      val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAMES[0] }
+      val request = listReportsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
 
       val exception =
         assertFailsWith(Exception::class) {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
             runBlocking { service.listReports(request) }
           }
         }
@@ -2833,11 +3263,11 @@ class ReportsServiceTest {
     whenever(internalReportsMock.getReport(any()))
       .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
 
-    val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAMES[0] }
+    val request = listReportsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
 
     val exception =
       assertFailsWith(Exception::class) {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.listReports(request) }
         }
       }
@@ -2851,11 +3281,11 @@ class ReportsServiceTest {
     whenever(measurementsMock.getMeasurement(any()))
       .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
 
-    val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAMES[0] }
+    val request = listReportsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
 
     val exception =
       assertFailsWith(Exception::class) {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.listReports(request) }
         }
       }
@@ -2870,11 +3300,11 @@ class ReportsServiceTest {
       whenever(internalMeasurementsMock.setMeasurementResult(any()))
         .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
 
-      val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAMES[0] }
+      val request = listReportsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
 
       val exception =
         assertFailsWith(Exception::class) {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
             runBlocking { service.listReports(request) }
           }
         }
@@ -2906,11 +3336,11 @@ class ReportsServiceTest {
           INTERNAL_PENDING_REACH_REPORT.copy { state = InternalReport.State.FAILED },
         )
 
-      val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAMES[0] }
+      val request = listReportsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
 
       val exception =
         assertFailsWith(Exception::class) {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
             runBlocking { service.listReports(request) }
           }
         }
@@ -2924,17 +3354,16 @@ class ReportsServiceTest {
     whenever(certificateMock.getCertificate(any()))
       .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
 
-    val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAMES[0] }
+    val request = listReportsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
 
     val exception =
       assertFailsWith(Exception::class) {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.listReports(request) }
         }
       }
-    val expectedExceptionDescription =
-      "Unable to retrieve the certificate [${DATA_PROVIDER_CERTIFICATE_NAMES[0]}]."
-    assertThat(exception.message).isEqualTo(expectedExceptionDescription)
+
+    assertThat(exception).hasMessageThat().contains(AGGREGATOR_CERTIFICATE.name)
   }
 
   @Test
@@ -2949,10 +3378,10 @@ class ReportsServiceTest {
         )
       )
 
-    val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAMES[0] }
+    val request = listReportsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
         runBlocking { service.listReports(request) }
       }
 
@@ -2968,7 +3397,8 @@ class ReportsServiceTest {
         streamReportsRequest {
           limit = DEFAULT_PAGE_SIZE + 1
           this.filter = filter {
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+            measurementConsumerReferenceId =
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
           }
         }
       )
@@ -2988,10 +3418,10 @@ class ReportsServiceTest {
         )
       )
 
-    val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAMES[0] }
+    val request = listReportsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
         runBlocking { service.listReports(request) }
       }
 
@@ -3007,7 +3437,8 @@ class ReportsServiceTest {
         streamReportsRequest {
           limit = DEFAULT_PAGE_SIZE + 1
           this.filter = filter {
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+            measurementConsumerReferenceId =
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
           }
         }
       )
@@ -3029,10 +3460,10 @@ class ReportsServiceTest {
         )
       whenever(internalReportsMock.getReport(any())).thenReturn(INTERNAL_PENDING_REACH_REPORT)
 
-      val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAMES[0] }
+      val request = listReportsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.listReports(request) }
         }
 
@@ -3043,7 +3474,8 @@ class ReportsServiceTest {
           streamReportsRequest {
             limit = DEFAULT_PAGE_SIZE + 1
             this.filter = filter {
-              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+              measurementConsumerReferenceId =
+                MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
             }
           }
         )
@@ -3052,7 +3484,8 @@ class ReportsServiceTest {
       verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::getReport)
         .isEqualTo(
           getInternalReportRequest {
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+            measurementConsumerReferenceId =
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
             externalReportId = REPORT_EXTERNAL_IDS[0]
           }
         )
@@ -3080,10 +3513,10 @@ class ReportsServiceTest {
           INTERNAL_PENDING_REACH_REPORT.copy { state = InternalReport.State.FAILED },
         )
 
-      val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAMES[0] }
+      val request = listReportsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.listReports(request) }
         }
 
@@ -3096,7 +3529,8 @@ class ReportsServiceTest {
           streamReportsRequest {
             limit = DEFAULT_PAGE_SIZE + 1
             this.filter = filter {
-              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+              measurementConsumerReferenceId =
+                MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
             }
           }
         )
@@ -3108,7 +3542,8 @@ class ReportsServiceTest {
         )
         .isEqualTo(
           setMeasurementFailureRequest {
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+            measurementConsumerReferenceId =
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
             measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
             failure =
               InternalMeasurementKt.failure {
@@ -3120,7 +3555,8 @@ class ReportsServiceTest {
       verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::getReport)
         .isEqualTo(
           getInternalReportRequest {
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+            measurementConsumerReferenceId =
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
             externalReportId = REPORT_EXTERNAL_IDS[0]
           }
         )
@@ -3136,10 +3572,10 @@ class ReportsServiceTest {
       whenever(measurementsMock.getMeasurement(any())).thenReturn(SUCCEEDED_REACH_MEASUREMENT)
       whenever(internalReportsMock.getReport(any())).thenReturn(INTERNAL_SUCCEEDED_REACH_REPORT)
 
-      val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAMES[0] }
+      val request = listReportsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
 
       val result =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.listReports(request) }
         }
 
@@ -3150,7 +3586,8 @@ class ReportsServiceTest {
           streamReportsRequest {
             limit = DEFAULT_PAGE_SIZE + 1
             this.filter = filter {
-              measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+              measurementConsumerReferenceId =
+                MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
             }
           }
         )
@@ -3163,7 +3600,8 @@ class ReportsServiceTest {
         .usingDoubleTolerance(1e-12)
         .isEqualTo(
           setMeasurementResultRequest {
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+            measurementConsumerReferenceId =
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
             measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
             this.result =
               InternalMeasurementKt.result {
@@ -3178,7 +3616,8 @@ class ReportsServiceTest {
       verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::getReport)
         .isEqualTo(
           getInternalReportRequest {
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+            measurementConsumerReferenceId =
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
             externalReportId = REPORT_EXTERNAL_IDS[0]
           }
         )
@@ -3193,10 +3632,10 @@ class ReportsServiceTest {
     whenever(measurementsMock.getMeasurement(any())).thenReturn(SUCCEEDED_IMPRESSION_MEASUREMENT)
     whenever(internalReportsMock.getReport(any())).thenReturn(INTERNAL_SUCCEEDED_IMPRESSION_REPORT)
 
-    val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAMES[0] }
+    val request = listReportsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
         runBlocking { service.listReports(request) }
       }
 
@@ -3207,7 +3646,8 @@ class ReportsServiceTest {
         streamReportsRequest {
           limit = DEFAULT_PAGE_SIZE + 1
           this.filter = filter {
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+            measurementConsumerReferenceId =
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
           }
         }
       )
@@ -3219,7 +3659,7 @@ class ReportsServiceTest {
       )
       .isEqualTo(
         setMeasurementResultRequest {
-          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
           measurementReferenceId = IMPRESSION_MEASUREMENT_REFERENCE_ID
           this.result =
             InternalMeasurementKt.result {
@@ -3230,7 +3670,7 @@ class ReportsServiceTest {
     verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::getReport)
       .isEqualTo(
         getInternalReportRequest {
-          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
           externalReportId = REPORT_EXTERNAL_IDS[1]
         }
       )
@@ -3247,10 +3687,10 @@ class ReportsServiceTest {
     whenever(internalReportsMock.getReport(any()))
       .thenReturn(INTERNAL_SUCCEEDED_WATCH_DURATION_REPORT)
 
-    val request = listReportsRequest { parent = MEASUREMENT_CONSUMER_NAMES[0] }
+    val request = listReportsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
 
     val result =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
         runBlocking { service.listReports(request) }
       }
 
@@ -3261,7 +3701,8 @@ class ReportsServiceTest {
         streamReportsRequest {
           limit = DEFAULT_PAGE_SIZE + 1
           this.filter = filter {
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+            measurementConsumerReferenceId =
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
           }
         }
       )
@@ -3273,7 +3714,7 @@ class ReportsServiceTest {
       )
       .isEqualTo(
         setMeasurementResultRequest {
-          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
           measurementReferenceId = WATCH_DURATION_MEASUREMENT_REFERENCE_ID
           this.result =
             InternalMeasurementKt.result {
@@ -3285,7 +3726,7 @@ class ReportsServiceTest {
     verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::getReport)
       .isEqualTo(
         getInternalReportRequest {
-          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
           externalReportId = REPORT_EXTERNAL_IDS[2]
         }
       )
@@ -3302,7 +3743,7 @@ class ReportsServiceTest {
       val request = getReportRequest { name = REPORT_NAMES[2] }
 
       val report =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.getReport(request) }
         }
 
@@ -3311,7 +3752,8 @@ class ReportsServiceTest {
       verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::getReport)
         .isEqualTo(
           getInternalReportRequest {
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+            measurementConsumerReferenceId =
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
             externalReportId = REPORT_EXTERNAL_IDS[2]
           }
         )
@@ -3327,7 +3769,7 @@ class ReportsServiceTest {
     val request = getReportRequest { name = REPORT_NAMES[2] }
 
     val report =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
         runBlocking { service.getReport(request) }
       }
 
@@ -3336,7 +3778,7 @@ class ReportsServiceTest {
     verifyProtoArgument(internalReportsMock, ReportsCoroutineImplBase::getReport)
       .isEqualTo(
         getInternalReportRequest {
-          measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+          measurementConsumerReferenceId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
           externalReportId = REPORT_EXTERNAL_IDS[2]
         }
       )
@@ -3353,7 +3795,7 @@ class ReportsServiceTest {
       val request = getReportRequest { name = REPORT_NAMES[2] }
 
       val report =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.getReport(request) }
         }
 
@@ -3368,11 +3810,13 @@ class ReportsServiceTest {
       assertThat(internalReportCaptor.allValues)
         .containsExactly(
           getInternalReportRequest {
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+            measurementConsumerReferenceId =
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
             externalReportId = REPORT_EXTERNAL_IDS[2]
           },
           getInternalReportRequest {
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+            measurementConsumerReferenceId =
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
             externalReportId = REPORT_EXTERNAL_IDS[2]
           }
         )
@@ -3388,7 +3832,7 @@ class ReportsServiceTest {
       val request = getReportRequest { name = REPORT_NAMES[1] }
 
       val report =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.getReport(request) }
         }
 
@@ -3402,7 +3846,8 @@ class ReportsServiceTest {
         )
         .isEqualTo(
           setMeasurementResultRequest {
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+            measurementConsumerReferenceId =
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
             measurementReferenceId = IMPRESSION_MEASUREMENT_REFERENCE_ID
             this.result =
               InternalMeasurementKt.result {
@@ -3417,11 +3862,13 @@ class ReportsServiceTest {
       assertThat(internalReportCaptor.allValues)
         .containsExactly(
           getInternalReportRequest {
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+            measurementConsumerReferenceId =
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
             externalReportId = REPORT_EXTERNAL_IDS[1]
           },
           getInternalReportRequest {
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+            measurementConsumerReferenceId =
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
             externalReportId = REPORT_EXTERNAL_IDS[1]
           }
         )
@@ -3449,7 +3896,7 @@ class ReportsServiceTest {
       val request = getReportRequest { name = REPORT_NAMES[1] }
 
       val report =
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.getReport(request) }
         }
 
@@ -3463,7 +3910,8 @@ class ReportsServiceTest {
         )
         .isEqualTo(
           setMeasurementFailureRequest {
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+            measurementConsumerReferenceId =
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
             measurementReferenceId = IMPRESSION_MEASUREMENT_REFERENCE_ID
             failure =
               InternalMeasurementKt.failure {
@@ -3478,11 +3926,13 @@ class ReportsServiceTest {
       assertThat(internalReportCaptor.allValues)
         .containsExactly(
           getInternalReportRequest {
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+            measurementConsumerReferenceId =
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
             externalReportId = REPORT_EXTERNAL_IDS[1]
           },
           getInternalReportRequest {
-            measurementConsumerReferenceId = MEASUREMENT_CONSUMER_REFERENCE_IDS[0]
+            measurementConsumerReferenceId =
+              MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
             externalReportId = REPORT_EXTERNAL_IDS[1]
           }
         )
@@ -3494,7 +3944,7 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.getReport(request) }
         }
       }
@@ -3508,7 +3958,7 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[1], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.last().name, CONFIG) {
           runBlocking { service.getReport(request) }
         }
       }
@@ -3522,7 +3972,7 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withDataProviderPrincipal(DATA_PROVIDERS[0].name) {
+        withDataProviderPrincipal(DATA_PROVIDERS.values.first().name) {
           runBlocking { service.getReport(request) }
         }
       }
@@ -3540,7 +3990,7 @@ class ReportsServiceTest {
         SUCCEEDED_WATCH_DURATION_MEASUREMENT.copy {
           val measurementSpec = measurementSpec {
             measurementPublicKey =
-              MEASUREMENT_PUBLIC_KEY.copy { data = INVALID_MEASUREMENT_PUBLIC_KEY_DATA }
+              MEASUREMENT_CONSUMER_PUBLIC_KEY.copy { data = INVALID_MEASUREMENT_PUBLIC_KEY_DATA }
                 .toByteString()
           }
           this.measurementSpec =
@@ -3552,7 +4002,7 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.getReport(request) }
         }
       }
@@ -3570,7 +4020,7 @@ class ReportsServiceTest {
 
     val exception =
       assertFailsWith(Exception::class) {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
           runBlocking { service.getReport(request) }
         }
       }
@@ -3626,7 +4076,7 @@ class ReportsServiceTest {
     val request = getReportRequest { name = REPORT_NAMES[2] }
 
     val report =
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAMES[0], CONFIG) {
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
         runBlocking { service.getReport(request) }
       }
 
@@ -3662,3 +4112,18 @@ class ReportsServiceTest {
       )
   }
 }
+
+private fun EventGroupKey.toInternal(): InternalReportingSet.EventGroupKey {
+  val source = this
+  return InternalReportingSetKt.eventGroupKey {
+    measurementConsumerReferenceId = source.measurementConsumerReferenceId
+    dataProviderReferenceId = source.dataProviderReferenceId
+    eventGroupReferenceId = source.eventGroupReferenceId
+  }
+}
+
+private val InternalReportingSet.resourceKey: ReportingSetKey
+  get() =
+    ReportingSetKey(measurementConsumerReferenceId, ExternalId(externalReportingSetId).apiId.value)
+private val InternalReportingSet.resourceName: String
+  get() = resourceKey.toName()

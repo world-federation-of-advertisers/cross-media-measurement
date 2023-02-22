@@ -38,6 +38,8 @@ cue_dump(
     name = "emulators",
     cue_tags = {
         "secret_name": SECRET_NAME,
+        # TODO(@SanjayVas): Use same version as binary from common-jvm.
+        "spanner_emulator_version": "1.4.9",
     },
     deps = [":emulators_cue"],
 )

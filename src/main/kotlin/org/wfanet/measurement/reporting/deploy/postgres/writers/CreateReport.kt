@@ -39,7 +39,7 @@ import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundExc
  * Throws the following on [execute]:
  * * [ReportingSetNotFoundException] ReportingSet not found
  * * [MeasurementCalculationTimeIntervalNotFoundException] MeasurementCalculation TimeInterval not
- * found.
+ *   found.
  */
 class CreateReport(private val request: CreateReportRequest) : PostgresWriter<Report>() {
   override suspend fun TransactionScope.runTransaction(): Report {

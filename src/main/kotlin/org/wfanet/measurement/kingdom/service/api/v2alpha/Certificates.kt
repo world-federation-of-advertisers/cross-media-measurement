@@ -35,7 +35,7 @@ private const val CERTIFICATE_DER_FIELD_NAME = "certificate_der"
  * Parses a `certificate_der` [ByteString] request field into an [InternalCertificate].
  *
  * @throws io.grpc.StatusRuntimeException if [certificateDer] cannot be parsed into an
- * [InternalCertificate].
+ *   [InternalCertificate].
  */
 fun parseCertificateDer(certificateDer: ByteString): InternalCertificate = internalCertificate {
   fillCertificateFromDer(certificateDer)

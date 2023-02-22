@@ -45,12 +45,12 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.duchy.db.computation.BlobRef
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.singleOutputBlobMetadata
 import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
-import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
 import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
@@ -60,6 +60,7 @@ import org.wfanet.measurement.internal.duchy.CreateComputationStatRequest
 import org.wfanet.measurement.internal.duchy.EnqueueComputationRequest
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
+import org.wfanet.measurement.internal.duchy.claimWorkRequest
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationKey
@@ -80,15 +81,15 @@ import org.wfanet.measurement.system.v1alpha.setComputationResultRequest
  * @param signingKey handle to a signing private key for consent signaling.
  * @param consentSignalCert The [Certificate] used for consent signaling.
  * @param dataClients clients that have access to local computation storage, i.e., spanner table and
- * blob store.
+ *   blob store.
  * @param systemComputationParticipantsClient client of the kingdom's system
- * ComputationParticipantsService.
+ *   ComputationParticipantsService.
  * @param systemComputationsClient client of the kingdom's system computationsService.
  * @param systemComputationLogEntriesClient client of the kingdom's system
- * computationLogEntriesService.
+ *   computationLogEntriesService.
  * @param computationStatsClient client of the duchy's internal ComputationStatsService.
  * @param throttler A throttler used to rate limit the frequency of the mill polling from the
- * computation table.
+ *   computation table.
  * @param computationType The [ComputationType] this mill is working on.
  * @param requestChunkSizeBytes The size of data chunk when sending result to other duchies.
  * @param maximumAttempts The maximum number of attempts on a computation at the same stage.
@@ -106,6 +107,7 @@ abstract class MillBase(
   private val computationStatsClient: ComputationStatsCoroutineStub,
   private val throttler: MinimumIntervalThrottler,
   private val computationType: ComputationType,
+  private val workLockDuration: Duration,
   private val requestChunkSizeBytes: Int,
   private val maximumAttempts: Int,
   private val clock: Clock,
@@ -149,8 +151,11 @@ abstract class MillBase(
   suspend fun pollAndProcessNextComputation() {
     logger.fine("@Mill $millId: Polling available computations...")
 
-    val claimWorkRequest =
-      ClaimWorkRequest.newBuilder().setComputationType(computationType).setOwner(millId).build()
+    val claimWorkRequest = claimWorkRequest {
+      computationType = this@MillBase.computationType
+      owner = millId
+      lockDuration = workLockDuration.toProtoDuration()
+    }
     val claimWorkResponse =
       try {
         dataClients.computationsClient.claimWork(claimWorkRequest)

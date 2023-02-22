@@ -38,8 +38,10 @@ import org.wfanet.measurement.api.v2.alpha.ListReportsPageToken
 import org.wfanet.measurement.api.v2.alpha.ListReportsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2.alpha.copy
 import org.wfanet.measurement.api.v2.alpha.listReportsPageToken
+import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
@@ -87,6 +89,7 @@ import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
+import org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
 import org.wfanet.measurement.internal.reporting.CreateReportRequest as InternalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.CreateReportRequest.MeasurementKey as InternalMeasurementKey
@@ -232,6 +235,15 @@ private val REACH_ONLY_MEASUREMENT_SPEC =
     maximumFrequencyPerUser = REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER
   }
 
+private val timeIntervalComparator: (TimeInterval, TimeInterval) -> Int = { a, b ->
+  val start = Timestamps.compare(a.startTime, b.startTime)
+  if (start != 0) {
+    start
+  } else {
+    Timestamps.compare(a.endTime, b.endTime)
+  }
+}
+
 class ReportsService(
   private val internalReportsStub: InternalReportsCoroutineStub,
   private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
@@ -263,6 +275,7 @@ class ReportsService(
     val reportingMeasurementId: String,
     val weightedMeasurement: WeightedMeasurement,
     val timeInterval: TimeInterval,
+    val reportTimeInterval: TimeInterval,
     var kingdomMeasurementId: String? = null,
   )
 
@@ -540,8 +553,8 @@ class ReportsService(
     signingConfig: SigningConfig,
     internalReportingSetMap: Map<Long, InternalReportingSet>
   ): Measurement {
-    val dataProviderNameToInternalEventGroupEntriesList =
-      aggregateInternalEventGroupEntryByDataProviderName(
+    val eventGroupEntriesByDataProvider =
+      groupEventGroupEntriesByDataProvider(
         weightedMeasurementInfo.weightedMeasurement.reportingSets,
         weightedMeasurementInfo.timeInterval.toMeasurementTimeInterval(),
         reportInfo.eventGroupFilters,
@@ -551,7 +564,7 @@ class ReportsService(
     val createMeasurementRequest: CreateMeasurementRequest =
       buildCreateMeasurementRequest(
         measurementConsumer,
-        dataProviderNameToInternalEventGroupEntriesList,
+        eventGroupEntriesByDataProvider,
         internalMetricDetails,
         weightedMeasurementInfo.reportingMeasurementId,
         apiAuthenticationKey,
@@ -1031,11 +1044,11 @@ class ReportsService(
   ): List<MeasurementCalculation> {
     val measurementCalculations = mutableListOf<MeasurementCalculation>()
     setOperationResult.weightedMeasurementInfoList
-      .groupBy { it.timeInterval }
-      .forEach { (timeInterval, weightedMeasurementInfos) ->
+      .groupBy { it.reportTimeInterval }
+      .forEach { (reportTimeInterval, weightedMeasurementInfos) ->
         measurementCalculations.add(
           InternalMetricKt.measurementCalculation {
-            this.timeInterval = timeInterval.toInternal()
+            this.timeInterval = reportTimeInterval.toInternal()
 
             weightedMeasurementInfos.forEach {
               weightedMeasurements +=
@@ -1053,7 +1066,7 @@ class ReportsService(
   /** Builds a [CreateMeasurementRequest]. */
   private suspend fun buildCreateMeasurementRequest(
     measurementConsumer: MeasurementConsumer,
-    dataProviderNameToInternalEventGroupEntriesList: Map<String, List<EventGroupEntry>>,
+    eventGroupEntriesByDataProvider: Map<DataProviderKey, List<EventGroupEntry>>,
     internalMetricDetails: InternalMetricDetails,
     measurementReferenceId: String,
     apiAuthenticationKey: String,
@@ -1079,7 +1092,7 @@ class ReportsService(
 
       dataProviders +=
         buildDataProviderEntries(
-          dataProviderNameToInternalEventGroupEntriesList,
+          eventGroupEntriesByDataProvider,
           measurementEncryptionPublicKey,
           measurementConsumerSigningKey,
           apiAuthenticationKey,
@@ -1101,100 +1114,129 @@ class ReportsService(
     return createMeasurementRequest { this.measurement = measurement }
   }
 
-  /** Builds a map of data provider resource name to a list of [EventGroupEntry]s. */
-  private fun aggregateInternalEventGroupEntryByDataProviderName(
+  /**
+   * Converts internal event group entries into [EventGroupEntry] messages, grouping them by
+   * DataProvider.
+   */
+  private fun groupEventGroupEntriesByDataProvider(
     reportingSetNames: List<String>,
     timeInterval: MeasurementTimeInterval,
     eventGroupFilters: Map<String, String>,
     internalReportingSetMap: Map<Long, InternalReportingSet>
-  ): Map<String, List<EventGroupEntry>> {
-    val internalReportingSetsList = mutableListOf<InternalReportingSet>()
-
-    for (reportingSetName in reportingSetNames) {
-      val reportingSetKey =
-        grpcRequireNotNull(ReportingSetKey.fromName(reportingSetName)) {
-          "Invalid reporting set name $reportingSetName."
-        }
-
-      internalReportingSetsList +=
-        internalReportingSetMap.getValue(apiIdToExternalId(reportingSetKey.reportingSetId))
-    }
-
-    val dataProviderNameToInternalEventGroupEntriesList =
-      mutableMapOf<String, MutableList<EventGroupEntry>>()
-
-    for (internalReportingSet in internalReportingSetsList) {
-      for (eventGroupKey in internalReportingSet.eventGroupKeysList) {
-        val dataProviderName = DataProviderKey(eventGroupKey.dataProviderReferenceId).toName()
-        val eventGroupName =
-          EventGroupKey(
-              eventGroupKey.measurementConsumerReferenceId,
-              eventGroupKey.dataProviderReferenceId,
-              eventGroupKey.eventGroupReferenceId
+  ): Map<DataProviderKey, List<EventGroupEntry>> {
+    return reportingSetNames
+      .flatMap {
+        val reportingSetKey =
+          grpcRequireNotNull(ReportingSetKey.fromName(it)) { "Invalid reporting set name $it" }
+        val internalReportingSet =
+          internalReportingSetMap.getValue(apiIdToExternalId(reportingSetKey.reportingSetId))
+        internalReportingSet.eventGroupKeysList.map { internalEventGroupKey ->
+          val eventGroupKey =
+            EventGroupKey(
+              internalEventGroupKey.measurementConsumerReferenceId,
+              internalEventGroupKey.dataProviderReferenceId,
+              internalEventGroupKey.eventGroupReferenceId
             )
-            .toName()
+          val eventGroupName = eventGroupKey.toName()
+          val filter =
+            combineEventGroupFilters(internalReportingSet.filter, eventGroupFilters[eventGroupName])
 
-        dataProviderNameToInternalEventGroupEntriesList.getOrPut(
-          dataProviderName,
-          ::mutableListOf
-        ) +=
-          RequisitionSpecKt.eventGroupEntry {
-            key = eventGroupName
-            value =
-              RequisitionSpecKt.EventGroupEntryKt.value {
-                collectionInterval = timeInterval
-
-                val filter =
-                  combineEventGroupFilters(
-                    internalReportingSet.filter,
-                    eventGroupFilters[eventGroupName]
-                  )
-                if (filter != null) {
-                  this.filter = RequisitionSpecKt.eventFilter { expression = filter }
+          eventGroupKey to
+            RequisitionSpecKt.eventGroupEntry {
+              key = eventGroupName
+              value =
+                RequisitionSpecKt.EventGroupEntryKt.value {
+                  collectionInterval = timeInterval
+                  if (filter != null) {
+                    this.filter = RequisitionSpecKt.eventFilter { expression = filter }
+                  }
                 }
-              }
-          }
+            }
+        }
       }
-    }
-
-    return dataProviderNameToInternalEventGroupEntriesList.mapValues { it.value.toList() }.toMap()
+      .groupBy(
+        { (eventGroupKey, _) -> DataProviderKey(eventGroupKey.dataProviderReferenceId) },
+        { (_, eventGroupEntry) -> eventGroupEntry }
+      )
   }
 
-  /** Builds a list of [DataProviderEntry]s from lists of [EventGroupEntry]s. */
+  /** Builds a [List] of [DataProviderEntry] messages from [eventGroupEntriesByDataProvider]. */
   private suspend fun buildDataProviderEntries(
-    dataProviderNameToInternalEventGroupEntriesList: Map<String, List<EventGroupEntry>>,
+    eventGroupEntriesByDataProvider: Map<DataProviderKey, List<EventGroupEntry>>,
     measurementEncryptionPublicKey: ByteString,
     measurementConsumerSigningKey: SigningKeyHandle,
     apiAuthenticationKey: String,
   ): List<DataProviderEntry> {
-    return dataProviderNameToInternalEventGroupEntriesList.map {
-      (dataProviderName, eventGroupEntriesList) ->
-      dataProviderEntry {
-        val requisitionSpec = requisitionSpec {
-          eventGroups += eventGroupEntriesList
-          this.measurementPublicKey = measurementEncryptionPublicKey
-          nonce = secureRandom.nextLong()
+    return eventGroupEntriesByDataProvider.map { (dataProviderKey, eventGroupEntriesList) ->
+      // TODO(@SanjayVas): Consider caching the public key and certificate.
+      val dataProviderName: String = dataProviderKey.toName()
+      val dataProvider: DataProvider =
+        try {
+          dataProvidersStub
+            .withAuthenticationKey(apiAuthenticationKey)
+            .getDataProvider(getDataProviderRequest { name = dataProviderName })
+        } catch (e: StatusException) {
+          throw when (e.status.code) {
+              Status.Code.NOT_FOUND ->
+                Status.FAILED_PRECONDITION.withDescription("$dataProviderName not found")
+              else -> Status.UNKNOWN.withDescription("Unable to retrieve $dataProviderName")
+            }
+            .withCause(e)
+            .asRuntimeException()
         }
 
-        val dataProvider =
-          try {
-            dataProvidersStub
-              .withAuthenticationKey(apiAuthenticationKey)
-              .getDataProvider(getDataProviderRequest { name = dataProviderName })
-          } catch (e: StatusException) {
-            throw Exception("Unable to retrieve the data provider [$dataProviderName].", e)
-          }
+      val certificate: Certificate =
+        try {
+          certificateStub
+            .withAuthenticationKey(apiAuthenticationKey)
+            .getCertificate(getCertificateRequest { name = dataProvider.certificate })
+        } catch (e: StatusException) {
+          throw Exception("Unable to retrieve Certificate ${dataProvider.certificate}", e)
+        }
+      if (certificate.revocationState != Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED) {
+        throw Status.FAILED_PRECONDITION.withDescription(
+            "${certificate.name} revocation state is ${certificate.revocationState}"
+          )
+          .asRuntimeException()
+      }
 
+      val x509Certificate: X509Certificate = readCertificate(certificate.x509Der)
+      val trustedIssuer: X509Certificate =
+        trustedCertificates[checkNotNull(x509Certificate.authorityKeyIdentifier)]
+          ?: throw Status.FAILED_PRECONDITION.withDescription(
+              "${certificate.name} not issued by trusted CA"
+            )
+            .asRuntimeException()
+      try {
+        verifyEncryptionPublicKey(dataProvider.publicKey, x509Certificate, trustedIssuer)
+      } catch (e: CertPathValidatorException) {
+        throw Status.FAILED_PRECONDITION.withCause(e)
+          .withDescription("Certificate path for ${certificate.name} is invalid")
+          .asRuntimeException()
+      } catch (e: SignatureException) {
+        throw Status.FAILED_PRECONDITION.withCause(e)
+          .withDescription("DataProvider public key signature is invalid")
+          .asRuntimeException()
+      }
+
+      val requisitionSpec = requisitionSpec {
+        eventGroups += eventGroupEntriesList
+        measurementPublicKey = measurementEncryptionPublicKey
+        nonce = secureRandom.nextLong()
+      }
+      val encryptRequisitionSpec =
+        encryptRequisitionSpec(
+          signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
+          EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
+        )
+
+      dataProviderEntry {
         key = dataProvider.name
         value =
           DataProviderEntryKt.value {
-            dataProviderCertificate = dataProvider.certificate
+            dataProviderCertificate = certificate.name
             dataProviderPublicKey = dataProvider.publicKey
-            encryptedRequisitionSpec =
-              encryptRequisitionSpec(
-                signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
-                EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
-              )
+            this.encryptedRequisitionSpec = encryptRequisitionSpec
             nonceHash = hashSha256(requisitionSpec.nonce)
           }
       }
@@ -1285,15 +1327,23 @@ class ReportsService(
     private suspend fun compileAllSetOperations(): Map<String, SetOperationResult> {
       val namedSetOperationResults = mutableMapOf<String, SetOperationResult>()
 
-      val timeIntervalsList = report.timeIntervalsList()
+      var hasCumulativeMetric = false
+      for (metric in report.metricsList) {
+        if (metric.cumulative) {
+          hasCumulativeMetric = true
+          break
+        }
+      }
+      val timeIntervalsList = report.timeIntervalsList(hasCumulativeMetric)
+      val sortedTimeIntervalsList = timeIntervalsList.sortedWith(timeIntervalComparator)
       val cumulativeTimeIntervalsList =
-        timeIntervalsList.map { timeInterval ->
-          timeInterval.copy { this.startTime = timeIntervalsList.first().startTime }
+        sortedTimeIntervalsList.map { timeInterval ->
+          timeInterval.copy { this.startTime = sortedTimeIntervalsList.first().startTime }
         }
 
       for (metric in report.metricsList) {
         val metricTimeIntervalsList =
-          if (metric.cumulative) cumulativeTimeIntervalsList else timeIntervalsList
+          if (metric.cumulative) cumulativeTimeIntervalsList else sortedTimeIntervalsList
         val internalMetricDetails: InternalMetricDetails = buildInternalMetricDetails(metric)
 
         for (namedSetOperation in metric.setOperationsList) {
@@ -1311,6 +1361,7 @@ class ReportsService(
               namedSetOperation.setOperation,
               setOperationId,
               metricTimeIntervalsList,
+              sortedTimeIntervalsList
             )
           namedSetOperationResults[setOperationId] =
             SetOperationResult(weightedMeasurementInfoList, internalMetricDetails)
@@ -1352,15 +1403,27 @@ class ReportsService(
       reportingSetExternalIds.add(apiIdToExternalId(reportingSetKey.reportingSetId))
     }
 
-    /** Compiles a [SetOperation] and outputs each result with measurement reference ID. */
+    /**
+     * Compiles a [SetOperation] and outputs each result with measurement reference ID.
+     *
+     * metricTimeIntervalsList and timeIntervalsList are required to be the same size.
+     */
     private suspend fun compileSetOperation(
       setOperation: SetOperation,
       setOperationId: String,
-      timeIntervalsList: List<TimeInterval>,
+      metricTimeIntervalsList: List<TimeInterval>,
+      reportTimeIntervalsList: List<TimeInterval>,
     ): List<WeightedMeasurementInfo> {
+      if (metricTimeIntervalsList.size != reportTimeIntervalsList.size) {
+        throw IllegalArgumentException()
+      }
+      val sortedReportTimeIntervalsList = reportTimeIntervalsList.sortedWith(timeIntervalComparator)
+
       val weightedMeasurementsList = setOperationCompiler.compileSetOperation(setOperation)
 
-      return timeIntervalsList.flatMap { timeInterval ->
+      return metricTimeIntervalsList.sortedWith(timeIntervalComparator).flatMapIndexed {
+        timeIntervalsIndex,
+        timeInterval ->
         weightedMeasurementsList.mapIndexed { index, weightedMeasurement ->
           val measurementReferenceId =
             buildMeasurementReferenceId(
@@ -1369,7 +1432,12 @@ class ReportsService(
               index,
             )
 
-          WeightedMeasurementInfo(measurementReferenceId, weightedMeasurement, timeInterval)
+          WeightedMeasurementInfo(
+            measurementReferenceId,
+            weightedMeasurement,
+            timeInterval = timeInterval,
+            reportTimeInterval = sortedReportTimeIntervalsList[timeIntervalsIndex]
+          )
         }
       }
     }
@@ -1402,11 +1470,14 @@ class ReportsService(
 }
 
 /** Converts the time in [Report] to a list of [TimeInterval]. */
-private fun Report.timeIntervalsList(): List<TimeInterval> {
+private fun Report.timeIntervalsList(hasCumulativeMetric: Boolean): List<TimeInterval> {
   val source = this
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
   return when (source.timeCase) {
     Report.TimeCase.TIME_INTERVALS -> {
+      if (hasCumulativeMetric) {
+        failGrpc(Status.INVALID_ARGUMENT) { "Cannot use TimeIntervals with a cumulative Metric." }
+      }
       grpcRequire(source.timeIntervals.timeIntervalsList.isNotEmpty()) {
         "TimeIntervals timeIntervalsList is empty."
       }

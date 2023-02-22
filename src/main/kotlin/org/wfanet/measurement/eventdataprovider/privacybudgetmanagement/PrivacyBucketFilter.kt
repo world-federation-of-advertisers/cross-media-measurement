@@ -1,11 +1,11 @@
-/**
+/*
  * Copyright 2022 The Cross-Media Measurement Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
- * ```
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * ```
+ *
  * Unless required by applicable law or agreed to in writing, software distributed under the License
  * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
  * or implied. See the License for the specific language governing permissions and limitations under
@@ -13,20 +13,26 @@
  */
 package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement
 
-import java.time.LocalDate
+import java.time.Clock
+import java.time.ZoneOffset
+import org.wfanet.measurement.common.OpenEndTimeRange
+import org.wfanet.measurement.common.rangeTo
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
-class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
+class PrivacyBucketFilter(
+  private val privacyBucketMapper: PrivacyBucketMapper,
+  private val clock: Clock = Clock.systemUTC()
+) {
   /**
    * Returns a list of privacy bucket groups that might be affected by a query.
    *
    * @param requisitionSpec The requisitionSpec protobuf that is associated with the query. The date
-   * range and demo groups are obtained from this.
+   *   range and demo groups are obtained from this.
    * @param measurementSpec The measurementSpec protobuf that is associated with the query. The VID
-   * sampling interval is obtained from from this.
+   *   sampling interval is obtained from from this.
    * @return A set of potentially affected PrivacyBucketGroups. It is guaranteed that the items in
-   * this list are disjoint. In the current implementation, each privacy bucket group represents a
-   * single privacy bucket.
+   *   this list are disjoint. In the current implementation, each privacy bucket group represents a
+   *   single privacy bucket.
    */
   fun getPrivacyBucketGroups(
     measurementConsumerId: String,
@@ -37,9 +43,7 @@ class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
       .flatMap {
         getPrivacyBucketGroups(
           measurementConsumerId,
-          it.eventFilter,
-          it.startDate,
-          it.endDate,
+          it,
           privacyLandscapeMask.vidSampleStart,
           privacyLandscapeMask.vidSampleStart + privacyLandscapeMask.vidSampleWidth
         )
@@ -49,23 +53,20 @@ class PrivacyBucketFilter(val privacyBucketMapper: PrivacyBucketMapper) {
 
   private fun getPrivacyBucketGroups(
     measurementConsumerId: String,
-    eventFilter: String,
-    startDate: LocalDate,
-    endDate: LocalDate,
+    eventSpec: EventGroupSpec,
     vidSamplingIntervalStart: Float,
     vidSamplingIntervalEnd: Float
   ): Sequence<PrivacyBucketGroup> {
-
-    val program = privacyBucketMapper.toPrivacyFilterProgram(eventFilter)
+    val program = privacyBucketMapper.toPrivacyFilterProgram(eventSpec.eventFilter)
 
     val vidsIntervalStartPoints =
       PrivacyLandscape.vidsIntervalStartPoints.filter {
-        it >= vidSamplingIntervalStart && it <= vidSamplingIntervalEnd
+        it in vidSamplingIntervalStart..vidSamplingIntervalEnd
       }
+    val today = clock.instant().atZone(ZoneOffset.UTC).toLocalDate()
     val dates =
-      PrivacyLandscape.dates.filter {
-        (it.isAfter(startDate) || it.isEqual(startDate)) &&
-          (it.isBefore(endDate) || it.isEqual(endDate))
+      (today.minus(PrivacyLandscape.datePeriod)..today).filter {
+        OpenEndTimeRange.fromClosedDateRange(it..it).overlaps(eventSpec.timeRange)
       }
 
     return sequence {

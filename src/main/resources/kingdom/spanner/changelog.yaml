@@ -24,3 +24,9 @@ databaseChangeLog:
 - include:
     file: add-event-group-metadata-idempotency-key.sql
     relativeToChangeLogFile: true
+- include:
+    file: add-event-group-state.sql
+    relativeToChangeLogFile: true
+- include:
+    file: create-measurements-by-token-index.sql
+    relativeToChangeLogFile: true

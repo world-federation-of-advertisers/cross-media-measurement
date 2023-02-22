@@ -30,7 +30,6 @@ import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
-import org.wfanet.measurement.internal.duchy.computationStage
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig
 import org.wfanet.measurement.internal.duchy.createComputationRequest
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant
@@ -40,11 +39,14 @@ import org.wfanet.measurement.internal.duchy.updateComputationDetailsRequest
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant as SystemComputationParticipant
 
+private const val MIN_REACH_EPSILON = 0.00001
+private const val MIN_FREQUENCY_EPSILON = 0.00001
+
 object LiquidLegionsV2Starter {
 
   private val logger: Logger = Logger.getLogger(this::class.java.name)
 
-  val failStage = Stage.COMPLETE.toProtocolStage()
+  val TERMINAL_STAGE = Stage.COMPLETE.toProtocolStage()
 
   suspend fun createComputation(
     computationStorageClient: ComputationsCoroutineStub,
@@ -303,8 +305,15 @@ object LiquidLegionsV2Starter {
               require(reachAndFrequency.reachPrivacyParams.delta > 0) {
                 "LLv2 requires that reach_privacy_params.delta be greater than 0"
               }
+              require(reachAndFrequency.reachPrivacyParams.epsilon > MIN_REACH_EPSILON) {
+                "LLv2 requires that reach_privacy_params.epsilon be greater than $MIN_REACH_EPSILON"
+              }
               require(reachAndFrequency.frequencyPrivacyParams.delta > 0) {
                 "LLv2 requires that frequency_privacy_params.delta be greater than 0"
+              }
+              require(reachAndFrequency.frequencyPrivacyParams.epsilon > MIN_FREQUENCY_EPSILON) {
+                "LLv2 requires that frequency_privacy_params.epsilon be greater than " +
+                  "$MIN_FREQUENCY_EPSILON"
               }
               reachNoiseConfigBuilder.globalReachDpNoise =
                 reachAndFrequency.reachPrivacyParams.toDuchyDifferentialPrivacyParams()

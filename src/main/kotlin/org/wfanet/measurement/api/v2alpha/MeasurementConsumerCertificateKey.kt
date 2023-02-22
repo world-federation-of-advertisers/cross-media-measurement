@@ -46,10 +46,3 @@ data class MeasurementConsumerCertificateKey(
     }
   }
 }
-
-fun makeMeasurementConsumerCertificateName(
-  measurementConsumerId: String,
-  certificateId: String
-): String {
-  return MeasurementConsumerCertificateKey(measurementConsumerId, certificateId).toName()
-}

@@ -66,8 +66,8 @@ private val BASE_SQL =
         DuchyMeasurementLogEntries.DuchyMeasurementLogDetails,
         MeasurementLogEntries.MeasurementLogDetails
       FROM
-        DuchyMeasurementLogEntries
-        JOIN MeasurementLogEntries USING (MeasurementConsumerId, MeasurementId, CreateTime)
+        MeasurementLogEntries
+        JOIN DuchyMeasurementLogEntries USING (MeasurementConsumerId, MeasurementId, CreateTime)
       WHERE
         DuchyMeasurementLogEntries.DuchyId = ComputationParticipants.DuchyId
         AND DuchyMeasurementLogEntries.MeasurementConsumerId = ComputationParticipants.MeasurementConsumerId
@@ -75,11 +75,15 @@ private val BASE_SQL =
       ORDER BY MeasurementLogEntries.CreateTime DESC
     ) AS DuchyMeasurementLogEntries
   FROM
-    ComputationParticipants
-    LEFT JOIN (DuchyCertificates JOIN Certificates USING (CertificateId))
-      USING (DuchyId, CertificateId)
-    JOIN Measurements USING (MeasurementConsumerId, MeasurementId)
+    Measurements
     JOIN MeasurementConsumers USING (MeasurementConsumerId)
+    JOIN ComputationParticipants USING (MeasurementConsumerId, MeasurementId)
+    LEFT JOIN (
+      DuchyCertificates
+      JOIN Certificates ON DuchyCertificates.CertificateId = Certificates.CertificateId
+    ) ON
+      ComputationParticipants.DuchyId = DuchyCertificates.DuchyId
+      AND ComputationParticipants.CertificateId = DuchyCertificates.CertificateId
   """
     .trimIndent()
 
@@ -110,7 +114,7 @@ class ComputationParticipantReader : BaseSpannerReader<ComputationParticipantRea
         """
         WHERE
           ExternalComputationId = @externalComputationId
-          AND DuchyId = @duchyId
+          AND ComputationParticipants.DuchyId = @duchyId
         """
           .trimIndent()
       )

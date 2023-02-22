@@ -126,6 +126,7 @@ package k8s
 					_internal_api_cert_host_flag,
 					_akid_to_principal_map_file_flag,
 					_open_id_redirect_uri_flag,
+					_duchy_info_config_flag,
 				] + Container._commonServerFlags
 			}
 			spec: template: spec: {
@@ -166,10 +167,7 @@ package k8s
 		}
 		"system-api-server": {
 			_app_label: "system-api-server-app"
-			_destinationMatchLabels: [
-				"gcp-kingdom-data-server-app",
-				"opentelemetry-collector-app",
-			]
+			_destinationMatchLabels: ["gcp-kingdom-data-server-app"]
 			_ingresses: {
 				// External API server; allow ingress from anywhere to service port.
 				gRpc: {

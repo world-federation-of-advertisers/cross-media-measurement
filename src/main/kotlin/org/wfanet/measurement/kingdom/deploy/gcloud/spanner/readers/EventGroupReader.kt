@@ -23,6 +23,7 @@ import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.EventGroup
+import org.wfanet.measurement.internal.kingdom.eventGroup
 
 private val BASE_SQL =
   """
@@ -30,17 +31,19 @@ private val BASE_SQL =
       EventGroups.EventGroupId,
       EventGroups.ExternalEventGroupId,
       EventGroups.MeasurementConsumerId,
-      EventGroups.MeasurementConsumerCertificateId,
       EventGroups.DataProviderId,
       EventGroups.ProvidedEventGroupId,
       EventGroups.CreateTime,
       EventGroups.UpdateTime,
       EventGroups.EventGroupDetails,
       MeasurementConsumers.ExternalMeasurementConsumerId,
-      DataProviders.ExternalDataProviderId
+      DataProviders.ExternalDataProviderId,
+      MeasurementConsumerCertificates.ExternalMeasurementConsumerCertificateId
     FROM EventGroups
     JOIN MeasurementConsumers USING (MeasurementConsumerId)
     JOIN DataProviders USING (DataProviderId)
+    LEFT JOIN MeasurementConsumerCertificates ON MeasurementConsumerCertificateId = CertificateId
+      AND EventGroups.MeasurementConsumerId = MeasurementConsumerCertificates.MeasurementConsumerId
     """
     .trimIndent()
 
@@ -105,24 +108,21 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
       InternalId(struct.getLong("DataProviderId"))
     )
 
-  private fun buildEventGroup(struct: Struct): EventGroup =
-    EventGroup.newBuilder()
-      .apply {
-        externalEventGroupId = struct.getLong("ExternalEventGroupId")
-        externalDataProviderId = struct.getLong("ExternalDataProviderId")
-        externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
-        if (!struct.isNull("MeasurementConsumerCertificateId")) {
-          externalMeasurementConsumerCertificateId =
-            struct.getLong("MeasurementConsumerCertificateId")
-        }
-        if (!struct.isNull("ProvidedEventGroupId")) {
-          providedEventGroupId = struct.getString("ProvidedEventGroupId")
-        }
-        createTime = struct.getTimestamp("CreateTime").toProto()
-        updateTime = struct.getTimestamp("UpdateTime").toProto()
-        if (!struct.isNull("EventGroupDetails")) {
-          details = struct.getProtoMessage("EventGroupDetails", EventGroup.Details.parser())
-        }
-      }
-      .build()
+  private fun buildEventGroup(struct: Struct): EventGroup = eventGroup {
+    externalEventGroupId = struct.getLong("ExternalEventGroupId")
+    externalDataProviderId = struct.getLong("ExternalDataProviderId")
+    externalMeasurementConsumerId = struct.getLong("ExternalMeasurementConsumerId")
+    if (!struct.isNull("ExternalMeasurementConsumerCertificateId")) {
+      externalMeasurementConsumerCertificateId =
+        struct.getLong("ExternalMeasurementConsumerCertificateId")
+    }
+    if (!struct.isNull("ProvidedEventGroupId")) {
+      providedEventGroupId = struct.getString("ProvidedEventGroupId")
+    }
+    createTime = struct.getTimestamp("CreateTime").toProto()
+    updateTime = struct.getTimestamp("UpdateTime").toProto()
+    if (!struct.isNull("EventGroupDetails")) {
+      details = struct.getProtoMessage("EventGroupDetails", EventGroup.Details.parser())
+    }
+  }
 }

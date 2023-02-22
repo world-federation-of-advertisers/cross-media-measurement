@@ -29,6 +29,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.readDataProv
  * Creates a EventGroupMetadataDescriptor in the database.
  *
  * Throws a subclass of [KingdomInternalException] on [execute].
+ *
  * @throws [DataProviderNotFoundException] DataProvider not found
  */
 class CreateEventGroupMetadataDescriptor(

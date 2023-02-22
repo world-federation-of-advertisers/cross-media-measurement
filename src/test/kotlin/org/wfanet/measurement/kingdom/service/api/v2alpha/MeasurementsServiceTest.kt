@@ -125,7 +125,6 @@ private val DUCHY_CERTIFICATE_NAME = "duchies/AAAAAAAAAHs/certificates/AAAAAAAAA
 private val DATA_PROVIDER_NONCE_HASH: ByteString =
   HexString("97F76220FEB39EE6F262B1F0C8D40F221285EEDE105748AE98F7DC241198D69F").bytes
 private val UPDATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
-private const val ALLOW_MPC_PROTOCOLS_FOR_SINGLE_DATA_PROVIDER = true
 
 @RunWith(JUnit4::class)
 class MeasurementsServiceTest {
@@ -159,7 +158,6 @@ class MeasurementsServiceTest {
     service =
       MeasurementsService(
         MeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
-        ALLOW_MPC_PROTOCOLS_FOR_SINGLE_DATA_PROVIDER
       )
   }
 
@@ -1486,8 +1484,6 @@ class MeasurementsServiceTest {
           delta = 3.3
         }
       }
-      protocols +=
-        ProtocolConfigKt.protocol { liquidLegionsV2 = this@protocolConfig.liquidLegionsV2 }
       protocols += ProtocolConfigKt.protocol { direct = ProtocolConfigKt.direct {} }
     }
 

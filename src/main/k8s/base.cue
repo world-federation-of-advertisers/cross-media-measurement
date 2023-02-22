@@ -65,6 +65,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 
 #OpenTelemetryReceiverPort:           4317
 #OpenTelemetryPrometheusExporterPort: 8889
+#OpenTelemetryCollectorEndpoint:      "http://default-collector-headless.default.svc:\(#OpenTelemetryReceiverPort)"
 
 #ResourceQuantity: {
 	cpu?:    string
@@ -607,7 +608,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	}
 	_egresses: {
 		if len(_destinationMatchLabels) > 0 {
-			pods: {
+			grpc: {
 				to: [ for appLabel in _destinationMatchLabels {
 					podSelector: matchLabels: app: appLabel
 				}]

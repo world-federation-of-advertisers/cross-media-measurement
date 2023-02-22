@@ -23,8 +23,8 @@ option java_multiple_files = true;
 
 message LoadTestEvent {
   message Privacy {
-    option (.wfa.measurement.api.v2alpha.event_field) = {
-      display_name: "Privacy"
+    option (.wfa.measurement.api.v2alpha.event_template) = {
+      name: "privacy"
     };
 
     // Whether or not this event can be filtered by the privacy bucket filter.

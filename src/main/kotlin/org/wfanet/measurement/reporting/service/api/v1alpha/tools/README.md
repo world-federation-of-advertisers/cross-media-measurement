@@ -58,7 +58,7 @@ the token returned from the previous response.
 Reporting \
   --tls-cert-file=secretfiles/mc_tls.pem \
   --tls-key-file=secretfiles/mc_tls.key \
-  --cert-collection-file=secretfiles/kingdom_root.pem \
+  --cert-collection-file=secretfiles/reporting_root.pem \
   --reporting-server-api-target=v1alpha.reporting.dev.halo-cmm.org:8443 \
   reports create \
   --idempotency-key="report001" \
@@ -107,7 +107,7 @@ metric1.textproto)`.
 Reporting \
   --tls-cert-file=secretfiles/mc_tls.pem \
   --tls-key-file=secretfiles/mc_tls.key \
-  --cert-collection-file=secretfiles/kingdom_root.pem \
+  --cert-collection-file=secretfiles/reporting_root.pem \
   --reporting-server-api-target=v1alpha.reporting.dev.halo-cmm.org:8443 \
   reports list --parent=measurementConsumers/777
 ```
@@ -118,7 +118,20 @@ Reporting \
 Reporting \
   --tls-cert-file=secretfiles/mc_tls.pem \
   --tls-key-file=secretfiles/mc_tls.key \
-  --cert-collection-file=secretfiles/kingdom_root.pem \
+  --cert-collection-file=secretfiles/reporting_root.pem \
   --reporting-server-api-target=v1alpha.reporting.dev.halo-cmm.org:8443 \
   reports get measurementConsumers/777/reports/5
+```
+
+### event-groups
+
+#### list
+```shell
+Reporting \
+  --tls-cert-file=secretfiles/mc_tls.pem \
+  --tls-key-file=secretfiles/mc_tls.key \
+  --cert-collection-file=secretfiles/reporting_root.pem \
+  --reporting-server-api-target=v1alpha.reporting.dev.halo-cmm.org:8443 \
+  event-groups list \
+  --parent=measurementConsumers/777/dataProviders/1
 ```

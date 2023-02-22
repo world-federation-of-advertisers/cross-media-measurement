@@ -42,8 +42,9 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelProvide
  * Creates a certificate in the database.
  *
  * Throws a subclass of [KingdomInternalException] on [execute].
+ *
  * @throws [CertSubjectKeyIdAlreadyExistsException] subjectKeyIdentifier of [Certificate] collides
- * with a certificate already in the database
+ *   with a certificate already in the database
  * @throws [DataProviderNotFoundException] DataProvider not found
  * @throws [MeasurementConsumerNotFoundException] MeasurementConsumer not found
  * @throws [DuchyNotFoundException] Duchy not found

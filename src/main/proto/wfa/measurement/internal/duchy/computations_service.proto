@@ -16,11 +16,12 @@ syntax = "proto3";
 
 package wfa.measurement.internal.duchy;
 
+import "google/protobuf/duration.proto";
+import "google/protobuf/empty.proto";
 import "wfa/measurement/internal/duchy/computation_details.proto";
 import "wfa/measurement/internal/duchy/computation_protocols.proto";
 import "wfa/measurement/internal/duchy/computation_token.proto";
 import "wfa/measurement/internal/duchy/requisition_details.proto";
-import "google/protobuf/empty.proto";
 
 option java_package = "org.wfanet.measurement.internal.duchy";
 option java_multiple_files = true;
@@ -189,6 +190,10 @@ message AdvanceComputationStageRequest {
   // operation to change the stage and keep it in the right queue state
   // with respect to other processes.
   AfterTransition after_transition = 6;
+
+  // How long to extend the lock for. If not specified, a default value may be
+  // chosen by the server.
+  google.protobuf.Duration lock_extension = 8;
 }
 message AdvanceComputationStageResponse {
   ComputationToken token = 1;
@@ -202,6 +207,10 @@ message ClaimWorkRequest {
   // Name of the owner of the task. This information
   // is recorded on a computation when claimed.
   string owner = 2;
+
+  // How long the work lock is held for as a result of this claim. If not
+  // specified, a default value may be chosen by the server.
+  google.protobuf.Duration lock_duration = 3;
 }
 message ClaimWorkResponse {
   // The token of the computation being claimed. The response would be empty if

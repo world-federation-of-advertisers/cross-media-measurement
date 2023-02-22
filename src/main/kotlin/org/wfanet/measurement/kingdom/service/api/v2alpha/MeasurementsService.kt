@@ -67,7 +67,6 @@ private const val MISSING_RESOURCE_NAME_ERROR = "Resource name is either unspeci
 
 class MeasurementsService(
   private val internalMeasurementsStub: MeasurementsCoroutineStub,
-  private val allowMpcProtocolsForSingleDataProvider: Boolean,
 ) : MeasurementsCoroutineImplBase() {
 
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
@@ -97,7 +96,7 @@ class MeasurementsService(
         }
       }
 
-    return internalMeasurement.toMeasurement(allowMpcProtocolsForSingleDataProvider)
+    return internalMeasurement.toMeasurement()
   }
 
   override suspend fun createMeasurement(request: CreateMeasurementRequest): Measurement {
@@ -170,7 +169,7 @@ class MeasurementsService(
         }
       }
 
-    return internalMeasurement.toMeasurement(allowMpcProtocolsForSingleDataProvider)
+    return internalMeasurement.toMeasurement()
   }
 
   override suspend fun listMeasurements(
@@ -202,7 +201,7 @@ class MeasurementsService(
       measurement +=
         results.subList(0, min(results.size, listMeasurementsPageToken.pageSize)).map {
           internalMeasurement ->
-          internalMeasurement.toMeasurement(allowMpcProtocolsForSingleDataProvider)
+          internalMeasurement.toMeasurement()
         }
       if (results.size > listMeasurementsPageToken.pageSize) {
         val pageToken =
@@ -247,7 +246,7 @@ class MeasurementsService(
         }
       }
 
-    return internalMeasurement.toMeasurement(allowMpcProtocolsForSingleDataProvider)
+    return internalMeasurement.toMeasurement()
   }
 }
 

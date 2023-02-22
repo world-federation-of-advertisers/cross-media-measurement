@@ -15,6 +15,7 @@
 package org.wfanet.measurement.duchy.db.computation.testing
 
 import io.grpc.Status
+import java.time.Duration
 import kotlin.experimental.ExperimentalTypeInference
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.duchy.db.computation.AfterTransition
@@ -150,7 +151,7 @@ private constructor(
    *
    * @param tokenToUpdate token of the computation that will be changed.
    * @param changedTokenBuilderFunc function which returns a [ComputationToken.Builder] used to
-   * replace the [tokenToUpdate]. The version of the token is always incremented.
+   *   replace the [tokenToUpdate]. The version of the token is always incremented.
    */
   @OptIn(ExperimentalTypeInference::class)
   @OverloadResolutionByLambdaReturnType
@@ -199,7 +200,8 @@ private constructor(
     passThroughBlobPaths: List<String>,
     outputBlobs: Int,
     afterTransition: AfterTransition,
-    nextStageDetails: ComputationStageDetails
+    nextStageDetails: ComputationStageDetails,
+    lockExtension: Duration?
   ) {
     updateToken(token) { existing ->
       require(validTransition(existing.computationStage, nextStage))
@@ -336,7 +338,11 @@ private constructor(
     }
   }
 
-  override suspend fun claimTask(protocol: ComputationType, ownerId: String): String? {
+  override suspend fun claimTask(
+    protocol: ComputationType,
+    ownerId: String,
+    lockDuration: Duration
+  ): String? {
     val claimed =
       tokens.values
         .asSequence()

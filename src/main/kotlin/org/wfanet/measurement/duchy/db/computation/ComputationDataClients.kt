@@ -74,7 +74,7 @@ private constructor(
    * written.
    *
    * @return the resulting [ComputationToken] after updating blob reference, or [computationToken]
-   * if no blob was written
+   *   if no blob was written
    */
   private suspend fun writeSingleOutputBlob(
     computationToken: ComputationToken,
@@ -102,7 +102,7 @@ private constructor(
    * @param metadata [ComputationStageBlobMetadata] for the blob
    * @param content blob content to write
    * @return resulting [ComputationToken] from write, or [computationToken] if no write was
-   * performed
+   *   performed
    */
   private suspend fun writeBlobIfNotPresent(
     computationToken: ComputationToken,

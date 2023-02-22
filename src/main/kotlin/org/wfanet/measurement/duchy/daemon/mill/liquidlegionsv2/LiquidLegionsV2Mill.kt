@@ -23,6 +23,7 @@ import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.time.Clock
+import java.time.Duration
 import java.util.logging.Logger
 import kotlin.math.min
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
@@ -105,20 +106,20 @@ import org.wfanet.measurement.system.v1alpha.SetParticipantRequisitionParamsRequ
  * @param consentSignalCert The [Certificate] used for consent signaling.
  * @param trustedCertificates [Map] of SKID to trusted certificate
  * @param dataClients clients that have access to local computation storage, i.e., spanner table and
- * blob store.
+ *   blob store.
  * @param systemComputationParticipantsClient client of the kingdom's system
- * ComputationParticipantsService.
+ *   ComputationParticipantsService.
  * @param systemComputationsClient client of the kingdom's system computationsService.
  * @param systemComputationLogEntriesClient client of the kingdom's system
- * computationLogEntriesService.
+ *   computationLogEntriesService.
  * @param computationStatsClient client of the duchy's internal ComputationStatsService.
  * @param throttler A throttler used to rate limit the frequency of the mill polling from the
- * computation table.
+ *   computation table.
  * @param requestChunkSizeBytes The size of data chunk when sending result to other duchies.
  * @param clock A clock
  * @param maximumAttempts The maximum number of attempts on a computation at the same stage.
  * @param workerStubs A map from other duchies' Ids to their corresponding
- * computationControlClients, used for passing computation to other duchies.
+ *   computationControlClients, used for passing computation to other duchies.
  * @param cryptoWorker The cryptoWorker that performs the actual computation.
  */
 class LiquidLegionsV2Mill(
@@ -133,8 +134,9 @@ class LiquidLegionsV2Mill(
   systemComputationLogEntriesClient: ComputationLogEntriesCoroutineStub,
   computationStatsClient: ComputationStatsCoroutineStub,
   throttler: MinimumIntervalThrottler,
-  private val workerStubs: Map<String, ComputationControlCoroutineStub>, // 32 KiB
+  private val workerStubs: Map<String, ComputationControlCoroutineStub>,
   private val cryptoWorker: LiquidLegionsV2Encryption,
+  workLockDuration: Duration,
   openTelemetry: OpenTelemetry,
   requestChunkSizeBytes: Int = 1024 * 32,
   maximumAttempts: Int = 10,
@@ -152,6 +154,7 @@ class LiquidLegionsV2Mill(
     computationStatsClient,
     throttler,
     ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
+    workLockDuration,
     requestChunkSizeBytes,
     maximumAttempts,
     clock,
