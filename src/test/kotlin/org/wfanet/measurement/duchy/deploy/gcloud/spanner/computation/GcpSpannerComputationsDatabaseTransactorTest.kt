@@ -19,6 +19,7 @@ import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.ValueBinder
 import com.google.protobuf.kotlin.toByteStringUtf8
+import java.time.Duration
 import java.time.Instant
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -233,6 +234,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
       FakeComputationDetails.newBuilder().apply { role = "foo" }.build()
 
     val TEST_INSTANT: Instant = Instant.ofEpochMilli(123456789L)
+
+    private val DEFAULT_LOCK_DURATION = Duration.ofMinutes(5)
   }
 
   private val testClock = TestClockWithNamedInstants(TEST_INSTANT)
@@ -253,8 +256,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
     database =
       GcpSpannerComputationsDatabaseTransactor(
         databaseClient,
-        clock = testClock,
-        computationMutations = computationMutations
+        computationMutations = computationMutations,
+        clock = testClock
       )
   }
 
@@ -608,7 +611,10 @@ class GcpSpannerComputationsDatabaseTransactorTest :
         enqueuedSevenMinutesAgoForOtherProtocolStage
       )
     )
-    assertEquals("6", database.claimTask(FakeProtocol.ONE, "the-owner-of-the-lock"))
+    assertEquals(
+      "6",
+      database.claimTask(FakeProtocol.ONE, "the-owner-of-the-lock", DEFAULT_LOCK_DURATION)
+    )
 
     assertQueryReturns(
       databaseClient,
@@ -627,7 +633,10 @@ class GcpSpannerComputationsDatabaseTransactorTest :
         .build()
     )
 
-    assertEquals("55", database.claimTask(FakeProtocol.ONE, "the-owner-of-the-lock"))
+    assertEquals(
+      "55",
+      database.claimTask(FakeProtocol.ONE, "the-owner-of-the-lock", DEFAULT_LOCK_DURATION)
+    )
 
     assertQueryReturns(
       databaseClient,
@@ -647,7 +656,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
     )
 
     // No tasks to claim anymore
-    assertNull(database.claimTask(FakeProtocol.ONE, "the-owner-of-the-lock"))
+    assertNull(database.claimTask(FakeProtocol.ONE, "the-owner-of-the-lock", DEFAULT_LOCK_DURATION))
   }
 
   @Test
@@ -715,7 +724,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
     databaseClient.write(listOf(claimed, claimedStage, claimedAttempt))
 
     // Claim a task that is owned but the lock expired.
-    assertEquals("11", database.claimTask(FakeProtocol.ZERO, "new-owner"))
+    assertEquals("11", database.claimTask(FakeProtocol.ZERO, "new-owner", DEFAULT_LOCK_DURATION))
 
     assertQueryReturns(
       databaseClient,
@@ -749,7 +758,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
     )
 
     // No task may be claimed at this point
-    assertNull(database.claimTask(FakeProtocol.ZERO, "new-owner"))
+    assertNull(database.claimTask(FakeProtocol.ZERO, "new-owner", DEFAULT_LOCK_DURATION))
   }
 
   private fun testTransitionOfStageWhere(
@@ -803,7 +812,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
       passThroughBlobPaths = listOf(),
       outputBlobs = 0,
       afterTransition = afterTransition,
-      nextStageDetails = computationMutations.detailsFor(D, FAKE_COMPUTATION_DETAILS)
+      nextStageDetails = computationMutations.detailsFor(D, FAKE_COMPUTATION_DETAILS),
+      lockExtension = DEFAULT_LOCK_DURATION
     )
     // Ensure the Computation and ComputationStage were updated. This does not check if the
     // lock is held or the exact configurations of the ComputationStageAttempts because they
@@ -1032,7 +1042,8 @@ class GcpSpannerComputationsDatabaseTransactorTest :
           passThroughBlobPaths = listOf(),
           outputBlobs = 0,
           afterTransition = AfterTransition.DO_NOT_ADD_TO_QUEUE,
-          nextStageDetails = computationMutations.detailsFor(D, FAKE_COMPUTATION_DETAILS)
+          nextStageDetails = computationMutations.detailsFor(D, FAKE_COMPUTATION_DETAILS),
+          lockExtension = DEFAULT_LOCK_DURATION
         )
       }
     }
