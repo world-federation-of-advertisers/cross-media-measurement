@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.map
@@ -25,6 +24,7 @@ import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
+import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.CreateDuchyMeasurementLogEntryRequest
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.Measurement
@@ -67,8 +67,6 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
         }
 
     when (measurementInfo.measurementState) {
-      Measurement.State.UNRECOGNIZED,
-      Measurement.State.STATE_UNSPECIFIED,
       Measurement.State.SUCCEEDED,
       Measurement.State.FAILED,
       Measurement.State.CANCELLED ->
@@ -77,9 +75,14 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
           measurementInfo.externalMeasurementId,
           measurementInfo.measurementState
         ) {
-          "Cannot create log entry for Measurement in terminal state or unspecified state."
+          "Cannot create log entry for Measurement in terminal state."
         }
-      else -> {}
+      Measurement.State.PENDING_COMPUTATION,
+      Measurement.State.PENDING_PARTICIPANT_CONFIRMATION,
+      Measurement.State.PENDING_REQUISITION_FULFILLMENT,
+      Measurement.State.PENDING_REQUISITION_PARAMS -> {}
+      Measurement.State.UNRECOGNIZED,
+      Measurement.State.STATE_UNSPECIFIED -> error("Unspecified state.")
     }
 
     val duchyId =
@@ -150,26 +153,25 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
     )
 
   private suspend fun TransactionScope.readMeasurementInfo(): MeasurementInfo? {
+    val baseSql =
+      """
+      SELECT
+        Measurements.MeasurementId,
+        Measurements.MeasurementConsumerId,
+        Measurements.ExternalMeasurementId,
+        Measurements.ExternalComputationId,
+        MeasurementConsumers.ExternalMeasurementConsumerId,
+        Measurements.State,
+      FROM Measurements
+      JOIN MeasurementConsumers USING (MeasurementConsumerId)
+      WHERE ExternalComputationId = @externalComputationId
+      LIMIT 1
+      """
+        .trimIndent()
 
     return transactionContext
       .executeQuery(
-        Statement.newBuilder(
-            """
-          SELECT
-            Measurements.MeasurementId,
-            Measurements.MeasurementConsumerId,
-            Measurements.ExternalMeasurementId,
-            Measurements.ExternalComputationId,
-            MeasurementConsumers.ExternalMeasurementConsumerId,
-            Measurements.State,
-          FROM Measurements
-          JOIN MeasurementConsumers USING (MeasurementConsumerId)
-          WHERE ExternalComputationId = ${request.externalComputationId}
-          LIMIT 1
-        """
-              .trimIndent()
-          )
-          .build()
+        statement(baseSql) { bind("externalComputationId").to(request.externalComputationId) }
       )
       .map(::translateToInternalMeasurementInfo)
       .singleOrNull()
