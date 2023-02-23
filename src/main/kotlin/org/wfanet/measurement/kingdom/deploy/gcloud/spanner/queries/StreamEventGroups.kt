@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries
 
 import com.google.cloud.spanner.Statement
+import org.wfanet.measurement.common.numberAsLong
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.internal.kingdom.EventGroup
@@ -59,7 +60,8 @@ class StreamEventGroups(requestFilter: StreamEventGroupsRequest.Filter, limit: I
     }
 
     if (!filter.showDeleted) {
-      conjuncts.add("State != ${EventGroup.State.DELETED_VALUE}")
+      conjuncts.add("State != @$DELETED_STATE")
+      bind(DELETED_STATE).to(EventGroup.State.DELETED.numberAsLong)
     }
 
     if (conjuncts.isEmpty()) {
@@ -76,5 +78,6 @@ class StreamEventGroups(requestFilter: StreamEventGroupsRequest.Filter, limit: I
     const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
     const val EXTERNAL_EVENT_GROUP_ID_AFTER = "externalEventGroupIdAfter"
     const val EXTERNAL_DATA_PROVIDER_ID_AFTER = "externalDataProviderIdAfter"
+    const val DELETED_STATE = "deletedState"
   }
 }
