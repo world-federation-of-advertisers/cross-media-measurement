@@ -557,7 +557,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 							}
 						}
 						_containers: "\(_name)-container": _container
-						restartPolicy: restartPolicy | *"OnFailure"
+						restartPolicy: restartPolicy | *"Never"
 					}
 				}
 			}

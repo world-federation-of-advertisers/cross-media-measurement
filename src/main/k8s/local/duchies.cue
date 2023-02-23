@@ -76,7 +76,7 @@ duchies: [ for duchyConfig in _duchyConfigs {
 			"requisition-fulfillment-server":   "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:forwarded_storage_requisition_fulfillment_server_image"
 			"spanner-computations-server":      "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:forwarded_storage_spanner_computations_server_image"
 			"update-duchy-schema":              "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/tools:update_schema_image"
-			"computations-cleaner":             "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/job:computations_cleaner_cron_job_image"
+			"computations-cleaner":             "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/job:computations_cleaner_image"
 		}
 		_duchy_image_pull_policy: "Never"
 		_verbose_grpc_logging:    "true"

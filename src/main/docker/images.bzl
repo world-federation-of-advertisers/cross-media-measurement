@@ -37,8 +37,8 @@ COMMON_IMAGES = [
         repository = _PREFIX + "/duchy/spanner-update-schema",
     ),
     struct(
-        name = "duchy_computations_cleaner_cron_job_image",
-        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/job:computations_cleaner_cron_job_image",
+        name = "duchy_computations_cleaner_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/job:computations_cleaner_image",
         repository = _PREFIX + "/duchy/computations-cleaner",
     ),
     struct(

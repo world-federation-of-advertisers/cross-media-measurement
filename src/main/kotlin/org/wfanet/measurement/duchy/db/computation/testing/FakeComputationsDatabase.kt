@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.db.computation.testing
 
 import io.grpc.Status
 import java.time.Duration
+import java.time.Instant
 import kotlin.experimental.ExperimentalTypeInference
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.duchy.db.computation.AfterTransition
@@ -94,7 +95,7 @@ private constructor(
     remove(localId)
   }
 
-  override suspend fun readOutdatedComputationGlobalIds(ttlSecond: Long): List<String> {
+  override suspend fun readOutdatedComputationGlobalIds(before: Instant): List<String> {
     return listOf()
   }
 

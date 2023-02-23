@@ -346,7 +346,7 @@ DUCHY_IMAGE_NAMES = [
     "duchy_spanner_update_schema_image",
     "duchy_async_computation_control_server_image",
     "duchy_herald_daemon_image",
-    "duchy_computations_cleaner_cron_job_image",
+    "duchy_computations_cleaner_image",
     "forwarded_storage_spanner_computations_server_image",
     "forwarded_storage_computation_control_server_image",
     "forwarded_storage_liquid_legions_v2_mill_daemon_image",

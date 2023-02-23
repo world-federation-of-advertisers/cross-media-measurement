@@ -38,13 +38,13 @@ private class Flags {
   lateinit var computationsServiceFlags: ComputationsServiceFlags
     private set
 
-  @set:CommandLine.Option(
-    names = ["--computations-ttl-days"],
-    defaultValue = "90",
-    description = ["TTL in days of Computations in database and storage."],
-    required = false
+  @CommandLine.Option(
+    names = ["--computations-time-to-live"],
+    defaultValue = "90d",
+    description =
+      ["Time to live (TTL) for a Computation. Computations live longer than this will be cleaned."],
   )
-  var computationsTtlDays by Delegates.notNull<Long>()
+  lateinit var computationsTimeToLive: Duration
     private set
 
   @CommandLine.Option(
@@ -65,7 +65,7 @@ private class Flags {
 }
 
 @CommandLine.Command(
-  name = "ComputationsCleanerCronJob",
+  name = "ComputationsCleanerJob",
   mixinStandardHelpOptions = true,
   showDefaultValues = true
 )
@@ -88,7 +88,7 @@ private fun run(@CommandLine.Mixin flags: Flags) {
   val internalComputationsClient = ComputationsCoroutineStub(internalComputationsChannel)
 
   val computationsCleaner =
-    ComputationsCleaner(internalComputationsClient, flags.computationsTtlDays)
+    ComputationsCleaner(internalComputationsClient, flags.computationsTimeToLive)
   computationsCleaner.run()
 }
 

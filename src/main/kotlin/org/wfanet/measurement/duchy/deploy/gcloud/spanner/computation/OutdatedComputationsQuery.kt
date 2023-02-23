@@ -14,23 +14,23 @@
 
 package org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation
 
-import com.google.cloud.spanner.Statement
+import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Struct
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.common.SqlBasedQuery
+import org.wfanet.measurement.gcloud.spanner.statement
 
-class OutdatedComputationsQuery(ttlSecond: Long) : SqlBasedQuery<String> {
+class OutdatedComputationsQuery(before: Timestamp) : SqlBasedQuery<String> {
   companion object {
     private val parameterizedQueryString =
       """
         SELECT GlobalComputationId,
         FROM Computations
-        WHERE TIMESTAMP_DIFF(CURRENT_TIMESTAMP(), UpdateTime, SECOND) > @ttlSecond
+        WHERE UpdateTime <= @before
       """
         .trimIndent()
   }
 
-  override val sql: Statement =
-    Statement.newBuilder(parameterizedQueryString).bind("ttlSecond").to(ttlSecond).build()
+  override val sql = statement(parameterizedQueryString) { bind("before").to(before) }
 
   override fun asResult(struct: Struct): String = struct.getString("GlobalComputationId")
 }

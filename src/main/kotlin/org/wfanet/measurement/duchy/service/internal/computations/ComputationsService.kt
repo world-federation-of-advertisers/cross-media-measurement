@@ -162,7 +162,8 @@ class ComputationsService(
   ): DeleteOutdatedComputationsResponse {
     var deleted = 0
     try {
-      val globalIds = computationsDatabase.readOutdatedComputationGlobalIds(request.ttlSecond)
+      val before = clock.instant().minusSeconds(request.timeToLive.seconds)
+      val globalIds = computationsDatabase.readOutdatedComputationGlobalIds(before)
       for (globalId in globalIds) {
         val token = computationsDatabase.readComputationToken(globalId) ?: continue
         if (!isTerminated(token)) {

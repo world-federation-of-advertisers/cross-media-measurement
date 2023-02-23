@@ -17,17 +17,17 @@ package org.wfanet.measurement.duchy.service.internal.computations
 import java.time.Duration
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.deleteOutdatedComputationsRequest
 
 class ComputationsCleaner(
   private val computationsService: ComputationsCoroutineStub,
-  ttlDays: Long,
+  private val timeToLive: Duration,
 ) {
-  private val ttlSecond = Duration.ofDays(ttlDays).toSeconds()
 
   fun run() {
-    if (ttlSecond == 0L) {
+    if (timeToLive.toSeconds() == 0L) {
       logger.warning("Computation Ttl cannot be 0 seconds.")
       return
     }
@@ -35,7 +35,9 @@ class ComputationsCleaner(
     logger.info("ComputationCleaner task starts...")
     val response = runBlocking {
       computationsService.deleteOutdatedComputations(
-        deleteOutdatedComputationsRequest { this.ttlSecond = this@ComputationsCleaner.ttlSecond }
+        deleteOutdatedComputationsRequest {
+          timeToLive = this@ComputationsCleaner.timeToLive.toProtoDuration()
+        }
       )
     }
     logger.info("ComputationCleaner task finishes. ${response.count} Computations cleaned")

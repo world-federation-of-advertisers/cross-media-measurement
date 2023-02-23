@@ -111,7 +111,7 @@ message DeleteComputationRequest {
 }
 
 message DeleteOutdatedComputationsRequest {
-  int64 ttl_second = 1;
+  google.protobuf.Duration time_to_live = 1;
 }
 
 message DeleteOutdatedComputationsResponse {

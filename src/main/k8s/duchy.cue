@@ -26,8 +26,8 @@ import ("strings")
 	}
 	_duchy_secret_name: string
 	_computation_control_targets: [Name=_]: string
-	_deletableComputationStates: [...#TerminalComputationState] | *["SUCCEEDED"]
-	_computationsTtlDays:        uint32 | *90
+	_deletableComputationStates: [...#TerminalComputationState] | *[]
+	_computationsTimeToLive:        string | *"180d"
 	_kingdom_system_api_target:  string
 	_spannerConfig:              #SpannerConfig & {
 		database: "\(_duchy.name)_duchy_computations"
@@ -57,7 +57,7 @@ import ("strings")
 	_duchy_tls_cert_file_flag:                          "--tls-cert-file=/var/run/secrets/files/\(_name)_tls.pem"
 	_duchy_tls_key_file_flag:                           "--tls-key-file=/var/run/secrets/files/\(_name)_tls.key"
 	_duchy_cert_collection_file_flag:                   "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
-	_duchyComputationsTtlFlag:                          "--computations-ttl-days=\(_computationsTtlDays)"
+	_duchyComputationsTimeToLiveFlag:                   "--computations-time-to-live=\(_computationsTimeToLive)"
 	_duchy_cs_cert_file_flag:                           "--consent-signaling-certificate-der-file=/var/run/secrets/files/\(_name)_cs_cert.der"
 	_duchy_cs_key_file_flag:                            "--consent-signaling-private-key-der-file=/var/run/secrets/files/\(_name)_cs_private.der"
 	_duchy_cs_cert_rename_name_flag:                    "--consent-signaling-certificate-resource-name=\(_cs_cert_resource_name)"
@@ -225,7 +225,7 @@ import ("strings")
 				_duchy_tls_cert_file_flag,
 				_duchy_tls_key_file_flag,
 				_duchy_cert_collection_file_flag,
-				_duchyComputationsTtlFlag,
+				_duchyComputationsTimeToLiveFlag,
 				_debug_verbose_grpc_client_logging_flag,
 			]
 			spec: schedule: "0 * * * *" // Every hour

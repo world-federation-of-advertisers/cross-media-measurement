@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation
 
+import java.time.Instant
 import kotlinx.coroutines.flow.singleOrNull
 import kotlinx.coroutines.flow.toCollection
 import org.wfanet.measurement.common.grpc.grpcRequire
@@ -21,6 +22,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages.stageToProtocol
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseReader
+import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
@@ -77,8 +79,8 @@ class GcpSpannerComputationsDatabaseReader(
     return RequisitionBlobKeysQuery(localId).execute(databaseClient).toCollection(mutableListOf())
   }
 
-  override suspend fun readOutdatedComputationGlobalIds(ttlSecond: Long): List<String> {
-    return OutdatedComputationsQuery(ttlSecond)
+  override suspend fun readOutdatedComputationGlobalIds(before: Instant): List<String> {
+    return OutdatedComputationsQuery(before.toGcloudTimestamp())
       .execute(databaseClient)
       .toCollection(mutableListOf())
   }

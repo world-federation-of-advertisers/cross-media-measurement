@@ -15,6 +15,7 @@
 package org.wfanet.measurement.duchy.db.computation
 
 import java.time.Duration
+import java.time.Instant
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
@@ -61,7 +62,7 @@ interface ComputationsDatabaseReader {
   suspend fun readRequisitionBlobKeys(localId: Long): List<String>
 
   /** Gets list of globalIds of all outdated Computations */
-  suspend fun readOutdatedComputationGlobalIds(ttlSecond: Long): List<String>
+  suspend fun readOutdatedComputationGlobalIds(before: Instant): List<String>
 }
 
 /**
