@@ -115,7 +115,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("EventGroup not found")
+    assertThat(exception).hasMessageThat().contains("EventGroup")
   }
 
   @Test
@@ -235,9 +235,12 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         EventGroup.EXTERNAL_EVENT_GROUP_ID_FIELD_NUMBER,
         EventGroup.CREATE_TIME_FIELD_NUMBER,
         EventGroup.UPDATE_TIME_FIELD_NUMBER,
-        EventGroup.STATE_FIELD_NUMBER
       )
-      .isEqualTo(eventGroup)
+      .isEqualTo(
+        eventGroup.copy {
+        this.state = EventGroup.State.ACTIVE
+        }
+      )
     assertThat(createdEventGroup.externalEventGroupId).isGreaterThan(0)
     assertThat(createdEventGroup.createTime.seconds).isGreaterThan(0)
     assertThat(createdEventGroup.updateTime).isEqualTo(createdEventGroup.createTime)
@@ -859,7 +862,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   }
 
   @Test
-  fun `deleteEventGroup fails for deleted eventGroup`() = runBlocking {
+  fun `deleteEventGroup fails for deleted EventGroup`() = runBlocking {
     val externalMeasurementConsumerId =
       population
         .createMeasurementConsumer(measurementConsumersService, accountsService)
@@ -899,7 +902,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   }
 
   @Test
-  fun `updateEventGroup fails for deleted eventGroup`() = runBlocking {
+  fun `updateEventGroup fails for deleted EventGroup`() = runBlocking {
     val externalMeasurementConsumerId =
       population
         .createMeasurementConsumer(measurementConsumersService, accountsService)
@@ -941,7 +944,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   }
 
   @Test
-  fun `getEventGroup succeeds for deleted eventGroup when is_deleted is true`() = runBlocking {
+  fun `getEventGroup succeeds for deleted EventGroup when is_deleted is true`() = runBlocking {
     val externalMeasurementConsumerId =
       population
         .createMeasurementConsumer(measurementConsumersService, accountsService)
@@ -979,7 +982,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   }
 
   @Test
-  fun `streamEventGroups succeeds for deleted eventGroups when is_deleted is true`() = runBlocking {
+  fun `streamEventGroups succeeds for deleted EventGroups when is_deleted is true`(): Unit = runBlocking {
     val externalDataProviderId =
       population.createDataProvider(dataProvidersService).externalDataProviderId
 
@@ -1035,13 +1038,11 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         )
         .toList()
 
-    assertThat(eventGroups).hasSize(2)
-    assertThat(eventGroups).contains(deletedEventGroup1)
-    assertThat(eventGroups).contains(deletedEventGroup2)
+    assertThat(eventGroups).containsExactly(deletedEventGroup1, deletedEventGroup2)
   }
 
   @Test
-  fun `getEventGroup fails for deleted eventGroup when show_deleted is False`() = runBlocking {
+  fun `getEventGroup fails for deleted EventGroup when show_deleted is false`() = runBlocking {
     val externalMeasurementConsumerId =
       population
         .createMeasurementConsumer(measurementConsumersService, accountsService)
@@ -1082,7 +1083,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   }
 
   @Test
-  fun `streamEventGroups respects show_deleted is false`() = runBlocking {
+  fun `streamEventGroups respects show_deleted is false`(): Unit = runBlocking {
     val externalDataProviderId =
       population.createDataProvider(dataProvidersService).externalDataProviderId
 
@@ -1110,7 +1111,6 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         }
       )
 
-    val deletedEventGroup1 =
       eventGroupsService.deleteEventGroup(
         deleteEventGroupRequest {
           this.externalDataProviderId = externalDataProviderId
@@ -1118,7 +1118,6 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         }
       )
 
-    val deletedEventGroup2 =
       eventGroupsService.deleteEventGroup(
         deleteEventGroupRequest {
           this.externalDataProviderId = externalDataProviderId

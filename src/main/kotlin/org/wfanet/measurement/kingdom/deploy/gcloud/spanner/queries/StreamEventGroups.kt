@@ -59,7 +59,7 @@ class StreamEventGroups(requestFilter: StreamEventGroupsRequest.Filter, limit: I
     }
 
     if (!filter.showDeleted) {
-      conjuncts.add("State != $DELETED_STATE")
+      conjuncts.add("State != ${EventGroup.State.DELETED_VALUE}")
     }
 
     if (conjuncts.isEmpty()) {
@@ -76,6 +76,5 @@ class StreamEventGroups(requestFilter: StreamEventGroupsRequest.Filter, limit: I
     const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
     const val EXTERNAL_EVENT_GROUP_ID_AFTER = "externalEventGroupIdAfter"
     const val EXTERNAL_DATA_PROVIDER_ID_AFTER = "externalDataProviderIdAfter"
-    const val DELETED_STATE = EventGroup.State.DELETED_VALUE.toString()
   }
 }
