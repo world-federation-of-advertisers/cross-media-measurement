@@ -252,8 +252,7 @@ absl::Status EncryptCompositeElGamalAndAppendToString(
 // returns the number of such noise registers added.
 absl::StatusOr<int64_t> AddBlindedHistogramNoise(
     ProtocolCryptor& protocol_cryptor, int total_sketches_count,
-    std::unique_ptr<math::DistributedNoiser> distributed_noiser,
-    std::string& data) {
+    const math::DistributedNoiser& distributed_noiser, std::string& data) {
   ASSIGN_OR_RETURN(
       std::string blinded_histogram_noise_key_ec,
       protocol_cryptor.MapToCurve(kBlindedHistogramNoiseRegisterKey));
@@ -263,7 +262,7 @@ absl::StatusOr<int64_t> AddBlindedHistogramNoise(
   for (int k = 1; k <= total_sketches_count; ++k) {
     // The random number of distinct register_ids that should appear k times.
     ASSIGN_OR_RETURN(int64_t noise_register_count_for_bucket_k,
-                     distributed_noiser->GenerateNoiseComponent());
+                     distributed_noiser.GenerateNoiseComponent());
     // Add noise_register_count_for_bucket_k such distinct register ids.
     for (int i = 0; i < noise_register_count_for_bucket_k; ++i) {
       // The prefix is to ensure the value is not in the regular id space.
@@ -299,13 +298,12 @@ absl::StatusOr<int64_t> AddBlindedHistogramNoise(
 // returns the number of such noise registers added.
 absl::StatusOr<int64_t> AddNoiseForPublisherNoise(
     ProtocolCryptor& protocol_cryptor,
-    std::unique_ptr<math::DistributedNoiser> distributed_noiser,
-    std::string& data) {
+    const math::DistributedNoiser& distributed_noiser, std::string& data) {
   ASSIGN_OR_RETURN(std::string publisher_noise_register_id_ec,
                    protocol_cryptor.MapToCurve(kPublisherNoiseRegisterId));
 
   ASSIGN_OR_RETURN(int64_t noise_registers_count,
-                   distributed_noiser->GenerateNoiseComponent());
+                   distributed_noiser.GenerateNoiseComponent());
 
   for (int i = 0; i < noise_registers_count; ++i) {
     // Add register id, a predefined constant.
@@ -330,13 +328,12 @@ absl::StatusOr<int64_t> AddNoiseForPublisherNoise(
 // returns the number of such noise registers added.
 absl::StatusOr<int64_t> AddGlobalReachDpNoise(
     ProtocolCryptor& protocol_cryptor,
-    std::unique_ptr<math::DistributedNoiser> distributed_noiser,
-    std::string& data) {
+    const math::DistributedNoiser& distributed_noiser, std::string& data) {
   ASSIGN_OR_RETURN(std::string destroyed_register_key_ec,
                    protocol_cryptor.MapToCurve(kDestroyedRegisterKey));
 
   ASSIGN_OR_RETURN(int64_t noise_registers_count,
-                   distributed_noiser->GenerateNoiseComponent());
+                   distributed_noiser.GenerateNoiseComponent());
 
   for (int i = 0; i < noise_registers_count; ++i) {
     // Add register id, a random number.
@@ -392,15 +389,14 @@ absl::Status AddPaddingReachNoise(ProtocolCryptor& protocol_cryptor,
 // each count value in [1, maximum_frequency], where R_i are random numbers.
 absl::StatusOr<int64_t> AddFrequencyDpNoise(
     ProtocolCryptor& protocol_cryptor, int maximum_frequency, int curve_id,
-    std::unique_ptr<math::DistributedNoiser>& distributed_noiser,
-    std::string& data) {
+    const math::DistributedNoiser& distributed_noiser, std::string& data) {
   ASSIGN_OR_RETURN(std::vector<std::string> count_values_plaintext,
                    GetCountValuesPlaintext(maximum_frequency, curve_id));
   int total_noise_tuples_added = 0;
 
   for (int frequency = 1; frequency <= maximum_frequency; ++frequency) {
     ASSIGN_OR_RETURN(int64_t noise_tuples_count,
-                     distributed_noiser->GenerateNoiseComponent());
+                     distributed_noiser.GenerateNoiseComponent());
     for (int i = 0; i < noise_tuples_count; ++i) {
       // Adds flag_1, which is 0 encrypted using the partial composite key.
       ASSIGN_OR_RETURN(
@@ -435,10 +431,9 @@ absl::StatusOr<int64_t> AddFrequencyDpNoise(
 // R4 to the end of data, where Ri are random numbers.
 absl::StatusOr<int64_t> AddDestroyedFrequencyNoise(
     ProtocolCryptor& protocol_cryptor,
-    std::unique_ptr<math::DistributedNoiser> distributed_noiser,
-    std::string& data) {
+    const math::DistributedNoiser& distributed_noiser, std::string& data) {
   ASSIGN_OR_RETURN(int64_t noise_tuples_count,
-                   distributed_noiser->GenerateNoiseComponent());
+                   distributed_noiser.GenerateNoiseComponent());
 
   for (int i = 0; i < noise_tuples_count; ++i) {
     for (int j = 0; j < 3; ++j) {
@@ -549,8 +544,8 @@ absl::Status AddAllFrequencyNoise(
 
   auto geometric_options = GetFrequencyGeometricNoiseOptions(
       noise_parameters.dp_params(), noise_parameters.contributors_count());
-  std::unique_ptr<math::DistributedNoiser> distributed_noiser =
-      std::make_unique<math::DistributedGeometricNoiser>(geometric_options);
+  math::DistributedGeometricNoiser distributed_geometric_noiser =
+      math::DistributedGeometricNoiser(geometric_options);
 
   int64_t total_noise_tuples_count = geometric_options.shift_offset * 2 *
                                      (noise_parameters.maximum_frequency() + 1);
@@ -558,12 +553,12 @@ absl::Status AddAllFrequencyNoise(
   data.reserve(data.size() +
                total_noise_tuples_count * kBytesPerFlagsCountTuple);
   ASSIGN_OR_RETURN(int frequency_dp_noise_tuples_count,
-                   AddFrequencyDpNoise(protocol_cryptor,
-                                       noise_parameters.maximum_frequency(),
-                                       curve_id, distributed_noiser, data));
+                   AddFrequencyDpNoise(
+                       protocol_cryptor, noise_parameters.maximum_frequency(),
+                       curve_id, distributed_geometric_noiser, data));
   ASSIGN_OR_RETURN(int destroyed_noise_tuples_count,
                    AddDestroyedFrequencyNoise(
-                       protocol_cryptor, std::move(distributed_noiser), data));
+                       protocol_cryptor, distributed_geometric_noiser, data));
   int64_t padding_noise_tuples_count = total_noise_tuples_count -
                                        frequency_dp_noise_tuples_count -
                                        destroyed_noise_tuples_count;
@@ -694,9 +689,9 @@ absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
         GetBlindHistogramGeometricNoiseOptions(
             noise_parameters.dp_params().blind_histogram(),
             noise_parameters.contributors_count());
-    std::unique_ptr<math::DistributedNoiser>
-        blind_histogram_distributed_noiser =
-            std::make_unique<math::DistributedGeometricNoiser>(
+    math::DistributedGeometricNoiser
+        blind_histogram_distributed_geometric_noiser =
+            math::DistributedGeometricNoiser(
                 blind_histogram_geometric_noise_options);
 
     auto noise_for_publisher_geometric_noise_options =
@@ -704,18 +699,18 @@ absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
             noise_parameters.dp_params().noise_for_publisher_noise(),
             noise_parameters.total_sketches_count(),
             noise_parameters.contributors_count());
-    std::unique_ptr<math::DistributedNoiser>
-        noise_for_publisher_distributed_noiser =
-            std::make_unique<math::DistributedGeometricNoiser>(
+    math::DistributedGeometricNoiser
+        noise_for_publisher_distributed_geometric_noiser =
+            math::DistributedGeometricNoiser(
                 noise_for_publisher_geometric_noise_options);
 
     auto global_reach_dp_geometric_noise_options =
         GetGlobalReachDpGeometricNoiseOptions(
             noise_parameters.dp_params().global_reach_dp_noise(),
             noise_parameters.contributors_count());
-    std::unique_ptr<math::DistributedNoiser>
-        global_reach_dp_distributed_noiser =
-            std::make_unique<math::DistributedGeometricNoiser>(
+    math::DistributedGeometricNoiser
+        global_reach_dp_distributed_geometric_noiser =
+            math::DistributedGeometricNoiser(
                 global_reach_dp_geometric_noise_options);
 
     int64_t total_noise_registers_count =
@@ -747,19 +742,21 @@ absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
         int64_t blinded_histogram_noise_count,
         AddBlindedHistogramNoise(
             *protocol_cryptor, noise_parameters.total_sketches_count(),
-            std::move(blind_histogram_distributed_noiser), *response_crv));
+            blind_histogram_distributed_geometric_noiser, *response_crv));
     // 2. Add noise for publisher noise.
     ASSIGN_OR_RETURN(
         int64_t publisher_noise_count,
         AddNoiseForPublisherNoise(
             *protocol_cryptor,
-            std::move(noise_for_publisher_distributed_noiser), *response_crv));
+            std::move(noise_for_publisher_distributed_geometric_noiser),
+            *response_crv));
     // 3. Add reach DP noise.
     ASSIGN_OR_RETURN(
         int64_t reach_dp_noise_count,
-        AddGlobalReachDpNoise(*protocol_cryptor,
-                              std::move(global_reach_dp_distributed_noiser),
-                              *response_crv));
+        AddGlobalReachDpNoise(
+            *protocol_cryptor,
+            std::move(global_reach_dp_distributed_geometric_noiser),
+            *response_crv));
     // 4. Add padding noise.
     int64_t padding_noise_count = total_noise_registers_count -
                                   blinded_histogram_noise_count -
