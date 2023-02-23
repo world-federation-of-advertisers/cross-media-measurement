@@ -236,11 +236,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         EventGroup.CREATE_TIME_FIELD_NUMBER,
         EventGroup.UPDATE_TIME_FIELD_NUMBER,
       )
-      .isEqualTo(
-        eventGroup.copy {
-        this.state = EventGroup.State.ACTIVE
-        }
-      )
+      .isEqualTo(eventGroup.copy { this.state = EventGroup.State.ACTIVE })
     assertThat(createdEventGroup.externalEventGroupId).isGreaterThan(0)
     assertThat(createdEventGroup.createTime.seconds).isGreaterThan(0)
     assertThat(createdEventGroup.updateTime).isEqualTo(createdEventGroup.createTime)
@@ -982,64 +978,65 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   }
 
   @Test
-  fun `streamEventGroups succeeds for deleted EventGroups when is_deleted is true`(): Unit = runBlocking {
-    val externalDataProviderId =
-      population.createDataProvider(dataProvidersService).externalDataProviderId
+  fun `streamEventGroups succeeds for deleted EventGroups when is_deleted is true`(): Unit =
+    runBlocking {
+      val externalDataProviderId =
+        population.createDataProvider(dataProvidersService).externalDataProviderId
 
-    val eventGroup1 =
-      eventGroupsService.createEventGroup(
-        eventGroup {
-          this.externalDataProviderId = externalDataProviderId
-          this.externalMeasurementConsumerId =
-            population
-              .createMeasurementConsumer(measurementConsumersService, accountsService)
-              .externalMeasurementConsumerId
-          providedEventGroupId = "eventGroup1"
-        }
-      )
-
-    val eventGroup2 =
-      eventGroupsService.createEventGroup(
-        eventGroup {
-          this.externalDataProviderId = externalDataProviderId
-          this.externalMeasurementConsumerId =
-            population
-              .createMeasurementConsumer(measurementConsumersService, accountsService)
-              .externalMeasurementConsumerId
-          providedEventGroupId = "eventGroup2"
-        }
-      )
-
-    val deletedEventGroup1 =
-      eventGroupsService.deleteEventGroup(
-        deleteEventGroupRequest {
-          this.externalDataProviderId = externalDataProviderId
-          this.externalEventGroupId = eventGroup1.externalEventGroupId
-        }
-      )
-
-    val deletedEventGroup2 =
-      eventGroupsService.deleteEventGroup(
-        deleteEventGroupRequest {
-          this.externalDataProviderId = externalDataProviderId
-          this.externalEventGroupId = eventGroup2.externalEventGroupId
-        }
-      )
-
-    val eventGroups: List<EventGroup> =
-      eventGroupsService
-        .streamEventGroups(
-          streamEventGroupsRequest {
-            filter = filter {
-              this.externalDataProviderId = externalDataProviderId
-              this.showDeleted = true
-            }
+      val eventGroup1 =
+        eventGroupsService.createEventGroup(
+          eventGroup {
+            this.externalDataProviderId = externalDataProviderId
+            this.externalMeasurementConsumerId =
+              population
+                .createMeasurementConsumer(measurementConsumersService, accountsService)
+                .externalMeasurementConsumerId
+            providedEventGroupId = "eventGroup1"
           }
         )
-        .toList()
 
-    assertThat(eventGroups).containsExactly(deletedEventGroup1, deletedEventGroup2)
-  }
+      val eventGroup2 =
+        eventGroupsService.createEventGroup(
+          eventGroup {
+            this.externalDataProviderId = externalDataProviderId
+            this.externalMeasurementConsumerId =
+              population
+                .createMeasurementConsumer(measurementConsumersService, accountsService)
+                .externalMeasurementConsumerId
+            providedEventGroupId = "eventGroup2"
+          }
+        )
+
+      val deletedEventGroup1 =
+        eventGroupsService.deleteEventGroup(
+          deleteEventGroupRequest {
+            this.externalDataProviderId = externalDataProviderId
+            this.externalEventGroupId = eventGroup1.externalEventGroupId
+          }
+        )
+
+      val deletedEventGroup2 =
+        eventGroupsService.deleteEventGroup(
+          deleteEventGroupRequest {
+            this.externalDataProviderId = externalDataProviderId
+            this.externalEventGroupId = eventGroup2.externalEventGroupId
+          }
+        )
+
+      val eventGroups: List<EventGroup> =
+        eventGroupsService
+          .streamEventGroups(
+            streamEventGroupsRequest {
+              filter = filter {
+                this.externalDataProviderId = externalDataProviderId
+                this.showDeleted = true
+              }
+            }
+          )
+          .toList()
+
+      assertThat(eventGroups).containsExactly(deletedEventGroup1, deletedEventGroup2)
+    }
 
   @Test
   fun `getEventGroup fails for deleted EventGroup when show_deleted is false`() = runBlocking {
@@ -1111,19 +1108,19 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         }
       )
 
-      eventGroupsService.deleteEventGroup(
-        deleteEventGroupRequest {
-          this.externalDataProviderId = externalDataProviderId
-          this.externalEventGroupId = eventGroup1.externalEventGroupId
-        }
-      )
+    eventGroupsService.deleteEventGroup(
+      deleteEventGroupRequest {
+        this.externalDataProviderId = externalDataProviderId
+        this.externalEventGroupId = eventGroup1.externalEventGroupId
+      }
+    )
 
-      eventGroupsService.deleteEventGroup(
-        deleteEventGroupRequest {
-          this.externalDataProviderId = externalDataProviderId
-          this.externalEventGroupId = eventGroup2.externalEventGroupId
-        }
-      )
+    eventGroupsService.deleteEventGroup(
+      deleteEventGroupRequest {
+        this.externalDataProviderId = externalDataProviderId
+        this.externalEventGroupId = eventGroup2.externalEventGroupId
+      }
+    )
 
     val eventGroups: List<EventGroup> =
       eventGroupsService
