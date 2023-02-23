@@ -34,10 +34,9 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.checkValidCe
 /**
  * Creates a EventGroup in the database
  *
- * Throws a subclass of [KingdomInternalException] on [execute].
- *
- * @throws [MeasurementConsumerNotFoundException] MeasurementConsumer not found
- * @throws [DataProviderNotFoundException] DataProvider not found
+ * Throws one of the following [KingdomInternalException] types on [execute].
+ * * [MeasurementConsumerNotFoundException] MeasurementConsumer not found
+ * * [DataProviderNotFoundException] DataProvider not found
  */
 class CreateEventGroup(private val eventGroup: EventGroup) :
   SpannerWriter<EventGroup, EventGroup>() {
