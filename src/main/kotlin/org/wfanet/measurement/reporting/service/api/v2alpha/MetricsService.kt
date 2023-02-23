@@ -17,35 +17,50 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
+import java.io.File
 import java.security.PrivateKey
 import java.security.SecureRandom
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.getCertificateRequest
+import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
+import org.wfanet.measurement.api.withAuthenticationKey
+import org.wfanet.measurement.common.crypto.readCertificate
+import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
-import org.wfanet.measurement.internal.reporting.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
+import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.internal.reporting.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2alpha.Metric as InternalMetric
+import org.wfanet.measurement.internal.reporting.v2alpha.Metric.WeightedMeasurement
+import org.wfanet.measurement.internal.reporting.v2alpha.MetricSpec as InternalMetricSpec
+import org.wfanet.measurement.internal.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub as InternalMetricsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSet.SetExpression as InternalSetExpression
 import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2alpha.TimeInterval as InternalTimeInterval
 import org.wfanet.measurement.internal.reporting.v2alpha.getMetricByIdempotencyKeyRequest
 import org.wfanet.measurement.internal.reporting.v2alpha.getReportingSetRequest as getInternalReportingSetRequest
-import org.wfanet.measurement.reporting.service.api.v1alpha.ReportingSetKey
+import org.wfanet.measurement.internal.reporting.v2alpha.metric as internalMetric
+import org.wfanet.measurement.internal.reporting.v2alpha.metricSpec as internalMetricSpec
+import org.wfanet.measurement.internal.reporting.v2alpha.timeInterval as internalTimeInterval
+import org.wfanet.measurement.internal.reporting.v2alpha.timeInterval
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.Metric
+import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet.SetExpression
 import org.wfanet.measurement.reporting.v2alpha.TimeInterval
 import org.wfanet.measurement.reporting.v2alpha.metric
-import org.wfanet.measurement.reporting.v2alpha.reportingSet
 
 private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
@@ -106,29 +121,6 @@ private val REACH_ONLY_MEASUREMENT_SPEC =
     maximumFrequencyPerUser = REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER
   }
 
-data class MeasurementInfo(
-  val measurementConsumerReferenceId: String,
-  val idempotencyKey: String,
-  val eventGroupFilters: Map<String, String>,
-)
-
-data class SigningConfig(
-  val signingCertificateName: String,
-  val signingCertificateDer: ByteString,
-  val signingPrivateKey: PrivateKey,
-)
-
-data class WeightedMeasurementInfo(
-  val reportingMeasurementId: String,
-  val weightedSubSetUnion: WeightedSubSetUnion,
-  val timeInterval: TimeInterval,
-  var kingdomMeasurementId: String? = null,
-)
-
-data class SetOperationResult(
-  val weightedMeasurementInfoList: List<WeightedMeasurementInfo>,
-)
-
 class MetricsService(
   private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
   private val internalMeasurementsStub: InternalMeasurementsCoroutineStub,
@@ -136,11 +128,16 @@ class MetricsService(
   private val dataProvidersStub: DataProvidersCoroutineStub,
   private val measurementsStub: MeasurementsCoroutineStub,
   private val certificateStub: CertificatesCoroutineStub,
-  private val measurementConsumer: MeasurementConsumer,
-  private val apiAuthenticationKey: String,
+  private val measurementConsumersStub: MeasurementConsumersCoroutineStub,
   private val secureRandom: SecureRandom,
+  private val signingPrivateKeyDir: File,
 ) : MetricsCoroutineImplBase() {
-  private val setExpressionCompiler = SetExpressionCompiler()
+
+  data class SigningConfig(
+    val signingCertificateName: String,
+    val signingCertificateDer: ByteString,
+    val signingPrivateKey: PrivateKey,
+  )
 
   override suspend fun createMetric(request: CreateMetricRequest): Metric {
     grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
@@ -169,23 +166,29 @@ class MetricsService(
     grpcRequire(request.metric.hasTimeInterval()) { "Time interval in metric is not specified." }
     grpcRequire(request.metric.hasMetricSpec()) { "Metric spec in metric is not specified." }
 
-    val existingIntervalMetric: InternalMetric? =
-      if (request.metricId.isNotBlank()) null
-      else getInternalMetricByIdempotencyKey(resourceKey.measurementConsumerId, request.metricId)
-
-    if (existingIntervalMetric != null) return existingIntervalMetric.toMetric()
-
-    // Get the internal reporting set.
-    val internalReportingSet: InternalReportingSet =
-      getInternalReportingSet(resourceKey.measurementConsumerId, request.metric.reportingSet)
-    grpcRequireNotNull(internalReportingSet) {
-      "Unable to retrieve a reporting set from the reporting database using the provided reportingSet [${request.metric.reportingSet}]."
-    }
+    val initialInternalMetric: InternalMetric =
+      createInitialInternalMetric(resourceKey.measurementConsumerId, request)
 
     // Get measurementConsumer and signingConfig
+    val measurementConsumer: MeasurementConsumer =
+      getMeasurementConsumer(resourceKey.measurementConsumerId, apiAuthenticationKey)
 
-    // Create a unique internal Metric ID based on metricIdempotencyKey, reportingSet,
-    // metricType, timeInterval, and the list of additionalFilters.
+    // TODO: Factor this out to a separate class similar to EncryptionKeyPairStore.
+    val signingPrivateKeyDer: ByteString =
+      signingPrivateKeyDir.resolve(principal.config.signingPrivateKeyPath).readByteString()
+
+    val signingCertificateDer: ByteString =
+      getSigningCertificateDer(apiAuthenticationKey, principal.config.signingCertificateName)
+
+    val signingConfig =
+      SigningConfig(
+        principal.config.signingCertificateName,
+        signingCertificateDer,
+        readPrivateKey(
+          signingPrivateKeyDer,
+          readCertificate(signingCertificateDer).publicKey.algorithm
+        )
+      )
 
     /**
      * Measurement Supplier - getInternalMeasurementIds For each WeightedSubsetUnion,
@@ -208,6 +211,86 @@ class MetricsService(
     // Convert the internal metric to public and return it.
 
     return metric {}
+  }
+
+  private suspend fun createInitialInternalMetric(
+    cmmsMeasurementConsumerId: String,
+    request: CreateMetricRequest,
+  ): InternalMetric {
+    // Check if there's any existing metric using the unique request ID.
+    val existingInternalMetric: InternalMetric? =
+      if (request.requestId.isBlank()) null
+      else getInternalMetricByIdempotencyKey(cmmsMeasurementConsumerId, request.requestId)
+
+    if (existingInternalMetric != null) return existingInternalMetric
+
+    val internalReportingSet: InternalReportingSet =
+      getInternalReportingSet(cmmsMeasurementConsumerId, request.metric.reportingSet)
+
+    return internalMetricsStub.createMetric(
+      internalMetric {
+        measurementConsumerReferenceId = cmmsMeasurementConsumerId
+        metricIdempotencyKey = request.requestId
+        externalReportingSetId = internalReportingSet.externalReportingSetId
+        timeInterval = request.metric.timeInterval.toInternal()
+        metricSpec = request.metric.metricSpec.toInternal()
+        weightedMeasurements +=
+          buildInitialInternalMeasurements(
+            cmmsMeasurementConsumerId,
+            request.metric,
+            internalReportingSet
+          )
+      }
+    )
+  }
+
+  private suspend fun buildInitialInternalMeasurements(
+    cmmsMeasurementConsumerId: String,
+    metric: Metric,
+    internalReportingSet: InternalReportingSet
+  ): List<WeightedMeasurement> {
+    TODO("Not yet implemented")
+  }
+
+  private suspend fun getMeasurementConsumer(
+    cmmsMeasurementConsumerId: String,
+    apiAuthenticationKey: String,
+  ): MeasurementConsumer {
+    return try {
+      measurementConsumersStub
+        .withAuthenticationKey(apiAuthenticationKey)
+        .getMeasurementConsumer(
+          getMeasurementConsumerRequest {
+            name = MeasurementConsumerKey(cmmsMeasurementConsumerId).toName()
+          }
+        )
+    } catch (e: StatusException) {
+      throw Exception(
+        "Unable to retrieve the measurement consumer " +
+          "[${MeasurementConsumerKey(cmmsMeasurementConsumerId).toName()}].",
+        e
+      )
+    }
+  }
+
+  /** Gets a signing certificate x509Der in ByteString. */
+  private suspend fun getSigningCertificateDer(
+    apiAuthenticationKey: String,
+    signingCertificateName: String
+  ): ByteString {
+    // TODO: Replace this with caching certificates or having them stored alongside the private key.
+    return try {
+      certificateStub
+        .withAuthenticationKey(apiAuthenticationKey)
+        .getCertificate(getCertificateRequest { name = signingCertificateName })
+        .x509Der
+    } catch (e: StatusException) {
+      throw Exception(
+        "Unable to retrieve the signing certificate for the measurement consumer " +
+          "[$signingCertificateName].",
+        e
+      )
+    }
   }
 
   /** Gets an [InternalMetric]. */
@@ -262,6 +345,39 @@ class MetricsService(
         e
       )
     }
+  }
+}
+
+private fun MetricSpec.toInternal(): InternalMetricSpec {
+  val source = this
+  return internalMetricSpec {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    when (source.typeCase) {
+      MetricSpec.TypeCase.REACH -> reach = MetricSpecKt.reachParams {}
+      MetricSpec.TypeCase.FREQUENCY_HISTOGRAM ->
+        MetricSpecKt.frequencyHistogramParams {
+          maximumFrequencyPerUser = source.frequencyHistogram.maximumFrequencyPerUser
+        }
+      MetricSpec.TypeCase.IMPRESSION_COUNT ->
+        MetricSpecKt.impressionCountParams {
+          maximumFrequencyPerUser = source.impressionCount.maximumFrequencyPerUser
+        }
+      MetricSpec.TypeCase.WATCH_DURATION ->
+        MetricSpecKt.watchDurationParams {
+          maximumWatchDurationPerUser = source.watchDuration.maximumWatchDurationPerUser
+        }
+      MetricSpec.TypeCase.TYPE_NOT_SET ->
+        failGrpc(Status.INVALID_ARGUMENT) { "The metric type in Metric is not specified." }
+    }
+  }
+}
+
+/** Converts a public [TimeInterval] to an [InternalTimeInterval]. */
+private fun TimeInterval.toInternal(): InternalTimeInterval {
+  val source = this
+  return internalTimeInterval {
+    startTime = source.startTime
+    endTime = source.endTime
   }
 }
 
