@@ -512,9 +512,9 @@ fun ExchangeWorkflow.Party.toInternal(): InternalExchangeWorkflow.Party {
 
 fun InternalEventGroup.State.toV2Alpha(): EventGroup.State {
   return when (this) {
-    InternalEventGroup.State.STATE_UNSPECIFIED,
-    InternalEventGroup.State.UNRECOGNIZED -> EventGroup.State.STATE_UNSPECIFIED
+    InternalEventGroup.State.STATE_UNSPECIFIED -> EventGroup.State.STATE_UNSPECIFIED
     InternalEventGroup.State.ACTIVE -> EventGroup.State.ACTIVE
     InternalEventGroup.State.DELETED -> EventGroup.State.DELETED
+    InternalEventGroup.State.UNRECOGNIZED -> error("Invalid InternalEventGroup state: $this")
   }
 }
