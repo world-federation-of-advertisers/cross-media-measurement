@@ -68,4 +68,15 @@ message ReportingSet {
     Primitive primitive = 5;
     Composite composite = 6;
   }
+
+  message PrimitiveReportingSetBasis {
+    fixed64 external_reporting_set_id = 1;
+    repeated string filters = 2;
+  }
+
+  message WeightedSubsetUnion {
+    repeated PrimitiveReportingSetBasis primitive_reporting_set_bases = 1;
+    int32 weight = 2;
+  }
+  repeated WeightedSubsetUnion weighted_subset_unions = 7;
 }
