@@ -67,6 +67,11 @@ CREATE TABLE EventGroups (
 );
 
 -- changeset riemanli:create-reporting-sets-table dbms:postgresql
+-- The traversal of a reporting set from the root:
+-- row in ReportingSets --> multiple rows in WeightedSubsetUnions, and for each
+-- row --> multiple rows in PrimitiveReportingSetBases, and for each row --> one
+-- row of leaf (primitive) ReportingSets + multiple rows in
+-- PrimitiveReportingSetBasisFilters.
 CREATE TABLE ReportingSets (
   MeasurementConsumerId bigint NOT NULL,
   ReportingSetId bigint NOT NULL,
@@ -106,7 +111,7 @@ CREATE TABLE ReportingSetEventGroups(
 );
 
 -- changeset riemanli:create-weighted-subset-unions-table dbms:postgresql
--- A WeightedSubsetUnion is a weighted union of a subset of
+-- A WeightedSubsetUnion is a weighted subset union of
 -- PrimitiveReportingSetBases. That is, one WeightedSubsetUnion has at least
 -- one PrimitiveReportingSetBasis.
 CREATE TABLE WeightedSubsetUnions (
