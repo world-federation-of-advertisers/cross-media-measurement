@@ -50,7 +50,6 @@ kt_jvm_test(
     ],
     test_class = "org.wfanet.measurement.reporting.service.api.v1alpha.EventGroupsServiceTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:event_groups_service",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:principal_server_interceptor",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
