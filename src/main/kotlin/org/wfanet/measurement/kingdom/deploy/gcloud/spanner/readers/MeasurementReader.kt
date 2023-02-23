@@ -241,7 +241,7 @@ class MeasurementReader(private val view: Measurement.View) :
           AND Measurements.MeasurementId = DuchyMeasurementResults.MeasurementId
       ) AS DuchyResults
     FROM
-      Measurements
+      Measurements@{FORCE_INDEX=MeasurementsByContinuationToken}
       JOIN MeasurementConsumers USING (MeasurementConsumerId)
       JOIN MeasurementConsumerCertificates USING(MeasurementConsumerId, CertificateId)
     """
