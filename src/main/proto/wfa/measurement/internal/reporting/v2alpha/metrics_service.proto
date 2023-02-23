@@ -30,7 +30,7 @@ service Metrics {
   rpc GetMetric(GetMetricRequest) returns (Metric);
 
   rpc GetMetricByIdempotencyKey(GetMetricByIdempotencyKeyRequest)
-    returns (Metric);
+      returns (Metric);
 
   rpc BatchGetMetric(BatchGetMetricRequest) returns (stream Metric);
 
