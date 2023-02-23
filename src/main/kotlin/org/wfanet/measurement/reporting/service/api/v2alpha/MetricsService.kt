@@ -941,6 +941,39 @@ class MetricsService(
   }
 }
 
+private fun MetricSpec.toInternal(): InternalMetricSpec {
+  val source = this
+  return internalMetricSpec {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    when (source.typeCase) {
+      MetricSpec.TypeCase.REACH -> reach = MetricSpecKt.reachParams {}
+      MetricSpec.TypeCase.FREQUENCY_HISTOGRAM ->
+        MetricSpecKt.frequencyHistogramParams {
+          maximumFrequencyPerUser = source.frequencyHistogram.maximumFrequencyPerUser
+        }
+      MetricSpec.TypeCase.IMPRESSION_COUNT ->
+        MetricSpecKt.impressionCountParams {
+          maximumFrequencyPerUser = source.impressionCount.maximumFrequencyPerUser
+        }
+      MetricSpec.TypeCase.WATCH_DURATION ->
+        MetricSpecKt.watchDurationParams {
+          maximumWatchDurationPerUser = source.watchDuration.maximumWatchDurationPerUser
+        }
+      MetricSpec.TypeCase.TYPE_NOT_SET ->
+        failGrpc(Status.INVALID_ARGUMENT) { "The metric type in Metric is not specified." }
+    }
+  }
+}
+
+/** Converts a public [TimeInterval] to an [InternalTimeInterval]. */
+private fun TimeInterval.toInternal(): InternalTimeInterval {
+  val source = this
+  return internalTimeInterval {
+    startTime = source.startTime
+    endTime = source.endTime
+  }
+}
+
 private fun InternalSetExpression.toSetExpression(): SetExpression {
   TODO("Not yet implemented")
 }
