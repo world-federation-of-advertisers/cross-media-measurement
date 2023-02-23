@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.duchy.db.computation
 
+import java.time.Duration
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
@@ -109,7 +110,7 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
    * @param ownerId The identifier of the worker process that will own the lock.
    * @return global computation id of work that was claimed. When null, no work was claimed.
    */
-  suspend fun claimTask(protocol: ProtocolT, ownerId: String): String?
+  suspend fun claimTask(protocol: ProtocolT, ownerId: String, lockDuration: Duration): String?
 
   /**
    * Transitions a computation to a new stage.
@@ -132,7 +133,8 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
     passThroughBlobPaths: List<String>,
     outputBlobs: Int,
     afterTransition: AfterTransition,
-    nextStageDetails: StageDetailsT
+    nextStageDetails: StageDetailsT,
+    lockExtension: Duration?
   )
 
   /** Moves a computation to a terminal state and records the reason why it ended. */
