@@ -15,6 +15,6 @@ kt_jvm_library(
     deps = [
         "//imports/java/com/google:cel-generated-pb",
         "//imports/java/org/projectnessie/cel",
-        "//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
