@@ -18,6 +18,7 @@ package wfa.measurement.internal.reporting.v2alpha;
 
 import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/reporting/v2alpha/time_interval.proto";
+import "wfa/measurement/internal/reporting/v2alpha/measurement.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting.v2alpha";
 option java_multiple_files = true;
@@ -82,6 +83,13 @@ message Metric {
 
   MetricSpec metric_spec = 7;
 
+  message WeightedMeasurement {
+    int64 weight = 1;
+    Measurement measurement = 2;
+  }
+
+  repeated WeightedMeasurement weighted_measurements = 8;
+
   enum State {
     // Default value. This value is unused.
     STATE_UNSPECIFIED = 0;
@@ -93,11 +101,11 @@ message Metric {
     FAILED = 3;
   }
 
-  State state = 8;
+  State state = 9;
 
   message Details {
     repeated string filters = 1;
     MetricResult result = 2;
   }
-  Details details = 9;
+  Details details = 10;
 }
