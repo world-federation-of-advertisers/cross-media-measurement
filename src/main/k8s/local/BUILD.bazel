@@ -9,6 +9,7 @@ load(
 load("@wfa_rules_cue//cue:defs.bzl", "cue_library")
 load("//src/main/k8s:macros.bzl", "cue_dump")
 load("//src/main/docker:images.bzl", "ALL_LOCAL_IMAGES")
+load("@wfa_common_jvm//build:versions.bzl", "SPANNER_EMULATOR")
 
 package(
     default_visibility = [":__subpackages__"],
@@ -38,8 +39,7 @@ cue_dump(
     name = "emulators",
     cue_tags = {
         "secret_name": SECRET_NAME,
-        # TODO(@SanjayVas): Use same version as binary from common-jvm.
-        "spanner_emulator_version": "1.4.9",
+        "spanner_emulator_version": SPANNER_EMULATOR.version,
     },
     deps = [":emulators_cue"],
 )

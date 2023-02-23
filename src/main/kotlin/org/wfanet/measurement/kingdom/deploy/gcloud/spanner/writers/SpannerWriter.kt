@@ -33,9 +33,9 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
  */
 abstract class SpannerWriter<T, R> {
   class TransactionScope(
-    delegate: AsyncDatabaseClient.TransactionScope,
+    val txn: AsyncDatabaseClient.TransactionContext,
     val idGenerator: IdGenerator
-  ) : AsyncDatabaseClient.TransactionScope(delegate.txn, delegate.coroutineContext) {
+  ) {
     val transactionContext: AsyncDatabaseClient.TransactionContext
       get() = txn
   }
@@ -64,7 +64,7 @@ abstract class SpannerWriter<T, R> {
     idGenerator: IdGenerator
   ): T? {
     return try {
-      runner.execute { TransactionScope(this, idGenerator).runTransaction() }
+      runner.execute { txn -> TransactionScope(txn, idGenerator).runTransaction() }
     } catch (e: SpannerException) {
       handleSpannerException(e)
     }

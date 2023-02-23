@@ -110,7 +110,7 @@ class GcpSpannerComputationsDatabaseTransactor<
   }
 
   override suspend fun enqueue(token: ComputationEditToken<ProtocolT, StageT>, delaySecond: Int) {
-    runIfTokenFromLastUpdate(token) {
+    runIfTokenFromLastUpdate(token) { txn ->
       txn.buffer(
         computationMutations.updateComputation(
           localId = token.localId,
@@ -137,8 +137,9 @@ class GcpSpannerComputationsDatabaseTransactor<
   ): String? {
     /** Claim a specific task represented by the results of running the above sql. */
     suspend fun claimSpecificTask(result: UnclaimedTaskQueryResult<StageT>): Boolean =
-      databaseClient.readWriteTransaction().execute {
+      databaseClient.readWriteTransaction().execute { txn ->
         claim(
+          txn,
           result.computationId,
           result.computationStage,
           result.nextAttempt,
@@ -167,7 +168,8 @@ class GcpSpannerComputationsDatabaseTransactor<
    * Tries to claim a specific computation for an owner, returning the result of the attempt. If a
    * lock is acquired a new row is written to the ComputationStageAttempts table.
    */
-  private suspend fun AsyncDatabaseClient.TransactionScope.claim(
+  private suspend fun claim(
+    txn: AsyncDatabaseClient.TransactionContext,
     computationId: Long,
     stage: StageT,
     nextAttempt: Long,
@@ -263,9 +265,9 @@ class GcpSpannerComputationsDatabaseTransactor<
       "Invalid stage transition ${token.stage} -> $nextStage"
     }
 
-    runIfTokenFromLastUpdate(token) {
+    runIfTokenFromLastUpdate(token) { txn ->
       val unwrittenOutputs =
-        outputBlobIdToPathMap(token.localId, token.stage).filterValues { it == null }
+        outputBlobIdToPathMap(txn, token.localId, token.stage).filterValues { it == null }
       check(unwrittenOutputs.isEmpty()) {
         """
         Cannot transition computation for $token to stage $nextStage, all outputs have not been written.
@@ -308,7 +310,7 @@ class GcpSpannerComputationsDatabaseTransactor<
     require(computationMutations.validTerminalStage(token.protocol, endingStage)) {
       "Invalid terminal stage of computation $endingStage"
     }
-    runIfTokenFromLastUpdate(token) {
+    runIfTokenFromLastUpdate(token) { txn ->
       val writeTime = clock.gcloudTimestamp()
       val detailsBytes =
         txn
@@ -385,7 +387,7 @@ class GcpSpannerComputationsDatabaseTransactor<
     computationDetails: ComputationDT,
     requisitions: List<RequisitionEntry>
   ) {
-    runIfTokenFromLastUpdate(token) {
+    runIfTokenFromLastUpdate(token) { txn ->
       requisitions.forEach {
         val row =
           txn.readRowUsingIndex(
@@ -568,7 +570,8 @@ class GcpSpannerComputationsDatabaseTransactor<
     return mutations
   }
 
-  private suspend fun AsyncDatabaseClient.TransactionScope.outputBlobIdToPathMap(
+  private suspend fun outputBlobIdToPathMap(
+    txn: AsyncDatabaseClient.TransactionContext,
     localId: Long,
     stage: StageT
   ): Map<Long, String?> {
@@ -591,7 +594,7 @@ class GcpSpannerComputationsDatabaseTransactor<
     blobRef: BlobRef
   ) {
     require(blobRef.key.isNotBlank()) { "Cannot insert blank path to blob. $blobRef" }
-    runIfTokenFromLastUpdate(token) {
+    runIfTokenFromLastUpdate(token) { txn ->
       val type =
         txn
           .readRow(
@@ -628,7 +631,7 @@ class GcpSpannerComputationsDatabaseTransactor<
     pathToBlob: String
   ) {
     require(pathToBlob.isNotBlank()) { "Cannot insert blank path to blob. $externalRequisitionKey" }
-    databaseClient.readWriteTransaction().execute {
+    databaseClient.readWriteTransaction().execute { txn ->
       val row =
         txn.readRowUsingIndex(
           "Requisitions",
@@ -696,7 +699,7 @@ class GcpSpannerComputationsDatabaseTransactor<
     token: ComputationEditToken<ProtocolT, StageT>,
     readWriteTransactionBlock: TransactionWork<R>
   ): R {
-    return databaseClient.readWriteTransaction().execute {
+    return databaseClient.readWriteTransaction().execute { txn ->
       val current =
         txn.readRow("Computations", Key.of(token.localId), listOf("UpdateTime"))
           ?: error("No row for computation (${token.localId})")
@@ -704,7 +707,7 @@ class GcpSpannerComputationsDatabaseTransactor<
       val updateTimeMillis = updateTime.toEpochMilli()
       val tokenTimeMillis = token.editVersion
       if (updateTimeMillis == tokenTimeMillis) {
-        readWriteTransactionBlock()
+        readWriteTransactionBlock(txn)
       } else {
         val tokenTime = Instant.ofEpochMilli(tokenTimeMillis)
         error(
