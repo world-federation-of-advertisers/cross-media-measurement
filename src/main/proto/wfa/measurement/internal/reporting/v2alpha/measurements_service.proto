@@ -25,11 +25,13 @@ option java_multiple_files = true;
 service Measurements {
   rpc SetCmmsMeasurementId(SetCmmsMeasurementIdRequest) returns (Measurement);
 
-  rpc BatchSetCmmsMeasurementId(BatchSetCmmsMeasurementIdRequest) returns (stream Measurement);
+  rpc BatchSetCmmsMeasurementId(BatchSetCmmsMeasurementIdRequest)
+      returns (stream Measurement);
 
   rpc SetMeasurementResult(SetMeasurementResultRequest) returns (Measurement);
 
-  rpc BatchSetMeasurementResult(BatchSetMeasurementResultRequest) returns (stream Measurement);
+  rpc BatchSetMeasurementResult(BatchSetMeasurementResultRequest)
+      returns (stream Measurement);
 
   rpc SetMeasurementFailure(SetMeasurementFailureRequest) returns (Measurement);
 }
