@@ -29,10 +29,9 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.checkValidCe
 /**
  * Update [EventGroup] in the database.
  *
- * Throws a subclass of [KingdomInternalException] on [execute].
- *
- * @throws [EventGroupNotFoundException] EventGroup not found
- * @throws [EventGroupInvalidArgsException] MeasurementConsumer ids mismatch
+ * Throws one of the following [KingdomInternalException] types on [execute].
+ * * [EventGroupNotFoundException] EventGroup not found
+ * * [EventGroupInvalidArgsException] MeasurementConsumer ids mismatch
  */
 class UpdateEventGroup(private val eventGroup: EventGroup) :
   SpannerWriter<EventGroup, EventGroup>() {

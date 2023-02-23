@@ -30,9 +30,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupRe
 /**
  * Soft Delete [EventGroup] in the database.
  *
- * Throws a subclass of [KingdomInternalException] on [execute].
- *
- * @throws [EventGroupNotFoundException] EventGroup not found
+ * Throws one of the following [KingdomInternalException] types on [execute]:
+ * * [EventGroupNotFoundException]
  */
 class DeleteEventGroup(private val eventGroup: EventGroup) :
   SpannerWriter<EventGroup, EventGroup>() {
