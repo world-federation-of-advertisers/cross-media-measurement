@@ -67,11 +67,21 @@ CREATE TABLE EventGroups (
 );
 
 -- changeset riemanli:create-reporting-sets-table dbms:postgresql
--- The traversal of a reporting set from the root:
--- row in ReportingSets --> multiple rows in WeightedSubsetUnions, and for each
--- row --> multiple rows in PrimitiveReportingSetBases, and for each row --> one
--- row of leaf (primitive) ReportingSets + multiple rows in
--- PrimitiveReportingSetBasisFilters.
+-- * ReportingSets rows which have NULL SetExpressionId are referred to as
+--   "primitive", and those that have a non-NULL SetExpressionId are referred to
+--   as "complex".
+-- * Each row in the ReportingSets table is a vertex of a directed graph, where
+--   the SetExpressions table describes the edges.
+-- * Primitive ReportingSets rows are leaf vertices, i.e. they have no outgoing
+--   edges.
+-- * A WeightedSubsetUnions row indicates the ReportingSets row vertex that is
+--   the start of a graph path.
+-- * A PrimitiveReportingSetBases row is the result of a graph path with a
+--   primitive ReportingSets row vertex that is the end of a graph path. Note
+--   that the path may have zero edges, in which case the WeightedSubsetUnions
+--   row and the PrimitiveReportingSetBases row indicate the same vertex.
+-- * The PrimitiveReportingSetBasisFilters table contains the collection of
+--   filters formed by visiting each vertex on the graph path.
 CREATE TABLE ReportingSets (
   MeasurementConsumerId bigint NOT NULL,
   ReportingSetId bigint NOT NULL,
@@ -247,6 +257,7 @@ CREATE TABLE Metrics (
 CREATE TABLE Measurements (
   MeasurementConsumerId bigint NOT NULL,
   MeasurementId bigint NOT NULL,
+  CmmsCreateMeasurementRequestId text NOT NULL,
   CmmsMeasurementId text,
 
   TimeIntervalStart TIMESTAMP WITH TIME ZONE NOT NULL,
