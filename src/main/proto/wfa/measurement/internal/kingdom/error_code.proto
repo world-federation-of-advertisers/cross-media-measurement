@@ -74,4 +74,6 @@ enum ErrorCode {
   EXCHANGE_STEP_ATTEMPT_NOT_FOUND = 24;
   /** ExchangeStep could not be found. */
   EXCHANGE_STEP_NOT_FOUND = 25;
+  /** EventGroup state is in an illegal state for the operation. */
+  EVENT_GROUP_STATE_ILLEGAL = 26;
 }

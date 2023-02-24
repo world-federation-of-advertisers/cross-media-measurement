@@ -24,6 +24,7 @@ import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 
@@ -31,7 +32,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupRe
  * Soft Delete [EventGroup] in the database.
  *
  * Throws one of the following [KingdomInternalException] types on [execute]:
- * * [EventGroupNotFoundException]
+ * * [EventGroupNotFoundException] EventGroup not found
+ * * [EventGroupStateIllegalException] EventGroup state is DELETED
  */
 class DeleteEventGroup(private val eventGroup: EventGroup) :
   SpannerWriter<EventGroup, EventGroup>() {
@@ -49,9 +51,10 @@ class DeleteEventGroup(private val eventGroup: EventGroup) :
           ExternalId(eventGroup.externalEventGroupId),
         )
     if (internalEventGroupResult.eventGroup.state == EventGroup.State.DELETED) {
-      throw EventGroupNotFoundException(
+      throw EventGroupStateIllegalException(
         ExternalId(eventGroup.externalDataProviderId),
         ExternalId(eventGroup.externalEventGroupId),
+        internalEventGroupResult.eventGroup.state
       )
     }
     transactionContext.bufferUpdateMutation("EventGroups") {
