@@ -893,8 +893,8 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         )
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("EventGroup not found")
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception).hasMessageThat().contains("EventGroup state illegal")
   }
 
   @Test
@@ -935,8 +935,8 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         )
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    assertThat(exception).hasMessageThat().contains("EventGroup not found")
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception).hasMessageThat().contains("EventGroup state illegal")
   }
 
   @Test

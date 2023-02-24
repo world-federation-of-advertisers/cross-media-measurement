@@ -32,6 +32,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIs
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupInvalidArgsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
@@ -87,6 +88,8 @@ class SpannerEventGroupsService(
       }
     } catch (e: EventGroupNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "EventGroup not found." }
+    } catch (e: EventGroupStateIllegalException) {
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "EventGroup state illegal." }
     } catch (e: KingdomInternalException) {
       e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
@@ -122,6 +125,8 @@ class SpannerEventGroupsService(
       return DeleteEventGroup(eventGroup).execute(client, idGenerator)
     } catch (e: EventGroupNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "EventGroup not found." }
+    } catch (e: EventGroupStateIllegalException) {
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "EventGroup state illegal." }
     } catch (e: KingdomInternalException) {
       e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
