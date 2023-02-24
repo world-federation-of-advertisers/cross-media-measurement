@@ -35,7 +35,7 @@ message Report {
 
   message MetricCalculationSpec {
     // Represents all `Metric`s associated with this MetricCalculation.
-    repeated fixed64 external_metric_id = 1;
+    repeated fixed64 external_metric_ids = 1;
 
     message Grouping {
       repeated string predicates = 1;

@@ -97,7 +97,11 @@ message Metric {
 
   State state = 8;
 
-  repeated Measurement measurements = 9;
+  message WeightedMeasurement {
+    int32 weight = 1;
+    Measurement measurement = 2;
+  }
+  repeated WeightedMeasurement weighted_measurements = 9;
 
   message Details {
     repeated string filters = 1;
