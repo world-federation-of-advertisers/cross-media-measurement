@@ -12,30 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-/*
-resource "google_kms_key_ring" "default" {
-  name = var.ring_name
-  location = var.ring_location
+
+resource "google_container_registry" "registry" {
+  #name     = "kingdomregistry"
+  location = "us-central1"
+  project  = var.project_id
 }
-
-
-data "google_kms_key_ring" "my_key_ring" {
-  name = var.ring_name
-  location = var.ring_location
-}
-
-
-resource "google_kms_crypto_key" "default" {
-  name = "gce_east1_symm_key"
-  key_ring = data.google_kms_key_ring.my_key_ring.id
-}
-data "google_iam_policy" "default" {
-  binding {
-    members = [
-      "serviceAccount:service-1049178966878@compute-system.iam.gserviceaccount.com"
-    ]
-    role = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
-  }
-}
-
-*/
