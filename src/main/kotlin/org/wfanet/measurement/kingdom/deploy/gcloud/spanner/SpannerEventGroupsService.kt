@@ -89,7 +89,7 @@ class SpannerEventGroupsService(
     } catch (e: EventGroupNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "EventGroup not found." }
     } catch (e: EventGroupStateIllegalException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "EventGroup state illegal." }
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "EventGroup state illegal." }
     } catch (e: KingdomInternalException) {
       e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
@@ -126,7 +126,7 @@ class SpannerEventGroupsService(
     } catch (e: EventGroupNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "EventGroup not found." }
     } catch (e: EventGroupStateIllegalException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "EventGroup state illegal." }
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "EventGroup state illegal." }
     } catch (e: KingdomInternalException) {
       e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
