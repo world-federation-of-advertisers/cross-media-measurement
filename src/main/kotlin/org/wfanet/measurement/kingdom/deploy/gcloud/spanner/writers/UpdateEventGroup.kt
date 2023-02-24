@@ -25,12 +25,14 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNot
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.checkValidCertificate as checkValidCertificate
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupStateIllegalException
 
 /**
  * Update [EventGroup] in the database.
  *
  * Throws one of the following [KingdomInternalException] types on [execute].
  * * [EventGroupNotFoundException] EventGroup not found
+ * * [EventGroupStateIllegalException] EventGroup state is DELETED
  * * [EventGroupInvalidArgsException] MeasurementConsumer ids mismatch
  */
 class UpdateEventGroup(private val eventGroup: EventGroup) :
@@ -48,9 +50,10 @@ class UpdateEventGroup(private val eventGroup: EventGroup) :
           ExternalId(eventGroup.externalEventGroupId)
         )
     if (internalEventGroupResult.eventGroup.state == EventGroup.State.DELETED) {
-      throw EventGroupNotFoundException(
+      throw EventGroupStateIllegalException(
         ExternalId(eventGroup.externalEventGroupId),
         ExternalId(eventGroup.externalEventGroupId),
+        internalEventGroupResult.eventGroup.state
       )
     }
     if (
