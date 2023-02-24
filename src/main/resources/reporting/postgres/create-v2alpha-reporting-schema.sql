@@ -257,7 +257,7 @@ CREATE TABLE Metrics (
 CREATE TABLE Measurements (
   MeasurementConsumerId bigint NOT NULL,
   MeasurementId bigint NOT NULL,
-  CmmsCreateMeasurementRequestId text NOT NULL,
+  CmmsCreateMeasurementRequestId uuid NOT NULL,
   CmmsMeasurementId text,
 
   TimeIntervalStart TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -276,6 +276,7 @@ CREATE TABLE Measurements (
   Result bytea,
 
   PRIMARY KEY(MeasurementConsumerId, MeasurementId),
+  UNIQUE (MeasurementConsumerId, CmmsCreateMeasurementRequestId),
   UNIQUE (MeasurementConsumerId, CmmsMeasurementId),
 );
 
