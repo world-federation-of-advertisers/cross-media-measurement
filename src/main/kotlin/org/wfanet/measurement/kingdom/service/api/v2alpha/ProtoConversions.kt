@@ -154,29 +154,32 @@ fun InternalProtocolConfig.toProtocolConfig(
         MeasurementSpec.MeasurementTypeCase.IMPRESSION -> ProtocolConfig.MeasurementType.IMPRESSION
         MeasurementSpec.MeasurementTypeCase.DURATION -> ProtocolConfig.MeasurementType.DURATION
       }
-    if (source.hasLiquidLegionsV2()) {
-      liquidLegionsV2 = liquidLegionsV2 {
-        if (source.liquidLegionsV2.hasSketchParams()) {
-          val sourceSketchParams = source.liquidLegionsV2.sketchParams
-          sketchParams = liquidLegionsSketchParams {
-            decayRate = sourceSketchParams.decayRate
-            maxSize = sourceSketchParams.maxSize
-            samplingIndicatorSize = sourceSketchParams.samplingIndicatorSize
-          }
-        }
-        if (source.liquidLegionsV2.hasDataProviderNoise()) {
-          dataProviderNoise = source.liquidLegionsV2.dataProviderNoise.toDifferentialPrivacyParams()
-        }
-        ellipticCurveId = source.liquidLegionsV2.ellipticCurveId
-        maximumFrequency = source.liquidLegionsV2.maximumFrequency
-      }
-    }
 
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
     when (measurementTypeCase) {
       MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
-        if (dataProviderCount > 1)
-          protocols += protocol { liquidLegionsV2 = this@protocolConfig.liquidLegionsV2 }
+        // Some old Measurements may have been written with an LLv2 protocol config even when there
+        // is a single DataProvider, so we still need to check dataProviderCount here.
+        if (source.hasLiquidLegionsV2() && dataProviderCount > 1) {
+          protocols += protocol {
+            liquidLegionsV2 = liquidLegionsV2 {
+              if (source.liquidLegionsV2.hasSketchParams()) {
+                val sourceSketchParams = source.liquidLegionsV2.sketchParams
+                sketchParams = liquidLegionsSketchParams {
+                  decayRate = sourceSketchParams.decayRate
+                  maxSize = sourceSketchParams.maxSize
+                  samplingIndicatorSize = sourceSketchParams.samplingIndicatorSize
+                }
+              }
+              if (source.liquidLegionsV2.hasDataProviderNoise()) {
+                dataProviderNoise =
+                  source.liquidLegionsV2.dataProviderNoise.toDifferentialPrivacyParams()
+              }
+              ellipticCurveId = source.liquidLegionsV2.ellipticCurveId
+              maximumFrequency = source.liquidLegionsV2.maximumFrequency
+            }
+          }
+        }
         if (dataProviderCount == 1) {
           protocols += protocol { direct = direct {} }
         }
@@ -308,12 +311,14 @@ fun Measurement.toInternal(
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (measurementSpecProto.measurementTypeCase) {
         MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
-          protocolConfig = internalProtocolConfig {
-            externalProtocolConfigId = Llv2ProtocolConfig.name
-            liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
-          }
-          duchyProtocolConfig = duchyProtocolConfig {
-            liquidLegionsV2 = Llv2ProtocolConfig.duchyProtocolConfig
+          if (dataProvidersCount > 1) {
+            protocolConfig = internalProtocolConfig {
+              externalProtocolConfigId = Llv2ProtocolConfig.name
+              liquidLegionsV2 = Llv2ProtocolConfig.protocolConfig
+            }
+            duchyProtocolConfig = duchyProtocolConfig {
+              liquidLegionsV2 = Llv2ProtocolConfig.duchyProtocolConfig
+            }
           }
         }
         MeasurementSpec.MeasurementTypeCase.IMPRESSION,
