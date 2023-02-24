@@ -15,9 +15,9 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries
 
 import com.google.cloud.spanner.Statement
-import org.wfanet.measurement.common.numberAsLong
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
+import org.wfanet.measurement.gcloud.spanner.toProtoEnum
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
@@ -61,7 +61,7 @@ class StreamEventGroups(requestFilter: StreamEventGroupsRequest.Filter, limit: I
 
     if (!filter.showDeleted) {
       conjuncts.add("State != @$DELETED_STATE")
-      bind(DELETED_STATE).to(EventGroup.State.DELETED.numberAsLong)
+      bind(DELETED_STATE).toProtoEnum(EventGroup.State.DELETED)
     }
 
     if (conjuncts.isEmpty()) {
