@@ -84,7 +84,7 @@ message Metric {
   MetricSpec metric_spec = 7;
 
   message WeightedMeasurement {
-    int64 weight = 1;
+    int32 weight = 1;
     Measurement measurement = 2;
   }
 
