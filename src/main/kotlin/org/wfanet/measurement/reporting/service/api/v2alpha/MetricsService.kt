@@ -20,8 +20,13 @@ import io.grpc.StatusException
 import java.io.File
 import java.security.PrivateKey
 import java.security.SecureRandom
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
@@ -38,9 +43,12 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.internal.reporting.v2alpha.BatchSetCmmsMeasurementIdRequest.MeasurementIds
+import org.wfanet.measurement.internal.reporting.v2alpha.BatchSetCmmsMeasurementIdRequestKt.measurementIds
 import org.wfanet.measurement.internal.reporting.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2alpha.Metric as InternalMetric
 import org.wfanet.measurement.internal.reporting.v2alpha.Metric.WeightedMeasurement
+import org.wfanet.measurement.internal.reporting.v2alpha.MetricKt.weightedMeasurement
 import org.wfanet.measurement.internal.reporting.v2alpha.MetricSpec as InternalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub as InternalMetricsCoroutineStub
@@ -48,12 +56,13 @@ import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSet as Interna
 import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSet.SetExpression as InternalSetExpression
 import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2alpha.TimeInterval as InternalTimeInterval
+import org.wfanet.measurement.internal.reporting.v2alpha.batchSetCmmsMeasurementIdRequest
 import org.wfanet.measurement.internal.reporting.v2alpha.getMetricByIdempotencyKeyRequest
 import org.wfanet.measurement.internal.reporting.v2alpha.getReportingSetRequest as getInternalReportingSetRequest
+import org.wfanet.measurement.internal.reporting.v2alpha.measurement as internalMeasurement
 import org.wfanet.measurement.internal.reporting.v2alpha.metric as internalMetric
 import org.wfanet.measurement.internal.reporting.v2alpha.metricSpec as internalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2alpha.timeInterval as internalTimeInterval
-import org.wfanet.measurement.internal.reporting.v2alpha.timeInterval
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
@@ -169,10 +178,6 @@ class MetricsService(
     val initialInternalMetric: InternalMetric =
       createInitialInternalMetric(resourceKey.measurementConsumerId, request)
 
-    // Get measurementConsumer and signingConfig
-    val measurementConsumer: MeasurementConsumer =
-      getMeasurementConsumer(resourceKey.measurementConsumerId, apiAuthenticationKey)
-
     // TODO: Factor this out to a separate class similar to EncryptionKeyPairStore.
     val signingPrivateKeyDer: ByteString =
       signingPrivateKeyDir.resolve(principal.config.signingPrivateKeyPath).readByteString()
@@ -191,26 +196,69 @@ class MetricsService(
       )
 
     /**
-     * Measurement Supplier - getInternalMeasurementIds For each WeightedSubsetUnion,
-     * 1. Create a unique internal measurement ID for each WeightedSubsetUnion based on the internal
-     *    metric ID and the WeightedSubsetUnionId.
-     * 2. Create an internal measurement resource if not exist in the reporting server with the
-     *    internal IDs. At this stage, cmmsMeasurementId is NULL, and the state is NOT_REQUESTED.
-     *    Return Map<internal MeasurementId, weight>
-     */
-
-    // Create an internal metric resource with the list of internal measurement Ids and weights.
-
-    /**
      * Measurement Supplier - createMeasurements
      * 1. For each internal measurement, a. call createMeasurement
      *     - request a corresponding kingdom measurement
      *     - update the cmmsMeasurementId in the internal measurement.
      */
+    createMeasurements(
+      initialInternalMetric,
+      resourceKey.measurementConsumerId,
+      apiAuthenticationKey,
+      signingConfig,
+    )
 
     // Convert the internal metric to public and return it.
 
     return metric {}
+  }
+
+  /** Creates CMM public [Measurement]s and [InternalMeasurement]s from [SetOperationResult]s. */
+  private suspend fun createMeasurements(
+    initialInternalMetric: InternalMetric,
+    cmmsMeasurementConsumerId: String,
+    apiAuthenticationKey: String,
+    signingConfig: SigningConfig,
+  ) = coroutineScope {
+    // Get measurementConsumer and signingConfig
+    val measurementConsumer: MeasurementConsumer =
+      getMeasurementConsumer(cmmsMeasurementConsumerId, apiAuthenticationKey)
+
+    val deferred = mutableListOf<Deferred<MeasurementIds>>()
+
+    for (internalWeightedMeasurement in initialInternalMetric.weightedMeasurementsList) {
+      deferred.add(
+        async {
+          createMeasurement(
+            internalWeightedMeasurement,
+            measurementConsumer,
+            apiAuthenticationKey,
+            signingConfig,
+          )
+        }
+      )
+    }
+
+    // Set CMMs measurement IDs.
+    try {
+      internalMeasurementsStub.batchSetCmmsMeasurementId(
+        batchSetCmmsMeasurementIdRequest {
+          measurementConsumerReferenceId = cmmsMeasurementConsumerId
+          measurementIds += deferred.awaitAll()
+        }
+      )
+    } catch (e: StatusException) {
+      throw Exception("Unable to set the CMMs measurement IDs in the reporting database.", e)
+    }
+  }
+
+  private fun createMeasurement(
+    internalWeightedMeasurement: WeightedMeasurement,
+    measurementConsumer: MeasurementConsumer,
+    apiAuthenticationKey: String,
+    signingConfig: SigningConfig,
+  ): MeasurementIds {
+    TODO("Not yet implemented")
   }
 
   private suspend fun createInitialInternalMetric(
@@ -244,12 +292,20 @@ class MetricsService(
     )
   }
 
-  private suspend fun buildInitialInternalMeasurements(
+  private fun buildInitialInternalMeasurements(
     cmmsMeasurementConsumerId: String,
     metric: Metric,
     internalReportingSet: InternalReportingSet
   ): List<WeightedMeasurement> {
-    TODO("Not yet implemented")
+    return internalReportingSet.weightedSubsetUnionsList.map { weightedSubsetUnion ->
+      weightedMeasurement {
+        weight = weightedSubsetUnion.weight
+        measurement = internalMeasurement {
+          measurementConsumerReferenceId = cmmsMeasurementConsumerId
+          timeInterval = metric.timeInterval.toInternal()
+        }
+      }
+    }
   }
 
   private suspend fun getMeasurementConsumer(
