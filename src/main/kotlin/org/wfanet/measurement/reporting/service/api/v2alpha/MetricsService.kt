@@ -41,6 +41,8 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec.VidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
@@ -51,6 +53,7 @@ import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.measurement
+import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.timeInterval as cmmsTimeInterval
 import org.wfanet.measurement.api.withAuthenticationKey
@@ -91,7 +94,6 @@ import org.wfanet.measurement.internal.reporting.v2alpha.measurement as internal
 import org.wfanet.measurement.internal.reporting.v2alpha.metric as internalMetric
 import org.wfanet.measurement.internal.reporting.v2alpha.metricSpec as internalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2alpha.timeInterval as internalTimeInterval
-import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig.name
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
@@ -276,6 +278,7 @@ class MetricsService(
             measurementReferenceId =
               createMeasurement(
                   weightedMeasurement,
+                  initialInternalMetric.metricSpec,
                   internalPrimitiveReportingSetMap,
                   measurementConsumer,
                   apiAuthenticationKey,
@@ -302,6 +305,7 @@ class MetricsService(
 
   private suspend fun createMeasurement(
     weightedMeasurement: WeightedMeasurement,
+    metricSpec: InternalMetricSpec,
     internalPrimitiveReportingSetMap: Map<Long, InternalReportingSet>,
     measurementConsumer: MeasurementConsumer,
     apiAuthenticationKey: String,
@@ -315,17 +319,21 @@ class MetricsService(
 
     val createMeasurementRequest: CreateMeasurementRequest =
       buildCreateMeasurementRequest(
-        weightedMeasurement,
+        weightedMeasurement.measurement,
+        metricSpec,
         internalPrimitiveReportingSetMap,
         measurementConsumer,
         eventGroupEntriesByDataProvider,
         apiAuthenticationKey,
         signingConfig,
       )
+
+    return measurement {}
   }
 
   private suspend fun buildCreateMeasurementRequest(
-    weightedMeasurement: WeightedMeasurement,
+    internalMeasurement: InternalMeasurement,
+    metricSpec: InternalMetricSpec,
     internalPrimitiveReportingSetMap: Map<Long, InternalReportingSet>,
     measurementConsumer: MeasurementConsumer,
     eventGroupEntriesByDataProvider: Map<DataProviderKey, List<EventGroupEntry>>,
@@ -353,6 +361,53 @@ class MetricsService(
           measurementConsumerSigningKey,
           apiAuthenticationKey,
         )
+
+      val unsignedMeasurementSpec: MeasurementSpec =
+        buildUnsignedMeasurementSpec(
+          measurementEncryptionPublicKey,
+          dataProviders.map { it.value.nonceHash },
+          metricSpec
+        )
+    }
+  }
+
+  private fun buildUnsignedMeasurementSpec(
+    measurementEncryptionPublicKey: ByteString,
+    nonceHashes: List<ByteString>,
+    metricSpec: InternalMetricSpec
+  ): MeasurementSpec {
+    return measurementSpec {
+      measurementPublicKey = measurementEncryptionPublicKey
+      this.nonceHashes += nonceHashes
+
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+      when (metricSpec.typeCase) {
+        InternalMetricSpec.TypeCase.REACH -> {
+          reachAndFrequency = REACH_ONLY_MEASUREMENT_SPEC
+          vidSamplingInterval = buildReachOnlyVidSamplingInterval(secureRandom)
+        }
+        InternalMetricSpec.TypeCase.FREQUENCY_HISTOGRAM -> {
+          reachAndFrequency =
+            buildReachAndFrequencyMeasurementSpec(
+              metricSpec.frequencyHistogram.maximumFrequencyPerUser
+            )
+          vidSamplingInterval = buildReachAndFrequencyVidSamplingInterval(secureRandom)
+        }
+        InternalMetricSpec.TypeCase.IMPRESSION_COUNT -> {
+          impression =
+            buildImpressionMeasurementSpec(metricSpec.impressionCount.maximumFrequencyPerUser)
+          vidSamplingInterval = buildImpressionVidSamplingInterval(secureRandom)
+        }
+        InternalMetricSpec.TypeCase.WATCH_DURATION -> {
+          duration =
+            buildDurationMeasurementSpec(
+              metricSpec.watchDuration.maximumWatchDurationPerUser,
+            )
+          vidSamplingInterval = buildDurationVidSamplingInterval(secureRandom)
+        }
+        InternalMetricSpec.TypeCase.TYPE_NOT_SET ->
+          error("Unset metric type should've already raised error.")
+      }
     }
   }
 
@@ -718,4 +773,89 @@ private fun InternalMetric.toMetric(): Metric {
   //
   // )
   return metric {}
+}
+
+/** Builds a [VidSamplingInterval] for reach-only. */
+private fun buildReachOnlyVidSamplingInterval(secureRandom: SecureRandom): VidSamplingInterval {
+  return MeasurementSpecKt.vidSamplingInterval {
+    // Random draw the start point from the list
+    val index = secureRandom.nextInt(NUMBER_REACH_ONLY_BUCKETS)
+    start = REACH_ONLY_VID_SAMPLING_START_LIST[index]
+    width = REACH_ONLY_VID_SAMPLING_WIDTH
+  }
+}
+
+/** Builds a [VidSamplingInterval] for reach-frequency. */
+private fun buildReachAndFrequencyVidSamplingInterval(
+  secureRandom: SecureRandom
+): VidSamplingInterval {
+  return MeasurementSpecKt.vidSamplingInterval {
+    // Random draw the start point from the list
+    val index = secureRandom.nextInt(NUMBER_REACH_FREQUENCY_BUCKETS)
+    start = REACH_FREQUENCY_VID_SAMPLING_START_LIST[index]
+    width = REACH_FREQUENCY_VID_SAMPLING_WIDTH
+  }
+}
+
+/** Builds a [VidSamplingInterval] for impression count. */
+private fun buildImpressionVidSamplingInterval(secureRandom: SecureRandom): VidSamplingInterval {
+  return MeasurementSpecKt.vidSamplingInterval {
+    // Random draw the start point from the list
+    val index = secureRandom.nextInt(NUMBER_IMPRESSION_BUCKETS)
+    start = IMPRESSION_VID_SAMPLING_START_LIST[index]
+    width = IMPRESSION_VID_SAMPLING_WIDTH
+  }
+}
+
+/** Builds a [VidSamplingInterval] for watch duration. */
+private fun buildDurationVidSamplingInterval(secureRandom: SecureRandom): VidSamplingInterval {
+  return MeasurementSpecKt.vidSamplingInterval {
+    // Random draw the start point from the list
+    val index = secureRandom.nextInt(NUMBER_WATCH_DURATION_BUCKETS)
+    start = WATCH_DURATION_VID_SAMPLING_START_LIST[index]
+    width = WATCH_DURATION_VID_SAMPLING_WIDTH
+  }
+}
+
+/** Builds a [MeasurementSpec.ReachAndFrequency] for reach-frequency. */
+private fun buildReachAndFrequencyMeasurementSpec(
+  maximumFrequencyPerUser: Int
+): MeasurementSpec.ReachAndFrequency {
+  return MeasurementSpecKt.reachAndFrequency {
+    reachPrivacyParams = differentialPrivacyParams {
+      epsilon = REACH_FREQUENCY_REACH_EPSILON
+      delta = DIFFERENTIAL_PRIVACY_DELTA
+    }
+    frequencyPrivacyParams = differentialPrivacyParams {
+      epsilon = REACH_FREQUENCY_FREQUENCY_EPSILON
+      delta = DIFFERENTIAL_PRIVACY_DELTA
+    }
+    this.maximumFrequencyPerUser = maximumFrequencyPerUser
+  }
+}
+
+/** Builds a [MeasurementSpec.ReachAndFrequency] for impression count. */
+private fun buildImpressionMeasurementSpec(
+  maximumFrequencyPerUser: Int
+): MeasurementSpec.Impression {
+  return MeasurementSpecKt.impression {
+    privacyParams = differentialPrivacyParams {
+      epsilon = IMPRESSION_EPSILON
+      delta = DIFFERENTIAL_PRIVACY_DELTA
+    }
+    this.maximumFrequencyPerUser = maximumFrequencyPerUser
+  }
+}
+
+/** Builds a [MeasurementSpec.ReachAndFrequency] for watch duration. */
+private fun buildDurationMeasurementSpec(
+  maximumWatchDurationPerUser: Int,
+): MeasurementSpec.Duration {
+  return MeasurementSpecKt.duration {
+    privacyParams = differentialPrivacyParams {
+      epsilon = WATCH_DURATION_EPSILON
+      delta = DIFFERENTIAL_PRIVACY_DELTA
+    }
+    this.maximumWatchDurationPerUser = maximumWatchDurationPerUser
+  }
 }
