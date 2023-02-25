@@ -18,6 +18,7 @@ package wfa.measurement.internal.reporting.v2alpha;
 
 import "google/protobuf/duration.proto";
 import "wfa/measurement/internal/reporting/v2alpha/time_interval.proto";
+import "wfa/measurement/internal/reporting/v2alpha/reporting_set.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting.v2alpha";
 option java_multiple_files = true;
@@ -31,7 +32,11 @@ message Measurement {
 
   fixed64 external_measurement_id = 3;
 
-  TimeInterval time_interval = 4;
+  string cmms_create_measurement_request_id = 4;
+
+  TimeInterval time_interval = 5;
+
+  repeated PrimitiveReportingSetBasis primitive_reporting_set_bases = 6;
 
   enum State {
     STATE_UNSPECIFIED = 0;
@@ -42,7 +47,7 @@ message Measurement {
     FAILED = 3;
   }
   // The state of the `Measurement` derived from the CMMS public API.
-  State state = 5;
+  State state = 7;
 
   message Failure {
     enum Reason {
@@ -60,7 +65,7 @@ message Measurement {
   }
   // Failure reason of the `Measurement` derived from the CMMS public API.
   // Set when the state is set to FAILED.
-  Failure failure = 6;
+  Failure failure = 8;
 
   message Result {
     message Reach {
@@ -84,5 +89,5 @@ message Measurement {
     WatchDuration watchDuration = 4;
   }
   // The result of the `Measurement` derived from the CMMS public API.
-  Result result = 7;
+  Result result = 9;
 }
