@@ -941,6 +941,14 @@ class MetricsService(
   }
 }
 
+private fun InternalTimeInterval.toCmmsTimeInterval(): CmmsTimeInterval {
+  val source = this
+  return cmmsTimeInterval {
+    startTime = source.startTime
+    endTime = source.endTime
+  }
+}
+
 private fun MetricSpec.toInternal(): InternalMetricSpec {
   val source = this
   return internalMetricSpec {
