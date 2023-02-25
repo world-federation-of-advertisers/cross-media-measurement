@@ -20,18 +20,27 @@ import io.grpc.StatusException
 import java.io.File
 import java.security.PrivateKey
 import java.security.SecureRandom
+import java.security.SignatureException
+import java.security.cert.CertPathValidatorException
+import java.security.cert.X509Certificate
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementKt
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
@@ -39,9 +48,15 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.TimeInterval as CmmsTimeInterval
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
+import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
+import org.wfanet.measurement.api.v2alpha.measurement
+import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.timeInterval as cmmsTimeInterval
 import org.wfanet.measurement.api.withAuthenticationKey
+import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
+import org.wfanet.measurement.common.crypto.hashSha256
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -50,6 +65,9 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
+import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
+import org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptionPublicKey
 import org.wfanet.measurement.internal.reporting.v2alpha.BatchSetCmmsMeasurementIdRequest.MeasurementIds
 import org.wfanet.measurement.internal.reporting.v2alpha.BatchSetCmmsMeasurementIdRequestKt.measurementIds
 import org.wfanet.measurement.internal.reporting.v2alpha.Measurement as InternalMeasurement
@@ -73,6 +91,7 @@ import org.wfanet.measurement.internal.reporting.v2alpha.measurement as internal
 import org.wfanet.measurement.internal.reporting.v2alpha.metric as internalMetric
 import org.wfanet.measurement.internal.reporting.v2alpha.metricSpec as internalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2alpha.timeInterval as internalTimeInterval
+import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig.name
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
@@ -150,6 +169,7 @@ class MetricsService(
   private val measurementConsumersStub: MeasurementConsumersCoroutineStub,
   private val secureRandom: SecureRandom,
   private val signingPrivateKeyDir: File,
+  private val trustedCertificates: Map<ByteString, X509Certificate>
 ) : MetricsCoroutineImplBase() {
 
   data class SigningConfig(
@@ -280,7 +300,7 @@ class MetricsService(
     }
   }
 
-  private fun createMeasurement(
+  private suspend fun createMeasurement(
     weightedMeasurement: WeightedMeasurement,
     internalPrimitiveReportingSetMap: Map<Long, InternalReportingSet>,
     measurementConsumer: MeasurementConsumer,
@@ -292,6 +312,131 @@ class MetricsService(
         weightedMeasurement.measurement,
         internalPrimitiveReportingSetMap
       )
+
+    val createMeasurementRequest: CreateMeasurementRequest =
+      buildCreateMeasurementRequest(
+        weightedMeasurement,
+        internalPrimitiveReportingSetMap,
+        measurementConsumer,
+        eventGroupEntriesByDataProvider,
+        apiAuthenticationKey,
+        signingConfig,
+      )
+  }
+
+  private suspend fun buildCreateMeasurementRequest(
+    weightedMeasurement: WeightedMeasurement,
+    internalPrimitiveReportingSetMap: Map<Long, InternalReportingSet>,
+    measurementConsumer: MeasurementConsumer,
+    eventGroupEntriesByDataProvider: Map<DataProviderKey, List<EventGroupEntry>>,
+    apiAuthenticationKey: String,
+    signingConfig: SigningConfig,
+  ): CreateMeasurementRequest {
+    val measurementConsumerReferenceId =
+      grpcRequireNotNull(MeasurementConsumerKey.fromName(measurementConsumer.name)) {
+          "Invalid measurement consumer name [${measurementConsumer.name}]"
+        }
+        .measurementConsumerId
+
+    val measurementConsumerCertificate = readCertificate(signingConfig.signingCertificateDer)
+    val measurementConsumerSigningKey =
+      SigningKeyHandle(measurementConsumerCertificate, signingConfig.signingPrivateKey)
+    val measurementEncryptionPublicKey = measurementConsumer.publicKey.data
+
+    val measurement = measurement {
+      this.measurementConsumerCertificate = signingConfig.signingCertificateName
+
+      dataProviders +=
+        buildDataProviderEntries(
+          eventGroupEntriesByDataProvider,
+          measurementEncryptionPublicKey,
+          measurementConsumerSigningKey,
+          apiAuthenticationKey,
+        )
+    }
+  }
+
+  /** Builds a [List] of [DataProviderEntry] messages from [eventGroupEntriesByDataProvider]. */
+  private suspend fun buildDataProviderEntries(
+    eventGroupEntriesByDataProvider: Map<DataProviderKey, List<EventGroupEntry>>,
+    measurementEncryptionPublicKey: ByteString,
+    measurementConsumerSigningKey: SigningKeyHandle,
+    apiAuthenticationKey: String,
+  ): List<Measurement.DataProviderEntry> {
+    return eventGroupEntriesByDataProvider.map { (dataProviderKey, eventGroupEntriesList) ->
+      // TODO(@SanjayVas): Consider caching the public key and certificate.
+      val dataProviderName: String = dataProviderKey.toName()
+      val dataProvider: DataProvider =
+        try {
+          dataProvidersStub
+            .withAuthenticationKey(apiAuthenticationKey)
+            .getDataProvider(getDataProviderRequest { name = dataProviderName })
+        } catch (e: StatusException) {
+          throw when (e.status.code) {
+              Status.Code.NOT_FOUND ->
+                Status.FAILED_PRECONDITION.withDescription("$dataProviderName not found")
+              else -> Status.UNKNOWN.withDescription("Unable to retrieve $dataProviderName")
+            }
+            .withCause(e)
+            .asRuntimeException()
+        }
+
+      val certificate: Certificate =
+        try {
+          certificateStub
+            .withAuthenticationKey(apiAuthenticationKey)
+            .getCertificate(getCertificateRequest { name = dataProvider.certificate })
+        } catch (e: StatusException) {
+          throw Exception("Unable to retrieve Certificate ${dataProvider.certificate}", e)
+        }
+      if (certificate.revocationState != Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED) {
+        throw Status.FAILED_PRECONDITION.withDescription(
+            "${certificate.name} revocation state is ${certificate.revocationState}"
+          )
+          .asRuntimeException()
+      }
+
+      val x509Certificate: X509Certificate = readCertificate(certificate.x509Der)
+      val trustedIssuer: X509Certificate =
+        trustedCertificates[checkNotNull(x509Certificate.authorityKeyIdentifier)]
+          ?: throw Status.FAILED_PRECONDITION.withDescription(
+              "${certificate.name} not issued by trusted CA"
+            )
+            .asRuntimeException()
+      try {
+        verifyEncryptionPublicKey(dataProvider.publicKey, x509Certificate, trustedIssuer)
+      } catch (e: CertPathValidatorException) {
+        throw Status.FAILED_PRECONDITION.withCause(e)
+          .withDescription("Certificate path for ${certificate.name} is invalid")
+          .asRuntimeException()
+      } catch (e: SignatureException) {
+        throw Status.FAILED_PRECONDITION.withCause(e)
+          .withDescription("DataProvider public key signature is invalid")
+          .asRuntimeException()
+      }
+
+      val requisitionSpec = requisitionSpec {
+        eventGroups += eventGroupEntriesList
+        measurementPublicKey = measurementEncryptionPublicKey
+        nonce = secureRandom.nextLong()
+      }
+      val encryptRequisitionSpec =
+        encryptRequisitionSpec(
+          signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
+          EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
+        )
+
+      dataProviderEntry {
+        key = dataProvider.name
+        value =
+          MeasurementKt.DataProviderEntryKt.value {
+            dataProviderCertificate = certificate.name
+            dataProviderPublicKey = dataProvider.publicKey
+            this.encryptedRequisitionSpec = encryptRequisitionSpec
+            nonceHash = hashSha256(requisitionSpec.nonce)
+          }
+      }
+    }
   }
 
   private fun groupEventGroupEntriesByDataProvider(
