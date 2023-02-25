@@ -34,6 +34,7 @@ proto_and_java_proto_library(
     name = "measurement",
     deps = [
         ":time_interval_proto",
+        ":reporting_set_proto",
         "@com_google_protobuf//:duration_proto",
     ],
 )
