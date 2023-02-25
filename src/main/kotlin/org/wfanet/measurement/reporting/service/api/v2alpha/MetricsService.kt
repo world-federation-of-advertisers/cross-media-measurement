@@ -26,6 +26,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
@@ -33,9 +34,13 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
+import org.wfanet.measurement.api.v2alpha.TimeInterval as CmmsTimeInterval
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
+import org.wfanet.measurement.api.v2alpha.timeInterval as cmmsTimeInterval
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
@@ -47,6 +52,7 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.internal.reporting.v2alpha.BatchSetCmmsMeasurementIdRequest.MeasurementIds
 import org.wfanet.measurement.internal.reporting.v2alpha.BatchSetCmmsMeasurementIdRequestKt.measurementIds
+import org.wfanet.measurement.internal.reporting.v2alpha.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2alpha.Metric as InternalMetric
 import org.wfanet.measurement.internal.reporting.v2alpha.Metric.WeightedMeasurement
@@ -231,7 +237,9 @@ class MetricsService(
     val externalPrimitiveReportingSetIds: Set<Long> =
       initialInternalMetric.weightedMeasurementsList
         .flatMap { weightedMeasurements ->
-          weightedMeasurements.measurement.primitiveReportingSetBasesList.map { it.externalReportingSetId }
+          weightedMeasurements.measurement.primitiveReportingSetBasesList.map {
+            it.externalReportingSetId
+          }
         }
         .toSet()
 
@@ -273,13 +281,68 @@ class MetricsService(
   }
 
   private fun createMeasurement(
-    internalWeightedMeasurement: WeightedMeasurement,
+    weightedMeasurement: WeightedMeasurement,
     internalPrimitiveReportingSetMap: Map<Long, InternalReportingSet>,
     measurementConsumer: MeasurementConsumer,
     apiAuthenticationKey: String,
     signingConfig: SigningConfig,
   ): Measurement {
-    TODO("Not yet implemented")
+    val eventGroupEntriesByDataProvider =
+      groupEventGroupEntriesByDataProvider(
+        weightedMeasurement.measurement,
+        internalPrimitiveReportingSetMap
+      )
+  }
+
+  private fun groupEventGroupEntriesByDataProvider(
+    measurement: InternalMeasurement,
+    internalPrimitiveReportingSetMap: Map<Long, InternalReportingSet>,
+  ): Map<DataProviderKey, List<EventGroupEntry>> {
+    return measurement.primitiveReportingSetBasesList
+      .flatMap { primitiveReportingSetBasis ->
+        val internalPrimitiveReportingSet =
+          internalPrimitiveReportingSetMap.getValue(
+            primitiveReportingSetBasis.externalReportingSetId
+          )
+
+        internalPrimitiveReportingSet.primitive.eventGroupKeysList.map { internalEventGroupKey ->
+          val eventGroupKey =
+            EventGroupKey(
+              internalEventGroupKey.measurementConsumerReferenceId,
+              internalEventGroupKey.dataProviderReferenceId,
+              internalEventGroupKey.eventGroupReferenceId
+            )
+          val eventGroupName = eventGroupKey.toName()
+          val filter: String? =
+            (primitiveReportingSetBasis.filtersList + internalPrimitiveReportingSet.filter)
+              .reduce { filter1, filter2 -> combineEventGroupFilters(filter1, filter2) }
+
+          eventGroupKey to
+            RequisitionSpecKt.eventGroupEntry {
+              key = eventGroupName
+              value =
+                RequisitionSpecKt.EventGroupEntryKt.value {
+                  collectionInterval = measurement.timeInterval.toCmmsTimeInterval()
+                  if (filter != null) {
+                    this.filter = RequisitionSpecKt.eventFilter { expression = filter }
+                  }
+                }
+            }
+        }
+      }
+      .groupBy(
+        { (eventGroupKey, _) -> DataProviderKey(eventGroupKey.dataProviderReferenceId) },
+        { (_, eventGroupEntry) -> eventGroupEntry }
+      )
+  }
+
+  private fun combineEventGroupFilters(filter1: String?, filter2: String?): String? {
+    if (filter1 == null) return filter2
+
+    return if (filter2 == null) filter1
+    else {
+      "($filter1) AND ($filter2)"
+    }
   }
 
   private suspend fun createInitialInternalMetric(
@@ -455,6 +518,14 @@ class MetricsService(
         e
       )
     }
+  }
+}
+
+private fun InternalTimeInterval.toCmmsTimeInterval(): CmmsTimeInterval {
+  val source = this
+  return cmmsTimeInterval {
+    startTime = source.startTime
+    endTime = source.endTime
   }
 }
 
