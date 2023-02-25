@@ -19,7 +19,6 @@ package wfa.measurement.internal.reporting.v2alpha;
 option java_package = "org.wfanet.measurement.internal.reporting.v2alpha";
 option java_multiple_files = true;
 
-
 message PrimitiveReportingSetBasis {
   fixed64 external_reporting_set_id = 1;
   repeated string filters = 2;
