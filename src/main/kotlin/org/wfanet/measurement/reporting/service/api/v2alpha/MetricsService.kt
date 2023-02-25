@@ -24,6 +24,7 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Measurement
@@ -42,6 +43,7 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.internal.reporting.v2alpha.BatchSetCmmsMeasurementIdRequest.MeasurementIds
 import org.wfanet.measurement.internal.reporting.v2alpha.BatchSetCmmsMeasurementIdRequestKt.measurementIds
@@ -56,7 +58,9 @@ import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSet as Interna
 import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSet.SetExpression as InternalSetExpression
 import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2alpha.TimeInterval as InternalTimeInterval
+import org.wfanet.measurement.internal.reporting.v2alpha.batchGetReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2alpha.batchSetCmmsMeasurementIdRequest
+import org.wfanet.measurement.internal.reporting.v2alpha.copy
 import org.wfanet.measurement.internal.reporting.v2alpha.getMetricByIdempotencyKeyRequest
 import org.wfanet.measurement.internal.reporting.v2alpha.getReportingSetRequest as getInternalReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2alpha.measurement as internalMeasurement
@@ -224,17 +228,33 @@ class MetricsService(
     val measurementConsumer: MeasurementConsumer =
       getMeasurementConsumer(cmmsMeasurementConsumerId, apiAuthenticationKey)
 
+    val externalPrimitiveReportingSetIds: Set<Long> =
+      initialInternalMetric.weightedMeasurementsList
+        .flatMap { weightedMeasurements ->
+          weightedMeasurements.measurement.primitiveReportingSetBasesList.map { it.externalReportingSetId }
+        }
+        .toSet()
+
+    val internalPrimitiveReportingSetMap: Map<Long, InternalReportingSet> =
+      buildInternalReportingSetMap(cmmsMeasurementConsumerId, externalPrimitiveReportingSetIds)
+
     val deferred = mutableListOf<Deferred<MeasurementIds>>()
 
-    for (internalWeightedMeasurement in initialInternalMetric.weightedMeasurementsList) {
+    for (weightedMeasurement in initialInternalMetric.weightedMeasurementsList) {
       deferred.add(
         async {
-          createMeasurement(
-            internalWeightedMeasurement,
-            measurementConsumer,
-            apiAuthenticationKey,
-            signingConfig,
-          )
+          measurementIds {
+            externalMeasurementId = weightedMeasurement.measurement.externalMeasurementId
+            measurementReferenceId =
+              createMeasurement(
+                  weightedMeasurement,
+                  internalPrimitiveReportingSetMap,
+                  measurementConsumer,
+                  apiAuthenticationKey,
+                  signingConfig,
+                )
+                .measurementReferenceId
+          }
         }
       )
     }
@@ -254,10 +274,11 @@ class MetricsService(
 
   private fun createMeasurement(
     internalWeightedMeasurement: WeightedMeasurement,
+    internalPrimitiveReportingSetMap: Map<Long, InternalReportingSet>,
     measurementConsumer: MeasurementConsumer,
     apiAuthenticationKey: String,
     signingConfig: SigningConfig,
-  ): MeasurementIds {
+  ): Measurement {
     TODO("Not yet implemented")
   }
 
@@ -303,9 +324,42 @@ class MetricsService(
         measurement = internalMeasurement {
           measurementConsumerReferenceId = cmmsMeasurementConsumerId
           timeInterval = metric.timeInterval.toInternal()
+          this.primitiveReportingSetBases +=
+            weightedSubsetUnion.primitiveReportingSetBasesList.map { primitiveReportingSetBasis ->
+              primitiveReportingSetBasis.copy { filters += metric.filtersList }
+            }
         }
       }
     }
+  }
+
+  private suspend fun buildInternalReportingSetMap(
+    cmmsMeasurementConsumerId: String,
+    externalReportingSetIds: Set<Long>,
+  ): Map<Long, InternalReportingSet> {
+    val batchGetReportingSetRequest = batchGetReportingSetRequest {
+      measurementConsumerReferenceId = cmmsMeasurementConsumerId
+      externalReportingSetIds.forEach { this.externalReportingSetIds += it }
+    }
+
+    val internalReportingSetsList =
+      internalReportingSetsStub.batchGetReportingSet(batchGetReportingSetRequest).toList()
+
+    if (internalReportingSetsList.size < externalReportingSetIds.size) {
+      val missingExternalReportingSetIds = externalReportingSetIds.toMutableSet()
+      val errorMessage = StringBuilder("The following reporting set names were not found:")
+      internalReportingSetsList.forEach {
+        missingExternalReportingSetIds.remove(it.externalReportingSetId)
+      }
+      missingExternalReportingSetIds.forEach {
+        errorMessage.append(
+          " ${ReportingSetKey(cmmsMeasurementConsumerId, externalIdToApiId(it)).toName()}"
+        )
+      }
+      failGrpc(Status.NOT_FOUND) { errorMessage.toString() }
+    }
+
+    return internalReportingSetsList.associateBy { it.externalReportingSetId }
   }
 
   private suspend fun getMeasurementConsumer(
