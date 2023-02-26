@@ -94,6 +94,8 @@ import org.wfanet.measurement.internal.reporting.v2alpha.measurement as internal
 import org.wfanet.measurement.internal.reporting.v2alpha.metric as internalMetric
 import org.wfanet.measurement.internal.reporting.v2alpha.metricSpec as internalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2alpha.timeInterval as internalTimeInterval
+import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
+import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
@@ -321,31 +323,32 @@ class MetricsService(
       buildCreateMeasurementRequest(
         weightedMeasurement.measurement,
         metricSpec,
-        internalPrimitiveReportingSetMap,
         measurementConsumer,
         eventGroupEntriesByDataProvider,
         apiAuthenticationKey,
         signingConfig,
       )
 
-    return measurement {}
+    try {
+      return measurementsStub
+        .withAuthenticationKey(apiAuthenticationKey)
+        .createMeasurement(createMeasurementRequest)
+    } catch (e: StatusException) {
+      throw Exception(
+        "Unable to create the measurement [${createMeasurementRequest.measurement.name}].",
+        e
+      )
+    }
   }
 
   private suspend fun buildCreateMeasurementRequest(
     internalMeasurement: InternalMeasurement,
     metricSpec: InternalMetricSpec,
-    internalPrimitiveReportingSetMap: Map<Long, InternalReportingSet>,
     measurementConsumer: MeasurementConsumer,
     eventGroupEntriesByDataProvider: Map<DataProviderKey, List<EventGroupEntry>>,
     apiAuthenticationKey: String,
     signingConfig: SigningConfig,
   ): CreateMeasurementRequest {
-    val measurementConsumerReferenceId =
-      grpcRequireNotNull(MeasurementConsumerKey.fromName(measurementConsumer.name)) {
-          "Invalid measurement consumer name [${measurementConsumer.name}]"
-        }
-        .measurementConsumerId
-
     val measurementConsumerCertificate = readCertificate(signingConfig.signingCertificateDer)
     val measurementConsumerSigningKey =
       SigningKeyHandle(measurementConsumerCertificate, signingConfig.signingPrivateKey)
@@ -368,7 +371,14 @@ class MetricsService(
           dataProviders.map { it.value.nonceHash },
           metricSpec
         )
+
+      this.measurementSpec =
+        signMeasurementSpec(unsignedMeasurementSpec, measurementConsumerSigningKey)
+
+      this.measurementReferenceId = internalMeasurement.cmmsCreateMeasurementRequestId
     }
+
+    return createMeasurementRequest { this.measurement = measurement }
   }
 
   private fun buildUnsignedMeasurementSpec(
