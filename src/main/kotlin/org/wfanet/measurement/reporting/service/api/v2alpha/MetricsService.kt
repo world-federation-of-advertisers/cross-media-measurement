@@ -48,6 +48,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCorouti
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.TimeInterval as CmmsTimeInterval
+import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
@@ -69,6 +70,7 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
+import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptionPublicKey
 import org.wfanet.measurement.internal.reporting.v2alpha.BatchSetCmmsMeasurementIdRequest.MeasurementIds
@@ -79,10 +81,9 @@ import org.wfanet.measurement.internal.reporting.v2alpha.Metric as InternalMetri
 import org.wfanet.measurement.internal.reporting.v2alpha.Metric.WeightedMeasurement
 import org.wfanet.measurement.internal.reporting.v2alpha.MetricKt.weightedMeasurement
 import org.wfanet.measurement.internal.reporting.v2alpha.MetricSpec as InternalMetricSpec
-import org.wfanet.measurement.internal.reporting.v2alpha.MetricSpecKt
+import org.wfanet.measurement.internal.reporting.v2alpha.MetricSpecKt as InternalMetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub as InternalMetricsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSet as InternalReportingSet
-import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSet.SetExpression as InternalSetExpression
 import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2alpha.TimeInterval as InternalTimeInterval
 import org.wfanet.measurement.internal.reporting.v2alpha.batchGetReportingSetRequest
@@ -94,15 +95,15 @@ import org.wfanet.measurement.internal.reporting.v2alpha.measurement as internal
 import org.wfanet.measurement.internal.reporting.v2alpha.metric as internalMetric
 import org.wfanet.measurement.internal.reporting.v2alpha.metricSpec as internalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2alpha.timeInterval as internalTimeInterval
-import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
-import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
+import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineImplBase
-import org.wfanet.measurement.reporting.v2alpha.ReportingSet.SetExpression
 import org.wfanet.measurement.reporting.v2alpha.TimeInterval
 import org.wfanet.measurement.reporting.v2alpha.metric
+import org.wfanet.measurement.reporting.v2alpha.metricSpec
+import org.wfanet.measurement.reporting.v2alpha.timeInterval
 
 private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
@@ -243,11 +244,10 @@ class MetricsService(
     )
 
     // Convert the internal metric to public and return it.
-
-    return metric {}
+    return initialInternalMetric.toMetric()
   }
 
-  /** Creates CMM public [Measurement]s and [InternalMeasurement]s from [SetOperationResult]s. */
+  /** Creates CMM public [Measurement]s and [InternalMeasurement]s from [InternalMetric]. */
   private suspend fun createMeasurements(
     initialInternalMetric: InternalMetric,
     cmmsMeasurementConsumerId: String,
@@ -421,7 +421,10 @@ class MetricsService(
     }
   }
 
-  /** Builds a [List] of [DataProviderEntry] messages from [eventGroupEntriesByDataProvider]. */
+  /**
+   * Builds a [List] of [Measurement.DataProviderEntry] messages from
+   * [eventGroupEntriesByDataProvider].
+   */
   private suspend fun buildDataProviderEntries(
     eventGroupEntriesByDataProvider: Map<DataProviderKey, List<EventGroupEntry>>,
     measurementEncryptionPublicKey: ByteString,
@@ -744,17 +747,17 @@ private fun MetricSpec.toInternal(): InternalMetricSpec {
   return internalMetricSpec {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     when (source.typeCase) {
-      MetricSpec.TypeCase.REACH -> reach = MetricSpecKt.reachParams {}
+      MetricSpec.TypeCase.REACH -> reach = InternalMetricSpecKt.reachParams {}
       MetricSpec.TypeCase.FREQUENCY_HISTOGRAM ->
-        MetricSpecKt.frequencyHistogramParams {
+        InternalMetricSpecKt.frequencyHistogramParams {
           maximumFrequencyPerUser = source.frequencyHistogram.maximumFrequencyPerUser
         }
       MetricSpec.TypeCase.IMPRESSION_COUNT ->
-        MetricSpecKt.impressionCountParams {
+        InternalMetricSpecKt.impressionCountParams {
           maximumFrequencyPerUser = source.impressionCount.maximumFrequencyPerUser
         }
       MetricSpec.TypeCase.WATCH_DURATION ->
-        MetricSpecKt.watchDurationParams {
+        InternalMetricSpecKt.watchDurationParams {
           maximumWatchDurationPerUser = source.watchDuration.maximumWatchDurationPerUser
         }
       MetricSpec.TypeCase.TYPE_NOT_SET ->
@@ -772,17 +775,70 @@ private fun TimeInterval.toInternal(): InternalTimeInterval {
   }
 }
 
-private fun InternalSetExpression.toSetExpression(): SetExpression {
-  TODO("Not yet implemented")
-}
-
 private fun InternalMetric.toMetric(): Metric {
   val source = this
-  // val metricResourceName = MetricKey(
-  //   measurementConsumerId = source.measurementConsumerReferenceId,
-  //
-  // )
-  return metric {}
+  return metric {
+    name =
+      MetricKey(
+          measurementConsumerId = source.measurementConsumerReferenceId,
+          metricId = externalIdToApiId(source.externalMetricId)
+        )
+        .toName()
+    reportingSet =
+      ReportingSetKey(
+          source.measurementConsumerReferenceId,
+          externalIdToApiId(source.externalReportingSetId)
+        )
+        .toName()
+    timeInterval = source.timeInterval.toTimeInterval()
+    metricSpec = source.metricSpec.toMetricSpec()
+    filters += source.details.filtersList
+    state = source.state.toState()
+    createTime = source.createTime
+  }
+}
+
+private fun InternalMetric.State.toState(): Metric.State {
+  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+  return when (this) {
+    InternalMetric.State.RUNNING -> Metric.State.RUNNING
+    InternalMetric.State.SUCCEEDED -> Metric.State.SUCCEEDED
+    InternalMetric.State.FAILED -> Metric.State.FAILED
+    InternalMetric.State.STATE_UNSPECIFIED -> error("Metric state should've been set.")
+    InternalMetric.State.UNRECOGNIZED -> error("Unrecognized metric state.")
+  }
+}
+
+private fun InternalMetricSpec.toMetricSpec(): MetricSpec {
+  val source = this
+  return metricSpec {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    when (source.typeCase) {
+      InternalMetricSpec.TypeCase.REACH -> reach = MetricSpecKt.reachParams {}
+      InternalMetricSpec.TypeCase.FREQUENCY_HISTOGRAM ->
+        MetricSpecKt.frequencyHistogramParams {
+          maximumFrequencyPerUser = source.frequencyHistogram.maximumFrequencyPerUser
+        }
+      InternalMetricSpec.TypeCase.IMPRESSION_COUNT ->
+        MetricSpecKt.impressionCountParams {
+          maximumFrequencyPerUser = source.impressionCount.maximumFrequencyPerUser
+        }
+      InternalMetricSpec.TypeCase.WATCH_DURATION ->
+        MetricSpecKt.watchDurationParams {
+          maximumWatchDurationPerUser = source.watchDuration.maximumWatchDurationPerUser
+        }
+      InternalMetricSpec.TypeCase.TYPE_NOT_SET ->
+        failGrpc(Status.INVALID_ARGUMENT) { "The metric type in Metric is not specified." }
+    }
+  }
+}
+
+private fun InternalTimeInterval.toTimeInterval(): TimeInterval {
+  val source = this
+  return timeInterval {
+    startTime = source.startTime
+    endTime = source.endTime
+  }
 }
 
 /** Builds a [VidSamplingInterval] for reach-only. */
