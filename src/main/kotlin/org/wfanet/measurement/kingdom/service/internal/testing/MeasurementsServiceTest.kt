@@ -660,6 +660,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           externalMeasurementId = createdMeasurement.externalMeasurementId
         }
       )
+
     assertThat(measurement).isEqualTo(createdMeasurement)
   }
 
@@ -846,6 +847,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           externalMeasurementId = createdMeasurement.externalMeasurementId
         }
       )
+
     assertThat(response).isEqualTo(succeededMeasurement)
     assertThat(succeededMeasurement.resultsList.size).isEqualTo(1)
   }

@@ -21,17 +21,21 @@ import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.gcloud.spanner.updateMutation
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
 
 internal fun SpannerWriter.TransactionScope.updateMeasurementState(
   measurementConsumerId: InternalId,
   measurementId: InternalId,
-  state: Measurement.State,
-  details: Measurement.Details? = null,
+  nextState: Measurement.State,
+  previousState: Measurement.State,
+  logDetails: MeasurementLogEntry.Details,
+  details: Measurement.Details? = null
 ) {
+
   updateMutation("Measurements") {
       set("MeasurementConsumerId" to measurementConsumerId)
       set("MeasurementId" to measurementId)
-      set("State" to state)
+      set("State" to nextState)
       set("UpdateTime" to Value.COMMIT_TIMESTAMP)
       if (details != null) {
         set("MeasurementDetails" to details)
@@ -39,4 +43,17 @@ internal fun SpannerWriter.TransactionScope.updateMeasurementState(
       }
     }
     .bufferTo(transactionContext)
+
+  if (nextState == Measurement.State.FAILED) {
+    require(logDetails.hasError()) { "$logDetails must have an error when state is FAILED." }
+  }
+
+  insertMeasurementLogEntry(measurementId, measurementConsumerId, logDetails)
+
+  insertStateTransitionMeasurementLogEntry(
+    measurementId = measurementId,
+    measurementConsumerId = measurementConsumerId,
+    currentMeasurementState = nextState,
+    previousMeasurementState = previousState
+  )
 }
