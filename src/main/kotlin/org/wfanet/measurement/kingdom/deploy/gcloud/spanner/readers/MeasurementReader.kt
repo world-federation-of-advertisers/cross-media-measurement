@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
+import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
@@ -31,6 +32,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundException
 
 class MeasurementReader(private val view: Measurement.View) :
   SpannerReader<MeasurementReader.Result>() {
@@ -49,6 +51,7 @@ class MeasurementReader(private val view: Measurement.View) :
         throw IllegalArgumentException("View field of GetMeasurementRequest is not set")
     }
   }
+
   override val baseSql: String = constructBaseSql(view)
 
   override suspend fun translate(struct: Struct): Result =
@@ -104,6 +107,23 @@ class MeasurementReader(private val view: Measurement.View) :
   }
 
   companion object {
+
+    suspend fun readMeasurementState(
+      readContext: AsyncDatabaseClient.ReadContext,
+      measurementConsumerId: InternalId,
+      measurementId: InternalId
+    ): Measurement.State {
+      val column = "State"
+      return readContext
+        .readRow(
+          "Measurements",
+          Key.of(measurementConsumerId.value, measurementId.value),
+          listOf(column)
+        )
+        ?.getProtoEnum(column, Measurement.State::forNumber)
+        ?: throw MeasurementNotFoundException() { "Measurement not found $measurementId" }
+    }
+
     private val defaultViewBaseSql =
       """
     SELECT
@@ -241,7 +261,7 @@ class MeasurementReader(private val view: Measurement.View) :
           AND Measurements.MeasurementId = DuchyMeasurementResults.MeasurementId
       ) AS DuchyResults
     FROM
-      Measurements
+      Measurements@{FORCE_INDEX=MeasurementsByContinuationToken}
       JOIN MeasurementConsumers USING (MeasurementConsumerId)
       JOIN MeasurementConsumerCertificates USING(MeasurementConsumerId, CertificateId)
     """

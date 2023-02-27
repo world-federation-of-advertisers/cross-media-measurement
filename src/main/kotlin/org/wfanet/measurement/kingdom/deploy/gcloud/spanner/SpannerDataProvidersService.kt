@@ -26,6 +26,7 @@ import org.wfanet.measurement.internal.kingdom.GetDataProviderRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateDataProvider
 
+// TODO(@marcopremier): Add method to update data provider required duchies list.
 class SpannerDataProvidersService(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient

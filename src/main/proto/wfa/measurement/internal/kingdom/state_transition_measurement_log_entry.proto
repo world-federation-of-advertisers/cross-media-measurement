@@ -16,30 +16,15 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
-import "wfa/measurement/internal/kingdom/certificate.proto";
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/internal/kingdom/measurement.proto";
+import "wfa/measurement/internal/kingdom/measurement_log_entry.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
-// Proto representation of the internal DataProvider entity type.
-message DataProvider {
-  fixed64 external_data_provider_id = 1;
-
-  // The Certificate belonging to this DataProvider for public key signature
-  // verification.
-  Certificate certificate = 2;
-
-  message Details {
-    // Version the public API for serialized message definitions.
-    string api_version = 1;
-
-    // Serialized `EncryptionPublicKey` from public API.
-    bytes public_key = 2;
-    bytes public_key_signature = 3;
-  }
-  Details details = 3;
-
-  // The list of duchies that must be included in all computations involving the
-  // DataProvider
-  repeated string required_external_duchy_ids = 4;
+message StateTransitionMeasurementLogEntry {
+  MeasurementLogEntry log_entry = 1;
+  Measurement.State previous_state = 2;
+  Measurement.State current_state = 3;
 }
