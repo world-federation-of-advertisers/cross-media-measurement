@@ -1027,7 +1027,6 @@ class RequisitionsServiceTest {
       protocolConfig = protocolConfig {
         name = "protocolConfigs/llv2"
         measurementType = ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
-        liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
         protocols += ProtocolConfigKt.protocol { direct = ProtocolConfigKt.direct {} }
       }
       dataProviderCertificate =
