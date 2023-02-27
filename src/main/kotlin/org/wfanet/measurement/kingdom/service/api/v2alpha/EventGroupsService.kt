@@ -96,7 +96,6 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
     val getRequest = getEventGroupRequest {
       externalDataProviderId = apiIdToExternalId(key.dataProviderId)
       externalEventGroupId = apiIdToExternalId(key.eventGroupId)
-      showDeleted = request.showDeleted
     }
 
     val eventGroup =
@@ -254,10 +253,10 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
     } catch (ex: StatusException) {
       when (ex.status.code) {
         Status.Code.INVALID_ARGUMENT ->
-          failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid.." }
+          failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid." }
         Status.Code.FAILED_PRECONDITION ->
-          failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition.." }
-        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "EventGroup not found.." }
+          failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition." }
+        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "EventGroup not found." }
         else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
       }
     }
