@@ -89,27 +89,25 @@ class SpannerEventGroupsService(
     } catch (e: EventGroupNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "EventGroup not found." }
     } catch (e: EventGroupStateIllegalException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "EventGroup state illegal." }
+      when (e.state) {
+        EventGroup.State.DELETED ->
+          e.throwStatusRuntimeException(Status.NOT_FOUND) { "EventGroup state is DELETED." }
+        else -> e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+      }
     } catch (e: KingdomInternalException) {
       e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
   }
 
   override suspend fun getEventGroup(request: GetEventGroupRequest): EventGroup {
-    val eventGroup =
-      EventGroupReader()
-        .readByExternalIds(
-          client.singleUse(),
-          request.externalDataProviderId,
-          request.externalEventGroupId,
-        )
-        ?.eventGroup
-        ?: failGrpc(Status.NOT_FOUND) { "EventGroup not found" }
-    if (eventGroup.state == EventGroup.State.DELETED && !request.showDeleted) {
-      failGrpc(Status.NOT_FOUND) { "EventGroup not found" }
-    }
-
-    return eventGroup
+    return EventGroupReader()
+      .readByExternalIds(
+        client.singleUse(),
+        request.externalDataProviderId,
+        request.externalEventGroupId,
+      )
+      ?.eventGroup
+      ?: failGrpc(Status.NOT_FOUND) { "EventGroup not found" }
   }
 
   override suspend fun deleteEventGroup(request: DeleteEventGroupRequest): EventGroup {
@@ -126,7 +124,11 @@ class SpannerEventGroupsService(
     } catch (e: EventGroupNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "EventGroup not found." }
     } catch (e: EventGroupStateIllegalException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) { "EventGroup state illegal." }
+      when (e.state) {
+        EventGroup.State.DELETED ->
+          e.throwStatusRuntimeException(Status.NOT_FOUND) { "EventGroup state is DELETED." }
+        else -> e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+      }
     } catch (e: KingdomInternalException) {
       e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
