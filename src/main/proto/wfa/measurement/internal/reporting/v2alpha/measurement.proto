@@ -36,8 +36,8 @@ message Measurement {
 
   TimeInterval time_interval = 5;
 
-  repeated
-    ReportingSet.PrimitiveReportingSetBasis primitive_reporting_set_bases = 6;
+  repeated ReportingSet.PrimitiveReportingSetBasis
+      primitive_reporting_set_bases = 6;
 
   enum State {
     STATE_UNSPECIFIED = 0;
