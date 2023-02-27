@@ -620,7 +620,7 @@ class MetricsService(
       metrics +=
         results
           .subList(0, min(results.size, listMetricsPageToken.pageSize))
-          .map { syncMetric(it, apiAuthenticationKey, principalName) }
+          .map { getUpToDateMetric(it, apiAuthenticationKey, principalName) }
           .map(InternalMetric::toMetric)
 
       if (nextPageToken != null) {
@@ -629,8 +629,8 @@ class MetricsService(
     }
   }
 
-  /** Syncs the [InternalMetric] and all [InternalMeasurement]s used by it. */
-  private suspend fun syncMetric(
+  /** Gets the up to date [InternalMetric]. */
+  private suspend fun getUpToDateMetric(
     internalMetric: InternalMetric,
     apiAuthenticationKey: String,
     principalName: String
