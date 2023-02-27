@@ -21,6 +21,7 @@ import io.grpc.StatusRuntimeException
 import java.time.Clock
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -32,14 +33,18 @@ import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntryKt
+import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.StateTransitionMeasurementLogEntry
+import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.createDuchyMeasurementLogEntryRequest
 import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.measurementLogEntry
+import org.wfanet.measurement.internal.kingdom.streamStateTransitionMeasurementLogEntriesRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.EXTERNAL_DUCHY_IDS
 
@@ -187,6 +192,7 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
           MeasurementLogEntryKt.errorDetails {
             type = MeasurementLogEntry.ErrorDetails.Type.TRANSIENT
           }
+        logMessage = "some log message"
       }
 
     val duchyMeasurementLogEntryDetails =
@@ -270,4 +276,44 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
     assertThat(createdDuchyMeasurementLogEntry.logEntry.createTime.seconds).isGreaterThan(0L)
     assertThat(createdDuchyMeasurementLogEntry).isEqualTo(expectedDuchyMeasurementLogEntry)
   }
+
+  @Test
+  fun `measurementState is consistent when creating and cancelling a Measurement`(): Unit =
+    runBlocking {
+      var measurement: Measurement
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val dataProvider = population.createDataProvider(dataProvidersService)
+
+      measurement =
+        population.createComputedMeasurement(
+          measurementsService,
+          measurementConsumer,
+          "measurement 1",
+          dataProvider
+        )
+
+      measurement =
+        measurementsService.cancelMeasurement(
+          cancelMeasurementRequest {
+            externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+            externalMeasurementId = measurement.externalMeasurementId
+          }
+        )
+
+      val measurementStateTransitionLogEntry: StateTransitionMeasurementLogEntry =
+        measurementLogEntriesService
+          .streamStateTransitionMeasurementLogEntries(
+            streamStateTransitionMeasurementLogEntriesRequest {
+              externalMeasurementId = measurement.externalMeasurementId
+              externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+            }
+          )
+          .single()
+
+      assertThat(measurementStateTransitionLogEntry.currentState)
+        .isEqualTo(Measurement.State.CANCELLED)
+      assertThat(measurementStateTransitionLogEntry.previousState)
+        .isEqualTo(Measurement.State.PENDING_REQUISITION_PARAMS)
+    }
 }
