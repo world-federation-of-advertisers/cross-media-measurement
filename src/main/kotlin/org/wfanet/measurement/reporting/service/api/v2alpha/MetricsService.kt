@@ -60,6 +60,7 @@ import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.withAuthenticationKey
+import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.hashSha256
@@ -102,6 +103,8 @@ import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
+import org.wfanet.measurement.reporting.v2alpha.ListMetricsRequest
+import org.wfanet.measurement.reporting.v2alpha.ListMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineImplBase
@@ -562,6 +565,12 @@ class MetricsService(
         )
       }
     }
+  }
+
+  override suspend fun listMetrics(request: ListMetricsRequest): ListMetricsResponse {
+    val listMetricsPageToken: ListMetricsPageToken = request.toListMetricsPageToken()
+
+    return super.listMetrics(request)
   }
 
   override suspend fun createMetric(request: CreateMetricRequest): Metric {
