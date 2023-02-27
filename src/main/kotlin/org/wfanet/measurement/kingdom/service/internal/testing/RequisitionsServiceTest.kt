@@ -61,11 +61,11 @@ import org.wfanet.measurement.internal.kingdom.requisition
 import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRequest
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
+import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.EXTERNAL_DUCHY_IDS
 
 private const val RANDOM_SEED = 1L
 private const val NONCE_1 = 3127743798281582205L
 private const val NONCE_2 = -7004399847946251733L
-private val EXTERNAL_DUCHY_IDS = listOf("Buck", "Rippon", "Shoaks")
 private val REQUISITION_ENCRYPTED_DATA = "foo".toByteStringUtf8()
 
 private val REFUSAL = refusal {
@@ -87,7 +87,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
   protected val clock: Clock = Clock.systemUTC()
   protected val idGenerator = RandomIdGenerator(clock, Random(RANDOM_SEED))
   private val population = Population(clock, idGenerator)
-  @get:Rule val duchyIdSetter = DuchyIdSetter(EXTERNAL_DUCHY_IDS)
+  @get:Rule val duchyIdSetter = DuchyIdSetter(Population.EXTERNAL_DUCHY_IDS)
 
   protected lateinit var dataServices: TestDataServices
     private set
@@ -583,11 +583,11 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
       .isEqualTo(expectedRequisition)
     assertThat(requisition.duchiesMap)
       .containsExactly(
-        "Buck",
+        Population.AGGREGATOR_DUCHY_EXTERNAL_ID,
         Requisition.DuchyValue.getDefaultInstance(),
-        "Rippon",
+        Population.WORKER1_DUCHY_EXTERNAL_ID,
         Requisition.DuchyValue.getDefaultInstance(),
-        "Shoaks",
+        Population.WORKER2_DUCHY_EXTERNAL_ID,
         Requisition.DuchyValue.getDefaultInstance()
       )
     assertThat(requisition).isEqualTo(listedRequisition)
@@ -700,13 +700,13 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           nonce = NONCE_1
           computedParams = computedRequisitionParams {
             externalComputationId = measurement.externalComputationId
-            externalFulfillingDuchyId = "Buck"
+            externalFulfillingDuchyId = Population.WORKER1_DUCHY_EXTERNAL_ID
           }
         }
       )
 
     assertThat(response.state).isEqualTo(Requisition.State.FULFILLED)
-    assertThat(response.externalFulfillingDuchyId).isEqualTo("Buck")
+    assertThat(response.externalFulfillingDuchyId).isEqualTo(Population.WORKER1_DUCHY_EXTERNAL_ID)
     assertThat(response.details.nonce).isEqualTo(NONCE_1)
     assertThat(response.updateTime.toInstant()).isGreaterThan(requisition.updateTime.toInstant())
     assertThat(response)
@@ -759,7 +759,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         nonce = NONCE_1
         computedParams = computedRequisitionParams {
           externalComputationId = measurement.externalComputationId
-          externalFulfillingDuchyId = "Buck"
+          externalFulfillingDuchyId = Population.WORKER1_DUCHY_EXTERNAL_ID
         }
       }
     )
@@ -771,7 +771,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           nonce = NONCE_2
           computedParams = computedRequisitionParams {
             externalComputationId = measurement.externalComputationId
-            externalFulfillingDuchyId = "Rippon"
+            externalFulfillingDuchyId = Population.WORKER1_DUCHY_EXTERNAL_ID
           }
         }
       )
@@ -812,7 +812,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
             nonce = NONCE_1
             computedParams = computedRequisitionParams {
               externalComputationId = measurement.externalComputationId
-              externalFulfillingDuchyId = "Buck"
+              externalFulfillingDuchyId = Population.WORKER1_DUCHY_EXTERNAL_ID
             }
           }
         )
@@ -898,7 +898,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
               nonce = NONCE_1
               computedParams = computedRequisitionParams {
                 externalComputationId = measurement.externalComputationId
-                externalFulfillingDuchyId = "Buck"
+                externalFulfillingDuchyId = Population.WORKER1_DUCHY_EXTERNAL_ID
               }
             }
           )
@@ -948,7 +948,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
             externalRequisitionId = requisition.externalRequisitionId
             computedParams = computedRequisitionParams {
               externalComputationId = measurement.externalComputationId
-              externalFulfillingDuchyId = "Buck"
+              externalFulfillingDuchyId = Population.WORKER1_DUCHY_EXTERNAL_ID
             }
           }
         )

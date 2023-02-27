@@ -26,6 +26,7 @@ import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -45,6 +46,7 @@ import org.wfanet.measurement.internal.kingdom.eventGroup
 import org.wfanet.measurement.internal.kingdom.getEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.updateEventGroupRequest
+import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 
 private const val RANDOM_SEED = 1
 private const val EXTERNAL_EVENT_GROUP_ID = 123L
@@ -57,6 +59,8 @@ private val DETAILS = details {
 
 @RunWith(JUnit4::class)
 abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
+
+  @get:Rule val duchyIdSetter = DuchyIdSetter(Population.EXTERNAL_DUCHY_IDS)
 
   private val testClock: Clock = Clock.systemUTC()
   protected val idGenerator = RandomIdGenerator(testClock, Random(RANDOM_SEED))
