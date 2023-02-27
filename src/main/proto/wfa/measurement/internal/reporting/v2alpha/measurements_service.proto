@@ -38,29 +38,29 @@ service Measurements {
 
 message SetCmmsMeasurementIdRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
-  string measurement_consumer_reference_id = 1;
+  string cmms_measurement_consumer_id = 1;
 
   fixed64 external_measurement_id = 2;
 
   // `Measurement` ID from the CMMS public API.
-  string measurement_reference_id = 3;
+  string cmms_measurement_id = 3;
 }
 
 message BatchSetCmmsMeasurementIdRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
-  string measurement_consumer_reference_id = 1;
+  string cmms_measurement_consumer_id = 1;
 
   message MeasurementIds {
     fixed64 external_measurement_id = 1;
     // `Measurement` ID from the CMMS public API.
-    string measurement_reference_id = 2;
+    string cmms_measurement_id = 2;
   }
   repeated MeasurementIds measurement_ids = 2;
 }
 
 message SetMeasurementResultRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
-  string measurement_consumer_reference_id = 1;
+  string cmms_measurement_consumer_id = 1;
 
   fixed64 external_measurement_id = 2;
 
@@ -69,7 +69,7 @@ message SetMeasurementResultRequest {
 
 message BatchSetMeasurementResultRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
-  string measurement_consumer_reference_id = 1;
+  string cmms_measurement_consumer_id = 1;
 
   message MeasurementResult {
     fixed64 external_measurement_id = 1;
@@ -80,7 +80,7 @@ message BatchSetMeasurementResultRequest {
 
 message SetMeasurementFailureRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
-  string measurement_consumer_reference_id = 1;
+  string cmms_measurement_consumer_id = 1;
 
   fixed64 external_measurement_id = 2;
 
