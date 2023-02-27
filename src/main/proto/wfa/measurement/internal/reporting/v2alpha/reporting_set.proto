@@ -27,7 +27,7 @@ message PrimitiveReportingSetBasis {
 // Proto representation of the internal ReportingSet entity type.
 message ReportingSet {
   // `MeasurementConsumer` ID from the CMMS public API.
-  string measurement_consumer_reference_id = 1;
+  string cmms_measurement_consumer_id = 1;
   fixed64 external_reporting_set_id = 2;
 
   string display_name = 3;
@@ -36,11 +36,11 @@ message ReportingSet {
   message Primitive {
     message EventGroupKey {
       // `MeasurementConsumer` ID from the CMMS public API.
-      string measurement_consumer_reference_id = 1;
+      string cmms_measurement_consumer_id = 1;
       // `DataProvider` ID from the CMMS public API.
-      string data_provider_reference_id = 2;
+      string cmms_data_provider_id = 2;
       // `EventGroup` ID from the CMMS public API.
-      string event_group_reference_id = 3;
+      string cmms_event_group_id = 3;
     }
     repeated EventGroupKey event_group_keys = 1;
   }
