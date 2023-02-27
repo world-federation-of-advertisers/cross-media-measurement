@@ -39,32 +39,32 @@ service Metrics {
 
 message BatchCreateMetricRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
-  string measurement_consumer_reference_id = 1;
+  string cmms_measurement_consumer_id = 1;
   repeated Metric metrics = 2;
 }
 
 message GetMetricRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
-  string measurement_consumer_reference_id = 1;
+  string cmms_measurement_consumer_id = 1;
   fixed64 external_metric_id = 2;
 }
 
 message GetMetricByIdempotencyKeyRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
-  string measurement_consumer_reference_id = 1;
+  string cmms_measurement_consumer_id = 1;
   string metric_idempotency_key = 2;
 }
 
 message BatchGetMetricRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
-  string measurement_consumer_reference_id = 1;
+  string cmms_measurement_consumer_id = 1;
   repeated fixed64 external_metric_ids = 2;
 }
 
 message StreamMetricsRequest {
   message Filter {
     // `MeasurementConsumer` ID from the CMMS public API.
-    string measurement_consumer_reference_id = 1;
+    string cmms_measurement_consumer_id = 1;
     // Skips to results with an external id greater than this.
     fixed64 external_metric_id_after = 2;
   }
