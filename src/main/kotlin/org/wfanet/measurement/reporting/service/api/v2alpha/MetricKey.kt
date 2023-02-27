@@ -22,13 +22,13 @@ private val parser =
 
 /** [ResourceKey] of a Report. */
 data class MetricKey(
-  val measurementConsumerId: String,
+  val cmmsMeasurementConsumerId: String,
   val metricId: String,
 ) : ResourceKey {
   override fun toName(): String {
     return parser.assembleName(
       mapOf(
-        IdVariable.MEASUREMENT_CONSUMER to measurementConsumerId,
+        IdVariable.MEASUREMENT_CONSUMER to cmmsMeasurementConsumerId,
         IdVariable.METRIC to metricId,
       )
     )
