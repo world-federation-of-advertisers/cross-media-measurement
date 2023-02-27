@@ -25,16 +25,16 @@ private val parser =
 
 /** [ResourceKey] of an EventGroup. */
 class EventGroupKey(
-  val measurementConsumerReferenceId: String,
-  val dataProviderReferenceId: String,
-  val eventGroupReferenceId: String
+  val cmmsMeasurementConsumerId: String,
+  val cmmsDataProviderId: String,
+  val cmmsEventGroupId: String
 ) : ResourceKey {
   override fun toName(): String {
     return parser.assembleName(
       mapOf(
-        IdVariable.MEASUREMENT_CONSUMER to measurementConsumerReferenceId,
-        IdVariable.DATA_PROVIDER to dataProviderReferenceId,
-        IdVariable.EVENT_GROUP to eventGroupReferenceId
+        IdVariable.MEASUREMENT_CONSUMER to cmmsMeasurementConsumerId,
+        IdVariable.DATA_PROVIDER to cmmsDataProviderId,
+        IdVariable.EVENT_GROUP to cmmsEventGroupId
       )
     )
   }

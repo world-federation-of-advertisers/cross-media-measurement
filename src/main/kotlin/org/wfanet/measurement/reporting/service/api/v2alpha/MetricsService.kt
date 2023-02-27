@@ -279,7 +279,7 @@ class MetricsService(
         async {
           measurementIds {
             externalMeasurementId = weightedMeasurement.measurement.externalMeasurementId
-            measurementReferenceId =
+            cmmsMeasurementId =
               createCmmsMeasurement(
                   weightedMeasurement.measurement,
                   initialInternalMetric.metricSpec,
@@ -298,7 +298,7 @@ class MetricsService(
     try {
       internalMeasurementsStub.batchSetCmmsMeasurementId(
         batchSetCmmsMeasurementIdRequest {
-          measurementConsumerReferenceId = cmmsMeasurementConsumerId
+          this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
           measurementIds += deferred.awaitAll()
         }
       )
@@ -527,9 +527,9 @@ class MetricsService(
         internalPrimitiveReportingSet.primitive.eventGroupKeysList.map { internalEventGroupKey ->
           val eventGroupKey =
             EventGroupKey(
-              internalEventGroupKey.measurementConsumerReferenceId,
-              internalEventGroupKey.dataProviderReferenceId,
-              internalEventGroupKey.eventGroupReferenceId
+              internalEventGroupKey.cmmsMeasurementConsumerId,
+              internalEventGroupKey.cmmsDataProviderId,
+              internalEventGroupKey.cmmsEventGroupId
             )
           val eventGroupName = eventGroupKey.toName()
           val filter: String? =
@@ -550,7 +550,7 @@ class MetricsService(
         }
       }
       .groupBy(
-        { (eventGroupKey, _) -> DataProviderKey(eventGroupKey.dataProviderReferenceId) },
+        { (eventGroupKey, _) -> DataProviderKey(eventGroupKey.cmmsDataProviderId) },
         { (_, eventGroupEntry) -> eventGroupEntry }
       )
   }
@@ -582,7 +582,7 @@ class MetricsService(
 
     return internalMetricsStub.createMetric(
       internalMetric {
-        measurementConsumerReferenceId = cmmsMeasurementConsumerId
+        this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
         metricIdempotencyKey = request.requestId
         externalReportingSetId = internalReportingSet.externalReportingSetId
         timeInterval = request.metric.timeInterval.toInternal()
@@ -607,7 +607,7 @@ class MetricsService(
       weightedMeasurement {
         weight = weightedSubsetUnion.weight
         measurement = internalMeasurement {
-          measurementConsumerReferenceId = cmmsMeasurementConsumerId
+          this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
           timeInterval = metric.timeInterval.toInternal()
           this.primitiveReportingSetBases +=
             weightedSubsetUnion.primitiveReportingSetBasesList.map { primitiveReportingSetBasis ->
@@ -626,7 +626,7 @@ class MetricsService(
     externalReportingSetIds: Set<Long>,
   ): Map<Long, InternalReportingSet> {
     val batchGetReportingSetRequest = batchGetReportingSetRequest {
-      measurementConsumerReferenceId = cmmsMeasurementConsumerId
+      this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
       externalReportingSetIds.forEach { this.externalReportingSetIds += it }
     }
 
@@ -694,13 +694,13 @@ class MetricsService(
 
   /** Gets an [InternalMetric] using an idempotency key. */
   private suspend fun getInternalMetricByIdempotencyKey(
-    measurementConsumerReferenceId: String,
+    cmmsMeasurementConsumerId: String,
     metricIdempotencyKey: String,
   ): InternalMetric? {
     return try {
       internalMetricsStub.getMetricByIdempotencyKey(
         getMetricByIdempotencyKeyRequest {
-          this.measurementConsumerReferenceId = measurementConsumerReferenceId
+          this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
           this.metricIdempotencyKey = metricIdempotencyKey
         }
       )
@@ -718,7 +718,7 @@ class MetricsService(
 
   /** Gets an [InternalReportingSet] based on a reporting set name. */
   private suspend fun getInternalReportingSet(
-    measurementConsumerReferenceId: String,
+    cmmsMeasurementConsumerId: String,
     reportingSetName: String,
   ): InternalReportingSet {
     val reportingSetKey =
@@ -726,14 +726,14 @@ class MetricsService(
         "Invalid reporting set name $reportingSetName."
       }
 
-    grpcRequire(reportingSetKey.measurementConsumerId == measurementConsumerReferenceId) {
+    grpcRequire(reportingSetKey.cmmsMeasurementConsumerId == cmmsMeasurementConsumerId) {
       "No access to the reporting set [$reportingSetName]."
     }
 
     return try {
       internalReportingSetsStub.getReportingSet(
         getInternalReportingSetRequest {
-          this.measurementConsumerReferenceId = measurementConsumerReferenceId
+          this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
           this.externalReportingSetId = apiIdToExternalId(reportingSetKey.reportingSetId)
         }
       )
@@ -796,13 +796,13 @@ private fun InternalMetric.toMetric(): Metric {
   return metric {
     name =
       MetricKey(
-          measurementConsumerId = source.measurementConsumerReferenceId,
+          cmmsMeasurementConsumerId = source.cmmsMeasurementConsumerId,
           metricId = externalIdToApiId(source.externalMetricId)
         )
         .toName()
     reportingSet =
       ReportingSetKey(
-          source.measurementConsumerReferenceId,
+          source.cmmsMeasurementConsumerId,
           externalIdToApiId(source.externalReportingSetId)
         )
         .toName()

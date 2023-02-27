@@ -70,7 +70,7 @@ message MetricResult {
 // Proto representation of the internal Metric entity type.
 message Metric {
   // `MeasurementConsumer` ID from the CMMS public API.
-  string measurement_consumer_reference_id = 1;
+  string cmms_measurement_consumer_id = 1;
   fixed64 external_metric_id = 2;
 
   string metric_idempotency_key = 3;
