@@ -23,14 +23,6 @@ locals {
   prefix_path = "${var.env}/${local.project}"
 }
 
-data "template_file" "user_data" {
-  template = file("pre_install.sh.tpl")
-
-  vars = {
-    projectName = var.projectName
-  }
-}
-
 variable projectName {
   default = "wfa"
   description = "The IAC project of WFA "
@@ -66,7 +58,7 @@ variable db_password {
 }
 
 
- 
+
 variable env {
   default = "dev"
   description = "Represents the environment used."
@@ -100,5 +92,9 @@ variable "ring_location" {
   type = string
   default ="us-east1"
   description = "Key ring location "
+}
+
+variable "metadata_script" {
+  default = "packages.sh"
 }
 
