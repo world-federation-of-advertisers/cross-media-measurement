@@ -33,3 +33,6 @@ databaseChangeLog:
 - include:
     file: create-state-transition-measurement-log-entry-schema.sql
     relativeToChangeLogFile: true
+- include:
+    file: create-data-provider-required-duchies-table.sql
+    relativeToChangeLogFile: true
