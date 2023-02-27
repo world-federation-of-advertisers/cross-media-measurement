@@ -26,7 +26,7 @@ option java_multiple_files = true;
 // Proto representation of the internal Report entity type.
 message Report {
   // `MeasurementConsumer` ID from the CMMS public API.
-  string measurement_consumer_reference_id = 1;
+  string cmms_measurement_consumer_id = 1;
   fixed64 external_report_id = 2;
 
   string report_idempotency_key = 3;
