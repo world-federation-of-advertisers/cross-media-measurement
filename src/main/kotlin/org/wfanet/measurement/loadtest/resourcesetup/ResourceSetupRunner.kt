@@ -99,6 +99,7 @@ private fun run(@CommandLine.Mixin flags: ResourceSetupFlags) {
         internalCertificatesStub,
         measurementConsumersStub,
         flags.runId,
+        flags.requiredDuchies,
         flags.bazelConfigName,
         flags.outputDir
       )

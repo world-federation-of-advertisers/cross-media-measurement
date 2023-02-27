@@ -122,4 +122,16 @@ class ResourceSetupFlags {
       .withZone(ZoneOffset.UTC)
       .format(Instant.now())
     private set
+
+  @CommandLine.Option(
+    names = ["--required-duchy"],
+    description =
+      [
+        "Duchy ID that must be included in all Measurements for the created DataProvider resources.",
+        "This option may be specified multiple times."
+      ],
+    required = false
+  )
+  lateinit var requiredDuchies: List<String>
+    private set
 }
