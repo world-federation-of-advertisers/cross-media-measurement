@@ -912,7 +912,7 @@ class MetricsService(
 
   /** Gets an [InternalMetric]. */
   private suspend fun getInternalReportingSet(
-    measurementConsumerReferenceId: String,
+    cmmsMeasurementConsumerId: String,
     reportingSetName: String,
   ): InternalReportingSet {
     val reportingSetKey =
@@ -920,14 +920,14 @@ class MetricsService(
         "Invalid reporting set name $reportingSetName."
       }
 
-    grpcRequire(reportingSetKey.measurementConsumerId == measurementConsumerReferenceId) {
+    grpcRequire(reportingSetKey.cmmsMeasurementConsumerId == cmmsMeasurementConsumerId) {
       "No access to the reporting set [$reportingSetName]."
     }
 
     return try {
       internalReportingSetsStub.getReportingSet(
         getInternalReportingSetRequest {
-          this.measurementConsumerReferenceId = measurementConsumerReferenceId
+          this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
           this.externalReportingSetId = apiIdToExternalId(reportingSetKey.reportingSetId)
         }
       )
