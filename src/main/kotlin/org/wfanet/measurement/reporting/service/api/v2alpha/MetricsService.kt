@@ -177,6 +177,8 @@ class MetricsService(
   private val trustedCertificates: Map<ByteString, X509Certificate>
 ) : MetricsCoroutineImplBase() {
 
+  inner class MeasurementSupplier {}
+
   data class SigningConfig(
     val signingCertificateName: String,
     val signingCertificateDer: ByteString,
@@ -236,7 +238,7 @@ class MetricsService(
      *     - request a corresponding kingdom measurement
      *     - update the cmmsMeasurementId in the internal measurement.
      */
-    createMeasurements(
+    createCmmsMeasurements(
       initialInternalMetric,
       resourceKey.measurementConsumerId,
       apiAuthenticationKey,
@@ -248,7 +250,7 @@ class MetricsService(
   }
 
   /** Creates CMM public [Measurement]s and [InternalMeasurement]s from [InternalMetric]. */
-  private suspend fun createMeasurements(
+  private suspend fun createCmmsMeasurements(
     initialInternalMetric: InternalMetric,
     cmmsMeasurementConsumerId: String,
     apiAuthenticationKey: String,
@@ -278,8 +280,8 @@ class MetricsService(
           measurementIds {
             externalMeasurementId = weightedMeasurement.measurement.externalMeasurementId
             measurementReferenceId =
-              createMeasurement(
-                  weightedMeasurement,
+              createCmmsMeasurement(
+                  weightedMeasurement.measurement,
                   initialInternalMetric.metricSpec,
                   internalPrimitiveReportingSetMap,
                   measurementConsumer,
@@ -305,8 +307,9 @@ class MetricsService(
     }
   }
 
-  private suspend fun createMeasurement(
-    weightedMeasurement: WeightedMeasurement,
+  /** Creates a CMMs measurement from an [InternalMeasurement]. */
+  private suspend fun createCmmsMeasurement(
+    internalMeasurement: InternalMeasurement,
     metricSpec: InternalMetricSpec,
     internalPrimitiveReportingSetMap: Map<Long, InternalReportingSet>,
     measurementConsumer: MeasurementConsumer,
@@ -314,14 +317,11 @@ class MetricsService(
     signingConfig: SigningConfig,
   ): Measurement {
     val eventGroupEntriesByDataProvider =
-      groupEventGroupEntriesByDataProvider(
-        weightedMeasurement.measurement,
-        internalPrimitiveReportingSetMap
-      )
+      groupEventGroupEntriesByDataProvider(internalMeasurement, internalPrimitiveReportingSetMap)
 
     val createMeasurementRequest: CreateMeasurementRequest =
       buildCreateMeasurementRequest(
-        weightedMeasurement.measurement,
+        internalMeasurement,
         metricSpec,
         measurementConsumer,
         eventGroupEntriesByDataProvider,
@@ -341,6 +341,7 @@ class MetricsService(
     }
   }
 
+  /** Builds a CMMs [CreateMeasurementRequest]. */
   private suspend fun buildCreateMeasurementRequest(
     internalMeasurement: InternalMeasurement,
     metricSpec: InternalMetricSpec,
@@ -381,6 +382,7 @@ class MetricsService(
     return createMeasurementRequest { this.measurement = measurement }
   }
 
+  /** Builds an unsigned [MeasurementSpec]. */
   private fun buildUnsignedMeasurementSpec(
     measurementEncryptionPublicKey: ByteString,
     nonceHashes: List<ByteString>,
@@ -507,6 +509,10 @@ class MetricsService(
     }
   }
 
+  /**
+   * Converts the event groups included in an [InternalMeasurement] to [EventGroupEntry]s, grouping
+   * them by DataProvider.
+   */
   private fun groupEventGroupEntriesByDataProvider(
     measurement: InternalMeasurement,
     internalPrimitiveReportingSetMap: Map<Long, InternalReportingSet>,
@@ -549,6 +555,7 @@ class MetricsService(
       )
   }
 
+  /** Combines two event group filters. */
   private fun combineEventGroupFilters(filter1: String?, filter2: String?): String? {
     if (filter1 == null) return filter2
 
@@ -558,6 +565,7 @@ class MetricsService(
     }
   }
 
+  /** Creates an initial [InternalMetric] for caching. */
   private suspend fun createInitialInternalMetric(
     cmmsMeasurementConsumerId: String,
     request: CreateMetricRequest,
@@ -589,6 +597,7 @@ class MetricsService(
     )
   }
 
+  /** Builds [InternalMeasurement]s for a [Metric] over an [InternalReportingSet]. */
   private fun buildInitialInternalMeasurements(
     cmmsMeasurementConsumerId: String,
     metric: Metric,
@@ -609,6 +618,9 @@ class MetricsService(
     }
   }
 
+  /**
+   * Builds a map of external reporting set IDs to [InternalReportingSet]s to minimize grpc calls.
+   */
   private suspend fun buildInternalReportingSetMap(
     cmmsMeasurementConsumerId: String,
     externalReportingSetIds: Set<Long>,
@@ -638,6 +650,7 @@ class MetricsService(
     return internalReportingSetsList.associateBy { it.externalReportingSetId }
   }
 
+  /** Get a [MeasurementConsumer] based on a CMMs ID. */
   private suspend fun getMeasurementConsumer(
     cmmsMeasurementConsumerId: String,
     apiAuthenticationKey: String,
@@ -679,7 +692,7 @@ class MetricsService(
     }
   }
 
-  /** Gets an [InternalMetric]. */
+  /** Gets an [InternalMetric] using an idempotency key. */
   private suspend fun getInternalMetricByIdempotencyKey(
     measurementConsumerReferenceId: String,
     metricIdempotencyKey: String,
@@ -703,7 +716,7 @@ class MetricsService(
     }
   }
 
-  /** Gets an [InternalMetric]. */
+  /** Gets an [InternalReportingSet] based on a reporting set name. */
   private suspend fun getInternalReportingSet(
     measurementConsumerReferenceId: String,
     reportingSetName: String,
@@ -734,6 +747,7 @@ class MetricsService(
   }
 }
 
+/** Converts an [InternalTimeInterval] to a [CmmsTimeInterval]. */
 private fun InternalTimeInterval.toCmmsTimeInterval(): CmmsTimeInterval {
   val source = this
   return cmmsTimeInterval {
@@ -742,6 +756,7 @@ private fun InternalTimeInterval.toCmmsTimeInterval(): CmmsTimeInterval {
   }
 }
 
+/** Converts a [MetricSpec] to an [InternalMetricSpec]. */
 private fun MetricSpec.toInternal(): InternalMetricSpec {
   val source = this
   return internalMetricSpec {
@@ -775,6 +790,7 @@ private fun TimeInterval.toInternal(): InternalTimeInterval {
   }
 }
 
+/** Converts an [InternalMetric] to a public [Metric]. */
 private fun InternalMetric.toMetric(): Metric {
   val source = this
   return metric {
@@ -798,6 +814,7 @@ private fun InternalMetric.toMetric(): Metric {
   }
 }
 
+/** Converts an [InternalMetric.State] to a public [Metric.State]. */
 private fun InternalMetric.State.toState(): Metric.State {
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
   return when (this) {
@@ -809,6 +826,7 @@ private fun InternalMetric.State.toState(): Metric.State {
   }
 }
 
+/** Converts an [InternalMetricSpec] to a public [MetricSpec]. */
 private fun InternalMetricSpec.toMetricSpec(): MetricSpec {
   val source = this
   return metricSpec {
@@ -833,6 +851,7 @@ private fun InternalMetricSpec.toMetricSpec(): MetricSpec {
   }
 }
 
+/** Converts an [InternalTimeInterval] to a public [TimeInterval]. */
 private fun InternalTimeInterval.toTimeInterval(): TimeInterval {
   val source = this
   return timeInterval {
