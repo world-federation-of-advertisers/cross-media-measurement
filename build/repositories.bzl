@@ -49,14 +49,11 @@ def wfa_measurement_system_repositories():
         sha256 = "34c15134d7293fc38df6ed254b55ee912c7479c396178b7f6499b7e5351aeeec",
     )
 
-    # DO_NOT_SUBMIT(world-federation-of-advertisers/any-sketch#20): Replace with version once released from main.
     wfa_repo_archive(
         name = "any_sketch",
         repo = "any-sketch",
-        #        sha256 = "a30369e28ae3788356b734239559f3d0c035d9121963ab00a797615364d4f0c4",
-        #        version = "0.3.0",
-        sha256 = None,
-        commit = "8e8a4ae9aaca8b2e4d2315d7dd19a6abb9857e37",
+        sha256 = "521d7a91650d78315c343a413a45310907e290b520537407d143c30bcfb497a8",
+        version = "0.4.0",
     )
 
     wfa_repo_archive(
