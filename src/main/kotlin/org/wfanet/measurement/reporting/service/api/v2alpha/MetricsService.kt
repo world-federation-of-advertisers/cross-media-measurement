@@ -170,7 +170,7 @@ class MetricsService(
   private val internalMetricsStub: InternalMetricsCoroutineStub,
   private val dataProvidersStub: DataProvidersCoroutineStub,
   private val measurementsStub: MeasurementsCoroutineStub,
-  private val certificateStub: CertificatesCoroutineStub,
+  private val certificatesStub: CertificatesCoroutineStub,
   private val measurementConsumersStub: MeasurementConsumersCoroutineStub,
   private val secureRandom: SecureRandom,
   private val signingPrivateKeyDir: File,
@@ -232,12 +232,6 @@ class MetricsService(
         )
       )
 
-    /**
-     * Measurement Supplier - createMeasurements
-     * 1. For each internal measurement, a. call createMeasurement
-     *     - request a corresponding kingdom measurement
-     *     - update the cmmsMeasurementId in the internal measurement.
-     */
     createCmmsMeasurements(
       initialInternalMetric,
       resourceKey.measurementConsumerId,
@@ -256,7 +250,6 @@ class MetricsService(
     apiAuthenticationKey: String,
     signingConfig: SigningConfig,
   ) = coroutineScope {
-    // Get measurementConsumer and signingConfig
     val measurementConsumer: MeasurementConsumer =
       getMeasurementConsumer(cmmsMeasurementConsumerId, apiAuthenticationKey)
 
@@ -303,7 +296,7 @@ class MetricsService(
         }
       )
     } catch (e: StatusException) {
-      throw Exception("Unable to set the CMMs measurement IDs in the reporting database.", e)
+      throw Exception("Unable to set the CMMs measurement IDs for the measurements in the reporting database.", e)
     }
   }
 
@@ -453,7 +446,7 @@ class MetricsService(
 
       val certificate: Certificate =
         try {
-          certificateStub
+          certificatesStub
             .withAuthenticationKey(apiAuthenticationKey)
             .getCertificate(getCertificateRequest { name = dataProvider.certificate })
         } catch (e: StatusException) {
@@ -580,21 +573,25 @@ class MetricsService(
     val internalReportingSet: InternalReportingSet =
       getInternalReportingSet(cmmsMeasurementConsumerId, request.metric.reportingSet)
 
-    return internalMetricsStub.createMetric(
-      internalMetric {
-        this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-        metricIdempotencyKey = request.requestId
-        externalReportingSetId = internalReportingSet.externalReportingSetId
-        timeInterval = request.metric.timeInterval.toInternal()
-        metricSpec = request.metric.metricSpec.toInternal()
-        weightedMeasurements +=
-          buildInitialInternalMeasurements(
-            cmmsMeasurementConsumerId,
-            request.metric,
-            internalReportingSet
-          )
-      }
-    )
+    return try {
+      internalMetricsStub.createMetric(
+        internalMetric {
+          this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+          metricIdempotencyKey = request.requestId
+          externalReportingSetId = internalReportingSet.externalReportingSetId
+          timeInterval = request.metric.timeInterval.toInternal()
+          metricSpec = request.metric.metricSpec.toInternal()
+          weightedMeasurements +=
+            buildInitialInternalMeasurements(
+              cmmsMeasurementConsumerId,
+              request.metric,
+              internalReportingSet
+            )
+        }
+      )
+    } catch (e: StatusException) {
+      throw Exception("Unable to create the metric in the reporting database.", e)
+    }
   }
 
   /** Builds [InternalMeasurement]s for a [Metric] over an [InternalReportingSet]. */
@@ -679,7 +676,7 @@ class MetricsService(
   ): ByteString {
     // TODO: Replace this with caching certificates or having them stored alongside the private key.
     return try {
-      certificateStub
+      certificatesStub
         .withAuthenticationKey(apiAuthenticationKey)
         .getCertificate(getCertificateRequest { name = signingCertificateName })
         .x509Der
