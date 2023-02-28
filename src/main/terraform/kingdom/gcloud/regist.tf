@@ -14,6 +14,8 @@
 
 /*
 
+
+
 # Provider configuration for Google Cloud Platform
 provider "google" {
   project = "your-gcp-project-id"

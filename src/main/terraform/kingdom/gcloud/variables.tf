@@ -15,7 +15,7 @@
 
 */
 locals {
-  project = "wfa"
+  project = "halo"
   tags = {
     Environment     = var.env
   }
@@ -24,8 +24,8 @@ locals {
 }
 
 variable projectName {
-  default = "wfa"
-  description = "The IAC project of WFA "
+  default = "halo"
+  description = "Infrastructure as Code for Halo "
 }
 
 variable node_version {
