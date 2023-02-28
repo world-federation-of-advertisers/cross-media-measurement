@@ -1,0 +1,60 @@
+// Copyright 2021 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.kingdom;
+
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/internal/kingdom/measurement_log_entry.proto";
+
+option java_package = "org.wfanet.measurement.internal.kingdom";
+option java_multiple_files = true;
+
+message DuchyMeasurementLogEntry {
+  MeasurementLogEntry log_entry = 1;
+  string external_duchy_id = 2;
+
+  fixed64 external_computation_log_entry_id = 3;
+
+  message StageAttempt {
+    // Tag number of the stage enum value from an external system.
+    int32 stage = 1;
+
+    // Name of the stage enum value from an external system.
+    //
+    // This is for human readability only.
+    string stage_name = 2;
+
+    // Time the stage started.
+    google.protobuf.Timestamp stage_start_time = 3;
+
+    // The attempt number for this stage, with 1 being the first attempt.
+    //
+    // This value should be strictly monotonically increasing for each
+    // subsequent log entry for a Duchy with the same stage.
+    int64 attempt_number = 4;
+  }
+  message Details {
+    // ID of some child of the Duchy from an external system.
+    //
+    // For example, this may identify a specific job or task.
+    string duchy_child_reference_id = 1;
+
+    // Details about the computation stage that the log event occurred during.
+    // Only set if the event happened during computation.
+    StageAttempt stage_attempt = 2;
+  }
+  Details details = 4;
+}

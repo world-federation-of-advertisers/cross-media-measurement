@@ -18,7 +18,7 @@ package wfa.measurement.internal.kingdom;
 
 import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/kingdom/certificate.proto";
-import "wfa/measurement/internal/kingdom/measurement_log_entry.proto";
+import "wfa/measurement/internal/kingdom/duchy_measurement_log_entry.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;

@@ -14,17 +14,22 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.api.gax.rpc.ErrorDetails
+import com.google.protobuf.type
 import java.lang.IllegalStateException
-import kotlinx.coroutines.flow.collect
+import java.time.Clock
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.Certificate.RevocationState
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.RevokeCertificateRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.copy
@@ -40,6 +45,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasur
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurementsByDataProviderCertificate
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurementsByDuchyCertificate
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 
 private val PENDING_MEASUREMENT_STATES =
   listOf(
@@ -146,6 +152,7 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
 
     when (request.parentCase) {
       RevokeCertificateRequest.ParentCase.EXTERNAL_MEASUREMENT_CONSUMER_ID -> {
+
         val filter =
           StreamMeasurementsRequestKt.filter {
             externalMeasurementConsumerId = request.externalMeasurementConsumerId
@@ -214,11 +221,38 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
     return checkNotNull(transactionResult)
   }
 
-  private fun TransactionScope.failMeasurement(
+  private suspend fun TransactionScope.failMeasurement(
     measurementConsumerId: InternalId,
     measurementId: InternalId,
     details: Measurement.Details
   ) {
-    updateMeasurementState(measurementConsumerId, measurementId, Measurement.State.FAILED, details)
+
+    val measurementState =
+      MeasurementReader.readMeasurementState(
+        transactionContext,
+        measurementConsumerId,
+        measurementId
+      )
+
+    val measurementLogEntryDetails =
+      MeasurementLogEntryKt.details {
+        logMessage = "Measurement failed due to a certificate revoked"
+        this.error =
+          MeasurementLogEntryKt.errorDetails {
+            this.type = MeasurementLogEntry.ErrorDetails.Type.PERMANENT
+            // TODO(@marcopremier): plumb in a clock instance dependency not to hardcode the system
+            // one
+            this.errorTime = Clock.systemUTC().protoTimestamp()
+          }
+      }
+
+    updateMeasurementState(
+      measurementConsumerId = measurementConsumerId,
+      measurementId = measurementId,
+      nextState = Measurement.State.FAILED,
+      previousState = measurementState,
+      logDetails = measurementLogEntryDetails,
+      details = details
+    )
   }
 }

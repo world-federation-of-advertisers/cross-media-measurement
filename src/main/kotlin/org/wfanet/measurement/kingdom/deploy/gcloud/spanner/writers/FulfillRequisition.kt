@@ -23,6 +23,7 @@ import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
@@ -90,8 +91,18 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
         val nextState =
           if (request.hasComputedParams()) Measurement.State.PENDING_PARTICIPANT_CONFIRMATION
           else Measurement.State.SUCCEEDED
+        val measurementLogEntryDetails =
+          MeasurementLogEntryKt.details { logMessage = "All requisitions fulfilled" }
         // All other Requisitions are already FULFILLED, so update Measurement state.
-        nextState.also { updateMeasurementState(measurementConsumerId, measurementId, it) }
+        nextState.also {
+          updateMeasurementState(
+            measurementConsumerId = measurementConsumerId,
+            measurementId = measurementId,
+            nextState = it,
+            previousState = measurementState,
+            logDetails = measurementLogEntryDetails
+          )
+        }
       } else {
         null
       }

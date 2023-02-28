@@ -26,6 +26,7 @@ import java.time.Instant
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -67,6 +68,8 @@ import org.wfanet.measurement.internal.kingdom.getExchangeStepAttemptRequest
 import org.wfanet.measurement.internal.kingdom.modelProvider
 import org.wfanet.measurement.internal.kingdom.recurringExchange
 import org.wfanet.measurement.internal.kingdom.recurringExchangeDetails
+import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
+import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.EXTERNAL_DUCHY_IDS
 
 private const val INTERNAL_RECURRING_EXCHANGE_ID = 111L
 private const val EXTERNAL_RECURRING_EXCHANGE_ID = 222L
@@ -123,12 +126,14 @@ private val DATA_PROVIDER = dataProvider {
     publicKey = ByteString.copyFromUtf8("This is a  public key.")
     publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
   }
+  requiredExternalDuchyIds += EXTERNAL_DUCHY_IDS
 }
 
 private val MODEL_PROVIDER = modelProvider { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
 
 @RunWith(JUnit4::class)
 abstract class ExchangeStepAttemptsServiceTest {
+  @get:Rule val duchyIdSetter = DuchyIdSetter(EXTERNAL_DUCHY_IDS)
 
   /** Creates a /RecurringExchanges service implementation using [idGenerator]. */
   protected abstract fun newRecurringExchangesService(

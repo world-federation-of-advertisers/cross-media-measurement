@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.kingdom;
 
 import "wfa/measurement/internal/kingdom/computation_participant.proto";
+import "wfa/measurement/internal/kingdom/duchy_measurement_log_entry.proto";
 import "wfa/measurement/internal/kingdom/measurement_log_entry.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
