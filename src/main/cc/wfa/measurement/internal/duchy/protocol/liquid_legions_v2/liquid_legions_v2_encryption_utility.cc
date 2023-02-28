@@ -747,16 +747,14 @@ absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
     ASSIGN_OR_RETURN(
         int64_t publisher_noise_count,
         AddNoiseForPublisherNoise(
-            *protocol_cryptor,
-            std::move(noise_for_publisher_distributed_geometric_noiser),
+            *protocol_cryptor, noise_for_publisher_distributed_geometric_noiser,
             *response_crv));
     // 3. Add reach DP noise.
     ASSIGN_OR_RETURN(
         int64_t reach_dp_noise_count,
-        AddGlobalReachDpNoise(
-            *protocol_cryptor,
-            std::move(global_reach_dp_distributed_geometric_noiser),
-            *response_crv));
+        AddGlobalReachDpNoise(*protocol_cryptor,
+                              global_reach_dp_distributed_geometric_noiser,
+                              *response_crv));
     // 4. Add padding noise.
     int64_t padding_noise_count = total_noise_registers_count -
                                   blinded_histogram_noise_count -
