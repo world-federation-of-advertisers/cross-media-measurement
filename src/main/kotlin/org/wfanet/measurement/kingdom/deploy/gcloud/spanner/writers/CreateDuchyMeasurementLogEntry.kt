@@ -15,15 +15,12 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Struct
-import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
-import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.set
-import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.CreateDuchyMeasurementLogEntryRequest
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
@@ -89,14 +86,20 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
       DuchyIds.getInternalId(request.externalDuchyId)
         ?: throw DuchyNotFoundException(request.externalDuchyId)
 
-    insertMeasurementLogEntry(measurementInfo.measurementId, measurementInfo.measurementConsumerId)
+    insertMeasurementLogEntry(
+      measurementInfo.measurementId,
+      measurementInfo.measurementConsumerId,
+      request.measurementLogEntryDetails
+    )
 
     val externalComputationLogEntryId =
       insertDuchyMeasurementLogEntry(
         measurementInfo.measurementId,
         measurementInfo.measurementConsumerId,
-        InternalId(duchyId)
+        InternalId(duchyId),
+        request.details
       )
+
     return duchyMeasurementLogEntry {
       this.externalComputationLogEntryId = externalComputationLogEntryId.value
       details = request.details
@@ -109,41 +112,7 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
     }
   }
 
-  private fun TransactionScope.insertMeasurementLogEntry(
-    measurementId: InternalId,
-    measurementConsumerId: InternalId,
-  ) {
-
-    transactionContext.bufferInsertMutation("MeasurementLogEntries") {
-      set("MeasurementConsumerId" to measurementConsumerId)
-      set("MeasurementId" to measurementId)
-      set("CreateTime" to Value.COMMIT_TIMESTAMP)
-      set("MeasurementLogDetails" to request.measurementLogEntryDetails)
-      setJson("MeasurementLogDetailsJson" to request.measurementLogEntryDetails)
-    }
-  }
-
-  private fun TransactionScope.insertDuchyMeasurementLogEntry(
-    measurementId: InternalId,
-    measurementConsumerId: InternalId,
-    duchyId: InternalId
-  ): ExternalId {
-    val externalComputationLogEntryId = idGenerator.generateExternalId()
-
-    transactionContext.bufferInsertMutation("DuchyMeasurementLogEntries") {
-      set("MeasurementConsumerId" to measurementConsumerId)
-      set("MeasurementId" to measurementId)
-      set("CreateTime" to Value.COMMIT_TIMESTAMP)
-      set("DuchyId" to duchyId)
-      set("ExternalComputationLogEntryId" to externalComputationLogEntryId)
-      set("DuchyMeasurementLogDetails" to request.details)
-      setJson("DuchyMeasurementLogDetailsJson" to request.details)
-    }
-
-    return externalComputationLogEntryId
-  }
-
-  fun translateToInternalMeasurementInfo(struct: Struct): MeasurementInfo =
+  private fun translateToInternalMeasurementInfo(struct: Struct): MeasurementInfo =
     MeasurementInfo(
       InternalId(struct.getLong("MeasurementId")),
       InternalId(struct.getLong("MeasurementConsumerId")),

@@ -22,9 +22,9 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.insertOrUpdateMutation
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsContinuationToken
 
-class SetContinuationToken(val continuationToken: String) {
+class SetContinuationToken(private val continuationToken: String) {
   suspend fun execute(databaseClient: AsyncDatabaseClient) {
-    databaseClient.readWriteTransaction().execute {
+    databaseClient.readWriteTransaction().execute { txn ->
       val newContinuationToken = decodeContinuationToken(continuationToken)
       val oldContinuationToken =
         txn

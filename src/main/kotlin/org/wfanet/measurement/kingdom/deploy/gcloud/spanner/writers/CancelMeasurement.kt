@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByMeasurementConsumerException
@@ -66,7 +67,16 @@ class CancelMeasurement(
       }
     }
 
-    updateMeasurementState(measurementConsumerId, measurementId, Measurement.State.CANCELLED)
+    val measurementLogEntryDetails =
+      MeasurementLogEntryKt.details { logMessage = "Measurement was cancelled" }
+
+    updateMeasurementState(
+      measurementConsumerId = measurementConsumerId,
+      measurementId = measurementId,
+      nextState = Measurement.State.CANCELLED,
+      previousState = measurement.state,
+      logDetails = measurementLogEntryDetails
+    )
 
     return measurement.copy { this.state = Measurement.State.CANCELLED }
   }

@@ -26,6 +26,7 @@ import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.DataProvider
+import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 
 class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
@@ -44,7 +45,14 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
       Certificates.NotValidBefore,
       Certificates.NotValidAfter,
       Certificates.RevocationState,
-      Certificates.CertificateDetails
+      Certificates.CertificateDetails,
+      ARRAY(
+        SELECT AS STRUCT
+          DataProviderRequiredDuchies.DuchyId
+        FROM
+          DataProviders
+          JOIN DataProviderRequiredDuchies USING (DataProviderId)
+      ) AS DataProviderRequiredDuchies,
     FROM DataProviders
     JOIN DataProviderCertificates USING (DataProviderId)
     JOIN Certificates USING (CertificateId)
@@ -73,8 +81,17 @@ class DataProviderReader : SpannerReader<DataProviderReader.Result>() {
         externalDataProviderId = struct.getLong("ExternalDataProviderId")
         details = struct.getProtoMessage("DataProviderDetails", DataProvider.Details.parser())
         certificate = buildCertificate(struct)
+        addAllRequiredExternalDuchyIds(buildExternalDuchyIdList(struct))
       }
       .build()
+
+  private fun buildExternalDuchyIdList(struct: Struct): List<String> {
+    return struct.getStructList("DataProviderRequiredDuchies").map {
+      checkNotNull(DuchyIds.getExternalId(it.getLong("DuchyId"))) {
+        "Duchy with internal ID ${it.getLong("DuchyId")} not found"
+      }
+    }
+  }
 
   // TODO(uakyol) : Move this function to CertificateReader when it is implemented.
   private fun buildCertificate(struct: Struct): Certificate =

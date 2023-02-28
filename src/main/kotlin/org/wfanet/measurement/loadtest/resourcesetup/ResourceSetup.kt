@@ -90,6 +90,7 @@ class ResourceSetup(
   private val internalCertificatesClient: CertificatesGrpcKt.CertificatesCoroutineStub,
   private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
   private val runId: String,
+  private val requiredDuchies: List<String>,
   private val bazelConfigName: String = DEFAULT_BAZEL_CONFIG_NAME,
   private val outputDir: File? = null,
 ) {
@@ -242,6 +243,7 @@ class ResourceSetup(
                 publicKey = signedPublicKey.data
                 publicKeySignature = signedPublicKey.signature
               }
+            requiredExternalDuchyIds += requiredDuchies
           }
         )
       } catch (e: StatusException) {
