@@ -18,8 +18,10 @@ import java.time.Duration
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.toProtoDuration
+import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.deleteOutdatedComputationsRequest
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 
 class ComputationsCleaner(
   private val computationsService: ComputationsCoroutineStub,
@@ -27,16 +29,17 @@ class ComputationsCleaner(
 ) {
 
   fun run() {
-    if (timeToLive.toSeconds() == 0L) {
-      logger.warning("Computation Ttl cannot be 0 seconds.")
+    if (timeToLive.toMillis() == 0L) {
+      logger.warning("Computation TTL cannot be 0. TTL=${timeToLive}")
       return
     }
 
-    logger.info("ComputationCleaner task starts...")
+    logger.info("ComputationCleaner task starts. TTL=${timeToLive}")
     val response = runBlocking {
       computationsService.deleteOutdatedComputations(
         deleteOutdatedComputationsRequest {
           timeToLive = this@ComputationsCleaner.timeToLive.toProtoDuration()
+          stages += Stage.COMPLETE.toProtocolStage()
         }
       )
     }

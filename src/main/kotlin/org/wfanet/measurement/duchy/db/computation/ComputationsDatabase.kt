@@ -51,18 +51,18 @@ interface ComputationsDatabaseReader {
 
   /**
    * Gets a collection of all the global computation ids for a computation in the database which are
-   * in a one of the provided stages.
+   * in a one of the provided stages and before the timestamp if specified.
    */
-  suspend fun readGlobalComputationIds(stages: Set<ComputationStage>): Set<String>
+  suspend fun readGlobalComputationIds(
+    stages: Set<ComputationStage>,
+    before: Instant? = null
+  ): Set<String>
 
   /** Gets all blobKeys of a Computation's data */
   suspend fun readComputationBlobKeys(localId: Long): List<String>
 
   /** Gets all blobKeys of a Computation's requisitions */
   suspend fun readRequisitionBlobKeys(localId: Long): List<String>
-
-  /** Gets list of globalIds of all outdated Computations */
-  suspend fun readOutdatedComputationGlobalIds(before: Instant): List<String>
 }
 
 /**

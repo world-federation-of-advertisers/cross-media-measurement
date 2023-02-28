@@ -40,7 +40,7 @@ service Computations {
   rpc DeleteComputation(DeleteComputationRequest)
       returns (google.protobuf.Empty);
 
-  // Deletes all outdated computations.
+  // Deletes outdated computations in specific stages.
   rpc DeleteOutdatedComputations(DeleteOutdatedComputationsRequest)
       returns (DeleteOutdatedComputationsResponse);
 
@@ -111,7 +111,11 @@ message DeleteComputationRequest {
 }
 
 message DeleteOutdatedComputationsRequest {
+  // The time-to-live(TTL) of computations determining if a Computation is
+  // outdated.
   google.protobuf.Duration time_to_live = 1;
+  // The stages where Computations are in to delete.
+  repeated ComputationStage stages = 2;
 }
 
 message DeleteOutdatedComputationsResponse {
@@ -181,7 +185,7 @@ message AdvanceComputationStageRequest {
 
     // Do not add to the work queue, and release any lock on the computation.
     // There is no work to be done on the computation at this time.
-    // Examples for when to set this include the computation finished or
+    // Examples for when to setf this include the computation finished or
     // input from another source is required before continuing.
     DO_NOT_ADD_TO_QUEUE = 3;
   }

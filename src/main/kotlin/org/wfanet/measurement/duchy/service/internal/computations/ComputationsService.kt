@@ -160,14 +160,17 @@ class ComputationsService(
   override suspend fun deleteOutdatedComputations(
     request: DeleteOutdatedComputationsRequest
   ): DeleteOutdatedComputationsResponse {
+    require(request.timeToLive.toDuration() >= MIN_COMPUTATIONS_TIME_TO_LIVE) {
+      "Computation's time to live is too short to execute batch deletions."
+    }
     var deleted = 0
     try {
-      val before = clock.instant().minusSeconds(request.timeToLive.seconds)
-      val globalIds = computationsDatabase.readOutdatedComputationGlobalIds(before)
+      val before = clock.instant().minusMillis(request.timeToLive.toDuration().toMillis())
+      val globalIds =
+        computationsDatabase.readGlobalComputationIds(request.stagesList.toSet(), before)
       for (globalId in globalIds) {
         val token = computationsDatabase.readComputationToken(globalId) ?: continue
         if (!isTerminated(token)) {
-          // finishComputation()
           computationsDatabase.endComputation(
             token.toDatabaseEditToken(),
             getEndingComputationStage(token),
@@ -378,6 +381,8 @@ class ComputationsService(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    private val MIN_COMPUTATIONS_TIME_TO_LIVE = Duration.ofDays(30)
   }
 }
 

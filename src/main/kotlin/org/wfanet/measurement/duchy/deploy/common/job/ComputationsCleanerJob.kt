@@ -42,7 +42,9 @@ private class Flags {
     names = ["--computations-time-to-live"],
     defaultValue = "90d",
     description =
-      ["Time to live (TTL) for a Computation. Computations live longer than this will be cleaned."],
+      [
+        "Time to live (TTL) for a terminal Computation. Computations live longer than this will be cleaned."
+      ],
   )
   lateinit var computationsTimeToLive: Duration
     private set

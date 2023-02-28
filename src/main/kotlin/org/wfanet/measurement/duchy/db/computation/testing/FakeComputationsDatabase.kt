@@ -95,10 +95,6 @@ private constructor(
     remove(localId)
   }
 
-  override suspend fun readOutdatedComputationGlobalIds(before: Instant): List<String> {
-    return listOf()
-  }
-
   /** Adds a fake computation to the [tokens] map. */
   fun addComputation(
     localId: Long,
@@ -379,7 +375,10 @@ private constructor(
     externalRequisitionKey: ExternalRequisitionKey
   ): ComputationToken? = tokens[requisitionMap[externalRequisitionKey]]
 
-  override suspend fun readGlobalComputationIds(stages: Set<ComputationStage>): Set<String> =
+  override suspend fun readGlobalComputationIds(
+    stages: Set<ComputationStage>,
+    before: Instant?
+  ): Set<String> =
     tokens.filterValues { it.computationStage in stages }.map { it.key.toString() }.toSet()
 
   /** For testing purposes, doesn't do anything useful. */
