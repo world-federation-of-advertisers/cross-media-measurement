@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.common
 
+import com.google.protobuf.Timestamp
 import java.io.File
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.internal.kingdom.DuchyIdConfig
@@ -51,11 +52,16 @@ object DuchyIds {
     return entries.firstOrNull { it.internalDuchyId == internalDuchyId }?.externalDuchyId
   }
 
-  fun setForTest(duchyIds: List<String>) {
-    entries = duchyIds.mapIndexed { idx, value -> Entry((idx + 1).toLong(), value) }
+  fun setForTest(duchyIds: List<Entry>) {
+    entries = duchyIds
   }
 
-  data class Entry(val internalDuchyId: Long, val externalDuchyId: String)
+  data class Entry(
+    val internalDuchyId: Long,
+    val externalDuchyId: String,
+    val activeTimeBegin: Timestamp,
+    val activeTimeEnd: Timestamp
+  )
 }
 
 class DuchyIdsFlags {
@@ -69,5 +75,5 @@ class DuchyIdsFlags {
 }
 
 private fun DuchyIdConfig.Duchy.toDuchyIdsEntry(): DuchyIds.Entry {
-  return DuchyIds.Entry(internalDuchyId, externalDuchyId)
+  return DuchyIds.Entry(internalDuchyId, externalDuchyId, activeTimeBegin, activeTimeEnd)
 }
