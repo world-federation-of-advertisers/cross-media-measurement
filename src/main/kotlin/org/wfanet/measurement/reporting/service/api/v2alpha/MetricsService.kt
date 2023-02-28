@@ -177,13 +177,408 @@ class MetricsService(
   private val trustedCertificates: Map<ByteString, X509Certificate>
 ) : MetricsCoroutineImplBase() {
 
-  inner class MeasurementSupplier {}
-
   data class SigningConfig(
     val signingCertificateName: String,
     val signingCertificateDer: ByteString,
     val signingPrivateKey: PrivateKey,
   )
+
+  private class MeasurementSupplier(
+    private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
+    private val internalMeasurementsStub: InternalMeasurementsCoroutineStub,
+    private val measurementsStub: MeasurementsCoroutineStub,
+    private val dataProvidersStub: DataProvidersCoroutineStub,
+    private val certificatesStub: CertificatesCoroutineStub,
+    private val measurementConsumersStub: MeasurementConsumersCoroutineStub,
+    private val secureRandom: SecureRandom,
+    private val trustedCertificates: Map<ByteString, X509Certificate>,
+  ) {
+    /** Creates CMM public [Measurement]s and [InternalMeasurement]s from [InternalMetric]. */
+    suspend fun createCmmsMeasurements(
+      initialInternalMetric: InternalMetric,
+      cmmsMeasurementConsumerId: String,
+      apiAuthenticationKey: String,
+      signingConfig: SigningConfig,
+    ) = coroutineScope {
+      val measurementConsumer: MeasurementConsumer =
+        getMeasurementConsumer(cmmsMeasurementConsumerId, apiAuthenticationKey)
+
+      val externalPrimitiveReportingSetIds: Set<Long> =
+        initialInternalMetric.weightedMeasurementsList
+          .flatMap { weightedMeasurements ->
+            weightedMeasurements.measurement.primitiveReportingSetBasesList.map {
+              it.externalReportingSetId
+            }
+          }
+          .toSet()
+
+      val internalPrimitiveReportingSetMap: Map<Long, InternalReportingSet> =
+        buildInternalReportingSetMap(cmmsMeasurementConsumerId, externalPrimitiveReportingSetIds)
+
+      val deferred = mutableListOf<Deferred<MeasurementIds>>()
+
+      for (weightedMeasurement in initialInternalMetric.weightedMeasurementsList) {
+        deferred.add(
+          async {
+            measurementIds {
+              externalMeasurementId = weightedMeasurement.measurement.externalMeasurementId
+              cmmsMeasurementId =
+                createCmmsMeasurement(
+                    weightedMeasurement.measurement,
+                    initialInternalMetric.metricSpec,
+                    internalPrimitiveReportingSetMap,
+                    measurementConsumer,
+                    apiAuthenticationKey,
+                    signingConfig,
+                  )
+                  .measurementReferenceId
+            }
+          }
+        )
+      }
+
+      // Set CMMs measurement IDs.
+      try {
+        internalMeasurementsStub.batchSetCmmsMeasurementId(
+          batchSetCmmsMeasurementIdRequest {
+            this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+            measurementIds += deferred.awaitAll()
+          }
+        )
+      } catch (e: StatusException) {
+        throw Exception(
+          "Unable to set the CMMs measurement IDs for the measurements in the reporting database.",
+          e
+        )
+      }
+    }
+
+    /** Creates a CMMs measurement from an [InternalMeasurement]. */
+    private suspend fun createCmmsMeasurement(
+      internalMeasurement: InternalMeasurement,
+      metricSpec: InternalMetricSpec,
+      internalPrimitiveReportingSetMap: Map<Long, InternalReportingSet>,
+      measurementConsumer: MeasurementConsumer,
+      apiAuthenticationKey: String,
+      signingConfig: SigningConfig,
+    ): Measurement {
+      val eventGroupEntriesByDataProvider =
+        groupEventGroupEntriesByDataProvider(internalMeasurement, internalPrimitiveReportingSetMap)
+
+      val createMeasurementRequest: CreateMeasurementRequest =
+        buildCreateMeasurementRequest(
+          internalMeasurement,
+          metricSpec,
+          measurementConsumer,
+          eventGroupEntriesByDataProvider,
+          apiAuthenticationKey,
+          signingConfig,
+        )
+
+      try {
+        return measurementsStub
+          .withAuthenticationKey(apiAuthenticationKey)
+          .createMeasurement(createMeasurementRequest)
+      } catch (e: StatusException) {
+        throw Exception(
+          "Unable to create the measurement [${createMeasurementRequest.measurement.name}].",
+          e
+        )
+      }
+    }
+
+    /** Builds a CMMs [CreateMeasurementRequest]. */
+    private suspend fun buildCreateMeasurementRequest(
+      internalMeasurement: InternalMeasurement,
+      metricSpec: InternalMetricSpec,
+      measurementConsumer: MeasurementConsumer,
+      eventGroupEntriesByDataProvider: Map<DataProviderKey, List<EventGroupEntry>>,
+      apiAuthenticationKey: String,
+      signingConfig: SigningConfig,
+    ): CreateMeasurementRequest {
+      val measurementConsumerCertificate = readCertificate(signingConfig.signingCertificateDer)
+      val measurementConsumerSigningKey =
+        SigningKeyHandle(measurementConsumerCertificate, signingConfig.signingPrivateKey)
+      val measurementEncryptionPublicKey = measurementConsumer.publicKey.data
+
+      val measurement = measurement {
+        this.measurementConsumerCertificate = signingConfig.signingCertificateName
+
+        dataProviders +=
+          buildDataProviderEntries(
+            eventGroupEntriesByDataProvider,
+            measurementEncryptionPublicKey,
+            measurementConsumerSigningKey,
+            apiAuthenticationKey,
+          )
+
+        val unsignedMeasurementSpec: MeasurementSpec =
+          buildUnsignedMeasurementSpec(
+            measurementEncryptionPublicKey,
+            dataProviders.map { it.value.nonceHash },
+            metricSpec
+          )
+
+        this.measurementSpec =
+          signMeasurementSpec(unsignedMeasurementSpec, measurementConsumerSigningKey)
+
+        this.measurementReferenceId = internalMeasurement.cmmsCreateMeasurementRequestId
+      }
+
+      return createMeasurementRequest { this.measurement = measurement }
+    }
+
+    /** Builds an unsigned [MeasurementSpec]. */
+    private fun buildUnsignedMeasurementSpec(
+      measurementEncryptionPublicKey: ByteString,
+      nonceHashes: List<ByteString>,
+      metricSpec: InternalMetricSpec
+    ): MeasurementSpec {
+      return measurementSpec {
+        measurementPublicKey = measurementEncryptionPublicKey
+        this.nonceHashes += nonceHashes
+
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+        when (metricSpec.typeCase) {
+          InternalMetricSpec.TypeCase.REACH -> {
+            reachAndFrequency = REACH_ONLY_MEASUREMENT_SPEC
+            vidSamplingInterval = buildReachOnlyVidSamplingInterval(secureRandom)
+          }
+          InternalMetricSpec.TypeCase.FREQUENCY_HISTOGRAM -> {
+            reachAndFrequency =
+              buildReachAndFrequencyMeasurementSpec(
+                metricSpec.frequencyHistogram.maximumFrequencyPerUser
+              )
+            vidSamplingInterval = buildReachAndFrequencyVidSamplingInterval(secureRandom)
+          }
+          InternalMetricSpec.TypeCase.IMPRESSION_COUNT -> {
+            impression =
+              buildImpressionMeasurementSpec(metricSpec.impressionCount.maximumFrequencyPerUser)
+            vidSamplingInterval = buildImpressionVidSamplingInterval(secureRandom)
+          }
+          InternalMetricSpec.TypeCase.WATCH_DURATION -> {
+            duration =
+              buildDurationMeasurementSpec(
+                metricSpec.watchDuration.maximumWatchDurationPerUser,
+              )
+            vidSamplingInterval = buildDurationVidSamplingInterval(secureRandom)
+          }
+          InternalMetricSpec.TypeCase.TYPE_NOT_SET ->
+            error("Unset metric type should've already raised error.")
+        }
+      }
+    }
+
+    /**
+     * Builds a [List] of [Measurement.DataProviderEntry] messages from
+     * [eventGroupEntriesByDataProvider].
+     */
+    private suspend fun buildDataProviderEntries(
+      eventGroupEntriesByDataProvider: Map<DataProviderKey, List<EventGroupEntry>>,
+      measurementEncryptionPublicKey: ByteString,
+      measurementConsumerSigningKey: SigningKeyHandle,
+      apiAuthenticationKey: String,
+    ): List<Measurement.DataProviderEntry> {
+      return eventGroupEntriesByDataProvider.map { (dataProviderKey, eventGroupEntriesList) ->
+        // TODO(@SanjayVas): Consider caching the public key and certificate.
+        val dataProviderName: String = dataProviderKey.toName()
+        val dataProvider: DataProvider =
+          try {
+            dataProvidersStub
+              .withAuthenticationKey(apiAuthenticationKey)
+              .getDataProvider(getDataProviderRequest { name = dataProviderName })
+          } catch (e: StatusException) {
+            throw when (e.status.code) {
+                Status.Code.NOT_FOUND ->
+                  Status.FAILED_PRECONDITION.withDescription("$dataProviderName not found")
+                else -> Status.UNKNOWN.withDescription("Unable to retrieve $dataProviderName")
+              }
+              .withCause(e)
+              .asRuntimeException()
+          }
+
+        val certificate: Certificate =
+          try {
+            certificatesStub
+              .withAuthenticationKey(apiAuthenticationKey)
+              .getCertificate(getCertificateRequest { name = dataProvider.certificate })
+          } catch (e: StatusException) {
+            throw Exception("Unable to retrieve Certificate ${dataProvider.certificate}", e)
+          }
+        if (
+          certificate.revocationState != Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED
+        ) {
+          throw Status.FAILED_PRECONDITION.withDescription(
+              "${certificate.name} revocation state is ${certificate.revocationState}"
+            )
+            .asRuntimeException()
+        }
+
+        val x509Certificate: X509Certificate = readCertificate(certificate.x509Der)
+        val trustedIssuer: X509Certificate =
+          trustedCertificates[checkNotNull(x509Certificate.authorityKeyIdentifier)]
+            ?: throw Status.FAILED_PRECONDITION.withDescription(
+                "${certificate.name} not issued by trusted CA"
+              )
+              .asRuntimeException()
+        try {
+          verifyEncryptionPublicKey(dataProvider.publicKey, x509Certificate, trustedIssuer)
+        } catch (e: CertPathValidatorException) {
+          throw Status.FAILED_PRECONDITION.withCause(e)
+            .withDescription("Certificate path for ${certificate.name} is invalid")
+            .asRuntimeException()
+        } catch (e: SignatureException) {
+          throw Status.FAILED_PRECONDITION.withCause(e)
+            .withDescription("DataProvider public key signature is invalid")
+            .asRuntimeException()
+        }
+
+        val requisitionSpec = requisitionSpec {
+          eventGroups += eventGroupEntriesList
+          measurementPublicKey = measurementEncryptionPublicKey
+          nonce = secureRandom.nextLong()
+        }
+        val encryptRequisitionSpec =
+          encryptRequisitionSpec(
+            signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
+            EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
+          )
+
+        dataProviderEntry {
+          key = dataProvider.name
+          value =
+            MeasurementKt.DataProviderEntryKt.value {
+              dataProviderCertificate = certificate.name
+              dataProviderPublicKey = dataProvider.publicKey
+              this.encryptedRequisitionSpec = encryptRequisitionSpec
+              nonceHash = hashSha256(requisitionSpec.nonce)
+            }
+        }
+      }
+    }
+
+    /**
+     * Converts the event groups included in an [InternalMeasurement] to [EventGroupEntry]s,
+     * grouping them by DataProvider.
+     */
+    private fun groupEventGroupEntriesByDataProvider(
+      measurement: InternalMeasurement,
+      internalPrimitiveReportingSetMap: Map<Long, InternalReportingSet>,
+    ): Map<DataProviderKey, List<EventGroupEntry>> {
+      return measurement.primitiveReportingSetBasesList
+        .flatMap { primitiveReportingSetBasis ->
+          val internalPrimitiveReportingSet =
+            internalPrimitiveReportingSetMap.getValue(
+              primitiveReportingSetBasis.externalReportingSetId
+            )
+
+          internalPrimitiveReportingSet.primitive.eventGroupKeysList.map { internalEventGroupKey ->
+            val eventGroupKey =
+              EventGroupKey(
+                internalEventGroupKey.cmmsMeasurementConsumerId,
+                internalEventGroupKey.cmmsDataProviderId,
+                internalEventGroupKey.cmmsEventGroupId
+              )
+            val eventGroupName = eventGroupKey.toName()
+            val filter: String? =
+              (primitiveReportingSetBasis.filtersList + internalPrimitiveReportingSet.filter)
+                .reduce { filter1, filter2 -> combineEventGroupFilters(filter1, filter2) }
+
+            eventGroupKey to
+              RequisitionSpecKt.eventGroupEntry {
+                key = eventGroupName
+                value =
+                  RequisitionSpecKt.EventGroupEntryKt.value {
+                    collectionInterval = measurement.timeInterval.toCmmsTimeInterval()
+                    if (filter != null) {
+                      this.filter = RequisitionSpecKt.eventFilter { expression = filter }
+                    }
+                  }
+              }
+          }
+        }
+        .groupBy(
+          { (eventGroupKey, _) -> DataProviderKey(eventGroupKey.cmmsDataProviderId) },
+          { (_, eventGroupEntry) -> eventGroupEntry }
+        )
+    }
+
+    /** Combines two event group filters. */
+    private fun combineEventGroupFilters(filter1: String?, filter2: String?): String? {
+      if (filter1 == null) return filter2
+
+      return if (filter2 == null) filter1
+      else {
+        "($filter1) AND ($filter2)"
+      }
+    }
+
+    /** Get a [MeasurementConsumer] based on a CMMs ID. */
+    private suspend fun getMeasurementConsumer(
+      cmmsMeasurementConsumerId: String,
+      apiAuthenticationKey: String,
+    ): MeasurementConsumer {
+      return try {
+        measurementConsumersStub
+          .withAuthenticationKey(apiAuthenticationKey)
+          .getMeasurementConsumer(
+            getMeasurementConsumerRequest {
+              name = MeasurementConsumerKey(cmmsMeasurementConsumerId).toName()
+            }
+          )
+      } catch (e: StatusException) {
+        throw Exception(
+          "Unable to retrieve the measurement consumer " +
+            "[${MeasurementConsumerKey(cmmsMeasurementConsumerId).toName()}].",
+          e
+        )
+      }
+    }
+
+    /**
+     * Builds a map of external reporting set IDs to [InternalReportingSet]s to minimize grpc calls.
+     */
+    private suspend fun buildInternalReportingSetMap(
+      cmmsMeasurementConsumerId: String,
+      externalReportingSetIds: Set<Long>,
+    ): Map<Long, InternalReportingSet> {
+      val batchGetReportingSetRequest = batchGetReportingSetRequest {
+        this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+        externalReportingSetIds.forEach { this.externalReportingSetIds += it }
+      }
+
+      val internalReportingSetsList =
+        internalReportingSetsStub.batchGetReportingSet(batchGetReportingSetRequest).toList()
+
+      if (internalReportingSetsList.size < externalReportingSetIds.size) {
+        val missingExternalReportingSetIds = externalReportingSetIds.toMutableSet()
+        val errorMessage = StringBuilder("The following reporting set names were not found:")
+        internalReportingSetsList.forEach {
+          missingExternalReportingSetIds.remove(it.externalReportingSetId)
+        }
+        missingExternalReportingSetIds.forEach {
+          errorMessage.append(
+            " ${ReportingSetKey(cmmsMeasurementConsumerId, externalIdToApiId(it)).toName()}"
+          )
+        }
+        failGrpc(Status.NOT_FOUND) { errorMessage.toString() }
+      }
+
+      return internalReportingSetsList.associateBy { it.externalReportingSetId }
+    }
+  }
+
+  private val measurementSupplier =
+    MeasurementSupplier(
+      internalReportingSetsStub,
+      internalMeasurementsStub,
+      measurementsStub,
+      dataProvidersStub,
+      certificatesStub,
+      measurementConsumersStub,
+      secureRandom,
+      trustedCertificates,
+    )
 
   override suspend fun createMetric(request: CreateMetricRequest): Metric {
     grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
@@ -232,7 +627,7 @@ class MetricsService(
         )
       )
 
-    createCmmsMeasurements(
+    measurementSupplier.createCmmsMeasurements(
       initialInternalMetric,
       resourceKey.measurementConsumerId,
       apiAuthenticationKey,
@@ -241,321 +636,6 @@ class MetricsService(
 
     // Convert the internal metric to public and return it.
     return initialInternalMetric.toMetric()
-  }
-
-  /** Creates CMM public [Measurement]s and [InternalMeasurement]s from [InternalMetric]. */
-  private suspend fun createCmmsMeasurements(
-    initialInternalMetric: InternalMetric,
-    cmmsMeasurementConsumerId: String,
-    apiAuthenticationKey: String,
-    signingConfig: SigningConfig,
-  ) = coroutineScope {
-    val measurementConsumer: MeasurementConsumer =
-      getMeasurementConsumer(cmmsMeasurementConsumerId, apiAuthenticationKey)
-
-    val externalPrimitiveReportingSetIds: Set<Long> =
-      initialInternalMetric.weightedMeasurementsList
-        .flatMap { weightedMeasurements ->
-          weightedMeasurements.measurement.primitiveReportingSetBasesList.map {
-            it.externalReportingSetId
-          }
-        }
-        .toSet()
-
-    val internalPrimitiveReportingSetMap: Map<Long, InternalReportingSet> =
-      buildInternalReportingSetMap(cmmsMeasurementConsumerId, externalPrimitiveReportingSetIds)
-
-    val deferred = mutableListOf<Deferred<MeasurementIds>>()
-
-    for (weightedMeasurement in initialInternalMetric.weightedMeasurementsList) {
-      deferred.add(
-        async {
-          measurementIds {
-            externalMeasurementId = weightedMeasurement.measurement.externalMeasurementId
-            cmmsMeasurementId =
-              createCmmsMeasurement(
-                  weightedMeasurement.measurement,
-                  initialInternalMetric.metricSpec,
-                  internalPrimitiveReportingSetMap,
-                  measurementConsumer,
-                  apiAuthenticationKey,
-                  signingConfig,
-                )
-                .measurementReferenceId
-          }
-        }
-      )
-    }
-
-    // Set CMMs measurement IDs.
-    try {
-      internalMeasurementsStub.batchSetCmmsMeasurementId(
-        batchSetCmmsMeasurementIdRequest {
-          this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-          measurementIds += deferred.awaitAll()
-        }
-      )
-    } catch (e: StatusException) {
-      throw Exception("Unable to set the CMMs measurement IDs for the measurements in the reporting database.", e)
-    }
-  }
-
-  /** Creates a CMMs measurement from an [InternalMeasurement]. */
-  private suspend fun createCmmsMeasurement(
-    internalMeasurement: InternalMeasurement,
-    metricSpec: InternalMetricSpec,
-    internalPrimitiveReportingSetMap: Map<Long, InternalReportingSet>,
-    measurementConsumer: MeasurementConsumer,
-    apiAuthenticationKey: String,
-    signingConfig: SigningConfig,
-  ): Measurement {
-    val eventGroupEntriesByDataProvider =
-      groupEventGroupEntriesByDataProvider(internalMeasurement, internalPrimitiveReportingSetMap)
-
-    val createMeasurementRequest: CreateMeasurementRequest =
-      buildCreateMeasurementRequest(
-        internalMeasurement,
-        metricSpec,
-        measurementConsumer,
-        eventGroupEntriesByDataProvider,
-        apiAuthenticationKey,
-        signingConfig,
-      )
-
-    try {
-      return measurementsStub
-        .withAuthenticationKey(apiAuthenticationKey)
-        .createMeasurement(createMeasurementRequest)
-    } catch (e: StatusException) {
-      throw Exception(
-        "Unable to create the measurement [${createMeasurementRequest.measurement.name}].",
-        e
-      )
-    }
-  }
-
-  /** Builds a CMMs [CreateMeasurementRequest]. */
-  private suspend fun buildCreateMeasurementRequest(
-    internalMeasurement: InternalMeasurement,
-    metricSpec: InternalMetricSpec,
-    measurementConsumer: MeasurementConsumer,
-    eventGroupEntriesByDataProvider: Map<DataProviderKey, List<EventGroupEntry>>,
-    apiAuthenticationKey: String,
-    signingConfig: SigningConfig,
-  ): CreateMeasurementRequest {
-    val measurementConsumerCertificate = readCertificate(signingConfig.signingCertificateDer)
-    val measurementConsumerSigningKey =
-      SigningKeyHandle(measurementConsumerCertificate, signingConfig.signingPrivateKey)
-    val measurementEncryptionPublicKey = measurementConsumer.publicKey.data
-
-    val measurement = measurement {
-      this.measurementConsumerCertificate = signingConfig.signingCertificateName
-
-      dataProviders +=
-        buildDataProviderEntries(
-          eventGroupEntriesByDataProvider,
-          measurementEncryptionPublicKey,
-          measurementConsumerSigningKey,
-          apiAuthenticationKey,
-        )
-
-      val unsignedMeasurementSpec: MeasurementSpec =
-        buildUnsignedMeasurementSpec(
-          measurementEncryptionPublicKey,
-          dataProviders.map { it.value.nonceHash },
-          metricSpec
-        )
-
-      this.measurementSpec =
-        signMeasurementSpec(unsignedMeasurementSpec, measurementConsumerSigningKey)
-
-      this.measurementReferenceId = internalMeasurement.cmmsCreateMeasurementRequestId
-    }
-
-    return createMeasurementRequest { this.measurement = measurement }
-  }
-
-  /** Builds an unsigned [MeasurementSpec]. */
-  private fun buildUnsignedMeasurementSpec(
-    measurementEncryptionPublicKey: ByteString,
-    nonceHashes: List<ByteString>,
-    metricSpec: InternalMetricSpec
-  ): MeasurementSpec {
-    return measurementSpec {
-      measurementPublicKey = measurementEncryptionPublicKey
-      this.nonceHashes += nonceHashes
-
-      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-      when (metricSpec.typeCase) {
-        InternalMetricSpec.TypeCase.REACH -> {
-          reachAndFrequency = REACH_ONLY_MEASUREMENT_SPEC
-          vidSamplingInterval = buildReachOnlyVidSamplingInterval(secureRandom)
-        }
-        InternalMetricSpec.TypeCase.FREQUENCY_HISTOGRAM -> {
-          reachAndFrequency =
-            buildReachAndFrequencyMeasurementSpec(
-              metricSpec.frequencyHistogram.maximumFrequencyPerUser
-            )
-          vidSamplingInterval = buildReachAndFrequencyVidSamplingInterval(secureRandom)
-        }
-        InternalMetricSpec.TypeCase.IMPRESSION_COUNT -> {
-          impression =
-            buildImpressionMeasurementSpec(metricSpec.impressionCount.maximumFrequencyPerUser)
-          vidSamplingInterval = buildImpressionVidSamplingInterval(secureRandom)
-        }
-        InternalMetricSpec.TypeCase.WATCH_DURATION -> {
-          duration =
-            buildDurationMeasurementSpec(
-              metricSpec.watchDuration.maximumWatchDurationPerUser,
-            )
-          vidSamplingInterval = buildDurationVidSamplingInterval(secureRandom)
-        }
-        InternalMetricSpec.TypeCase.TYPE_NOT_SET ->
-          error("Unset metric type should've already raised error.")
-      }
-    }
-  }
-
-  /**
-   * Builds a [List] of [Measurement.DataProviderEntry] messages from
-   * [eventGroupEntriesByDataProvider].
-   */
-  private suspend fun buildDataProviderEntries(
-    eventGroupEntriesByDataProvider: Map<DataProviderKey, List<EventGroupEntry>>,
-    measurementEncryptionPublicKey: ByteString,
-    measurementConsumerSigningKey: SigningKeyHandle,
-    apiAuthenticationKey: String,
-  ): List<Measurement.DataProviderEntry> {
-    return eventGroupEntriesByDataProvider.map { (dataProviderKey, eventGroupEntriesList) ->
-      // TODO(@SanjayVas): Consider caching the public key and certificate.
-      val dataProviderName: String = dataProviderKey.toName()
-      val dataProvider: DataProvider =
-        try {
-          dataProvidersStub
-            .withAuthenticationKey(apiAuthenticationKey)
-            .getDataProvider(getDataProviderRequest { name = dataProviderName })
-        } catch (e: StatusException) {
-          throw when (e.status.code) {
-              Status.Code.NOT_FOUND ->
-                Status.FAILED_PRECONDITION.withDescription("$dataProviderName not found")
-              else -> Status.UNKNOWN.withDescription("Unable to retrieve $dataProviderName")
-            }
-            .withCause(e)
-            .asRuntimeException()
-        }
-
-      val certificate: Certificate =
-        try {
-          certificatesStub
-            .withAuthenticationKey(apiAuthenticationKey)
-            .getCertificate(getCertificateRequest { name = dataProvider.certificate })
-        } catch (e: StatusException) {
-          throw Exception("Unable to retrieve Certificate ${dataProvider.certificate}", e)
-        }
-      if (certificate.revocationState != Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED) {
-        throw Status.FAILED_PRECONDITION.withDescription(
-            "${certificate.name} revocation state is ${certificate.revocationState}"
-          )
-          .asRuntimeException()
-      }
-
-      val x509Certificate: X509Certificate = readCertificate(certificate.x509Der)
-      val trustedIssuer: X509Certificate =
-        trustedCertificates[checkNotNull(x509Certificate.authorityKeyIdentifier)]
-          ?: throw Status.FAILED_PRECONDITION.withDescription(
-              "${certificate.name} not issued by trusted CA"
-            )
-            .asRuntimeException()
-      try {
-        verifyEncryptionPublicKey(dataProvider.publicKey, x509Certificate, trustedIssuer)
-      } catch (e: CertPathValidatorException) {
-        throw Status.FAILED_PRECONDITION.withCause(e)
-          .withDescription("Certificate path for ${certificate.name} is invalid")
-          .asRuntimeException()
-      } catch (e: SignatureException) {
-        throw Status.FAILED_PRECONDITION.withCause(e)
-          .withDescription("DataProvider public key signature is invalid")
-          .asRuntimeException()
-      }
-
-      val requisitionSpec = requisitionSpec {
-        eventGroups += eventGroupEntriesList
-        measurementPublicKey = measurementEncryptionPublicKey
-        nonce = secureRandom.nextLong()
-      }
-      val encryptRequisitionSpec =
-        encryptRequisitionSpec(
-          signRequisitionSpec(requisitionSpec, measurementConsumerSigningKey),
-          EncryptionPublicKey.parseFrom(dataProvider.publicKey.data)
-        )
-
-      dataProviderEntry {
-        key = dataProvider.name
-        value =
-          MeasurementKt.DataProviderEntryKt.value {
-            dataProviderCertificate = certificate.name
-            dataProviderPublicKey = dataProvider.publicKey
-            this.encryptedRequisitionSpec = encryptRequisitionSpec
-            nonceHash = hashSha256(requisitionSpec.nonce)
-          }
-      }
-    }
-  }
-
-  /**
-   * Converts the event groups included in an [InternalMeasurement] to [EventGroupEntry]s, grouping
-   * them by DataProvider.
-   */
-  private fun groupEventGroupEntriesByDataProvider(
-    measurement: InternalMeasurement,
-    internalPrimitiveReportingSetMap: Map<Long, InternalReportingSet>,
-  ): Map<DataProviderKey, List<EventGroupEntry>> {
-    return measurement.primitiveReportingSetBasesList
-      .flatMap { primitiveReportingSetBasis ->
-        val internalPrimitiveReportingSet =
-          internalPrimitiveReportingSetMap.getValue(
-            primitiveReportingSetBasis.externalReportingSetId
-          )
-
-        internalPrimitiveReportingSet.primitive.eventGroupKeysList.map { internalEventGroupKey ->
-          val eventGroupKey =
-            EventGroupKey(
-              internalEventGroupKey.cmmsMeasurementConsumerId,
-              internalEventGroupKey.cmmsDataProviderId,
-              internalEventGroupKey.cmmsEventGroupId
-            )
-          val eventGroupName = eventGroupKey.toName()
-          val filter: String? =
-            (primitiveReportingSetBasis.filtersList + internalPrimitiveReportingSet.filter)
-              .reduce { filter1, filter2 -> combineEventGroupFilters(filter1, filter2) }
-
-          eventGroupKey to
-            RequisitionSpecKt.eventGroupEntry {
-              key = eventGroupName
-              value =
-                RequisitionSpecKt.EventGroupEntryKt.value {
-                  collectionInterval = measurement.timeInterval.toCmmsTimeInterval()
-                  if (filter != null) {
-                    this.filter = RequisitionSpecKt.eventFilter { expression = filter }
-                  }
-                }
-            }
-        }
-      }
-      .groupBy(
-        { (eventGroupKey, _) -> DataProviderKey(eventGroupKey.cmmsDataProviderId) },
-        { (_, eventGroupEntry) -> eventGroupEntry }
-      )
-  }
-
-  /** Combines two event group filters. */
-  private fun combineEventGroupFilters(filter1: String?, filter2: String?): String? {
-    if (filter1 == null) return filter2
-
-    return if (filter2 == null) filter1
-    else {
-      "($filter1) AND ($filter2)"
-    }
   }
 
   /** Creates an initial [InternalMetric] for caching. */
@@ -612,60 +692,6 @@ class MetricsService(
             }
         }
       }
-    }
-  }
-
-  /**
-   * Builds a map of external reporting set IDs to [InternalReportingSet]s to minimize grpc calls.
-   */
-  private suspend fun buildInternalReportingSetMap(
-    cmmsMeasurementConsumerId: String,
-    externalReportingSetIds: Set<Long>,
-  ): Map<Long, InternalReportingSet> {
-    val batchGetReportingSetRequest = batchGetReportingSetRequest {
-      this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-      externalReportingSetIds.forEach { this.externalReportingSetIds += it }
-    }
-
-    val internalReportingSetsList =
-      internalReportingSetsStub.batchGetReportingSet(batchGetReportingSetRequest).toList()
-
-    if (internalReportingSetsList.size < externalReportingSetIds.size) {
-      val missingExternalReportingSetIds = externalReportingSetIds.toMutableSet()
-      val errorMessage = StringBuilder("The following reporting set names were not found:")
-      internalReportingSetsList.forEach {
-        missingExternalReportingSetIds.remove(it.externalReportingSetId)
-      }
-      missingExternalReportingSetIds.forEach {
-        errorMessage.append(
-          " ${ReportingSetKey(cmmsMeasurementConsumerId, externalIdToApiId(it)).toName()}"
-        )
-      }
-      failGrpc(Status.NOT_FOUND) { errorMessage.toString() }
-    }
-
-    return internalReportingSetsList.associateBy { it.externalReportingSetId }
-  }
-
-  /** Get a [MeasurementConsumer] based on a CMMs ID. */
-  private suspend fun getMeasurementConsumer(
-    cmmsMeasurementConsumerId: String,
-    apiAuthenticationKey: String,
-  ): MeasurementConsumer {
-    return try {
-      measurementConsumersStub
-        .withAuthenticationKey(apiAuthenticationKey)
-        .getMeasurementConsumer(
-          getMeasurementConsumerRequest {
-            name = MeasurementConsumerKey(cmmsMeasurementConsumerId).toName()
-          }
-        )
-    } catch (e: StatusException) {
-      throw Exception(
-        "Unable to retrieve the measurement consumer " +
-          "[${MeasurementConsumerKey(cmmsMeasurementConsumerId).toName()}].",
-        e
-      )
     }
   }
 
