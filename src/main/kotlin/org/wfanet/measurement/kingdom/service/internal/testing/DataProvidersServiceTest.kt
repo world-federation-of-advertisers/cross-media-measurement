@@ -34,7 +34,7 @@ import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetDataProviderRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
-import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.EXTERNAL_DUCHY_IDS
+import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.DUCHIES
 
 private const val EXTERNAL_DATA_PROVIDER_ID = 123L
 private const val FIXED_GENERATED_INTERNAL_ID = 2345L
@@ -45,7 +45,7 @@ private val CERTIFICATE_DER = ByteString.copyFromUtf8("This is a certificate der
 
 @RunWith(JUnit4::class)
 abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
-  @get:Rule val duchyIdSetter = DuchyIdSetter(EXTERNAL_DUCHY_IDS)
+  @get:Rule val duchyIdSetter = DuchyIdSetter(DUCHIES)
 
   protected val idGenerator =
     FixedIdGenerator(
@@ -120,7 +120,7 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
             publicKey = PUBLIC_KEY
             publicKeySignature = PUBLIC_KEY_SIGNATURE
           }
-          addAllRequiredExternalDuchyIds(EXTERNAL_DUCHY_IDS)
+          addAllRequiredExternalDuchyIds(DUCHIES.map { it.externalDuchyId })
         }
         .build()
     val createdDataProvider = dataProvidersService.createDataProvider(dataProvider)
@@ -189,7 +189,7 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
             publicKey = PUBLIC_KEY
             publicKeySignature = PUBLIC_KEY_SIGNATURE
           }
-          addAllRequiredExternalDuchyIds(EXTERNAL_DUCHY_IDS)
+          addAllRequiredExternalDuchyIds(DUCHIES.map { it.externalDuchyId })
         }
         .build()
 

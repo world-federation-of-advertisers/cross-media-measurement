@@ -65,7 +65,7 @@ import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
-import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.EXTERNAL_DUCHY_IDS
+import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.DUCHIES
 
 private const val RANDOM_SEED = 1
 private const val API_VERSION = "v2alpha"
@@ -90,7 +90,7 @@ private val MEASUREMENT = measurement {
 @RunWith(JUnit4::class)
 abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
-  @get:Rule val duchyIdSetter = DuchyIdSetter(EXTERNAL_DUCHY_IDS)
+  @get:Rule val duchyIdSetter = DuchyIdSetter(DUCHIES)
 
   protected data class Services<T>(
     val measurementsService: T,
@@ -723,11 +723,11 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
               encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
               nonceHash = dataProviderValue.nonceHash
             }
-            duchies[Population.AGGREGATOR_DUCHY_EXTERNAL_ID] =
+            duchies[Population.AGGREGATOR_DUCHY.externalDuchyId] =
               Requisition.DuchyValue.getDefaultInstance()
-            duchies[Population.WORKER1_DUCHY_EXTERNAL_ID] =
+            duchies[Population.WORKER1_DUCHY.externalDuchyId] =
               Requisition.DuchyValue.getDefaultInstance()
-            duchies[Population.WORKER2_DUCHY_EXTERNAL_ID] =
+            duchies[Population.WORKER2_DUCHY.externalDuchyId] =
               Requisition.DuchyValue.getDefaultInstance()
           }
         )
@@ -747,15 +747,17 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       }
       assertThat(measurement.computationParticipantsList)
         .containsExactly(
-          templateParticipant.copy { externalDuchyId = Population.AGGREGATOR_DUCHY_EXTERNAL_ID },
-          templateParticipant.copy { externalDuchyId = Population.WORKER1_DUCHY_EXTERNAL_ID },
-          templateParticipant.copy { externalDuchyId = Population.WORKER2_DUCHY_EXTERNAL_ID }
+          templateParticipant.copy {
+            externalDuchyId = Population.AGGREGATOR_DUCHY.externalDuchyId
+          },
+          templateParticipant.copy { externalDuchyId = Population.WORKER1_DUCHY.externalDuchyId },
+          templateParticipant.copy { externalDuchyId = Population.WORKER2_DUCHY.externalDuchyId }
         )
     }
 
   @Test
   fun `setMeasurementResult fails for wrong externalComputationId`() = runBlocking {
-    val aggregatorDuchyId = Population.AGGREGATOR_DUCHY_EXTERNAL_ID
+    val aggregatorDuchyId = Population.AGGREGATOR_DUCHY.externalDuchyId
     val duchyCertificate = population.createDuchyCertificate(certificatesService, aggregatorDuchyId)
     val request = setMeasurementResultRequest {
       externalComputationId = 1234L // externalComputationId for Measurement that doesn't exist
@@ -784,7 +786,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             measurementConsumer.certificate.externalCertificateId
         }
       )
-    val aggregatorDuchyId = Population.AGGREGATOR_DUCHY_EXTERNAL_ID
+    val aggregatorDuchyId = Population.AGGREGATOR_DUCHY.externalDuchyId
     val request = setMeasurementResultRequest {
       externalComputationId = createdMeasurement.externalComputationId
       externalAggregatorDuchyId = aggregatorDuchyId
@@ -812,7 +814,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             measurementConsumer.certificate.externalCertificateId
         }
       )
-    val aggregatorDuchyId = Population.AGGREGATOR_DUCHY_EXTERNAL_ID
+    val aggregatorDuchyId = Population.AGGREGATOR_DUCHY.externalDuchyId
     val duchyCertificate = population.createDuchyCertificate(certificatesService, aggregatorDuchyId)
 
     val request = setMeasurementResultRequest {
@@ -1103,7 +1105,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       limit = 2
       filter = filter {
         externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-        externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+        externalDuchyId = DUCHIES[0].externalDuchyId
       }
       measurementView = Measurement.View.COMPUTATION
     }
@@ -1214,7 +1216,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       )
 
     // SUCCEED second measurement.
-    val aggregatorDuchyId = Population.AGGREGATOR_DUCHY_EXTERNAL_ID
+    val aggregatorDuchyId = Population.AGGREGATOR_DUCHY.externalDuchyId
     val aggregatorCertificate =
       population.createDuchyCertificate(certificatesService, aggregatorDuchyId)
     val succeededMeasurement =
