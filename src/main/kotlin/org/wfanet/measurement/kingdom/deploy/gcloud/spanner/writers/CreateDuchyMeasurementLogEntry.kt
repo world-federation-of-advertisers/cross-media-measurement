@@ -14,15 +14,17 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.set
+import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.CreateDuchyMeasurementLogEntryRequest
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
+import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.measurementLogEntry
@@ -30,48 +32,70 @@ import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByComputationException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
 
 /**
  * Creates a DuchyMeasurementLogEntry and MeasurementLogEntry in the database.
  *
  * Throws a subclass of [KingdomInternalException] on [execute].
  *
- * @throws [MeasurementNotFoundByComputationException] Measurement not found
- * @throws [DuchyNotFoundException] Duchy not found
+ * @throws [MeasurementNotFoundByComputationException] Measurement not found.
+ * @throws [DuchyNotFoundException] Duchy not found.
+ * @throws [MeasurementStateIllegalException] Measurement in invalid state to add log entry.
  */
 class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurementLogEntryRequest) :
   SpannerWriter<DuchyMeasurementLogEntry, DuchyMeasurementLogEntry>() {
-  data class MeasurementIds(
+  data class MeasurementInfo(
     val measurementId: InternalId,
     val measurementConsumerId: InternalId,
     val externalMeasurementId: ExternalId,
-    val externalMeasurementConsumerId: ExternalId
+    val externalMeasurementConsumerId: ExternalId,
+    val measurementState: Measurement.State
   )
 
   override suspend fun TransactionScope.runTransaction(): DuchyMeasurementLogEntry {
 
-    val measurementIds =
-      readMeasurementIds()
+    val measurementInfo =
+      readMeasurementInfo()
         ?: throw MeasurementNotFoundByComputationException(
           ExternalId(request.externalComputationId)
         ) {
           "Measurement for external computation ID ${request.externalComputationId} not found"
         }
 
+    when (measurementInfo.measurementState) {
+      Measurement.State.SUCCEEDED,
+      Measurement.State.FAILED,
+      Measurement.State.CANCELLED ->
+        throw MeasurementStateIllegalException(
+          measurementInfo.externalMeasurementConsumerId,
+          measurementInfo.externalMeasurementId,
+          measurementInfo.measurementState
+        ) {
+          "Cannot create log entry for Measurement in terminal state."
+        }
+      Measurement.State.PENDING_COMPUTATION,
+      Measurement.State.PENDING_PARTICIPANT_CONFIRMATION,
+      Measurement.State.PENDING_REQUISITION_FULFILLMENT,
+      Measurement.State.PENDING_REQUISITION_PARAMS -> {}
+      Measurement.State.UNRECOGNIZED,
+      Measurement.State.STATE_UNSPECIFIED -> error("Unspecified state.")
+    }
+
     val duchyId =
       DuchyIds.getInternalId(request.externalDuchyId)
         ?: throw DuchyNotFoundException(request.externalDuchyId)
 
     insertMeasurementLogEntry(
-      measurementIds.measurementId,
-      measurementIds.measurementConsumerId,
+      measurementInfo.measurementId,
+      measurementInfo.measurementConsumerId,
       request.measurementLogEntryDetails
     )
 
     val externalComputationLogEntryId =
       insertDuchyMeasurementLogEntry(
-        measurementIds.measurementId,
-        measurementIds.measurementConsumerId,
+        measurementInfo.measurementId,
+        measurementInfo.measurementConsumerId,
         InternalId(duchyId),
         request.details
       )
@@ -82,49 +106,50 @@ class CreateDuchyMeasurementLogEntry(private val request: CreateDuchyMeasurement
       externalDuchyId = request.externalDuchyId
       logEntry = measurementLogEntry {
         details = request.measurementLogEntryDetails
-        externalMeasurementId = measurementIds.externalMeasurementId.value
-        externalMeasurementConsumerId = measurementIds.externalMeasurementConsumerId.value
+        externalMeasurementId = measurementInfo.externalMeasurementId.value
+        externalMeasurementConsumerId = measurementInfo.externalMeasurementConsumerId.value
       }
     }
   }
 
-  fun translateToInternalIds(struct: Struct): MeasurementIds =
-    MeasurementIds(
+  private fun translateToInternalMeasurementInfo(struct: Struct): MeasurementInfo =
+    MeasurementInfo(
       InternalId(struct.getLong("MeasurementId")),
       InternalId(struct.getLong("MeasurementConsumerId")),
       ExternalId(struct.getLong("ExternalMeasurementId")),
-      ExternalId(struct.getLong("ExternalMeasurementConsumerId"))
+      ExternalId(struct.getLong("ExternalMeasurementConsumerId")),
+      struct.getProtoEnum("State", Measurement.State::forNumber)
     )
 
-  private suspend fun TransactionScope.readMeasurementIds(): MeasurementIds? {
+  private suspend fun TransactionScope.readMeasurementInfo(): MeasurementInfo? {
+    val baseSql =
+      """
+      SELECT
+        Measurements.MeasurementId,
+        Measurements.MeasurementConsumerId,
+        Measurements.ExternalMeasurementId,
+        Measurements.ExternalComputationId,
+        MeasurementConsumers.ExternalMeasurementConsumerId,
+        Measurements.State,
+      FROM Measurements
+      JOIN MeasurementConsumers USING (MeasurementConsumerId)
+      WHERE ExternalComputationId = @externalComputationId
+      LIMIT 1
+      """
+        .trimIndent()
 
     return transactionContext
       .executeQuery(
-        Statement.newBuilder(
-            """
-          SELECT
-            Measurements.MeasurementId,
-            Measurements.MeasurementConsumerId,
-            Measurements.ExternalMeasurementId,
-            Measurements.ExternalComputationId,
-            MeasurementConsumers.ExternalMeasurementConsumerId,
-          FROM Measurements
-          JOIN MeasurementConsumers USING (MeasurementConsumerId)
-          WHERE ExternalComputationId = ${request.externalComputationId}
-          LIMIT 1
-        """
-              .trimIndent()
-          )
-          .build()
+        statement(baseSql) { bind("externalComputationId").to(request.externalComputationId) }
       )
-      .map(::translateToInternalIds)
+      .map(::translateToInternalMeasurementInfo)
       .singleOrNull()
   }
 
   override fun ResultScope<DuchyMeasurementLogEntry>.buildResult(): DuchyMeasurementLogEntry {
-    val duchMeasurementLogEntry = checkNotNull(transactionResult)
-    return duchMeasurementLogEntry.copy {
-      logEntry = duchMeasurementLogEntry.logEntry.copy { createTime = commitTimestamp.toProto() }
+    val duchyMeasurementLogEntry = checkNotNull(transactionResult)
+    return duchyMeasurementLogEntry.copy {
+      logEntry = duchyMeasurementLogEntry.logEntry.copy { createTime = commitTimestamp.toProto() }
     }
   }
 }
