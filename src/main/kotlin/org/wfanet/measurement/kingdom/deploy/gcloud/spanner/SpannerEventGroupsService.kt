@@ -92,7 +92,10 @@ class SpannerEventGroupsService(
       when (e.state) {
         EventGroup.State.DELETED ->
           e.throwStatusRuntimeException(Status.NOT_FOUND) { "EventGroup state is DELETED." }
-        else -> e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+        EventGroup.State.ACTIVE,
+        EventGroup.State.STATE_UNSPECIFIED,
+        EventGroup.State.UNRECOGNIZED ->
+          e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
       }
     } catch (e: KingdomInternalException) {
       e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
@@ -127,7 +130,10 @@ class SpannerEventGroupsService(
       when (e.state) {
         EventGroup.State.DELETED ->
           e.throwStatusRuntimeException(Status.NOT_FOUND) { "EventGroup state is DELETED." }
-        else -> e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+        EventGroup.State.ACTIVE,
+        EventGroup.State.STATE_UNSPECIFIED,
+        EventGroup.State.UNRECOGNIZED ->
+          e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
       }
     } catch (e: KingdomInternalException) {
       e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
