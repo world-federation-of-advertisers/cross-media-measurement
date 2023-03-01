@@ -148,6 +148,7 @@ private class CreateDataProviderCommand : CreatePrincipalCommand() {
         "The set of duchies externals IDS that must be included in all computations involving this DataProvider"
       ],
     required = false,
+    defaultValue = ""
   )
   private lateinit var requiredDuchies: List<String>
   override fun run() {
