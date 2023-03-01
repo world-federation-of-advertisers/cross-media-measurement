@@ -463,16 +463,6 @@ kt_jvm_proto_library(
     deps = [":protocol_config_java_proto"],
 )
 
-alias(
-    name = "protocol_configs_service_proto",
-    actual = "@wfa_measurement_proto//src/main/proto/wfa/measurement/api/v2alpha:protocol_configs_service_proto",
-)
-
-kt_jvm_grpc_proto_library(
-    name = "protocol_configs_service_kt_jvm_grpc_proto",
-    srcs = [":protocol_configs_service_proto"],
-)
-
 java_proto_library(
     name = "recurring_exchange_java_proto",
     deps = [
