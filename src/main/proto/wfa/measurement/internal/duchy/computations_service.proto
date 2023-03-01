@@ -185,7 +185,7 @@ message AdvanceComputationStageRequest {
 
     // Do not add to the work queue, and release any lock on the computation.
     // There is no work to be done on the computation at this time.
-    // Examples for when to setf this include the computation finished or
+    // Examples for when to set this include the computation finished or
     // input from another source is required before continuing.
     DO_NOT_ADD_TO_QUEUE = 3;
   }

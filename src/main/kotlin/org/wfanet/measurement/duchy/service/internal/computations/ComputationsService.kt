@@ -19,6 +19,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import java.time.Clock
 import java.time.Duration
+import java.util.logging.Level
 import java.util.logging.Logger
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
@@ -77,7 +78,8 @@ class ComputationsService(
   private val requisitionStorageClient: RequisitionStore,
   private val duchyName: String,
   private val clock: Clock = Clock.systemUTC(),
-  private val defaultLockDuration: Duration = Duration.ofMinutes(5)
+  private val defaultLockDuration: Duration = Duration.ofMinutes(5),
+  private val dryRunBatchDeletion: Boolean = false,
 ) : ComputationsCoroutineImplBase() {
 
   override suspend fun claimWork(request: ClaimWorkRequest): ClaimWorkResponse {
@@ -168,6 +170,13 @@ class ComputationsService(
       val before = clock.instant().minusMillis(request.timeToLive.toDuration().toMillis())
       val globalIds =
         computationsDatabase.readGlobalComputationIds(request.stagesList.toSet(), before)
+      if (dryRunBatchDeletion) {
+        logger.log(
+          Level.INFO,
+          "Dry run batch deletion. # of Computations to delete is ${globalIds.size}"
+        )
+        return deleteOutdatedComputationsResponse { this.count = 0 }
+      }
       for (globalId in globalIds) {
         val token = computationsDatabase.readComputationToken(globalId) ?: continue
         if (!isTerminated(token)) {
@@ -188,7 +197,7 @@ class ComputationsService(
         deleted += 1
       }
     } catch (e: Exception) {
-      logger.warning("Exception during Computations cleaning. $e")
+      logger.log(Level.WARNING, "Exception during Computations cleaning. $e")
     }
     return deleteOutdatedComputationsResponse { this.count = deleted }
   }
@@ -356,7 +365,7 @@ class ComputationsService(
     try {
       computationLogEntriesClient.createComputationLogEntry(request)
     } catch (ignored: Exception) {
-      logger.warning("Failed to update status change to the kingdom. $ignored")
+      logger.log(Level.WARNING, "Failed to update status change to the kingdom. $ignored")
     }
   }
 

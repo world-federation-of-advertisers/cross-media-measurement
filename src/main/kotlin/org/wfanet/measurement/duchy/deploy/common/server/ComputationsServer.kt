@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.deploy.common.server
 
 import io.grpc.ManagedChannel
 import java.time.Duration
+import kotlin.properties.Delegates
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
@@ -87,6 +88,7 @@ abstract class ComputationsServer : Runnable {
         duchyName = flags.duchy.duchyName,
         computationStorageClient = ComputationStore(storageClient),
         requisitionStorageClient = RequisitionStore(storageClient),
+        dryRunBatchDeletion = flags.batchDeletionDryRun
       )
 
     CommonServer.fromFlags(
@@ -137,6 +139,15 @@ abstract class ComputationsServer : Runnable {
 
     @CommandLine.Mixin
     lateinit var systemApiFlags: SystemApiFlags
+      private set
+
+    @set:CommandLine.Option(
+      names = ["--dry-run-batch-deletion"],
+      description = ["Whether to dry run batch deletion."],
+      required = false,
+      defaultValue = "false"
+    )
+    var batchDeletionDryRun by Delegates.notNull<Boolean>()
       private set
   }
 

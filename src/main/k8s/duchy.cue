@@ -58,6 +58,7 @@ import ("strings")
 	_duchy_tls_key_file_flag:                           "--tls-key-file=/var/run/secrets/files/\(_name)_tls.key"
 	_duchy_cert_collection_file_flag:                   "--cert-collection-file=/var/run/secrets/files/all_root_certs.pem"
 	_duchyComputationsTimeToLiveFlag:                   "--computations-time-to-live=\(_computationsTimeToLive)"
+	_duchyDryRunRetentionPolicyFlag:                    "--dry-run-batch-deletion"
 	_duchy_cs_cert_file_flag:                           "--consent-signaling-certificate-der-file=/var/run/secrets/files/\(_name)_cs_cert.der"
 	_duchy_cs_key_file_flag:                            "--consent-signaling-private-key-der-file=/var/run/secrets/files/\(_name)_cs_private.der"
 	_duchy_cs_cert_rename_name_flag:                    "--consent-signaling-certificate-resource-name=\(_cs_cert_resource_name)"
@@ -169,6 +170,7 @@ import ("strings")
 						_duchy_cert_collection_file_flag,
 						_kingdom_system_api_target_flag,
 						_kingdom_system_api_cert_host_flag,
+						_duchyDryRunRetentionPolicyFlag,
 						"--channel-shutdown-timeout=3s",
 						"--port=8443",
 						"--health-port=8080",
