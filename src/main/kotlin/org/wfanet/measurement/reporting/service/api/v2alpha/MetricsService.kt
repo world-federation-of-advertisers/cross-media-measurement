@@ -496,8 +496,9 @@ class MetricsService(
               )
             val eventGroupName = eventGroupKey.toName()
             val filter: String? =
-              (primitiveReportingSetBasis.filtersList + internalPrimitiveReportingSet.filter)
-                .reduce { filter1, filter2 -> combineEventGroupFilters(filter1, filter2) }
+              combineEventGroupFilters(
+                primitiveReportingSetBasis.filtersList + internalPrimitiveReportingSet.filter
+              )
 
             eventGroupKey to
               RequisitionSpecKt.eventGroupEntry {
@@ -519,12 +520,11 @@ class MetricsService(
     }
 
     /** Combines two event group filters. */
-    private fun combineEventGroupFilters(filter1: String?, filter2: String?): String? {
-      if (filter1 == null) return filter2
-
-      return if (filter2 == null) filter1
+    private fun combineEventGroupFilters(filters: List<String?>): String? {
+      val nonNullFilters = filters.filterNotNull()
+      return if (nonNullFilters.isEmpty()) null
       else {
-        "($filter1) AND ($filter2)"
+        nonNullFilters.joinToString(separator = " AND ") { filter -> "($filter)" }
       }
     }
 
