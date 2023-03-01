@@ -544,10 +544,10 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 		}
 	}
 	spec: {
-		schedule:      string
-		backoffLimit?: uint
+		schedule: string
 		jobTemplate: {
 			spec: {
+				backoffLimit: uint | *0
 				template: {
 					metadata: labels: app: _name + "-app"
 					spec: #PodSpec & {

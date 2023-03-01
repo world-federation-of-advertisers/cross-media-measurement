@@ -22,6 +22,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages.stageToProtocol
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseReader
+import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
@@ -67,7 +68,8 @@ class GcpSpannerComputationsDatabaseReader(
     return GlobalIdsQuery(
         ComputationProtocolStages::computationStageEnumToLongValues,
         stages,
-        computationTypes[0]
+        computationTypes[0],
+        before?.toGcloudTimestamp()
       )
       .execute(databaseClient)
       .toCollection(mutableSetOf())

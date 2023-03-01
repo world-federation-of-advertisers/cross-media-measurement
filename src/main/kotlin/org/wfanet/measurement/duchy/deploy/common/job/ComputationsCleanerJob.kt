@@ -29,6 +29,8 @@ import org.wfanet.measurement.duchy.service.internal.computations.ComputationsCl
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import picocli.CommandLine
 
+private val RPC_DEADLINE_LIMIT = Duration.ofMinutes(5)
+
 private class Flags {
   @CommandLine.Mixin
   lateinit var tlsFlags: TlsFlags
@@ -85,7 +87,7 @@ private fun run(@CommandLine.Mixin flags: Flags) {
         flags.computationsServiceFlags.certHost
       )
       .withShutdownTimeout(flags.channelShutdownTimeout)
-      .withDefaultDeadline(flags.computationsServiceFlags.defaultDeadlineDuration)
+      .withDefaultDeadline(RPC_DEADLINE_LIMIT)
       .withVerboseLogging(flags.verboseGrpcClientLogging)
   val internalComputationsClient = ComputationsCoroutineStub(internalComputationsChannel)
 
