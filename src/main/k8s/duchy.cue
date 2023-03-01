@@ -228,7 +228,7 @@ import ("strings")
 				_duchyComputationsTimeToLiveFlag,
 				_debug_verbose_grpc_client_logging_flag,
 			]
-			spec: schedule: "*/5 * * * *" // Every hour
+			spec: schedule: "0 * * * *" // Every hour
 		}
 	}
 

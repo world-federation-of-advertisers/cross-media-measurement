@@ -382,7 +382,7 @@ class ComputationsService(
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
-    private val MIN_COMPUTATIONS_TIME_TO_LIVE = Duration.ofDays(30)
+    private val MIN_COMPUTATIONS_TIME_TO_LIVE = Duration.ofDays(90)
   }
 }
 
