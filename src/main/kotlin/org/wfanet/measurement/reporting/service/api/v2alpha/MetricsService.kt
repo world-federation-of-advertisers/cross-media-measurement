@@ -632,7 +632,7 @@ class MetricsService(
     val initialInternalMetric: InternalMetric =
       createInitialInternalMetric(principal.resourceKey.measurementConsumerId, request)
 
-    measurementSupplier.createCmmsMeasurements(initialInternalMetric, principal)
+    measurementSupplier.createCmmsMeasurements(listOf(initialInternalMetric), principal)
 
     // Convert the internal metric to public and return it.
     return initialInternalMetric.toMetric()
