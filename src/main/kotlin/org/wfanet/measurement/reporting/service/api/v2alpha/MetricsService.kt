@@ -177,12 +177,6 @@ class MetricsService(
   private val trustedCertificates: Map<ByteString, X509Certificate>
 ) : MetricsCoroutineImplBase() {
 
-  data class SigningConfig(
-    val signingCertificateName: String,
-    val signingCertificateDer: ByteString,
-    val signingPrivateKey: PrivateKey,
-  )
-
   private class MeasurementSupplier(
     private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
     private val internalMeasurementsStub: InternalMeasurementsCoroutineStub,
@@ -191,17 +185,15 @@ class MetricsService(
     private val certificatesStub: CertificatesCoroutineStub,
     private val measurementConsumersStub: MeasurementConsumersCoroutineStub,
     private val secureRandom: SecureRandom,
+    private val signingPrivateKeyDir: File,
     private val trustedCertificates: Map<ByteString, X509Certificate>,
   ) {
     /** Creates CMM public [Measurement]s and [InternalMeasurement]s from [InternalMetric]. */
     suspend fun createCmmsMeasurements(
       initialInternalMetric: InternalMetric,
-      cmmsMeasurementConsumerId: String,
-      apiAuthenticationKey: String,
-      signingConfig: SigningConfig,
+      principal: MeasurementConsumerPrincipal,
     ) = coroutineScope {
-      val measurementConsumer: MeasurementConsumer =
-        getMeasurementConsumer(cmmsMeasurementConsumerId, apiAuthenticationKey)
+      val measurementConsumer: MeasurementConsumer = getMeasurementConsumer(principal)
 
       val externalPrimitiveReportingSetIds: Set<Long> =
         initialInternalMetric.weightedMeasurementsList
@@ -213,7 +205,10 @@ class MetricsService(
           .toSet()
 
       val internalPrimitiveReportingSetMap: Map<Long, InternalReportingSet> =
-        buildInternalReportingSetMap(cmmsMeasurementConsumerId, externalPrimitiveReportingSetIds)
+        buildInternalReportingSetMap(
+          principal.resourceKey.measurementConsumerId,
+          externalPrimitiveReportingSetIds
+        )
 
       val deferred = mutableListOf<Deferred<MeasurementIds>>()
 
@@ -228,8 +223,7 @@ class MetricsService(
                     initialInternalMetric.metricSpec,
                     internalPrimitiveReportingSetMap,
                     measurementConsumer,
-                    apiAuthenticationKey,
-                    signingConfig,
+                    principal,
                   )
                   .measurementReferenceId
             }
@@ -241,7 +235,7 @@ class MetricsService(
       try {
         internalMeasurementsStub.batchSetCmmsMeasurementId(
           batchSetCmmsMeasurementIdRequest {
-            this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+            this.cmmsMeasurementConsumerId = principal.resourceKey.measurementConsumerId
             measurementIds += deferred.awaitAll()
           }
         )
@@ -259,8 +253,7 @@ class MetricsService(
       metricSpec: InternalMetricSpec,
       internalPrimitiveReportingSetMap: Map<Long, InternalReportingSet>,
       measurementConsumer: MeasurementConsumer,
-      apiAuthenticationKey: String,
-      signingConfig: SigningConfig,
+      principal: MeasurementConsumerPrincipal,
     ): Measurement {
       val eventGroupEntriesByDataProvider =
         groupEventGroupEntriesByDataProvider(internalMeasurement, internalPrimitiveReportingSetMap)
@@ -271,13 +264,12 @@ class MetricsService(
           metricSpec,
           measurementConsumer,
           eventGroupEntriesByDataProvider,
-          apiAuthenticationKey,
-          signingConfig,
+          principal,
         )
 
       try {
         return measurementsStub
-          .withAuthenticationKey(apiAuthenticationKey)
+          .withAuthenticationKey(principal.config.apiKey)
           .createMeasurement(createMeasurementRequest)
       } catch (e: StatusException) {
         throw Exception(
@@ -293,23 +285,20 @@ class MetricsService(
       metricSpec: InternalMetricSpec,
       measurementConsumer: MeasurementConsumer,
       eventGroupEntriesByDataProvider: Map<DataProviderKey, List<EventGroupEntry>>,
-      apiAuthenticationKey: String,
-      signingConfig: SigningConfig,
+      principal: MeasurementConsumerPrincipal,
     ): CreateMeasurementRequest {
-      val measurementConsumerCertificate = readCertificate(signingConfig.signingCertificateDer)
-      val measurementConsumerSigningKey =
-        SigningKeyHandle(measurementConsumerCertificate, signingConfig.signingPrivateKey)
+      val measurementConsumerSigningKey = getMeasurementConsumerSigningKey(principal)
       val measurementEncryptionPublicKey = measurementConsumer.publicKey.data
 
       val measurement = measurement {
-        this.measurementConsumerCertificate = signingConfig.signingCertificateName
+        this.measurementConsumerCertificate = principal.config.signingCertificateName
 
         dataProviders +=
           buildDataProviderEntries(
             eventGroupEntriesByDataProvider,
             measurementEncryptionPublicKey,
             measurementConsumerSigningKey,
-            apiAuthenticationKey,
+            principal.config.apiKey,
           )
 
         val unsignedMeasurementSpec: MeasurementSpec =
@@ -326,6 +315,21 @@ class MetricsService(
       }
 
       return createMeasurementRequest { this.measurement = measurement }
+    }
+
+    /** Gets a [SigningKeyHandle] for a [MeasurementConsumerPrincipal]. */
+    private suspend fun getMeasurementConsumerSigningKey(
+      principal: MeasurementConsumerPrincipal
+    ): SigningKeyHandle {
+      // TODO: Factor this out to a separate class similar to EncryptionKeyPairStore.
+      val signingPrivateKeyDer: ByteString =
+        signingPrivateKeyDir.resolve(principal.config.signingPrivateKeyPath).readByteString()
+      val measurementConsumerCertificate: X509Certificate =
+        readCertificate(getSigningCertificateDer(principal))
+      val signingPrivateKey: PrivateKey =
+        readPrivateKey(signingPrivateKeyDer, measurementConsumerCertificate.publicKey.algorithm)
+
+      return SigningKeyHandle(measurementConsumerCertificate, signingPrivateKey)
     }
 
     /** Builds an unsigned [MeasurementSpec]. */
@@ -515,21 +519,17 @@ class MetricsService(
 
     /** Get a [MeasurementConsumer] based on a CMMs ID. */
     private suspend fun getMeasurementConsumer(
-      cmmsMeasurementConsumerId: String,
-      apiAuthenticationKey: String,
+      principal: MeasurementConsumerPrincipal
     ): MeasurementConsumer {
       return try {
         measurementConsumersStub
-          .withAuthenticationKey(apiAuthenticationKey)
+          .withAuthenticationKey(principal.config.apiKey)
           .getMeasurementConsumer(
-            getMeasurementConsumerRequest {
-              name = MeasurementConsumerKey(cmmsMeasurementConsumerId).toName()
-            }
+            getMeasurementConsumerRequest { name = principal.resourceKey.toName() }
           )
       } catch (e: StatusException) {
         throw Exception(
-          "Unable to retrieve the measurement consumer " +
-            "[${MeasurementConsumerKey(cmmsMeasurementConsumerId).toName()}].",
+          "Unable to retrieve the measurement consumer " + "[${principal.resourceKey.toName()}].",
           e
         )
       }
@@ -566,6 +566,26 @@ class MetricsService(
 
       return internalReportingSetsList.associateBy { it.externalReportingSetId }
     }
+
+    /** Gets a signing certificate x509Der in ByteString. */
+    private suspend fun getSigningCertificateDer(
+      principal: MeasurementConsumerPrincipal
+    ): ByteString {
+      // TODO: Replace this with caching certificates or having them stored alongside the private
+      // key.
+      return try {
+        certificatesStub
+          .withAuthenticationKey(principal.config.apiKey)
+          .getCertificate(getCertificateRequest { name = principal.config.signingCertificateName })
+          .x509Der
+      } catch (e: StatusException) {
+        throw Exception(
+          "Unable to retrieve the signing certificate for the measurement consumer " +
+            "[$principal.config.signingCertificateName].",
+          e
+        )
+      }
+    }
   }
 
   private val measurementSupplier =
@@ -577,6 +597,7 @@ class MetricsService(
       certificatesStub,
       measurementConsumersStub,
       secureRandom,
+      signingPrivateKeyDir,
       trustedCertificates,
     )
 
@@ -597,9 +618,6 @@ class MetricsService(
       }
     }
 
-    val resourceKey = principal.resourceKey
-    val apiAuthenticationKey: String = principal.config.apiKey
-
     grpcRequire(request.hasMetric()) { "Metric is not specified." }
     grpcRequire(request.metric.reportingSet.isNotBlank()) {
       "Reporting set in metric is not specified."
@@ -608,31 +626,9 @@ class MetricsService(
     grpcRequire(request.metric.hasMetricSpec()) { "Metric spec in metric is not specified." }
 
     val initialInternalMetric: InternalMetric =
-      createInitialInternalMetric(resourceKey.measurementConsumerId, request)
+      createInitialInternalMetric(principal.resourceKey.measurementConsumerId, request)
 
-    // TODO: Factor this out to a separate class similar to EncryptionKeyPairStore.
-    val signingPrivateKeyDer: ByteString =
-      signingPrivateKeyDir.resolve(principal.config.signingPrivateKeyPath).readByteString()
-
-    val signingCertificateDer: ByteString =
-      getSigningCertificateDer(apiAuthenticationKey, principal.config.signingCertificateName)
-
-    val signingConfig =
-      SigningConfig(
-        principal.config.signingCertificateName,
-        signingCertificateDer,
-        readPrivateKey(
-          signingPrivateKeyDer,
-          readCertificate(signingCertificateDer).publicKey.algorithm
-        )
-      )
-
-    measurementSupplier.createCmmsMeasurements(
-      initialInternalMetric,
-      resourceKey.measurementConsumerId,
-      apiAuthenticationKey,
-      signingConfig,
-    )
+    measurementSupplier.createCmmsMeasurements(initialInternalMetric, principal)
 
     // Convert the internal metric to public and return it.
     return initialInternalMetric.toMetric()
@@ -692,26 +688,6 @@ class MetricsService(
             }
         }
       }
-    }
-  }
-
-  /** Gets a signing certificate x509Der in ByteString. */
-  private suspend fun getSigningCertificateDer(
-    apiAuthenticationKey: String,
-    signingCertificateName: String
-  ): ByteString {
-    // TODO: Replace this with caching certificates or having them stored alongside the private key.
-    return try {
-      certificatesStub
-        .withAuthenticationKey(apiAuthenticationKey)
-        .getCertificate(getCertificateRequest { name = signingCertificateName })
-        .x509Der
-    } catch (e: StatusException) {
-      throw Exception(
-        "Unable to retrieve the signing certificate for the measurement consumer " +
-          "[$signingCertificateName].",
-        e
-      )
     }
   }
 
