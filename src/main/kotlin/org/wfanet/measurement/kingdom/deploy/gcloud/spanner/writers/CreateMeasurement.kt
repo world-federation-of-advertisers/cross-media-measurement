@@ -16,10 +16,15 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Value
+import java.time.Clock
+import kotlin.random.Random
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
+import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.identity.duchyIdentityFromContext
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
@@ -39,10 +44,14 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderN
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredDuchiesNotActiveException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamDataProviders
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.readDataProviderId
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWriter.TransactionScope
+
+private const val MINIMUM_NUMBER_OF_REQUIRED_DUCHIES = 2
 
 /**
  * Creates a measurement in the database.
@@ -86,6 +95,33 @@ class CreateMeasurement(private val measurement: Measurement) :
   ): Measurement {
     val initialMeasurementState = Measurement.State.PENDING_REQUISITION_PARAMS
 
+    val activeDuchies = getActiveDuchies()
+    DuchyIdentity()
+    duchyIdentityFromContext()
+    if (activeDuchies.size < MINIMUM_NUMBER_OF_REQUIRED_DUCHIES) {
+      throw RequiredDuchiesNotActiveException()
+    }
+
+    val requiredDuchyExternalIds =
+      readDataProviderRequiredDuchies(measurement.dataProvidersMap.keys.toList())
+
+    if (!activeDuchies.containsAll(requiredDuchyExternalIds)) {
+      throw RequiredDuchiesNotActiveException()
+    }
+
+    if (requiredDuchyExternalIds.size < MINIMUM_NUMBER_OF_REQUIRED_DUCHIES) {
+
+      val remainingDuchies =
+        DuchyIds.entries
+          .filter { !requiredDuchyExternalIds.contains(it.externalDuchyId) }
+          .toMutableList()
+      while (requiredDuchyExternalIds.size < MINIMUM_NUMBER_OF_REQUIRED_DUCHIES) {
+        requiredDuchyExternalIds.add(
+          remainingDuchies.removeAt(Random.nextInt(remainingDuchies.size)).externalDuchyId
+        )
+      }
+    }
+
     val measurementId: InternalId = idGenerator.generateInternalId()
     val externalMeasurementId: ExternalId = idGenerator.generateExternalId()
     val externalComputationId: ExternalId = idGenerator.generateExternalId()
@@ -105,11 +141,11 @@ class CreateMeasurement(private val measurement: Measurement) :
       Requisition.State.PENDING_PARAMS
     )
 
-    DuchyIds.entries.forEach { entry ->
+    requiredDuchyExternalIds.forEach { requiredDuchyExternalId ->
       insertComputationParticipant(
         measurementConsumerId,
         measurementId,
-        InternalId(entry.internalDuchyId),
+        InternalId(DuchyIds.getInternalId(requiredDuchyExternalId)!!),
       )
     }
 
@@ -324,6 +360,16 @@ private suspend fun TransactionScope.readMeasurementConsumerId(
     }
 }
 
+private suspend fun TransactionScope.readDataProviderRequiredDuchies(
+  externalDataProviderIds: List<Long>
+): MutableList<String> {
+  val requiredDuchies = mutableSetOf<String>()
+  StreamDataProviders(externalDataProviderIds).execute(transactionContext).collect {
+    requiredDuchies.addAll(it.dataProvider.requiredExternalDuchyIdsList)
+  }
+  return requiredDuchies.toMutableList()
+}
+
 /**
  * Returns the internal Certificate Id if the revocation state has not been set and the current time
  * is inside the valid time period.
@@ -338,4 +384,19 @@ private fun validateCertificate(
   }
 
   return certificateResult.certificateId
+}
+
+private fun getActiveDuchies(): List<String> {
+  val activeDuchies = mutableListOf<String>()
+  for (entry in DuchyIds.entries) {
+    if (isActiveDuchy(entry)) {
+      activeDuchies.add(entry.externalDuchyId)
+    }
+  }
+  return activeDuchies
+}
+
+private fun isActiveDuchy(duchy: DuchyIds.Entry): Boolean {
+  val now = Clock.systemUTC().instant().toProtoTime()
+  return duchy.activeTimeBegin.seconds > now.seconds && duchy.activeTimeEnd.seconds < now.seconds
 }
