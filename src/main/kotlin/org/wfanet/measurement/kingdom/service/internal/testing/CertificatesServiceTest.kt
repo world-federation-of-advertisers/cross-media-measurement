@@ -637,7 +637,6 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
   fun `revokeCertificate for Duchy fails pending Measurements`(): Unit = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
-
     val measurementOne =
       population.createComputedMeasurement(
         measurementsService,
@@ -656,9 +655,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         externalMeasurementId = measurementTwo.externalMeasurementId
       }
     )
-
     val externalDuchyId = DUCHIES[0].externalDuchyId
-
     val certificate =
       certificatesService.createCertificate(
         certificate {
@@ -668,7 +665,6 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           details = details { x509Der = X509_DER }
         }
       )
-
     computationParticipantsService.setParticipantRequisitionParams(
       setParticipantRequisitionParamsRequest {
         this.externalDuchyId = externalDuchyId
@@ -676,15 +672,12 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         externalComputationId = measurementOne.externalComputationId
       }
     )
-
     val request = revokeCertificateRequest {
       this.externalDuchyId = externalDuchyId
       externalCertificateId = certificate.externalCertificateId
       revocationState = Certificate.RevocationState.REVOKED
     }
-
     certificatesService.revokeCertificate(request)
-
     val measurements =
       measurementsService
         .streamMeasurements(
@@ -697,7 +690,6 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           }
         )
         .toList()
-
     assertThat(measurements)
       .comparingExpectedFieldsOnly()
       .containsExactly(

@@ -45,6 +45,8 @@ import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
+import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
+import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.details
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
@@ -82,7 +84,9 @@ private val MEASUREMENT = measurement {
         liquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
       }
       protocolConfig = protocolConfig {
-        liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
+        liquidLegionsV2 = liquidLegionsV2 {
+          requiredExternalDuchyIds += Population.AGGREGATOR_DUCHY.externalDuchyId
+        }
       }
     }
 }
@@ -680,7 +684,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             dataProviders[dataProvider.externalDataProviderId] = dataProviderValue
           }
         )
-
+      println("-----------------------------> "+createdMeasurement.details.protocolConfig.liquidLegionsV2.requiredExternalDuchyIdsList)
       val measurement =
         measurementsService.getMeasurementByComputationId(
           getMeasurementByComputationIdRequest {
@@ -713,7 +717,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
               measurementSpec = createdMeasurement.details.measurementSpec
               measurementSpecSignature = createdMeasurement.details.measurementSpecSignature
               protocolConfig = protocolConfig {
-                liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
+                liquidLegionsV2 = liquidLegionsV2 {
+                  requiredExternalDuchyIds += Population.AGGREGATOR_DUCHY.externalDuchyId
+                }
               }
               dataProvidersCount = 1
             }
