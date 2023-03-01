@@ -95,16 +95,20 @@ import org.wfanet.measurement.internal.reporting.v2alpha.measurement as internal
 import org.wfanet.measurement.internal.reporting.v2alpha.metric as internalMetric
 import org.wfanet.measurement.internal.reporting.v2alpha.metricSpec as internalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2alpha.timeInterval as internalTimeInterval
+import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
+import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.TimeInterval
+import org.wfanet.measurement.reporting.v2alpha.batchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.metric
 import org.wfanet.measurement.reporting.v2alpha.metricSpec
 import org.wfanet.measurement.reporting.v2alpha.timeInterval
 
+private const val MAX_BATCH_SIZE = 100
 private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
@@ -188,18 +192,23 @@ class MetricsService(
     private val signingPrivateKeyDir: File,
     private val trustedCertificates: Map<ByteString, X509Certificate>,
   ) {
-    /** Creates CMM public [Measurement]s and [InternalMeasurement]s from [InternalMetric]. */
+    /**
+     * Creates CMM public [Measurement]s and [InternalMeasurement]s from a list of [InternalMetric].
+     */
     suspend fun createCmmsMeasurements(
-      initialInternalMetric: InternalMetric,
+      internalMetricsList: List<InternalMetric>,
       principal: MeasurementConsumerPrincipal,
     ) = coroutineScope {
       val measurementConsumer: MeasurementConsumer = getMeasurementConsumer(principal)
 
+      // Gets all external IDs of primitive reporting sets from the metric list.
       val externalPrimitiveReportingSetIds: Set<Long> =
-        initialInternalMetric.weightedMeasurementsList
-          .flatMap { weightedMeasurements ->
-            weightedMeasurements.measurement.primitiveReportingSetBasesList.map {
-              it.externalReportingSetId
+        internalMetricsList
+          .flatMap { internalMetric ->
+            internalMetric.weightedMeasurementsList.flatMap { weightedMeasurement ->
+              weightedMeasurement.measurement.primitiveReportingSetBasesList.map {
+                it.externalReportingSetId
+              }
             }
           }
           .toSet()
@@ -212,23 +221,25 @@ class MetricsService(
 
       val deferred = mutableListOf<Deferred<MeasurementIds>>()
 
-      for (weightedMeasurement in initialInternalMetric.weightedMeasurementsList) {
-        deferred.add(
-          async {
-            measurementIds {
-              externalMeasurementId = weightedMeasurement.measurement.externalMeasurementId
-              cmmsMeasurementId =
-                createCmmsMeasurement(
-                    weightedMeasurement.measurement,
-                    initialInternalMetric.metricSpec,
-                    internalPrimitiveReportingSetMap,
-                    measurementConsumer,
-                    principal,
-                  )
-                  .measurementReferenceId
+      for (internalMetric in internalMetricsList) {
+        for (weightedMeasurement in internalMetric.weightedMeasurementsList) {
+          deferred.add(
+            async {
+              measurementIds {
+                externalMeasurementId = weightedMeasurement.measurement.externalMeasurementId
+                cmmsMeasurementId =
+                  createCmmsMeasurement(
+                      weightedMeasurement.measurement,
+                      internalMetric.metricSpec,
+                      internalPrimitiveReportingSetMap,
+                      measurementConsumer,
+                      principal,
+                    )
+                    .measurementReferenceId
+              }
             }
-          }
-        )
+          )
+        }
       }
 
       // Set CMMs measurement IDs.
@@ -618,13 +629,6 @@ class MetricsService(
       }
     }
 
-    grpcRequire(request.hasMetric()) { "Metric is not specified." }
-    grpcRequire(request.metric.reportingSet.isNotBlank()) {
-      "Reporting set in metric is not specified."
-    }
-    grpcRequire(request.metric.hasTimeInterval()) { "Time interval in metric is not specified." }
-    grpcRequire(request.metric.hasMetricSpec()) { "Metric spec in metric is not specified." }
-
     val initialInternalMetric: InternalMetric =
       createInitialInternalMetric(principal.resourceKey.measurementConsumerId, request)
 
@@ -634,11 +638,55 @@ class MetricsService(
     return initialInternalMetric.toMetric()
   }
 
+  override suspend fun batchCreateMetrics(
+    request: BatchCreateMetricsRequest
+  ): BatchCreateMetricsResponse {
+    grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
+      "Parent is either unspecified or invalid."
+    }
+
+    val principal: ReportingPrincipal = principalFromCurrentContext
+
+    when (principal) {
+      is MeasurementConsumerPrincipal -> {
+        if (request.parent != principal.resourceKey.toName()) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot create a Metric for another MeasurementConsumer."
+          }
+        }
+      }
+    }
+
+    grpcRequire(request.requestsList.isNotEmpty()) { "Requests is empty." }
+
+    val initialInternalMetricsList: List<InternalMetric> =
+      request.requestsList.map { createMetricRequest ->
+        createInitialInternalMetric(
+          principal.resourceKey.measurementConsumerId,
+          createMetricRequest
+        )
+      }
+
+    measurementSupplier.createCmmsMeasurements(initialInternalMetricsList, principal)
+
+    // Convert the internal metric to public and return it.
+    return batchCreateMetricsResponse {
+      metrics += initialInternalMetricsList.map { it.toMetric() }
+    }
+  }
+
   /** Creates an initial [InternalMetric] for caching. */
   private suspend fun createInitialInternalMetric(
     cmmsMeasurementConsumerId: String,
     request: CreateMetricRequest,
   ): InternalMetric {
+    grpcRequire(request.hasMetric()) { "Metric is not specified." }
+    grpcRequire(request.metric.reportingSet.isNotBlank()) {
+      "Reporting set in metric is not specified."
+    }
+    grpcRequire(request.metric.hasTimeInterval()) { "Time interval in metric is not specified." }
+    grpcRequire(request.metric.hasMetricSpec()) { "Metric spec in metric is not specified." }
+
     // Check if there's any existing metric using the unique request ID.
     val existingInternalMetric: InternalMetric? =
       if (request.requestId.isBlank()) null
