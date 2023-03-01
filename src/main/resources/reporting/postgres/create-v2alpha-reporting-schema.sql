@@ -142,7 +142,7 @@ CREATE TABLE PrimitiveReportingSetBases (
   FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetId)
     REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
     ON DELETE CASCADE,
-)
+);
 
 -- changeset riemanli:create-weighted-subset-union-primitive-reporting-set-bases-table dbms:postgresql
 CREATE TABLE WeightedSubsetUnionPrimitiveReportingSetBases (
@@ -172,7 +172,7 @@ CREATE TABLE PrimitiveReportingSetBasisFilters (
   FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetBasisId)
     REFERENCES PrimitiveReportingSetBases(MeasurementConsumerId, PrimitiveReportingSetBasisId)
     ON DELETE CASCADE,
-)
+);
 
 -- changeset riemanli:create-set-expressions-table dbms:postgresql
 CREATE TABLE SetExpressions (
@@ -286,7 +286,7 @@ CREATE TABLE MeasurementPrimitiveReportingSetBases (
   FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetBasisId)
     REFERENCES PrimitiveReportingSetBases(MeasurementConsumerId, PrimitiveReportingSetBasisId)
     ON DELETE CASCADE,
-)
+);
 
 -- changeset riemanli:create-metric-measurements-table dbms:postgresql
 CREATE TABLE MetricMeasurements (
@@ -302,7 +302,7 @@ CREATE TABLE MetricMeasurements (
   FOREIGN KEY(MeasurementConsumerId, MeasurementId)
     REFERENCES Measurements(MeasurementConsumerId, MeasurementId)
     ON DELETE CASCADE,
-)
+);
 
 -- changeset riemanli:create-reports-table dbms:postgresql
 CREATE TABLE Reports (
