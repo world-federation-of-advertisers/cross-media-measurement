@@ -42,6 +42,16 @@ service Measurements {
 
   // Marks a Measurement as CANCELLED by transitioning its state.
   rpc CancelMeasurement(CancelMeasurementRequest) returns (Measurement);
+
+  // Marks Measurements as CANCELLED by transitioning their states based on
+  // create_time for states beginning with 'PENDING'.
+  rpc CancelPendingMeasurements(CancelPendingMeasurementsRequest)
+      returns (CancelPendingMeasurementsResponse);
+
+  // Permanently deletes Measurements based on update_time for states:
+  // SUCCEEDED, FAILED, CANCELLED, and STATE_UNSPECIFIED.
+  rpc DeleteCompletedMeasurements(DeleteCompletedMeasurementsRequest)
+      returns (DeleteCompletedMeasurementsResponse);
 }
 
 message GetMeasurementRequest {
@@ -98,4 +108,22 @@ message SetMeasurementResultRequest {
 message CancelMeasurementRequest {
   fixed64 external_measurement_consumer_id = 1;
   fixed64 external_measurement_id = 2;
+}
+
+message CancelPendingMeasurementsRequest {
+  google.protobuf.Timestamp created_before = 1;
+  bool dry_run = 2;
+}
+
+message DeleteCompletedMeasurementsRequest {
+  google.protobuf.Timestamp updated_before = 1;
+  bool dry_run = 2;
+}
+
+message CancelPendingMeasurementsResponse {
+  repeated Measurement measurements = 1;
+}
+
+message DeleteCompletedMeasurementsResponse {
+  repeated Measurement measurements = 1;
 }
