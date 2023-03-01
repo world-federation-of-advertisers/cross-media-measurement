@@ -30,6 +30,7 @@ import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.internal.kingdom.DuchyIdConfig
@@ -72,8 +73,8 @@ val ALL_DUCHIES =
     DuchyIds.Entry(
       duchy.internalDuchyId,
       duchy.externalDuchyId,
-      duchy.activeTimeBegin,
-      duchy.activeTimeEnd
+      duchy.activeStartTime.toInstant(),
+      duchy.activeEndTime.toInstant()
     )
   }
 val ALL_EDP_DISPLAY_NAMES = listOf("edp1", "edp2", "edp3")

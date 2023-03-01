@@ -14,9 +14,10 @@
 
 package org.wfanet.measurement.kingdom.deploy.common
 
-import com.google.protobuf.Timestamp
 import java.io.File
+import java.time.Instant
 import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.internal.kingdom.DuchyIdConfig
 import picocli.CommandLine
 
@@ -59,8 +60,8 @@ object DuchyIds {
   data class Entry(
     val internalDuchyId: Long,
     val externalDuchyId: String,
-    val activeTimeBegin: Timestamp,
-    val activeTimeEnd: Timestamp
+    val activeTimeBegin: Instant,
+    val activeTimeEnd: Instant
   )
 }
 
@@ -75,5 +76,10 @@ class DuchyIdsFlags {
 }
 
 private fun DuchyIdConfig.Duchy.toDuchyIdsEntry(): DuchyIds.Entry {
-  return DuchyIds.Entry(internalDuchyId, externalDuchyId, activeTimeBegin, activeTimeEnd)
+  return DuchyIds.Entry(
+    internalDuchyId,
+    externalDuchyId,
+    activeStartTime.toInstant(),
+    activeEndTime.toInstant()
+  )
 }

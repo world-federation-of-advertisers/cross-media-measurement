@@ -16,7 +16,6 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 
 import com.google.gson.JsonParser
 import com.google.protobuf.kotlin.toByteStringUtf8
-import com.google.protobuf.util.Timestamps
 import com.google.rpc.ErrorInfo
 import io.grpc.StatusRuntimeException
 import io.grpc.protobuf.ProtoUtils
@@ -70,36 +69,28 @@ private const val API_VERSION = "v2alpha"
 
 class Population(val clock: Clock, val idGenerator: IdGenerator) {
   companion object {
-    private const val VALID_ACTIVE_TIME_BEGIN = 1640991600L // Jan 01 2022 00:00:00 GMT+0000
-    private const val VALID_ACTIVE_TIME_END = 1956528000L // Jan 01 2032 00:00:00 GMT+0000
-    private const val INVALID_ACTIVE_TIME_END = 1672531200L // Jan 01 2023 00:00:00 GMT+0000
+    private const val VALID_ACTIVE_START_TIME = 1640991600L // Jan 01 2022 00:00:00 GMT+0000
+    private const val VALID_ACTIVE_END_TIME = 1956528000L // Jan 01 2032 00:00:00 GMT+0000
     val AGGREGATOR_DUCHY =
       DuchyIds.Entry(
         1,
         "aggregator",
-        Timestamps.fromSeconds(VALID_ACTIVE_TIME_BEGIN),
-        Timestamps.fromSeconds(VALID_ACTIVE_TIME_END)
+        Instant.ofEpochSecond(VALID_ACTIVE_START_TIME),
+        Instant.ofEpochSecond(VALID_ACTIVE_END_TIME)
       )
     val WORKER1_DUCHY =
       DuchyIds.Entry(
         2,
         "worker1",
-        Timestamps.fromSeconds(VALID_ACTIVE_TIME_BEGIN),
-        Timestamps.fromSeconds(VALID_ACTIVE_TIME_END)
+        Instant.ofEpochSecond(VALID_ACTIVE_START_TIME),
+        Instant.ofEpochSecond(VALID_ACTIVE_END_TIME)
       )
     val WORKER2_DUCHY =
       DuchyIds.Entry(
         3,
         "worker2",
-        Timestamps.fromSeconds(VALID_ACTIVE_TIME_BEGIN),
-        Timestamps.fromSeconds(VALID_ACTIVE_TIME_END)
-      )
-    val WORKER3_INVALID_DUCHY =
-      DuchyIds.Entry(
-        4,
-        "worker3",
-        Timestamps.fromSeconds(VALID_ACTIVE_TIME_BEGIN),
-        Timestamps.fromSeconds(INVALID_ACTIVE_TIME_END)
+        Instant.ofEpochSecond(VALID_ACTIVE_START_TIME),
+        Instant.ofEpochSecond(VALID_ACTIVE_END_TIME)
       )
     val DUCHIES = listOf(AGGREGATOR_DUCHY, WORKER1_DUCHY, WORKER2_DUCHY)
   }
