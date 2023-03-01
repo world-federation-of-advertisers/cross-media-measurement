@@ -33,10 +33,10 @@ message DuchyIdConfig {
     // Not known by external entities - only Kingdom is aware of this ID.
     fixed64 internal_duchy_id = 2;
 
-    // When the duchy becomes active
-    google.protobuf.Timestamp active_time_begin = 3;
-    // When the duchy becomes inactive
-    google.protobuf.Timestamp active_time_end = 4;
+    // Start of the Duchy's active time range, inclusive.
+    google.protobuf.Timestamp active_start_time = 3;
+    // End of the Duchy's active time range, inclusive.
+    google.protobuf.Timestamp active_end_time = 4;
   }
   // The list of all the Duchy information in this config message
   repeated Duchy duchies = 1;
