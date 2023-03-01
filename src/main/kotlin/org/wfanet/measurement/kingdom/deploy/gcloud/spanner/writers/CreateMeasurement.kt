@@ -20,10 +20,8 @@ import java.time.Clock
 import kotlin.random.Random
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
-import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
-import org.wfanet.measurement.common.identity.duchyIdentityFromContext
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
@@ -96,8 +94,6 @@ class CreateMeasurement(private val measurement: Measurement) :
     val initialMeasurementState = Measurement.State.PENDING_REQUISITION_PARAMS
 
     val activeDuchies = getActiveDuchies()
-    DuchyIdentity()
-    duchyIdentityFromContext()
     if (activeDuchies.size < MINIMUM_NUMBER_OF_REQUIRED_DUCHIES) {
       throw RequiredDuchiesNotActiveException()
     }
@@ -114,6 +110,7 @@ class CreateMeasurement(private val measurement: Measurement) :
       val remainingDuchies =
         DuchyIds.entries
           .filter { !requiredDuchyExternalIds.contains(it.externalDuchyId) }
+          .filter { !measurement.details.protocolConfig.liquidLegionsV2.requiredExternalDuchyIdsList.contains(it.externalDuchyId) }
           .toMutableList()
       while (requiredDuchyExternalIds.size < MINIMUM_NUMBER_OF_REQUIRED_DUCHIES) {
         requiredDuchyExternalIds.add(
@@ -121,6 +118,10 @@ class CreateMeasurement(private val measurement: Measurement) :
         )
       }
     }
+
+    requiredDuchyExternalIds.addAll(
+      measurement.details.protocolConfig.liquidLegionsV2.requiredExternalDuchyIdsList
+    )
 
     val measurementId: InternalId = idGenerator.generateInternalId()
     val externalMeasurementId: ExternalId = idGenerator.generateExternalId()
@@ -398,5 +399,5 @@ private fun getActiveDuchies(): List<String> {
 
 private fun isActiveDuchy(duchy: DuchyIds.Entry): Boolean {
   val now = Clock.systemUTC().instant().toProtoTime()
-  return duchy.activeTimeBegin.seconds > now.seconds && duchy.activeTimeEnd.seconds < now.seconds
+  return duchy.activeTimeBegin.seconds <= now.seconds && duchy.activeTimeEnd.seconds >= now.seconds
 }

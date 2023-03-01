@@ -64,6 +64,7 @@ class SpannerMeasurementsService(
     } catch (e: CertificateNotFoundException) {
       e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Certificate not found." }
     } catch (e: KingdomInternalException) {
+      println(e.message)
       e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
   }

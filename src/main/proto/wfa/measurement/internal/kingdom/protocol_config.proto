@@ -46,6 +46,9 @@ message ProtocolConfig {
 
     // The maximum frequency to reveal in the histogram.
     int32 maximum_frequency = 4;
+
+    // List of required duchies for this protocol. E.g. aggregator.
+    repeated string required_external_duchy_ids = 5;
   }
 
   // Configuration for the specific protocol.

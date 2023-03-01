@@ -1467,6 +1467,7 @@ class MeasurementsServiceTest {
             epsilon = 2.1
             delta = 3.3
           }
+          requiredExternalDuchyIds += "aggregator"
         }
     }
 
