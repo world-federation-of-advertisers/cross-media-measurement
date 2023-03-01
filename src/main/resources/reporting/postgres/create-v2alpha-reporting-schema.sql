@@ -31,17 +31,10 @@
 --       │   └── MetricMeasurements
 --       ├── Measurements
 --       │   └── MeasurementPrimitiveReportingSetBases
---       ├── Models
---       │   ├── ModelMetrics
---       │   ├── ModelMetricSpecs
---       │   ├── ModelReportingSets
---       │   └── ModelSubsets
 --       └── Reports
 --           ├── ReportTimeIntervals
---           ├── MetricCalculations
---           │   └── MetricCalculationMetrics
---           └── ModelInferenceCalculations
---               └── ModelInferenceCalculationMetricSpecs
+--           └── MetricCalculations
+--               └── MetricCalculationMetrics
 
 -- changeset riemanli:create-measurement-consumers-table dbms:postgresql
 CREATE TABLE MeasurementConsumers (
@@ -311,103 +304,6 @@ CREATE TABLE MetricMeasurements (
     ON DELETE CASCADE,
 )
 
--- changeset riemanli:create-models-table dbms:postgresql
-CREATE TABLE Models (
-  MeasurementConsumerId bigint NOT NULL,
-  ModelId bigint NOT NULL,
-  ExternalModelId bigint NOT NULL,
-
-  -- org.wfanet.measurement.internal.reporting.MetricModel.State
-  -- protobuf enum encoded as an integer.
-  State integer NOT NULL,
-
-  -- Serialized org.wfanet.measurement.internal.reporting.MetricModel.Details
-  -- protobuf message.
-  ModelDetails bytea NOT NULL,
-
-  PRIMARY KEY(MeasurementConsumerId, ModelId)
-  UNIQUE (MeasurementConsumerId, ExternalModelId),
-  FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId)
-    ON DELETE CASCADE,
-);
-
--- changeset riemanli:create-model-metrics-table dbms:postgresql
-CREATE TABLE ModelMetrics(
-  MeasurementConsumerId bigint NOT NULL,
-  ModelId bigint NOT NULL,
-  MetricId bigint NOT NULL,
-
-  PRIMARY KEY(MeasurementConsumerId, ModelId, MetricId),
-  FOREIGN KEY(MeasurementConsumerId, ModelId)
-    REFERENCES Models(MeasurementConsumerId, ModelId)
-    ON DELETE CASCADE,
-  FOREIGN KEY(MeasurementConsumerId, MetricId)
-    REFERENCES Metrics(MeasurementConsumerId, MetricId)
-    ON DELETE CASCADE,
-);
-
--- changeset riemanli:create-model-metric-specs-table dbms:postgresql
-CREATE TABLE ModelMetricSpecs(
-  MeasurementConsumerId bigint NOT NULL,
-  ModelId bigint NOT NULL,
-  ModelMetricSpecId NOT NULL,
-
-  -- org.wfanet.measurement.internal.reporting.MetricSpec.MetricType
-  -- protobuf enum encoded as an integer.
-  MetricType integer NOT NULL,
-
-  -- Must not be NULL if MetricType is FREQUENCY_HISTOGRAM or IMPRESSION_COUNT
-  MaximumFrequencyPerUser bigint,
-  -- Must not be NULL if MetricType is WATCH_DURATION
-  MaximumWatchDurationPerUser bigint,
-
-  PRIMARY KEY(MeasurementConsumerId, ModelId, ModelMetricSpecId),
-  FOREIGN KEY(MeasurementConsumerId, ModelId)
-    REFERENCES Models(MeasurementConsumerId, ModelId)
-    ON DELETE CASCADE,
-);
-
--- changeset riemanli:create-model-reporting-sets-table dbms:postgresql
-CREATE TABLE ModelReportingSets(
-  MeasurementConsumerId bigint NOT NULL,
-  ModelId bigint NOT NULL,
-  -- This is one of the primitive reporting sets used to train the model.
-  ReportingSetId bigint NOT NULL,
-
-  PRIMARY KEY(MeasurementConsumerId, ModelId, ReportingSetId),
-  FOREIGN KEY(MeasurementConsumerId, ModelId)
-    REFERENCES Models(MeasurementConsumerId, ModelId)
-    ON DELETE CASCADE,
-  FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
-    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
-    ON DELETE CASCADE,
-);
-
--- changeset riemanli:create-model-subsets-table dbms:postgresql
-CREATE TABLE ModelSubsets(
-  MeasurementConsumerId bigint NOT NULL,
-  ModelId bigint NOT NULL,
-  ModelSubsetId bigint NOT NULL,
-
-  ModelMetricSpecId bigint NOT NULL,
-
-  TimeIntervalStart TIMESTAMP WITH TIME ZONE NOT NULL,
-  TimeIntervalEndExclusive TIMESTAMP WITH TIME ZONE NOT NULL,
-
-  -- Serialized org.wfanet.measurement.internal.reporting.Model.ModelSubset.Details
-  -- protobuf message.
-  ModelSubsetDetails bytea NOT NULL,
-
-  PRIMARY KEY(MeasurementConsumerId, ModelId, ModelSubsetId),
-  FOREIGN KEY(MeasurementConsumerId, ModelId)
-    REFERENCES Models(MeasurementConsumerId, ModelId)
-    ON DELETE CASCADE,
-  FOREIGN KEY(MeasurementConsumerId, ModelId, ModelMetricSpecId)
-    REFERENCES ModelMetricSpecs(MeasurementConsumerId, ModelId, ModelMetricSpecId)
-    ON DELETE CASCADE,
-)
-
 -- changeset riemanli:create-reports-table dbms:postgresql
 CREATE TABLE Reports (
   MeasurementConsumerId bigint NOT NULL,
@@ -480,45 +376,5 @@ CREATE TABLE MetricCalculationMetrics (
     ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, MetricId)
     REFERENCES Metrics(MeasurementConsumerId, MetricId)
-    ON DELETE CASCADE,
-);
-
--- changeset riemanli:create-model-inference-calculations-table dbms:postgresql
-CREATE TABLE ModelInferenceCalculations (
-  MeasurementConsumerId bigint NOT NULL,
-  ReportId bigint NOT NULL,
-  ModelInferenceCalculationId bigint NOT NULL,
-  ReportingSetId bigint NOT NULL,
-
-  -- Serialized org.wfanet.measurement.internal.reporting.Report.ModelInferenceCalculation.Details
-  -- protobuf message.
-  ModelInferenceCalculationDetails bytea NOT NULL,
-
-  PRIMARY KEY(MeasurementConsumerId, ReportId, ModelInferenceCalculationId),
-  FOREIGN KEY(MeasurementConsumerId, ReportId)
-    REFERENCES Reports(MeasurementConsumerId, ReportId)
-    ON DELETE CASCADE,
-  FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
-    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
-    ON DELETE CASCADE,
-);
-
--- changeset riemanli:create-model-inference-calculation-model-metric-specs-table dbms:postgresql
-CREATE TABLE ModelInferenceCalculationModelMetricSpecs (
-  MeasurementConsumerId bigint NOT NULL,
-  ReportId bigint NOT NULL,
-  ModelInferenceCalculationId bigint NOT NULL,
-  -- ModelId will be the same for all rows with the same
-  -- (MeasurementConsumerId, ReportId, ModelInferenceCalculationId). That is,
-  -- one ModelInferenceCalculation is associated to only one Model.
-  ModelId bigint NOT NULL,
-  ModelMetricSpecId bigint NOT NULL,
-
-  PRIMARY KEY(MeasurementConsumerId, ReportId, ModelInferenceCalculationId, ModelId, ModelMetricSpecId),
-  FOREIGN KEY(MeasurementConsumerId, ReportId, ModelInferenceCalculationId)
-    REFERENCES ModelInferenceCalculations(MeasurementConsumerId, ReportId, ModelInferenceCalculationId)
-    ON DELETE CASCADE,
-  FOREIGN KEY(MeasurementConsumerId, ModelId, ModelMetricSpecId)
-    REFERENCES ModelMetricSpecs(MeasurementConsumerId, ModelId, ModelMetricSpecId)
     ON DELETE CASCADE,
 );
