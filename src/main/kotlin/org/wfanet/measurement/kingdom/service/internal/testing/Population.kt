@@ -69,29 +69,12 @@ private const val API_VERSION = "v2alpha"
 
 class Population(val clock: Clock, val idGenerator: IdGenerator) {
   companion object {
-    private const val VALID_ACTIVE_START_TIME = 1640991600L // Jan 01 2022 00:00:00 GMT+0000
-    private const val VALID_ACTIVE_END_TIME = 1956528000L // Jan 01 2032 00:00:00 GMT+0000
+    private val VALID_ACTIVE_START_TIME = Instant.parse("2022-01-01T00:00:00Z")
+    private val VALID_ACTIVE_END_TIME = Instant.parse("2032-01-01T00:00:00Z")
     val AGGREGATOR_DUCHY =
-      DuchyIds.Entry(
-        1,
-        "aggregator",
-        Instant.ofEpochSecond(VALID_ACTIVE_START_TIME),
-        Instant.ofEpochSecond(VALID_ACTIVE_END_TIME)
-      )
-    val WORKER1_DUCHY =
-      DuchyIds.Entry(
-        2,
-        "worker1",
-        Instant.ofEpochSecond(VALID_ACTIVE_START_TIME),
-        Instant.ofEpochSecond(VALID_ACTIVE_END_TIME)
-      )
-    val WORKER2_DUCHY =
-      DuchyIds.Entry(
-        3,
-        "worker2",
-        Instant.ofEpochSecond(VALID_ACTIVE_START_TIME),
-        Instant.ofEpochSecond(VALID_ACTIVE_END_TIME)
-      )
+      DuchyIds.Entry(1, "aggregator", VALID_ACTIVE_START_TIME..VALID_ACTIVE_END_TIME)
+    val WORKER1_DUCHY = DuchyIds.Entry(2, "worker1", VALID_ACTIVE_START_TIME..VALID_ACTIVE_END_TIME)
+    val WORKER2_DUCHY = DuchyIds.Entry(3, "worker2", VALID_ACTIVE_START_TIME..VALID_ACTIVE_END_TIME)
     val DUCHIES = listOf(AGGREGATOR_DUCHY, WORKER1_DUCHY, WORKER2_DUCHY)
   }
   private fun buildRequestCertificate(
