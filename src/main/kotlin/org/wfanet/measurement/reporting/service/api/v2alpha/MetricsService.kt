@@ -177,6 +177,7 @@ class MetricsService(
   private val measurementsStub: MeasurementsCoroutineStub,
   private val certificatesStub: CertificatesCoroutineStub,
   private val measurementConsumersStub: MeasurementConsumersCoroutineStub,
+  private val encryptionKeyPairStore: EncryptionKeyPairStore,
   private val secureRandom: SecureRandom,
   private val signingPrivateKeyDir: File,
   private val trustedCertificates: Map<ByteString, X509Certificate>
@@ -189,6 +190,7 @@ class MetricsService(
     private val dataProvidersStub: DataProvidersCoroutineStub,
     private val certificatesStub: CertificatesCoroutineStub,
     private val measurementConsumersStub: MeasurementConsumersCoroutineStub,
+    private val encryptionKeyPairStore: EncryptionKeyPairStore,
     private val secureRandom: SecureRandom,
     private val signingPrivateKeyDir: File,
     private val trustedCertificates: Map<ByteString, X509Certificate>,
@@ -608,6 +610,7 @@ class MetricsService(
       dataProvidersStub,
       certificatesStub,
       measurementConsumersStub,
+      encryptionKeyPairStore,
       secureRandom,
       signingPrivateKeyDir,
       trustedCertificates,
