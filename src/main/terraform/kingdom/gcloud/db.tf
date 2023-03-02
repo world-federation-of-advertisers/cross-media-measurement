@@ -13,6 +13,8 @@
 # limitations under the License.
 
 
+
+
 resource "google_spanner_instance" "main" {
   config       = "regional-us-central1"
   display_name = "spanner_instance"
