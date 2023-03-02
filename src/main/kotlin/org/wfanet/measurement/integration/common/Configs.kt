@@ -73,8 +73,7 @@ val ALL_DUCHIES =
     DuchyIds.Entry(
       duchy.internalDuchyId,
       duchy.externalDuchyId,
-      duchy.activeStartTime.toInstant(),
-      duchy.activeEndTime.toInstant()
+      duchy.activeStartTime.toInstant()..duchy.activeEndTime.toInstant()
     )
   }
 val ALL_EDP_DISPLAY_NAMES = listOf("edp1", "edp2", "edp3")

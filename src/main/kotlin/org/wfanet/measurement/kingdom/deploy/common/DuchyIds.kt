@@ -60,8 +60,7 @@ object DuchyIds {
   data class Entry(
     val internalDuchyId: Long,
     val externalDuchyId: String,
-    val activeTimeBegin: Instant,
-    val activeTimeEnd: Instant
+    val activeRange: ClosedRange<Instant>
   )
 }
 
@@ -79,7 +78,6 @@ private fun DuchyIdConfig.Duchy.toDuchyIdsEntry(): DuchyIds.Entry {
   return DuchyIds.Entry(
     internalDuchyId,
     externalDuchyId,
-    activeStartTime.toInstant(),
-    activeEndTime.toInstant()
+    activeStartTime.toInstant()..activeEndTime.toInstant()
   )
 }
