@@ -148,9 +148,8 @@ private class CreateDataProviderCommand : CreatePrincipalCommand() {
         "The set of duchies externals IDS that must be included in all computations involving this DataProvider"
       ],
     required = false,
-    defaultValue = ""
   )
-  private lateinit var requiredDuchies: List<String>
+  private var requiredDuchies: List<String> = emptyList()
   override fun run() {
     val dataProvider = dataProvider {
       certificate = this@CreateDataProviderCommand.certificate
