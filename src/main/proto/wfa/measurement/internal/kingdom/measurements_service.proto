@@ -43,13 +43,13 @@ service Measurements {
   // Marks a Measurement as CANCELLED by transitioning its state.
   rpc CancelMeasurement(CancelMeasurementRequest) returns (Measurement);
 
-  // Marks Measurements as CANCELLED by transitioning their states based on
-  // create_time for states beginning with 'PENDING'.
+  // Marks a limited amount of Measurements as CANCELLED by transitioning their
+  // states based on create_time for states beginning with 'PENDING'.
   rpc CancelPendingMeasurements(CancelPendingMeasurementsRequest)
       returns (CancelPendingMeasurementsResponse);
 
-  // Permanently deletes Measurements based on update_time for states:
-  // SUCCEEDED, FAILED, and CANCELLED.
+  // Permanently deletes a limited amount of Measurements based on update_time
+  // for states: SUCCEEDED, FAILED, and CANCELLED.
   rpc DeleteCompletedMeasurements(DeleteCompletedMeasurementsRequest)
       returns (DeleteCompletedMeasurementsResponse);
 }
@@ -121,9 +121,17 @@ message DeleteCompletedMeasurementsRequest {
 }
 
 message CancelPendingMeasurementsResponse {
-  repeated fixed64 external_measurement_ids = 1;
+  message MeasurementKey {
+    fixed64 external_measurement_consumer_id = 1;
+    fixed64 external_measurement_id = 2;
+  }
+  repeated MeasurementKey measurement_keys = 1;
 }
 
 message DeleteCompletedMeasurementsResponse {
-  repeated fixed64 external_measurement_ids = 1;
+  message MeasurementKey {
+    fixed64 external_measurement_consumer_id = 1;
+    fixed64 external_measurement_id = 2;
+  }
+  repeated MeasurementKey measurement_keys = 1;
 }
