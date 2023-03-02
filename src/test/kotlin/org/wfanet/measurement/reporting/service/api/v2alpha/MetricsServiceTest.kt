@@ -1088,6 +1088,7 @@ class MetricsServiceTest {
         MeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
         CertificatesGrpcKt.CertificatesCoroutineStub(grpcTestServerRule.channel),
         MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(grpcTestServerRule.channel),
+        ENCRYPTION_KEY_PAIR_STORE,
         secureRandomMock,
         SECRETS_DIR,
         listOf(AGGREGATOR_ROOT_CERTIFICATE, DATA_PROVIDER_ROOT_CERTIFICATE).associateBy {
