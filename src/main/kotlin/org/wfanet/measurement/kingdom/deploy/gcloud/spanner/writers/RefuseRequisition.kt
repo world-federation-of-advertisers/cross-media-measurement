@@ -92,7 +92,7 @@ class RefuseRequisition(private val request: RefuseRequisitionRequest) :
       measurementId = measurementId,
       nextState = Measurement.State.FAILED,
       previousState = measurementState,
-      logDetails = measurementLogEntryDetails,
+      measurementLogEntryDetails = measurementLogEntryDetails,
       details = updatedMeasurementDetails
     )
 

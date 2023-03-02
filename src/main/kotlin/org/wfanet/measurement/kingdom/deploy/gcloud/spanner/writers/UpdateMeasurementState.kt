@@ -20,15 +20,19 @@ import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.gcloud.spanner.updateMutation
+import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
+import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 
 internal fun SpannerWriter.TransactionScope.updateMeasurementState(
   measurementConsumerId: InternalId,
   measurementId: InternalId,
   nextState: Measurement.State,
   previousState: Measurement.State,
-  logDetails: MeasurementLogEntry.Details,
+  measurementLogEntryDetails: MeasurementLogEntry.Details,
+  duchyMeasurementLogEntry: DuchyMeasurementLogEntry? = null,
   details: Measurement.Details? = null
 ) {
 
@@ -45,10 +49,12 @@ internal fun SpannerWriter.TransactionScope.updateMeasurementState(
     .bufferTo(transactionContext)
 
   if (nextState == Measurement.State.FAILED) {
-    require(logDetails.hasError()) { "$logDetails must have an error when state is FAILED." }
+    require(measurementLogEntryDetails.hasError()) {
+      "$measurementLogEntryDetails must have an error when state is FAILED."
+    }
   }
 
-  insertMeasurementLogEntry(measurementId, measurementConsumerId, logDetails)
+  insertMeasurementLogEntry(measurementId, measurementConsumerId, measurementLogEntryDetails)
 
   insertStateTransitionMeasurementLogEntry(
     measurementId = measurementId,
@@ -56,4 +62,18 @@ internal fun SpannerWriter.TransactionScope.updateMeasurementState(
     currentMeasurementState = nextState,
     previousMeasurementState = previousState
   )
+
+  if (duchyMeasurementLogEntry != null) {
+
+    val duchyId =
+      DuchyIds.getInternalId(duchyMeasurementLogEntry.externalDuchyId)
+        ?: throw DuchyNotFoundException(duchyMeasurementLogEntry.externalDuchyId)
+
+    insertDuchyMeasurementLogEntry(
+      measurementId,
+      measurementConsumerId,
+      InternalId(duchyId),
+      duchyMeasurementLogEntry.details
+    )
+  }
 }

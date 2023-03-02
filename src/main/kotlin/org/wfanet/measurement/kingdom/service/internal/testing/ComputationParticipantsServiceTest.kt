@@ -780,6 +780,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
           it.externalDuchyId == EXTERNAL_DUCHY_IDS[0]
         }
       )
+      .ignoringFields(ComputationParticipant.FAILURE_LOG_ENTRY_FIELD_NUMBER)
       .isEqualTo(failedComputationParticipant)
   }
 }

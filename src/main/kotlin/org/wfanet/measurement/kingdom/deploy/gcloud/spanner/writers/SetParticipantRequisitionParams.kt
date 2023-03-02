@@ -16,7 +16,6 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Value
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.single
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
@@ -155,7 +154,7 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
         measurementId = InternalId(measurementId),
         nextState = Measurement.State.PENDING_REQUISITION_FULFILLMENT,
         previousState = computationParticipantResult.measurementState,
-        logDetails = measurementLogEntryDetails
+        measurementLogEntryDetails = measurementLogEntryDetails
       )
 
       StreamRequisitions(
