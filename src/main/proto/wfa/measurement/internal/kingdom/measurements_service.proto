@@ -49,7 +49,7 @@ service Measurements {
       returns (CancelPendingMeasurementsResponse);
 
   // Permanently deletes Measurements based on update_time for states:
-  // SUCCEEDED, FAILED, CANCELLED, and STATE_UNSPECIFIED.
+  // SUCCEEDED, FAILED, and CANCELLED.
   rpc DeleteCompletedMeasurements(DeleteCompletedMeasurementsRequest)
       returns (DeleteCompletedMeasurementsResponse);
 }
@@ -121,9 +121,9 @@ message DeleteCompletedMeasurementsRequest {
 }
 
 message CancelPendingMeasurementsResponse {
-  repeated Measurement measurements = 1;
+  repeated fixed64 external_measurement_ids = 1;
 }
 
 message DeleteCompletedMeasurementsResponse {
-  repeated Measurement measurements = 1;
+  repeated fixed64 external_measurement_ids = 1;
 }
