@@ -769,11 +769,6 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         }
       )
     assertThat(failedMeasurement.state).isEqualTo(Measurement.State.FAILED)
-    assertThat(failedMeasurement.details.failure.reason)
-      .isEqualTo(Measurement.Failure.Reason.COMPUTATION_PARTICIPANT_FAILED)
-    assertThat(failedMeasurement.details.failure.message)
-      .contains("Computation Participant failed.")
-    assertThat(failedMeasurement.details.failure.message).contains("Failure message.")
 
     assertThat(
         failedMeasurement.computationParticipantsList.singleOrNull {

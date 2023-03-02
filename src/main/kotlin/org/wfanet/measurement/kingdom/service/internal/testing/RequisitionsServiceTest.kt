@@ -1239,8 +1239,6 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         }
       )
     assertThat(updatedMeasurement.state).isEqualTo(Measurement.State.FAILED)
-    assertThat(updatedMeasurement.details.failure.reason)
-      .isEqualTo(Measurement.Failure.Reason.REQUISITION_REFUSED)
   }
 
   @Test

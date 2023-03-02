@@ -126,10 +126,9 @@ message Measurement {
     ProtocolConfig protocol_config = 6;
     DuchyProtocolConfig duchy_protocol_config = 7;
 
-    // Set when the state is set to FAILED.
-    // TODO(@marcopremier): Mark this field as deprecated. Failure information
-    // are available in the corresponding MeasurementLogEntries row
-    Failure failure = 8;
+    // DEPRECATED: failure information are available in the corresponding
+    // MeasurementLogEntries row
+    Failure failure = 8 [deprecated = true];
   }
   Details details = 10;
 

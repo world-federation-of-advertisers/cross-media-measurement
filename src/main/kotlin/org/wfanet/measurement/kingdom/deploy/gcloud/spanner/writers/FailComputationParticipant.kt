@@ -23,7 +23,6 @@ import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.FailComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
-import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
@@ -69,13 +68,8 @@ class FailComputationParticipant(private val request: FailComputationParticipant
             "and external duchy ID ${request.externalDuchyId} not found"
         }
 
-    val (
-      computationParticipant,
-      measurementId,
-      measurementConsumerId,
-      measurementState,
-      measurementDetails,
-    ) = computationParticipantResult
+    val (computationParticipant, measurementId, measurementConsumerId, measurementState) =
+      computationParticipantResult
 
     when (measurementState) {
       Measurement.State.PENDING_REQUISITION_PARAMS,
@@ -105,15 +99,6 @@ class FailComputationParticipant(private val request: FailComputationParticipant
       set("State" to NEXT_COMPUTATION_PARTICIPANT_STATE)
     }
 
-    val updatedMeasurementDetails =
-      measurementDetails.copy {
-        failure =
-          MeasurementKt.failure {
-            reason = Measurement.Failure.Reason.COMPUTATION_PARTICIPANT_FAILED
-            message = "Computation Participant failed. ${request.errorMessage}"
-          }
-      }
-
     val measurementLogEntryDetails =
       MeasurementLogEntryKt.details {
         logMessage = "Computation Participant failed. ${request.errorMessage}"
@@ -141,8 +126,7 @@ class FailComputationParticipant(private val request: FailComputationParticipant
       nextState = Measurement.State.FAILED,
       previousState = measurementState,
       measurementLogEntryDetails = measurementLogEntryDetails,
-      duchyMeasurementLogEntry = duchyMeasurementLogEntry,
-      details = updatedMeasurementDetails
+      duchyMeasurementLogEntry = duchyMeasurementLogEntry
     )
 
     return computationParticipant.copy { state = NEXT_COMPUTATION_PARTICIPANT_STATE }
