@@ -78,6 +78,7 @@ import org.wfanet.measurement.internal.reporting.v2alpha.BatchSetCmmsMeasurement
 import org.wfanet.measurement.internal.reporting.v2alpha.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2alpha.Metric as InternalMetric
+import org.wfanet.measurement.internal.reporting.v2alpha.MetricKt as InternalMetricKt
 import org.wfanet.measurement.internal.reporting.v2alpha.Metric.WeightedMeasurement
 import org.wfanet.measurement.internal.reporting.v2alpha.MetricKt.weightedMeasurement
 import org.wfanet.measurement.internal.reporting.v2alpha.MetricSpec as InternalMetricSpec
@@ -711,6 +712,9 @@ class MetricsService(
               request.metric,
               internalReportingSet
             )
+          details = InternalMetricKt.details {
+            filters += request.metric.filtersList
+          }
         }
       )
     } catch (e: StatusException) {
