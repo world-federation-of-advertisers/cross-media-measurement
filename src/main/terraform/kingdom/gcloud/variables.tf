@@ -29,6 +29,7 @@ variable projectName {
 }
 
 variable node_version {
+  type = string
   default = "1.10.6-gke.11"
   description = "version of the GKE cluster"
 }
