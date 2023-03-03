@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# referred step 4 from https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/kingdom-deployment.md
+
 # Create a GKE cluster with 3 node pools
 resource "google_container_cluster" "cluster" {
   name     = "kingdom-cluster"

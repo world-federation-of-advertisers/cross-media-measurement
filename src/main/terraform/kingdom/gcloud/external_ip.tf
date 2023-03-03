@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# referred step 10a from https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/kingdom-deployment.md
+
 resource "google_compute_address" "v2alpha-public-api-server-ip" {
   name = "v2alpha-public-api-server-ip"
   region = "us-central1"

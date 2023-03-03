@@ -24,6 +24,7 @@ locals {
 }
 
 variable projectName {
+  type = string
   default = "halo"
   description = "Infrastructure as Code for Halo "
 }
@@ -35,41 +36,49 @@ variable node_version {
 }
 
 variable min_master_version {
+  type = string
   default = "1.10.9-gke.5"
   description = "version of the GKE cluster"
 }
 
 variable gke_service_account_name {
+  type = string
   default = "gke-cluster"
   description = "gke service account name"
 }
 
 variable db_user {
+  type = string
   default = "Admin"
   description = "DB user name"
 }
 
 variable db_password {
+  type = string
   default = "test"
   description = "password"
 }
 
 variable env {
+  type = string
   default = "dev"
   description = "Represents the environment used."
 }
 
 variable region {
+  type = string
   default = "us-central1"
   description = "Represents the environment used."
 }
 
 variable project {
+  type = string
   default = "halo-cmm-sandbox"
   description = "The project ID"
 }
 
 variable "project_id" {
+  type = string
   default = "halo-cmm-sandbox"
   description = "Project ID"
 }
@@ -89,7 +98,5 @@ variable "ring_location" {
   description = "Key ring location "
 }
 
-variable "metadata_script" {
-  default = "packages.sh"
-}
+
 

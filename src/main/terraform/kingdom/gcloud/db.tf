@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# referred step 1 from https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/kingdom-deployment.md
+
 resource "google_spanner_instance" "main" {
   config       = "regional-us-central1"
   display_name = "spanner_instance"
