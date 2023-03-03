@@ -20,7 +20,6 @@ import com.google.protobuf.ByteString
 import com.google.rpc.ErrorInfo
 import io.grpc.Status
 import io.grpc.Status.Code.INVALID_ARGUMENT
-import io.grpc.Status.Code.NOT_FOUND
 import io.grpc.StatusRuntimeException
 import java.time.Instant
 import kotlin.test.assertFailsWith
@@ -69,7 +68,7 @@ import org.wfanet.measurement.internal.kingdom.modelProvider
 import org.wfanet.measurement.internal.kingdom.recurringExchange
 import org.wfanet.measurement.internal.kingdom.recurringExchangeDetails
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
-import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.EXTERNAL_DUCHY_IDS
+import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.DUCHIES
 
 private const val INTERNAL_RECURRING_EXCHANGE_ID = 111L
 private const val EXTERNAL_RECURRING_EXCHANGE_ID = 222L
@@ -126,14 +125,14 @@ private val DATA_PROVIDER = dataProvider {
     publicKey = ByteString.copyFromUtf8("This is a  public key.")
     publicKeySignature = ByteString.copyFromUtf8("This is a  public key signature.")
   }
-  requiredExternalDuchyIds += EXTERNAL_DUCHY_IDS
+  requiredExternalDuchyIds += DUCHIES.map { it.externalDuchyId }
 }
 
 private val MODEL_PROVIDER = modelProvider { externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID }
 
 @RunWith(JUnit4::class)
 abstract class ExchangeStepAttemptsServiceTest {
-  @get:Rule val duchyIdSetter = DuchyIdSetter(EXTERNAL_DUCHY_IDS)
+  @get:Rule val duchyIdSetter = DuchyIdSetter(DUCHIES)
 
   /** Creates a /RecurringExchanges service implementation using [idGenerator]. */
   protected abstract fun newRecurringExchangesService(

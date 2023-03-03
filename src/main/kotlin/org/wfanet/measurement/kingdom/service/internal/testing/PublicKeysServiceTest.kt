@@ -48,7 +48,7 @@ private val PUBLIC_KEY_SIGNATURE = ByteString.copyFromUtf8("public key signature
 @RunWith(JUnit4::class)
 abstract class PublicKeysServiceTest<T : PublicKeysCoroutineImplBase> {
 
-  @get:Rule val duchyIdSetter = DuchyIdSetter(Population.EXTERNAL_DUCHY_IDS)
+  @get:Rule val duchyIdSetter = DuchyIdSetter(Population.DUCHIES)
 
   protected data class Services<T>(
     val publicKeysService: T,

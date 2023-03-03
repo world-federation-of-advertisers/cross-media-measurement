@@ -285,7 +285,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
     @BeforeClass
     @JvmStatic
     fun initConfig() {
-      DuchyIds.setForTest(ALL_DUCHY_NAMES)
+      DuchyIds.setForTest(ALL_DUCHIES)
       Llv2ProtocolConfig.setForTest(
         LLV2_PROTOCOL_CONFIG_CONFIG.protocolConfig,
         LLV2_PROTOCOL_CONFIG_CONFIG.duchyProtocolConfig

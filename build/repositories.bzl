@@ -52,8 +52,8 @@ def wfa_measurement_system_repositories():
     wfa_repo_archive(
         name = "any_sketch",
         repo = "any-sketch",
-        sha256 = "a30369e28ae3788356b734239559f3d0c035d9121963ab00a797615364d4f0c4",
-        version = "0.3.0",
+        sha256 = "521d7a91650d78315c343a413a45310907e290b520537407d143c30bcfb497a8",
+        version = "0.4.0",
     )
 
     wfa_repo_archive(

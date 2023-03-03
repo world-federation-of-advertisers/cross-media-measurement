@@ -30,10 +30,12 @@ import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.internal.kingdom.DuchyIdConfig
 import org.wfanet.measurement.internal.kingdom.Llv2ProtocolConfigConfig
+import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 
 private val SECRET_FILES_PATH: Path =
@@ -66,6 +68,14 @@ val LLV2_AGGREGATOR_NAME =
   AGGREGATOR_PROTOCOLS_SETUP_CONFIG.liquidLegionsV2.externalAggregatorDuchyId!!
 
 val ALL_DUCHY_NAMES = DUCHY_ID_CONFIG.duchiesList.map { it.externalDuchyId }
+val ALL_DUCHIES =
+  DUCHY_ID_CONFIG.duchiesList.map { duchy ->
+    DuchyIds.Entry(
+      duchy.internalDuchyId,
+      duchy.externalDuchyId,
+      duchy.activeStartTime.toInstant()..duchy.activeEndTime.toInstant()
+    )
+  }
 val ALL_EDP_DISPLAY_NAMES = listOf("edp1", "edp2", "edp3")
 
 /**
