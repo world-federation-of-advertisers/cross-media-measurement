@@ -22,7 +22,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
-import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
@@ -39,6 +38,7 @@ import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.InsufficientNumberOfActiveDuchiesException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
@@ -91,28 +91,29 @@ class CreateMeasurement(private val measurement: Measurement) :
   ): Measurement {
     val initialMeasurementState = Measurement.State.PENDING_REQUISITION_PARAMS
 
-    val activeDuchies = getActiveDuchies()
-    if (activeDuchies.size < MINIMUM_NUMBER_OF_REQUIRED_DUCHIES) {
-      throw RequiredDuchiesNotActiveException()
+    val activeWorkers =
+      getActiveWorkers(
+        measurement.details.protocolConfig.liquidLegionsV2.requiredExternalDuchyIdsList
+      )
+    if (activeWorkers.size < MINIMUM_NUMBER_OF_REQUIRED_DUCHIES) {
+      throw InsufficientNumberOfActiveDuchiesException()
     }
 
     val requiredDuchyExternalIds =
       readDataProviderRequiredDuchies(measurement.dataProvidersMap.keys.toList())
 
-    if (!activeDuchies.containsAll(requiredDuchyExternalIds)) {
+    if (!activeWorkers.containsAll(requiredDuchyExternalIds)) {
       throw RequiredDuchiesNotActiveException()
     }
 
     if (requiredDuchyExternalIds.size < MINIMUM_NUMBER_OF_REQUIRED_DUCHIES) {
 
       val remainingDuchies =
-        DuchyIds.entries
-          .filter { !requiredDuchyExternalIds.contains(it.externalDuchyId) }
-          .filter { !measurement.details.protocolConfig.liquidLegionsV2.requiredExternalDuchyIdsList.contains(it.externalDuchyId) }
-          .toMutableList()
+        activeWorkers.filter { !requiredDuchyExternalIds.contains(it) }.toMutableList()
+
       while (requiredDuchyExternalIds.size < MINIMUM_NUMBER_OF_REQUIRED_DUCHIES) {
         requiredDuchyExternalIds.add(
-          remainingDuchies.removeAt(Random.nextInt(remainingDuchies.size)).externalDuchyId
+          remainingDuchies.removeAt(Random.nextInt(remainingDuchies.size))
         )
       }
     }
@@ -385,17 +386,16 @@ private fun validateCertificate(
   return certificateResult.certificateId
 }
 
-private fun getActiveDuchies(): List<String> {
-  val activeDuchies = mutableListOf<String>()
+private fun getActiveWorkers(protocolRequiredExternalDuchyIds: List<String>): List<String> {
+  val activeWorkers = mutableListOf<String>()
+  val now = Clock.systemUTC().instant()
   for (entry in DuchyIds.entries) {
-    if (isActiveDuchy(entry)) {
-      activeDuchies.add(entry.externalDuchyId)
+    if (
+      !protocolRequiredExternalDuchyIds.contains(entry.externalDuchyId) &&
+        entry.activeRange.contains(now)
+    ) {
+      activeWorkers.add(entry.externalDuchyId)
     }
   }
-  return activeDuchies
-}
-
-private fun isActiveDuchy(duchy: DuchyIds.Entry): Boolean {
-  val now = Clock.systemUTC().instant().toProtoTime()
-  return duchy.activeTimeBegin.seconds <= now.seconds && duchy.activeTimeEnd.seconds >= now.seconds
+  return activeWorkers
 }
