@@ -14,15 +14,17 @@
 
 # This is step 1 as per the document https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/kingdom-deployment.md
 
-resource "google_spanner_instance" "main" {
+resource "google_spanner_instance" "halo_spanner_db" {
   config       = "regional-us-central1"
   display_name = "spanner_instance"
   num_nodes    = 1
 }
 
 resource "google_spanner_database" "database" {
-  instance = google_spanner_instance.main.name
+  instance = google_spanner_instance.halo_spanner_db.name
   name     = "spanner_database"
   version_retention_period = "3d"
   deletion_protection = false
+
+  depends_on = [google_spanner_instance.halo_spanner_db]
 }
