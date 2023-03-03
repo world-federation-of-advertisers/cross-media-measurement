@@ -88,7 +88,7 @@ import org.wfanet.measurement.internal.reporting.v2alpha.MetricsGrpcKt.MetricsCo
 import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2alpha.TimeInterval as InternalTimeInterval
-import org.wfanet.measurement.internal.reporting.v2alpha.batchGetReportingSetRequest
+import org.wfanet.measurement.internal.reporting.v2alpha.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2alpha.batchSetCmmsMeasurementIdRequest
 import org.wfanet.measurement.internal.reporting.v2alpha.copy
 import org.wfanet.measurement.internal.reporting.v2alpha.getMetricByIdempotencyKeyRequest
@@ -307,10 +307,7 @@ class MetricsService(
           .withAuthenticationKey(principal.config.apiKey)
           .createMeasurement(createMeasurementRequest)
       } catch (e: StatusException) {
-        throw Exception(
-          "Unable to create the measurement [${createMeasurementRequest.measurement.name}].",
-          e
-        )
+        throw Exception("Unable to create a CMMs measurement.", e)
       }
     }
 
@@ -577,13 +574,13 @@ class MetricsService(
       cmmsMeasurementConsumerId: String,
       externalReportingSetIds: Set<Long>,
     ): Map<Long, InternalReportingSet> {
-      val batchGetReportingSetRequest = batchGetReportingSetRequest {
+      val batchGetReportingSetsRequest = batchGetReportingSetsRequest {
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
         externalReportingSetIds.forEach { this.externalReportingSetIds += it }
       }
 
       val internalReportingSetsList =
-        internalReportingSetsStub.batchGetReportingSet(batchGetReportingSetRequest).toList()
+        internalReportingSetsStub.batchGetReportingSets(batchGetReportingSetsRequest).toList()
 
       if (internalReportingSetsList.size < externalReportingSetIds.size) {
         val missingExternalReportingSetIds = externalReportingSetIds.toMutableSet()
