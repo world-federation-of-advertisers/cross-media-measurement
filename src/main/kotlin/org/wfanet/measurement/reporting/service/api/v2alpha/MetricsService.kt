@@ -247,6 +247,8 @@ class MetricsService(
       }
 
       // Set CMMs measurement IDs.
+      if (deferred.isEmpty()) return@coroutineScope
+
       try {
         internalMeasurementsStub.batchSetCmmsMeasurementId(
           batchSetCmmsMeasurementIdRequest {
