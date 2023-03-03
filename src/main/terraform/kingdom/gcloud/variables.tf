@@ -39,14 +39,10 @@ variable min_master_version {
   description = "version of the GKE cluster"
 }
 
-
 variable gke_service_account_name {
   default = "gke-cluster"
   description = "gke service account name"
 }
-
-
-
 
 variable db_user {
   default = "Admin"
@@ -57,8 +53,6 @@ variable db_password {
   default = "test"
   description = "password"
 }
-
-
 
 variable env {
   default = "dev"
