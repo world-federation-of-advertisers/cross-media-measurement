@@ -27,7 +27,7 @@ service ReportingSets {
 
   rpc GetReportingSet(GetReportingSetRequest) returns (ReportingSet);
 
-  rpc BatchGetReportingSet(BatchGetReportingSetRequest)
+  rpc BatchGetReportingSets(BatchGetReportingSetsRequest)
       returns (stream ReportingSet);
 
   rpc StreamReportingSets(StreamReportingSetsRequest)
@@ -40,7 +40,7 @@ message GetReportingSetRequest {
   fixed64 external_reporting_set_id = 2;
 }
 
-message BatchGetReportingSetRequest {
+message BatchGetReportingSetsRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
   string cmms_measurement_consumer_id = 1;
   repeated fixed64 external_reporting_set_ids = 2;
