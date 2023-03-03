@@ -14,11 +14,13 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Timestamp
 import com.google.protobuf.duration
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
+import com.google.protobuf.timestamp
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.nio.file.Paths
@@ -26,6 +28,7 @@ import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.time.Duration
 import java.time.Instant
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -44,6 +47,7 @@ import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
@@ -78,6 +82,7 @@ import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.timeInterval as measurementTimeInterval
+import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.hashSha256
@@ -130,6 +135,7 @@ import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSetsGrpcKt as 
 import org.wfanet.measurement.internal.reporting.v2alpha.batchGetReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2alpha.batchSetCmmsMeasurementIdRequest
 import org.wfanet.measurement.internal.reporting.v2alpha.copy
+import org.wfanet.measurement.internal.reporting.v2alpha.getMetricByIdempotencyKeyRequest
 import org.wfanet.measurement.internal.reporting.v2alpha.getReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2alpha.measurement as internalMeasurement
 import org.wfanet.measurement.internal.reporting.v2alpha.metric as internalMetric
@@ -1347,6 +1353,167 @@ class MetricsServiceTest {
   }
 
   @Test
+  fun `createMetric with request ID returns incremental reach metric with RUNNING state`() {
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric = REQUESTING_INCREMENTAL_REACH_METRIC
+      requestId = INCREMENTAL_REACH_METRIC_IDEMPOTENCY_KEY
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+        runBlocking { service.createMetric(request) }
+      }
+
+    val expected = PENDING_INCREMENTAL_REACH_METRIC
+
+    // Verify proto argument of the internal MetricsCoroutineImplBase::getMetricByIdempotencyKey
+    verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::getMetricByIdempotencyKey)
+      .isEqualTo(
+        getMetricByIdempotencyKeyRequest {
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          metricIdempotencyKey = INCREMENTAL_REACH_METRIC_IDEMPOTENCY_KEY
+        }
+      )
+
+    // Verify proto argument of the internal ReportingSetsCoroutineImplBase::getReportingSet
+    verifyProtoArgument(
+        internalReportingSetsMock,
+        InternalReportingSetsGrpcKt.ReportingSetsCoroutineImplBase::getReportingSet
+      )
+      .isEqualTo(
+        getReportingSetRequest {
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          externalReportingSetId += INTERNAL_INCREMENTAL_REPORTING_SET.externalReportingSetId
+        }
+      )
+
+    // Verify proto argument of the internal MetricsCoroutineImplBase::createMetric
+    verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::createMetric)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC)
+
+    // Verify proto argument of MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
+    verifyProtoArgument(
+        measurementConsumersMock,
+        MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
+      )
+      .isEqualTo(getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMERS.values.first().name })
+
+    // Verify proto argument of the internal ReportingSetsCoroutineImplBase::batchGetReportingSet
+    verifyProtoArgument(
+        internalReportingSetsMock,
+        InternalReportingSetsGrpcKt.ReportingSetsCoroutineImplBase::batchGetReportingSet
+      )
+      .isEqualTo(
+        batchGetReportingSetRequest {
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          externalReportingSetIds += INTERNAL_UNION_ALL_REPORTING_SET.externalReportingSetId
+          externalReportingSetIds +=
+            INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET.externalReportingSetId
+        }
+      )
+
+    // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
+    val dataProvidersCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
+    verifyBlocking(dataProvidersMock, times(5)) { getDataProvider(dataProvidersCaptor.capture()) }
+
+    val capturedDataProviderRequests = dataProvidersCaptor.allValues
+    assertThat(capturedDataProviderRequests)
+      .containsExactly(
+        getDataProviderRequest { name = DATA_PROVIDERS_LIST[0].name },
+        getDataProviderRequest { name = DATA_PROVIDERS_LIST[1].name },
+        getDataProviderRequest { name = DATA_PROVIDERS_LIST[0].name },
+        getDataProviderRequest { name = DATA_PROVIDERS_LIST[1].name },
+        getDataProviderRequest { name = DATA_PROVIDERS_LIST[2].name },
+      )
+
+    // Verify proto argument of MeasurementsCoroutineImplBase::createMeasurement
+    val measurementsCaptor: KArgumentCaptor<CreateMeasurementRequest> = argumentCaptor()
+    verifyBlocking(measurementsMock, times(2)) { createMeasurement(measurementsCaptor.capture()) }
+    val capturedMeasurementRequests = measurementsCaptor.allValues
+    assertThat(capturedMeasurementRequests)
+      .ignoringRepeatedFieldOrder()
+      .ignoringFieldDescriptors(
+        Measurement.getDescriptor().findFieldByNumber(Measurement.MEASUREMENT_SPEC_FIELD_NUMBER),
+        Measurement.DataProviderEntry.Value.getDescriptor()
+          .findFieldByNumber(
+            Measurement.DataProviderEntry.Value.ENCRYPTED_REQUISITION_SPEC_FIELD_NUMBER
+          ),
+      )
+      .containsExactly(
+        createMeasurementRequest { measurement = REQUESTING_UNION_ALL_REACH_MEASUREMENT },
+        createMeasurementRequest {
+          measurement = REQUESTING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
+        },
+      )
+
+    capturedMeasurementRequests.forEach { capturedMeasurementRequest ->
+      verifyMeasurementSpec(
+        capturedMeasurementRequest.measurement.measurementSpec,
+        MEASUREMENT_CONSUMER_CERTIFICATE,
+        TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+      )
+
+      val dataProvidersList =
+        capturedMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }
+
+      val measurementSpec =
+        MeasurementSpec.parseFrom(capturedMeasurementRequest.measurement.measurementSpec.data)
+      assertThat(measurementSpec)
+        .isEqualTo(
+          UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC.copy {
+            nonceHashes.clear()
+            nonceHashes.addAll(
+              List(dataProvidersList.size) { hashSha256(SECURE_RANDOM_OUTPUT_LONG) }
+            )
+          }
+        )
+
+      dataProvidersList.map { dataProviderEntry ->
+        val signedRequisitionSpec =
+          decryptRequisitionSpec(
+            dataProviderEntry.value.encryptedRequisitionSpec,
+            DATA_PROVIDER_PRIVATE_KEY_HANDLE
+          )
+        val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
+        verifyRequisitionSpec(
+          signedRequisitionSpec,
+          requisitionSpec,
+          measurementSpec,
+          MEASUREMENT_CONSUMER_CERTIFICATE,
+          TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+        )
+      }
+    }
+
+    // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetCmmsMeasurementId
+    verifyProtoArgument(
+        internalMeasurementsMock,
+        InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementId
+      )
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        batchSetCmmsMeasurementIdRequest {
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          this.measurementIds += measurementIds {
+            externalMeasurementId =
+              INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.externalMeasurementId
+            cmmsMeasurementId = INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.cmmsMeasurementId
+          }
+          this.measurementIds += measurementIds {
+            externalMeasurementId =
+              INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.externalMeasurementId
+            cmmsMeasurementId =
+              INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.cmmsMeasurementId
+          }
+        }
+      )
+
+    assertThat(result).isEqualTo(expected)
+  }
+
+  @Test
   fun `createMetric without request ID when the measurements are created already`() = runBlocking {
     whenever(internalMetricsMock.createMetric(any()))
       .thenReturn(INTERNAL_PENDING_INCREMENTAL_REACH_METRIC)
@@ -1426,470 +1593,365 @@ class MetricsServiceTest {
     assertThat(result).isEqualTo(expected)
   }
 
-  //
-  //   @Test
-  //   fun `createMetric throws UNAUTHENTICATED when no principal is found`() {
-  //     val request = createReportRequest {
-  //       parent = MEASUREMENT_CONSUMERS.values.first().name
-  //       report = PENDING_REACH_REPORT.copy { clearState() }
-  //     }
-  //     val exception =
-  //       assertFailsWith<StatusRuntimeException> { runBlocking { service.createMetric(request) } }
-  //     Truth.assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-  //   }
-  //
-  //   @Test
-  //   fun `createMetric throws PERMISSION_DENIED when MeasurementConsumer caller doesn't match`() {
-  //     val request = createReportRequest {
-  //       parent = MEASUREMENT_CONSUMERS.values.first().name
-  //       report = PENDING_REACH_REPORT.copy { clearState() }
-  //     }
-  //     val exception =
-  //       assertFailsWith<StatusRuntimeException> {
-  //         org.wfanet.measurement.reporting.service.api.v1alpha.withMeasurementConsumerPrincipal(
-  //           MEASUREMENT_CONSUMERS.values.last().name,
-  //           CONFIG
-  //         ) {
-  //           runBlocking { service.createMetric(request) }
-  //         }
-  //       }
-  //     Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-  //     Truth.assertThat(exception.status.description)
-  //       .isEqualTo("Cannot create a Report for another MeasurementConsumer.")
-  //   }
-  //
-  //   @Test
-  //   fun `createMetric throws PERMISSION_DENIED when metric doesn't belong to caller`() {
-  //     val request = createReportRequest {
-  //       parent = MEASUREMENT_CONSUMERS.values.last().name
-  //       report = PENDING_REACH_REPORT.copy { clearState() }
-  //     }
-  //     val exception =
-  //       assertFailsWith<StatusRuntimeException> {
-  //         org.wfanet.measurement.reporting.service.api.v1alpha.withMeasurementConsumerPrincipal(
-  //           MEASUREMENT_CONSUMERS.values.first().name,
-  //           CONFIG
-  //         ) {
-  //           runBlocking { service.createMetric(request) }
-  //         }
-  //       }
-  //     Truth.assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
-  //     Truth.assertThat(exception.status.description)
-  //       .isEqualTo("Cannot create a Report for another MeasurementConsumer.")
-  //   }
-  //
-  //   @Test
-  //   fun `createMetric throws UNAUTHENTICATED when the caller is not MeasurementConsumer`() {
-  //     val request = createReportRequest {
-  //       parent = MEASUREMENT_CONSUMERS.values.first().name
-  //       report = PENDING_REACH_REPORT.copy { clearState() }
-  //     }
-  //     val exception =
-  //       assertFailsWith<StatusRuntimeException> {
-  //         withDataProviderPrincipal(DATA_PROVIDERS_LIST[0].name) {
-  //           runBlocking { service.createMetric(request) }
-  //         }
-  //       }
-  //     Truth.assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
-  //     Truth.assertThat(exception.status.description).isEqualTo("No ReportingPrincipal found")
-  //   }
-  //
-  //   @Test
-  //   fun `createMetric throws INVALID_ARGUMENT when parent is unspecified`() {
-  //     val request = createReportRequest { report = PENDING_REACH_REPORT.copy { clearState() } }
-  //
-  //     val exception =
-  //       assertFailsWith<StatusRuntimeException> {
-  //         org.wfanet.measurement.reporting.service.api.v1alpha.withMeasurementConsumerPrincipal(
-  //           MEASUREMENT_CONSUMERS.values.first().name,
-  //           CONFIG
-  //         ) {
-  //           runBlocking { service.createMetric(request) }
-  //         }
-  //       }
-  //     Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-  //     Truth.assertThat(exception.status.description).isEqualTo("Parent is either unspecified or
-  // invalid.")
-  //   }
-  //
-  //   @Test
-  //   fun `createMetric throws INVALID_ARGUMENT when report is unspecified`() {
-  //     val request = createReportRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
-  //
-  //     val exception =
-  //       assertFailsWith<StatusRuntimeException> {
-  //         org.wfanet.measurement.reporting.service.api.v1alpha.withMeasurementConsumerPrincipal(
-  //           MEASUREMENT_CONSUMERS.values.first().name,
-  //           CONFIG
-  //         ) {
-  //           runBlocking { service.createMetric(request) }
-  //         }
-  //       }
-  //     Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-  //     Truth.assertThat(exception.status.description).isEqualTo("Report is not specified.")
-  //   }
-  //
-  //   @Test
-  //   fun `createMetric throws INVALID_ARGUMENT when time interval in Metric is unspecified`() {
-  //     val request = createReportRequest {
-  //       parent = MEASUREMENT_CONSUMERS.values.first().name
-  //       report =
-  //         PENDING_REACH_REPORT.copy {
-  //           clearState()
-  //           clearTime()
-  //         }
-  //     }
-  //
-  //     val exception =
-  //       assertFailsWith<StatusRuntimeException> {
-  //         org.wfanet.measurement.reporting.service.api.v1alpha.withMeasurementConsumerPrincipal(
-  //           MEASUREMENT_CONSUMERS.values.first().name,
-  //           CONFIG
-  //         ) {
-  //           runBlocking { service.createMetric(request) }
-  //         }
-  //       }
-  //     Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-  //     Truth.assertThat(exception.status.description).isEqualTo("The time in Report is not
-  // specified.")
-  //   }
-  //
-  //   @Test
-  //   fun `createMetric throws INVALID_ARGUMENT when TimeInterval startTime is unspecified`() {
-  //     val request = createReportRequest {
-  //       parent = MEASUREMENT_CONSUMERS.values.first().name
-  //       report =
-  //         PENDING_REACH_REPORT.copy {
-  //           clearState()
-  //           clearTime()
-  //           timeIntervals = timeIntervals {
-  //             timeIntervals += timeInterval { endTime = timestamp { seconds = 5 } }
-  //           }
-  //         }
-  //     }
-  //
-  //     val exception =
-  //       assertFailsWith<StatusRuntimeException> {
-  //         org.wfanet.measurement.reporting.service.api.v1alpha.withMeasurementConsumerPrincipal(
-  //           MEASUREMENT_CONSUMERS.values.first().name,
-  //           CONFIG
-  //         ) {
-  //           runBlocking { service.createMetric(request) }
-  //         }
-  //       }
-  //     Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-  //   }
-  //
-  //   @Test
-  //   fun `createMetric throws INVALID_ARGUMENT when TimeInterval endTime is unspecified`() {
-  //     val request = createReportRequest {
-  //       parent = MEASUREMENT_CONSUMERS.values.first().name
-  //       report =
-  //         PENDING_REACH_REPORT.copy {
-  //           clearState()
-  //           clearTime()
-  //           timeIntervals = timeIntervals {
-  //             timeIntervals += timeInterval { startTime = timestamp { seconds = 5 } }
-  //           }
-  //         }
-  //     }
-  //
-  //     val exception =
-  //       assertFailsWith<StatusRuntimeException> {
-  //         org.wfanet.measurement.reporting.service.api.v1alpha.withMeasurementConsumerPrincipal(
-  //           MEASUREMENT_CONSUMERS.values.first().name,
-  //           CONFIG
-  //         ) {
-  //           runBlocking { service.createMetric(request) }
-  //         }
-  //       }
-  //     Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-  //   }
-  //
-  //   @Test
-  //   fun `createMetric throws INVALID_ARGUMENT when TimeInterval endTime is before startTime`() {
-  //     val request = createReportRequest {
-  //       parent = MEASUREMENT_CONSUMERS.values.first().name
-  //       report =
-  //         PENDING_REACH_REPORT.copy {
-  //           clearState()
-  //           clearTime()
-  //           timeIntervals = timeIntervals {
-  //             timeIntervals += timeInterval {
-  //               startTime = timestamp {
-  //                 seconds = 5
-  //                 nanos = 5
-  //               }
-  //               endTime = timestamp {
-  //                 seconds = 5
-  //                 nanos = 1
-  //               }
-  //             }
-  //           }
-  //         }
-  //     }
-  //
-  //     val exception =
-  //       assertFailsWith<StatusRuntimeException> {
-  //         org.wfanet.measurement.reporting.service.api.v1alpha.withMeasurementConsumerPrincipal(
-  //           MEASUREMENT_CONSUMERS.values.first().name,
-  //           CONFIG
-  //         ) {
-  //           runBlocking { service.createMetric(request) }
-  //         }
-  //       }
-  //     Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-  //   }
-  //
-  //   @Test
-  //   fun `createMetric throws INVALID_ARGUMENT when metric type in Metric is unspecified`() {
-  //     val request = createReportRequest {
-  //       parent = MEASUREMENT_CONSUMERS.values.first().name
-  //       report =
-  //         PENDING_REACH_REPORT.copy {
-  //           clearState()
-  //           metrics.clear()
-  //           metrics.add(REACH_METRIC.copy { clearReach() })
-  //         }
-  //     }
-  //
-  //     val exception =
-  //       assertFailsWith<StatusRuntimeException> {
-  //         org.wfanet.measurement.reporting.service.api.v1alpha.withMeasurementConsumerPrincipal(
-  //           MEASUREMENT_CONSUMERS.values.first().name,
-  //           CONFIG
-  //         ) {
-  //           runBlocking { service.createMetric(request) }
-  //         }
-  //       }
-  //     Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-  //     Truth.assertThat(exception.status.description)
-  //       .isEqualTo("The metric type in Report is not specified.")
-  //   }
-  //
-  //   @Test
-  //   fun `createMetric throws INVALID_ARGUMENT when reporting set is unspecified`() {
-  //     val request = createReportRequest {
-  //       parent = MEASUREMENT_CONSUMERS.values.first().name
-  //       report =
-  //         PENDING_REACH_REPORT.copy {
-  //           clearState()
-  //           metrics.clear()
-  //         }
-  //     }
-  //
-  //     val exception =
-  //       assertFailsWith<StatusRuntimeException> {
-  //         org.wfanet.measurement.reporting.service.api.v1alpha.withMeasurementConsumerPrincipal(
-  //           MEASUREMENT_CONSUMERS.values.first().name,
-  //           CONFIG
-  //         ) {
-  //           runBlocking { service.createMetric(request) }
-  //         }
-  //       }
-  //     Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-  //   }
-  //
-  //   @Test
-  //   fun `createMetric throws INVALID_ARGUMENT when provided reporting set name is invalid`() {
-  //     val invalidMetric = metric {
-  //       reach = org.wfanet.measurement.reporting.v1alpha.MetricKt.reachParams {}
-  //       cumulative = false
-  //       setOperations.add(
-  //         NAMED_REACH_SET_OPERATION.copy { setOperation =
-  // SET_OPERATION_WITH_INVALID_REPORTING_SET }
-  //       )
-  //     }
-  //
-  //     val request = createReportRequest {
-  //       parent = MEASUREMENT_CONSUMERS.values.first().name
-  //       report =
-  //         PENDING_REACH_REPORT.copy {
-  //           clearState()
-  //           metrics.clear()
-  //           metrics.add(invalidMetric)
-  //         }
-  //     }
-  //
-  //     val exception =
-  //       assertFailsWith<StatusRuntimeException> {
-  //         org.wfanet.measurement.reporting.service.api.v1alpha.withMeasurementConsumerPrincipal(
-  //           MEASUREMENT_CONSUMERS.values.first().name,
-  //           CONFIG
-  //         ) {
-  //           runBlocking { service.createMetric(request) }
-  //         }
-  //       }
-  //     Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-  //     Truth.assertThat(exception.status.description)
-  //       .isEqualTo("Invalid reporting set name $INVALID_REPORTING_SET_NAME.")
-  //   }
-  //
-  //   @Test
-  //   fun `createMetric throws INVALID_ARGUMENT when any reporting set is not accessible to
-  // caller`() {
-  //     val invalidMetric = metric {
-  //       reach = org.wfanet.measurement.reporting.v1alpha.MetricKt.reachParams {}
-  //       cumulative = false
-  //       setOperations.add(
-  //         NAMED_REACH_SET_OPERATION.copy {
-  //           setOperation = SET_OPERATION_WITH_INACCESSIBLE_REPORTING_SET
-  //         }
-  //       )
-  //     }
-  //
-  //     val request = createReportRequest {
-  //       parent = MEASUREMENT_CONSUMERS.values.first().name
-  //       report =
-  //         PENDING_REACH_REPORT.copy {
-  //           clearState()
-  //           metrics.clear()
-  //           metrics.add(invalidMetric)
-  //         }
-  //     }
-  //
-  //     val exception =
-  //       assertFailsWith<StatusRuntimeException> {
-  //         org.wfanet.measurement.reporting.service.api.v1alpha.withMeasurementConsumerPrincipal(
-  //           MEASUREMENT_CONSUMERS.values.first().name,
-  //           CONFIG
-  //         ) {
-  //           runBlocking { service.createMetric(request) }
-  //         }
-  //       }
-  //     Truth.assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-  //     Truth.assertThat(exception.status.description)
-  //       .isEqualTo("No access to the reporting set [$REPORTING_SET_NAME_FOR_MC_2].")
-  //   }
-  //
-  //   @Test
-  //   fun `createMetric throws NOT_FOUND when reporting set is not found`() = runBlocking {
-  //     whenever(internalReportingSetsMock.batchGetReportingSet(any()))
-  //       .thenReturn(flowOf(INTERNAL_REPORTING_SETS[0]))
-  //     val request = createReportRequest {
-  //       parent = MEASUREMENT_CONSUMERS.values.first().name
-  //       report = PENDING_REACH_REPORT.copy { clearState() }
-  //     }
-  //
-  //     val exception =
-  //       assertFailsWith<StatusRuntimeException> {
-  //         org.wfanet.measurement.reporting.service.api.v1alpha.withMeasurementConsumerPrincipal(
-  //           MEASUREMENT_CONSUMERS.values.first().name,
-  //           CONFIG
-  //         ) {
-  //           runBlocking { service.createMetric(request) }
-  //         }
-  //       }
-  //     Truth.assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-  //   }
-  //
-  //   @Test
-  //   fun `createMetric throws FAILED_PRECONDITION when EDP cert is revoked`() = runBlocking {
-  //     val dataProvider = DATA_PROVIDERS.values.first()
-  //     whenever(
-  //       certificatesMock.getCertificate(
-  //         eq(getCertificateRequest { name = dataProvider.certificate })
-  //       )
-  //     )
-  //       .thenReturn(
-  //         certificate {
-  //           name = dataProvider.certificate
-  //           x509Der = DATA_PROVIDER_SIGNING_KEY.certificate.encoded.toByteString()
-  //           revocationState = Certificate.RevocationState.REVOKED
-  //         }
-  //       )
-  //     val request = createReportRequest {
-  //       parent = MEASUREMENT_CONSUMERS.values.first().name
-  //       report = PENDING_REACH_REPORT.copy { clearState() }
-  //     }
-  //
-  //     val exception =
-  //       assertFailsWith<StatusRuntimeException> {
-  //         org.wfanet.measurement.reporting.service.api.v1alpha.withMeasurementConsumerPrincipal(
-  //           MEASUREMENT_CONSUMERS.values.first().name,
-  //           CONFIG
-  //         ) {
-  //           runBlocking { service.createMetric(request) }
-  //         }
-  //       }
-  //
-  //     Truth.assertThat(exception).hasMessageThat().ignoringCase().contains("revoked")
-  //   }
-  //
-  //   @Test
-  //   fun `createMetric throws FAILED_PRECONDITION when EDP public key signature is invalid`() =
-  //     runBlocking {
-  //       val dataProvider = DATA_PROVIDERS.values.first()
-  //       whenever(
-  //         dataProvidersMock.getDataProvider(eq(getDataProviderRequest { name = dataProvider.name
-  // }))
-  //       )
-  //         .thenReturn(
-  //           dataProvider.copy {
-  //             publicKey = publicKey.copy { signature = "invalid sig".toByteStringUtf8() }
-  //           }
-  //         )
-  //       val request = createReportRequest {
-  //         parent = MEASUREMENT_CONSUMERS.values.first().name
-  //         report = PENDING_REACH_REPORT.copy { clearState() }
-  //       }
-  //
-  //       val exception =
-  //         assertFailsWith<StatusRuntimeException> {
-  //
-  // org.wfanet.measurement.reporting.service.api.v1alpha.withMeasurementConsumerPrincipal(
-  //             MEASUREMENT_CONSUMERS.values.first().name,
-  //             CONFIG
-  //           ) {
-  //             runBlocking { service.createMetric(request) }
-  //           }
-  //         }
-  //
-  //       Truth.assertThat(exception).hasMessageThat().ignoringCase().contains("signature")
-  //     }
-  //
-  //   @Test
-  //   fun `createMetric throws exception from getMetricByIdempotencyKey when status isn't
-  // NOT_FOUND`() =
-  //     runBlocking {
-  //       whenever(internalReportsMock.getReportByIdempotencyKey(any()))
-  //         .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
-  //
-  //       val request = createReportRequest {
-  //         parent = MEASUREMENT_CONSUMERS.values.first().name
-  //         report = PENDING_REACH_REPORT.copy { clearState() }
-  //       }
-  //
-  //       val exception =
-  //         assertFailsWith(Exception::class) {
-  //
-  // org.wfanet.measurement.reporting.service.api.v1alpha.withMeasurementConsumerPrincipal(
-  //             MEASUREMENT_CONSUMERS.values.first().name,
-  //             CONFIG
-  //           ) {
-  //             runBlocking { service.createMetric(request) }
-  //           }
-  //         }
-  //       val expectedExceptionDescription =
-  //         "Unable to retrieve a report from the reporting database using the provided " +
-  //           "reportIdempotencyKey [${PENDING_REACH_REPORT.reportIdempotencyKey}]."
-  //       Truth.assertThat(exception.message).isEqualTo(expectedExceptionDescription)
-  //     }
-  //
+  @Test
+  fun `createMetric throws UNAUTHENTICATED when no principal is found`() {
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric = REQUESTING_INCREMENTAL_REACH_METRIC
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.createMetric(request) } }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `createMetric throws PERMISSION_DENIED when MeasurementConsumer caller doesn't match`() {
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric = REQUESTING_INCREMENTAL_REACH_METRIC
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.last().name, CONFIG) {
+          runBlocking { service.createMetric(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.description)
+      .isEqualTo("Cannot create a Metric for another MeasurementConsumer.")
+  }
+
+  @Test
+  fun `createMetric throws PERMISSION_DENIED when metric doesn't belong to caller`() {
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.last().name
+      metric = REQUESTING_INCREMENTAL_REACH_METRIC
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.createMetric(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+    assertThat(exception.status.description)
+      .isEqualTo("Cannot create a Metric for another MeasurementConsumer.")
+  }
+
+  @Test
+  fun `createMetric throws UNAUTHENTICATED when the caller is not MeasurementConsumer`() {
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric = REQUESTING_INCREMENTAL_REACH_METRIC
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDERS_LIST[0].name) {
+          runBlocking { service.createMetric(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(exception.status.description).isEqualTo("No ReportingPrincipal found")
+  }
+
+  @Test
+  fun `createMetric throws INVALID_ARGUMENT when parent is unspecified`() {
+    val request = createMetricRequest { metric = REQUESTING_INCREMENTAL_REACH_METRIC }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.createMetric(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("Parent is either unspecified or invalid.")
+  }
+
+  @Test
+  fun `createMetric throws INVALID_ARGUMENT when metric is unspecified`() {
+    val request = createMetricRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.createMetric(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("Metric is not specified.")
+  }
+
+  @Test
+  fun `createMetric throws INVALID_ARGUMENT when time interval in Metric is unspecified`() {
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric = REQUESTING_INCREMENTAL_REACH_METRIC.copy { clearTimeInterval() }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.createMetric(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("Time interval in metric is not specified.")
+  }
+
+  @Test
+  fun `createMetric throws INVALID_ARGUMENT when TimeInterval startTime is unspecified`() {
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric =
+        REQUESTING_INCREMENTAL_REACH_METRIC.copy {
+          clearTimeInterval()
+          timeInterval = timeInterval { endTime = timestamp { seconds = 5 } }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.createMetric(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createMetric throws INVALID_ARGUMENT when TimeInterval endTime is unspecified`() {
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric =
+        REQUESTING_INCREMENTAL_REACH_METRIC.copy {
+          clearTimeInterval()
+          timeInterval = timeInterval { startTime = timestamp { seconds = 5 } }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.createMetric(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createMetric throws INVALID_ARGUMENT when TimeInterval endTime is before startTime`() {
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric =
+        REQUESTING_INCREMENTAL_REACH_METRIC.copy {
+          clearTimeInterval()
+          timeInterval = timeInterval {
+            startTime = timestamp {
+              seconds = 5
+              nanos = 5
+            }
+            endTime = timestamp {
+              seconds = 5
+              nanos = 1
+            }
+          }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.createMetric(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createMetric throws INVALID_ARGUMENT when metric spec in Metric is unspecified`() {
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric = REQUESTING_INCREMENTAL_REACH_METRIC.copy { clearMetricSpec() }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.createMetric(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("Metric spec in metric is not specified.")
+  }
+
+  @Test
+  fun `createMetric throws INVALID_ARGUMENT when reporting set is unspecified`() {
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric = REQUESTING_INCREMENTAL_REACH_METRIC.copy { clearReportingSet() }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.createMetric(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createMetric throws INVALID_ARGUMENT when provided reporting set name is invalid`() {
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric =
+        REQUESTING_INCREMENTAL_REACH_METRIC.copy { reportingSet = INVALID_REPORTING_SET_NAME }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.createMetric(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("Invalid reporting set name $INVALID_REPORTING_SET_NAME.")
+  }
+
+  @Test
+  fun `createMetric throws INVALID_ARGUMENT when reporting set is not accessible to caller`() {
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric =
+        REQUESTING_INCREMENTAL_REACH_METRIC.copy { reportingSet = REPORTING_SET_NAME_FOR_MC_2 }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.createMetric(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("No access to the reporting set [$REPORTING_SET_NAME_FOR_MC_2].")
+  }
+
+  @Test
+  fun `createMetric throws NOT_FOUND when reporting set is not found`() = runBlocking {
+    whenever(internalReportingSetsMock.batchGetReportingSet(any()))
+      .thenReturn(flowOf(INTERNAL_UNION_ALL_REPORTING_SET))
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric = REQUESTING_INCREMENTAL_REACH_METRIC
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.createMetric(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `createMetric throws FAILED_PRECONDITION when EDP cert is revoked`() = runBlocking {
+    val dataProvider = DATA_PROVIDERS.values.first()
+    whenever(
+        certificatesMock.getCertificate(
+          eq(getCertificateRequest { name = dataProvider.certificate })
+        )
+      )
+      .thenReturn(
+        certificate {
+          name = dataProvider.certificate
+          x509Der = DATA_PROVIDER_SIGNING_KEY.certificate.encoded.toByteString()
+          revocationState = Certificate.RevocationState.REVOKED
+        }
+      )
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric = REQUESTING_INCREMENTAL_REACH_METRIC
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.createMetric(request) }
+        }
+      }
+
+    assertThat(exception).hasMessageThat().ignoringCase().contains("revoked")
+  }
+
+  @Test
+  fun `createMetric throws FAILED_PRECONDITION when EDP public key signature is invalid`() =
+    runBlocking {
+      val dataProvider = DATA_PROVIDERS.values.first()
+      whenever(
+          dataProvidersMock.getDataProvider(eq(getDataProviderRequest { name = dataProvider.name }))
+        )
+        .thenReturn(
+          dataProvider.copy {
+            publicKey = publicKey.copy { signature = "invalid sig".toByteStringUtf8() }
+          }
+        )
+      val request = createMetricRequest {
+        parent = MEASUREMENT_CONSUMERS.values.first().name
+        metric = REQUESTING_INCREMENTAL_REACH_METRIC
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+            runBlocking { service.createMetric(request) }
+          }
+        }
+
+      assertThat(exception).hasMessageThat().ignoringCase().contains("signature")
+    }
+
+  @Test
+  fun `createMetric throws exception from getMetricByIdempotencyKey when status isn't NOT_FOUND`() =
+    runBlocking {
+      whenever(internalMetricsMock.getMetricByIdempotencyKey(any()))
+        .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
+
+      val request = createMetricRequest {
+        parent = MEASUREMENT_CONSUMERS.values.first().name
+        metric = REQUESTING_INCREMENTAL_REACH_METRIC
+        requestId = INCREMENTAL_REACH_METRIC_IDEMPOTENCY_KEY
+      }
+
+      val exception =
+        assertFailsWith(Exception::class) {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+            runBlocking { service.createMetric(request) }
+          }
+        }
+      val expectedExceptionDescription =
+        "Unable to retrieve a metric from the reporting database using the provided " +
+          "metricIdempotencyKey [${INCREMENTAL_REACH_METRIC_IDEMPOTENCY_KEY}]."
+      assertThat(exception.message).isEqualTo(expectedExceptionDescription)
+    }
+
   //   @Test
   //   fun `createMetric throws exception when internal createMetric throws exception`() =
   // runBlocking {
-  //     whenever(internalReportsMock.createMetric(any()))
+  //     whenever(internalMetricsMock.createMetric(any()))
   //       .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
   //
-  //     val request = createReportRequest {
+  //     val request = createMetricRequest {
   //       parent = MEASUREMENT_CONSUMERS.values.first().name
-  //       report = PENDING_REACH_REPORT.copy { clearState() }
+  //       metric = REQUESTING_INCREMENTAL_REACH_METRIC
   //     }
   //
   //     val exception =
   //       assertFailsWith(Exception::class) {
-  //         org.wfanet.measurement.reporting.service.api.v1alpha.withMeasurementConsumerPrincipal(
+  //         withMeasurementConsumerPrincipal(
   //           MEASUREMENT_CONSUMERS.values.first().name,
   //           CONFIG
   //         ) {
@@ -1897,7 +1959,7 @@ class MetricsServiceTest {
   //         }
   //       }
   //     val expectedExceptionDescription = "Unable to create a report in the reporting database."
-  //     Truth.assertThat(exception.message).isEqualTo(expectedExceptionDescription)
+  //     assertThat(exception.message).isEqualTo(expectedExceptionDescription)
   //   }
   //
   //   @Test
@@ -1906,15 +1968,15 @@ class MetricsServiceTest {
   //       whenever(measurementsMock.createMeasurement(any()))
   //         .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
   //
-  //       val request = createReportRequest {
+  //       val request = createMetricRequest {
   //         parent = MEASUREMENT_CONSUMERS.values.first().name
-  //         report = PENDING_REACH_REPORT.copy { clearState() }
+  //         metric = REQUESTING_INCREMENTAL_REACH_METRIC
   //       }
   //
   //       val exception =
   //         assertFailsWith(Exception::class) {
   //
-  // org.wfanet.measurement.reporting.service.api.v1alpha.withMeasurementConsumerPrincipal(
+  // withMeasurementConsumerPrincipal(
   //             MEASUREMENT_CONSUMERS.values.first().name,
   //             CONFIG
   //           ) {
@@ -1923,7 +1985,7 @@ class MetricsServiceTest {
   //         }
   //       val expectedExceptionDescription =
   //         "Unable to create the measurement [$REACH_MEASUREMENT_NAME]."
-  //       Truth.assertThat(exception.message).isEqualTo(expectedExceptionDescription)
+  //       assertThat(exception.message).isEqualTo(expectedExceptionDescription)
   //     }
   //
   //   @Test
@@ -1932,15 +1994,15 @@ class MetricsServiceTest {
   //       whenever(internalMeasurementsMock.createMeasurement(any()))
   //         .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
   //
-  //       val request = createReportRequest {
+  //       val request = createMetricRequest {
   //         parent = MEASUREMENT_CONSUMERS.values.first().name
-  //         report = PENDING_REACH_REPORT.copy { clearState() }
+  //         metric = REQUESTING_INCREMENTAL_REACH_METRIC
   //       }
   //
   //       val exception =
   //         assertFailsWith(Exception::class) {
   //
-  // org.wfanet.measurement.reporting.service.api.v1alpha.withMeasurementConsumerPrincipal(
+  // withMeasurementConsumerPrincipal(
   //             MEASUREMENT_CONSUMERS.values.first().name,
   //             CONFIG
   //           ) {
@@ -1949,7 +2011,7 @@ class MetricsServiceTest {
   //         }
   //       val expectedExceptionDescription =
   //         "Unable to create the measurement [$REACH_MEASUREMENT_NAME] in the reporting database."
-  //       Truth.assertThat(exception.message).isEqualTo(expectedExceptionDescription)
+  //       assertThat(exception.message).isEqualTo(expectedExceptionDescription)
   //     }
   //
   //   @Test
@@ -1958,14 +2020,14 @@ class MetricsServiceTest {
   //     whenever(measurementConsumersMock.getMeasurementConsumer(any()))
   //       .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
   //
-  //     val request = createReportRequest {
+  //     val request = createMetricRequest {
   //       parent = MEASUREMENT_CONSUMERS.values.first().name
-  //       report = PENDING_REACH_REPORT.copy { clearState() }
+  //       metric = REQUESTING_INCREMENTAL_REACH_METRIC
   //     }
   //
   //     val exception =
   //       assertFailsWith(Exception::class) {
-  //         org.wfanet.measurement.reporting.service.api.v1alpha.withMeasurementConsumerPrincipal(
+  //         withMeasurementConsumerPrincipal(
   //           MEASUREMENT_CONSUMERS.values.first().name,
   //           CONFIG
   //         ) {
@@ -1975,23 +2037,23 @@ class MetricsServiceTest {
   //     val expectedExceptionDescription =
   //       "Unable to retrieve the measurement consumer
   // [${MEASUREMENT_CONSUMERS.values.first().name}]."
-  //     Truth.assertThat(exception.message).isEqualTo(expectedExceptionDescription)
+  //     assertThat(exception.message).isEqualTo(expectedExceptionDescription)
   //   }
   //
   //   @Test
-  //   fun `createMetric throws exception when the internal batchGetReportingSet throws
+  //   fun `createMetric throws exception when the internal batchGetMetricingSet throws
   // exception`():
   //     Unit = runBlocking {
   //     whenever(internalReportingSetsMock.batchGetReportingSet(any()))
   //       .thenThrow(StatusRuntimeException(Status.UNKNOWN))
   //
-  //     val request = createReportRequest {
+  //     val request = createMetricRequest {
   //       parent = MEASUREMENT_CONSUMERS.values.first().name
-  //       report = PENDING_REACH_REPORT.copy { clearState() }
+  //       metric = REQUESTING_INCREMENTAL_REACH_METRIC
   //     }
   //
   //     assertFails {
-  //       org.wfanet.measurement.reporting.service.api.v1alpha.withMeasurementConsumerPrincipal(
+  //       withMeasurementConsumerPrincipal(
   //         MEASUREMENT_CONSUMERS.values.first().name,
   //         CONFIG
   //       ) {
@@ -2005,21 +2067,21 @@ class MetricsServiceTest {
   //     whenever(dataProvidersMock.getDataProvider(any()))
   //       .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
   //
-  //     val request = createReportRequest {
+  //     val request = createMetricRequest {
   //       parent = MEASUREMENT_CONSUMERS.values.first().name
-  //       report = PENDING_REACH_REPORT.copy { clearState() }
+  //       metric = REQUESTING_INCREMENTAL_REACH_METRIC
   //     }
   //
   //     val exception =
   //       assertFailsWith(Exception::class) {
-  //         org.wfanet.measurement.reporting.service.api.v1alpha.withMeasurementConsumerPrincipal(
+  //         withMeasurementConsumerPrincipal(
   //           MEASUREMENT_CONSUMERS.values.first().name,
   //           CONFIG
   //         ) {
   //           runBlocking { service.createMetric(request) }
   //         }
   //       }
-  //     Truth.assertThat(exception).hasMessageThat().contains("dataProviders/")
+  //     assertThat(exception).hasMessageThat().contains("dataProviders/")
   //   }
 }
 
