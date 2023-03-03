@@ -61,7 +61,7 @@ import org.wfanet.measurement.internal.kingdom.requisition
 import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRequest
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
-import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.EXTERNAL_DUCHY_IDS
+import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.DUCHIES
 
 private const val RANDOM_SEED = 1L
 private const val NONCE_1 = 3127743798281582205L
@@ -87,7 +87,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
   protected val clock: Clock = Clock.systemUTC()
   protected val idGenerator = RandomIdGenerator(clock, Random(RANDOM_SEED))
   private val population = Population(clock, idGenerator)
-  @get:Rule val duchyIdSetter = DuchyIdSetter(Population.EXTERNAL_DUCHY_IDS)
+  @get:Rule val duchyIdSetter = DuchyIdSetter(Population.DUCHIES)
 
   protected lateinit var dataServices: TestDataServices
     private set
@@ -108,8 +108,9 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
   fun initDataServices() {
     dataServices = newTestDataServices(idGenerator)
 
+    val externalDuchyIds = DUCHIES.map { it.externalDuchyId }
     duchyCertificates =
-      EXTERNAL_DUCHY_IDS.associateWith { externalDuchyId ->
+      externalDuchyIds.associateWith { externalDuchyId ->
         runBlocking {
           population.createDuchyCertificate(dataServices.certificatesService, externalDuchyId)
         }
@@ -583,11 +584,11 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
       .isEqualTo(expectedRequisition)
     assertThat(requisition.duchiesMap)
       .containsExactly(
-        Population.AGGREGATOR_DUCHY_EXTERNAL_ID,
+        Population.AGGREGATOR_DUCHY.externalDuchyId,
         Requisition.DuchyValue.getDefaultInstance(),
-        Population.WORKER1_DUCHY_EXTERNAL_ID,
+        Population.WORKER1_DUCHY.externalDuchyId,
         Requisition.DuchyValue.getDefaultInstance(),
-        Population.WORKER2_DUCHY_EXTERNAL_ID,
+        Population.WORKER2_DUCHY.externalDuchyId,
         Requisition.DuchyValue.getDefaultInstance()
       )
     assertThat(requisition).isEqualTo(listedRequisition)
@@ -700,13 +701,14 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           nonce = NONCE_1
           computedParams = computedRequisitionParams {
             externalComputationId = measurement.externalComputationId
-            externalFulfillingDuchyId = Population.WORKER1_DUCHY_EXTERNAL_ID
+            externalFulfillingDuchyId = Population.WORKER1_DUCHY.externalDuchyId
           }
         }
       )
 
     assertThat(response.state).isEqualTo(Requisition.State.FULFILLED)
-    assertThat(response.externalFulfillingDuchyId).isEqualTo(Population.WORKER1_DUCHY_EXTERNAL_ID)
+    assertThat(response.externalFulfillingDuchyId)
+      .isEqualTo(Population.WORKER1_DUCHY.externalDuchyId)
     assertThat(response.details.nonce).isEqualTo(NONCE_1)
     assertThat(response.updateTime.toInstant()).isGreaterThan(requisition.updateTime.toInstant())
     assertThat(response)
@@ -759,7 +761,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         nonce = NONCE_1
         computedParams = computedRequisitionParams {
           externalComputationId = measurement.externalComputationId
-          externalFulfillingDuchyId = Population.WORKER1_DUCHY_EXTERNAL_ID
+          externalFulfillingDuchyId = Population.WORKER1_DUCHY.externalDuchyId
         }
       }
     )
@@ -771,7 +773,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
           nonce = NONCE_2
           computedParams = computedRequisitionParams {
             externalComputationId = measurement.externalComputationId
-            externalFulfillingDuchyId = Population.WORKER1_DUCHY_EXTERNAL_ID
+            externalFulfillingDuchyId = Population.WORKER1_DUCHY.externalDuchyId
           }
         }
       )
@@ -812,7 +814,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
             nonce = NONCE_1
             computedParams = computedRequisitionParams {
               externalComputationId = measurement.externalComputationId
-              externalFulfillingDuchyId = Population.WORKER1_DUCHY_EXTERNAL_ID
+              externalFulfillingDuchyId = Population.WORKER1_DUCHY.externalDuchyId
             }
           }
         )
@@ -898,7 +900,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
               nonce = NONCE_1
               computedParams = computedRequisitionParams {
                 externalComputationId = measurement.externalComputationId
-                externalFulfillingDuchyId = Population.WORKER1_DUCHY_EXTERNAL_ID
+                externalFulfillingDuchyId = Population.WORKER1_DUCHY.externalDuchyId
               }
             }
           )
@@ -948,7 +950,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
             externalRequisitionId = requisition.externalRequisitionId
             computedParams = computedRequisitionParams {
               externalComputationId = measurement.externalComputationId
-              externalFulfillingDuchyId = Population.WORKER1_DUCHY_EXTERNAL_ID
+              externalFulfillingDuchyId = Population.WORKER1_DUCHY.externalDuchyId
             }
           }
         )

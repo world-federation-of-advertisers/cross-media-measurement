@@ -54,7 +54,7 @@ private val DETAILS = details {
 abstract class EventGroupMetadataDescriptorsServiceTest<
   T : EventGroupMetadataDescriptorsCoroutineImplBase> {
 
-  @get:Rule val duchyIdSetter = DuchyIdSetter(Population.EXTERNAL_DUCHY_IDS)
+  @get:Rule val duchyIdSetter = DuchyIdSetter(Population.DUCHIES)
 
   private val testClock: Clock = Clock.systemUTC()
   protected val idGenerator = RandomIdGenerator(testClock, Random(RANDOM_SEED))

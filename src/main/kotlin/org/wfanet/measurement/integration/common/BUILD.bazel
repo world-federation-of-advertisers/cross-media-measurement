@@ -100,6 +100,7 @@ kt_jvm_library(
         "//src/main/k8s/testing/secretfiles:all_tink_keysets",
     ],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:duchy_ids",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:resource_setup",
         "//src/main/proto/wfa/measurement/config:duchy_cert_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/duchy/config:protocols_setup_config_kt_jvm_proto",
