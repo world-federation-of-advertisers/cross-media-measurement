@@ -30,6 +30,7 @@ import org.wfanet.measurement.internal.kingdom.StreamStateTransitionMeasurementL
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamStateTransitionMeasurementLogEntries
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateDuchyMeasurementLogEntry
 
@@ -54,6 +55,8 @@ class SpannerMeasurementLogEntriesService(
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "Measurement not found." }
     } catch (e: DuchyNotFoundException) {
       e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Duchy not found." }
+    } catch (e: MeasurementStateIllegalException) {
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Measurement in wrong state." }
     } catch (e: KingdomInternalException) {
       e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error" }
     }

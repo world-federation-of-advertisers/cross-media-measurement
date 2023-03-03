@@ -278,6 +278,54 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
   }
 
   @Test
+  fun `createMeasurementLogEntry fails Measurement in terminal states`() = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+    val measurement =
+      population.createComputedMeasurement(
+        measurementsService,
+        measurementConsumer,
+        "measurement 1",
+        dataProvider
+      )
+    // Set terminal Measurement state CANCELED
+    measurementsService.cancelMeasurement(
+      cancelMeasurementRequest {
+        externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+        externalMeasurementId = measurement.externalMeasurementId
+      }
+    )
+
+    val measurementLogEntryDetails =
+      MeasurementLogEntryKt.details {
+        error =
+          MeasurementLogEntryKt.errorDetails {
+            type = MeasurementLogEntry.ErrorDetails.Type.TRANSIENT
+          }
+      }
+    val duchyMeasurementLogEntryDetails =
+      DuchyMeasurementLogEntryKt.details {
+        duchyChildReferenceId = "some child reference"
+        stageAttempt = DuchyMeasurementLogEntryKt.stageAttempt { stage = 1 }
+      }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        measurementLogEntriesService.createDuchyMeasurementLogEntry(
+          createDuchyMeasurementLogEntryRequest {
+            externalComputationId = measurement.externalComputationId
+            externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+            this.measurementLogEntryDetails = measurementLogEntryDetails
+            details = duchyMeasurementLogEntryDetails
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
   fun `measurementState is consistent when creating and cancelling a Measurement`(): Unit =
     runBlocking {
       var measurement: Measurement

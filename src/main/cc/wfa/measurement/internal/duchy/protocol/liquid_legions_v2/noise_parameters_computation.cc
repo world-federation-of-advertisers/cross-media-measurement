@@ -30,7 +30,8 @@ int ComputateMuPolya(double epsilon, double delta, int sensitivity, int n) {
 
 }  // namespace
 
-math::DistributedGeometricRandomComponentOptions GetBlindHistogramNoiseOptions(
+math::DistributedGeometricNoiseComponentOptions
+GetBlindHistogramGeometricNoiseOptions(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
     int uncorrupted_party_count) {
   ABSL_ASSERT(uncorrupted_party_count > 0);
@@ -38,15 +39,15 @@ math::DistributedGeometricRandomComponentOptions GetBlindHistogramNoiseOptions(
   int offset = ComputateMuPolya(params.epsilon(), params.delta(), 2,
                                 uncorrupted_party_count);
   return {
-      .num = uncorrupted_party_count,
+      .contributor_count = uncorrupted_party_count,
       .p = success_ratio,
       .truncate_threshold = offset,
       .shift_offset = offset,
   };
 }
 
-math::DistributedGeometricRandomComponentOptions
-GetNoiseForPublisherNoiseOptions(
+math::DistributedGeometricNoiseComponentOptions
+GetNoiseForPublisherGeometricNoiseOptions(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
     int publisher_count, int uncorrupted_party_count) {
   ABSL_ASSERT(publisher_count > 0);
@@ -55,14 +56,15 @@ GetNoiseForPublisherNoiseOptions(
   int offset = ComputateMuPolya(params.epsilon(), params.delta(),
                                 publisher_count, uncorrupted_party_count);
   return {
-      .num = uncorrupted_party_count,
+      .contributor_count = uncorrupted_party_count,
       .p = success_ratio,
       .truncate_threshold = offset,
       .shift_offset = offset,
   };
 }
 
-math::DistributedGeometricRandomComponentOptions GetGlobalReachDpNoiseOptions(
+math::DistributedGeometricNoiseComponentOptions
+GetGlobalReachDpGeometricNoiseOptions(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
     int uncorrupted_party_count) {
   ABSL_ASSERT(uncorrupted_party_count > 0);
@@ -70,14 +72,15 @@ math::DistributedGeometricRandomComponentOptions GetGlobalReachDpNoiseOptions(
   int offset = ComputateMuPolya(params.epsilon(), params.delta(), 1,
                                 uncorrupted_party_count);
   return {
-      .num = uncorrupted_party_count,
+      .contributor_count = uncorrupted_party_count,
       .p = success_ratio,
       .truncate_threshold = offset,
       .shift_offset = offset,
   };
 }
 
-math::DistributedGeometricRandomComponentOptions GetFrequencyNoiseOptions(
+math::DistributedGeometricNoiseComponentOptions
+GetFrequencyGeometricNoiseOptions(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
     int uncorrupted_party_count) {
   ABSL_ASSERT(uncorrupted_party_count > 0);
@@ -85,7 +88,7 @@ math::DistributedGeometricRandomComponentOptions GetFrequencyNoiseOptions(
   int offset = ComputateMuPolya(params.epsilon(), params.delta(), 2,
                                 uncorrupted_party_count);
   return {
-      .num = uncorrupted_party_count,
+      .contributor_count = uncorrupted_party_count,
       .p = success_ratio,
       .truncate_threshold = offset,
       .shift_offset = offset,
