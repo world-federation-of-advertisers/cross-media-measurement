@@ -39,6 +39,7 @@ import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -232,15 +233,15 @@ class MetricsService(
             async {
               measurementIds {
                 externalMeasurementId = weightedMeasurement.measurement.externalMeasurementId
-                cmmsMeasurementId =
+                val cmmsMeasurement =
                   createCmmsMeasurement(
-                      weightedMeasurement.measurement,
-                      internalMetric.metricSpec,
-                      internalPrimitiveReportingSetMap,
-                      measurementConsumer,
-                      principal,
-                    )
-                    .measurementReferenceId
+                    weightedMeasurement.measurement,
+                    internalMetric.metricSpec,
+                    internalPrimitiveReportingSetMap,
+                    measurementConsumer,
+                    principal,
+                  )
+                cmmsMeasurementId = MeasurementKey.fromName(cmmsMeasurement.name)!!.measurementId
               }
             }
           )
@@ -251,12 +252,14 @@ class MetricsService(
       if (deferred.isEmpty()) return@coroutineScope
 
       try {
-        internalMeasurementsStub.batchSetCmmsMeasurementId(
-          batchSetCmmsMeasurementIdRequest {
-            this.cmmsMeasurementConsumerId = principal.resourceKey.measurementConsumerId
-            measurementIds += deferred.awaitAll()
-          }
-        )
+        internalMeasurementsStub
+          .withAuthenticationKey(principal.config.apiKey)
+          .batchSetCmmsMeasurementId(
+            batchSetCmmsMeasurementIdRequest {
+              this.cmmsMeasurementConsumerId = principal.resourceKey.measurementConsumerId
+              measurementIds += deferred.awaitAll()
+            }
+          )
       } catch (e: StatusException) {
         throw Exception(
           "Unable to set the CMMs measurement IDs for the measurements in the reporting database.",
