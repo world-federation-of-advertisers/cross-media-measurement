@@ -126,7 +126,13 @@ class FailComputationParticipant(private val request: FailComputationParticipant
       nextState = Measurement.State.FAILED,
       previousState = measurementState,
       measurementLogEntryDetails = measurementLogEntryDetails,
-      duchyMeasurementLogEntry = duchyMeasurementLogEntry
+    )
+
+    insertDuchyMeasurementLogEntry(
+      InternalId(measurementId),
+      InternalId(measurementConsumerId),
+      InternalId(duchyId),
+      duchyMeasurementLogEntry.details
     )
 
     return computationParticipant.copy { state = NEXT_COMPUTATION_PARTICIPANT_STATE }

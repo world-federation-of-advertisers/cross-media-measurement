@@ -221,14 +221,14 @@ abstract class MillBase(
         completeComputation(token, CompletedReason.FAILED)
       }
       else -> {
-        // Treat all other errors as transient.
-        logger.log(Level.WARNING, "$globalId@$millId: TRANSIENT error", e)
         if (token.attempt >= maximumAttempts) {
           val errorMessage = "Failing computation due to too many failed attempts."
           logger.log(Level.SEVERE, "$globalId@$millId: $errorMessage")
           failComputationAtKingdom(token, errorMessage)
           completeComputation(token, CompletedReason.FAILED)
         } else {
+          // Treat all other errors as transient.
+          logger.log(Level.WARNING, "$globalId@$millId: TRANSIENT error", e)
           sendStatusUpdateToKingdom(
             newErrorUpdateRequest(token, e.localizedMessage, Type.TRANSIENT)
           )

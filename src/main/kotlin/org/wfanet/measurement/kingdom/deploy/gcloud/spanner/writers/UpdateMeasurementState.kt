@@ -19,19 +19,15 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferTo
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.updateMutation
-import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
-import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 
 internal fun SpannerWriter.TransactionScope.updateMeasurementState(
   measurementConsumerId: InternalId,
   measurementId: InternalId,
   nextState: Measurement.State,
   previousState: Measurement.State,
-  measurementLogEntryDetails: MeasurementLogEntry.Details,
-  duchyMeasurementLogEntry: DuchyMeasurementLogEntry? = null
+  measurementLogEntryDetails: MeasurementLogEntry.Details
 ) {
 
   updateMutation("Measurements") {
@@ -56,18 +52,4 @@ internal fun SpannerWriter.TransactionScope.updateMeasurementState(
     currentMeasurementState = nextState,
     previousMeasurementState = previousState
   )
-
-  if (duchyMeasurementLogEntry != null) {
-
-    val duchyId =
-      DuchyIds.getInternalId(duchyMeasurementLogEntry.externalDuchyId)
-        ?: throw DuchyNotFoundException(duchyMeasurementLogEntry.externalDuchyId)
-
-    insertDuchyMeasurementLogEntry(
-      measurementId,
-      measurementConsumerId,
-      InternalId(duchyId),
-      duchyMeasurementLogEntry.details
-    )
-  }
 }
