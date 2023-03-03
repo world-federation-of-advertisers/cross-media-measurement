@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# referred step 3 and 5 from https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/kingdom-deployment.md
+# This is step 3 and 5 as per https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/kingdom-deployment.md
 
 # Create service account for accessing Cloud Spanner
 resource "google_service_account" "spanner_service_account" {
