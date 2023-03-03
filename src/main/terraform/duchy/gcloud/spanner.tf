@@ -26,7 +26,7 @@ resource "google_spanner_database" "database" {
   instance = google_spanner_instance.duchy_db.name
   name     = "duchy_spanner_database"
   version_retention_period = "3d"
-  deletion_protection = false
+  deletion_protection = true
 
   depends_on = [google_spanner_instance.duchy_db]
 }
