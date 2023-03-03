@@ -72,31 +72,35 @@ import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
 
 /** Implementation of the Computations service. */
 class ComputationsService(
-    private val computationsDatabase: ComputationsDatabase,
-    private val computationLogEntriesClient: ComputationLogEntriesCoroutineStub,
-    private val computationStorageClient: ComputationStore,
-    private val requisitionStorageClient: RequisitionStore,
-    private val duchyName: String,
-    private val clock: Clock = Clock.systemUTC(),
-    private val defaultLockDuration: Duration = Duration.ofMinutes(5),
+  private val computationsDatabase: ComputationsDatabase,
+  private val computationLogEntriesClient: ComputationLogEntriesCoroutineStub,
+  private val computationStorageClient: ComputationStore,
+  private val requisitionStorageClient: RequisitionStore,
+  private val duchyName: String,
+  private val clock: Clock = Clock.systemUTC(),
+  private val defaultLockDuration: Duration = Duration.ofMinutes(5),
 ) : ComputationsCoroutineImplBase() {
 
   override suspend fun claimWork(request: ClaimWorkRequest): ClaimWorkResponse {
     val lockDuration =
-        if (request.hasLockDuration()) request.lockDuration.toDuration() else defaultLockDuration
+      if (request.hasLockDuration()) request.lockDuration.toDuration() else defaultLockDuration
     val claimed =
-        computationsDatabase.claimTask(request.computationType, request.owner, lockDuration)
+      computationsDatabase.claimTask(request.computationType, request.owner, lockDuration)
     return if (claimed != null) {
       val token = computationsDatabase.readComputationToken(claimed)!!
       sendStatusUpdateToKingdom(
-          newCreateComputationLogEntryRequest(
-              token.globalComputationId, token.computationStage, token.attempt.toLong()))
+        newCreateComputationLogEntryRequest(
+          token.globalComputationId,
+          token.computationStage,
+          token.attempt.toLong()
+        )
+      )
       token.toClaimWorkResponse()
     } else ClaimWorkResponse.getDefaultInstance()
   }
 
   override suspend fun createComputation(
-      request: CreateComputationRequest
+    request: CreateComputationRequest
   ): CreateComputationResponse {
     // TODO: validate CreateComputationRequest
 
@@ -105,21 +109,24 @@ class ComputationsService(
     }
 
     computationsDatabase.insertComputation(
-        request.globalComputationId,
-        request.computationType,
-        computationsDatabase.getValidInitialStage(request.computationType).first(),
-        request.stageDetails,
-        request.computationDetails,
-        request.requisitionsList)
+      request.globalComputationId,
+      request.computationType,
+      computationsDatabase.getValidInitialStage(request.computationType).first(),
+      request.stageDetails,
+      request.computationDetails,
+      request.requisitionsList
+    )
 
     sendStatusUpdateToKingdom(
-        newCreateComputationLogEntryRequest(
-            request.globalComputationId,
-            computationsDatabase.getValidInitialStage(request.computationType).first()))
+      newCreateComputationLogEntryRequest(
+        request.globalComputationId,
+        computationsDatabase.getValidInitialStage(request.computationType).first()
+      )
+    )
 
     return computationsDatabase
-        .readComputationToken(request.globalComputationId)!!
-        .toCreateComputationResponse()
+      .readComputationToken(request.globalComputationId)!!
+      .toCreateComputationResponse()
   }
 
   private suspend fun deleteComputation(localId: Long) {
@@ -152,7 +159,7 @@ class ComputationsService(
   }
 
   override suspend fun deleteOutdatedComputations(
-      request: DeleteOutdatedComputationsRequest
+    request: DeleteOutdatedComputationsRequest
   ): DeleteOutdatedComputationsResponse {
     require(request.timeToLive.toDuration() >= MIN_COMPUTATIONS_TIME_TO_LIVE) {
       "Computation's time to live is too short to execute batch deletions."
@@ -161,25 +168,29 @@ class ComputationsService(
     try {
       val before = clock.instant().minusMillis(request.timeToLive.toDuration().toMillis())
       val globalIds =
-          computationsDatabase.readGlobalComputationIds(request.stagesList.toSet(), before)
+        computationsDatabase.readGlobalComputationIds(request.stagesList.toSet(), before)
       if (request.dryRun) {
         logger.log(
-            Level.INFO, "Dry run batch deletion. # of Computations to delete is ${globalIds.size}")
+          Level.INFO,
+          "Dry run batch deletion. # of Computations to delete is ${globalIds.size}"
+        )
         return deleteOutdatedComputationsResponse { this.count = 0 }
       }
       for (globalId in globalIds) {
         val token = computationsDatabase.readComputationToken(globalId) ?: continue
         if (!isTerminated(token)) {
           computationsDatabase.endComputation(
-              token.toDatabaseEditToken(),
-              getEndingComputationStage(token),
-              EndComputationReason.FAILED,
-              token.computationDetails)
+            token.toDatabaseEditToken(),
+            getEndingComputationStage(token),
+            EndComputationReason.FAILED,
+            token.computationDetails
+          )
           sendStatusUpdateToKingdom(
-              newCreateComputationLogEntryRequest(
-                  token.globalComputationId,
-                  getEndingComputationStage(token),
-              ))
+            newCreateComputationLogEntryRequest(
+              token.globalComputationId,
+              getEndingComputationStage(token),
+            )
+          )
         }
         deleteComputation(token.localComputationId)
         deleted += 1
@@ -191,109 +202,121 @@ class ComputationsService(
   }
 
   override suspend fun finishComputation(
-      request: FinishComputationRequest
+    request: FinishComputationRequest
   ): FinishComputationResponse {
     computationsDatabase.endComputation(
-        request.token.toDatabaseEditToken(),
-        request.endingComputationStage,
-        when (val it = request.reason) {
-          ComputationDetails.CompletedReason.SUCCEEDED -> EndComputationReason.SUCCEEDED
-          ComputationDetails.CompletedReason.FAILED -> EndComputationReason.FAILED
-          ComputationDetails.CompletedReason.CANCELED -> EndComputationReason.CANCELED
-          else -> error("Unknown CompletedReason $it")
-        },
-        request.token.computationDetails)
+      request.token.toDatabaseEditToken(),
+      request.endingComputationStage,
+      when (val it = request.reason) {
+        ComputationDetails.CompletedReason.SUCCEEDED -> EndComputationReason.SUCCEEDED
+        ComputationDetails.CompletedReason.FAILED -> EndComputationReason.FAILED
+        ComputationDetails.CompletedReason.CANCELED -> EndComputationReason.CANCELED
+        else -> error("Unknown CompletedReason $it")
+      },
+      request.token.computationDetails
+    )
 
     sendStatusUpdateToKingdom(
-        newCreateComputationLogEntryRequest(
-            request.token.globalComputationId, request.endingComputationStage))
+      newCreateComputationLogEntryRequest(
+        request.token.globalComputationId,
+        request.endingComputationStage
+      )
+    )
 
     return computationsDatabase
-        .readComputationToken(request.token.globalComputationId)!!
-        .toFinishComputationResponse()
+      .readComputationToken(request.token.globalComputationId)!!
+      .toFinishComputationResponse()
   }
 
   override suspend fun getComputationToken(
-      request: GetComputationTokenRequest
+    request: GetComputationTokenRequest
   ): GetComputationTokenResponse {
     val computationToken =
-        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-        when (request.keyCase) {
-          KeyCase.GLOBAL_COMPUTATION_ID ->
-              computationsDatabase.readComputationToken(request.globalComputationId)
-          KeyCase.REQUISITION_KEY ->
-              computationsDatabase.readComputationToken(request.requisitionKey)
-          KeyCase.KEY_NOT_SET ->
-              throw Status.INVALID_ARGUMENT.withDescription("key not set").asRuntimeException()
-        }
-            ?: throw Status.NOT_FOUND.asRuntimeException()
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+      when (request.keyCase) {
+        KeyCase.GLOBAL_COMPUTATION_ID ->
+          computationsDatabase.readComputationToken(request.globalComputationId)
+        KeyCase.REQUISITION_KEY -> computationsDatabase.readComputationToken(request.requisitionKey)
+        KeyCase.KEY_NOT_SET ->
+          throw Status.INVALID_ARGUMENT.withDescription("key not set").asRuntimeException()
+      }
+        ?: throw Status.NOT_FOUND.asRuntimeException()
 
     return computationToken.toGetComputationTokenResponse()
   }
 
   override suspend fun updateComputationDetails(
-      request: UpdateComputationDetailsRequest
+    request: UpdateComputationDetailsRequest
   ): UpdateComputationDetailsResponse {
     require(request.token.computationDetails.protocolCase == request.details.protocolCase) {
       "The protocol type cannot change."
     }
     computationsDatabase.updateComputationDetails(
-        request.token.toDatabaseEditToken(), request.details, request.requisitionsList)
+      request.token.toDatabaseEditToken(),
+      request.details,
+      request.requisitionsList
+    )
     return computationsDatabase
-        .readComputationToken(request.token.globalComputationId)!!
-        .toUpdateComputationDetailsResponse()
+      .readComputationToken(request.token.globalComputationId)!!
+      .toUpdateComputationDetailsResponse()
   }
 
   override suspend fun recordOutputBlobPath(
-      request: RecordOutputBlobPathRequest
+    request: RecordOutputBlobPathRequest
   ): RecordOutputBlobPathResponse {
     computationsDatabase.writeOutputBlobReference(
-        request.token.toDatabaseEditToken(), BlobRef(request.outputBlobId, request.blobPath))
+      request.token.toDatabaseEditToken(),
+      BlobRef(request.outputBlobId, request.blobPath)
+    )
     return computationsDatabase
-        .readComputationToken(request.token.globalComputationId)!!
-        .toRecordOutputBlobPathResponse()
+      .readComputationToken(request.token.globalComputationId)!!
+      .toRecordOutputBlobPathResponse()
   }
 
   override suspend fun advanceComputationStage(
-      request: AdvanceComputationStageRequest
+    request: AdvanceComputationStageRequest
   ): AdvanceComputationStageResponse {
     val lockExtension: Duration =
-        if (request.hasLockExtension()) request.lockExtension.toDuration() else defaultLockDuration
+      if (request.hasLockExtension()) request.lockExtension.toDuration() else defaultLockDuration
     computationsDatabase.updateComputationStage(
-        request.token.toDatabaseEditToken(),
-        request.nextComputationStage,
-        request.inputBlobsList,
-        request.passThroughBlobsList,
-        request.outputBlobs,
-        when (val it = request.afterTransition) {
-          AdvanceComputationStageRequest.AfterTransition.ADD_UNCLAIMED_TO_QUEUE ->
-              AfterTransition.ADD_UNCLAIMED_TO_QUEUE
-          AdvanceComputationStageRequest.AfterTransition.DO_NOT_ADD_TO_QUEUE ->
-              AfterTransition.DO_NOT_ADD_TO_QUEUE
-          AdvanceComputationStageRequest.AfterTransition.RETAIN_AND_EXTEND_LOCK ->
-              AfterTransition.CONTINUE_WORKING
-          else -> error("Unsupported AdvanceComputationStageRequest.AfterTransition '$it'. ")
-        },
-        request.stageDetails,
-        lockExtension)
+      request.token.toDatabaseEditToken(),
+      request.nextComputationStage,
+      request.inputBlobsList,
+      request.passThroughBlobsList,
+      request.outputBlobs,
+      when (val it = request.afterTransition) {
+        AdvanceComputationStageRequest.AfterTransition.ADD_UNCLAIMED_TO_QUEUE ->
+          AfterTransition.ADD_UNCLAIMED_TO_QUEUE
+        AdvanceComputationStageRequest.AfterTransition.DO_NOT_ADD_TO_QUEUE ->
+          AfterTransition.DO_NOT_ADD_TO_QUEUE
+        AdvanceComputationStageRequest.AfterTransition.RETAIN_AND_EXTEND_LOCK ->
+          AfterTransition.CONTINUE_WORKING
+        else -> error("Unsupported AdvanceComputationStageRequest.AfterTransition '$it'. ")
+      },
+      request.stageDetails,
+      lockExtension
+    )
 
     sendStatusUpdateToKingdom(
-        newCreateComputationLogEntryRequest(
-            request.token.globalComputationId, request.nextComputationStage))
+      newCreateComputationLogEntryRequest(
+        request.token.globalComputationId,
+        request.nextComputationStage
+      )
+    )
     return computationsDatabase
-        .readComputationToken(request.token.globalComputationId)!!
-        .toAdvanceComputationStageResponse()
+      .readComputationToken(request.token.globalComputationId)!!
+      .toAdvanceComputationStageResponse()
   }
 
   override suspend fun getComputationIds(
-      request: GetComputationIdsRequest
+    request: GetComputationIdsRequest
   ): GetComputationIdsResponse {
     val ids = computationsDatabase.readGlobalComputationIds(request.stagesList.toSet())
     return GetComputationIdsResponse.newBuilder().addAllGlobalIds(ids).build()
   }
 
   override suspend fun enqueueComputation(
-      request: EnqueueComputationRequest
+    request: EnqueueComputationRequest
   ): EnqueueComputationResponse {
     grpcRequire(request.delaySecond >= 0) {
       "DelaySecond ${request.delaySecond} should be non-negative."
@@ -303,35 +326,38 @@ class ComputationsService(
   }
 
   override suspend fun recordRequisitionBlobPath(
-      request: RecordRequisitionBlobPathRequest
+    request: RecordRequisitionBlobPathRequest
   ): RecordRequisitionBlobPathResponse {
     computationsDatabase.writeRequisitionBlobPath(
-        request.token.toDatabaseEditToken(), request.key, request.blobPath)
+      request.token.toDatabaseEditToken(),
+      request.key,
+      request.blobPath
+    )
     return checkNotNull(computationsDatabase.readComputationToken(request.key))
-        .toRecordRequisitionBlobPathResponse()
+      .toRecordRequisitionBlobPathResponse()
   }
 
   private fun newCreateComputationLogEntryRequest(
-      globalId: String,
-      computationStage: ComputationStage,
-      attempt: Long = 0L
+    globalId: String,
+    computationStage: ComputationStage,
+    attempt: Long = 0L
   ): CreateComputationLogEntryRequest {
     return CreateComputationLogEntryRequest.newBuilder()
-        .apply {
-          parent = ComputationParticipantKey(globalId, duchyName).toName()
-          computationLogEntryBuilder.apply {
-            // TODO: maybe set participantChildReferenceId
-            logMessage =
-                "Computation $globalId at stage ${computationStage.name}, " + "attempt $attempt"
-            stageAttemptBuilder.apply {
-              stage = computationStage.number
-              stageName = computationStage.name
-              stageStartTime = clock.protoTimestamp()
-              attemptNumber = attempt
-            }
+      .apply {
+        parent = ComputationParticipantKey(globalId, duchyName).toName()
+        computationLogEntryBuilder.apply {
+          // TODO: maybe set participantChildReferenceId
+          logMessage =
+            "Computation $globalId at stage ${computationStage.name}, " + "attempt $attempt"
+          stageAttemptBuilder.apply {
+            stage = computationStage.number
+            stageName = computationStage.name
+            stageStartTime = clock.protoTimestamp()
+            attemptNumber = attempt
           }
         }
-        .build()
+      }
+      .build()
   }
 
   private suspend fun sendStatusUpdateToKingdom(request: CreateComputationLogEntryRequest) {
@@ -346,8 +372,8 @@ class ComputationsService(
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     return when (token.computationStage.stageCase) {
       ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
-          token.computationStage.liquidLegionsSketchAggregationV2 ==
-              LiquidLegionsSketchAggregationV2.Stage.COMPLETE
+        token.computationStage.liquidLegionsSketchAggregationV2 ==
+          LiquidLegionsSketchAggregationV2.Stage.COMPLETE
       ComputationStage.StageCase.STAGE_NOT_SET -> false
     }
   }
@@ -356,7 +382,7 @@ class ComputationsService(
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     return when (token.computationStage.stageCase) {
       ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
-          LiquidLegionsSketchAggregationV2.Stage.COMPLETE.toProtocolStage()
+        LiquidLegionsSketchAggregationV2.Stage.COMPLETE.toProtocolStage()
       ComputationStage.StageCase.STAGE_NOT_SET -> error("protocol not set")
     }
   }
@@ -369,17 +395,18 @@ class ComputationsService(
 }
 
 private fun ComputationToken.toDatabaseEditToken():
-    ComputationEditToken<ComputationType, ComputationStage> =
-    ComputationEditToken(
-        localId = localComputationId,
-        protocol = computationStage.toComputationType(),
-        stage = computationStage,
-        attempt = attempt,
-        editVersion = version)
+  ComputationEditToken<ComputationType, ComputationStage> =
+  ComputationEditToken(
+    localId = localComputationId,
+    protocol = computationStage.toComputationType(),
+    stage = computationStage,
+    attempt = attempt,
+    editVersion = version
+  )
 
 private fun ComputationStage.toComputationType() =
-    when (stageCase) {
-      ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
-          ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
-      else -> failGrpc { "Computation type for $this is unknown" }
-    }
+  when (stageCase) {
+    ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+      ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+    else -> failGrpc { "Computation type for $this is unknown" }
+  }

@@ -31,32 +31,34 @@ import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
 
 /** Implementation of [ComputationsDatabaseReader] using GCP Spanner Database. */
 class GcpSpannerComputationsDatabaseReader(
-    private val databaseClient: AsyncDatabaseClient,
-    private val computationProtocolStagesHelper:
-        ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
+  private val databaseClient: AsyncDatabaseClient,
+  private val computationProtocolStagesHelper:
+    ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
 ) : ComputationsDatabaseReader {
 
   override suspend fun readComputationToken(globalId: String): ComputationToken? {
     return ComputationTokenProtoQuery(
-            parseStageEnum = computationProtocolStagesHelper::longValuesToComputationStageEnum,
-            globalId = globalId)
-        .execute(databaseClient)
-        .singleOrNull()
+        parseStageEnum = computationProtocolStagesHelper::longValuesToComputationStageEnum,
+        globalId = globalId
+      )
+      .execute(databaseClient)
+      .singleOrNull()
   }
 
   override suspend fun readComputationToken(
-      externalRequisitionKey: ExternalRequisitionKey
+    externalRequisitionKey: ExternalRequisitionKey
   ): ComputationToken? {
     return ComputationTokenProtoQuery(
-            parseStageEnum = computationProtocolStagesHelper::longValuesToComputationStageEnum,
-            externalRequisitionKey = externalRequisitionKey)
-        .execute(databaseClient)
-        .singleOrNull()
+        parseStageEnum = computationProtocolStagesHelper::longValuesToComputationStageEnum,
+        externalRequisitionKey = externalRequisitionKey
+      )
+      .execute(databaseClient)
+      .singleOrNull()
   }
 
   override suspend fun readGlobalComputationIds(
-      stages: Set<ComputationStage>,
-      updatedBefore: Instant?
+    stages: Set<ComputationStage>,
+    updatedBefore: Instant?
   ): Set<String> {
     val computationTypes = stages.map { stageToProtocol(it) }.distinct()
     grpcRequire(computationTypes.count() == 1) {
@@ -64,12 +66,13 @@ class GcpSpannerComputationsDatabaseReader(
     }
 
     return GlobalIdsQuery(
-            ComputationProtocolStages::computationStageEnumToLongValues,
-            stages,
-            computationTypes[0],
-            updatedBefore?.toGcloudTimestamp())
-        .execute(databaseClient)
-        .toCollection(mutableSetOf())
+        ComputationProtocolStages::computationStageEnumToLongValues,
+        stages,
+        computationTypes[0],
+        updatedBefore?.toGcloudTimestamp()
+      )
+      .execute(databaseClient)
+      .toCollection(mutableSetOf())
   }
 
   override suspend fun readComputationBlobKeys(localId: Long): List<String> {

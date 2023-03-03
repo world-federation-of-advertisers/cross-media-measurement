@@ -26,34 +26,36 @@ import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 
 /** Query for all global computation ids in database filtered by stage and update time. */
 class GlobalIdsQuery<StageT>(
-    toComputationStageLongValuesFunc: (StageT) -> ComputationStageLongValues,
-    filterToStages: Set<StageT>,
-    computationType: ComputationType,
-    updatedBefore: Timestamp? = null
+  toComputationStageLongValuesFunc: (StageT) -> ComputationStageLongValues,
+  filterToStages: Set<StageT>,
+  computationType: ComputationType,
+  updatedBefore: Timestamp? = null
 ) : SqlBasedQuery<String> {
   companion object {
     private const val parameterizedQuery =
-        """
+      """
       SELECT GlobalComputationId FROM Computations
       WHERE ComputationStage IN UNNEST (@stages)
       AND Protocol = @protocol
       """
   }
   override val sql: Statement =
-      statement(parameterizedQuery) {
-        bind("stages")
-            .toInt64Array(
-                filterToStages.map { toComputationStageLongValuesFunc(it).stage }.toLongArray())
-        bind("protocol").to(ComputationTypes.protocolEnumToLong(computationType))
-        if (updatedBefore != null) {
-          appendClause(
-              """
+    statement(parameterizedQuery) {
+      bind("stages")
+        .toInt64Array(
+          filterToStages.map { toComputationStageLongValuesFunc(it).stage }.toLongArray()
+        )
+      bind("protocol").to(ComputationTypes.protocolEnumToLong(computationType))
+      if (updatedBefore != null) {
+        appendClause(
+          """
         AND UpdateTime <= @updatedBefore
         """
-                  .trimIndent())
-          bind("updatedBefore").to(updatedBefore)
-        }
+            .trimIndent()
+        )
+        bind("updatedBefore").to(updatedBefore)
       }
+    }
 
   override fun asResult(struct: Struct): String = struct.getString("GlobalComputationId")
 }

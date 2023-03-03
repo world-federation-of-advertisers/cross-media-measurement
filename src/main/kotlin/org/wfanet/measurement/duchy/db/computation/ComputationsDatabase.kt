@@ -29,10 +29,11 @@ import org.wfanet.measurement.internal.duchy.RequisitionEntry
  * [ComputationsDatabaseTransactor]) to interact with a database for all types of computations.
  */
 interface ComputationsDatabase :
-    ComputationsDatabaseReader,
-    ComputationsDatabaseTransactor<
-        ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails>,
-    ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
+  ComputationsDatabaseReader,
+  ComputationsDatabaseTransactor<
+    ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails
+  >,
+  ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
 
 /** Performs read operations on a relational database of computations. */
 interface ComputationsDatabaseReader {
@@ -45,7 +46,7 @@ interface ComputationsDatabaseReader {
    * requisition if it exists.
    */
   suspend fun readComputationToken(
-      externalRequisitionKey: ExternalRequisitionKey
+    externalRequisitionKey: ExternalRequisitionKey
   ): ComputationToken?
 
   /**
@@ -53,8 +54,8 @@ interface ComputationsDatabaseReader {
    * in a one of the provided stages and before the updated time if specified.
    */
   suspend fun readGlobalComputationIds(
-      stages: Set<ComputationStage>,
-      updatedBefore: Instant? = null
+    stages: Set<ComputationStage>,
+    updatedBefore: Instant? = null
   ): Set<String>
 
   /** Gets all blobKeys of a Computation's data */
@@ -84,12 +85,12 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
    * The computation is added to the queue immediately.
    */
   suspend fun insertComputation(
-      globalId: String,
-      protocol: ProtocolT,
-      initialStage: StageT,
-      stageDetails: StageDetailsT,
-      computationDetails: ComputationDetailsT,
-      requisitions: List<RequisitionEntry> = listOf()
+    globalId: String,
+    protocol: ProtocolT,
+    initialStage: StageT,
+    stageDetails: StageDetailsT,
+    computationDetails: ComputationDetailsT,
+    requisitions: List<RequisitionEntry> = listOf()
   )
 
   /**
@@ -130,68 +131,68 @@ interface ComputationsDatabaseTransactor<ProtocolT, StageT, StageDetailsT, Compu
    * @param nextStageDetails Details specific to the next stage.
    */
   suspend fun updateComputationStage(
-      token: ComputationEditToken<ProtocolT, StageT>,
-      nextStage: StageT,
-      inputBlobPaths: List<String>,
-      passThroughBlobPaths: List<String>,
-      outputBlobs: Int,
-      afterTransition: AfterTransition,
-      nextStageDetails: StageDetailsT,
-      lockExtension: Duration?
+    token: ComputationEditToken<ProtocolT, StageT>,
+    nextStage: StageT,
+    inputBlobPaths: List<String>,
+    passThroughBlobPaths: List<String>,
+    outputBlobs: Int,
+    afterTransition: AfterTransition,
+    nextStageDetails: StageDetailsT,
+    lockExtension: Duration?
   )
 
   /** Moves a computation to a terminal state and records the reason why it ended. */
   suspend fun endComputation(
-      token: ComputationEditToken<ProtocolT, StageT>,
-      endingStage: StageT,
-      endComputationReason: EndComputationReason,
-      computationDetails: ComputationDetailsT
+    token: ComputationEditToken<ProtocolT, StageT>,
+    endingStage: StageT,
+    endComputationReason: EndComputationReason,
+    computationDetails: ComputationDetailsT
   )
 
   /** Overrides the computationDetails of the computation using the given value. */
   suspend fun updateComputationDetails(
-      token: ComputationEditToken<ProtocolT, StageT>,
-      computationDetails: ComputationDetailsT,
-      requisitions: List<RequisitionEntry> = listOf()
+    token: ComputationEditToken<ProtocolT, StageT>,
+    computationDetails: ComputationDetailsT,
+    requisitions: List<RequisitionEntry> = listOf()
   )
 
   /** Writes the reference to a blob needed for an output blob from a stage. */
   suspend fun writeOutputBlobReference(
-      token: ComputationEditToken<ProtocolT, StageT>,
-      blobRef: BlobRef
+    token: ComputationEditToken<ProtocolT, StageT>,
+    blobRef: BlobRef
   )
 
   /** Writes the path to a blob needed for an output blob from a stage. */
   suspend fun writeRequisitionBlobPath(
-      token: ComputationEditToken<ProtocolT, StageT>,
-      externalRequisitionKey: ExternalRequisitionKey,
-      pathToBlob: String
+    token: ComputationEditToken<ProtocolT, StageT>,
+    externalRequisitionKey: ExternalRequisitionKey,
+    pathToBlob: String
   )
 
   /** Inserts the specified [ComputationStatMetric] into the database. */
   suspend fun insertComputationStat(
-      localId: Long,
-      stage: StageT,
-      attempt: Long,
-      metric: ComputationStatMetric
+    localId: Long,
+    stage: StageT,
+    attempt: Long,
+    metric: ComputationStatMetric
   )
 
   /** Information about a computation needed to edit a computation. */
   data class ComputationEditToken<ProtocolT, StageT>(
-      /** The identifier for the computation used locally. */
-      val localId: Long,
-      /** The protocol used for the computation. */
-      val protocol: ProtocolT,
-      /** The stage of the computation when the token was created. */
-      val stage: StageT,
-      /** The number of the current attempt of this stage for this computation. */
-      val attempt: Int,
-      /**
-       * The version number of the last known edit to the computation. The version is a
-       * monotonically increasing number used as a guardrail to protect against concurrent edits to
-       * the same computation.
-       */
-      val editVersion: Long
+    /** The identifier for the computation used locally. */
+    val localId: Long,
+    /** The protocol used for the computation. */
+    val protocol: ProtocolT,
+    /** The stage of the computation when the token was created. */
+    val stage: StageT,
+    /** The number of the current attempt of this stage for this computation. */
+    val attempt: Int,
+    /**
+     * The version number of the last known edit to the computation. The version is a monotonically
+     * increasing number used as a guardrail to protect against concurrent edits to the same
+     * computation.
+     */
+    val editVersion: Long
   )
 }
 
