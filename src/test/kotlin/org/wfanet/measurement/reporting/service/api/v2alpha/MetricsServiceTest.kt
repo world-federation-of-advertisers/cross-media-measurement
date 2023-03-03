@@ -111,6 +111,7 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signRequisition
 import org.wfanet.measurement.internal.reporting.v2alpha.BatchSetCmmsMeasurementIdRequest
 import org.wfanet.measurement.internal.reporting.v2alpha.BatchSetCmmsMeasurementIdRequestKt.measurementIds
 import org.wfanet.measurement.internal.reporting.v2alpha.GetMetricByIdempotencyKeyRequest
+import org.wfanet.measurement.internal.reporting.v2alpha.GetReportingSetRequest as InternalGetReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2alpha.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.v2alpha.MeasurementKt as InternalMeasurementKt
 import org.wfanet.measurement.internal.reporting.v2alpha.MeasurementsGrpcKt as InternalMeasurementsGrpcKt
@@ -143,6 +144,8 @@ import org.wfanet.measurement.internal.reporting.v2alpha.metricResult as interna
 import org.wfanet.measurement.internal.reporting.v2alpha.metricSpec as internalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2alpha.reportingSet as internalReportingSet
 import org.wfanet.measurement.internal.reporting.v2alpha.timeInterval as internalTimeInterval
+import org.wfanet.measurement.api.v2alpha.GetMeasurementConsumerRequest
+import org.wfanet.measurement.internal.reporting.v2alpha.BatchGetReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.integerResult
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
@@ -1594,6 +1597,155 @@ class MetricsServiceTest {
   }
 
   @Test
+  fun `createMetric with request ID when the metric exists and in running state`() = runBlocking {
+    whenever(internalMetricsMock.getMetricByIdempotencyKey(any()))
+      .thenReturn(INTERNAL_PENDING_INCREMENTAL_REACH_METRIC)
+
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric = REQUESTING_INCREMENTAL_REACH_METRIC
+      requestId = INCREMENTAL_REACH_METRIC_IDEMPOTENCY_KEY
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+        runBlocking { service.createMetric(request) }
+      }
+
+    val expected = PENDING_INCREMENTAL_REACH_METRIC
+
+    // Verify proto argument of the internal MetricsCoroutineImplBase::getMetricByIdempotencyKey
+    verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::getMetricByIdempotencyKey)
+      .isEqualTo(
+        getMetricByIdempotencyKeyRequest {
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          metricIdempotencyKey = INCREMENTAL_REACH_METRIC_IDEMPOTENCY_KEY
+        }
+      )
+
+    // Verify proto argument of the internal ReportingSetsCoroutineImplBase::getReportingSet
+    val getInternalReportingSetCaptor: KArgumentCaptor<InternalGetReportingSetRequest> =
+      argumentCaptor()
+    verifyBlocking(internalReportingSetsMock, never()) {
+      getReportingSet(getInternalReportingSetCaptor.capture())
+    }
+
+    // Verify proto argument of the internal MetricsCoroutineImplBase::createMetric
+    val internalCreateMetricCaptor: KArgumentCaptor<InternalMetric> = argumentCaptor()
+    verifyBlocking(internalMetricsMock, never()) {
+      createMetric(internalCreateMetricCaptor.capture())
+    }
+
+    // Verify proto argument of MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
+    verifyProtoArgument(
+        measurementConsumersMock,
+        MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
+      )
+      .isEqualTo(getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMERS.values.first().name })
+
+    // Verify proto argument of the internal ReportingSetsCoroutineImplBase::batchGetReportingSet
+    verifyProtoArgument(
+        internalReportingSetsMock,
+        InternalReportingSetsGrpcKt.ReportingSetsCoroutineImplBase::batchGetReportingSet
+      )
+      .isEqualTo(
+        batchGetReportingSetRequest {
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          externalReportingSetIds += INTERNAL_UNION_ALL_REPORTING_SET.externalReportingSetId
+          externalReportingSetIds +=
+            INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET.externalReportingSetId
+        }
+      )
+
+    // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
+    val dataProvidersCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
+    verifyBlocking(dataProvidersMock, never()) { getDataProvider(dataProvidersCaptor.capture()) }
+
+    // Verify proto argument of MeasurementsCoroutineImplBase::createMeasurement
+    val measurementsCaptor: KArgumentCaptor<CreateMeasurementRequest> = argumentCaptor()
+    verifyBlocking(measurementsMock, never()) { createMeasurement(measurementsCaptor.capture()) }
+
+    // Verify proto argument of internal MeasurementsCoroutineImplBase::createMeasurement
+    val internalMeasurementsCaptor: KArgumentCaptor<BatchSetCmmsMeasurementIdRequest> =
+      argumentCaptor()
+    verifyBlocking(internalMeasurementsMock, never()) {
+      batchSetCmmsMeasurementId(internalMeasurementsCaptor.capture())
+    }
+
+    assertThat(result).isEqualTo(expected)
+  }
+
+  @Test
+  fun `createMetric with request ID when the metric exists and in terminate state`() = runBlocking {
+    whenever(internalMetricsMock.getMetricByIdempotencyKey(any()))
+      .thenReturn(INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC)
+
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric = REQUESTING_INCREMENTAL_REACH_METRIC
+      requestId = INCREMENTAL_REACH_METRIC_IDEMPOTENCY_KEY
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+        runBlocking { service.createMetric(request) }
+      }
+
+    val expected = SUCCEEDED_INCREMENTAL_REACH_METRIC
+
+    // Verify proto argument of the internal MetricsCoroutineImplBase::getMetricByIdempotencyKey
+    verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::getMetricByIdempotencyKey)
+      .isEqualTo(
+        getMetricByIdempotencyKeyRequest {
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          metricIdempotencyKey = INCREMENTAL_REACH_METRIC_IDEMPOTENCY_KEY
+        }
+      )
+
+    // Verify proto argument of the internal ReportingSetsCoroutineImplBase::getReportingSet
+    val getInternalReportingSetCaptor: KArgumentCaptor<InternalGetReportingSetRequest> =
+      argumentCaptor()
+    verifyBlocking(internalReportingSetsMock, never()) {
+      getReportingSet(getInternalReportingSetCaptor.capture())
+    }
+
+    // Verify proto argument of the internal MetricsCoroutineImplBase::createMetric
+    val internalCreateMetricCaptor: KArgumentCaptor<InternalMetric> = argumentCaptor()
+    verifyBlocking(internalMetricsMock, never()) {
+      createMetric(internalCreateMetricCaptor.capture())
+    }
+
+    // Verify proto argument of MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
+    val getMeasurementConsumerCaptor: KArgumentCaptor<GetMeasurementConsumerRequest> = argumentCaptor()
+    verifyBlocking(measurementConsumersMock, never()) {
+      getMeasurementConsumer(getMeasurementConsumerCaptor.capture())
+    }
+
+    // Verify proto argument of the internal ReportingSetsCoroutineImplBase::batchGetReportingSet
+    val batchGetReportingSetCaptor: KArgumentCaptor<BatchGetReportingSetRequest> = argumentCaptor()
+    verifyBlocking(internalReportingSetsMock, never()) {
+      batchGetReportingSet(batchGetReportingSetCaptor.capture())
+    }
+
+    // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
+    val dataProvidersCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
+    verifyBlocking(dataProvidersMock, never()) { getDataProvider(dataProvidersCaptor.capture()) }
+
+    // Verify proto argument of MeasurementsCoroutineImplBase::createMeasurement
+    val measurementsCaptor: KArgumentCaptor<CreateMeasurementRequest> = argumentCaptor()
+    verifyBlocking(measurementsMock, never()) { createMeasurement(measurementsCaptor.capture()) }
+
+    // Verify proto argument of internal MeasurementsCoroutineImplBase::createMeasurement
+    val internalMeasurementsCaptor: KArgumentCaptor<BatchSetCmmsMeasurementIdRequest> =
+      argumentCaptor()
+    verifyBlocking(internalMeasurementsMock, never()) {
+      batchSetCmmsMeasurementId(internalMeasurementsCaptor.capture())
+    }
+
+    assertThat(result).isEqualTo(expected)
+  }
+
+  @Test
   fun `createMetric throws UNAUTHENTICATED when no principal is found`() {
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
@@ -1805,8 +1957,7 @@ class MetricsServiceTest {
   fun `createMetric throws INVALID_ARGUMENT when provided reporting set name is invalid`() {
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
-      metric =
-        REQUESTING_INCREMENTAL_REACH_METRIC.copy { reportingSet = INVALID_REPORTING_SET_NAME }
+      metric = METRIC_WITH_INVALID_REPORTING_SET
     }
 
     val exception =
