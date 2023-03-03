@@ -46,14 +46,14 @@ import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.measurementLogEntry
 import org.wfanet.measurement.internal.kingdom.streamStateTransitionMeasurementLogEntriesRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
-import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.EXTERNAL_DUCHY_IDS
+import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.DUCHIES
 
 private const val RANDOM_SEED = 1
 
 @RunWith(JUnit4::class)
 abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCoroutineImplBase> {
 
-  @get:Rule val duchyIdSetter = DuchyIdSetter(EXTERNAL_DUCHY_IDS)
+  @get:Rule val duchyIdSetter = DuchyIdSetter(DUCHIES)
 
   protected data class Services<T>(
     val measurementLogEntriesService: T,
@@ -99,7 +99,7 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
         measurementLogEntriesService.createDuchyMeasurementLogEntry(
           createDuchyMeasurementLogEntryRequest {
             externalComputationId = 1234L // WrongID
-            externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+            externalDuchyId = DUCHIES[0].externalDuchyId
             measurementLogEntryDetails =
               MeasurementLogEntryKt.details {
                 error =
@@ -157,7 +157,7 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
         measurementLogEntriesService.createDuchyMeasurementLogEntry(
           createDuchyMeasurementLogEntryRequest {
             externalComputationId = 1L
-            externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+            externalDuchyId = DUCHIES[0].externalDuchyId
             measurementLogEntryDetails =
               MeasurementLogEntryKt.details {
                 error =
@@ -205,14 +205,14 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
       measurementLogEntriesService.createDuchyMeasurementLogEntry(
         createDuchyMeasurementLogEntryRequest {
           externalComputationId = measurement.externalComputationId
-          externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+          externalDuchyId = DUCHIES[0].externalDuchyId
           this.measurementLogEntryDetails = measurementLogEntryDetails
           details = duchyMeasurementLogEntryDetails
         }
       )
 
     val expectedDuchyMeasurementLogEntry = duchyMeasurementLogEntry {
-      externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+      externalDuchyId = DUCHIES[0].externalDuchyId
       externalComputationLogEntryId = createdDuchyMeasurementLogEntry.externalComputationLogEntryId
       logEntry = measurementLogEntry {
         this.externalMeasurementId = measurement.externalMeasurementId
@@ -254,14 +254,14 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
       measurementLogEntriesService.createDuchyMeasurementLogEntry(
         createDuchyMeasurementLogEntryRequest {
           externalComputationId = measurement.externalComputationId
-          externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+          externalDuchyId = DUCHIES[0].externalDuchyId
           this.measurementLogEntryDetails = measurementLogEntryDetails
           details = duchyMeasurementLogEntryDetails
         }
       )
 
     val expectedDuchyMeasurementLogEntry = duchyMeasurementLogEntry {
-      externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+      externalDuchyId = DUCHIES[0].externalDuchyId
       externalComputationLogEntryId = createdDuchyMeasurementLogEntry.externalComputationLogEntryId
       logEntry = measurementLogEntry {
         this.externalMeasurementId = measurement.externalMeasurementId
@@ -315,7 +315,7 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
         measurementLogEntriesService.createDuchyMeasurementLogEntry(
           createDuchyMeasurementLogEntryRequest {
             externalComputationId = measurement.externalComputationId
-            externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+            externalDuchyId = DUCHIES[0].externalDuchyId
             this.measurementLogEntryDetails = measurementLogEntryDetails
             details = duchyMeasurementLogEntryDetails
           }

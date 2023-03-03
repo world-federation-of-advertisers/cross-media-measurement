@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
+import "google/protobuf/timestamp.proto";
+
 option java_package = "org.wfanet.measurement.internal.kingdom";
 option java_multiple_files = true;
 
@@ -24,12 +26,17 @@ option java_multiple_files = true;
 message DuchyIdConfig {
   message Duchy {
     // The ID of the Duchy that is provided by the duchy owner entity.
-    // Can be known by external entites.
+    // Can be known by external entities.
     string external_duchy_id = 1;
 
     // The ID of the Duchy that is provided by the Kingdom upon start.
     // Not known by external entities - only Kingdom is aware of this ID.
     fixed64 internal_duchy_id = 2;
+
+    // Start of the Duchy's active time range, inclusive.
+    google.protobuf.Timestamp active_start_time = 3;
+    // End of the Duchy's active time range, inclusive.
+    google.protobuf.Timestamp active_end_time = 4;
   }
   // The list of all the Duchy information in this config message
   repeated Duchy duchies = 1;

@@ -58,7 +58,7 @@ import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
 import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRequest
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
-import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.EXTERNAL_DUCHY_IDS
+import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.DUCHIES
 
 private const val RANDOM_SEED = 1
 private const val EXTERNAL_CERTIFICATE_ID = 123L
@@ -76,7 +76,7 @@ private val CERTIFICATE = certificate {
 
 @RunWith(JUnit4::class)
 abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
-  @get:Rule val duchyIdSetter = DuchyIdSetter(EXTERNAL_DUCHY_IDS)
+  @get:Rule val duchyIdSetter = DuchyIdSetter(DUCHIES)
 
   protected data class Services<T>(
     val certificatesService: T,
@@ -162,7 +162,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   @Test
   fun `getCertificate fails for missing certificates`() = runBlocking {
-    assertGetFailsWithMissingCertificate { externalDuchyId = EXTERNAL_DUCHY_IDS[0] }
+    assertGetFailsWithMissingCertificate { externalDuchyId = DUCHIES[0].externalDuchyId }
 
     val dataProviderId = population.createDataProvider(dataProvidersService).externalDataProviderId
     assertGetFailsWithMissingCertificate { externalDataProviderId = dataProviderId }
@@ -223,7 +223,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   @Test
   fun `createCertificate succeeds`() = runBlocking {
-    assertCreateCertificateSucceeds { externalDuchyId = EXTERNAL_DUCHY_IDS[0] }
+    assertCreateCertificateSucceeds { externalDuchyId = DUCHIES[0].externalDuchyId }
 
     val dataProviderId = population.createDataProvider(dataProvidersService).externalDataProviderId
     assertCreateCertificateSucceeds { externalDataProviderId = dataProviderId }
@@ -268,7 +268,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   @Test
   fun `getCertificate succeeds`() = runBlocking {
-    assertGetCertificateSucceeds { externalDuchyId = EXTERNAL_DUCHY_IDS[0] }
+    assertGetCertificateSucceeds { externalDuchyId = DUCHIES[0].externalDuchyId }
 
     val dataProviderId = population.createDataProvider(dataProvidersService).externalDataProviderId
     assertGetCertificateSucceeds { externalDataProviderId = dataProviderId }
@@ -578,7 +578,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     val certificate =
       certificatesService.createCertificate(
         certificate {
-          externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+          externalDuchyId = DUCHIES[0].externalDuchyId
           notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
           notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
           details = details { x509Der = X509_DER }
@@ -600,7 +600,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   @Test
   fun `revokeCertificate succeeds for DuchyCertificate`() = runBlocking {
-    val externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+    val externalDuchyId = DUCHIES[0].externalDuchyId
 
     val certificate =
       certificatesService.createCertificate(
@@ -657,7 +657,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
       }
     )
 
-    val externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+    val externalDuchyId = DUCHIES[0].externalDuchyId
 
     val certificate =
       certificatesService.createCertificate(
@@ -991,7 +991,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
     val certificate =
       certificatesService.createCertificate(
         certificate {
-          externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+          externalDuchyId = DUCHIES[0].externalDuchyId
           notValidBefore = Instant.ofEpochSecond(12345).toProtoTime()
           notValidAfter = Instant.ofEpochSecond(23456).toProtoTime()
           details = details { x509Der = X509_DER }
@@ -1014,7 +1014,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
   @Test
   fun `releaseCertificateHold succeeds for DuchyCertificate`() = runBlocking {
-    val externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+    val externalDuchyId = DUCHIES[0].externalDuchyId
 
     val certificate =
       certificatesService.createCertificate(
