@@ -17,7 +17,7 @@
 # https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/duchy-deployment.md
 
 resource "google_spanner_instance" "duchy_db" {
-  config       = "regional-us-central1"
+  config       = "regional-${var.region}"
   display_name = "duchy_spanner_instance"
   num_nodes    = 1
 }
