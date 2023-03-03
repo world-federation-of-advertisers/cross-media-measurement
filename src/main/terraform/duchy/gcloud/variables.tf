@@ -12,18 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-# This is step number 5 as per document
-# https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/duchy-deployment.md
-
-resource "google_container_cluster" "cluster" {
-  name     = "duchy-cluster"
-  location = var.region
-
-  initial_node_count = 1
-  node_config {
-    machine_type = "n1-standard-1"
-    disk_size_gb = 100
-    disk_type    = "pd-standard"
-  }
+variable region {
+  type = string
+  default = "us-central1"
+  description = "Represents the environment used."
 }
