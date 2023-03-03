@@ -703,6 +703,24 @@ class MetricsService(
       "Reporting set in metric is not specified."
     }
     grpcRequire(request.metric.hasTimeInterval()) { "Time interval in metric is not specified." }
+    grpcRequire(
+      request.metric.timeInterval.startTime.seconds > 0 ||
+        request.metric.timeInterval.startTime.nanos > 0
+    ) {
+      "TimeInterval startTime is unspecified."
+    }
+    grpcRequire(
+      request.metric.timeInterval.endTime.seconds > 0 ||
+        request.metric.timeInterval.endTime.nanos > 0
+    ) {
+      "TimeInterval endTime is unspecified."
+    }
+    grpcRequire(
+      request.metric.timeInterval.endTime.seconds > request.metric.timeInterval.startTime.seconds ||
+        request.metric.timeInterval.endTime.nanos > request.metric.timeInterval.startTime.nanos
+    ) {
+      "TimeInterval endTime is not later than startTime."
+    }
     grpcRequire(request.metric.hasMetricSpec()) { "Metric spec in metric is not specified." }
 
     // Check if there's any existing metric using the unique request ID.
