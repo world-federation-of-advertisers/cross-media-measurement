@@ -854,17 +854,20 @@ private fun MetricSpec.toInternal(): InternalMetricSpec {
     when (source.typeCase) {
       MetricSpec.TypeCase.REACH -> reach = InternalMetricSpecKt.reachParams {}
       MetricSpec.TypeCase.FREQUENCY_HISTOGRAM ->
-        InternalMetricSpecKt.frequencyHistogramParams {
-          maximumFrequencyPerUser = source.frequencyHistogram.maximumFrequencyPerUser
-        }
+        frequencyHistogram =
+          InternalMetricSpecKt.frequencyHistogramParams {
+            maximumFrequencyPerUser = source.frequencyHistogram.maximumFrequencyPerUser
+          }
       MetricSpec.TypeCase.IMPRESSION_COUNT ->
-        InternalMetricSpecKt.impressionCountParams {
-          maximumFrequencyPerUser = source.impressionCount.maximumFrequencyPerUser
-        }
+        impressionCount =
+          InternalMetricSpecKt.impressionCountParams {
+            maximumFrequencyPerUser = source.impressionCount.maximumFrequencyPerUser
+          }
       MetricSpec.TypeCase.WATCH_DURATION ->
-        InternalMetricSpecKt.watchDurationParams {
-          maximumWatchDurationPerUser = source.watchDuration.maximumWatchDurationPerUser
-        }
+        watchDuration =
+          InternalMetricSpecKt.watchDurationParams {
+            maximumWatchDurationPerUser = source.watchDuration.maximumWatchDurationPerUser
+          }
       MetricSpec.TypeCase.TYPE_NOT_SET ->
         failGrpc(Status.INVALID_ARGUMENT) { "The metric type in Metric is not specified." }
     }
@@ -980,17 +983,20 @@ private fun InternalMetricSpec.toMetricSpec(): MetricSpec {
     when (source.typeCase) {
       InternalMetricSpec.TypeCase.REACH -> reach = MetricSpecKt.reachParams {}
       InternalMetricSpec.TypeCase.FREQUENCY_HISTOGRAM ->
-        MetricSpecKt.frequencyHistogramParams {
-          maximumFrequencyPerUser = source.frequencyHistogram.maximumFrequencyPerUser
-        }
+        frequencyHistogram =
+          MetricSpecKt.frequencyHistogramParams {
+            maximumFrequencyPerUser = source.frequencyHistogram.maximumFrequencyPerUser
+          }
       InternalMetricSpec.TypeCase.IMPRESSION_COUNT ->
-        MetricSpecKt.impressionCountParams {
-          maximumFrequencyPerUser = source.impressionCount.maximumFrequencyPerUser
-        }
+        impressionCount =
+          MetricSpecKt.impressionCountParams {
+            maximumFrequencyPerUser = source.impressionCount.maximumFrequencyPerUser
+          }
       InternalMetricSpec.TypeCase.WATCH_DURATION ->
-        MetricSpecKt.watchDurationParams {
-          maximumWatchDurationPerUser = source.watchDuration.maximumWatchDurationPerUser
-        }
+        watchDuration =
+          MetricSpecKt.watchDurationParams {
+            maximumWatchDurationPerUser = source.watchDuration.maximumWatchDurationPerUser
+          }
       InternalMetricSpec.TypeCase.TYPE_NOT_SET ->
         failGrpc(Status.INVALID_ARGUMENT) { "The metric type in Metric is not specified." }
     }
