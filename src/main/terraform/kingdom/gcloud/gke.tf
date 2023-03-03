@@ -17,7 +17,7 @@
 # Create a GKE cluster with 3 node pools
 resource "google_container_cluster" "cluster" {
   name     = "kingdom-cluster"
-  location = "us-central1"
+  location = var.region
 
   # Configure the cluster
   initial_node_count = 1

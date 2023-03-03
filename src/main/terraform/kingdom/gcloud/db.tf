@@ -15,7 +15,7 @@
 # This is step 1 as per the document https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/kingdom-deployment.md
 
 resource "google_spanner_instance" "halo_spanner_db" {
-  config       = "regional-us-central1"
+  config       = "regional-${var.region}"
   display_name = "spanner_instance"
   num_nodes    = 1
 }

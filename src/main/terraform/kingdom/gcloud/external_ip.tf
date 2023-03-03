@@ -16,10 +16,10 @@
 
 resource "google_compute_address" "v2alpha-public-api-server-ip" {
   name = "v2alpha-public-api-server-ip"
-  region = "us-central1"
+  region = var.region
 }
 
 resource "google_compute_address" "system-api-server-ip" {
   name = "system-api-server-ip"
-  region = "us-central1"
+  region = var.region
 }
