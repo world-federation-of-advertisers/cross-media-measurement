@@ -17,7 +17,7 @@
 # https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/duchy-deployment.md
 
 resource "google_storage_bucket" "static-site" {
-  name          = "image-store.com"
-  location      = "EU"
+  name          = "halo_duchy_storage"
+  location      = "US"
   force_destroy = false
 }
