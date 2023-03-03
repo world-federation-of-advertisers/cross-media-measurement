@@ -226,7 +226,8 @@ class MetricsService(
 
       for (internalMetric in internalMetricsList) {
         for (weightedMeasurement in internalMetric.weightedMeasurementsList) {
-          if (weightedMeasurement.measurement.cmmsMeasurementId == null) continue
+          if (weightedMeasurement.measurement.cmmsMeasurementId.isNotBlank()) continue
+
           deferred.add(
             async {
               measurementIds {
