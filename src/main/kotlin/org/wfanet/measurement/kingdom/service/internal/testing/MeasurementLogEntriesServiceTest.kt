@@ -315,7 +315,7 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
         measurementLogEntriesService.createDuchyMeasurementLogEntry(
           createDuchyMeasurementLogEntryRequest {
             externalComputationId = measurement.externalComputationId
-            externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+            externalDuchyId = DUCHIES[0].externalDuchyId
             this.measurementLogEntryDetails = measurementLogEntryDetails
             details = duchyMeasurementLogEntryDetails
           }
