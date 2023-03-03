@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
-import com.google.common.truth.Truth
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Timestamp
 import com.google.protobuf.duration
@@ -44,7 +43,6 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
-import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
@@ -1248,6 +1246,7 @@ class MetricsServiceTest {
     // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
     val dataProvidersCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
     verifyBlocking(dataProvidersMock, times(5)) { getDataProvider(dataProvidersCaptor.capture()) }
+
     val capturedDataProviderRequests = dataProvidersCaptor.allValues
     assertThat(capturedDataProviderRequests)
       .containsExactly(
