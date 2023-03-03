@@ -81,6 +81,7 @@ import org.wfanet.measurement.internal.reporting.v2alpha.Metric as InternalMetri
 import org.wfanet.measurement.internal.reporting.v2alpha.Metric.WeightedMeasurement
 import org.wfanet.measurement.internal.reporting.v2alpha.MetricKt as InternalMetricKt
 import org.wfanet.measurement.internal.reporting.v2alpha.MetricKt.weightedMeasurement
+import org.wfanet.measurement.internal.reporting.v2alpha.MetricResult as InternalMetricResult
 import org.wfanet.measurement.internal.reporting.v2alpha.MetricSpec as InternalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2alpha.MetricSpecKt as InternalMetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub as InternalMetricsCoroutineStub
@@ -100,12 +101,18 @@ import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.Metric
+import org.wfanet.measurement.reporting.v2alpha.MetricResult as MetricResult
+import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.HistogramResultKt.bin
+import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.doubleResult
+import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.histogramResult
+import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.integerResult
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.TimeInterval
 import org.wfanet.measurement.reporting.v2alpha.batchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.metric
+import org.wfanet.measurement.reporting.v2alpha.metricResult
 import org.wfanet.measurement.reporting.v2alpha.metricSpec
 import org.wfanet.measurement.reporting.v2alpha.timeInterval
 
@@ -650,7 +657,9 @@ class MetricsService(
     val initialInternalMetric: InternalMetric =
       createInitialInternalMetric(principal.resourceKey.measurementConsumerId, request)
 
-    measurementSupplier.createCmmsMeasurements(listOf(initialInternalMetric), principal)
+    if (initialInternalMetric.state == InternalMetric.State.RUNNING) {
+      measurementSupplier.createCmmsMeasurements(listOf(initialInternalMetric), principal)
+    }
 
     // Convert the internal metric to public and return it.
     return initialInternalMetric.toMetric()
@@ -895,7 +904,63 @@ private fun InternalMetric.toMetric(): Metric {
     filters += source.details.filtersList
     state = source.state.toState()
     createTime = source.createTime
+    if (source.details.hasResult()) {
+      result = source.details.result.toResult()
+    }
   }
+}
+
+/** Converts an [InternalMetricResult] to a public [MetricResult]. */
+private fun InternalMetricResult.toResult(): MetricResult {
+  val source = this
+
+  return metricResult {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    when (source.resultCase) {
+      InternalMetricResult.ResultCase.REACH -> {
+        reach = source.reach.toIntegerResult()
+      }
+      InternalMetricResult.ResultCase.FREQUENCY_HISTOGRAM -> {
+        frequencyHistogram = source.frequencyHistogram.toHistogramResult()
+      }
+      InternalMetricResult.ResultCase.IMPRESSION_COUNT -> {
+        impressionCount = source.impressionCount.toIntegerResult()
+      }
+      InternalMetricResult.ResultCase.WATCH_DURATION -> {
+        watchDuration = source.watchDuration.toDoubleResult()
+      }
+      InternalMetricResult.ResultCase
+        .RESULT_NOT_SET -> {} // No action if the result hasn't been set yet.
+    }
+  }
+}
+
+/** Converts an [InternalMetricResult.DoubleResult] to a public [MetricResult.DoubleResult]. */
+private fun InternalMetricResult.DoubleResult.toDoubleResult(): MetricResult.DoubleResult {
+  val source = this
+  return doubleResult { value = source.value }
+}
+
+/**
+ * Converts an [InternalMetricResult.HistogramResult] to a public [MetricResult.HistogramResult].
+ */
+private fun InternalMetricResult.HistogramResult.toHistogramResult(): MetricResult.HistogramResult {
+  val source = this
+  return histogramResult {
+    bins +=
+      source.binsList.map { internalBin ->
+        bin {
+          label = internalBin.label
+          value = internalBin.value.toDoubleResult()
+        }
+      }
+  }
+}
+
+/** Converts an [InternalMetricResult.IntegerResult] to a public [MetricResult.IntegerResult]. */
+private fun InternalMetricResult.IntegerResult.toIntegerResult(): MetricResult.IntegerResult {
+  val source = this
+  return integerResult { value = source.value }
 }
 
 /** Converts an [InternalMetric.State] to a public [Metric.State]. */
