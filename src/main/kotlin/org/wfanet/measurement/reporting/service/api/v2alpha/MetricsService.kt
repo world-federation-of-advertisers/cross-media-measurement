@@ -78,8 +78,8 @@ import org.wfanet.measurement.internal.reporting.v2alpha.BatchSetCmmsMeasurement
 import org.wfanet.measurement.internal.reporting.v2alpha.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2alpha.Metric as InternalMetric
-import org.wfanet.measurement.internal.reporting.v2alpha.MetricKt as InternalMetricKt
 import org.wfanet.measurement.internal.reporting.v2alpha.Metric.WeightedMeasurement
+import org.wfanet.measurement.internal.reporting.v2alpha.MetricKt as InternalMetricKt
 import org.wfanet.measurement.internal.reporting.v2alpha.MetricKt.weightedMeasurement
 import org.wfanet.measurement.internal.reporting.v2alpha.MetricSpec as InternalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2alpha.MetricSpecKt as InternalMetricSpecKt
@@ -226,6 +226,7 @@ class MetricsService(
 
       for (internalMetric in internalMetricsList) {
         for (weightedMeasurement in internalMetric.weightedMeasurementsList) {
+          if (weightedMeasurement.measurement.cmmsMeasurementId == null) continue
           deferred.add(
             async {
               measurementIds {
@@ -715,9 +716,7 @@ class MetricsService(
               request.metric,
               internalReportingSet
             )
-          details = InternalMetricKt.details {
-            filters += request.metric.filtersList
-          }
+          details = InternalMetricKt.details { filters += request.metric.filtersList }
         }
       )
     } catch (e: StatusException) {
