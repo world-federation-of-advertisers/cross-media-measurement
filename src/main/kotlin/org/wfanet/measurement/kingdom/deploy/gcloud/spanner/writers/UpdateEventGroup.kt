@@ -22,6 +22,7 @@ import org.wfanet.measurement.gcloud.spanner.setJson
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupInvalidArgsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.checkValidCertificate as checkValidCertificate
@@ -29,10 +30,10 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.checkValidCe
 /**
  * Update [EventGroup] in the database.
  *
- * Throws a subclass of [KingdomInternalException] on [execute].
- *
- * @throws [EventGroupNotFoundException] EventGroup not found
- * @throws [EventGroupInvalidArgsException] MeasurementConsumer ids mismatch
+ * Throws one of the following [KingdomInternalException] types on [execute].
+ * * [EventGroupNotFoundException] EventGroup not found
+ * * [EventGroupStateIllegalException] EventGroup state is DELETED
+ * * [EventGroupInvalidArgsException] MeasurementConsumer ids mismatch
  */
 class UpdateEventGroup(private val eventGroup: EventGroup) :
   SpannerWriter<EventGroup, EventGroup>() {
@@ -48,6 +49,13 @@ class UpdateEventGroup(private val eventGroup: EventGroup) :
           ExternalId(eventGroup.externalDataProviderId),
           ExternalId(eventGroup.externalEventGroupId)
         )
+    if (internalEventGroupResult.eventGroup.state == EventGroup.State.DELETED) {
+      throw EventGroupStateIllegalException(
+        ExternalId(eventGroup.externalEventGroupId),
+        ExternalId(eventGroup.externalEventGroupId),
+        internalEventGroupResult.eventGroup.state
+      )
+    }
     if (
       internalEventGroupResult.eventGroup.externalMeasurementConsumerId !=
         eventGroup.externalMeasurementConsumerId
