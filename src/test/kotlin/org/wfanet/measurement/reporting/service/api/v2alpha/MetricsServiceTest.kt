@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import com.google.common.truth.Truth
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Timestamp
 import com.google.protobuf.duration
@@ -43,6 +44,7 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
+import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
@@ -520,19 +522,26 @@ private val INTERNAL_REQUESTING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
     }
   }
 
-private val INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT =
+private val INTERNAL_PENDING_NOT_CREATED_UNION_ALL_REACH_MEASUREMENT =
   INTERNAL_REQUESTING_UNION_ALL_REACH_MEASUREMENT.copy {
-    cmmsMeasurementId = externalIdToApiId(401L)
     externalMeasurementId = 411L
     cmmsCreateMeasurementRequestId = "UNION_ALL_REACH_MEASUREMENT"
     state = InternalMeasurement.State.PENDING
   }
-private val INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
+private val INTERNAL_PENDING_NOT_CREATED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
   INTERNAL_REQUESTING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.copy {
-    cmmsMeasurementId = externalIdToApiId(402L)
     externalMeasurementId = 412L
     cmmsCreateMeasurementRequestId = "UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT"
     state = InternalMeasurement.State.PENDING
+  }
+
+private val INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT =
+  INTERNAL_PENDING_NOT_CREATED_UNION_ALL_REACH_MEASUREMENT.copy {
+    cmmsMeasurementId = externalIdToApiId(401L)
+  }
+private val INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
+  INTERNAL_PENDING_NOT_CREATED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.copy {
+    cmmsMeasurementId = externalIdToApiId(402L)
   }
 
 private val INTERNAL_SUCCEEDED_UNION_ALL_REACH_MEASUREMENT =
@@ -958,10 +967,24 @@ private val INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC = internalMetric {
   details = InternalMetricKt.details { filters += listOf(METRIC_FILTER) }
 }
 
-private val INTERNAL_PENDING_INCREMENTAL_REACH_METRIC =
+private val INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC =
   INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC.copy {
     externalMetricId = 331L
     createTime = Instant.now().toProtoTime()
+    weightedMeasurements.clear()
+    weightedMeasurements += weightedMeasurement {
+      weight = 1
+      measurement = INTERNAL_PENDING_NOT_CREATED_UNION_ALL_REACH_MEASUREMENT
+    }
+    weightedMeasurements += weightedMeasurement {
+      weight = -1
+      measurement = INTERNAL_PENDING_NOT_CREATED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
+    }
+    state = InternalMetric.State.RUNNING
+  }
+
+private val INTERNAL_PENDING_INCREMENTAL_REACH_METRIC =
+  INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC.copy {
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
@@ -971,7 +994,6 @@ private val INTERNAL_PENDING_INCREMENTAL_REACH_METRIC =
       weight = -1
       measurement = INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
     }
-    state = InternalMetric.State.RUNNING
   }
 
 private val INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC =
@@ -1025,7 +1047,7 @@ class MetricsServiceTest {
   private val internalMetricsMock: MetricsCoroutineImplBase = mockService {
     onBlocking { createMetric(any()) }
       .thenReturn(
-        INTERNAL_PENDING_INCREMENTAL_REACH_METRIC,
+        INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC,
       )
     // onBlocking { streamMetrics(any()) }
     //   .thenReturn(
@@ -1298,196 +1320,23 @@ class MetricsServiceTest {
     assertThat(result).isEqualTo(expected)
   }
 
-  //   @Test
-  //   fun `createMetric returns a metric over a reporting set that has a DIFFERENCE operation`() {
-  //     val internalPendingReachMetricWithSetDifference =
-  //       INTERNAL_PENDING_REACH_REPORT.copy {
-  //         val source = this
-  //         measurements.clear()
-  //         clearCreateTime()
-  //         val metric = metric {
-  //           details = MetricKt.details { reach = MetricKt.reachParams {} }
-  //           namedSetOperations +=
-  //             source.metrics[0].namedSetOperationsList[0].copy {
-  //               setOperation =
-  //                 setOperation.copy { type = Metric.SetOperation.Type.DIFFERENCE }
-  //               measurementCalculations.clear()
-  //               measurementCalculations +=
-  //                 source.metrics[0].namedSetOperationsList[0].measurementCalculationsList[0].copy
-  // {
-  //                   weightedMeasurements.clear()
-  //                   weightedMeasurements += MetricKt.MeasurementCalculationKt.weightedMeasurement
-  // {
-  //                     measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
-  //                     coefficient = -1
-  //                   }
-  //                   weightedMeasurements += MetricKt.MeasurementCalculationKt.weightedMeasurement
-  // {
-  //                     measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID_2
-  //                     coefficient = 1
-  //                   }
-  //                 }
-  //             }
-  //         }
-  //         metrics.clear()
-  //         metrics += metric
-  //       }
+  // @Test
+  // fun `createMetric when the measurements are created already`() = runBlocking {
+  //   whenever(internalMetricsMock.createMetric(any()))
+  //     .thenReturn(INTERNAL_PENDING_INCREMENTAL_REACH_METRIC)
   //
-  //     runBlocking {
-  //       whenever(internalReportsMock.createMetric(any()))
-  //         .thenReturn(internalPendingReachReportWithSetDifference)
-  //       whenever(measurementsMock.createMeasurement(any()))
-  //         .thenReturn(BASE_REACH_MEASUREMENT, BASE_REACH_MEASUREMENT_2)
-  //     }
-  //
-  //     val pendingReachReportWithSetDifference =
-  //       PENDING_REACH_REPORT.copy {
-  //         metrics.clear()
-  //         metrics += metric {
-  //           reach = org.wfanet.measurement.reporting.v1alpha.MetricKt.reachParams {}
-  //           cumulative = false
-  //           setOperations += org.wfanet.measurement.reporting.v1alpha.MetricKt.namedSetOperation
-  // {
-  //             uniqueName = REACH_SET_OPERATION_UNIQUE_NAME
-  //             setOperation = org.wfanet.measurement.reporting.v1alpha.MetricKt.setOperation {
-  //               type =
-  // org.wfanet.measurement.reporting.v1alpha.Metric.SetOperation.Type.DIFFERENCE
-  //               lhs =
-  //                 org.wfanet.measurement.reporting.v1alpha.MetricKt.SetOperationKt.operand {
-  //                   reportingSet = INTERNAL_REPORTING_SETS[0].resourceName
-  //                 }
-  //               rhs =
-  //                 org.wfanet.measurement.reporting.v1alpha.MetricKt.SetOperationKt.operand {
-  //                   reportingSet = INTERNAL_REPORTING_SETS[1].resourceName
-  //                 }
-  //             }
-  //           }
-  //         }
-  //       }
-  //
-  //     val request = createReportRequest {
-  //       parent = MEASUREMENT_CONSUMERS.values.first().name
-  //       report = pendingReachReportWithSetDifference
-  //     }
-  //
-  //     val result =
-  //       org.wfanet.measurement.reporting.service.api.v1alpha.withMeasurementConsumerPrincipal(
-  //         MEASUREMENT_CONSUMERS.values.first().name,
-  //         CONFIG
-  //       ) {
-  //         runBlocking { service.createMetric(request) }
-  //       }
-  //
-  //     // Verify proto argument of ReportsCoroutineImplBase::getReportByIdempotencyKey
-  //     verifyProtoArgument(
-  //       internalReportsMock,
-  //       ReportsGrpcKt.ReportsCoroutineImplBase::getReportByIdempotencyKey
-  //     )
-  //       .isEqualTo(
-  //         getReportByIdempotencyKeyRequest {
-  //           measurementConsumerReferenceId =
-  // MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-  //           reportIdempotencyKey = REACH_REPORT_IDEMPOTENCY_KEY
-  //         }
-  //       )
-  //
-  //     // Verify proto argument of InternalReportingSetsCoroutineImplBase::batchGetReportingSet
-  //     verifyProtoArgument(
-  //       internalReportingSetsMock,
-  //       ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase::batchGetReportingSet
-  //     )
-  //       .ignoringRepeatedFieldOrder()
-  //       .isEqualTo(
-  //         batchGetReportingSetRequest {
-  //           measurementConsumerReferenceId =
-  // MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-  //           externalReportingSetIds += INTERNAL_REPORTING_SETS[0].externalReportingSetId
-  //           externalReportingSetIds += INTERNAL_REPORTING_SETS[1].externalReportingSetId
-  //         }
-  //       )
-  //
-  //     // Verify proto argument of MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
-  //     verifyProtoArgument(
-  //       measurementConsumersMock,
-  //       MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
-  //     )
-  //       .isEqualTo(getMeasurementConsumerRequest { name =
-  // MEASUREMENT_CONSUMERS.values.first().name })
-  //
-  //     // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
-  //     val dataProvidersCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
-  //     verifyBlocking(dataProvidersMock, times(3)) {
-  // getDataProvider(dataProvidersCaptor.capture()) }
-  //     val capturedDataProviderRequests = dataProvidersCaptor.allValues
-  //     ProtoTruth.assertThat(capturedDataProviderRequests)
-  //       .containsExactly(
-  //         getDataProviderRequest { name = DATA_PROVIDERS_LIST[1].name },
-  //         getDataProviderRequest { name = DATA_PROVIDERS_LIST[0].name },
-  //         getDataProviderRequest { name = DATA_PROVIDERS_LIST[1].name }
-  //       )
-  //
-  //     // Verify proto argument of MeasurementsCoroutineImplBase::createMeasurement
-  //     val measurementCaptor: KArgumentCaptor<CreateMeasurementRequest> = argumentCaptor()
-  //     verifyBlocking(measurementsMock, times(2)) { createMeasurement(measurementCaptor.capture())
-  // }
-  //     ProtoTruth.assertThat(measurementCaptor.allValues.map { it.measurement
-  // }).containsNoDuplicates()
-  //
-  //     // Verify proto argument of InternalMeasurementsCoroutineImplBase::createMeasurement
-  //     val internalMeasurementCaptor: KArgumentCaptor<Measurement> = argumentCaptor()
-  //     verifyBlocking(internalMeasurementsMock, times(2)) {
-  //       createMeasurement(internalMeasurementCaptor.capture())
-  //     }
-  //
-  //     // Verify proto argument of InternalReportsCoroutineImplBase::createMetric
-  //     verifyProtoArgument(internalReportsMock,
-  // ReportsGrpcKt.ReportsCoroutineImplBase::createMetric)
-  //       .ignoringRepeatedFieldOrder()
-  //       .isEqualTo(
-  //         createReportRequest {
-  //           report =
-  //             internalPendingReachReportWithSetDifference.copy {
-  //               clearState()
-  //               clearExternalReportId()
-  //             }
-  //           measurements +=
-  //             CreateReportRequestKt.measurementKey {
-  //               measurementConsumerReferenceId =
-  //                 MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-  //               measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID
-  //             }
-  //           measurements +=
-  //             CreateReportRequestKt.measurementKey {
-  //               measurementConsumerReferenceId =
-  //                 MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-  //               measurementReferenceId = REACH_MEASUREMENT_REFERENCE_ID_2
-  //             }
-  //         }
-  //       )
-  //
-  //     ProtoTruth.assertThat(result).isEqualTo(pendingReachReportWithSetDifference)
+  //   val request = createMetricRequest {
+  //     parent = MEASUREMENT_CONSUMERS.values.first().name
+  //     metric = PENDING_INCREMENTAL_REACH_METRIC
   //   }
   //
-  //   @Test
-  //   fun `createMetric succeeds when the internal createMeasurement throws ALREADY_EXISTS`() =
-  //     runBlocking {
-  //       whenever(internalMeasurementsMock.createMeasurement(any()))
-  //         .thenThrow(StatusRuntimeException(Status.ALREADY_EXISTS))
-  //
-  //       val request = createReportRequest {
-  //         parent = MEASUREMENT_CONSUMERS.values.first().name
-  //         report = PENDING_REACH_REPORT.copy { clearState() }
-  //       }
-  //
-  //       val report =
-  //         org.wfanet.measurement.reporting.service.api.v1alpha.withMeasurementConsumerPrincipal(
-  //           MEASUREMENT_CONSUMERS.values.first().name,
-  //           CONFIG
-  //         ) {
-  //           runBlocking { service.createMetric(request) }
-  //         }
-  //       Truth.assertThat(report.state).isEqualTo(Report.State.RUNNING)
+  //   val metric =
+  //     withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+  //       runBlocking { service.createMetric(request) }
   //     }
+  //   Truth.assertThat(metric.state).isEqualTo(Metric.State.RUNNING)
+  // }
+
   //
   //   @Test
   //   fun `createMetric throws UNAUTHENTICATED when no principal is found`() {
