@@ -102,6 +102,15 @@ class RequiredDuchiesNotActiveException(
     get() = emptyMap<String, String>()
 }
 
+class InsufficientNumberOfActiveDuchiesException(
+  provideDescription: () -> String = {
+    "There are not enough active duchies to create the measurement"
+  }
+) : KingdomInternalException(ErrorCode.INSUFFICIENT_ACTIVE_DUCHIES, provideDescription) {
+  override val context
+    get() = emptyMap<String, String>()
+}
+
 open class MeasurementNotFoundException(
   provideDescription: () -> String = { "Measurement not found" }
 ) : KingdomInternalException(ErrorCode.MEASUREMENT_NOT_FOUND, provideDescription) {

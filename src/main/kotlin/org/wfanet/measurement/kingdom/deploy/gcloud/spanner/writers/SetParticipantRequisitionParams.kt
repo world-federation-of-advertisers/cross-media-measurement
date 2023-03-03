@@ -39,10 +39,12 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationPa
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByComputationException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamRequisitions
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ComputationParticipantReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.computationParticipantsInState
 
 private val NEXT_COMPUTATION_PARTICIPANT_STATE = ComputationParticipant.State.REQUISITION_PARAMS_SET
@@ -137,8 +139,25 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
       setJson("ParticipantDetailsJson" to participantDetails)
     }
 
+    val measurement =
+      MeasurementReader(Measurement.View.COMPUTATION)
+        .readByExternalComputationId(transactionContext, ExternalId(request.externalComputationId))
+        ?.measurement
+        ?: throw MeasurementNotFoundByComputationException(
+          ExternalId(request.externalComputationId)
+        ) {
+          "Measurement for external computation ID ${request.externalComputationId} not found"
+        }
+
     val otherDuchyIds: List<InternalId> =
-      DuchyIds.entries.map { InternalId(it.internalDuchyId) }.filter { it.value != duchyId }
+      measurement.computationParticipantsList
+        .map {
+          InternalId(
+            DuchyIds.getInternalId(it.externalDuchyId)
+              ?: throw DuchyNotFoundException(request.externalDuchyId)
+          )
+        }
+        .filter { it.value != duchyId }
     if (
       computationParticipantsInState(
         transactionContext,
@@ -157,7 +176,6 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
         previousState = computationParticipantResult.measurementState,
         logDetails = measurementLogEntryDetails
       )
-
       StreamRequisitions(
           StreamRequisitionsRequestKt.filter {
             externalMeasurementConsumerId = computationParticipant.externalMeasurementConsumerId
@@ -175,7 +193,6 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
           }
         }
     }
-
     return computationParticipant.copy {
       state = NEXT_COMPUTATION_PARTICIPANT_STATE
       details = participantDetails

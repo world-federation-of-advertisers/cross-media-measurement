@@ -38,6 +38,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomIntern
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredDuchiesNotActiveException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurements
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CancelMeasurement
@@ -63,8 +64,9 @@ class SpannerMeasurementsService(
       e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Duchy not found." }
     } catch (e: CertificateNotFoundException) {
       e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Certificate not found." }
+    } catch (e: RequiredDuchiesNotActiveException) {
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Inactive required duchy." }
     } catch (e: KingdomInternalException) {
-      println(e.message)
       e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
   }
