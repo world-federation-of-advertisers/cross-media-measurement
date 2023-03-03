@@ -116,9 +116,13 @@ message DeleteOutdatedComputationsRequest {
   google.protobuf.Duration time_to_live = 1;
   // The stages where Computations are in to delete.
   repeated ComputationStage stages = 2;
+  // If dry_run is set, the deletion won't be execute.
+  bool dry_run = 3;
 }
 
 message DeleteOutdatedComputationsResponse {
+  // The number of Computations deleted. If dry_run in request is set, stands
+  // for the number of Computations could be deleted.
   int32 count = 1;
 }
 

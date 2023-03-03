@@ -16,7 +16,6 @@ package org.wfanet.measurement.duchy.deploy.common.server
 
 import io.grpc.ManagedChannel
 import java.time.Duration
-import kotlin.properties.Delegates
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
@@ -44,9 +43,8 @@ import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.Computa
 import picocli.CommandLine
 
 private typealias ComputationsDb =
-  ComputationsDatabaseTransactor<
-    ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails
-  >
+    ComputationsDatabaseTransactor<
+        ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails>
 
 /** gRPC server for Computations service. */
 abstract class ComputationsServer : Runnable {
@@ -55,64 +53,59 @@ abstract class ComputationsServer : Runnable {
     private set
 
   abstract val protocolStageEnumHelper:
-    ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
+      ComputationProtocolStagesEnumHelper<ComputationType, ComputationStage>
   abstract val computationProtocolStageDetails:
-    ComputationProtocolStageDetailsHelper<
-      ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails
-    >
+      ComputationProtocolStageDetailsHelper<
+          ComputationType, ComputationStage, ComputationStageDetails, ComputationDetails>
 
   protected fun run(
-    computationsDatabaseReader: ComputationsDatabaseReader,
-    computationDb: ComputationsDb,
-    continuationTokensService: ContinuationTokensCoroutineImplBase,
-    storageClient: StorageClient,
+      computationsDatabaseReader: ComputationsDatabaseReader,
+      computationDb: ComputationsDb,
+      continuationTokensService: ContinuationTokensCoroutineImplBase,
+      storageClient: StorageClient,
   ) {
     val clientCerts =
-      SigningCerts.fromPemFiles(
-        certificateFile = flags.server.tlsFlags.certFile,
-        privateKeyFile = flags.server.tlsFlags.privateKeyFile,
-        trustedCertCollectionFile = flags.server.tlsFlags.certCollectionFile
-      )
+        SigningCerts.fromPemFiles(
+            certificateFile = flags.server.tlsFlags.certFile,
+            privateKeyFile = flags.server.tlsFlags.privateKeyFile,
+            trustedCertCollectionFile = flags.server.tlsFlags.certCollectionFile)
     val channel: ManagedChannel =
-      buildMutualTlsChannel(flags.systemApiFlags.target, clientCerts, flags.systemApiFlags.certHost)
-        .withShutdownTimeout(flags.channelShutdownTimeout)
+        buildMutualTlsChannel(
+                flags.systemApiFlags.target, clientCerts, flags.systemApiFlags.certHost)
+            .withShutdownTimeout(flags.channelShutdownTimeout)
 
     val computationLogEntriesClient =
-      ComputationLogEntriesCoroutineStub(channel).withDuchyId(flags.duchy.duchyName)
+        ComputationLogEntriesCoroutineStub(channel).withDuchyId(flags.duchy.duchyName)
 
     val computationsDatabase = newComputationsDatabase(computationsDatabaseReader, computationDb)
     val computationService =
-      ComputationsService(
-        computationsDatabase = computationsDatabase,
-        computationLogEntriesClient = computationLogEntriesClient,
-        duchyName = flags.duchy.duchyName,
-        computationStorageClient = ComputationStore(storageClient),
-        requisitionStorageClient = RequisitionStore(storageClient),
-        dryRunBatchDeletion = flags.batchDeletionDryRun
-      )
+        ComputationsService(
+            computationsDatabase = computationsDatabase,
+            computationLogEntriesClient = computationLogEntriesClient,
+            computationStorageClient = ComputationStore(storageClient),
+            requisitionStorageClient = RequisitionStore(storageClient),
+            duchyName = flags.duchy.duchyName)
 
     CommonServer.fromFlags(
-        flags.server,
-        javaClass.name,
-        computationService,
-        ComputationStatsService(computationsDatabase),
-        continuationTokensService
-      )
-      .start()
-      .blockUntilShutdown()
+            flags.server,
+            javaClass.name,
+            computationService,
+            ComputationStatsService(computationsDatabase),
+            continuationTokensService)
+        .start()
+        .blockUntilShutdown()
   }
 
   private fun newComputationsDatabase(
-    computationsDatabaseReader: ComputationsDatabaseReader,
-    computationDb: ComputationsDb
+      computationsDatabaseReader: ComputationsDatabaseReader,
+      computationDb: ComputationsDb
   ): ComputationsDatabase {
     return object :
-      ComputationsDatabase,
-      ComputationsDatabaseReader by computationsDatabaseReader,
-      ComputationsDb by computationDb,
-      ComputationProtocolStagesEnumHelper<
-        ComputationType, ComputationStage
-      > by protocolStageEnumHelper {}
+        ComputationsDatabase,
+        ComputationsDatabaseReader by computationsDatabaseReader,
+        ComputationsDb by computationDb,
+        ComputationProtocolStagesEnumHelper<
+            ComputationType, ComputationStage> by protocolStageEnumHelper {}
   }
 
   protected class Flags {
@@ -129,25 +122,15 @@ abstract class ComputationsServer : Runnable {
       private set
 
     @CommandLine.Option(
-      names = ["--channel-shutdown-timeout"],
-      defaultValue = "3s",
-      description = ["How long to allow for the gRPC channel to shutdown."],
-      required = true
-    )
+        names = ["--channel-shutdown-timeout"],
+        defaultValue = "3s",
+        description = ["How long to allow for the gRPC channel to shutdown."],
+        required = true)
     lateinit var channelShutdownTimeout: Duration
       private set
 
     @CommandLine.Mixin
     lateinit var systemApiFlags: SystemApiFlags
-      private set
-
-    @set:CommandLine.Option(
-      names = ["--dry-run-batch-deletion"],
-      description = ["Whether to dry run batch deletion."],
-      required = false,
-      defaultValue = "false"
-    )
-    var batchDeletionDryRun by Delegates.notNull<Boolean>()
       private set
   }
 

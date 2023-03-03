@@ -24,8 +24,9 @@ import org.wfanet.measurement.internal.duchy.deleteOutdatedComputationsRequest
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 
 class ComputationsCleaner(
-  private val computationsService: ComputationsCoroutineStub,
-  private val timeToLive: Duration,
+    private val computationsService: ComputationsCoroutineStub,
+    private val timeToLive: Duration,
+    private val dryRun: Boolean = false,
 ) {
 
   fun run() {
@@ -34,16 +35,18 @@ class ComputationsCleaner(
       return
     }
 
-    logger.info("ComputationCleaner task starts. TTL=${timeToLive}")
+    logger.info("ComputationCleaner task starts. TTL=${timeToLive}. dryRun=$dryRun")
     val response = runBlocking {
       computationsService.deleteOutdatedComputations(
-        deleteOutdatedComputationsRequest {
-          timeToLive = this@ComputationsCleaner.timeToLive.toProtoDuration()
-          stages += Stage.COMPLETE.toProtocolStage()
-        }
-      )
+          deleteOutdatedComputationsRequest {
+            timeToLive = this@ComputationsCleaner.timeToLive.toProtoDuration()
+            stages += Stage.COMPLETE.toProtocolStage()
+            dryRun = this@ComputationsCleaner.dryRun
+          })
     }
-    logger.info("ComputationCleaner task finishes. ${response.count} Computations cleaned")
+    logger.info(
+        "ComputationCleaner task finishes. ${response.count} Computations " +
+            if (dryRun) "to delete" else "deleted")
   }
 
   companion object {
