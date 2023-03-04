@@ -27,6 +27,7 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
@@ -88,6 +89,7 @@ import org.wfanet.measurement.internal.reporting.v2alpha.MetricsGrpcKt.MetricsCo
 import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2alpha.TimeInterval as InternalTimeInterval
+import org.wfanet.measurement.internal.reporting.v2alpha.batchCreateMetricsRequest as internalBatchCreateMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2alpha.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2alpha.batchSetCmmsMeasurementIdRequest
 import org.wfanet.measurement.internal.reporting.v2alpha.copy
@@ -657,6 +659,8 @@ class MetricsService(
     val internalMetric =
       if (initialInternalMetric.state != InternalMetric.State.STATE_UNSPECIFIED)
         initialInternalMetric
+      else if (initialInternalMetric.state == InternalMetric.State.UNRECOGNIZED)
+        error("Unrecognized metric state.")
       else
         try {
           internalMetricsStub.createMetric(initialInternalMetric)
@@ -701,12 +705,24 @@ class MetricsService(
         )
       }
 
-    measurementSupplier.createCmmsMeasurements(initialInternalMetricsList, principal)
+    val internalMetrics =
+      try {
+        internalMetricsStub
+          .batchCreateMetrics(
+            internalBatchCreateMetricsRequest {
+              cmmsMeasurementConsumerId = principal.resourceKey.measurementConsumerId
+              metrics += initialInternalMetricsList
+            }
+          )
+          .toList()
+      } catch (e: StatusException) {
+        throw Exception("Unable to create the metric in the reporting database.", e)
+      }
+
+    measurementSupplier.createCmmsMeasurements(internalMetrics, principal)
 
     // Convert the internal metric to public and return it.
-    return batchCreateMetricsResponse {
-      metrics += initialInternalMetricsList.map { it.toMetric() }
-    }
+    return batchCreateMetricsResponse { metrics += internalMetrics.map { it.toMetric() } }
   }
 
   /** Creates an initial [InternalMetric] for caching. */
