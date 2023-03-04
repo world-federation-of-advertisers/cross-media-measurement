@@ -27,7 +27,6 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
@@ -653,27 +652,27 @@ class MetricsService(
       }
     }
 
-    val initialInternalMetric: InternalMetric =
+    val uncreatedInternalMetric: InternalMetric =
       createInitialInternalMetric(principal.resourceKey.measurementConsumerId, request)
 
-    val internalMetric =
-      if (initialInternalMetric.state != InternalMetric.State.STATE_UNSPECIFIED)
-        initialInternalMetric
-      else if (initialInternalMetric.state == InternalMetric.State.UNRECOGNIZED)
+    val initialInternalMetric =
+      if (uncreatedInternalMetric.state != InternalMetric.State.STATE_UNSPECIFIED)
+        uncreatedInternalMetric
+      else if (uncreatedInternalMetric.state == InternalMetric.State.UNRECOGNIZED)
         error("Unrecognized metric state.")
       else
         try {
-          internalMetricsStub.createMetric(initialInternalMetric)
+          internalMetricsStub.createMetric(uncreatedInternalMetric)
         } catch (e: StatusException) {
           throw Exception("Unable to create the metric in the reporting database.", e)
         }
 
-    if (internalMetric.state == InternalMetric.State.RUNNING) {
-      measurementSupplier.createCmmsMeasurements(listOf(internalMetric), principal)
+    if (initialInternalMetric.state == InternalMetric.State.RUNNING) {
+      measurementSupplier.createCmmsMeasurements(listOf(initialInternalMetric), principal)
     }
 
     // Convert the internal metric to public and return it.
-    return internalMetric.toMetric()
+    return initialInternalMetric.toMetric()
   }
 
   override suspend fun batchCreateMetrics(
@@ -697,7 +696,7 @@ class MetricsService(
 
     grpcRequire(request.requestsList.isNotEmpty()) { "Requests is empty." }
 
-    val initialInternalMetricsList: List<InternalMetric> =
+    val uncreatedInternalMetricsList: List<InternalMetric> =
       request.requestsList.map { createMetricRequest ->
         createInitialInternalMetric(
           principal.resourceKey.measurementConsumerId,
@@ -705,13 +704,13 @@ class MetricsService(
         )
       }
 
-    val internalMetrics =
+    val initialInternalMetrics =
       try {
         internalMetricsStub
           .batchCreateMetrics(
             internalBatchCreateMetricsRequest {
               cmmsMeasurementConsumerId = principal.resourceKey.measurementConsumerId
-              metrics += initialInternalMetricsList
+              metrics += uncreatedInternalMetricsList
             }
           )
           .toList()
@@ -719,10 +718,10 @@ class MetricsService(
         throw Exception("Unable to create the metric in the reporting database.", e)
       }
 
-    measurementSupplier.createCmmsMeasurements(internalMetrics, principal)
+    measurementSupplier.createCmmsMeasurements(initialInternalMetrics, principal)
 
     // Convert the internal metric to public and return it.
-    return batchCreateMetricsResponse { metrics += internalMetrics.map { it.toMetric() } }
+    return batchCreateMetricsResponse { metrics += initialInternalMetrics.map { it.toMetric() } }
   }
 
   /** Creates an initial [InternalMetric] for caching. */
