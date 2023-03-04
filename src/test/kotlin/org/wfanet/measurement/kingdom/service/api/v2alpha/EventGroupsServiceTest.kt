@@ -74,6 +74,7 @@ import org.wfanet.measurement.internal.kingdom.deleteEventGroupRequest as intern
 import org.wfanet.measurement.internal.kingdom.eventGroup as internalEventGroup
 import org.wfanet.measurement.internal.kingdom.getEventGroupRequest as internalGetEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
+import org.wfanet.measurement.internal.kingdom.updateEventGroupRequest as internalUpdateEventGroupRequest
 
 private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
 
@@ -132,6 +133,14 @@ private val EVENT_GROUP: EventGroup = eventGroup {
   vidModelLines.addAll(VID_MODEL_LINES)
   eventTemplates.addAll(EVENT_TEMPLATES)
   encryptedMetadata = ENCRYPTED_METADATA
+  state = EventGroup.State.ACTIVE
+}
+
+private val DELETED_EVENT_GROUP: EventGroup = eventGroup {
+  name = EVENT_GROUP_NAME
+  measurementConsumer = MEASUREMENT_CONSUMER_NAME
+  eventGroupReferenceId = "aaa"
+  state = EventGroup.State.DELETED
 }
 
 private val INTERNAL_EVENT_GROUP: InternalEventGroup = internalEventGroup {
@@ -153,6 +162,16 @@ private val INTERNAL_EVENT_GROUP: InternalEventGroup = internalEventGroup {
     eventTemplates.addAll(INTERNAL_EVENT_TEMPLATES)
     encryptedMetadata = ENCRYPTED_METADATA
   }
+  state = InternalEventGroup.State.ACTIVE
+}
+
+private val INTERNAL_DELETED_EVENT_GROUP: InternalEventGroup = internalEventGroup {
+  externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+  externalEventGroupId = EVENT_GROUP_EXTERNAL_ID
+  externalMeasurementConsumerId = MEASUREMENT_CONSUMER_EXTERNAL_ID
+  providedEventGroupId = EVENT_GROUP.eventGroupReferenceId
+  createTime = CREATE_TIME
+  state = InternalEventGroup.State.DELETED
 }
 
 @RunWith(JUnit4::class)
@@ -163,7 +182,7 @@ class EventGroupsServiceTest {
       onBlocking { getEventGroup(any()) }.thenReturn(INTERNAL_EVENT_GROUP)
       onBlocking { createEventGroup(any()) }.thenReturn(INTERNAL_EVENT_GROUP)
       onBlocking { updateEventGroup(any()) }.thenReturn(INTERNAL_EVENT_GROUP)
-      onBlocking { deleteEventGroup(any()) }.thenReturn(INTERNAL_EVENT_GROUP)
+      onBlocking { deleteEventGroup(any()) }.thenReturn(INTERNAL_DELETED_EVENT_GROUP)
       onBlocking { streamEventGroups(any()) }
         .thenReturn(
           flowOf(
@@ -305,6 +324,7 @@ class EventGroupsServiceTest {
         INTERNAL_EVENT_GROUP.copy {
           clearCreateTime()
           clearExternalEventGroupId()
+          clearState()
         }
       )
 
@@ -435,8 +455,12 @@ class EventGroupsServiceTest {
 
     verifyProtoArgument(internalEventGroupsMock, EventGroupsCoroutineImplBase::updateEventGroup)
       .isEqualTo(
-        org.wfanet.measurement.internal.kingdom.updateEventGroupRequest {
-          eventGroup = INTERNAL_EVENT_GROUP.copy { clearCreateTime() }
+        internalUpdateEventGroupRequest {
+          eventGroup =
+            INTERNAL_EVENT_GROUP.copy {
+              clearCreateTime()
+              clearState()
+            }
         }
       )
 
@@ -563,7 +587,7 @@ class EventGroupsServiceTest {
         runBlocking { service.deleteEventGroup(request) }
       }
 
-    val expected = EVENT_GROUP
+    val expected = DELETED_EVENT_GROUP
 
     verifyProtoArgument(internalEventGroupsMock, EventGroupsCoroutineImplBase::deleteEventGroup)
       .isEqualTo(

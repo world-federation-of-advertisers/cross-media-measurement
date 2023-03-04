@@ -21,21 +21,25 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.internal.kingdom.DeleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.UpdateEventGroupRequest
+import org.wfanet.measurement.internal.kingdom.eventGroup
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupInvalidArgsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamEventGroups
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateEventGroup
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.DeleteEventGroup
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.UpdateEventGroup
 
 class SpannerEventGroupsService(
@@ -84,6 +88,15 @@ class SpannerEventGroupsService(
       }
     } catch (e: EventGroupNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "EventGroup not found." }
+    } catch (e: EventGroupStateIllegalException) {
+      when (e.state) {
+        EventGroup.State.DELETED ->
+          e.throwStatusRuntimeException(Status.NOT_FOUND) { "EventGroup state is DELETED." }
+        EventGroup.State.ACTIVE,
+        EventGroup.State.STATE_UNSPECIFIED,
+        EventGroup.State.UNRECOGNIZED ->
+          e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+      }
     } catch (e: KingdomInternalException) {
       e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
@@ -94,10 +107,37 @@ class SpannerEventGroupsService(
       .readByExternalIds(
         client.singleUse(),
         request.externalDataProviderId,
-        request.externalEventGroupId
+        request.externalEventGroupId,
       )
       ?.eventGroup
       ?: failGrpc(Status.NOT_FOUND) { "EventGroup not found" }
+  }
+
+  override suspend fun deleteEventGroup(request: DeleteEventGroupRequest): EventGroup {
+    grpcRequire(request.externalDataProviderId > 0L) { "ExternalDataProviderId unspecified" }
+    grpcRequire(request.externalEventGroupId > 0L) { "ExternalEventGroupId unspecified" }
+
+    val eventGroup = eventGroup {
+      externalDataProviderId = request.externalDataProviderId
+      externalEventGroupId = request.externalEventGroupId
+    }
+
+    try {
+      return DeleteEventGroup(eventGroup).execute(client, idGenerator)
+    } catch (e: EventGroupNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "EventGroup not found." }
+    } catch (e: EventGroupStateIllegalException) {
+      when (e.state) {
+        EventGroup.State.DELETED ->
+          e.throwStatusRuntimeException(Status.NOT_FOUND) { "EventGroup state is DELETED." }
+        EventGroup.State.ACTIVE,
+        EventGroup.State.STATE_UNSPECIFIED,
+        EventGroup.State.UNRECOGNIZED ->
+          e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+      }
+    } catch (e: KingdomInternalException) {
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+    }
   }
 
   override fun streamEventGroups(request: StreamEventGroupsRequest): Flow<EventGroup> {
