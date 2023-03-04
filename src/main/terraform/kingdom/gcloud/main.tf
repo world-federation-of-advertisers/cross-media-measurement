@@ -13,5 +13,5 @@
 # limitations under the License.
 
 provider "google" {
-  project = var.project_id
+  project = local.project
 }

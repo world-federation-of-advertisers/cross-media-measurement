@@ -12,54 +12,75 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This is step 4 as per the document https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/kingdom-deployment.md
+# This is step 4 as per the document
+# https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/kingdom-deployment.md
 
-# Create a GKE cluster with 3 node pools
-resource "google_container_cluster" "cluster" {
-  name     = "kingdom-cluster"
-  location = var.region
+resource "google_container_cluster" "primary" {
 
-  # Configure the cluster
-  initial_node_count = 1
-
-  # Add three node pools
-  node_pool {
-    name = "gcp-kingdom-data-server"
-    node_count = 1
-    node_config {
-      machine_type = "n1-standard-1"
-      disk_size_gb = 100
-      disk_type    = "pd-standard"
-      labels = {
-        app = "gcp-kingdom-data-server"
-      }
-    }
+  # e.g. dev-halo-kingdom-gke-cluster
+  name     = "${local.prefix}-gke-cluster"
+  location = local.zone
+  initial_node_count = local.kingdom.cluster_node_count
+  database_encryption {
+    key_name = "projects/${local.project}/locations/${local.zone}/keyRings/test-key-ring/cryptoKeys/k8s-secret"
+    state = "ENCRYPTED"
   }
-
-  node_pool {
-    name = "system-api-server"
-    node_count = 1
-    node_config {
-      machine_type = "n1-standard-1"
-      disk_size_gb = 100
-      disk_type    = "pd-standard"
-      labels = {
-        app = "system-api-server"
-      }
-    }
-  }
-
-  node_pool {
-    name = "v2alpha-public-api-server"
-    node_count = 1
-    node_config {
-      machine_type = "n1-standard-1"
-      disk_size_gb = 100
-      disk_type    = "pd-standard"
-      labels = {
-        app = "v2alpha-public-api-server"
-      }
-    }
+  cluster_autoscaling {
+    enabled = false
   }
 }
 
+resource "google_container_node_pool" "data-server"{
+  name       = "${local.prefix}-data-server"
+  cluster    = google_container_cluster.primary.id
+
+  autoscaling {
+    max_node_count = local.kingdom.max_node_count
+    min_node_count = local.kingdom.min_node_count
+  }
+
+  node_config {
+    preemptible  = true
+    machine_type = local.kingdom.machine_type
+    service_account = google_service_account.gke_sa.email
+    oauth_scopes = [
+      "https://www.googleapis.com/auth/cloud-platform"
+    ]
+  }
+}
+
+resource "google_container_node_pool" "system-api-server"{
+  name       = "${local.prefix}-system-api-server"
+  cluster    = google_container_cluster.primary.id
+  autoscaling {
+    max_node_count = local.kingdom.max_node_count
+    min_node_count = local.kingdom.min_node_count
+  }
+
+  node_config {
+    preemptible  = true
+    machine_type = local.kingdom.machine_type
+    service_account = google_service_account.gke_sa.email
+    oauth_scopes = [
+      "https://www.googleapis.com/auth/cloud-platform"
+    ]
+  }
+}
+
+resource "google_container_node_pool" "v2alpha-public-api-server"{
+  name       = "${local.prefix}-v2alpha-public-api-server"
+  cluster    = google_container_cluster.primary.id
+  autoscaling {
+    max_node_count = local.kingdom.max_node_count
+    min_node_count = local.kingdom.min_node_count
+  }
+
+  node_config {
+    preemptible  = true
+    machine_type = local.kingdom.machine_type
+    service_account = google_service_account.gke_sa.email
+    oauth_scopes = [
+      "https://www.googleapis.com/auth/cloud-platform"
+    ]
+  }
+}
