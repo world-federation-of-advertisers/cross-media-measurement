@@ -654,12 +654,22 @@ class MetricsService(
     val initialInternalMetric: InternalMetric =
       createInitialInternalMetric(principal.resourceKey.measurementConsumerId, request)
 
-    if (initialInternalMetric.state == InternalMetric.State.RUNNING) {
-      measurementSupplier.createCmmsMeasurements(listOf(initialInternalMetric), principal)
+    val internalMetric =
+      if (initialInternalMetric.state != InternalMetric.State.STATE_UNSPECIFIED)
+        initialInternalMetric
+      else
+        try {
+          internalMetricsStub.createMetric(initialInternalMetric)
+        } catch (e: StatusException) {
+          throw Exception("Unable to create the metric in the reporting database.", e)
+        }
+
+    if (internalMetric.state == InternalMetric.State.RUNNING) {
+      measurementSupplier.createCmmsMeasurements(listOf(internalMetric), principal)
     }
 
     // Convert the internal metric to public and return it.
-    return initialInternalMetric.toMetric()
+    return internalMetric.toMetric()
   }
 
   override suspend fun batchCreateMetrics(
@@ -739,25 +749,19 @@ class MetricsService(
     val internalReportingSet: InternalReportingSet =
       getInternalReportingSet(cmmsMeasurementConsumerId, request.metric.reportingSet)
 
-    return try {
-      internalMetricsStub.createMetric(
-        internalMetric {
-          this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-          metricIdempotencyKey = request.requestId
-          externalReportingSetId = internalReportingSet.externalReportingSetId
-          timeInterval = request.metric.timeInterval.toInternal()
-          metricSpec = request.metric.metricSpec.toInternal()
-          weightedMeasurements +=
-            buildInitialInternalMeasurements(
-              cmmsMeasurementConsumerId,
-              request.metric,
-              internalReportingSet
-            )
-          details = InternalMetricKt.details { filters += request.metric.filtersList }
-        }
-      )
-    } catch (e: StatusException) {
-      throw Exception("Unable to create the metric in the reporting database.", e)
+    return internalMetric {
+      this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+      metricIdempotencyKey = request.requestId
+      externalReportingSetId = internalReportingSet.externalReportingSetId
+      timeInterval = request.metric.timeInterval.toInternal()
+      metricSpec = request.metric.metricSpec.toInternal()
+      weightedMeasurements +=
+        buildInitialInternalMeasurements(
+          cmmsMeasurementConsumerId,
+          request.metric,
+          internalReportingSet
+        )
+      details = InternalMetricKt.details { filters += request.metric.filtersList }
     }
   }
 
