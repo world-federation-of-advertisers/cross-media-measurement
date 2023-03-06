@@ -119,11 +119,7 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
 
     val activeEventGroups =
       publicEventGroupsClient
-        .listEventGroups(
-          listEventGroupsRequest {
-            parent = edpResourceName
-          }
-        )
+        .listEventGroups(listEventGroupsRequest { parent = edpResourceName })
         .eventGroupsList
         .toList()
 
