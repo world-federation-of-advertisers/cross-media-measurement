@@ -2,7 +2,7 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 load("@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl", "spanner_emulator_test")
 
 kt_jvm_library(
-    name = "duchy_provider_rules",
+    name = "duchy_provider_rule",
     testonly = True,
     srcs = [
         "DuchyDependencyProviderRule.kt",
@@ -21,7 +21,7 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
-    name = "kingdom_provider_rules",
+    name = "kingdom_provider_rule",
     testonly = True,
     srcs = [
         "KingdomDataServicesProviderRule.kt",
@@ -40,7 +40,7 @@ spanner_emulator_test(
     tags = ["cpu:2"],
     test_class = "org.wfanet.measurement.integration.gcloud.GCloudInProcessLifeOfAnEventGroupIntegrationTest",
     deps = [
-        ":kingdom_provider_rules",
+        ":kingdom_provider_rule",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_event_group_components",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/debug",
     ],
@@ -53,8 +53,8 @@ spanner_emulator_test(
     tags = ["cpu:2"],
     test_class = "org.wfanet.measurement.integration.gcloud.GCloudInProcessLifeOfAMeasurementIntegrationTest",
     deps = [
-        ":duchy_provider_rules",
-        ":kingdom_provider_rules",
+        ":duchy_provider_rule",
+        ":kingdom_provider_rule",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:in_process_components",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/debug",
     ],

@@ -30,6 +30,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.Measurement
 import org.wfanet.measurement.api.v2alpha.createEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.deleteEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup
+import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.testing.ProviderRule
@@ -101,22 +102,39 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
   }
 
   @Test
-  fun `stream active and deleted EventGroups`(): Unit = runBlocking {
-    val eventGroup1 = createEventGroup("1")
-    val deletedEventGroup1 = deleteEventGroup(eventGroup1.name)
-    assertThat(deletedEventGroup1.state).isEqualTo(EventGroup.State.DELETED)
-    val eventGroup2 = createEventGroup("2")
+  fun `delete transitions EventGroup state to DELETED`(): Unit = runBlocking {
+    val createdEventGroup = createEventGroup("1")
+    val deletedEventGroup = deleteEventGroup(createdEventGroup.name)
+    val readEventGroup = getEventGroup(createdEventGroup.name)
+
+    assertThat(deletedEventGroup.state).isEqualTo(EventGroup.State.DELETED)
+    assertThat(readEventGroup.state).isEqualTo(EventGroup.State.DELETED)
+  }
+
+  @Test
+  fun `list does not return deleted EventGroups`(): Unit = runBlocking {
+    val createdEventGroup1 = createEventGroup("1")
+    deleteEventGroup(createdEventGroup1.name)
+    val createdEventGroup2 = createEventGroup("2")
 
     val activeEventGroups =
       publicEventGroupsClient
         .listEventGroups(
           listEventGroupsRequest {
             parent = edpResourceName
-            showDeleted = false
           }
         )
         .eventGroupsList
         .toList()
+
+    assertThat(activeEventGroups).containsExactly(createdEventGroup2)
+  }
+
+  @Test
+  fun `list returns deleted EventGroups when show_deleted is true`(): Unit = runBlocking {
+    val createdEventGroup1 = createEventGroup("1")
+    val deletedEventGroup1 = deleteEventGroup(createdEventGroup1.name)
+    val createdEventGroup2 = createEventGroup("2")
 
     val allEventGroups =
       publicEventGroupsClient
@@ -129,8 +147,7 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
         .eventGroupsList
         .toList()
 
-    assertThat(allEventGroups).containsExactly(eventGroup2, deletedEventGroup1)
-    assertThat(activeEventGroups).containsExactly(eventGroup2)
+    assertThat(allEventGroups).containsExactly(createdEventGroup2, deletedEventGroup1)
   }
 
   private suspend fun createEventGroup(name: String): EventGroup {
@@ -147,6 +164,10 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
 
   private suspend fun deleteEventGroup(name: String): EventGroup {
     return publicEventGroupsClient.deleteEventGroup(deleteEventGroupRequest { this.name = name })
+  }
+
+  private suspend fun getEventGroup(name: String): EventGroup {
+    return publicEventGroupsClient.getEventGroup(getEventGroupRequest { this.name = name })
   }
 
   companion object {
