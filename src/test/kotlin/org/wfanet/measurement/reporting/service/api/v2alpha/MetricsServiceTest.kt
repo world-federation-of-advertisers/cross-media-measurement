@@ -164,6 +164,7 @@ import org.wfanet.measurement.reporting.v2alpha.metricResult
 import org.wfanet.measurement.reporting.v2alpha.metricSpec
 import org.wfanet.measurement.reporting.v2alpha.timeInterval
 
+private const val MAX_BATCH_SIZE = 1000
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 private const val PAGE_SIZE = 3
@@ -2563,6 +2564,32 @@ class MetricsServiceTest {
       )
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `batchCreateMetric throws exception when number of requests exceeds limit`() = runBlocking {
+    val request = batchCreateMetricsRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+
+      requests +=
+        List(MAX_BATCH_SIZE + 1) {
+          createMetricRequest {
+            parent = MEASUREMENT_CONSUMERS.values.first().name
+            metric = REQUESTING_INCREMENTAL_REACH_METRIC
+          }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.batchCreateMetrics(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("At most $MAX_BATCH_SIZE requests can be supported in a batch.")
   }
 }
 
