@@ -149,7 +149,10 @@ class FrontendSimulator(
     }
     logger.info("Got reach and frequency result from Kingdom: $reachAndFrequencyResult")
 
-    val liquidLegionV2Protocol = createdReachAndFrequencyMeasurement.protocolConfig.liquidLegionsV2
+    val liquidLegionV2Protocol =
+      createdReachAndFrequencyMeasurement.protocolConfig.protocolsList
+        .first { it.hasLiquidLegionsV2() }
+        .liquidLegionsV2
     val expectedResult =
       getExpectedResult(createdReachAndFrequencyMeasurement.name, liquidLegionV2Protocol)
     logger.info("Expected result: $expectedResult")
@@ -248,7 +251,10 @@ class FrontendSimulator(
     checkNotNull(reachOnlyResult) { "Timed out waiting for response to reach-only request" }
     logger.info("Actual result: $reachOnlyResult")
 
-    val liquidLegionV2Protocol = createdReachOnlyMeasurement.protocolConfig.liquidLegionsV2
+    val liquidLegionV2Protocol =
+      createdReachOnlyMeasurement.protocolConfig.protocolsList
+        .first { it.hasLiquidLegionsV2() }
+        .liquidLegionsV2
     val expectedResultWithFrequencies =
       getExpectedResult(createdReachOnlyMeasurement.name, liquidLegionV2Protocol)
     val expectedResult = result {
