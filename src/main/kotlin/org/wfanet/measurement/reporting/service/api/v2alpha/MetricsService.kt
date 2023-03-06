@@ -117,7 +117,7 @@ import org.wfanet.measurement.reporting.v2alpha.metricResult
 import org.wfanet.measurement.reporting.v2alpha.metricSpec
 import org.wfanet.measurement.reporting.v2alpha.timeInterval
 
-private const val MAX_BATCH_SIZE = 100
+private const val MAX_BATCH_SIZE = 1000
 private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
@@ -695,6 +695,9 @@ class MetricsService(
     }
 
     grpcRequire(request.requestsList.isNotEmpty()) { "Requests is empty." }
+    grpcRequire(request.requestsList.size <= MAX_BATCH_SIZE) {
+      "At most $MAX_BATCH_SIZE requests can be supported in a batch."
+    }
 
     val uncreatedInternalMetricsList: List<InternalMetric> =
       request.requestsList.map { createMetricRequest ->
