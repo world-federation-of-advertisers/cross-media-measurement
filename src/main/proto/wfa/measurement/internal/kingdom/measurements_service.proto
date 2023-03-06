@@ -50,8 +50,8 @@ service Measurements {
 
   // Permanently deletes a limited amount of Measurements based on update_time
   // for states: SUCCEEDED, FAILED, and CANCELLED.
-  rpc DeleteCompletedMeasurements(DeleteCompletedMeasurementsRequest)
-      returns (DeleteCompletedMeasurementsResponse);
+  rpc PurgeCompletedMeasurements(PurgeCompletedMeasurementsRequest)
+      returns (PurgeCompletedMeasurementsResponse);
 }
 
 message GetMeasurementRequest {
@@ -112,12 +112,20 @@ message CancelMeasurementRequest {
 
 message CancelPendingMeasurementsRequest {
   google.protobuf.Timestamp created_before = 1;
-  bool dry_run = 2;
+
+  // Execute the state transitions to CANCELLED. If `force` is set to false,
+  // the method will return a sample of measurement keys that would be cancelled
+  // without transitioning their states.
+  bool force = 2;
 }
 
-message DeleteCompletedMeasurementsRequest {
+message PurgeCompletedMeasurementsRequest {
   google.protobuf.Timestamp updated_before = 1;
-  bool dry_run = 2;
+
+  // Execute the deletion. If `force` is set to false, the method will return
+  // a sample of measurement keys that would be deleted without executing
+  // deletions.
+  bool force = 2;
 }
 
 message CancelPendingMeasurementsResponse {
@@ -128,10 +136,14 @@ message CancelPendingMeasurementsResponse {
   repeated MeasurementKey measurement_keys = 1;
 }
 
-message DeleteCompletedMeasurementsResponse {
+message PurgeCompletedMeasurementsResponse {
+  int32 purge_count = 1;
+
   message MeasurementKey {
     fixed64 external_measurement_consumer_id = 1;
     fixed64 external_measurement_id = 2;
   }
-  repeated MeasurementKey measurement_keys = 1;
+  // A sample of measurement keys that would be deleted. The sample size is at
+  // maximum 100 measurement keys. Only populated if `force` is false.
+  repeated MeasurementKey purge_sample = 2;
 }
