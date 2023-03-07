@@ -217,6 +217,8 @@ CREATE TABLE Metrics (
   MetricIdempotencyKey text NOT NULL,
   ReportingSetId bigint NOT NULL,
 
+  externalMetricId bigint NOT NULL,
+
   TimeIntervalStart TIMESTAMP WITH TIME ZONE NOT NULL,
   TimeIntervalEndExclusive TIMESTAMP WITH TIME ZONE NOT NULL,
 
@@ -241,6 +243,7 @@ CREATE TABLE Metrics (
 
   PRIMARY KEY(MeasurementConsumerId, MetricId),
   UNIQUE (MeasurementConsumerId, MetricIdempotencyKey),
+  UNIQUE (MeasurementConsumerId, externalMetricId),
   FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
     REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
     ON DELETE CASCADE,
