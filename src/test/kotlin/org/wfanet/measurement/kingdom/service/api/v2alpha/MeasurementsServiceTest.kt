@@ -1450,7 +1450,9 @@ class MeasurementsServiceTest {
     fun initConfig() {
       Llv2ProtocolConfig.setForTest(
         INTERNAL_PROTOCOL_CONFIG.liquidLegionsV2,
-        DUCHY_PROTOCOL_CONFIG.liquidLegionsV2
+        DUCHY_PROTOCOL_CONFIG.liquidLegionsV2,
+        listOf("aggregator"),
+        2
       )
     }
 
@@ -1467,7 +1469,6 @@ class MeasurementsServiceTest {
             epsilon = 2.1
             delta = 3.3
           }
-          requiredExternalDuchyIds += "aggregator"
         }
     }
 

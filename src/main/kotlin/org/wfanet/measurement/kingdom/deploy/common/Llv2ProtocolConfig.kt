@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.deploy.common
 
 import java.io.File
+import kotlin.properties.Delegates
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Llv2ProtocolConfigConfig
@@ -27,26 +28,39 @@ object Llv2ProtocolConfig {
     private set
   lateinit var duchyProtocolConfig: DuchyProtocolConfig.LiquidLegionsV2
     private set
+  lateinit var requiredExternalDuchyIds: List<String>
+    private set
+
+  var minimumNumberOfRequiredDuchies: Int by Delegates.notNull()
+    private set
 
   fun initializeFromFlags(flags: Llv2ProtocolConfigFlags) {
     require(!Llv2ProtocolConfig::protocolConfig.isInitialized)
     require(!Llv2ProtocolConfig::duchyProtocolConfig.isInitialized)
+    require(!Llv2ProtocolConfig::requiredExternalDuchyIds.isInitialized)
     val configMessage =
       flags.config.reader().use {
         parseTextProto(it, Llv2ProtocolConfigConfig.getDefaultInstance())
       }
     protocolConfig = configMessage.protocolConfig
     duchyProtocolConfig = configMessage.duchyProtocolConfig
+    requiredExternalDuchyIds = configMessage.requiredExternalDuchyIdsList
+    minimumNumberOfRequiredDuchies = configMessage.minimumNumberOfRequiredDuchies
   }
 
   fun setForTest(
     protocolConfig: ProtocolConfig.LiquidLegionsV2,
-    duchyProtocolConfig: DuchyProtocolConfig.LiquidLegionsV2
+    duchyProtocolConfig: DuchyProtocolConfig.LiquidLegionsV2,
+    requiredExternalDuchyIds: List<String>,
+    minimumNumberOfRequiredDuchies: Int
   ) {
     require(!Llv2ProtocolConfig::protocolConfig.isInitialized)
     require(!Llv2ProtocolConfig::duchyProtocolConfig.isInitialized)
+    require(!Llv2ProtocolConfig::requiredExternalDuchyIds.isInitialized)
     Llv2ProtocolConfig.protocolConfig = protocolConfig
     Llv2ProtocolConfig.duchyProtocolConfig = duchyProtocolConfig
+    Llv2ProtocolConfig.requiredExternalDuchyIds = requiredExternalDuchyIds
+    Llv2ProtocolConfig.minimumNumberOfRequiredDuchies = minimumNumberOfRequiredDuchies
   }
 }
 

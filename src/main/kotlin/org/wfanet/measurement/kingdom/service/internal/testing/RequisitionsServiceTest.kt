@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
+import org.junit.BeforeClass
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -38,12 +39,14 @@ import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase as CertificatesCoroutineService
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase as ComputationParticipantsCoroutineService
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase as DataProvidersCoroutineService
+import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.computedRequisitionParams
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.directRequisitionParams
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase as MeasurementConsumersCoroutineService
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as MeasurementsCoroutineService
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionKt
@@ -60,6 +63,7 @@ import org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.requisition
 import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRequest
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
+import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.DUCHIES
 
@@ -87,7 +91,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
   protected val clock: Clock = Clock.systemUTC()
   protected val idGenerator = RandomIdGenerator(clock, Random(RANDOM_SEED))
   private val population = Population(clock, idGenerator)
-  @get:Rule val duchyIdSetter = DuchyIdSetter(Population.DUCHIES)
+  @get:Rule val duchyIdSetter = DuchyIdSetter(DUCHIES)
 
   protected lateinit var dataServices: TestDataServices
     private set
@@ -103,7 +107,18 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
 
   /** Constructs the service being tested. */
   protected abstract fun newService(): T
-
+  companion object {
+    @BeforeClass
+    @JvmStatic
+    fun initConfig() {
+      Llv2ProtocolConfig.setForTest(
+        ProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
+        DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
+        listOf(Population.AGGREGATOR_DUCHY.externalDuchyId),
+        2
+      )
+    }
+  }
   @Before
   fun initDataServices() {
     dataServices = newTestDataServices(idGenerator)
@@ -574,9 +589,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         measurementSpecSignature = measurement.details.measurementSpecSignature
         state = Measurement.State.PENDING_REQUISITION_PARAMS
         protocolConfig = protocolConfig {
-          liquidLegionsV2 = liquidLegionsV2 {
-            requiredExternalDuchyIds += Population.AGGREGATOR_DUCHY.externalDuchyId
-          }
+          liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
         }
         dataProvidersCount = 1
       }
