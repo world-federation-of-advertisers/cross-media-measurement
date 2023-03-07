@@ -65,7 +65,7 @@ on:
 
 env:
   GCP_CREDENTIALS: '${{ secrets.GCP_KINGDOM }}'
-  ROOT_PATH: '${{ github.workspace }}/terraform'
+  ROOT_PATH: '${{ github.workspace }}/terraform/kingdom/gcloud'
 
 permissions:
   contents: read
