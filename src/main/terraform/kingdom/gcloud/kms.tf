@@ -14,7 +14,7 @@
 
 # This is step 3 as per the document
 # https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/kingdom-deployment.md
-
+/*
 data "google_kms_key_ring" "my_key_ring" {
   name = local.kms.ring_name
   location = local.zone
@@ -31,3 +31,4 @@ data "google_iam_policy" "default" {
     role = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
   }
 }
+*/
