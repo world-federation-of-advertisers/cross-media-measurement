@@ -159,6 +159,8 @@ import org.wfanet.measurement.reporting.v2alpha.batchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.batchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createMetricRequest
+import org.wfanet.measurement.reporting.v2alpha.listMetricsRequest
+import org.wfanet.measurement.reporting.v2alpha.listMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.metric
 import org.wfanet.measurement.reporting.v2alpha.metricResult
 import org.wfanet.measurement.reporting.v2alpha.metricSpec
@@ -1060,13 +1062,24 @@ class MetricsServiceTest {
           measurements += INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
         }
       )
+    onBlocking { batchSetMeasurementResults(any()) }
+      .thenReturn(
+        flowOf(
+          INTERNAL_SUCCEEDED_UNION_ALL_REACH_MEASUREMENT,
+          INTERNAL_SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT,
+          INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+        )
+      )
+    onBlocking { batchSetMeasurementFailures(any()) }
+      .thenReturn(flowOf(INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT))
   }
 
   private val measurementsMock: MeasurementsCoroutineImplBase = mockService {
     onBlocking { getMeasurement(any()) }
       .thenReturn(
-        SUCCEEDED_UNION_ALL_REACH_MEASUREMENT,
-        SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT,
+        PENDING_UNION_ALL_REACH_MEASUREMENT,
+        PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT,
+        PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
       )
 
     onBlocking { createMeasurement(any()) }
@@ -2781,6 +2794,33 @@ class MetricsServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description)
       .isEqualTo("At most $MAX_BATCH_SIZE requests can be supported in a batch.")
+  }
+
+  @Test
+  fun `listMetrics returns without a next page token when there is no previous page token`() {
+    val request = listMetricsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+        runBlocking { service.listMetrics(request) }
+      }
+
+    val expected = listMetricsResponse {
+      metrics += PENDING_INCREMENTAL_REACH_METRIC
+      metrics += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
+    }
+
+    verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::streamMetrics)
+      .isEqualTo(
+        streamMetricsRequest {
+          limit = DEFAULT_PAGE_SIZE + 1
+          this.filter = filter {
+            cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          }
+        }
+      )
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
 }
 

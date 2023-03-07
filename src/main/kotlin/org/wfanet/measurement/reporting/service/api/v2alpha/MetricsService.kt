@@ -902,6 +902,7 @@ class MetricsService(
         }
       } else null
 
+    // Only syncs measurements in the metrics that are not at terminal states.
     val toBeSyncedInternalMeasurements: List<InternalMeasurement> =
       results
         .subList(0, min(results.size, listMetricsPageToken.pageSize))
