@@ -1,4 +1,4 @@
-# Copyright 2020 The Cross-Media Measurement Authors
+# Copyright 2023 The Cross-Media Measurement Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,12 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-# This is step number 3 as per document
-# https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/duchy-deployment.md
-
-resource "google_storage_bucket" "static-site" {
-  name          = "${local.prefix}-halo_duchy_storage"
-  location      = "US"
-  force_destroy = false
+provider "google" {
+  project = local.project
 }
+
