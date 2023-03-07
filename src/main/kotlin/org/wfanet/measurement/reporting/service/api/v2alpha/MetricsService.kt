@@ -575,33 +575,33 @@ class MetricsService(
     }
 
     /** Syncs [InternalMeasurement]s with the CMMs [Measurement]s. */
-    private suspend fun syncInternalMeasurements(
+    suspend fun syncInternalMeasurements(
       internalMeasurements: List<InternalMeasurement>,
       apiAuthenticationKey: String,
       principal: MeasurementConsumerPrincipal,
     ) {
       val stateToMeasurementInfoMap: Map<Measurement.State, List<MeasurementInfo>> =
-        getCmmsMeasurementInfoMap(internalMeasurements, apiAuthenticationKey, principal)
+        getMeasurementInfoMap(internalMeasurements, apiAuthenticationKey, principal)
 
       for ((state, measurementInfoList) in stateToMeasurementInfoMap) {
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
         when (state) {
           Measurement.State.SUCCEEDED -> {
             if (measurementInfoList.isEmpty()) continue
-
             syncSuccessfulInternalMeasurements(measurementInfoList, apiAuthenticationKey, principal)
           }
           Measurement.State.AWAITING_REQUISITION_FULFILLMENT,
           Measurement.State.COMPUTING -> {} // Do nothing.
           Measurement.State.FAILED,
           Measurement.State.CANCELLED -> TODO()
-          Measurement.State.STATE_UNSPECIFIED -> error("The measurement state should've been set.")
-          Measurement.State.UNRECOGNIZED -> error("Unrecognized measurement state.")
+          Measurement.State.STATE_UNSPECIFIED ->
+            error("The CMMs measurement state should've been set.")
+          Measurement.State.UNRECOGNIZED -> error("Unrecognized CMMs measurement state.")
         }
       }
     }
 
-    private suspend fun getCmmsMeasurementInfoMap(
+    private suspend fun getMeasurementInfoMap(
       internalMeasurements: List<InternalMeasurement>,
       apiAuthenticationKey: String,
       principal: MeasurementConsumerPrincipal,
@@ -609,7 +609,7 @@ class MetricsService(
       val deferred = mutableListOf<Deferred<MeasurementInfo>>()
 
       for (internalMeasurement in internalMeasurements) {
-        // Measurement with terminal state is already synced
+        // Measurement with a terminal state is already synced
         if (internalMeasurement.state != InternalMeasurement.State.PENDING) continue
 
         val measurementResourceName =
@@ -649,21 +649,11 @@ class MetricsService(
           measurementInfoList.map { measurementInfo ->
             measurementResult {
               externalMeasurementId = measurementInfo.externalMeasurementId
-
-              val measurementSpec =
-                MeasurementSpec.parseFrom(measurementInfo.measurement.measurementSpec.data)
-              val encryptionPrivateKeyHandle =
-                encryptionKeyPairStore.getPrivateKeyHandle(
-                  principal.resourceKey.toName(),
-                  EncryptionPublicKey.parseFrom(measurementSpec.measurementPublicKey).data
-                )
-                  ?: failGrpc(Status.PERMISSION_DENIED) { "Encryption private key not found" }
-
               result =
                 buildInternalMeasurementResult(
-                  measurementInfo.measurement.resultsList,
-                  encryptionPrivateKeyHandle,
-                  apiAuthenticationKey
+                  measurementInfo.measurement,
+                  apiAuthenticationKey,
+                  principal.resourceKey.toName()
                 )
             }
           }
@@ -746,12 +736,20 @@ class MetricsService(
 
     /** Builds an [InternalMeasurement.Result]. */
     private suspend fun buildInternalMeasurementResult(
-      resultsList: List<Measurement.ResultPair>,
-      encryptionPrivateKeyHandle: PrivateKeyHandle,
+      measurement: Measurement,
       apiAuthenticationKey: String,
+      principalName: String,
     ): InternalMeasurement.Result {
+      val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
+      val encryptionPrivateKeyHandle =
+        encryptionKeyPairStore.getPrivateKeyHandle(
+          principalName,
+          EncryptionPublicKey.parseFrom(measurementSpec.measurementPublicKey).data
+        )
+          ?: failGrpc(Status.PERMISSION_DENIED) { "Encryption private key not found" }
+
       return aggregateResults(
-        resultsList
+        measurement.resultsList
           .map {
             decryptMeasurementResultPair(it, encryptionPrivateKeyHandle, apiAuthenticationKey)
           }
@@ -906,11 +904,11 @@ class MetricsService(
         .flatMap { internalMetric -> internalMetric.weightedMeasurementsList }
         .map { weightedMeasurement -> weightedMeasurement.measurement }
 
-    // syncMeasurements(
-    //   toBeSyncedMeasurements,
-    //   apiAuthenticationKey,
-    //   principal,
-    // )
+    measurementSupplier.syncInternalMeasurements(
+      toBeSyncedMeasurements,
+      apiAuthenticationKey,
+      principal,
+    )
 
     return listMetricsResponse {
       metrics +=
