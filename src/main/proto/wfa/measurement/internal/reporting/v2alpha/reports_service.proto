@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.v2alpha;
 
+import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/reporting/v2alpha/report.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting.v2alpha";
@@ -45,8 +46,10 @@ message StreamReportsRequest {
   message Filter {
     // `MeasurementConsumer` ID from the CMMS public API.
     string cmms_measurement_consumer_id = 1;
+    // Any `Report created after this time, exclusive, will be included.
+    google.protobuf.Timestamp create_time = 2;
     // Skips to results with an external id greater than this.
-    fixed64 external_report_id_after = 2;
+    fixed64 external_report_id_after = 3;
   }
   Filter filter = 1;
 
