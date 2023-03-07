@@ -152,6 +152,8 @@ class MetricsService(
       coroutineContext
     )
 
+  data class MeasurementInfo(val externalMeasurementId: Long, val measurement: Measurement)
+
   private class MeasurementSupplier(
     private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
     private val internalMeasurementsStub: InternalMeasurementsCoroutineStub,
@@ -571,6 +573,290 @@ class MetricsService(
         )
       }
     }
+
+    /** Syncs [InternalMeasurement]s with the CMMs [Measurement]s. */
+    private suspend fun syncInternalMeasurements(
+      internalMeasurements: List<InternalMeasurement>,
+      apiAuthenticationKey: String,
+      principal: MeasurementConsumerPrincipal,
+    ) {
+      val stateToMeasurementInfoMap: Map<Measurement.State, List<MeasurementInfo>> =
+        getCmmsMeasurementInfoMap(internalMeasurements, apiAuthenticationKey, principal)
+
+      for ((state, measurementInfoList) in stateToMeasurementInfoMap) {
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+        when (state) {
+          Measurement.State.SUCCEEDED -> {
+            if (measurementInfoList.isEmpty()) continue
+
+            syncSuccessfulInternalMeasurements(measurementInfoList, apiAuthenticationKey, principal)
+          }
+          Measurement.State.AWAITING_REQUISITION_FULFILLMENT,
+          Measurement.State.COMPUTING -> {} // Do nothing.
+          Measurement.State.FAILED,
+          Measurement.State.CANCELLED -> TODO()
+          Measurement.State.STATE_UNSPECIFIED -> error("The measurement state should've been set.")
+          Measurement.State.UNRECOGNIZED -> error("Unrecognized measurement state.")
+        }
+      }
+    }
+
+    private suspend fun getCmmsMeasurementInfoMap(
+      internalMeasurements: List<InternalMeasurement>,
+      apiAuthenticationKey: String,
+      principal: MeasurementConsumerPrincipal,
+    ): Map<Measurement.State, List<MeasurementInfo>> = coroutineScope {
+      val deferred = mutableListOf<Deferred<MeasurementInfo>>()
+
+      for (internalMeasurement in internalMeasurements) {
+        // Measurement with terminal state is already synced
+        if (internalMeasurement.state != InternalMeasurement.State.PENDING) continue
+
+        val measurementResourceName =
+          MeasurementKey(
+              principal.resourceKey.measurementConsumerId,
+              internalMeasurement.cmmsMeasurementId
+            )
+            .toName()
+
+        deferred.add(
+          async {
+            try {
+              MeasurementInfo(
+                internalMeasurement.externalMeasurementId,
+                measurementsStub
+                  .withAuthenticationKey(apiAuthenticationKey)
+                  .getMeasurement(getMeasurementRequest { name = measurementResourceName })
+              )
+            } catch (e: StatusException) {
+              throw Exception("Unable to retrieve the measurement [$measurementResourceName].", e)
+            }
+          }
+        )
+      }
+
+      deferred.awaitAll().groupBy { measurementInfo -> measurementInfo.measurement.state }
+    }
+
+    private suspend fun syncSuccessfulInternalMeasurements(
+      measurementInfoList: List<MeasurementInfo>,
+      apiAuthenticationKey: String,
+      principal: MeasurementConsumerPrincipal,
+    ) {
+      val batchSetMeasurementResultRequest = batchSetMeasurementResultsRequest {
+        cmmsMeasurementConsumerId = principal.resourceKey.measurementConsumerId
+        measurementResults +=
+          measurementInfoList.map { measurementInfo ->
+            measurementResult {
+              externalMeasurementId = measurementInfo.externalMeasurementId
+
+              val measurementSpec =
+                MeasurementSpec.parseFrom(measurementInfo.measurement.measurementSpec.data)
+              val encryptionPrivateKeyHandle =
+                encryptionKeyPairStore.getPrivateKeyHandle(
+                  principal.resourceKey.toName(),
+                  EncryptionPublicKey.parseFrom(measurementSpec.measurementPublicKey).data
+                )
+                  ?: failGrpc(Status.PERMISSION_DENIED) { "Encryption private key not found" }
+
+              result =
+                buildInternalMeasurementResult(
+                  measurementInfo.measurement.resultsList,
+                  encryptionPrivateKeyHandle,
+                  apiAuthenticationKey
+                )
+            }
+          }
+      }
+
+      val internalMeasurementsList =
+        internalMeasurementsStub
+          .batchSetMeasurementResults(batchSetMeasurementResultRequest)
+          .toList()
+
+      if (internalMeasurementsList.size < measurementInfoList.size) {
+        val missingMeasurementNames = measurementInfoList.map { it.measurement.name }.toMutableSet()
+        val errorMessage =
+          StringBuilder(
+            "The measurement results of the following measurement names were not set " +
+              "successfully in the reporting database:"
+          )
+        internalMeasurementsList.forEach { internalMeasurement ->
+          val measurementName =
+            MeasurementKey(
+                principal.resourceKey.measurementConsumerId,
+                internalMeasurement.cmmsMeasurementId
+              )
+              .toName()
+          missingMeasurementNames.remove(measurementName)
+        }
+        missingMeasurementNames.forEach { name -> errorMessage.append(name) }
+        failGrpc(Status.NOT_FOUND) { errorMessage.toString() }
+      }
+    }
+
+    /** Syncs the given [InternalMeasurement] with the corresponding CMMs [Measurement]. */
+    private suspend fun syncInternalMeasurement(
+      internalMeasurement: InternalMeasurement,
+      apiAuthenticationKey: String,
+      principal: MeasurementConsumerPrincipal,
+    ) {
+      val measurementResourceName =
+        MeasurementKey(
+            principal.resourceKey.measurementConsumerId,
+            internalMeasurement.cmmsMeasurementId
+          )
+          .toName()
+      val measurement =
+        try {
+          measurementsStub
+            .withAuthenticationKey(apiAuthenticationKey)
+            .getMeasurement(getMeasurementRequest { name = measurementResourceName })
+        } catch (e: StatusException) {
+          throw Exception("Unable to retrieve the measurement [$measurementResourceName].", e)
+        }
+
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+      when (measurement.state) {
+        Measurement.State.SUCCEEDED -> {}
+        Measurement.State.AWAITING_REQUISITION_FULFILLMENT,
+        Measurement.State.COMPUTING -> {} // No action needed
+        Measurement.State.FAILED,
+        Measurement.State.CANCELLED -> {
+          val setInternalMeasurementFailureRequest = setMeasurementFailureRequest {
+            this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+            this.externalMeasurementId = externalMeasurementId
+            failure = measurement.failure.toInternal()
+          }
+
+          try {
+            internalMeasurementsStub.setMeasurementFailure(setInternalMeasurementFailureRequest)
+          } catch (e: StatusException) {
+            throw Exception(
+              "Unable to update the measurement [$measurementResourceName] in the reporting " +
+                "database.",
+              e
+            )
+          }
+        }
+        Measurement.State.STATE_UNSPECIFIED -> error("The measurement state should've been set.")
+        Measurement.State.UNRECOGNIZED -> error("Unrecognized measurement state.")
+      }
+    }
+
+    /** Builds an [InternalMeasurement.Result]. */
+    private suspend fun buildInternalMeasurementResult(
+      resultsList: List<Measurement.ResultPair>,
+      encryptionPrivateKeyHandle: PrivateKeyHandle,
+      apiAuthenticationKey: String,
+    ): InternalMeasurement.Result {
+      return aggregateResults(
+        resultsList
+          .map {
+            decryptMeasurementResultPair(it, encryptionPrivateKeyHandle, apiAuthenticationKey)
+          }
+          .map(Measurement.Result::toInternal)
+      )
+    }
+
+    /** Decrypts a [Measurement.ResultPair] to [Measurement.Result] */
+    private suspend fun decryptMeasurementResultPair(
+      measurementResultPair: Measurement.ResultPair,
+      encryptionPrivateKeyHandle: PrivateKeyHandle,
+      apiAuthenticationKey: String,
+    ): Measurement.Result {
+      // TODO: Cache the certificate
+      val certificate =
+        try {
+          certificatesStub
+            .withAuthenticationKey(apiAuthenticationKey)
+            .getCertificate(getCertificateRequest { name = measurementResultPair.certificate })
+        } catch (e: StatusException) {
+          throw Exception(
+            "Unable to retrieve the certificate [${measurementResultPair.certificate}].",
+            e
+          )
+        }
+
+      val signedResult =
+        decryptResult(measurementResultPair.encryptedResult, encryptionPrivateKeyHandle)
+
+      val x509Certificate: X509Certificate = readCertificate(certificate.x509Der)
+      val trustedIssuer: X509Certificate =
+        checkNotNull(trustedCertificates[checkNotNull(x509Certificate.authorityKeyIdentifier)]) {
+          "${certificate.name} not issued by trusted CA"
+        }
+
+      // TODO: Record verification failure in internal Measurement rather than having the RPC fail.
+      try {
+        verifyResult(signedResult, x509Certificate, trustedIssuer)
+      } catch (e: CertPathValidatorException) {
+        throw Exception("Certificate path for ${certificate.name} is invalid", e)
+      } catch (e: SignatureException) {
+        throw Exception("Measurement result signature is invalid", e)
+      }
+      return Measurement.Result.parseFrom(signedResult.data)
+    }
+
+    /** Aggregate a list of [InternalMeasurement.Result]s to a [InternalMeasurement.Result] */
+    private fun aggregateResults(
+      internalMeasurementResults: List<InternalMeasurement.Result>
+    ): InternalMeasurement.Result {
+      if (internalMeasurementResults.isEmpty()) {
+        error("No measurement result.")
+      }
+      var reachValue = 0L
+      var impressionValue = 0L
+      val frequencyDistribution = mutableMapOf<Long, Double>()
+      var watchDurationValue = duration {
+        seconds = 0
+        nanos = 0
+      }
+
+      // Aggregation
+      for (result in internalMeasurementResults) {
+        if (result.hasFrequency()) {
+          if (!result.hasReach()) {
+            error("Missing reach measurement in the Reach-Frequency measurement.")
+          }
+          for ((frequency, percentage) in result.frequency.relativeFrequencyDistributionMap) {
+            val previousTotalReachCount =
+              frequencyDistribution.getOrDefault(frequency, 0.0) * reachValue
+            val currentReachCount = percentage * result.reach.value
+            frequencyDistribution[frequency] =
+              (previousTotalReachCount + currentReachCount) / (reachValue + result.reach.value)
+          }
+        }
+        if (result.hasReach()) {
+          reachValue += result.reach.value
+        }
+        if (result.hasImpression()) {
+          impressionValue += result.impression.value
+        }
+        if (result.hasWatchDuration()) {
+          watchDurationValue += result.watchDuration.value
+        }
+      }
+
+      return InternalMeasurementKt.result {
+        if (internalMeasurementResults.first().hasReach()) {
+          this.reach = InternalMeasurementKt.ResultKt.reach { value = reachValue }
+        }
+        if (internalMeasurementResults.first().hasFrequency()) {
+          this.frequency =
+            InternalMeasurementKt.ResultKt.frequency {
+              relativeFrequencyDistribution.putAll(frequencyDistribution)
+            }
+        }
+        if (internalMeasurementResults.first().hasImpression()) {
+          this.impression = InternalMeasurementKt.ResultKt.impression { value = impressionValue }
+        }
+        if (internalMeasurementResults.first().hasWatchDuration()) {
+          this.watchDuration =
+            InternalMeasurementKt.ResultKt.watchDuration { value = watchDurationValue }
+        }
+      }
+    }
   }
 
   override suspend fun listMetrics(request: ListMetricsRequest): ListMetricsResponse {
@@ -607,18 +893,31 @@ class MetricsService(
       if (results.size > listMetricsPageToken.pageSize) {
         listMetricsPageToken.copy {
           lastMetric = previousPageEnd {
-            externalMeasurementConsumerId =
-              results[results.lastIndex - 1].cmmsMeasurementConsumerId
+            externalMeasurementConsumerId = results[results.lastIndex - 1].cmmsMeasurementConsumerId
             externalMetricId = results[results.lastIndex - 1].externalMetricId
           }
         }
       } else null
 
+    val toBeSyncedMeasurements: List<InternalMeasurement> =
+      results
+        .subList(0, min(results.size, listMetricsPageToken.pageSize))
+        .filter { internalMetric -> internalMetric.state == InternalMetric.State.RUNNING }
+        .flatMap { internalMetric -> internalMetric.weightedMeasurementsList }
+        .map { weightedMeasurement -> weightedMeasurement.measurement }
+
+    // syncMeasurements(
+    //   toBeSyncedMeasurements,
+    //   apiAuthenticationKey,
+    //   principal,
+    // )
+
     return listMetricsResponse {
       metrics +=
-        results
-          .subList(0, min(results.size, listMetricsPageToken.pageSize))
-          .map { getUpToDateMetric(it, apiAuthenticationKey, principalName) }
+        batchGetInternalMetrics(
+            principal.resourceKey.measurementConsumerId,
+            results.subList(0, min(results.size, listMetricsPageToken.pageSize))
+          )
           .map(InternalMetric::toMetric)
 
       if (nextPageToken != null) {
@@ -627,267 +926,31 @@ class MetricsService(
     }
   }
 
-  /** Gets the up to date [InternalMetric]. */
-  private suspend fun getUpToDateMetric(
-    internalMetric: InternalMetric,
-    apiAuthenticationKey: String,
-    principalName: String
-  ): InternalMetric {
-    // Metric with SUCCEEDED or FAILED state is already synced.
-    if (
-      internalMetric.state == InternalMetric.State.SUCCEEDED ||
-        internalMetric.state == InternalMetric.State.FAILED
-    ) {
-      return internalMetric
-    } else if (
-      internalMetric.state == InternalMetric.State.STATE_UNSPECIFIED ||
-        internalMetric.state == InternalMetric.State.UNRECOGNIZED
-    ) {
-      error(
-        "The metric cannot be synced because the metric state was not set correctly as it " +
-          "should've been."
-      )
-    }
-
-    syncMeasurements(
-      internalMetric.weightedMeasurementsList,
-      internalMetric.cmmsMeasurementConsumerId,
-      apiAuthenticationKey,
-      principalName,
-    )
-
-    return try {
-      internalMetricsStub.getMetric(
-        internalGetMetricRequest {
-          cmmsMeasurementConsumerId = internalMetric.cmmsMeasurementConsumerId
-          externalMetricId = internalMetric.externalMetricId
-        }
-      )
-    } catch (e: StatusException) {
-      val metricName =
-        MetricKey(
-            internalMetric.cmmsMeasurementConsumerId,
-            externalIdToApiId(internalMetric.externalMetricId)
-          )
-          .toName()
-      throw Exception("Unable to get the metric [$metricName] from the reporting database.", e)
-    }
-  }
-
-  /** Syncs [InternalMeasurement]s. */
-  private suspend fun syncMeasurements(
-    weightedMeasurements: List<WeightedMeasurement>,
+  /** Gets a batch of [InternalMetric]. */
+  private suspend fun batchGetInternalMetrics(
     cmmsMeasurementConsumerId: String,
-    apiAuthenticationKey: String,
-    principalName: String,
-  ) {
-    for (weightedMeasurement in weightedMeasurements) {
-      // Measurement with SUCCEEDED state is already synced
-      if (weightedMeasurement.measurement.state == InternalMeasurement.State.SUCCEEDED) continue
-
-      syncMeasurement(
-        weightedMeasurement.measurement,
-        cmmsMeasurementConsumerId,
-        apiAuthenticationKey,
-        principalName,
-      )
-    }
-  }
-
-  /** Syncs [InternalMeasurement] with the CMMs [Measurement] given the measurement reference ID. */
-  private suspend fun syncMeasurement(
-    internalMeasurement: InternalMeasurement,
-    cmmsMeasurementConsumerId: String,
-    apiAuthenticationKey: String,
-    principalName: String,
-  ) {
-    val measurementResourceName =
-      MeasurementKey(cmmsMeasurementConsumerId, internalMeasurement.cmmsMeasurementId)
-        .toName()
-    val measurement =
-      try {
-        measurementsStub
-          .withAuthenticationKey(apiAuthenticationKey)
-          .getMeasurement(getMeasurementRequest { name = measurementResourceName })
-      } catch (e: StatusException) {
-        throw Exception("Unable to retrieve the measurement [$measurementResourceName].", e)
-      }
-
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-    when (measurement.state) {
-      Measurement.State.SUCCEEDED -> {
-        // Store the result to the internal database.
-        val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
-        val encryptionPrivateKeyHandle =
-          encryptionKeyPairStore.getPrivateKeyHandle(
-            principalName,
-            EncryptionPublicKey.parseFrom(measurementSpec.measurementPublicKey).data
-          )
-            ?: failGrpc(Status.PERMISSION_DENIED) { "Encryption private key not found" }
-
-        val setInternalMeasurementResultRequest: SetMeasurementResultRequest =
-          buildSetInternalMeasurementResultRequest(
-            cmmsMeasurementConsumerId,
-            internalMeasurement.externalMeasurementId,
-            measurement.resultsList,
-            encryptionPrivateKeyHandle,
-            apiAuthenticationKey,
-          )
-
-        try {
-          internalMeasurementsStub.setMeasurementResult(setInternalMeasurementResultRequest)
-        } catch (e: StatusException) {
-          throw Exception(
-            "Unable to update the measurement [$measurementResourceName] in the reporting " +
-              "database.",
-            e
-          )
-        }
-      }
-      Measurement.State.AWAITING_REQUISITION_FULFILLMENT,
-      Measurement.State.COMPUTING -> {} // No action needed
-      Measurement.State.FAILED,
-      Measurement.State.CANCELLED -> {
-        val setInternalMeasurementFailureRequest = setMeasurementFailureRequest {
-          this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-          this.externalMeasurementId = externalMeasurementId
-          failure = measurement.failure.toInternal()
-        }
-
-        try {
-          internalMeasurementsStub.setMeasurementFailure(setInternalMeasurementFailureRequest)
-        } catch (e: StatusException) {
-          throw Exception(
-            "Unable to update the measurement [$measurementResourceName] in the reporting " +
-              "database.",
-            e
-          )
-        }
-      }
-      Measurement.State.STATE_UNSPECIFIED -> error("The measurement state should've been set.")
-      Measurement.State.UNRECOGNIZED -> error("Unrecognized measurement state.")
-    }
-  }
-
-  /** Builds a [SetMeasurementResultRequest]. */
-  private suspend fun buildSetInternalMeasurementResultRequest(
-    cmmsMeasurementConsumerId: String,
-    externalMeasurementId: Long,
-    resultsList: List<Measurement.ResultPair>,
-    encryptionPrivateKeyHandle: PrivateKeyHandle,
-    apiAuthenticationKey: String,
-  ): SetMeasurementResultRequest {
-    return setMeasurementResultRequest {
+    internalMetrics: List<InternalMetric>,
+  ): List<InternalMetric> {
+    val batchGetMetricsRequest = batchGetMetricsRequest {
       this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-      this.externalMeasurementId = externalMeasurementId
-      result =
-        aggregateResults(
-          resultsList
-            .map {
-              decryptMeasurementResultPair(it, encryptionPrivateKeyHandle, apiAuthenticationKey)
-            }
-            .map(Measurement.Result::toInternal)
-        )
+      this.externalMetricIds += internalMetrics.map { it.externalMetricId }
     }
-  }
 
-  /** Decrypts a [Measurement.ResultPair] to [Measurement.Result] */
-  private suspend fun decryptMeasurementResultPair(
-    measurementResultPair: Measurement.ResultPair,
-    encryptionPrivateKeyHandle: PrivateKeyHandle,
-    apiAuthenticationKey: String,
-  ): Measurement.Result {
-    // TODO: Cache the certificate
-    val certificate =
-      try {
-        certificatesStub
-          .withAuthenticationKey(apiAuthenticationKey)
-          .getCertificate(getCertificateRequest { name = measurementResultPair.certificate })
-      } catch (e: StatusException) {
-        throw Exception(
-          "Unable to retrieve the certificate [${measurementResultPair.certificate}].",
-          e
+    val internalMetricsList = internalMetricsStub.batchGetMetrics(batchGetMetricsRequest).toList()
+
+    if (internalMetricsList.size < internalMetrics.size) {
+      val missingInternalMetricIds = internalMetrics.map { it.externalMetricId }.toMutableSet()
+      val errorMessage = StringBuilder("The following metric names were not found:")
+      internalMetricsList.forEach { missingInternalMetricIds.remove(it.externalMetricId) }
+      missingInternalMetricIds.forEach {
+        errorMessage.append(
+          " ${MetricKey(cmmsMeasurementConsumerId, externalIdToApiId(it)).toName()}"
         )
       }
-
-    val signedResult =
-      decryptResult(measurementResultPair.encryptedResult, encryptionPrivateKeyHandle)
-
-    val x509Certificate: X509Certificate = readCertificate(certificate.x509Der)
-    val trustedIssuer: X509Certificate =
-      checkNotNull(trustedCertificates[checkNotNull(x509Certificate.authorityKeyIdentifier)]) {
-        "${certificate.name} not issued by trusted CA"
-      }
-
-    // TODO: Record verification failure in internal Measurement rather than having the RPC fail.
-    try {
-      verifyResult(signedResult, x509Certificate, trustedIssuer)
-    } catch (e: CertPathValidatorException) {
-      throw Exception("Certificate path for ${certificate.name} is invalid", e)
-    } catch (e: SignatureException) {
-      throw Exception("Measurement result signature is invalid", e)
-    }
-    return Measurement.Result.parseFrom(signedResult.data)
-  }
-
-  /** Aggregate a list of [InternalMeasurement.Result]s to a [InternalMeasurement.Result] */
-  private fun aggregateResults(
-    internalMeasurementResults: List<InternalMeasurement.Result>
-  ): InternalMeasurement.Result {
-    if (internalMeasurementResults.isEmpty()) {
-      error("No measurement result.")
-    }
-    var reachValue = 0L
-    var impressionValue = 0L
-    val frequencyDistribution = mutableMapOf<Long, Double>()
-    var watchDurationValue = duration {
-      seconds = 0
-      nanos = 0
+      failGrpc(Status.NOT_FOUND) { errorMessage.toString() }
     }
 
-    // Aggregation
-    for (result in internalMeasurementResults) {
-      if (result.hasFrequency()) {
-        if (!result.hasReach()) {
-          error("Missing reach measurement in the Reach-Frequency measurement.")
-        }
-        for ((frequency, percentage) in result.frequency.relativeFrequencyDistributionMap) {
-          val previousTotalReachCount =
-            frequencyDistribution.getOrDefault(frequency, 0.0) * reachValue
-          val currentReachCount = percentage * result.reach.value
-          frequencyDistribution[frequency] =
-            (previousTotalReachCount + currentReachCount) / (reachValue + result.reach.value)
-        }
-      }
-      if (result.hasReach()) {
-        reachValue += result.reach.value
-      }
-      if (result.hasImpression()) {
-        impressionValue += result.impression.value
-      }
-      if (result.hasWatchDuration()) {
-        watchDurationValue += result.watchDuration.value
-      }
-    }
-
-    return InternalMeasurementKt.result {
-      if (internalMeasurementResults.first().hasReach()) {
-        this.reach = InternalMeasurementKt.ResultKt.reach { value = reachValue }
-      }
-      if (internalMeasurementResults.first().hasFrequency()) {
-        this.frequency =
-          InternalMeasurementKt.ResultKt.frequency {
-            relativeFrequencyDistribution.putAll(frequencyDistribution)
-          }
-      }
-      if (internalMeasurementResults.first().hasImpression()) {
-        this.impression = InternalMeasurementKt.ResultKt.impression { value = impressionValue }
-      }
-      if (internalMeasurementResults.first().hasWatchDuration()) {
-        this.watchDuration =
-          InternalMeasurementKt.ResultKt.watchDuration { value = watchDurationValue }
-      }
-    }
+    return internalMetricsList
   }
 
   override suspend fun createMetric(request: CreateMetricRequest): Metric {
