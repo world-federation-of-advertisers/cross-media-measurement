@@ -32,7 +32,7 @@ service Metrics {
   rpc GetMetricByIdempotencyKey(GetMetricByIdempotencyKeyRequest)
       returns (Metric);
 
-  rpc BatchGetMetric(BatchGetMetricRequest) returns (stream Metric);
+  rpc BatchGetMetrics(BatchGetMetricsRequest) returns (stream Metric);
 
   rpc StreamMetrics(StreamMetricsRequest) returns (stream Metric);
 }
@@ -55,7 +55,7 @@ message GetMetricByIdempotencyKeyRequest {
   string metric_idempotency_key = 2;
 }
 
-message BatchGetMetricRequest {
+message BatchGetMetricsRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
   string cmms_measurement_consumer_id = 1;
   repeated fixed64 external_metric_ids = 2;
