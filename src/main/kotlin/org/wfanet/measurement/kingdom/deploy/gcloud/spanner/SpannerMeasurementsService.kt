@@ -68,7 +68,9 @@ class SpannerMeasurementsService(
     } catch (e: RequiredDuchiesNotActiveException) {
       e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Inactive required duchy." }
     } catch (e: InsufficientNumberOfActiveDuchiesException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Insufficient number of active duchies." }
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
+        "Insufficient number of active duchies."
+      }
     } catch (e: KingdomInternalException) {
       e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }

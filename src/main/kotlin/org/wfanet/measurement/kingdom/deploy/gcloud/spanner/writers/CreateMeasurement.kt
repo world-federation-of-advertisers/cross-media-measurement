@@ -35,6 +35,7 @@ import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
+import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
@@ -48,8 +49,6 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateR
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.readDataProviderId
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWriter.TransactionScope
-
-private const val MINIMUM_NUMBER_OF_REQUIRED_DUCHIES = 2
 
 /**
  * Creates a measurement in the database.
@@ -66,6 +65,7 @@ class CreateMeasurement(private val measurement: Measurement) :
   SpannerWriter<Measurement, Measurement>() {
 
   override suspend fun TransactionScope.runTransaction(): Measurement {
+
     val measurementConsumerId: InternalId =
       readMeasurementConsumerId(ExternalId(measurement.externalMeasurementConsumerId))
 
@@ -91,11 +91,8 @@ class CreateMeasurement(private val measurement: Measurement) :
   ): Measurement {
     val initialMeasurementState = Measurement.State.PENDING_REQUISITION_PARAMS
 
-    val activeWorkers =
-      getActiveWorkers(
-        measurement.details.protocolConfig.liquidLegionsV2.requiredExternalDuchyIdsList
-      )
-    if (activeWorkers.size < MINIMUM_NUMBER_OF_REQUIRED_DUCHIES) {
+    val activeWorkers = getActiveWorkers(Llv2ProtocolConfig.requiredExternalDuchyIds)
+    if (activeWorkers.size < Llv2ProtocolConfig.minimumNumberOfRequiredDuchies) {
       throw InsufficientNumberOfActiveDuchiesException()
     }
 
@@ -106,21 +103,19 @@ class CreateMeasurement(private val measurement: Measurement) :
       throw RequiredDuchiesNotActiveException()
     }
 
-    if (requiredDuchyExternalIds.size < MINIMUM_NUMBER_OF_REQUIRED_DUCHIES) {
+    if (requiredDuchyExternalIds.size < Llv2ProtocolConfig.minimumNumberOfRequiredDuchies) {
 
       val remainingDuchies =
         activeWorkers.filter { !requiredDuchyExternalIds.contains(it) }.toMutableList()
 
-      while (requiredDuchyExternalIds.size < MINIMUM_NUMBER_OF_REQUIRED_DUCHIES) {
+      while (requiredDuchyExternalIds.size < Llv2ProtocolConfig.minimumNumberOfRequiredDuchies) {
         requiredDuchyExternalIds.add(
           remainingDuchies.removeAt(Random.nextInt(remainingDuchies.size))
         )
       }
     }
 
-    requiredDuchyExternalIds.addAll(
-      measurement.details.protocolConfig.liquidLegionsV2.requiredExternalDuchyIdsList
-    )
+    requiredDuchyExternalIds.addAll(Llv2ProtocolConfig.requiredExternalDuchyIds)
 
     val measurementId: InternalId = idGenerator.generateInternalId()
     val externalMeasurementId: ExternalId = idGenerator.generateExternalId()
@@ -362,12 +357,12 @@ private suspend fun TransactionScope.readMeasurementConsumerId(
 
 private suspend fun TransactionScope.readDataProviderRequiredDuchies(
   externalDataProviderIds: List<Long>
-): MutableList<String> {
+): MutableSet<String> {
   val requiredDuchies = mutableSetOf<String>()
   StreamDataProviders(externalDataProviderIds).execute(transactionContext).collect {
     requiredDuchies.addAll(it.dataProvider.requiredExternalDuchyIdsList)
   }
-  return requiredDuchies.toMutableList()
+  return requiredDuchies
 }
 
 /**
@@ -386,8 +381,8 @@ private fun validateCertificate(
   return certificateResult.certificateId
 }
 
-private fun getActiveWorkers(protocolRequiredExternalDuchyIds: List<String>): List<String> {
-  val activeWorkers = mutableListOf<String>()
+private fun getActiveWorkers(protocolRequiredExternalDuchyIds: List<String>): Set<String> {
+  val activeWorkers = mutableSetOf<String>()
   val now = Clock.systemUTC().instant()
   for (entry in DuchyIds.entries) {
     if (

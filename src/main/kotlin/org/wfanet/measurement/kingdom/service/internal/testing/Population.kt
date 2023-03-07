@@ -202,10 +202,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
         duchyProtocolConfig = duchyProtocolConfig {
           liquidLegionsV2 = DuchyProtocolConfigKt.liquidLegionsV2 {}
         }
-        protocolConfig = protocolConfig {
-          liquidLegionsV2 =
-            ProtocolConfigKt.liquidLegionsV2 { requiredExternalDuchyIds += "aggregator" }
-        }
+        protocolConfig = protocolConfig { liquidLegionsV2 = ProtocolConfigKt.liquidLegionsV2 {} }
       }
     return createMeasurement(
       measurementsService,

@@ -24,6 +24,7 @@ import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
+import org.junit.BeforeClass
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -33,18 +34,21 @@ import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntryKt
+import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.StateTransitionMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.createDuchyMeasurementLogEntryRequest
 import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.measurementLogEntry
 import org.wfanet.measurement.internal.kingdom.streamStateTransitionMeasurementLogEntriesRequest
+import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.DUCHIES
 
@@ -81,6 +85,18 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
     private set
 
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
+  companion object {
+    @BeforeClass
+    @JvmStatic
+    fun initConfig() {
+      Llv2ProtocolConfig.setForTest(
+        ProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
+        DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
+        listOf(Population.AGGREGATOR_DUCHY.externalDuchyId),
+        2
+      )
+    }
+  }
 
   @Before
   fun initService() {

@@ -12,7 +12,6 @@ protocol_config {
   }
   elliptic_curve_id: 415
   maximum_frequency: 10
-  required_external_duchy_ids: "aggregator"
 }
 duchy_protocol_config {
   mpc_noise {
@@ -26,3 +25,5 @@ duchy_protocol_config {
     }
   }
 }
+required_external_duchy_ids: "aggregator"
+minimum_number_of_required_duchies: 2

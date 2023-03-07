@@ -26,6 +26,7 @@ import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
+import org.junit.BeforeClass
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -44,6 +45,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.Measur
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionKt.details
@@ -64,6 +66,7 @@ import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
 import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
+import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.DUCHIES
 
@@ -82,9 +85,7 @@ private val MEASUREMENT = measurement {
         liquidLegionsV2 = DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance()
       }
       protocolConfig = protocolConfig {
-        liquidLegionsV2 = liquidLegionsV2 {
-          requiredExternalDuchyIds += Population.AGGREGATOR_DUCHY.externalDuchyId
-        }
+        liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
       }
     }
 }
@@ -126,7 +127,18 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     private set
 
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
-
+  companion object {
+    @BeforeClass
+    @JvmStatic
+    fun initConfig() {
+      Llv2ProtocolConfig.setForTest(
+        ProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
+        DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
+        listOf(Population.AGGREGATOR_DUCHY.externalDuchyId),
+        2
+      )
+    }
+  }
   @Before
   fun initService() {
     val services = newServices(idGenerator)
@@ -770,9 +782,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
               measurementSpec = createdMeasurement.details.measurementSpec
               measurementSpecSignature = createdMeasurement.details.measurementSpecSignature
               protocolConfig = protocolConfig {
-                liquidLegionsV2 = liquidLegionsV2 {
-                  requiredExternalDuchyIds += Population.AGGREGATOR_DUCHY.externalDuchyId
-                }
+                liquidLegionsV2 = ProtocolConfig.LiquidLegionsV2.getDefaultInstance()
               }
               dataProvidersCount = 1
             }
