@@ -132,8 +132,7 @@ private constructor(
   ) {
     addComputation(
       // For the purpose of a fake it is fine to assume that the globalId can be parsed as Long
-      // and
-      // use the Long value for the localId.
+      // and use the Long value for the localId.
       localId = globalId.toLong(),
       stage = stage,
       computationDetails = computationDetails,

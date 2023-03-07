@@ -68,7 +68,10 @@ private class Flags {
 
   @set:CommandLine.Option(
     names = ["--dry-run"],
-    description = ["Whether to dry run the deletion."],
+    description =
+      [
+        "Whether to print the number of the Computations that would be deleted without performing the deletion."
+      ],
     required = false,
     defaultValue = "false"
   )

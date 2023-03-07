@@ -18,6 +18,7 @@ package wfa.measurement.internal.duchy;
 
 import "google/protobuf/duration.proto";
 import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/duchy/computation_details.proto";
 import "wfa/measurement/internal/duchy/computation_protocols.proto";
 import "wfa/measurement/internal/duchy/computation_token.proto";
@@ -36,13 +37,15 @@ service Computations {
   rpc CreateComputation(CreateComputationRequest)
       returns (CreateComputationResponse);
 
-  // Deletes a computation.
+  // Deletes a computation. The Computation may have been deleted even if the
+  // response status is not OK.
   rpc DeleteComputation(DeleteComputationRequest)
       returns (google.protobuf.Empty);
 
-  // Deletes outdated computations in specific stages.
-  rpc DeleteOutdatedComputations(DeleteOutdatedComputationsRequest)
-      returns (DeleteOutdatedComputationsResponse);
+  // Purge computations in specific stages with updated time before a certain
+  // timestamp.
+  rpc PurgeComputations(PurgeComputationsRequest)
+      returns (PurgeComputationsResponse);
 
   // Gets the ComputationToken for a specific computation by
   // its global identifier.
@@ -55,7 +58,7 @@ service Computations {
       returns (UpdateComputationDetailsResponse);
 
   // Advances the stage of a computation to another non-terminal stage.
-  // An path to a BLOb for each of the outputs must be written, before
+  // An path to a BLOB for each of the outputs must be written, before
   // this call will succeed.
   rpc AdvanceComputationStage(AdvanceComputationStageRequest)
       returns (AdvanceComputationStageResponse);
@@ -110,20 +113,26 @@ message DeleteComputationRequest {
   int64 local_computation_id = 1;
 }
 
-message DeleteOutdatedComputationsRequest {
-  // The time-to-live(TTL) of computations determining if a Computation is
-  // outdated.
-  google.protobuf.Duration time_to_live = 1;
+message PurgeComputationsRequest {
+  // Only Computations with UpdateTime before the timestamp will be
+  // purged.
+  google.protobuf.Timestamp updated_before = 1;
   // The stages where Computations are in to delete.
   repeated ComputationStage stages = 2;
-  // If dry_run is set, the deletion won't be execute.
-  bool dry_run = 3;
+  // Actually perform the purge.
+  // If `force` is set to false, the method will return a sample of
+  // globalIds of Computations that would be deleted.
+  bool force = 3;
 }
 
-message DeleteOutdatedComputationsResponse {
-  // The number of Computations deleted. If dry_run in request is set, stands
-  // for the number of Computations could be deleted.
-  int32 count = 1;
+message PurgeComputationsResponse {
+  // The number of Computations deleted. (or, if `force` is false,
+  // the number of Computations that will be deleted).
+  int32 purge_count = 1;
+
+  // A sample of globalIds of Computations that will be deleted.
+  // Only populated if `force` is set to false.
+  repeated string purge_sample = 2;
 }
 
 // Request for a ComputationToken for a specific computation.

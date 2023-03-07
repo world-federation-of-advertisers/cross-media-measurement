@@ -25,6 +25,7 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.common.toDuration
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.duchy.db.computation.AfterTransition
 import org.wfanet.measurement.duchy.db.computation.BlobRef
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
@@ -47,8 +48,6 @@ import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoro
 import org.wfanet.measurement.internal.duchy.CreateComputationRequest
 import org.wfanet.measurement.internal.duchy.CreateComputationResponse
 import org.wfanet.measurement.internal.duchy.DeleteComputationRequest
-import org.wfanet.measurement.internal.duchy.DeleteOutdatedComputationsRequest
-import org.wfanet.measurement.internal.duchy.DeleteOutdatedComputationsResponse
 import org.wfanet.measurement.internal.duchy.EnqueueComputationRequest
 import org.wfanet.measurement.internal.duchy.EnqueueComputationResponse
 import org.wfanet.measurement.internal.duchy.FinishComputationRequest
@@ -58,14 +57,16 @@ import org.wfanet.measurement.internal.duchy.GetComputationIdsResponse
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest.KeyCase
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
+import org.wfanet.measurement.internal.duchy.PurgeComputationsRequest
+import org.wfanet.measurement.internal.duchy.PurgeComputationsResponse
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathResponse
 import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathRequest
 import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathResponse
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsResponse
-import org.wfanet.measurement.internal.duchy.deleteOutdatedComputationsResponse
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
+import org.wfanet.measurement.internal.duchy.purgeComputationsResponse
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
@@ -135,7 +136,7 @@ class ComputationsService(
       try {
         computationStorageClient.get(blobKey)?.delete()
       } catch (e: StatusException) {
-        if (e.status.code != Status.NOT_FOUND.code) {
+        if (e.status.code != Status.Code.NOT_FOUND) {
           throw e
         }
       }
@@ -158,23 +159,21 @@ class ComputationsService(
     return Empty.getDefaultInstance()
   }
 
-  override suspend fun deleteOutdatedComputations(
-    request: DeleteOutdatedComputationsRequest
-  ): DeleteOutdatedComputationsResponse {
-    require(request.timeToLive.toDuration() >= MIN_COMPUTATIONS_TIME_TO_LIVE) {
-      "Computation's time to live is too short to execute batch deletions."
-    }
+  override suspend fun purgeComputations(
+    request: PurgeComputationsRequest
+  ): PurgeComputationsResponse {
     var deleted = 0
     try {
-      val before = clock.instant().minusMillis(request.timeToLive.toDuration().toMillis())
       val globalIds =
-        computationsDatabase.readGlobalComputationIds(request.stagesList.toSet(), before)
-      if (request.dryRun) {
-        logger.log(
-          Level.INFO,
-          "Dry run batch deletion. # of Computations to delete is ${globalIds.size}"
+        computationsDatabase.readGlobalComputationIds(
+          request.stagesList.toSet(),
+          request.updatedBefore.toInstant()
         )
-        return deleteOutdatedComputationsResponse { this.count = 0 }
+      if (request.force) {
+        return purgeComputationsResponse {
+          purgeCount = globalIds.size
+          purgeSample += globalIds
+        }
       }
       for (globalId in globalIds) {
         val token = computationsDatabase.readComputationToken(globalId) ?: continue
@@ -198,7 +197,7 @@ class ComputationsService(
     } catch (e: Exception) {
       logger.log(Level.WARNING, "Exception during Computations cleaning. $e")
     }
-    return deleteOutdatedComputationsResponse { this.count = deleted }
+    return purgeComputationsResponse { this.purgeCount = deleted }
   }
 
   override suspend fun finishComputation(
@@ -389,8 +388,6 @@ class ComputationsService(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-
-    private val MIN_COMPUTATIONS_TIME_TO_LIVE = Duration.ofDays(90)
   }
 }
 

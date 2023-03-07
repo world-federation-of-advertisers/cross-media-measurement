@@ -14,14 +14,15 @@
 
 package org.wfanet.measurement.duchy.service.internal.computations
 
+import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.common.toProtoDuration
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
-import org.wfanet.measurement.internal.duchy.deleteOutdatedComputationsRequest
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
+import org.wfanet.measurement.internal.duchy.purgeComputationsRequest
 
 class ComputationsCleaner(
   private val computationsService: ComputationsCoroutineStub,
@@ -31,24 +32,20 @@ class ComputationsCleaner(
 
   fun run() {
     if (timeToLive.toMillis() == 0L) {
-      logger.warning("Computation TTL cannot be 0. TTL=${timeToLive}")
+      logger.warning("Time to live cannot be 0. TTL=${timeToLive}")
       return
     }
 
-    logger.info("ComputationCleaner task starts. TTL=${timeToLive}. dryRun=$dryRun")
-    val response = runBlocking {
-      computationsService.deleteOutdatedComputations(
-        deleteOutdatedComputationsRequest {
-          timeToLive = this@ComputationsCleaner.timeToLive.toProtoDuration()
+    val currentTime = Clock.systemUTC().instant()
+    runBlocking {
+      computationsService.purgeComputations(
+        purgeComputationsRequest {
+          updatedBefore = currentTime.minusMillis(timeToLive.toMillis()).toProtoTime()
           stages += Stage.COMPLETE.toProtocolStage()
-          dryRun = this@ComputationsCleaner.dryRun
+          force = dryRun
         }
       )
     }
-    logger.info(
-      "ComputationCleaner task finishes. ${response.count} Computations " +
-        if (dryRun) "to delete" else "deleted"
-    )
   }
 
   companion object {
