@@ -74,7 +74,7 @@ import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisit
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptionPublicKey
-import org.wfanet.measurement.internal.reporting.v2alpha.BatchSetCmmsMeasurementIdRequestKt.measurementIds
+import org.wfanet.measurement.internal.reporting.v2alpha.BatchSetCmmsMeasurementIdsRequestKt.measurementIds
 import org.wfanet.measurement.internal.reporting.v2alpha.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2alpha.Metric as InternalMetric
@@ -90,7 +90,7 @@ import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSetsGrpcKt.Rep
 import org.wfanet.measurement.internal.reporting.v2alpha.TimeInterval as InternalTimeInterval
 import org.wfanet.measurement.internal.reporting.v2alpha.batchCreateMetricsRequest as internalBatchCreateMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2alpha.batchGetReportingSetsRequest
-import org.wfanet.measurement.internal.reporting.v2alpha.batchSetCmmsMeasurementIdRequest
+import org.wfanet.measurement.internal.reporting.v2alpha.batchSetCmmsMeasurementIdsRequest
 import org.wfanet.measurement.internal.reporting.v2alpha.copy
 import org.wfanet.measurement.internal.reporting.v2alpha.getMetricByIdempotencyKeyRequest
 import org.wfanet.measurement.internal.reporting.v2alpha.getReportingSetRequest as getInternalReportingSetRequest
@@ -261,8 +261,8 @@ class MetricsService(
 
       try {
         internalMeasurementsStub
-          .batchSetCmmsMeasurementId(
-            batchSetCmmsMeasurementIdRequest {
+          .batchSetCmmsMeasurementIds(
+            batchSetCmmsMeasurementIdsRequest {
               this.cmmsMeasurementConsumerId = principal.resourceKey.measurementConsumerId
               measurementIds +=
                 measurements.map { measurement ->
