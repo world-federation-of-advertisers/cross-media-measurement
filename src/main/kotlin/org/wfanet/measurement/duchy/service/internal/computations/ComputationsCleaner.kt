@@ -42,7 +42,7 @@ class ComputationsCleaner(
         purgeComputationsRequest {
           updatedBefore = currentTime.minusMillis(timeToLive.toMillis()).toProtoTime()
           stages += Stage.COMPLETE.toProtocolStage()
-          force = dryRun
+          force = !dryRun
         }
       )
     }

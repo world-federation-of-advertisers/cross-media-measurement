@@ -169,7 +169,7 @@ class ComputationsService(
           request.stagesList.toSet(),
           request.updatedBefore.toInstant()
         )
-      if (request.force) {
+      if (!request.force) {
         return purgeComputationsResponse {
           purgeCount = globalIds.size
           purgeSample += globalIds
