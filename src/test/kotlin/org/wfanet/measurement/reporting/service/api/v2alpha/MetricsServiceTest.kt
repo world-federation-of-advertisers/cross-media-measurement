@@ -111,8 +111,8 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionP
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.internal.reporting.v2alpha.BatchGetReportingSetsRequest
-import org.wfanet.measurement.internal.reporting.v2alpha.BatchSetCmmsMeasurementIdRequest
-import org.wfanet.measurement.internal.reporting.v2alpha.BatchSetCmmsMeasurementIdRequestKt.measurementIds
+import org.wfanet.measurement.internal.reporting.v2alpha.BatchSetCmmsMeasurementIdsRequest
+import org.wfanet.measurement.internal.reporting.v2alpha.BatchSetCmmsMeasurementIdsRequestKt.measurementIds
 import org.wfanet.measurement.internal.reporting.v2alpha.GetMetricByIdempotencyKeyRequest
 import org.wfanet.measurement.internal.reporting.v2alpha.GetReportingSetRequest as InternalGetReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2alpha.Measurement as InternalMeasurement
@@ -138,7 +138,7 @@ import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSetKt.weighted
 import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSetsGrpcKt as InternalReportingSetsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2alpha.batchCreateMetricsRequest as internalBatchCreateMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2alpha.batchGetReportingSetsRequest
-import org.wfanet.measurement.internal.reporting.v2alpha.batchSetCmmsMeasurementIdRequest
+import org.wfanet.measurement.internal.reporting.v2alpha.batchSetCmmsMeasurementIdsRequest
 import org.wfanet.measurement.internal.reporting.v2alpha.copy
 import org.wfanet.measurement.internal.reporting.v2alpha.getMetricByIdempotencyKeyRequest
 import org.wfanet.measurement.internal.reporting.v2alpha.getReportingSetRequest as internalGetReportingSetRequest
@@ -1072,7 +1072,7 @@ class MetricsServiceTest {
     }
 
   private val internalMeasurementsMock: InternalMeasurementsCoroutineImplBase = mockService {
-    onBlocking { batchSetCmmsMeasurementId(any()) }
+    onBlocking { batchSetCmmsMeasurementIds(any()) }
       .thenReturn(
         flowOf(
           INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT,
@@ -1310,11 +1310,11 @@ class MetricsServiceTest {
     // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetCmmsMeasurementId
     verifyProtoArgument(
         internalMeasurementsMock,
-        InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementId
+        InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds
       )
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
-        batchSetCmmsMeasurementIdRequest {
+        batchSetCmmsMeasurementIdsRequest {
           cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
           this.measurementIds += measurementIds {
             externalMeasurementId =
@@ -1467,14 +1467,14 @@ class MetricsServiceTest {
         }
       }
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetCmmsMeasurementId
+      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds
       verifyProtoArgument(
           internalMeasurementsMock,
-          InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementId
+          InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds
         )
         .ignoringRepeatedFieldOrder()
         .isEqualTo(
-          batchSetCmmsMeasurementIdRequest {
+          batchSetCmmsMeasurementIdsRequest {
             cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
             this.measurementIds += measurementIds {
               externalMeasurementId =
@@ -1623,14 +1623,14 @@ class MetricsServiceTest {
       }
     }
 
-    // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetCmmsMeasurementId
+    // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds
     verifyProtoArgument(
         internalMeasurementsMock,
-        InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementId
+        InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds
       )
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
-        batchSetCmmsMeasurementIdRequest {
+        batchSetCmmsMeasurementIdsRequest {
           cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
           this.measurementIds += measurementIds {
             externalMeasurementId =
@@ -1720,10 +1720,10 @@ class MetricsServiceTest {
     verifyBlocking(measurementsMock, never()) { createMeasurement(measurementsCaptor.capture()) }
 
     // Verify proto argument of internal MeasurementsCoroutineImplBase::createMeasurement
-    val internalMeasurementsCaptor: KArgumentCaptor<BatchSetCmmsMeasurementIdRequest> =
+    val internalMeasurementsCaptor: KArgumentCaptor<BatchSetCmmsMeasurementIdsRequest> =
       argumentCaptor()
     verifyBlocking(internalMeasurementsMock, never()) {
-      batchSetCmmsMeasurementId(internalMeasurementsCaptor.capture())
+      batchSetCmmsMeasurementIds(internalMeasurementsCaptor.capture())
     }
 
     assertThat(result).isEqualTo(expected)
@@ -1799,10 +1799,10 @@ class MetricsServiceTest {
     verifyBlocking(measurementsMock, never()) { createMeasurement(measurementsCaptor.capture()) }
 
     // Verify proto argument of internal MeasurementsCoroutineImplBase::createMeasurement
-    val internalMeasurementsCaptor: KArgumentCaptor<BatchSetCmmsMeasurementIdRequest> =
+    val internalMeasurementsCaptor: KArgumentCaptor<BatchSetCmmsMeasurementIdsRequest> =
       argumentCaptor()
     verifyBlocking(internalMeasurementsMock, never()) {
-      batchSetCmmsMeasurementId(internalMeasurementsCaptor.capture())
+      batchSetCmmsMeasurementIds(internalMeasurementsCaptor.capture())
     }
 
     assertThat(result).isEqualTo(expected)
@@ -1871,10 +1871,10 @@ class MetricsServiceTest {
     verifyBlocking(measurementsMock, never()) { createMeasurement(measurementsCaptor.capture()) }
 
     // Verify proto argument of internal MeasurementsCoroutineImplBase::createMeasurement
-    val internalMeasurementsCaptor: KArgumentCaptor<BatchSetCmmsMeasurementIdRequest> =
+    val internalMeasurementsCaptor: KArgumentCaptor<BatchSetCmmsMeasurementIdsRequest> =
       argumentCaptor()
     verifyBlocking(internalMeasurementsMock, never()) {
-      batchSetCmmsMeasurementId(internalMeasurementsCaptor.capture())
+      batchSetCmmsMeasurementIds(internalMeasurementsCaptor.capture())
     }
 
     assertThat(result).isEqualTo(expected)
@@ -2268,7 +2268,7 @@ class MetricsServiceTest {
   @Test
   fun `createMetric throws exception when batchSetCmmsMeasurementId throws exception`() =
     runBlocking {
-      whenever(internalMeasurementsMock.batchSetCmmsMeasurementId(any()))
+      whenever(internalMeasurementsMock.batchSetCmmsMeasurementIds(any()))
         .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
 
       val request = createMetricRequest {
@@ -2537,11 +2537,11 @@ class MetricsServiceTest {
     // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetCmmsMeasurementId
     verifyProtoArgument(
         internalMeasurementsMock,
-        InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementId
+        InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds
       )
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
-        batchSetCmmsMeasurementIdRequest {
+        batchSetCmmsMeasurementIdsRequest {
           cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
           this.measurementIds += measurementIds {
             externalMeasurementId =
