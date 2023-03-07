@@ -902,7 +902,7 @@ class MetricsService(
         }
       } else null
 
-    val toBeSyncedMeasurements: List<InternalMeasurement> =
+    val toBeSyncedInternalMeasurements: List<InternalMeasurement> =
       results
         .subList(0, min(results.size, listMetricsPageToken.pageSize))
         .filter { internalMetric -> internalMetric.state == InternalMetric.State.RUNNING }
@@ -910,7 +910,7 @@ class MetricsService(
         .map { weightedMeasurement -> weightedMeasurement.measurement }
 
     measurementSupplier.syncInternalMeasurements(
-      toBeSyncedMeasurements,
+      toBeSyncedInternalMeasurements,
       apiAuthenticationKey,
       principal,
     )
