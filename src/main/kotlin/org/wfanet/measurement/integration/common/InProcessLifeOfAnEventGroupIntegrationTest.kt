@@ -17,6 +17,7 @@
 package org.wfanet.measurement.integration.common
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -108,7 +109,7 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
     val readEventGroup = getEventGroup(createdEventGroup.name)
 
     assertThat(deletedEventGroup.state).isEqualTo(EventGroup.State.DELETED)
-    assertThat(readEventGroup.state).isEqualTo(EventGroup.State.DELETED)
+    assertThat(deletedEventGroup).isEqualTo(readEventGroup)
   }
 
   @Test
