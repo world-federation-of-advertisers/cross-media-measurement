@@ -1,4 +1,4 @@
-# Copyright 2020 The Cross-Media Measurement Authors
+# Copyright 2023 The Cross-Media Measurement Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,12 +18,23 @@
 
 resource "google_container_cluster" "cluster" {
   name     = "duchy-cluster"
-  location = var.region
+  location = local.zone
 
   initial_node_count = 1
   node_config {
     machine_type = "n1-standard-1"
-    disk_size_gb = 100
     disk_type    = "pd-standard"
+  }
+}
+
+resource "google_container_cluster" "worker" {
+
+  # e.g. dev-halo-duchy-gke-cluster
+  name     = "${local.prefix}-gke-cluster"
+  location = local.zone
+  initial_node_count = local.duchy.cluster_node_count
+
+  cluster_autoscaling {
+    enabled = false
   }
 }

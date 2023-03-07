@@ -1,4 +1,4 @@
-# Copyright 2020 The Cross-Media Measurement Authors
+# Copyright 2023 The Cross-Media Measurement Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,16 +17,16 @@
 # https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/duchy-deployment.md
 
 resource "google_spanner_instance" "duchy_db" {
-  config       = "regional-${var.region}"
-  display_name = "duchy_spanner_instance"
-  num_nodes    = 1
+  config       = "regional-${local.zone}"
+  display_name = "${local.prefix}-spanner-instance"
+  num_nodes    = local.spanner.num_nodes
 }
 
 resource "google_spanner_database" "database" {
   instance = google_spanner_instance.duchy_db.name
-  name     = "duchy_spanner_database"
-  version_retention_period = "3d"
-  deletion_protection = true
+  name     = "${local.prefix}-spanner-database"
+  version_retention_period = local.spanner.version_retention_period
+  deletion_protection = local.spanner.deletion_protection
 
   depends_on = [google_spanner_instance.duchy_db]
 }
