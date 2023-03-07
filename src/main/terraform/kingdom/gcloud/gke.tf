@@ -1,4 +1,4 @@
-# Copyright 2020 The Cross-Media Measurement Authors
+# Copyright 2023 The Cross-Media Measurement Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -34,42 +34,6 @@ resource "google_container_node_pool" "data-server"{
   name       = "${local.prefix}-data-server"
   cluster    = google_container_cluster.primary.id
 
-  autoscaling {
-    max_node_count = local.kingdom.max_node_count
-    min_node_count = local.kingdom.min_node_count
-  }
-
-  node_config {
-    preemptible  = true
-    machine_type = local.kingdom.machine_type
-    service_account = google_service_account.gke_sa.email
-    oauth_scopes = [
-      "https://www.googleapis.com/auth/cloud-platform"
-    ]
-  }
-}
-
-resource "google_container_node_pool" "system-api-server"{
-  name       = "${local.prefix}-system-api-server"
-  cluster    = google_container_cluster.primary.id
-  autoscaling {
-    max_node_count = local.kingdom.max_node_count
-    min_node_count = local.kingdom.min_node_count
-  }
-
-  node_config {
-    preemptible  = true
-    machine_type = local.kingdom.machine_type
-    service_account = google_service_account.gke_sa.email
-    oauth_scopes = [
-      "https://www.googleapis.com/auth/cloud-platform"
-    ]
-  }
-}
-
-resource "google_container_node_pool" "v2alpha-public-api-server"{
-  name       = "${local.prefix}-v2alpha-public-api-server"
-  cluster    = google_container_cluster.primary.id
   autoscaling {
     max_node_count = local.kingdom.max_node_count
     min_node_count = local.kingdom.min_node_count
