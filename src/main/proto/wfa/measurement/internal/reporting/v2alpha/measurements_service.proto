@@ -25,15 +25,18 @@ option java_multiple_files = true;
 service Measurements {
   rpc SetCmmsMeasurementId(SetCmmsMeasurementIdRequest) returns (Measurement);
 
-  rpc BatchSetCmmsMeasurementId(BatchSetCmmsMeasurementIdRequest)
+  rpc BatchSetCmmsMeasurementIds(BatchSetCmmsMeasurementIdsRequest)
       returns (stream Measurement);
 
   rpc SetMeasurementResult(SetMeasurementResultRequest) returns (Measurement);
 
-  rpc BatchSetMeasurementResult(BatchSetMeasurementResultRequest)
+  rpc BatchSetMeasurementResults(BatchSetMeasurementResultsRequest)
       returns (stream Measurement);
 
   rpc SetMeasurementFailure(SetMeasurementFailureRequest) returns (Measurement);
+
+  rpc BatchSetMeasurementFailures(BatchSetMeasurementFailuresRequest)
+      returns (stream Measurement);
 }
 
 message SetCmmsMeasurementIdRequest {
@@ -46,7 +49,7 @@ message SetCmmsMeasurementIdRequest {
   string cmms_measurement_id = 3;
 }
 
-message BatchSetCmmsMeasurementIdRequest {
+message BatchSetCmmsMeasurementIdsRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
   string cmms_measurement_consumer_id = 1;
 
@@ -67,7 +70,7 @@ message SetMeasurementResultRequest {
   Measurement.Result result = 3;
 }
 
-message BatchSetMeasurementResultRequest {
+message BatchSetMeasurementResultsRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
   string cmms_measurement_consumer_id = 1;
 
@@ -85,4 +88,15 @@ message SetMeasurementFailureRequest {
   fixed64 external_measurement_id = 2;
 
   Measurement.Failure failure = 3;
+}
+
+message BatchSetMeasurementFailuresRequest {
+  // `MeasurementConsumer` ID from the CMMS public API.
+  string cmms_measurement_consumer_id = 1;
+
+  message MeasurementFailure {
+    fixed64 external_measurement_id = 1;
+    Measurement.Failure failure = 2;
+  }
+  repeated MeasurementFailure measurement_failures = 2;
 }
