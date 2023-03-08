@@ -871,7 +871,7 @@ class MetricsService(
       is MeasurementConsumerPrincipal -> {
         if (request.parent != principal.resourceKey.toName()) {
           failGrpc(Status.PERMISSION_DENIED) {
-            "Cannot create a Metric for another MeasurementConsumer."
+            "Cannot list Metrics belonging to other MeasurementConsumers."
           }
         }
       }
