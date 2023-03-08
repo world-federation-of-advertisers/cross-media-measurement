@@ -192,6 +192,20 @@ class MetricsService(
   private val trustedCertificates: Map<ByteString, X509Certificate>
 ) : MetricsCoroutineImplBase() {
 
+  private val measurementSupplier =
+    MeasurementSupplier(
+      internalReportingSetsStub,
+      internalMeasurementsStub,
+      measurementsStub,
+      dataProvidersStub,
+      certificatesStub,
+      measurementConsumersStub,
+      encryptionKeyPairStore,
+      secureRandom,
+      signingPrivateKeyDir,
+      trustedCertificates,
+    )
+
   private class MeasurementSupplier(
     private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
     private val internalMeasurementsStub: InternalMeasurementsCoroutineStub,
@@ -617,20 +631,6 @@ class MetricsService(
       }
     }
   }
-
-  private val measurementSupplier =
-    MeasurementSupplier(
-      internalReportingSetsStub,
-      internalMeasurementsStub,
-      measurementsStub,
-      dataProvidersStub,
-      certificatesStub,
-      measurementConsumersStub,
-      encryptionKeyPairStore,
-      secureRandom,
-      signingPrivateKeyDir,
-      trustedCertificates,
-    )
 
   override suspend fun createMetric(request: CreateMetricRequest): Metric {
     grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
