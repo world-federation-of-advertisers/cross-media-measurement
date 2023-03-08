@@ -20,6 +20,7 @@ import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
+import java.time.Instant
 import java.time.temporal.ChronoUnit
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
@@ -66,7 +67,9 @@ import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
 import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
+import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig.requiredExternalDuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.DUCHIES
 
@@ -90,10 +93,13 @@ private val MEASUREMENT = measurement {
     }
 }
 
+private val INVALID_WORKER_DUCHY =
+  DuchyIds.Entry(4, "worker3", Instant.now().minusSeconds(100L)..Instant.now().minusSeconds(50L))
+
 @RunWith(JUnit4::class)
 abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
-  @get:Rule val duchyIdSetter = DuchyIdSetter(DUCHIES + Population.INVALID_WORKER3_DUCHY)
+  @get:Rule val duchyIdSetter = DuchyIdSetter(DUCHIES + INVALID_WORKER_DUCHY)
 
   protected data class Services<T>(
     val measurementsService: T,
@@ -127,18 +133,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     private set
 
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
-  companion object {
-    @BeforeClass
-    @JvmStatic
-    fun initConfig() {
-      Llv2ProtocolConfig.setForTest(
-        ProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
-        DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
-        listOf(Population.AGGREGATOR_DUCHY.externalDuchyId),
-        2
-      )
-    }
-  }
+
   @Before
   fun initService() {
     val services = newServices(idGenerator)
@@ -434,6 +429,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       assertThat(retrievedMeasurement.computationParticipantsList[2].externalDuchyId)
         .isEqualTo(DUCHIES[2].externalDuchyId)
     }
+
   @Test
   fun `createMeasurement for duchy measurement fails for inactive required duchy`() = runBlocking {
     val measurementConsumer =
@@ -441,7 +437,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val dataProvider =
       population.createDataProvider(
         dataProvidersService,
-        additionalRequiredDuchy = Population.INVALID_WORKER3_DUCHY
+        customize = { requiredExternalDuchyIds += INVALID_WORKER_DUCHY.externalDuchyId }
       )
 
     val exception =
@@ -1307,5 +1303,18 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         .toList()
 
     assertThat(measurements).containsExactly(succeededMeasurement)
+  }
+
+  companion object {
+    @BeforeClass
+    @JvmStatic
+    fun initConfig() {
+      Llv2ProtocolConfig.setForTest(
+        ProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
+        DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
+        setOf(Population.AGGREGATOR_DUCHY.externalDuchyId),
+        2
+      )
+    }
   }
 }

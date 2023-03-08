@@ -69,15 +69,12 @@ private const val API_VERSION = "v2alpha"
 
 class Population(val clock: Clock, val idGenerator: IdGenerator) {
   companion object {
-    private val VALID_ACTIVE_START_TIME = Instant.parse("2022-01-01T00:00:00Z")
-    private val VALID_ACTIVE_END_TIME = Instant.parse("2032-01-01T00:00:00Z")
-    private val INVALID_ACTIVE_END_TIME = Instant.parse("2023-01-01T00:00:00Z")
+    private val VALID_ACTIVE_START_TIME = Instant.now().minusSeconds(100L)
+    private val VALID_ACTIVE_END_TIME = Instant.now().plusSeconds(500L)
     val AGGREGATOR_DUCHY =
       DuchyIds.Entry(1, "aggregator", VALID_ACTIVE_START_TIME..VALID_ACTIVE_END_TIME)
     val WORKER1_DUCHY = DuchyIds.Entry(2, "worker1", VALID_ACTIVE_START_TIME..VALID_ACTIVE_END_TIME)
     val WORKER2_DUCHY = DuchyIds.Entry(3, "worker2", VALID_ACTIVE_START_TIME..VALID_ACTIVE_END_TIME)
-    val INVALID_WORKER3_DUCHY =
-      DuchyIds.Entry(4, "worker3", VALID_ACTIVE_START_TIME..INVALID_ACTIVE_END_TIME)
     val DUCHIES = listOf(AGGREGATOR_DUCHY, WORKER1_DUCHY, WORKER2_DUCHY)
   }
   private fun buildRequestCertificate(
@@ -136,7 +133,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
     dataProvidersService: DataProvidersCoroutineImplBase,
     notValidBefore: Instant = clock.instant(),
     notValidAfter: Instant = notValidBefore.plus(365L, ChronoUnit.DAYS),
-    additionalRequiredDuchy: DuchyIds.Entry? = null
+    customize: (DataProviderKt.Dsl.() -> Unit)? = null
   ): DataProvider {
     return dataProvidersService.createDataProvider(
       dataProvider {
@@ -155,9 +152,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
           }
         requiredExternalDuchyIds += WORKER1_DUCHY.externalDuchyId
         requiredExternalDuchyIds += WORKER2_DUCHY.externalDuchyId
-        if (additionalRequiredDuchy != null) {
-          requiredExternalDuchyIds += additionalRequiredDuchy.externalDuchyId
-        }
+        customize?.invoke(this)
       }
     )
   }

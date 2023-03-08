@@ -35,8 +35,9 @@ message DuchyIdConfig {
 
     // Start of the Duchy's active time range, inclusive.
     google.protobuf.Timestamp active_start_time = 3;
-    // End of the Duchy's active time range, inclusive.
-    google.protobuf.Timestamp active_end_time = 4;
+    // Optional end of the Duchy's active time range, inclusive. Default value
+    // is Instant.MAX
+    optional google.protobuf.Timestamp active_end_time = 4;
   }
   // The list of all the Duchy information in this config message
   repeated Duchy duchies = 1;

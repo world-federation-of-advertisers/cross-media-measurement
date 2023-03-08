@@ -19,6 +19,7 @@ import com.google.protobuf.Message
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
+import java.time.Instant
 import org.jetbrains.annotations.Blocking
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificateCollection
@@ -70,10 +71,14 @@ val LLV2_AGGREGATOR_NAME =
 val ALL_DUCHY_NAMES = DUCHY_ID_CONFIG.duchiesList.map { it.externalDuchyId }
 val ALL_DUCHIES =
   DUCHY_ID_CONFIG.duchiesList.map { duchy ->
+    var activeEndTime = Instant.MAX
+    if (duchy.hasActiveEndTime()) {
+      activeEndTime = duchy.activeEndTime.toInstant()
+    }
     DuchyIds.Entry(
       duchy.internalDuchyId,
       duchy.externalDuchyId,
-      duchy.activeStartTime.toInstant()..duchy.activeEndTime.toInstant()
+      duchy.activeStartTime.toInstant()..activeEndTime
     )
   }
 val ALL_EDP_DISPLAY_NAMES = listOf("edp1", "edp2", "edp3")

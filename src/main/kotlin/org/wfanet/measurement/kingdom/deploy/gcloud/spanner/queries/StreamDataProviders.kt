@@ -1,9 +1,10 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries
 
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 
-class StreamDataProviders(externalDataProviderIds: List<Long>) :
+class StreamDataProviders(externalDataProviderIds: Iterable<ExternalId>) :
   SimpleSpannerQuery<DataProviderReader.Result>() {
   override val reader =
     DataProviderReader().fillStatementBuilder {
@@ -13,6 +14,6 @@ class StreamDataProviders(externalDataProviderIds: List<Long>) :
       """
           .trimIndent()
       )
-      bind("externalDataProviderIds").toInt64Array(externalDataProviderIds)
+      bind("externalDataProviderIds").toInt64Array(externalDataProviderIds.map { it.value })
     }
 }

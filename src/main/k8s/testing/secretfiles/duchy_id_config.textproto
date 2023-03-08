@@ -6,9 +6,6 @@ duchies {
   active_start_time: {
     seconds: 1640995200
   }
-  active_end_time: {
-    seconds: 1956528000
-  }
 }
 duchies {
   external_duchy_id: "worker1"
@@ -16,17 +13,11 @@ duchies {
   active_start_time: {
     seconds: 1640995200
   }
-  active_end_time: {
-    seconds: 1956528000
-  }
 }
 duchies {
   external_duchy_id: "worker2"
   internal_duchy_id: 3456
   active_start_time: {
     seconds: 1640995200
-  }
-  active_end_time: {
-    seconds: 1956528000
   }
 }
