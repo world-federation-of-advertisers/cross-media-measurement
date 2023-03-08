@@ -44,6 +44,7 @@ import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptMetadata
+import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v1alpha.EventGroup
 import org.wfanet.measurement.reporting.v1alpha.EventGroupKt.eventTemplate
 import org.wfanet.measurement.reporting.v1alpha.EventGroupKt.metadata
