@@ -35,6 +35,8 @@ service Metrics {
   rpc BatchGetMetrics(BatchGetMetricsRequest) returns (stream Metric);
 
   rpc StreamMetrics(StreamMetricsRequest) returns (stream Metric);
+
+  rpc SetMetricResult(SetMetricResultRequest) returns (Metric);
 }
 
 message BatchCreateMetricsRequest {
@@ -71,4 +73,11 @@ message StreamMetricsRequest {
   Filter filter = 1;
 
   int32 limit = 2;
+}
+
+message SetMetricResultRequest {
+  // `MeasurementConsumer` ID from the CMMS public API.
+  string cmms_measurement_consumer_id = 1;
+  fixed64 external_metric_id = 2;
+  MetricResult result = 3;
 }
