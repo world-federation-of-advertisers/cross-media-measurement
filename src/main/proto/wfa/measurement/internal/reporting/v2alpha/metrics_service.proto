@@ -40,9 +40,7 @@ service Metrics {
 }
 
 message BatchCreateMetricsRequest {
-  // `MeasurementConsumer` ID from the CMMS public API.
-  string cmms_measurement_consumer_id = 1;
-  repeated Metric metrics = 2;
+  repeated Metric metrics = 1;
 }
 
 message GetMetricRequest {
