@@ -22,7 +22,6 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.duchy.db.computation.*
 import org.wfanet.measurement.duchy.db.computation.testing.FakeComputationsDatabase
 import org.wfanet.measurement.duchy.service.internal.computations.ComputationsService
 import org.wfanet.measurement.duchy.service.internal.testing.ComputationsServiceTest
@@ -51,16 +50,12 @@ class SpannerComputationsServiceTest : ComputationsServiceTest<ComputationsServi
     addService(mockComputationLogEntriesService)
   }
 
-
-  @get:Rule
-  val ruleChain = chainRulesSequentially(tempDirectory, grpcTestServerRule)
+  @get:Rule val ruleChain = chainRulesSequentially(tempDirectory, grpcTestServerRule)
 
   override fun newService(): ComputationsService {
     val fakeDatabase = FakeComputationsDatabase()
     val systemComputationLogEntriesClient =
-      ComputationLogEntriesCoroutineStub(
-        grpcTestServerRule.channel
-      )
+      ComputationLogEntriesCoroutineStub(grpcTestServerRule.channel)
 
     return ComputationsService(
       fakeDatabase,
@@ -70,6 +65,5 @@ class SpannerComputationsServiceTest : ComputationsServiceTest<ComputationsServi
       ALSACE,
       Clock.systemUTC()
     )
-
   }
 }

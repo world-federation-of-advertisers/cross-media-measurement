@@ -25,11 +25,19 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.duchy.toProtocolStage
+import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
+import org.wfanet.measurement.internal.duchy.ComputationDetails
+import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase
-import org.wfanet.measurement.internal.duchy.*
+import org.wfanet.measurement.internal.duchy.CreateComputationRequest
+import org.wfanet.measurement.internal.duchy.computationStage
+import org.wfanet.measurement.internal.duchy.computationStageBlobMetadata
+import org.wfanet.measurement.internal.duchy.computationToken
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig
-import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
-
+import org.wfanet.measurement.internal.duchy.createComputationResponse
+import org.wfanet.measurement.internal.duchy.getComputationTokenRequest
+import org.wfanet.measurement.internal.duchy.getComputationTokenResponse
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 
 @RunWith(JUnit4::class)
 abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
@@ -53,20 +61,20 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
         }
       }
       .build()
-  private val DEFAULT_CREATE_COMPUTATION_REQUEST = CreateComputationRequest.newBuilder()
-    .apply {
-      computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
-      globalComputationId = GLOBAL_COMPUTATION_ID
-      computationStage { LiquidLegionsSketchAggregationV2.Stage.EXECUTION_PHASE_ONE.toProtocolStage() }
-      computationDetails = AGGREGATOR_COMPUTATION_DETAILS
-    }
-    .build()
+  private val DEFAULT_CREATE_COMPUTATION_REQUEST =
+    CreateComputationRequest.newBuilder()
+      .apply {
+        computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+        globalComputationId = GLOBAL_COMPUTATION_ID
+        computationStage { Stage.EXECUTION_PHASE_ONE.toProtocolStage() }
+        computationDetails = AGGREGATOR_COMPUTATION_DETAILS
+      }
+      .build()
   private val DEFAULT_CREATE_COMPUTATION_RESP_TOKEN = computationToken {
     localComputationId = 1234
     globalComputationId = GLOBAL_COMPUTATION_ID
     computationStage = computationStage {
-      liquidLegionsSketchAggregationV2 =
-        LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE
+      liquidLegionsSketchAggregationV2 = Stage.INITIALIZATION_PHASE
     }
     computationDetails = AGGREGATOR_COMPUTATION_DETAILS
     blobs.add(computationStageBlobMetadata { dependencyType = ComputationBlobDependency.OUTPUT })
@@ -90,9 +98,10 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
     assertThat(service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST))
       .isEqualTo(createComputationResponse { token = DEFAULT_CREATE_COMPUTATION_RESP_TOKEN })
 
-    val exception = assertFailsWith<StatusRuntimeException> {
-      service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
-    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+      }
     assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
   }
 }
