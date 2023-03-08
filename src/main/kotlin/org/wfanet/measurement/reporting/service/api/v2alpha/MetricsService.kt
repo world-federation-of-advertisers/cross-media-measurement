@@ -518,10 +518,10 @@ class MetricsService(
                 internalEventGroupKey.cmmsEventGroupId
               )
             val eventGroupName = eventGroupKey.toName()
-            val filter: String? =
-              combineEventGroupFilters(
-                primitiveReportingSetBasis.filtersList + internalPrimitiveReportingSet.filter
-              )
+            val filtersList =
+              (primitiveReportingSetBasis.filtersList + internalPrimitiveReportingSet.filter)
+                .filterNotNull()
+            val filter: String? = if (filtersList.isEmpty()) null else buildConjunction(filtersList)
 
             eventGroupKey to
               RequisitionSpecKt.eventGroupEntry {
@@ -543,12 +543,8 @@ class MetricsService(
     }
 
     /** Combines event group filters. */
-    private fun combineEventGroupFilters(filters: List<String?>): String? {
-      val nonNullFilters = filters.filterNotNull()
-      return if (nonNullFilters.isEmpty()) null
-      else {
-        nonNullFilters.joinToString(separator = " AND ") { filter -> "($filter)" }
-      }
+    private fun buildConjunction(filters: Collection<String>): String {
+      return filters.joinToString(separator = " AND ") { filter -> "($filter)" }
     }
 
     /** Get a [MeasurementConsumer] based on a CMMs ID. */
