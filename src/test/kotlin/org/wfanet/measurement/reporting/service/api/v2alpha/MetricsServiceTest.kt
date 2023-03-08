@@ -150,8 +150,7 @@ import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetric
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.timeInterval as internalTimeInterval
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
-import org.wfanet.measurement.internal.reporting.v2alpha.BatchSetMeasurementFailuresRequest
-import org.wfanet.measurement.internal.reporting.v2alpha.BatchSetMeasurementResultsRequest
+import org.wfanet.measurement.reporting.v2alpha.ListMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
@@ -3216,6 +3215,72 @@ class MetricsServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
     assertThat(exception.status.description)
       .isEqualTo("Cannot list Metrics belonging to other MeasurementConsumers.")
+  }
+
+  @Test
+  fun `listMetrics throws UNAUTHENTICATED when the caller is not MeasurementConsumer`() {
+    val request = listMetricsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDERS.values.first().name) {
+          runBlocking { service.listMetrics(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    assertThat(exception.status.description).isEqualTo("No ReportingPrincipal found")
+  }
+
+  @Test
+  fun `listMetrics throws INVALID_ARGUMENT when page size is less than 0`() {
+    val request = listMetricsRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      pageSize = -1
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.listMetrics(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("Page size cannot be less than 0.")
+  }
+
+  @Test
+  fun `listMetrics throws INVALID_ARGUMENT when parent is unspecified`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.listMetrics(ListMetricsRequest.getDefaultInstance()) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `listMetrics throws INVALID_ARGUMENT when MC ID doesn't match one in page token`() {
+    val request = listMetricsRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      pageToken =
+        listMetricsPageToken {
+            externalMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.last().measurementConsumerId
+            lastMetric = previousPageEnd {
+              externalMeasurementConsumerId =
+                MEASUREMENT_CONSUMERS.keys.last().measurementConsumerId
+              externalMetricId = INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId
+            }
+          }
+          .toByteString()
+          .base64UrlEncode()
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.listMetrics(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 }
 
