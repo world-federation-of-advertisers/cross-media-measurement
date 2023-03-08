@@ -148,6 +148,7 @@ import org.wfanet.measurement.internal.reporting.v2alpha.metricResult as interna
 import org.wfanet.measurement.internal.reporting.v2alpha.metricSpec as internalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2alpha.reportingSet as internalReportingSet
 import org.wfanet.measurement.internal.reporting.v2alpha.timeInterval as internalTimeInterval
+import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.integerResult
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
