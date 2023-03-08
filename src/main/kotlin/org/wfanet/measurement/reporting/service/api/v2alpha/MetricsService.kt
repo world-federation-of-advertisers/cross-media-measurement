@@ -542,7 +542,7 @@ class MetricsService(
         )
     }
 
-    /** Combines two event group filters. */
+    /** Combines event group filters. */
     private fun combineEventGroupFilters(filters: List<String?>): String? {
       val nonNullFilters = filters.filterNotNull()
       return if (nonNullFilters.isEmpty()) null
