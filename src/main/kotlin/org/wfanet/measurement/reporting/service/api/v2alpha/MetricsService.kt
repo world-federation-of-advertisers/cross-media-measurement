@@ -649,20 +649,15 @@ class MetricsService(
       }
     }
 
-    val uncreatedInternalMetric: InternalMetric =
-      createInitialInternalMetric(principal.resourceKey.measurementConsumerId, request)
+    val internalCreateMetricRequest: InternalMetric =
+      buildInternalMetric(principal.resourceKey.measurementConsumerId, request)
 
     val initialInternalMetric =
-      if (uncreatedInternalMetric.state != InternalMetric.State.STATE_UNSPECIFIED)
-        uncreatedInternalMetric
-      else if (uncreatedInternalMetric.state == InternalMetric.State.UNRECOGNIZED)
-        error("Unrecognized metric state.")
-      else
-        try {
-          internalMetricsStub.createMetric(uncreatedInternalMetric)
-        } catch (e: StatusException) {
-          throw Exception("Unable to create the metric in the reporting database.", e)
-        }
+      try {
+        internalMetricsStub.createMetric(internalCreateMetricRequest)
+      } catch (e: StatusException) {
+        throw Exception("Unable to create the metric in the reporting database.", e)
+      }
 
     if (initialInternalMetric.state == InternalMetric.State.RUNNING) {
       measurementSupplier.createCmmsMeasurements(listOf(initialInternalMetric), principal)
@@ -696,12 +691,9 @@ class MetricsService(
       "At most $MAX_BATCH_SIZE requests can be supported in a batch."
     }
 
-    val uncreatedInternalMetricsList: List<InternalMetric> =
+    val internalCreateMetricRequestsList: List<InternalMetric> =
       request.requestsList.map { createMetricRequest ->
-        createInitialInternalMetric(
-          principal.resourceKey.measurementConsumerId,
-          createMetricRequest
-        )
+        buildInternalMetric(principal.resourceKey.measurementConsumerId, createMetricRequest)
       }
 
     val initialInternalMetrics =
@@ -710,7 +702,7 @@ class MetricsService(
           .batchCreateMetrics(
             internalBatchCreateMetricsRequest {
               cmmsMeasurementConsumerId = principal.resourceKey.measurementConsumerId
-              metrics += uncreatedInternalMetricsList
+              metrics += internalCreateMetricRequestsList
             }
           )
           .toList()
@@ -724,8 +716,8 @@ class MetricsService(
     return batchCreateMetricsResponse { metrics += initialInternalMetrics.map { it.toMetric() } }
   }
 
-  /** Creates an initial [InternalMetric] for caching. */
-  private suspend fun createInitialInternalMetric(
+  /** Builds an [InternalMetric]. */
+  private suspend fun buildInternalMetric(
     cmmsMeasurementConsumerId: String,
     request: CreateMetricRequest,
   ): InternalMetric {
@@ -753,13 +745,6 @@ class MetricsService(
       "TimeInterval endTime is not later than startTime."
     }
     grpcRequire(request.metric.hasMetricSpec()) { "Metric spec in metric is not specified." }
-
-    // Check if there's any existing metric using the unique request ID.
-    val existingInternalMetric: InternalMetric? =
-      if (request.requestId.isBlank()) null
-      else getInternalMetricByIdempotencyKey(cmmsMeasurementConsumerId, request.requestId)
-
-    if (existingInternalMetric != null) return existingInternalMetric
 
     val internalReportingSet: InternalReportingSet =
       getInternalReportingSet(cmmsMeasurementConsumerId, request.metric.reportingSet)
