@@ -3282,6 +3282,46 @@ class MetricsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
+
+  @Test
+  fun `listMetrics throws Exception when the internal streamMetrics throws Exception`() {
+    runBlocking {
+      whenever(internalMetricsMock.streamMetrics(any()))
+        .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
+
+      val request = listMetricsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
+
+      val exception =
+        assertFailsWith(Exception::class) {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+            runBlocking { service.listMetrics(request) }
+          }
+        }
+
+      val expectedExceptionDescription = "Unable to list metrics from the reporting database."
+      assertThat(exception.message).isEqualTo(expectedExceptionDescription)
+    }
+  }
+
+  @Test
+  fun `listMetrics throws Exception when getMeasurement throws Exception`() {
+    runBlocking {
+      whenever(measurementsMock.getMeasurement(any()))
+        .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
+
+      val request = listMetricsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
+
+      val exception =
+        assertFailsWith(Exception::class) {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+            runBlocking { service.listMetrics(request) }
+          }
+        }
+
+      val expectedExceptionDescription = "Unable to retrieve the measurement"
+      assertThat(exception.message).contains(expectedExceptionDescription)
+    }
+  }
 }
 
 private fun EventGroupKey.toInternal(): InternalReportingSet.Primitive.EventGroupKey {
