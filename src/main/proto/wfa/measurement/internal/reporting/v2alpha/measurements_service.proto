@@ -36,7 +36,7 @@ service Measurements {
   rpc SetMeasurementFailure(SetMeasurementFailureRequest) returns (Measurement);
 
   rpc BatchSetMeasurementFailures(BatchSetMeasurementFailuresRequest)
-    returns (stream Measurement);
+      returns (stream Measurement);
 }
 
 message SetCmmsMeasurementIdRequest {
