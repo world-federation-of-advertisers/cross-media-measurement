@@ -74,7 +74,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   }
 
   @Test
-  fun `createComputation returns token`() = runBlocking {
+  fun `createComputation returns response with token`() = runBlocking {
     val createComputationResponse = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
 
     assertThat(createComputationResponse.token.localComputationId).isNotEqualTo(0L)
