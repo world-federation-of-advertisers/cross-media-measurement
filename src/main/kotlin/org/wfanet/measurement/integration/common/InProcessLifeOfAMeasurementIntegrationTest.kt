@@ -289,7 +289,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
       Llv2ProtocolConfig.setForTest(
         LLV2_PROTOCOL_CONFIG_CONFIG.protocolConfig,
         LLV2_PROTOCOL_CONFIG_CONFIG.duchyProtocolConfig,
-        listOf("aggregator"),
+        setOf("aggregator"),
         2
       )
       DuchyInfo.initializeFromConfig(

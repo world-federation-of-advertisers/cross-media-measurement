@@ -85,18 +85,6 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
     private set
 
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
-  companion object {
-    @BeforeClass
-    @JvmStatic
-    fun initConfig() {
-      Llv2ProtocolConfig.setForTest(
-        ProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
-        DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
-        listOf(Population.AGGREGATOR_DUCHY.externalDuchyId),
-        2
-      )
-    }
-  }
 
   @Before
   fun initService() {
@@ -380,4 +368,17 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
       assertThat(measurementStateTransitionLogEntry.previousState)
         .isEqualTo(Measurement.State.PENDING_REQUISITION_PARAMS)
     }
+
+  companion object {
+    @BeforeClass
+    @JvmStatic
+    fun initConfig() {
+      Llv2ProtocolConfig.setForTest(
+        ProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
+        DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
+        setOf(Population.AGGREGATOR_DUCHY.externalDuchyId),
+        2
+      )
+    }
+  }
 }

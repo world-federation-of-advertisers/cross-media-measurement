@@ -115,18 +115,7 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
     private set
 
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
-  companion object {
-    @BeforeClass
-    @JvmStatic
-    fun initConfig() {
-      Llv2ProtocolConfig.setForTest(
-        ProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
-        DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
-        listOf(Population.AGGREGATOR_DUCHY.externalDuchyId),
-        2
-      )
-    }
-  }
+
   @Before
   fun initService() {
     val services = newServices(idGenerator)
@@ -804,5 +793,18 @@ abstract class ComputationParticipantsServiceTest<T : ComputationParticipantsCor
         }
       )
       .isEqualTo(failedComputationParticipant)
+  }
+
+  companion object {
+    @BeforeClass
+    @JvmStatic
+    fun initConfig() {
+      Llv2ProtocolConfig.setForTest(
+        ProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
+        DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
+        setOf(Population.AGGREGATOR_DUCHY.externalDuchyId),
+        2
+      )
+    }
   }
 }

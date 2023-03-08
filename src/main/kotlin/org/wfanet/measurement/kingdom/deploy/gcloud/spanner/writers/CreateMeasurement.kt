@@ -16,10 +16,12 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Value
+import java.lang.IllegalStateException
 import java.time.Clock
-import kotlin.random.Random
+import java.time.Instant
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
+import kotlinx.coroutines.flow.toSet
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.appendClause
@@ -39,11 +41,11 @@ import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.InsufficientNumberOfActiveDuchiesException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotActiveException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredDuchiesNotActiveException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamDataProviders
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
@@ -93,31 +95,45 @@ class CreateMeasurement(private val measurement: Measurement) :
   ): Measurement {
     val initialMeasurementState = Measurement.State.PENDING_REQUISITION_PARAMS
 
-    val activeWorkers = getActiveWorkers(Llv2ProtocolConfig.requiredExternalDuchyIds)
-    if (activeWorkers.size < Llv2ProtocolConfig.minimumNumberOfRequiredDuchies) {
-      throw InsufficientNumberOfActiveDuchiesException()
-    }
+    val computationDuchyExternalIds = mutableSetOf<String>()
+    computationDuchyExternalIds.addAll(Llv2ProtocolConfig.requiredExternalDuchyIds)
 
-    val requiredDuchyExternalIds =
-      readDataProviderRequiredDuchies(measurement.dataProvidersMap.keys.toList())
+    computationDuchyExternalIds.addAll(
+      readDataProviderRequiredDuchies(
+        measurement.dataProvidersMap.keys.map { ExternalId(it) }.toSet()
+      )
+    )
 
-    if (!activeWorkers.containsAll(requiredDuchyExternalIds)) {
-      throw RequiredDuchiesNotActiveException()
-    }
-
-    if (requiredDuchyExternalIds.size < Llv2ProtocolConfig.minimumNumberOfRequiredDuchies) {
-
-      val remainingDuchies =
-        activeWorkers.filter { !requiredDuchyExternalIds.contains(it) }.toMutableList()
-
-      while (requiredDuchyExternalIds.size < Llv2ProtocolConfig.minimumNumberOfRequiredDuchies) {
-        requiredDuchyExternalIds.add(
-          remainingDuchies.removeAt(Random.nextInt(remainingDuchies.size))
-        )
+    val now = Clock.systemUTC().instant()
+    computationDuchyExternalIds.forEach {
+      if (!isActiveDuchy(it, now)) {
+        throw DuchyNotActiveException(it)
       }
     }
 
-    requiredDuchyExternalIds.addAll(Llv2ProtocolConfig.requiredExternalDuchyIds)
+    if (computationDuchyExternalIds.size < Llv2ProtocolConfig.minimumNumberOfRequiredDuchies) {
+
+      val remainingDuchies =
+        DuchyIds.entries
+          .filter { !computationDuchyExternalIds.contains(it.externalDuchyId) }
+          .filter { isActiveDuchy(it.externalDuchyId, now) }
+          .toMutableSet()
+
+      if (
+        computationDuchyExternalIds.size + remainingDuchies.size <
+          Llv2ProtocolConfig.minimumNumberOfRequiredDuchies
+      ) {
+        throw IllegalStateException(
+          "There are not enough active duchies to compute the measurement"
+        )
+      }
+
+      while (computationDuchyExternalIds.size < Llv2ProtocolConfig.minimumNumberOfRequiredDuchies) {
+        val duchy = remainingDuchies.random()
+        remainingDuchies.remove(duchy)
+        computationDuchyExternalIds.add(duchy.externalDuchyId)
+      }
+    }
 
     val measurementId: InternalId = idGenerator.generateInternalId()
     val externalMeasurementId: ExternalId = idGenerator.generateExternalId()
@@ -138,7 +154,7 @@ class CreateMeasurement(private val measurement: Measurement) :
       Requisition.State.PENDING_PARAMS
     )
 
-    requiredDuchyExternalIds.forEach { requiredDuchyExternalId ->
+    computationDuchyExternalIds.forEach { requiredDuchyExternalId ->
       insertComputationParticipant(
         measurementConsumerId,
         measurementId,
@@ -358,8 +374,8 @@ private suspend fun TransactionScope.readMeasurementConsumerId(
 }
 
 private suspend fun TransactionScope.readDataProviderRequiredDuchies(
-  externalDataProviderIds: List<Long>
-): MutableSet<String> {
+  externalDataProviderIds: Set<ExternalId>
+): Set<String> {
   val requiredDuchies = mutableSetOf<String>()
   StreamDataProviders(externalDataProviderIds).execute(transactionContext).collect {
     requiredDuchies.addAll(it.dataProvider.requiredExternalDuchyIdsList)
@@ -383,16 +399,9 @@ private fun validateCertificate(
   return certificateResult.certificateId
 }
 
-private fun getActiveWorkers(protocolRequiredExternalDuchyIds: List<String>): Set<String> {
-  val activeWorkers = mutableSetOf<String>()
-  val now = Clock.systemUTC().instant()
-  for (entry in DuchyIds.entries) {
-    if (
-      !protocolRequiredExternalDuchyIds.contains(entry.externalDuchyId) &&
-        entry.activeRange.contains(now)
-    ) {
-      activeWorkers.add(entry.externalDuchyId)
-    }
-  }
-  return activeWorkers
+private fun isActiveDuchy(externalDuchyId: String, now: Instant): Boolean {
+  val duchy =
+    DuchyIds.entries.find { it.externalDuchyId == externalDuchyId }
+      ?: throw DuchyNotFoundException(externalDuchyId)
+  return now in duchy.activeRange
 }

@@ -75,9 +75,13 @@ class DuchyIdsFlags {
 }
 
 private fun DuchyIdConfig.Duchy.toDuchyIdsEntry(): DuchyIds.Entry {
+  var defaultActiveEndTime = Instant.MAX
+  if (hasActiveEndTime()) {
+    defaultActiveEndTime = activeEndTime.toInstant()
+  }
   return DuchyIds.Entry(
     internalDuchyId,
     externalDuchyId,
-    activeStartTime.toInstant()..activeEndTime.toInstant()
+    activeStartTime.toInstant()..defaultActiveEndTime
   )
 }

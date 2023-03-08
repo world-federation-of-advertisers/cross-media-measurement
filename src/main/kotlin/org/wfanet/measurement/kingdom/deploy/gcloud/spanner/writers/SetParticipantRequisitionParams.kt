@@ -15,9 +15,11 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Key
+import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.single
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.appendClause
@@ -25,6 +27,7 @@ import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.setJson
+import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
@@ -39,12 +42,10 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationPa
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByComputationException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamRequisitions
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ComputationParticipantReader
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.computationParticipantsInState
 
 private val NEXT_COMPUTATION_PARTICIPANT_STATE = ComputationParticipant.State.REQUISITION_PARAMS_SET
@@ -65,6 +66,7 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
   SpannerWriter<ComputationParticipant, ComputationParticipant>() {
 
   override suspend fun TransactionScope.runTransaction(): ComputationParticipant {
+    val externalComputationId = ExternalId(request.externalComputationId)
     val duchyId =
       DuchyIds.getInternalId(request.externalDuchyId)
         ?: throw DuchyNotFoundException(request.externalDuchyId)
@@ -87,13 +89,9 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
 
     val computationParticipantResult: ComputationParticipantReader.Result =
       ComputationParticipantReader()
-        .readByExternalComputationId(
-          transactionContext,
-          ExternalId(request.externalComputationId),
-          InternalId(duchyId)
-        )
+        .readByExternalComputationId(transactionContext, externalComputationId, InternalId(duchyId))
         ?: throw ComputationParticipantNotFoundByComputationException(
-          ExternalId(request.externalComputationId),
+          externalComputationId,
           request.externalDuchyId
         ) {
           "ComputationParticipant for external computation ID ${request.externalComputationId} " +
@@ -116,7 +114,7 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
 
     if (computationParticipant.state != ComputationParticipant.State.CREATED) {
       throw ComputationParticipantStateIllegalException(
-        ExternalId(request.externalComputationId),
+        externalComputationId,
         request.externalDuchyId,
         computationParticipant.state
       ) {
@@ -139,25 +137,9 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
       setJson("ParticipantDetailsJson" to participantDetails)
     }
 
-    val measurement =
-      MeasurementReader(Measurement.View.COMPUTATION)
-        .readByExternalComputationId(transactionContext, ExternalId(request.externalComputationId))
-        ?.measurement
-        ?: throw MeasurementNotFoundByComputationException(
-          ExternalId(request.externalComputationId)
-        ) {
-          "Measurement for external computation ID ${request.externalComputationId} not found"
-        }
-
     val otherDuchyIds: List<InternalId> =
-      measurement.computationParticipantsList
-        .map {
-          InternalId(
-            DuchyIds.getInternalId(it.externalDuchyId)
-              ?: throw DuchyNotFoundException(request.externalDuchyId)
-          )
-        }
-        .filter { it.value != duchyId }
+      findComputationParticipants(externalComputationId).filter { it.value != duchyId }
+
     if (
       computationParticipantsInState(
         transactionContext,
@@ -221,5 +203,28 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
         "Certificate for Duchy ${duchyId.value} with external ID " +
           "$externalCertificateId not found"
       }
+  }
+
+  private suspend fun TransactionScope.findComputationParticipants(
+    externalComputationId: ExternalId
+  ): List<InternalId> {
+    val sql =
+      """
+      SELECT
+        ComputationParticipants.MeasurementConsumerId,
+        ComputationParticipants.MeasurementId,
+        ComputationParticipants.DuchyId,
+        Measurements.ExternalComputationId
+      FROM ComputationParticipants JOIN Measurements USING (MeasurementConsumerId, MeasurementId)
+      WHERE ExternalComputationId = @externalComputationId
+      """
+        .trimIndent()
+
+    val statement: Statement =
+      statement(sql) { bind("externalComputationId" to externalComputationId.value) }
+
+    return transactionContext.executeQuery(statement).toList().map {
+      InternalId(it.getLong("DuchyId"))
+    }
   }
 }

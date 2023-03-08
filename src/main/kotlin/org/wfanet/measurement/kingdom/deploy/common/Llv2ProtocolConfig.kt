@@ -28,7 +28,7 @@ object Llv2ProtocolConfig {
     private set
   lateinit var duchyProtocolConfig: DuchyProtocolConfig.LiquidLegionsV2
     private set
-  lateinit var requiredExternalDuchyIds: List<String>
+  lateinit var requiredExternalDuchyIds: Set<String>
     private set
 
   var minimumNumberOfRequiredDuchies: Int by Delegates.notNull()
@@ -44,14 +44,14 @@ object Llv2ProtocolConfig {
       }
     protocolConfig = configMessage.protocolConfig
     duchyProtocolConfig = configMessage.duchyProtocolConfig
-    requiredExternalDuchyIds = configMessage.requiredExternalDuchyIdsList
+    requiredExternalDuchyIds = configMessage.requiredExternalDuchyIdsList.toSet()
     minimumNumberOfRequiredDuchies = configMessage.minimumNumberOfRequiredDuchies
   }
 
   fun setForTest(
     protocolConfig: ProtocolConfig.LiquidLegionsV2,
     duchyProtocolConfig: DuchyProtocolConfig.LiquidLegionsV2,
-    requiredExternalDuchyIds: List<String>,
+    requiredExternalDuchyIds: Set<String>,
     minimumNumberOfRequiredDuchies: Int
   ) {
     require(!Llv2ProtocolConfig::protocolConfig.isInitialized)

@@ -1451,7 +1451,7 @@ class MeasurementsServiceTest {
       Llv2ProtocolConfig.setForTest(
         INTERNAL_PROTOCOL_CONFIG.liquidLegionsV2,
         DUCHY_PROTOCOL_CONFIG.liquidLegionsV2,
-        listOf("aggregator"),
+        setOf("aggregator"),
         2
       )
     }
