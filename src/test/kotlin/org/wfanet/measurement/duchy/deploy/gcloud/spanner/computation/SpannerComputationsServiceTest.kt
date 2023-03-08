@@ -52,12 +52,15 @@ class SpannerComputationsServiceTest : ComputationsServiceTest<ComputationsServi
   }
 
 
-  @get:Rule val ruleChain = chainRulesSequentially(tempDirectory, grpcTestServerRule)
+  @get:Rule
+  val ruleChain = chainRulesSequentially(tempDirectory, grpcTestServerRule)
 
   override fun newService(): ComputationsService {
     val fakeDatabase = FakeComputationsDatabase()
     val systemComputationLogEntriesClient =
-      ComputationLogEntriesCoroutineStub(grpcTestServerRule.channel)
+      ComputationLogEntriesCoroutineStub(
+        grpcTestServerRule.channel
+      )
 
     return ComputationsService(
       fakeDatabase,

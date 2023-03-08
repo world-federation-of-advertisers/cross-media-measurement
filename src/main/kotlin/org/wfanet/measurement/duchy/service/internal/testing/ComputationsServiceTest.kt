@@ -47,7 +47,11 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   private val GLOBAL_COMPUTATION_ID = "1234"
   private val AGGREGATOR_COMPUTATION_DETAILS =
     ComputationDetails.newBuilder()
-      .apply { liquidLegionsV2Builder.apply { role = LiquidLegionsV2SetupConfig.RoleInComputation.AGGREGATOR } }
+      .apply {
+        liquidLegionsV2Builder.apply {
+          role = LiquidLegionsV2SetupConfig.RoleInComputation.AGGREGATOR
+        }
+      }
       .build()
   private val DEFAULT_CREATE_COMPUTATION_REQUEST = CreateComputationRequest.newBuilder()
     .apply {
@@ -65,13 +69,12 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
         LiquidLegionsSketchAggregationV2.Stage.INITIALIZATION_PHASE
     }
     computationDetails = AGGREGATOR_COMPUTATION_DETAILS
-    blobs.add(computationStageBlobMetadata{dependencyType = ComputationBlobDependency.OUTPUT})
+    blobs.add(computationStageBlobMetadata { dependencyType = ComputationBlobDependency.OUTPUT })
   }
 
   @Test
   fun `createComputation creates a new computation`() = runBlocking {
-    val createComputationResponse = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
-    assertThat(createComputationResponse)
+    assertThat(service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST))
       .isEqualTo(createComputationResponse { token = DEFAULT_CREATE_COMPUTATION_RESP_TOKEN })
 
     val getComputationTokenRequest = getComputationTokenRequest {
@@ -79,7 +82,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
     }
     val getComputationTokenResponse = service.getComputationToken(getComputationTokenRequest)
     assertThat(getComputationTokenResponse)
-      .isEqualTo(getComputationTokenResponse{ token = DEFAULT_CREATE_COMPUTATION_RESP_TOKEN })
+      .isEqualTo(getComputationTokenResponse { token = DEFAULT_CREATE_COMPUTATION_RESP_TOKEN })
   }
 
   @Test
@@ -87,10 +90,9 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
     assertThat(service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST))
       .isEqualTo(createComputationResponse { token = DEFAULT_CREATE_COMPUTATION_RESP_TOKEN })
 
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
-      }
+    val exception = assertFailsWith<StatusRuntimeException> {
+      service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+    }
     assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
   }
 }
