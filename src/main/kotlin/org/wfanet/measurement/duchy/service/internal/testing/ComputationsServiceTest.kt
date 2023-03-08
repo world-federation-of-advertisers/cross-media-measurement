@@ -25,19 +25,17 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.duchy.toProtocolStage
-import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
-import org.wfanet.measurement.internal.duchy.ComputationDetails
+import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase
-import org.wfanet.measurement.internal.duchy.CreateComputationRequest
+import org.wfanet.measurement.internal.duchy.computationDetails
 import org.wfanet.measurement.internal.duchy.computationStage
-import org.wfanet.measurement.internal.duchy.computationStageBlobMetadata
+import org.wfanet.measurement.internal.duchy.computationStageDetails
 import org.wfanet.measurement.internal.duchy.computationToken
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig
-import org.wfanet.measurement.internal.duchy.createComputationResponse
-import org.wfanet.measurement.internal.duchy.getComputationTokenRequest
-import org.wfanet.measurement.internal.duchy.getComputationTokenResponse
+import org.wfanet.measurement.internal.duchy.createComputationRequest
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt.computationDetails as llv2ComputationDetails
 
 @RunWith(JUnit4::class)
 abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
@@ -52,51 +50,46 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
     service = newService()
   }
 
-  private val GLOBAL_COMPUTATION_ID = "1234"
-  private val AGGREGATOR_COMPUTATION_DETAILS =
-    ComputationDetails.newBuilder()
-      .apply {
-        liquidLegionsV2Builder.apply {
-          role = LiquidLegionsV2SetupConfig.RoleInComputation.AGGREGATOR
-        }
+  companion object {
+    private const val GLOBAL_COMPUTATION_ID = "1234"
+    private val AGGREGATOR_COMPUTATION_DETAILS = computationDetails {
+      liquidLegionsV2 = llv2ComputationDetails {
+        role = LiquidLegionsV2SetupConfig.RoleInComputation.AGGREGATOR
       }
-      .build()
-  private val DEFAULT_CREATE_COMPUTATION_REQUEST =
-    CreateComputationRequest.newBuilder()
-      .apply {
-        computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
-        globalComputationId = GLOBAL_COMPUTATION_ID
-        computationStage { Stage.EXECUTION_PHASE_ONE.toProtocolStage() }
-        computationDetails = AGGREGATOR_COMPUTATION_DETAILS
-      }
-      .build()
-  private val DEFAULT_CREATE_COMPUTATION_RESP_TOKEN = computationToken {
-    localComputationId = 1234
-    globalComputationId = GLOBAL_COMPUTATION_ID
-    computationStage = computationStage {
-      liquidLegionsSketchAggregationV2 = Stage.INITIALIZATION_PHASE
     }
-    computationDetails = AGGREGATOR_COMPUTATION_DETAILS
-    blobs.add(computationStageBlobMetadata { dependencyType = ComputationBlobDependency.OUTPUT })
-  }
-
-  @Test
-  fun `createComputation creates a new computation`() = runBlocking {
-    assertThat(service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST))
-      .isEqualTo(createComputationResponse { token = DEFAULT_CREATE_COMPUTATION_RESP_TOKEN })
-
-    val getComputationTokenRequest = getComputationTokenRequest {
+    private val DEFAULT_CREATE_COMPUTATION_REQUEST = createComputationRequest {
+      computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
       globalComputationId = GLOBAL_COMPUTATION_ID
+      computationStage { Stage.EXECUTION_PHASE_ONE.toProtocolStage() }
+      computationDetails = AGGREGATOR_COMPUTATION_DETAILS
     }
-    val getComputationTokenResponse = service.getComputationToken(getComputationTokenRequest)
-    assertThat(getComputationTokenResponse)
-      .isEqualTo(getComputationTokenResponse { token = DEFAULT_CREATE_COMPUTATION_RESP_TOKEN })
+    private val DEFAULT_CREATE_COMPUTATION_RESP_TOKEN = computationToken {
+      globalComputationId = GLOBAL_COMPUTATION_ID
+      computationStage = computationStage {
+        liquidLegionsSketchAggregationV2 = Stage.INITIALIZATION_PHASE
+      }
+      computationDetails = AGGREGATOR_COMPUTATION_DETAILS
+      stageSpecificDetails = computationStageDetails {}
+    }
   }
 
   @Test
-  fun `createComputation throws ALREADY_EXISTS when called with existing id`() = runBlocking {
-    assertThat(service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST))
-      .isEqualTo(createComputationResponse { token = DEFAULT_CREATE_COMPUTATION_RESP_TOKEN })
+  fun `createComputation returns token`() = runBlocking {
+    val createComputationResponse = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+
+    assertThat(createComputationResponse.token.localComputationId).isNotEqualTo(0L)
+    assertThat(createComputationResponse.token.version).isNotEqualTo(0L)
+    assertThat(createComputationResponse.token)
+      .ignoringFields(
+        ComputationToken.LOCAL_COMPUTATION_ID_FIELD_NUMBER,
+        ComputationToken.VERSION_FIELD_NUMBER
+      )
+      .isEqualTo(DEFAULT_CREATE_COMPUTATION_RESP_TOKEN)
+  }
+
+  @Test
+  fun `createComputation throws ALREADY_EXISTS when called with existing ID`() = runBlocking {
+    service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
