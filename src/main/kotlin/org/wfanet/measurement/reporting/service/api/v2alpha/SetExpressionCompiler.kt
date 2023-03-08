@@ -101,7 +101,7 @@ class SetExpressionCompiler {
    */
   suspend fun compileSetExpression(setExpression: SetExpression): List<WeightedSubSetUnion> {
     val reportingSetNames = mutableSetOf<String>()
-    setExpression.storeReportingSetNames(reportingSetNames)
+    setExpression.addReportingSetNames(reportingSetNames)
 
     // Sorts the list in alphabetical order to make sure the IDs are consistent for the same run.
     val sortedReportingSetNames = reportingSetNames.sortedBy { it }
@@ -420,8 +420,11 @@ private fun createReportingSetsMap(
   return reportingSetsMap.toMap()
 }
 
-/** Gets all resource names of the reporting sets used in this [SetExpression]. */
-private fun SetExpression.storeReportingSetNames(reportingSetNames: MutableSet<String>) {
+/**
+ * Adds all resource names of the reporting sets used in this [SetExpression] to
+ * [reportingSetNames].
+ */
+private fun SetExpression.addReportingSetNames(reportingSetNames: MutableSet<String>) {
   val root = this
   if (!root.hasLhs()) {
     throw IllegalArgumentException("lhs in SetExpression must be set.")
@@ -430,12 +433,12 @@ private fun SetExpression.storeReportingSetNames(reportingSetNames: MutableSet<S
     throw IllegalArgumentException("Operand type of lhs in SetExpression must be set.")
   }
 
-  root.lhs.storeReportingSetNames(reportingSetNames)
-  root.rhs.storeReportingSetNames(reportingSetNames)
+  root.lhs.addReportingSetNames(reportingSetNames)
+  root.rhs.addReportingSetNames(reportingSetNames)
 }
 
 /** Gets all resource names of the reporting sets used in this [SetExpression.Operand]. */
-private fun SetExpression.Operand.storeReportingSetNames(
+private fun SetExpression.Operand.addReportingSetNames(
   reportingSetNames: MutableSet<String>,
 ) {
   val node = this
@@ -444,7 +447,7 @@ private fun SetExpression.Operand.storeReportingSetNames(
     // Leaf node
     SetExpression.Operand.OperandCase.REPORTING_SET -> reportingSetNames.add(node.reportingSet)
     SetExpression.Operand.OperandCase.EXPRESSION -> {
-      node.expression.storeReportingSetNames(reportingSetNames)
+      node.expression.addReportingSetNames(reportingSetNames)
     }
     // Empty node. No further action.
     SetExpression.Operand.OperandCase.OPERAND_NOT_SET -> return
