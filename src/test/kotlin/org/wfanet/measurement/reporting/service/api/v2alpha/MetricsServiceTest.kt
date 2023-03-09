@@ -1112,12 +1112,6 @@ class MetricsServiceTest {
         val request = it.arguments[0] as CreateMeasurementRequest
         PENDING_CMMS_MEASUREMENTS.getValue(request.measurement.measurementReferenceId)
       }
-
-    // onBlocking { createMeasurement(any()) }
-    //   .thenReturn(
-    //     PENDING_UNION_ALL_REACH_MEASUREMENT,
-    //     PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
-    //   )
   }
 
   private val measurementConsumersMock:
