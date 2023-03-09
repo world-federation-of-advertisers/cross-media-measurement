@@ -74,6 +74,7 @@ import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisit
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptionPublicKey
+import org.wfanet.measurement.internal.reporting.v2alpha.BatchSetCmmsMeasurementIdsRequest.MeasurementIds
 import org.wfanet.measurement.internal.reporting.v2alpha.BatchSetCmmsMeasurementIdsRequestKt.measurementIds
 import org.wfanet.measurement.internal.reporting.v2alpha.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
@@ -245,8 +246,7 @@ class MetricsService(
           externalPrimitiveReportingSetIds
         )
 
-      val deferred = mutableListOf<Deferred<Measurement>>()
-      val measurementRequestIdToExternalId = mutableMapOf<String, Long>()
+      val deferred = mutableListOf<Deferred<MeasurementIds>>()
 
       for (internalMetric in internalMetricsList) {
         for (weightedMeasurement in internalMetric.weightedMeasurementsList) {
@@ -254,27 +254,28 @@ class MetricsService(
             continue
           }
 
-          measurementRequestIdToExternalId[
-            weightedMeasurement.measurement.cmmsCreateMeasurementRequestId] =
-            weightedMeasurement.measurement.externalMeasurementId
-
           deferred.add(
             async {
-              createCmmsMeasurement(
-                weightedMeasurement.measurement,
-                internalMetric.metricSpec,
-                internalPrimitiveReportingSetMap,
-                measurementConsumer,
-                principal,
-              )
+              measurementIds {
+                externalMeasurementId = weightedMeasurement.measurement.externalMeasurementId
+                val measurement =
+                  createCmmsMeasurement(
+                    weightedMeasurement.measurement,
+                    internalMetric.metricSpec,
+                    internalPrimitiveReportingSetMap,
+                    measurementConsumer,
+                    principal,
+                  )
+                cmmsMeasurementId = MeasurementKey.fromName(measurement.name)!!.measurementId
+              }
             }
           )
         }
       }
 
       // Set CMMs measurement IDs.
-      val measurements = deferred.awaitAll()
-      if (measurements.isEmpty()) {
+      val measurementIdsList = deferred.awaitAll()
+      if (measurementIdsList.isEmpty()) {
         return@coroutineScope
       }
 
@@ -283,14 +284,7 @@ class MetricsService(
           .batchSetCmmsMeasurementIds(
             batchSetCmmsMeasurementIdsRequest {
               this.cmmsMeasurementConsumerId = principal.resourceKey.measurementConsumerId
-              measurementIds +=
-                measurements.map { measurement ->
-                  measurementIds {
-                    externalMeasurementId =
-                      measurementRequestIdToExternalId.getValue(measurement.measurementReferenceId)
-                    cmmsMeasurementId = MeasurementKey.fromName(measurement.name)!!.measurementId
-                  }
-                }
+              measurementIds += measurementIdsList
             }
           )
           .toList()
