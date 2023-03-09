@@ -27,6 +27,4 @@ resource "google_spanner_database" "database" {
   name     = "${local.prefix}-spanner-database"
   version_retention_period = local.spanner.version_retention_period
   deletion_protection = local.spanner.deletion_protection
-
-  depends_on = [google_spanner_instance.duchy_db]
 }

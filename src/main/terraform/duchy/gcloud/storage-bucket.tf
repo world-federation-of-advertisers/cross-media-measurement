@@ -17,7 +17,8 @@
 # https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/duchy-deployment.md
 
 resource "google_storage_bucket" "static-site" {
-  name          = "${local.prefix}-halo_duchy_storage"
-  location      = "US"
-  force_destroy = false
+  # e.g dev-halo-duchy-storage
+  name          = "${local.prefix}-storage"
+  location      = local.storage.location
+  force_destroy = local.storage.force_destroy
 }

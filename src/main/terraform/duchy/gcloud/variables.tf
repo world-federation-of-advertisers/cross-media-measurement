@@ -33,12 +33,18 @@ locals {
     machine_type       = "e2-standard-2"
     min_node_count     = 2
     max_node_count     = 4
+    auto_scaling = true
   }
 
   spanner_db = {
     deletion_protection      = true
     version_retention_period = "3d"
     num_nodes                = 1
+  }
+
+  storage = {
+    location = "US"
+    force_destroy = false
   }
 }
 
@@ -59,4 +65,3 @@ variable "component" {
   default = "duchy"
   description = "The component that we are developing."
 }
-

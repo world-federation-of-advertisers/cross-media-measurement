@@ -17,11 +17,11 @@
 # https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/duchy-deployment.md
 
 resource "google_compute_address" "worker1-requisition-fulfillment-server" {
-  name = "v2alpha-public-api-server-ip"
-  region = "us-central1"
+  name = "worker1-requisition-fulfillment-server-ip"
+  region = local.zone
 }
 
 resource "google_compute_address" "worker1-computation-control-server" {
-  name = "system-api-server-ip"
-  region = "us-central1"
+  name = "worker1-computation-control-server-ip"
+  region = local.zone
 }

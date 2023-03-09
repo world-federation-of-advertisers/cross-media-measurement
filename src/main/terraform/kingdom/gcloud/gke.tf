@@ -26,7 +26,7 @@ resource "google_container_cluster" "primary" {
     state = "ENCRYPTED"
   }
   cluster_autoscaling {
-    enabled = false
+    enabled = true
   }
 }
 

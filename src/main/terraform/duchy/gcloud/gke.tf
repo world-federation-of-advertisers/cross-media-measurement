@@ -16,25 +16,37 @@
 # This is step number 5 as per document
 # https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/duchy-deployment.md
 
-resource "google_container_cluster" "cluster" {
-  name     = "duchy-cluster"
-  location = local.zone
+resource "google_container_cluster" "worker" {
 
-  initial_node_count = 1
-  node_config {
-    machine_type = "n1-standard-1"
-    disk_type    = "pd-standard"
+  # e.g. dev-halo-duchy-worker1
+  name     = "${local.prefix}-worker1"
+
+  location = local.zone
+  initial_node_count = local.duchy.cluster_node_count
+  database_encryption {
+    key_name = "projects/${local.project}/locations/${local.zone}/keyRings/test-key-ring/cryptoKeys/k8s-secret"
+    state = "ENCRYPTED"
+  }
+  cluster_autoscaling {
+    enabled = true
   }
 }
 
-resource "google_container_cluster" "worker" {
+resource "google_container_node_pool" "data-server"{
+  name       = "${local.prefix}-data-server"
+  cluster    = google_container_cluster.worker.id
 
-  # e.g. dev-halo-duchy-gke-cluster
-  name     = "${local.prefix}-gke-cluster"
-  location = local.zone
-  initial_node_count = local.duchy.cluster_node_count
+  autoscaling {
+    max_node_count = local.duchy.max_node_count
+    min_node_count = local.duchy.min_node_count
+  }
 
-  cluster_autoscaling {
-    enabled = false
+  node_config {
+    preemptible  = true
+    machine_type = local.duchy.machine_type
+    service_account = google_service_account.gke_sa.email
+    oauth_scopes = [
+      "https://www.googleapis.com/auth/cloud-platform"
+    ]
   }
 }
