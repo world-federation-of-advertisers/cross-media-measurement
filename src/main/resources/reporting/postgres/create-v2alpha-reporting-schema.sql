@@ -214,7 +214,7 @@ CREATE TABLE SetExpressions (
 CREATE TABLE Metrics (
   MeasurementConsumerId bigint NOT NULL,
   MetricId bigint NOT NULL,
-  MetricIdempotencyKey text NOT NULL,
+  CreateMetricRequestId text NOT NULL,
   ReportingSetId bigint NOT NULL,
 
   ExternalMetricId bigint NOT NULL,
@@ -242,7 +242,7 @@ CREATE TABLE Metrics (
   MetricDetails bytea NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, MetricId),
-  UNIQUE (MeasurementConsumerId, MetricIdempotencyKey),
+  UNIQUE (MeasurementConsumerId, CreateMetricRequestId),
   UNIQUE (MeasurementConsumerId, ExternalMetricId),
   FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
     REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
@@ -313,7 +313,7 @@ CREATE TABLE Reports (
   ReportId bigint NOT NULL,
 
   ExternalReportId bigint NOT NULL,
-  ReportIdempotencyKey text NOT NULL,
+  CreateReportRequestId text NOT NULL,
 
   CreateTime TIMESTAMP WITH TIME ZONE NOT NULL,
 
@@ -326,7 +326,7 @@ CREATE TABLE Reports (
   ReportDetails bytea NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, ReportId),
-  UNIQUE (MeasurementConsumerId, ReportIdempotencyKey),
+  UNIQUE (MeasurementConsumerId, CreateReportRequestId),
   UNIQUE (MeasurementConsumerId, ExternalReportId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId)
