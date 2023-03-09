@@ -844,6 +844,25 @@ private val SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
       }
   }
 
+private val PENDING_CMMS_MEASUREMENTS =
+  mapOf(
+    PENDING_UNION_ALL_REACH_MEASUREMENT.measurementReferenceId to
+      PENDING_UNION_ALL_REACH_MEASUREMENT,
+    PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.measurementReferenceId to
+      PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT,
+    PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.measurementReferenceId to
+      PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT,
+  )
+private val SUCCEEDED_CMMS_MEASUREMENTS =
+  mapOf(
+    SUCCEEDED_UNION_ALL_REACH_MEASUREMENT.measurementReferenceId to
+      SUCCEEDED_UNION_ALL_REACH_MEASUREMENT,
+    SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.measurementReferenceId to
+      SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT,
+    SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.measurementReferenceId to
+      SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT,
+  )
+
 // Metric Specs
 
 private const val MAXIMUM_FREQUENCY_PER_USER = 10
@@ -1089,10 +1108,16 @@ class MetricsServiceTest {
       )
 
     onBlocking { createMeasurement(any()) }
-      .thenReturn(
-        PENDING_UNION_ALL_REACH_MEASUREMENT,
-        PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
-      )
+      .thenAnswer {
+        val request = it.arguments[0] as CreateMeasurementRequest
+        PENDING_CMMS_MEASUREMENTS.getValue(request.measurement.measurementReferenceId)
+      }
+
+    // onBlocking { createMeasurement(any()) }
+    //   .thenReturn(
+    //     PENDING_UNION_ALL_REACH_MEASUREMENT,
+    //     PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
+    //   )
   }
 
   private val measurementConsumersMock:
@@ -1102,11 +1127,9 @@ class MetricsServiceTest {
     }
 
   private val dataProvidersMock: DataProvidersGrpcKt.DataProvidersCoroutineImplBase = mockService {
-    // var stubbing = onBlocking { getDataProvider(any()) }
     for (dataProvider in DATA_PROVIDERS.values) {
       onBlocking { getDataProvider(eq(getDataProviderRequest { name = dataProvider.name })) }
         .thenReturn(dataProvider)
-      // stubbing = stubbing.thenReturn(dataProvider)
     }
   }
 
@@ -2320,12 +2343,6 @@ class MetricsServiceTest {
           INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET,
           INTERNAL_SINGLE_PUBLISHER_REPORTING_SET
         )
-      )
-    whenever(measurementsMock.createMeasurement(any()))
-      .thenReturn(
-        PENDING_UNION_ALL_REACH_MEASUREMENT,
-        PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT,
-        PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
       )
 
     val request = batchCreateMetricsRequest {
