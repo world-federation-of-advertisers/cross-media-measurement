@@ -77,5 +77,5 @@ enum ErrorCode {
   /** EventGroup state is in an illegal state for the operation. */
   EVENT_GROUP_STATE_ILLEGAL = 26;
   /** Required duchies are inactive */
-  INACTIVE_REQUIRED_DUCHIES = 27;
+  DUCHY_NOT_ACTIVE = 27;
 }

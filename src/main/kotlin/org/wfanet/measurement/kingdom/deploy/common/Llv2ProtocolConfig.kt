@@ -45,7 +45,7 @@ object Llv2ProtocolConfig {
     protocolConfig = configMessage.protocolConfig
     duchyProtocolConfig = configMessage.duchyProtocolConfig
     requiredExternalDuchyIds = configMessage.requiredExternalDuchyIdsList.toSet()
-    minimumNumberOfRequiredDuchies = configMessage.minimumNumberOfRequiredDuchies
+    minimumNumberOfRequiredDuchies = configMessage.minimumNumberOfDuchyParticipants
   }
 
   fun setForTest(

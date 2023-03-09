@@ -17,7 +17,10 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Value
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.identity.ExternalId
@@ -138,7 +141,7 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
     }
 
     val otherDuchyIds: List<InternalId> =
-      findComputationParticipants(externalComputationId).filter { it.value != duchyId }
+      findComputationParticipants(externalComputationId).filter { it.value != duchyId }.toList()
 
     if (
       computationParticipantsInState(
@@ -207,14 +210,11 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
 
   private suspend fun TransactionScope.findComputationParticipants(
     externalComputationId: ExternalId
-  ): List<InternalId> {
+  ): Flow<InternalId> {
     val sql =
       """
       SELECT
-        ComputationParticipants.MeasurementConsumerId,
-        ComputationParticipants.MeasurementId,
-        ComputationParticipants.DuchyId,
-        Measurements.ExternalComputationId
+        ComputationParticipants.DuchyId
       FROM ComputationParticipants JOIN Measurements USING (MeasurementConsumerId, MeasurementId)
       WHERE ExternalComputationId = @externalComputationId
       """
@@ -223,8 +223,6 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
     val statement: Statement =
       statement(sql) { bind("externalComputationId" to externalComputationId.value) }
 
-    return transactionContext.executeQuery(statement).toList().map {
-      InternalId(it.getLong("DuchyId"))
-    }
+    return transactionContext.executeQuery(statement).map { InternalId(it.getLong("DuchyId")) }
   }
 }

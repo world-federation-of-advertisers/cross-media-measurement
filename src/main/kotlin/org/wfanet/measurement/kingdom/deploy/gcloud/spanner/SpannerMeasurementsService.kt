@@ -35,7 +35,6 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderN
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotActiveException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.InsufficientNumberOfActiveDuchiesException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundException
@@ -67,10 +66,6 @@ class SpannerMeasurementsService(
       e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Certificate not found." }
     } catch (e: DuchyNotActiveException) {
       e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Inactive required duchy." }
-    } catch (e: InsufficientNumberOfActiveDuchiesException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-        "Insufficient number of active duchies."
-      }
     } catch (e: KingdomInternalException) {
       e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
