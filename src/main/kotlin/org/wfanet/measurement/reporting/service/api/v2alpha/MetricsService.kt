@@ -250,7 +250,9 @@ class MetricsService(
 
       for (internalMetric in internalMetricsList) {
         for (weightedMeasurement in internalMetric.weightedMeasurementsList) {
-          if (weightedMeasurement.measurement.cmmsMeasurementId.isNotBlank()) continue
+          if (weightedMeasurement.measurement.cmmsMeasurementId.isNotBlank()) {
+            continue
+          }
 
           measurementRequestIdToExternalId[
             weightedMeasurement.measurement.cmmsCreateMeasurementRequestId] =
@@ -272,7 +274,9 @@ class MetricsService(
 
       // Set CMMs measurement IDs.
       val measurements = deferred.awaitAll()
-      if (measurements.isEmpty()) return@coroutineScope
+      if (measurements.isEmpty()) {
+        return@coroutineScope
+      }
 
       try {
         internalMeasurementsStub
