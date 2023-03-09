@@ -128,21 +128,18 @@ message PurgeCompletedMeasurementsRequest {
   bool force = 2;
 }
 
+message MeasurementKey {
+  fixed64 external_measurement_consumer_id = 1;
+  fixed64 external_measurement_id = 2;
+}
+
 message CancelPendingMeasurementsResponse {
-  message MeasurementKey {
-    fixed64 external_measurement_consumer_id = 1;
-    fixed64 external_measurement_id = 2;
-  }
   repeated MeasurementKey measurement_keys = 1;
 }
 
 message PurgeCompletedMeasurementsResponse {
   int32 purge_count = 1;
 
-  message MeasurementKey {
-    fixed64 external_measurement_consumer_id = 1;
-    fixed64 external_measurement_id = 2;
-  }
   // A sample of measurement keys that would be deleted. The sample size is at
   // maximum 100 measurement keys. Only populated if `force` is false.
   repeated MeasurementKey purge_sample = 2;
