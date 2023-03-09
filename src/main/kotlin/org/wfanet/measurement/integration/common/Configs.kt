@@ -71,10 +71,12 @@ val LLV2_AGGREGATOR_NAME =
 val ALL_DUCHY_NAMES = DUCHY_ID_CONFIG.duchiesList.map { it.externalDuchyId }
 val ALL_DUCHIES =
   DUCHY_ID_CONFIG.duchiesList.map { duchy ->
-    var activeEndTime = Instant.MAX
-    if (duchy.hasActiveEndTime()) {
-      activeEndTime = duchy.activeEndTime.toInstant()
-    }
+    val activeEndTime =
+      if (duchy.hasActiveEndTime()) {
+        duchy.activeEndTime.toInstant()
+      } else {
+        Instant.MAX
+      }
     DuchyIds.Entry(
       duchy.internalDuchyId,
       duchy.externalDuchyId,

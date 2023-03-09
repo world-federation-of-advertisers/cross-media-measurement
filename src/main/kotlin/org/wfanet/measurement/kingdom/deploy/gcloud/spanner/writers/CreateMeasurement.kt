@@ -16,9 +16,9 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Value
-import java.lang.IllegalStateException
 import java.time.Clock
-import java.time.Instant
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.flattenConcat
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
 import kotlinx.coroutines.flow.toSet
@@ -42,7 +42,6 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIs
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotActiveException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
@@ -95,45 +94,34 @@ class CreateMeasurement(private val measurement: Measurement) :
   ): Measurement {
     val initialMeasurementState = Measurement.State.PENDING_REQUISITION_PARAMS
 
-    val computationDuchyExternalIds = mutableSetOf<String>()
-    computationDuchyExternalIds.addAll(Llv2ProtocolConfig.requiredExternalDuchyIds)
+    val requiredDuchyIds = mutableSetOf<String>()
+    requiredDuchyIds.addAll(Llv2ProtocolConfig.requiredExternalDuchyIds)
 
-    computationDuchyExternalIds.addAll(
+    requiredDuchyIds.addAll(
       readDataProviderRequiredDuchies(
         measurement.dataProvidersMap.keys.map { ExternalId(it) }.toSet()
       )
     )
 
     val now = Clock.systemUTC().instant()
-    computationDuchyExternalIds.forEach {
-      if (!isActiveDuchy(it, now)) {
-        throw DuchyNotActiveException(it)
+    val requiredDuchyEntries = DuchyIds.entries.filter { it.externalDuchyId in requiredDuchyIds }
+    requiredDuchyEntries.forEach {
+      if (!it.isActive(now)) {
+        throw DuchyNotActiveException(it.externalDuchyId)
       }
     }
 
-    if (computationDuchyExternalIds.size < Llv2ProtocolConfig.minimumNumberOfRequiredDuchies) {
-
-      val remainingDuchies =
-        DuchyIds.entries
-          .filter { !computationDuchyExternalIds.contains(it.externalDuchyId) }
-          .filter { isActiveDuchy(it.externalDuchyId, now) }
-          .toMutableSet()
-
-      if (
-        computationDuchyExternalIds.size + remainingDuchies.size <
-          Llv2ProtocolConfig.minimumNumberOfRequiredDuchies
-      ) {
-        throw IllegalStateException(
-          "There are not enough active duchies to compute the measurement"
-        )
+    val includedDuchyEntries =
+      if (requiredDuchyEntries.size < Llv2ProtocolConfig.minimumNumberOfRequiredDuchies) {
+        val additionalActiveDuchies =
+          DuchyIds.entries.filter { it !in requiredDuchyEntries && it.isActive(now) }
+        requiredDuchyEntries +
+          additionalActiveDuchies.take(
+            Llv2ProtocolConfig.minimumNumberOfRequiredDuchies - requiredDuchyEntries.size
+          )
+      } else {
+        requiredDuchyEntries
       }
-
-      while (computationDuchyExternalIds.size < Llv2ProtocolConfig.minimumNumberOfRequiredDuchies) {
-        val duchy = remainingDuchies.random()
-        remainingDuchies.remove(duchy)
-        computationDuchyExternalIds.add(duchy.externalDuchyId)
-      }
-    }
 
     val measurementId: InternalId = idGenerator.generateInternalId()
     val externalMeasurementId: ExternalId = idGenerator.generateExternalId()
@@ -154,11 +142,11 @@ class CreateMeasurement(private val measurement: Measurement) :
       Requisition.State.PENDING_PARAMS
     )
 
-    computationDuchyExternalIds.forEach { requiredDuchyExternalId ->
+    includedDuchyEntries.forEach { entry ->
       insertComputationParticipant(
         measurementConsumerId,
         measurementId,
-        InternalId(DuchyIds.getInternalId(requiredDuchyExternalId)!!),
+        InternalId(DuchyIds.getInternalId(entry.externalDuchyId)!!),
       )
     }
 
@@ -376,11 +364,11 @@ private suspend fun TransactionScope.readMeasurementConsumerId(
 private suspend fun TransactionScope.readDataProviderRequiredDuchies(
   externalDataProviderIds: Set<ExternalId>
 ): Set<String> {
-  val requiredDuchies = mutableSetOf<String>()
-  StreamDataProviders(externalDataProviderIds).execute(transactionContext).collect {
-    requiredDuchies.addAll(it.dataProvider.requiredExternalDuchyIdsList)
-  }
-  return requiredDuchies
+  return StreamDataProviders(externalDataProviderIds)
+    .execute(transactionContext)
+    .map { it.dataProvider.requiredExternalDuchyIdsList.asFlow() }
+    .flattenConcat()
+    .toSet()
 }
 
 /**
@@ -397,11 +385,4 @@ private fun validateCertificate(
   }
 
   return certificateResult.certificateId
-}
-
-private fun isActiveDuchy(externalDuchyId: String, now: Instant): Boolean {
-  val duchy =
-    DuchyIds.entries.find { it.externalDuchyId == externalDuchyId }
-      ?: throw DuchyNotFoundException(externalDuchyId)
-  return now in duchy.activeRange
 }

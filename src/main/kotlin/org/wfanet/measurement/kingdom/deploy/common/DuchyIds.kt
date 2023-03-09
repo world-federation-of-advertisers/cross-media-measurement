@@ -57,11 +57,15 @@ object DuchyIds {
     entries = duchyIds
   }
 
-  data class Entry(
+  class Entry(
     val internalDuchyId: Long,
     val externalDuchyId: String,
     val activeRange: ClosedRange<Instant>
-  )
+  ) {
+    fun isActive(instant: Instant): Boolean {
+      return instant in activeRange
+    }
+  }
 }
 
 class DuchyIdsFlags {
