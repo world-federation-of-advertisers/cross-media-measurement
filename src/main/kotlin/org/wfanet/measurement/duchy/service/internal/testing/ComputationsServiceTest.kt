@@ -24,12 +24,12 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.computationDetails
 import org.wfanet.measurement.internal.duchy.computationStage
-import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.computationToken
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig
 import org.wfanet.measurement.internal.duchy.createComputationRequest
@@ -52,9 +52,10 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   companion object {
     private const val GLOBAL_COMPUTATION_ID = "1234"
     private val AGGREGATOR_COMPUTATION_DETAILS = computationDetails {
-      liquidLegionsV2 = LiquidLegionsSketchAggregationV2Kt.computationDetails {
-        role = LiquidLegionsV2SetupConfig.RoleInComputation.AGGREGATOR
-      }
+      liquidLegionsV2 =
+        LiquidLegionsSketchAggregationV2Kt.computationDetails {
+          role = LiquidLegionsV2SetupConfig.RoleInComputation.AGGREGATOR
+        }
     }
     private val DEFAULT_CREATE_COMPUTATION_REQUEST = createComputationRequest {
       computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
