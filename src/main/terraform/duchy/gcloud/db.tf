@@ -18,12 +18,16 @@
 
 resource "google_spanner_instance" "duchy_db" {
   config       = "regional-${local.zone}"
+
+  # The name will look like dev-halo-duchy-spanner-instance
   display_name = "${local.prefix}-spanner-instance"
   num_nodes    = local.spanner.num_nodes
 }
 
 resource "google_spanner_database" "database" {
   instance = google_spanner_instance.duchy_db.name
+
+  # The name will look like dev-halo-duchy-spanner-database
   name     = "${local.prefix}-spanner-database"
   version_retention_period = local.spanner.version_retention_period
   deletion_protection = local.spanner.deletion_protection

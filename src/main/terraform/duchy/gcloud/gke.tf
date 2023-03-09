@@ -18,7 +18,7 @@
 
 resource "google_container_cluster" "worker" {
 
-  # e.g. dev-halo-duchy-worker1
+  # The name will look like dev-halo-duchy-worker1
   name     = "${local.prefix}-worker1"
 
   location = local.zone
@@ -33,6 +33,8 @@ resource "google_container_cluster" "worker" {
 }
 
 resource "google_container_node_pool" "data-server"{
+
+  # The name will look like dev-halo-duchy-data-server
   name       = "${local.prefix}-data-server"
   cluster    = google_container_cluster.worker.id
 

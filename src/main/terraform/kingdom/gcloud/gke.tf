@@ -17,7 +17,7 @@
 
 resource "google_container_cluster" "primary" {
 
-  # e.g. dev-halo-kingdom-gke-cluster
+  # the name will look like dev-halo-duchy-gke-cluster
   name     = "${local.prefix}-gke-cluster"
   location = local.zone
   initial_node_count = local.kingdom.cluster_node_count
@@ -31,6 +31,8 @@ resource "google_container_cluster" "primary" {
 }
 
 resource "google_container_node_pool" "data-server"{
+
+  # the name will look like dev-halo-duchy-data-server
   name       = "${local.prefix}-data-server"
   cluster    = google_container_cluster.primary.id
 

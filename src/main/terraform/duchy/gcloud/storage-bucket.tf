@@ -17,7 +17,8 @@
 # https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/duchy-deployment.md
 
 resource "google_storage_bucket" "static-site" {
-  # e.g dev-halo-duchy-storage
+
+  # The name will look like dev-halo-duchy-storage
   name          = "${local.prefix}-storage"
   location      = local.storage.location
   force_destroy = local.storage.force_destroy
