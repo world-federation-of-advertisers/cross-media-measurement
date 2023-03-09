@@ -80,17 +80,19 @@ abstract class ComputationsServer : Runnable {
       ComputationLogEntriesCoroutineStub(channel).withDuchyId(flags.duchy.duchyName)
 
     val computationsDatabase = newComputationsDatabase(computationsDatabaseReader, computationDb)
+    val computationService =
+      ComputationsService(
+        computationsDatabase = computationsDatabase,
+        computationLogEntriesClient = computationLogEntriesClient,
+        computationStorageClient = ComputationStore(storageClient),
+        requisitionStorageClient = RequisitionStore(storageClient),
+        duchyName = flags.duchy.duchyName
+      )
 
     CommonServer.fromFlags(
         flags.server,
         javaClass.name,
-        ComputationsService(
-          computationsDatabase = computationsDatabase,
-          computationLogEntriesClient = computationLogEntriesClient,
-          duchyName = flags.duchy.duchyName,
-          computationStorageClient = ComputationStore(storageClient),
-          requisitionStorageClient = RequisitionStore(storageClient),
-        ),
+        computationService,
         ComputationStatsService(computationsDatabase),
         continuationTokensService
       )
