@@ -83,9 +83,8 @@ private class Flags {
           "deleted. This can be specified multiple times."
       ],
     required = false,
-    defaultValue = "",
   )
-  lateinit var deletableComputationStates: Set<Computation.State>
+  var deletableComputationStates: Set<Computation.State> = emptySet()
     private set
 
   @set:CommandLine.Option(
