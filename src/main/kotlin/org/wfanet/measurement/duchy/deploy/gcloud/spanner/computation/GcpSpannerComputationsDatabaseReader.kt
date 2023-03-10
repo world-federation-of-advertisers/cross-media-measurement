@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation
 
+import java.time.Instant
 import kotlinx.coroutines.flow.singleOrNull
 import kotlinx.coroutines.flow.toCollection
 import org.wfanet.measurement.common.grpc.grpcRequire
@@ -21,6 +22,7 @@ import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStages.stageToProtocol
 import org.wfanet.measurement.duchy.db.computation.ComputationProtocolStagesEnumHelper
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabaseReader
+import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
@@ -54,7 +56,10 @@ class GcpSpannerComputationsDatabaseReader(
       .singleOrNull()
   }
 
-  override suspend fun readGlobalComputationIds(stages: Set<ComputationStage>): Set<String> {
+  override suspend fun readGlobalComputationIds(
+    stages: Set<ComputationStage>,
+    updatedBefore: Instant?
+  ): Set<String> {
     val computationTypes = stages.map { stageToProtocol(it) }.distinct()
     grpcRequire(computationTypes.count() == 1) {
       "All stages should have the same ComputationType."
@@ -63,7 +68,8 @@ class GcpSpannerComputationsDatabaseReader(
     return GlobalIdsQuery(
         ComputationProtocolStages::computationStageEnumToLongValues,
         stages,
-        computationTypes[0]
+        computationTypes[0],
+        updatedBefore?.toGcloudTimestamp()
       )
       .execute(databaseClient)
       .toCollection(mutableSetOf())

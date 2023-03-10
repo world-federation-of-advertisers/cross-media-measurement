@@ -24,7 +24,7 @@ class RequisitionBlobKeysQuery(localId: Long) : SqlBasedQuery<String> {
       """
         SELECT PathToBlob,
         FROM Requisitions
-        WHERE ComputationId = @local_id
+        WHERE ComputationId = @local_id AND PathToBlob IS NOT NULL
       """
         .trimIndent()
   }
