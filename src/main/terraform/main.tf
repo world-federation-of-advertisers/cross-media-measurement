@@ -25,6 +25,7 @@ module "kingdom" {
   source = "./kingdom/gcloud"
   env = var.env
   project = var.project
+  service_account = var.service_account
 }
 
 module "duchy1" {
