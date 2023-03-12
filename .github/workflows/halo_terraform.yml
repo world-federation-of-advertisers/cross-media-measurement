@@ -70,4 +70,4 @@ jobs:
 
       # Workspace selection
       - name: Workspace selection
-        run:  terraform workspace select ${{env.ENV}}
+        run:  terraform workspace select ${{env.ENV}} || terraform workspace new ${{env.ENV}}
