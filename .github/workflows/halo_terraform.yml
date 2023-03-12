@@ -66,8 +66,8 @@ jobs:
       # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
       - name: Terraform initialization
         run:  terraform init -backend-config=halo.properties -reconfigure
-        working-directory: $ROOT_PATH
+        working-directory: ${{env.ROOT_PATH}}
 
       # Workspace selection
       - name: Workspace selection
-        run:  terraform workspace select $ENV
+        run:  terraform workspace select ${{env.ENV}}
