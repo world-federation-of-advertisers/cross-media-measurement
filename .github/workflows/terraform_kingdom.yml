@@ -56,16 +56,16 @@
 #       with:
 #         cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
 
-name: 'Terraform Kingdom'
+name: 'Terraform_kingdom'
 
 on:
   push:
-#    branches: [ "main" ]
+    branches: [ "main" ]
   pull_request:
 
 env:
   GCP_CREDENTIALS: '${{ secrets.GCP_CREDENTIALS }}'
-  ROOT_PATH: '${{ github.workspace }}/terraform/kingdom/gcloud'
+  ROOT_PATH: '${{ github.workspace }}/src/main/terraform/kingdom/gcloud'
 
 permissions:
   contents: read
@@ -102,8 +102,23 @@ jobs:
       - name: print greetings
         run: echo "Halo world"
 
-      # Clone the repositories
-      - name: Clone repositories
+      # Build the image
+      - name: Build Bazel image
         run: |
-          ls -ltr
+          cd src/main/docker
+          mkdir -p src/main/docker
+          cd ../..
+          bazel query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
+          xargs bazel build -c opt --define container_registry=gcr.io \
+          --define image_repo_prefix=halo-cmm-sandbox --define image_tag=build-0001
 
+      # Login to GCR
+      - name: Login to GCR
+        run: gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin https://gcr.io
+
+      # Push the image
+      - name: Push Bazel image
+        run: |
+          bazel query 'kind("container_push", "//src/main/docker:*")' --output=label |
+          xargs -L 1 bazel run -c opt --define container_registry=gcr.io \
+          --define image_repo_prefix=halo-cmm-sandbox  --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=build-0001
