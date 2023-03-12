@@ -102,29 +102,6 @@ jobs:
       - name: print greetings
         run: echo "Halo world"
 
-      # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
-      - name: Terraform Init
-        run:  terraform init -backend-config=state-lock-config-qa.properties -reconfigure
-        working-directory: ${{env.ROOT_PATH}}
-
-      # Checks that all Terraform configuration files adhere to a canonical format
-      - name: Terraform Format
-        run: terraform fmt -check
-
-      # Validates the Terraform Code.
-      - name: Terraform Validate
-        run: terraform validate
-
-      # Creates a plan
-      - name: Terraform Plan
-        run: terraform plan '-out=qa_tfplan'
-        working-directory: ${{env.ROOT_PATH}}
-
-      # Applies the above created plan
-      - name: Terraform Apply
-        run: terraform apply qa_tfplan
-        working-directory: ${{env.ROOT_PATH}}
-
       # Clone the repositories
       - name: Clone repositories
         run: |
