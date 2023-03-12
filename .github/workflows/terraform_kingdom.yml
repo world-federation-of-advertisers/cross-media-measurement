@@ -90,6 +90,11 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v1
 
+      - name: 'Setting up GCP account Connection'
+        uses: 'google-github-actions/auth@v1'
+        with:
+          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+
       - name: 'Set up Cloud SDK'
         uses: 'google-github-actions/setup-gcloud@v1'
 
@@ -100,4 +105,3 @@ jobs:
       # Login to GCR
       - name: Login to GCR
         run: gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin https://gcr.io
-
