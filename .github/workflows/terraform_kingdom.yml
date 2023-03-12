@@ -60,7 +60,7 @@ name: 'Terraform_kingdom'
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "feature/halo-kingdom-release", "main" ]
   pull_request:
 
 env:
