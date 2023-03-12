@@ -25,26 +25,22 @@ module "kingdom" {
   source = "./kingdom/gcloud"
   env = var.env
   project = var.project
-  service_account = var.service_account
 }
 
 module "duchy1" {
   source = "./duchy/gcloud"
   env = var.env
   project = var.project
-  service_account = var.service_account
 }
 
 module "duchy2" {
   source = "./duchy/gcloud"
   env = var.env
   project = var.project
-  service_account = var.service_account
 }
 
 module "duchy3" {
   source = "./duchy/gcloud"
   env = var.env
   project = var.project
-  service_account = var.service_account
 }
