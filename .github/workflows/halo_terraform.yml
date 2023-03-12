@@ -71,3 +71,17 @@ jobs:
       # Workspace selection
       - name: Workspace selection
         run:  terraform workspace select ${{env.ENV}} || terraform workspace new ${{env.ENV}}
+
+      # Checks that all Terraform configuration files adhere to a canonical format
+      - name: Terraform Format and validate
+        run: terraform fmt -check && terraform validate
+
+      # Creates a plan
+      - name: Terraform Plan
+        run: terraform plan '-out=${{env.ENV}}_tfplan' -var env=${{env.ENV}} -var project=${{env.PROJECT}} -var service_account=${{env.SERVICE_ACCOUNT}}
+        working-directory: ${{env.ROOT_PATH}}
+
+      # Applies the above created plan
+      - name: Terraform Apply
+        run: terraform apply '${{env.ENV}}_tfplan'
+        working-directory: ${{env.ROOT_PATH}}
