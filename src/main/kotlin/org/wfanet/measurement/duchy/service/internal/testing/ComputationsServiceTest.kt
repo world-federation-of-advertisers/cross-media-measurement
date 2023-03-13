@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.kotlin.toByteStringUtf8
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
@@ -24,17 +25,31 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.toByteString
+import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest.AfterTransition
+import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase
+import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
+import org.wfanet.measurement.internal.duchy.advanceComputationStageRequest
+import org.wfanet.measurement.internal.duchy.claimWorkRequest
 import org.wfanet.measurement.internal.duchy.computationDetails
 import org.wfanet.measurement.internal.duchy.computationStage
 import org.wfanet.measurement.internal.duchy.computationToken
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig
+import org.wfanet.measurement.internal.duchy.copy
 import org.wfanet.measurement.internal.duchy.createComputationRequest
+import org.wfanet.measurement.internal.duchy.deleteComputationRequest
+import org.wfanet.measurement.internal.duchy.externalRequisitionKey
+import org.wfanet.measurement.internal.duchy.getComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt
+import org.wfanet.measurement.internal.duchy.requisitionDetails
+import org.wfanet.measurement.internal.duchy.requisitionEntry
+import org.wfanet.measurement.internal.duchy.requisitionMetadata
+import org.wfanet.measurement.internal.duchy.updateComputationDetailsRequest
 
 @RunWith(JUnit4::class)
 abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
@@ -50,17 +65,33 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   }
 
   companion object {
-    private const val GLOBAL_COMPUTATION_ID = "1234"
+    private const val FAKE_ID = "1234"
+    private const val GLOBAL_COMPUTATION_ID = FAKE_ID
+    private const val REQUISITION_ID = FAKE_ID
+    private const val REQUISITION_FINGERPRINT = "finger_print"
+    private const val REQUISITION_NONCE = 1234L
     private val AGGREGATOR_COMPUTATION_DETAILS = computationDetails {
       liquidLegionsV2 =
         LiquidLegionsSketchAggregationV2Kt.computationDetails {
           role = LiquidLegionsV2SetupConfig.RoleInComputation.AGGREGATOR
         }
     }
+    private val DEFAULT_REQUISITION_ENTRY = requisitionEntry {
+      key = externalRequisitionKey {
+        externalRequisitionId = REQUISITION_ID
+        requisitionFingerprint = REQUISITION_FINGERPRINT.toByteStringUtf8()
+      }
+      value = requisitionDetails {
+        nonce = REQUISITION_NONCE
+        externalFulfillingDuchyId = REQUISITION_ID
+        nonceHash = REQUISITION_NONCE.toByteString()
+      }
+    }
     private val DEFAULT_CREATE_COMPUTATION_REQUEST = createComputationRequest {
       computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
       globalComputationId = GLOBAL_COMPUTATION_ID
       computationDetails = AGGREGATOR_COMPUTATION_DETAILS
+      requisitions += DEFAULT_REQUISITION_ENTRY
     }
     private val DEFAULT_CREATE_COMPUTATION_RESP_TOKEN = computationToken {
       globalComputationId = GLOBAL_COMPUTATION_ID
@@ -69,6 +100,10 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
       }
       computationDetails = AGGREGATOR_COMPUTATION_DETAILS
       stageSpecificDetails = ComputationStageDetails.getDefaultInstance()
+      requisitions += requisitionMetadata {
+        externalKey = DEFAULT_REQUISITION_ENTRY.key
+        details = DEFAULT_REQUISITION_ENTRY.value
+      }
     }
   }
 
@@ -96,4 +131,290 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
   }
+
+  @Test
+  fun `deleteComputation returns empty proto when succeeded`() = runBlocking {
+    val createComputationResp = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+
+    val deleteRequest = deleteComputationRequest {
+      localComputationId = createComputationResp.token.localComputationId
+    }
+    assertThat(service.deleteComputation(deleteRequest)).isEqualToDefaultInstance()
+  }
+
+  @Test
+  fun `deleteComputation returns empty proto when called with nonexistent ID`() = runBlocking {
+    val doesNotExistComputationId = 1234L
+
+    val deleteRequest = deleteComputationRequest { localComputationId = doesNotExistComputationId }
+    assertThat(service.deleteComputation(deleteRequest)).isEqualToDefaultInstance()
+  }
+
+  @Test
+  fun `getComputationToken by global computation ID returns created computation`() = runBlocking {
+    service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+
+    val getComputationResponse =
+      service.getComputationToken(
+        getComputationTokenRequest { globalComputationId = GLOBAL_COMPUTATION_ID }
+      )
+    assertThat(getComputationResponse.token.localComputationId).isNotEqualTo(0L)
+    assertThat(getComputationResponse.token.version).isNotEqualTo(0L)
+    assertThat(getComputationResponse.token)
+      .ignoringFields(
+        ComputationToken.LOCAL_COMPUTATION_ID_FIELD_NUMBER,
+        ComputationToken.VERSION_FIELD_NUMBER
+      )
+      .isEqualTo(DEFAULT_CREATE_COMPUTATION_RESP_TOKEN)
+  }
+
+  @Test
+  fun `getComputationToken by requisition key returns created computation`() = runBlocking {
+    service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+
+    val getComputationResponse =
+      service.getComputationToken(
+        getComputationTokenRequest { requisitionKey = DEFAULT_REQUISITION_ENTRY.key }
+      )
+    assertThat(getComputationResponse.token.localComputationId).isNotEqualTo(0L)
+    assertThat(getComputationResponse.token.version).isNotEqualTo(0L)
+    assertThat(getComputationResponse.token)
+      .ignoringFields(
+        ComputationToken.LOCAL_COMPUTATION_ID_FIELD_NUMBER,
+        ComputationToken.VERSION_FIELD_NUMBER
+      )
+      .isEqualTo(DEFAULT_CREATE_COMPUTATION_RESP_TOKEN)
+  }
+
+  @Test
+  fun `getComputationToken throws INVALID_ARGUMENT when request key is not set`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.getComputationToken(GetComputationTokenRequest.getDefaultInstance())
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("key not set")
+  }
+
+  @Test
+  fun `getComputationToken throws NOT_FOUND for deleted computation`() = runBlocking {
+    val createComputationResp = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+    service.deleteComputation(
+      deleteComputationRequest {
+        localComputationId = createComputationResp.token.localComputationId
+      }
+    )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.getComputationToken(
+          getComputationTokenRequest { globalComputationId = GLOBAL_COMPUTATION_ID }
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `updateComputationDetails returns token with updated computationDetails`() = runBlocking {
+    val createComputationResp = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+
+    val updatedComputationDetails =
+      AGGREGATOR_COMPUTATION_DETAILS.copy {
+        liquidLegionsV2 =
+          LiquidLegionsSketchAggregationV2Kt.computationDetails {
+            role = LiquidLegionsV2SetupConfig.RoleInComputation.NON_AGGREGATOR
+          }
+      }
+    val newNonce = 5678L
+    val updatedRequisition =
+      DEFAULT_REQUISITION_ENTRY.copy {
+        value =
+          DEFAULT_REQUISITION_ENTRY.value.copy {
+            nonce = newNonce
+            nonceHash = newNonce.toByteString()
+          }
+      }
+    val updateComputationsDetailsResponse =
+      service.updateComputationDetails(
+        updateComputationDetailsRequest {
+          token = createComputationResp.token
+          details = updatedComputationDetails
+          requisitions += updatedRequisition
+        }
+      )
+
+    val expectedUpdatedToken =
+      DEFAULT_CREATE_COMPUTATION_RESP_TOKEN.copy {
+        computationDetails = updatedComputationDetails
+        requisitions[0] = requisitionMetadata {
+          externalKey = updatedRequisition.key
+          details = updatedRequisition.value
+        }
+      }
+    assertThat(updateComputationsDetailsResponse.token)
+      .ignoringFields(
+        ComputationToken.LOCAL_COMPUTATION_ID_FIELD_NUMBER,
+        ComputationToken.VERSION_FIELD_NUMBER
+      )
+      .isEqualTo(expectedUpdatedToken)
+  }
+
+  @Test
+  fun `updateComputationDetails returns token with updated requisitions`() = runBlocking {
+    val createComputationResp = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+
+    val newNonce = 5678L
+    val updatedRequisition =
+      DEFAULT_REQUISITION_ENTRY.copy {
+        value =
+          DEFAULT_REQUISITION_ENTRY.value.copy {
+            nonce = newNonce
+            nonceHash = newNonce.toByteString()
+          }
+      }
+    val updateComputationsDetailsResponse =
+      service.updateComputationDetails(
+        updateComputationDetailsRequest {
+          token = createComputationResp.token
+          details = createComputationResp.token.computationDetails
+          requisitions += updatedRequisition
+        }
+      )
+
+    val expectedUpdatedToken =
+      DEFAULT_CREATE_COMPUTATION_RESP_TOKEN.copy {
+        requisitions[0] = requisitionMetadata {
+          externalKey = updatedRequisition.key
+          details = updatedRequisition.value
+        }
+      }
+    assertThat(updateComputationsDetailsResponse.token)
+      .ignoringFields(
+        ComputationToken.LOCAL_COMPUTATION_ID_FIELD_NUMBER,
+        ComputationToken.VERSION_FIELD_NUMBER
+      )
+      .isEqualTo(expectedUpdatedToken)
+  }
+
+  @Test
+  fun `updateComputationDetails throws IllegalArgumentException when updating protocol`() =
+    runBlocking {
+      val createComputationResp = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+
+      val exception =
+        assertFailsWith<IllegalArgumentException> {
+          service.updateComputationDetails(
+            updateComputationDetailsRequest {
+              token = createComputationResp.token
+              details = ComputationDetails.getDefaultInstance()
+            }
+          )
+        }
+
+      assertThat(exception.message).isEqualTo("The protocol type cannot change.")
+    }
+
+  @Test
+  fun `advanceComputationStage returns token with updated stage`() = runBlocking {
+    service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+    val claimWorkResponse =
+      service.claimWork(
+        claimWorkRequest {
+          computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+        }
+      )
+
+    val nextStage = computationStage {
+      liquidLegionsSketchAggregationV2 = Stage.WAIT_REQUISITIONS_AND_KEY_SET
+    }
+    val advanceComputationStageResp =
+      service.advanceComputationStage(
+        advanceComputationStageRequest {
+          token = claimWorkResponse.token
+          nextComputationStage = nextStage
+          afterTransition = AfterTransition.RETAIN_AND_EXTEND_LOCK
+        }
+      )
+
+    assertThat(advanceComputationStageResp.token)
+      .ignoringFields(ComputationToken.VERSION_FIELD_NUMBER)
+      .isEqualTo(claimWorkResponse.token.copy { computationStage = nextStage })
+  }
+
+  @Test
+  fun `advanceComputationStage throws IllegalArgumentException when transition stage is invalid`() =
+    runBlocking {
+      val createComputationResp = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+
+      val nextStage = computationStage { liquidLegionsSketchAggregationV2 = Stage.SETUP_PHASE }
+      val exception =
+        assertFailsWith<IllegalArgumentException> {
+          service.advanceComputationStage(
+            advanceComputationStageRequest {
+              token = createComputationResp.token
+              nextComputationStage = nextStage
+              afterTransition = AfterTransition.RETAIN_AND_EXTEND_LOCK
+            }
+          )
+        }
+
+      assertThat(exception.message).contains("Invalid stage transition")
+    }
+
+  @Test
+  fun `advanceComputationStage throws IllegalStateException when afterTransition is invalid`() =
+    runBlocking {
+      service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+      val claimWorkResponse =
+        service.claimWork(
+          claimWorkRequest {
+            computationType =
+              ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+          }
+        )
+
+      val nextStage = computationStage {
+        liquidLegionsSketchAggregationV2 = Stage.WAIT_REQUISITIONS_AND_KEY_SET
+      }
+      val exception =
+        assertFailsWith<IllegalStateException> {
+          service.advanceComputationStage(
+            advanceComputationStageRequest {
+              token = claimWorkResponse.token
+              nextComputationStage = nextStage
+              afterTransition = AfterTransition.UNSPECIFIED
+            }
+          )
+        }
+
+      assertThat(exception.message)
+        .contains("Unsupported AdvanceComputationStageRequest.AfterTransition")
+    }
+
+  @Test
+  fun `advanceComputationStage throws IllegalStateException when token is not the latest`() =
+    runBlocking {
+      val createComputationResp = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+      service.claimWork(
+        claimWorkRequest {
+          computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+        }
+      )
+
+      val nextStage = computationStage {
+        liquidLegionsSketchAggregationV2 = Stage.WAIT_REQUISITIONS_AND_KEY_SET
+      }
+      val exception =
+        assertFailsWith<IllegalStateException> {
+          service.advanceComputationStage(
+            advanceComputationStageRequest {
+              token = createComputationResp.token
+              nextComputationStage = nextStage
+              afterTransition = AfterTransition.RETAIN_AND_EXTEND_LOCK
+            }
+          )
+        }
+
+      assertThat(exception.message).contains("Failed to update because of editVersion mismatch.")
+    }
 }
