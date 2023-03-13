@@ -129,13 +129,17 @@ import org.wfanet.measurement.internal.reporting.v2.setMetricSucceedRequest
 import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsResponse
+import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsRequest
+import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
+import org.wfanet.measurement.reporting.v2alpha.GetMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.batchCreateMetricsResponse
+import org.wfanet.measurement.reporting.v2alpha.batchGetMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.listMetricsResponse
 
 private const val MAX_BATCH_SIZE = 1000
@@ -847,6 +851,118 @@ class MetricsService(
             InternalMeasurementKt.ResultKt.watchDuration { value = watchDurationValue }
         }
       }
+    }
+  }
+
+  override suspend fun getMetric(request: GetMetricRequest): Metric {
+    val metricKey =
+      grpcRequireNotNull(MetricKey.fromName(request.name)) {
+        "Metric name is either unspecified or invalid."
+      }
+
+    val principal: ReportingPrincipal = principalFromCurrentContext
+    when (principal) {
+      is MeasurementConsumerPrincipal -> {
+        if (metricKey.cmmsMeasurementConsumerId != principal.resourceKey.measurementConsumerId) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot get a Metric for another MeasurementConsumer."
+          }
+        }
+      }
+    }
+
+    val internalMetric: InternalMetric =
+      getInternalMetric(metricKey.cmmsMeasurementConsumerId, apiIdToExternalId(metricKey.metricId))
+
+    // Early exit when the metric is at a terminal state.
+    if (internalMetric.state != InternalMetric.State.RUNNING) {
+      return internalMetric.toMetric()
+    }
+
+    val toBeSyncedInternalMeasurements: List<InternalMeasurement> =
+      internalMetric.weightedMeasurementsList.map { weightedMeasurement ->
+        weightedMeasurement.measurement
+      }
+
+    measurementSupplier.syncInternalMeasurements(
+      toBeSyncedInternalMeasurements,
+      principal.config.apiKey,
+      principal,
+    )
+
+    return getInternalMetric(
+        metricKey.cmmsMeasurementConsumerId,
+        apiIdToExternalId(metricKey.metricId)
+      )
+      .toMetric()
+  }
+
+  override suspend fun batchGetMetrics(request: BatchGetMetricsRequest): BatchGetMetricsResponse {
+    grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
+      "Parent is either unspecified or invalid."
+    }
+
+    val principal: ReportingPrincipal = principalFromCurrentContext
+
+    when (principal) {
+      is MeasurementConsumerPrincipal -> {
+        if (request.parent != principal.resourceKey.toName()) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot get Metrics for another MeasurementConsumer."
+          }
+        }
+      }
+    }
+
+    grpcRequire(request.namesList.isNotEmpty()) { "No metric name is provided." }
+    grpcRequire(request.namesList.size <= MAX_BATCH_SIZE) {
+      "At most $MAX_BATCH_SIZE metrics can be supported in a batch."
+    }
+
+    val externalMetricIds: List<Long> =
+      request.namesList.map { metricName ->
+        val metricKey =
+          grpcRequireNotNull(MetricKey.fromName(metricName)) {
+            "Metric name is either unspecified or invalid."
+          }
+        apiIdToExternalId(metricKey.metricId)
+      }
+
+    val internalMetrics: List<InternalMetric> =
+      batchGetInternalMetrics(principal.resourceKey.measurementConsumerId, externalMetricIds)
+
+    val toBeSyncedInternalMeasurements: List<InternalMeasurement> =
+      internalMetrics
+        .filter { internalMetric -> internalMetric.state == InternalMetric.State.RUNNING }
+        .flatMap { internalMetric -> internalMetric.weightedMeasurementsList }
+        .map { weightedMeasurement -> weightedMeasurement.measurement }
+
+    measurementSupplier.syncInternalMeasurements(
+      toBeSyncedInternalMeasurements,
+      principal.config.apiKey,
+      principal,
+    )
+
+    return batchGetMetricsResponse {
+      metrics +=
+        batchGetInternalMetrics(principal.resourceKey.measurementConsumerId, externalMetricIds)
+          .map { it.toMetric() }
+    }
+  }
+
+  private suspend fun getInternalMetric(
+    cmmsMeasurementConsumerId: String,
+    externalMetricId: Long,
+  ): org.wfanet.measurement.internal.reporting.v2alpha.Metric {
+    return try {
+      internalMetricsStub.getMetric(
+        internalGetMetricRequest {
+          this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+          this.externalMetricId = externalMetricId
+        }
+      )
+    } catch (e: StatusException) {
+      throw Exception("Unable to get the metric from the reporting database.", e)
     }
   }
 
