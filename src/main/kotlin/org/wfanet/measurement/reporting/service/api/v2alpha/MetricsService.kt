@@ -93,7 +93,6 @@ import org.wfanet.measurement.internal.reporting.v2alpha.batchCreateMetricsReque
 import org.wfanet.measurement.internal.reporting.v2alpha.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2alpha.batchSetCmmsMeasurementIdsRequest
 import org.wfanet.measurement.internal.reporting.v2alpha.copy
-import org.wfanet.measurement.internal.reporting.v2alpha.getMetricByIdempotencyKeyRequest
 import org.wfanet.measurement.internal.reporting.v2alpha.getReportingSetRequest as getInternalReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2alpha.measurement as internalMeasurement
 import org.wfanet.measurement.internal.reporting.v2alpha.metric as internalMetric
@@ -781,30 +780,6 @@ class MetricsService(
             }
         }
       }
-    }
-  }
-
-  /** Gets an [InternalMetric] using an idempotency key. */
-  private suspend fun getInternalMetricByIdempotencyKey(
-    cmmsMeasurementConsumerId: String,
-    metricIdempotencyKey: String,
-  ): InternalMetric? {
-    return try {
-      internalMetricsStub.getMetricByIdempotencyKey(
-        getMetricByIdempotencyKeyRequest {
-          this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-          this.metricIdempotencyKey = metricIdempotencyKey
-        }
-      )
-    } catch (e: StatusException) {
-      if (e.status.code != Status.Code.NOT_FOUND) {
-        throw Exception(
-          "Unable to retrieve a metric from the reporting database using the provided " +
-            "metricIdempotencyKey [$metricIdempotencyKey].",
-          e
-        )
-      }
-      null
     }
   }
 
