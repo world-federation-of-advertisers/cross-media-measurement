@@ -19,6 +19,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.kotlin.toByteStringUtf8
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import java.time.Clock
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -26,30 +27,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.toByteString
+import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.duchy.toProtocolStage
+import org.wfanet.measurement.internal.duchy.*
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest.AfterTransition
-import org.wfanet.measurement.internal.duchy.ComputationDetails
-import org.wfanet.measurement.internal.duchy.ComputationStageDetails
-import org.wfanet.measurement.internal.duchy.ComputationToken
-import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase
-import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
-import org.wfanet.measurement.internal.duchy.advanceComputationStageRequest
-import org.wfanet.measurement.internal.duchy.claimWorkRequest
-import org.wfanet.measurement.internal.duchy.computationDetails
-import org.wfanet.measurement.internal.duchy.computationStage
-import org.wfanet.measurement.internal.duchy.computationToken
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig
-import org.wfanet.measurement.internal.duchy.copy
-import org.wfanet.measurement.internal.duchy.createComputationRequest
-import org.wfanet.measurement.internal.duchy.deleteComputationRequest
-import org.wfanet.measurement.internal.duchy.externalRequisitionKey
-import org.wfanet.measurement.internal.duchy.getComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt
-import org.wfanet.measurement.internal.duchy.requisitionDetails
-import org.wfanet.measurement.internal.duchy.requisitionEntry
-import org.wfanet.measurement.internal.duchy.requisitionMetadata
-import org.wfanet.measurement.internal.duchy.updateComputationDetailsRequest
 
 @RunWith(JUnit4::class)
 abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
@@ -151,6 +136,108 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   }
 
   @Test
+  fun `non-force purgeComputations returns the matched computation IDs`() = runBlocking {
+    val computation1 = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+    val computation2 =
+      service.createComputation(
+        DEFAULT_CREATE_COMPUTATION_REQUEST.copy {
+          globalComputationId = "5678"
+          requisitions[0] =
+            requisitions[0].copy { key = key.copy { externalRequisitionId = "5678" } }
+        }
+      )
+
+    val currentTime = Clock.systemUTC().instant()
+    val purgeComputationsResp =
+      service.purgeComputations(
+        purgeComputationsRequest {
+          updatedBefore = currentTime.plusSeconds(1000L).toProtoTime()
+          stages += Stage.INITIALIZATION_PHASE.toProtocolStage()
+          force = false
+        }
+      )
+
+    assertThat(purgeComputationsResp.purgeSampleList)
+      .containsExactlyElementsIn(
+        listOf(computation1.token.globalComputationId, computation2.token.globalComputationId)
+      )
+    assertThat(purgeComputationsResp.purgeCount).isEqualTo(2)
+  }
+
+  @Test
+  fun `getComputationToken returns computations of non-force purgeComputations requests`() =
+    runBlocking {
+      service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+      val currentTime = Clock.systemUTC().instant()
+      service.purgeComputations(
+        purgeComputationsRequest {
+          updatedBefore = currentTime.plusSeconds(1000L).toProtoTime()
+          stages += Stage.INITIALIZATION_PHASE.toProtocolStage()
+          force = false
+        }
+      )
+
+      val getComputationResponse =
+        service.getComputationToken(
+          getComputationTokenRequest { globalComputationId = GLOBAL_COMPUTATION_ID }
+        )
+
+      assertThat(getComputationResponse.token.localComputationId).isNotEqualTo(0L)
+      assertThat(getComputationResponse.token.version).isNotEqualTo(0L)
+      assertThat(getComputationResponse.token)
+        .ignoringFields(
+          ComputationToken.LOCAL_COMPUTATION_ID_FIELD_NUMBER,
+          ComputationToken.VERSION_FIELD_NUMBER
+        )
+        .isEqualTo(DEFAULT_CREATE_COMPUTATION_RESP_TOKEN)
+    }
+
+  @Test
+  fun `force purgeComputations only returns the deleted count`() = runBlocking {
+    service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+    service.createComputation(
+      DEFAULT_CREATE_COMPUTATION_REQUEST.copy {
+        globalComputationId = "5678"
+        requisitions[0] = requisitions[0].copy { key = key.copy { externalRequisitionId = "5678" } }
+      }
+    )
+
+    val currentTime = Clock.systemUTC().instant()
+    val purgeComputationsResp =
+      service.purgeComputations(
+        purgeComputationsRequest {
+          updatedBefore = currentTime.plusSeconds(1000L).toProtoTime()
+          stages += Stage.INITIALIZATION_PHASE.toProtocolStage()
+          force = true
+        }
+      )
+
+    assertThat(purgeComputationsResp.purgeSampleList).isEmpty()
+    assertThat(purgeComputationsResp.purgeCount).isEqualTo(2)
+  }
+
+  @Test
+  fun `getComputationToken throws NOT_FOUND when computation is purged`() = runBlocking {
+    service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+    val currentTime = Clock.systemUTC().instant()
+    service.purgeComputations(
+      purgeComputationsRequest {
+        updatedBefore = currentTime.plusSeconds(1000L).toProtoTime()
+        stages += Stage.INITIALIZATION_PHASE.toProtocolStage()
+        force = true
+      }
+    )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.getComputationToken(
+          getComputationTokenRequest { globalComputationId = GLOBAL_COMPUTATION_ID }
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
   fun `getComputationToken by global computation ID returns created computation`() = runBlocking {
     service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
 
@@ -158,6 +245,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
       service.getComputationToken(
         getComputationTokenRequest { globalComputationId = GLOBAL_COMPUTATION_ID }
       )
+
     assertThat(getComputationResponse.token.localComputationId).isNotEqualTo(0L)
     assertThat(getComputationResponse.token.version).isNotEqualTo(0L)
     assertThat(getComputationResponse.token)
