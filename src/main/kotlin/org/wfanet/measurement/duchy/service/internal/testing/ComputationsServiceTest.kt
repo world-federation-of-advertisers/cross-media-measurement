@@ -158,8 +158,9 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
       )
 
     assertThat(purgeComputationsResp.purgeSampleList)
-      .containsExactlyElementsIn(
-        listOf(computation1.token.globalComputationId, computation2.token.globalComputationId)
+      .containsExactly(
+        computation1.token.globalComputationId,
+        computation2.token.globalComputationId
       )
     assertThat(purgeComputationsResp.purgeCount).isEqualTo(2)
   }
@@ -220,13 +221,12 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   fun `getComputationToken throws NOT_FOUND when computation is purged`() = runBlocking {
     service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
     val currentTime = Clock.systemUTC().instant()
-    service.purgeComputations(
-      purgeComputationsRequest {
-        updatedBefore = currentTime.plusSeconds(1000L).toProtoTime()
-        stages += Stage.INITIALIZATION_PHASE.toProtocolStage()
-        force = true
-      }
-    )
+    val purgeComputationsRequest = purgeComputationsRequest {
+      updatedBefore = currentTime.plusSeconds(1000L).toProtoTime()
+      stages += Stage.INITIALIZATION_PHASE.toProtocolStage()
+      force = true
+    }
+    service.purgeComputations(purgeComputationsRequest)
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
@@ -235,6 +235,59 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
         )
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `purgeComputations only deletes computations of target stages`() = runBlocking {
+    // Creates a computation in WAIT_REQUISITIONS_AND_KEY_SET stage
+    service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+    val claimWorkRequest = claimWorkRequest {
+      computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+    }
+    val claimWorkResponse = service.claimWork(claimWorkRequest)
+    val nextStage = computationStage {
+      liquidLegionsSketchAggregationV2 = Stage.WAIT_REQUISITIONS_AND_KEY_SET
+    }
+    val advanceComputationStageRequest = advanceComputationStageRequest {
+      token = claimWorkResponse.token
+      nextComputationStage = nextStage
+      afterTransition = AfterTransition.RETAIN_AND_EXTEND_LOCK
+    }
+    service.advanceComputationStage(advanceComputationStageRequest)
+    // Creates two computations in INITIALIZATION_PHASE stage to be purged
+    val computationInInitPhase1 =
+      service.createComputation(
+        DEFAULT_CREATE_COMPUTATION_REQUEST.copy {
+          globalComputationId = "3456"
+          requisitions[0] =
+            requisitions[0].copy { key = key.copy { externalRequisitionId = "3456" } }
+        }
+      )
+    val computationInInitPhase2 =
+      service.createComputation(
+        DEFAULT_CREATE_COMPUTATION_REQUEST.copy {
+          globalComputationId = "5678"
+          requisitions[0] =
+            requisitions[0].copy { key = key.copy { externalRequisitionId = "5678" } }
+        }
+      )
+
+    val currentTime = Clock.systemUTC().instant()
+    val purgeComputationsResp =
+      service.purgeComputations(
+        purgeComputationsRequest {
+          updatedBefore = currentTime.plusSeconds(1000L).toProtoTime()
+          stages += Stage.INITIALIZATION_PHASE.toProtocolStage()
+          force = false
+        }
+      )
+
+    assertThat(purgeComputationsResp.purgeSampleList)
+      .containsExactly(
+        computationInInitPhase1.token.globalComputationId,
+        computationInInitPhase2.token.globalComputationId
+      )
+    assertThat(purgeComputationsResp.purgeCount).isEqualTo(2)
   }
 
   @Test
@@ -260,10 +313,11 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   fun `getComputationToken by requisition key returns created computation`() = runBlocking {
     service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
 
-    val getComputationResponse =
-      service.getComputationToken(
-        getComputationTokenRequest { requisitionKey = DEFAULT_REQUISITION_ENTRY.key }
-      )
+    val getComputationRequest = getComputationTokenRequest {
+      requisitionKey = DEFAULT_REQUISITION_ENTRY.key
+    }
+    val getComputationResponse = service.getComputationToken(getComputationRequest)
+
     assertThat(getComputationResponse.token.localComputationId).isNotEqualTo(0L)
     assertThat(getComputationResponse.token.version).isNotEqualTo(0L)
     assertThat(getComputationResponse.token)
@@ -287,11 +341,10 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   @Test
   fun `getComputationToken throws NOT_FOUND for deleted computation`() = runBlocking {
     val createComputationResp = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
-    service.deleteComputation(
-      deleteComputationRequest {
-        localComputationId = createComputationResp.token.localComputationId
-      }
-    )
+    val deleteComputationRequest = deleteComputationRequest {
+      localComputationId = createComputationResp.token.localComputationId
+    }
+    service.deleteComputation(deleteComputationRequest)
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
