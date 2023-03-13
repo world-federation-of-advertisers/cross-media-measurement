@@ -85,43 +85,57 @@ message MetricSpec {
 
 // The calculation result of a metric
 message MetricResult {
-  // Integer result.
+  // Reach result format.
   //
   // TODO(@riemanli): Add error bar.
-  message IntegerResult {
-    // An integer value.
-    int64 value = 1;
-  }
-  // Double result.
-  //
-  // TODO(@riemanli): Add error bar.
-  message DoubleResult {
-    // A double value.
-    double value = 1;
+  message ReachResult {
+    // Reach value.
+    int64 result = 1;
   }
   // Histogram result format.
+  //
+  // TODO(@riemanli): Add error bar.
   message HistogramResult {
+    // Bin result format.
+    message BinResult {
+      // The result of a bin.
+      double result = 2;
+    }
     // The bin in a histogram.
     message Bin {
       // The label of the bin.
       string label = 1;
-      // The value of the bin.
-      DoubleResult value = 2;
+      // The result of the bin.
+      BinResult bin_result = 2;
     }
     // The bins that form a histogram. Ordering is not guaranteed.
     repeated Bin bins = 1;
   }
+  // Impression count result format.
+  //
+  // TODO(@riemanli): Add error bar.
+  message ImpressionCountResult {
+    // Impression value.
+    int64 result = 1;
+  }
+  // Watch duration result format.
+  //
+  // TODO(@riemanli): Add error bar.
+  message WatchDurationResult {
+    // Watch duration value in second.
+    double result = 1;
+  }
 
   // The metric result
   oneof result {
-    // Reach value.
-    IntegerResult reach = 3;
+    // Reach result.
+    ReachResult reach = 3;
     // Histogram result.
     HistogramResult frequency_histogram = 4;
-    // Impression counts.
-    IntegerResult impression_count = 5;
-    // Watch duration in second.
-    DoubleResult watch_duration = 6;
+    // Impression count result.
+    ImpressionCountResult impression_count = 5;
+    // Watch duration result.
+    WatchDurationResult watch_duration = 6;
   }
 }
 
