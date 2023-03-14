@@ -484,7 +484,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         .toList()
 
     assertThat(measurements[0].externalComputationId).isNotEqualTo(0L)
-    assertThat(measurements[0].computationParticipantsCount).isGreaterThan(0)
+    assertThat(measurements[0].computationParticipantsCount).isEqualTo(3)
   }
 
   @Test
@@ -1312,7 +1312,10 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       Llv2ProtocolConfig.setForTest(
         ProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
         DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
-        setOf(Population.AGGREGATOR_DUCHY.externalDuchyId),
+        setOf(
+          Population.AGGREGATOR_DUCHY.externalDuchyId,
+          Population.WORKER1_DUCHY.externalDuchyId
+        ),
         2
       )
     }
