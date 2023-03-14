@@ -61,6 +61,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWrite
  * @throws [MeasurementConsumerCertificateNotFoundException] MeasurementConsumer's Certificate not
  *   found
  * @throws [CertificateIsInvalidException] Certificate is invalid
+ * @throws [DuchyNotActiveException] One or more required duchies were inactive at measurement
+ *   creation time
  */
 class CreateMeasurement(private val measurement: Measurement) :
   SpannerWriter<Measurement, Measurement>() {
@@ -121,6 +123,10 @@ class CreateMeasurement(private val measurement: Measurement) :
         requiredDuchyEntries
       }
 
+    if (includedDuchyEntries.size < Llv2ProtocolConfig.minimumNumberOfRequiredDuchies) {
+      throw IllegalStateException("Not enough active duchies to run the computation")
+    }
+
     val measurementId: InternalId = idGenerator.generateInternalId()
     val externalMeasurementId: ExternalId = idGenerator.generateExternalId()
     val externalComputationId: ExternalId = idGenerator.generateExternalId()
@@ -144,7 +150,7 @@ class CreateMeasurement(private val measurement: Measurement) :
       insertComputationParticipant(
         measurementConsumerId,
         measurementId,
-        InternalId(DuchyIds.getInternalId(entry.externalDuchyId)!!),
+        InternalId(entry.internalDuchyId),
       )
     }
 

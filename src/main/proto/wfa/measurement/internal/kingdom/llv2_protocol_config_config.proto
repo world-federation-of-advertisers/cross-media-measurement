@@ -29,5 +29,5 @@ message Llv2ProtocolConfigConfig {
   DuchyProtocolConfig.LiquidLegionsV2 duchy_protocol_config = 2;
   // List of required duchies for this protocol. E.g. aggregator.
   repeated string required_external_duchy_ids = 3;
-  int32 minimum_number_of_duchy_participants = 4;
+  int32 minimum_duchy_participant_count = 4;
 }

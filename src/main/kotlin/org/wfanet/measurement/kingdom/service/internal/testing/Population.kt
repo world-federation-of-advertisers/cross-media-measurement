@@ -70,7 +70,7 @@ private const val API_VERSION = "v2alpha"
 class Population(val clock: Clock, val idGenerator: IdGenerator) {
   companion object {
     private val VALID_ACTIVE_START_TIME = Instant.now().minusSeconds(100L)
-    private val VALID_ACTIVE_END_TIME = Instant.now().plusSeconds(500L)
+    private val VALID_ACTIVE_END_TIME = Instant.now().plusSeconds(2000L)
     val AGGREGATOR_DUCHY =
       DuchyIds.Entry(1, "aggregator", VALID_ACTIVE_START_TIME..VALID_ACTIVE_END_TIME)
     val WORKER1_DUCHY = DuchyIds.Entry(2, "worker1", VALID_ACTIVE_START_TIME..VALID_ACTIVE_END_TIME)
