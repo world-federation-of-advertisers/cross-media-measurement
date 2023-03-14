@@ -45,12 +45,13 @@ resource "aws_s3_bucket_policy" "block_access_from_http" {
      Version = "2012-10-17"
      Statement = [
        {
+         Sid = "BlockHttpAccess"
          Action = [
            "s3:*",
          ]
          Effect   = "Deny"
          Resource = [
-           "${aws_s3_bucket.blob_storage.arn}/",
+           aws_s3_bucket.blob_storage.arn,
            "${aws_s3_bucket.blob_storage.arn}/*",
           ]
          Condition = {
@@ -58,6 +59,7 @@ resource "aws_s3_bucket_policy" "block_access_from_http" {
              "aws:SecureTransport" = "false"
            }
          }
+         "Principal": "*"
        },
      ]
    })
