@@ -15,15 +15,10 @@
 name: 'Halo IAC'
 
 on:
-  push:
-    branches: [ "feature/halo-kingdom-release", "main" ]
-  pull_request:
-
- #workflow_run:
- #  workflows: [ "Terraform Kingdom" ]
- #  types:
- #    - completed
-
+  workflow_run:
+    workflows: [ "Terraform Kingdom" ]
+    types:
+      - completed
 
 env:
   GCP_CREDENTIALS: '${{ secrets.GCP_CREDENTIALS }}'
