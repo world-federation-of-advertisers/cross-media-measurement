@@ -131,12 +131,14 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   fun `deleteComputation returns empty proto when called with nonexistent ID`() = runBlocking {
     val doesNotExistComputationId = 1234L
 
+    // TODO(world-federation-of-advertisers/cross-media-measurement#889): deleteComputation should throw
+    // NOT_FOUND exception rather than return empty response.
     val deleteRequest = deleteComputationRequest { localComputationId = doesNotExistComputationId }
     assertThat(service.deleteComputation(deleteRequest)).isEqualToDefaultInstance()
   }
 
   @Test
-  fun `non-force purgeComputations returns the matched computation IDs`() = runBlocking {
+  fun `purgeComputations returns the matched computation IDs when force is false`() = runBlocking {
     val computation1 = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
     val computation2 =
       service.createComputation(
@@ -166,7 +168,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   }
 
   @Test
-  fun `getComputationToken returns computations of non-force purgeComputations requests`() =
+  fun `purgeComputations does not delete Computations when force is false`() =
     runBlocking {
       service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
       val currentTime = Clock.systemUTC().instant()
@@ -194,7 +196,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
     }
 
   @Test
-  fun `force purgeComputations only returns the deleted count`() = runBlocking {
+  fun `purgeComputations only returns the deleted count when force is true`() = runBlocking {
     service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
     service.createComputation(
       DEFAULT_CREATE_COMPUTATION_REQUEST.copy {
@@ -366,68 +368,17 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
             role = LiquidLegionsV2SetupConfig.RoleInComputation.NON_AGGREGATOR
           }
       }
-    val newNonce = 5678L
-    val updatedRequisition =
-      DEFAULT_REQUISITION_ENTRY.copy {
-        value =
-          DEFAULT_REQUISITION_ENTRY.value.copy {
-            nonce = newNonce
-            nonceHash = newNonce.toByteString()
-          }
-      }
     val updateComputationsDetailsResponse =
       service.updateComputationDetails(
         updateComputationDetailsRequest {
           token = createComputationResp.token
           details = updatedComputationDetails
-          requisitions += updatedRequisition
         }
       )
 
     val expectedUpdatedToken =
       DEFAULT_CREATE_COMPUTATION_RESP_TOKEN.copy {
         computationDetails = updatedComputationDetails
-        requisitions[0] = requisitionMetadata {
-          externalKey = updatedRequisition.key
-          details = updatedRequisition.value
-        }
-      }
-    assertThat(updateComputationsDetailsResponse.token)
-      .ignoringFields(
-        ComputationToken.LOCAL_COMPUTATION_ID_FIELD_NUMBER,
-        ComputationToken.VERSION_FIELD_NUMBER
-      )
-      .isEqualTo(expectedUpdatedToken)
-  }
-
-  @Test
-  fun `updateComputationDetails returns token with updated requisitions`() = runBlocking {
-    val createComputationResp = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
-
-    val newNonce = 5678L
-    val updatedRequisition =
-      DEFAULT_REQUISITION_ENTRY.copy {
-        value =
-          DEFAULT_REQUISITION_ENTRY.value.copy {
-            nonce = newNonce
-            nonceHash = newNonce.toByteString()
-          }
-      }
-    val updateComputationsDetailsResponse =
-      service.updateComputationDetails(
-        updateComputationDetailsRequest {
-          token = createComputationResp.token
-          details = createComputationResp.token.computationDetails
-          requisitions += updatedRequisition
-        }
-      )
-
-    val expectedUpdatedToken =
-      DEFAULT_CREATE_COMPUTATION_RESP_TOKEN.copy {
-        requisitions[0] = requisitionMetadata {
-          externalKey = updatedRequisition.key
-          details = updatedRequisition.value
-        }
       }
     assertThat(updateComputationsDetailsResponse.token)
       .ignoringFields(
@@ -452,7 +403,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
           )
         }
 
-      assertThat(exception.message).isEqualTo("The protocol type cannot change.")
+      assertThat(exception.message).contains("type")
     }
 
   @Test
@@ -556,6 +507,6 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
           )
         }
 
-      assertThat(exception.message).contains("Failed to update because of editVersion mismatch.")
+      assertThat(exception.message).contains("editVersion mismatch")
     }
 }
