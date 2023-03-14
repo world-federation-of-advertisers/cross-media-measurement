@@ -41,6 +41,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
+      # TODO(issues/888): Use workload Identity in place of Service account authentication.
       - name: 'Setting up GCP account Connection'
         uses: 'google-github-actions/auth@v1'
         with:
