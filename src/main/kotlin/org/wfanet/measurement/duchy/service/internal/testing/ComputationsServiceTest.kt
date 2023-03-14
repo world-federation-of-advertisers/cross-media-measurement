@@ -131,7 +131,8 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   fun `deleteComputation returns empty proto when called with nonexistent ID`() = runBlocking {
     val doesNotExistComputationId = 1234L
 
-    // TODO(world-federation-of-advertisers/cross-media-measurement#889): deleteComputation should throw
+    // TODO(world-federation-of-advertisers/cross-media-measurement#889): deleteComputation should
+    // throw
     // NOT_FOUND exception rather than return empty response.
     val deleteRequest = deleteComputationRequest { localComputationId = doesNotExistComputationId }
     assertThat(service.deleteComputation(deleteRequest)).isEqualToDefaultInstance()
@@ -168,32 +169,31 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   }
 
   @Test
-  fun `purgeComputations does not delete Computations when force is false`() =
-    runBlocking {
-      service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
-      val currentTime = Clock.systemUTC().instant()
-      service.purgeComputations(
-        purgeComputationsRequest {
-          updatedBefore = currentTime.plusSeconds(1000L).toProtoTime()
-          stages += Stage.INITIALIZATION_PHASE.toProtocolStage()
-          force = false
-        }
+  fun `purgeComputations does not delete Computations when force is false`() = runBlocking {
+    service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+    val currentTime = Clock.systemUTC().instant()
+    service.purgeComputations(
+      purgeComputationsRequest {
+        updatedBefore = currentTime.plusSeconds(1000L).toProtoTime()
+        stages += Stage.INITIALIZATION_PHASE.toProtocolStage()
+        force = false
+      }
+    )
+
+    val getComputationResponse =
+      service.getComputationToken(
+        getComputationTokenRequest { globalComputationId = GLOBAL_COMPUTATION_ID }
       )
 
-      val getComputationResponse =
-        service.getComputationToken(
-          getComputationTokenRequest { globalComputationId = GLOBAL_COMPUTATION_ID }
-        )
-
-      assertThat(getComputationResponse.token.localComputationId).isNotEqualTo(0L)
-      assertThat(getComputationResponse.token.version).isNotEqualTo(0L)
-      assertThat(getComputationResponse.token)
-        .ignoringFields(
-          ComputationToken.LOCAL_COMPUTATION_ID_FIELD_NUMBER,
-          ComputationToken.VERSION_FIELD_NUMBER
-        )
-        .isEqualTo(DEFAULT_CREATE_COMPUTATION_RESP_TOKEN)
-    }
+    assertThat(getComputationResponse.token.localComputationId).isNotEqualTo(0L)
+    assertThat(getComputationResponse.token.version).isNotEqualTo(0L)
+    assertThat(getComputationResponse.token)
+      .ignoringFields(
+        ComputationToken.LOCAL_COMPUTATION_ID_FIELD_NUMBER,
+        ComputationToken.VERSION_FIELD_NUMBER
+      )
+      .isEqualTo(DEFAULT_CREATE_COMPUTATION_RESP_TOKEN)
+  }
 
   @Test
   fun `purgeComputations only returns the deleted count when force is true`() = runBlocking {
@@ -377,9 +377,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
       )
 
     val expectedUpdatedToken =
-      DEFAULT_CREATE_COMPUTATION_RESP_TOKEN.copy {
-        computationDetails = updatedComputationDetails
-      }
+      DEFAULT_CREATE_COMPUTATION_RESP_TOKEN.copy { computationDetails = updatedComputationDetails }
     assertThat(updateComputationsDetailsResponse.token)
       .ignoringFields(
         ComputationToken.LOCAL_COMPUTATION_ID_FIELD_NUMBER,
