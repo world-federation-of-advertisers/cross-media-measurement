@@ -49,12 +49,14 @@ jobs:
       # Install the latest version of Terraform CLI and configure the Terraform CLI configuration file with a Terraform Cloud user API token
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v1
+      
       # TODO(issues/888): Use workload Identity in place of Service account authentication.
       - name: Setting up GCP account Connection
         uses: google-github-actions/auth@v1
         with:
           credentials_json: ${{ secrets.GCP_CREDENTIALS }}
-
+      
+      # Setup google cloud environment.
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
 
