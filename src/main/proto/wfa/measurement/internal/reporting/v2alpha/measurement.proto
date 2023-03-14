@@ -30,6 +30,7 @@ message Measurement {
   // `Measurement` ID from the CMMS public API.
   string cmms_measurement_id = 2;
 
+  // This is a UUID in string format. See https://www.ietf.org/rfc/rfc4122.txt.
   string cmms_create_measurement_request_id = 3;
 
   TimeInterval time_interval = 4;

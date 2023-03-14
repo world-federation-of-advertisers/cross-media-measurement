@@ -23,20 +23,22 @@ option java_multiple_files = true;
 
 // Internal service for persistence of Metric entities.
 service Metrics {
-  rpc CreateMetric(Metric) returns (Metric);
+  rpc CreateMetric(CreateMetricRequest) returns (Metric);
 
   rpc BatchCreateMetrics(BatchCreateMetricsRequest) returns (stream Metric);
 
   rpc GetMetric(GetMetricRequest) returns (Metric);
-
-  rpc GetMetricByIdempotencyKey(GetMetricByIdempotencyKeyRequest)
-      returns (Metric);
 
   rpc BatchGetMetrics(BatchGetMetricsRequest) returns (stream Metric);
 
   rpc StreamMetrics(StreamMetricsRequest) returns (stream Metric);
 
   rpc SetMetricResult(SetMetricResultRequest) returns (Metric);
+}
+
+message CreateMetricRequest {
+  string request_id = 1;
+  Metric metric = 2;
 }
 
 message BatchCreateMetricsRequest {
@@ -47,12 +49,6 @@ message GetMetricRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
   string cmms_measurement_consumer_id = 1;
   fixed64 external_metric_id = 2;
-}
-
-message GetMetricByIdempotencyKeyRequest {
-  // `MeasurementConsumer` ID from the CMMS public API.
-  string cmms_measurement_consumer_id = 1;
-  string metric_idempotency_key = 2;
 }
 
 message BatchGetMetricsRequest {

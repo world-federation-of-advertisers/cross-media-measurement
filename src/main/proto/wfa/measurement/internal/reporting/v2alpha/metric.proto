@@ -74,7 +74,7 @@ message Metric {
 
   fixed64 external_metric_id = 2;
 
-  string metric_idempotency_key = 3;
+  string request_id = 3;
 
   google.protobuf.Timestamp create_time = 4;
 
