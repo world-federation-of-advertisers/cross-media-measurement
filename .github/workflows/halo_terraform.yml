@@ -38,7 +38,7 @@ permissions:
 jobs:
   terraform:
     name: 'Halo IAC'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     environment: production
 
     # Use the Bash shell regardless whether the GitHub Actions runner is ubuntu-latest, macos-latest, or windows-latest
@@ -78,7 +78,7 @@ jobs:
 
       # Creates a plan
       - name: Terraform Plan
-        run: terraform plan '-out=${{env.ENV}}_tfplan' -var env=${{env.ENV}} -var project=${{env.PROJECT}} -var service_account=${{env.SERVICE_ACCOUNT}}
+        run: terraform plan '-out=${{env.ENV}}_tfplan' -var env=${{env.ENV}} -var project=${{tenv.PROJECT}} -var service_account=${{env.SERVICE_ACCOUNT}}
         working-directory: ${{env.ROOT_PATH}}
 
       # Applies the above created plan
