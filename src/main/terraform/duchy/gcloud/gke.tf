@@ -12,15 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This is step 4 as per the document
-# https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/kingdom-deployment.md
 
-resource "google_container_cluster" "primary" {
+# This is step number 5 as per document
+# https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/duchy-deployment.md
 
-  # the name will look like dev-halo-duchy-gke-cluster
-  name     = "${local.prefix}-gke-cluster"
+resource "google_container_cluster" "worker" {
+
+  # The name will look like dev-halo-duchy-worker1
+  name     = "${local.prefix}-worker1"
+
   location = local.zone
-  initial_node_count = local.kingdom.cluster_node_count
+  initial_node_count = local.duchy.cluster_node_count
   database_encryption {
     key_name = "projects/${local.project}/locations/${local.zone}/keyRings/test-key-ring/cryptoKeys/k8s-secret"
     state = "ENCRYPTED"
@@ -32,18 +34,18 @@ resource "google_container_cluster" "primary" {
 
 resource "google_container_node_pool" "data_server"{
 
-  # the name will look like dev-halo-duchy-data-server
+  # The name will look like dev-halo-duchy-data-server
   name       = "${local.prefix}-data-server"
-  cluster    = google_container_cluster.primary.id
+  cluster    = google_container_cluster.worker.id
 
   autoscaling {
-    max_node_count = local.kingdom.max_node_count
-    min_node_count = local.kingdom.min_node_count
+    max_node_count = local.duchy.max_node_count
+    min_node_count = local.duchy.min_node_count
   }
 
   node_config {
     preemptible  = true
-    machine_type = local.kingdom.machine_type
+    machine_type = local.duchy.machine_type
     service_account = google_service_account.gke_sa.email
     oauth_scopes = [
       "https://www.googleapis.com/auth/cloud-platform"

@@ -12,15 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This is step 10a as per the document
-# https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/kingdom-deployment.md
-
-resource "google_compute_address" "v2alpha_public_api_server_ip" {
-  name = "v2alpha-public-api-server-ip"
-  region = local.zone
+provider "google" {
+  project = local.project
 }
 
-resource "google_compute_address" "system_api_server_ip" {
-  name = "system-api-server-ip"
-  region = local.zone
-}
