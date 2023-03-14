@@ -32,16 +32,19 @@ module "duchy1" {
   source = "./duchy/gcloud"
   env = var.env
   project = var.project
+  component = "duchy1"
 }
 
 module "duchy2" {
   source = "./duchy/gcloud"
   env = var.env
   project = var.project
+  component = "duchy2"
 }
 
 module "duchy3" {
   source = "./duchy/gcloud"
   env = var.env
   project = var.project
+  component = "duchy3"
 }
