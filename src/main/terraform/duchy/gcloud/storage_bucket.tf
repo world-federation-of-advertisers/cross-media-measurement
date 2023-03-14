@@ -12,15 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This is step 10a as per the document
-# https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/kingdom-deployment.md
 
-resource "google_compute_address" "v2alpha_public_api_server_ip" {
-  name = "v2alpha-public-api-server-ip"
-  region = local.zone
-}
+# This is step number 3 as per document
+# https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/duchy-deployment.md
 
-resource "google_compute_address" "system_api_server_ip" {
-  name = "system-api-server-ip"
-  region = local.zone
+resource "google_storage_bucket" "static_site" {
+
+  # The name will look like dev-halo-duchy-storage
+  name          = "${local.prefix}-storage"
+  location      = local.storage.location
+  force_destroy = local.storage.force_destroy
 }
