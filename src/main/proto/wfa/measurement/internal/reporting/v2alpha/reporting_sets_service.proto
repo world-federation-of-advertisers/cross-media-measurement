@@ -25,19 +25,11 @@ option java_multiple_files = true;
 service ReportingSets {
   rpc CreateReportingSet(ReportingSet) returns (ReportingSet);
 
-  rpc GetReportingSet(GetReportingSetRequest) returns (ReportingSet);
-
   rpc BatchGetReportingSets(BatchGetReportingSetsRequest)
       returns (BatchGetReportingSetsResponse);
 
   rpc StreamReportingSets(StreamReportingSetsRequest)
       returns (stream ReportingSet);
-}
-
-message GetReportingSetRequest {
-  // `MeasurementConsumer` ID from the CMMS public API.
-  string cmms_measurement_consumer_id = 1;
-  fixed64 external_reporting_set_id = 2;
 }
 
 message BatchGetReportingSetsRequest {

@@ -23,13 +23,10 @@ option java_multiple_files = true;
 
 // Internal service for persistence of Metric entities.
 service Metrics {
-  rpc CreateMetric(CreateMetricRequest) returns (Metric);
+  rpc BatchCreateMetrics(BatchCreateMetricsRequest)
+      returns (BatchCreateMetricsResponse);
 
-  rpc BatchCreateMetrics(BatchCreateMetricsRequest) returns (stream Metric);
-
-  rpc GetMetric(GetMetricRequest) returns (Metric);
-
-  rpc BatchGetMetrics(BatchGetMetricsRequest) returns (stream Metric);
+  rpc BatchGetMetrics(BatchGetMetricsRequest) returns (BatchGetMetricsResponse);
 
   rpc StreamMetrics(StreamMetricsRequest) returns (stream Metric);
 
@@ -42,19 +39,27 @@ message CreateMetricRequest {
 }
 
 message BatchCreateMetricsRequest {
-  repeated Metric metrics = 1;
-}
-
-message GetMetricRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
   string cmms_measurement_consumer_id = 1;
-  fixed64 external_metric_id = 2;
+
+  // Maximum is 200.
+  repeated Metric metrics = 2;
+}
+
+message BatchCreateMetricsResponse {
+  repeated Metric metrics = 1;
 }
 
 message BatchGetMetricsRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
   string cmms_measurement_consumer_id = 1;
+
+  // Maximum is 200.
   repeated fixed64 external_metric_ids = 2;
+}
+
+message BatchGetMetricsResponse {
+  repeated Metric metrics = 1;
 }
 
 message StreamMetricsRequest {

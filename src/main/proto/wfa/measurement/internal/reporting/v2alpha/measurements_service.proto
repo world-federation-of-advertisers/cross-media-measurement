@@ -23,30 +23,14 @@ option java_multiple_files = true;
 
 // Internal service for persistence of Measurement entities.
 service Measurements {
-  rpc SetCmmsMeasurementId(SetCmmsMeasurementIdRequest) returns (Measurement);
-
   rpc BatchSetCmmsMeasurementIds(BatchSetCmmsMeasurementIdsRequest)
-      returns (stream Measurement);
-
-  rpc SetMeasurementResult(SetMeasurementResultRequest) returns (Measurement);
+      returns (BatchSetCmmsMeasurementIdsResponse);
 
   rpc BatchSetMeasurementResults(BatchSetMeasurementResultsRequest)
-      returns (stream Measurement);
-
-  rpc SetMeasurementFailure(SetMeasurementFailureRequest) returns (Measurement);
+      returns (BatchSetCmmsMeasurementResultsResponse);
 
   rpc BatchSetMeasurementFailures(BatchSetMeasurementFailuresRequest)
-      returns (stream Measurement);
-}
-
-message SetCmmsMeasurementIdRequest {
-  // `MeasurementConsumer` ID from the CMMS public API.
-  string cmms_measurement_consumer_id = 1;
-
-  string cmms_create_measurement_request_id = 2;
-
-  // `Measurement` ID from the CMMS public API.
-  string cmms_measurement_id = 3;
+      returns (BatchSetCmmsMeasurementFailuresResponse);
 }
 
 message BatchSetCmmsMeasurementIdsRequest {
@@ -59,16 +43,12 @@ message BatchSetCmmsMeasurementIdsRequest {
     // `Measurement` ID from the CMMS public API.
     string cmms_measurement_id = 2;
   }
+  // Maximum is 1000.
   repeated MeasurementIds measurement_ids = 2;
 }
 
-message SetMeasurementResultRequest {
-  // `MeasurementConsumer` ID from the CMMS public API.
-  string cmms_measurement_consumer_id = 1;
-  // `Measurement` ID from the CMMS public API.
-  string cmms_measurement_id = 2;
-
-  Measurement.Result result = 3;
+message BatchSetCmmsMeasurementIdsResponse {
+  repeated Measurement measurements = 1;
 }
 
 message BatchSetMeasurementResultsRequest {
@@ -80,16 +60,12 @@ message BatchSetMeasurementResultsRequest {
     string cmms_measurement_id = 1;
     Measurement.Result result = 2;
   }
+  // Maximum is 1000.
   repeated MeasurementResult measurement_results = 2;
 }
 
-message SetMeasurementFailureRequest {
-  // `MeasurementConsumer` ID from the CMMS public API.
-  string cmms_measurement_consumer_id = 1;
-  // `Measurement` ID from the CMMS public API.
-  string cmms_measurement_id = 2;
-
-  Measurement.Failure failure = 3;
+message BatchSetCmmsMeasurementResultsResponse {
+  repeated Measurement measurements = 1;
 }
 
 message BatchSetMeasurementFailuresRequest {
@@ -101,5 +77,10 @@ message BatchSetMeasurementFailuresRequest {
     string cmms_measurement_id = 1;
     Measurement.Failure failure = 2;
   }
+  // Maximum is 1000.
   repeated MeasurementFailure measurement_failures = 2;
+}
+
+message BatchSetCmmsMeasurementFailuresResponse {
+  repeated Measurement measurements = 1;
 }
