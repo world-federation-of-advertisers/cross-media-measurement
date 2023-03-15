@@ -226,10 +226,16 @@ CREATE TABLE Metrics (
   -- protobuf enum encoded as an integer.
   MetricType integer NOT NULL,
 
+  DifferentialPrivacyEpsilon DOUBLE PRECISION NOT NULL,
+  DifferentialPrivacyDelta DOUBLE PRECISION NOT NULL,
+
   -- Must not be NULL if MetricType is FREQUENCY_HISTOGRAM or IMPRESSION_COUNT
   MaximumFrequencyPerUser bigint,
   -- Must not be NULL if MetricType is WATCH_DURATION
   MaximumWatchDurationPerUser bigint,
+
+  VidSamplingIntervalStart DOUBLE PRECISION NOT NULL,
+  VidSamplingIntervalEnd DOUBLE PRECISION NOT NULL,
 
   -- org.wfanet.measurement.internal.reporting.Metric.State
   -- protobuf enum encoded as an integer.
