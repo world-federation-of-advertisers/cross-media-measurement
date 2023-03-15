@@ -94,14 +94,11 @@ class CreateMeasurement(private val measurement: Measurement) :
   ): Measurement {
     val initialMeasurementState = Measurement.State.PENDING_REQUISITION_PARAMS
 
-    val requiredDuchyIds = mutableSetOf<String>()
-    requiredDuchyIds.addAll(Llv2ProtocolConfig.requiredExternalDuchyIds)
-
-    requiredDuchyIds.addAll(
-      readDataProviderRequiredDuchies(
-        measurement.dataProvidersMap.keys.map { ExternalId(it) }.toSet()
-      )
-    )
+    val requiredDuchyIds: Set<String> =
+      Llv2ProtocolConfig.requiredExternalDuchyIds +
+        readDataProviderRequiredDuchies(
+          measurement.dataProvidersMap.keys.map { ExternalId(it) }.toSet()
+        )
 
     val now = Clock.systemUTC().instant()
     val requiredDuchyEntries = DuchyIds.entries.filter { it.externalDuchyId in requiredDuchyIds }
