@@ -27,17 +27,34 @@ option java_outer_classname = "MetricProto";
 
 // The specification of a metric that can be selected to be in a `Report`.
 message MetricSpec {
+  // Parameters for differential privacy (DP).
+  //
+  // For detail, refer to "Dwork, C. and Roth, A., 2014. The algorithmic
+  // foundations of differential privacy. Foundations and Trends in Theoretical
+  // Computer Science, 9(3-4), pp.211-407."
+  message DifferentialPrivacyParams {
+    double epsilon = 1;
+    double delta = 2;
+  }
+
   // Parameters that are used to generate `Reach` metric.
-  message ReachParams {}
+  message ReachParams {
+    // Differential privacy parameters.
+    DifferentialPrivacyParams privacy_params = 1;
+  }
   // Parameters that are used to generate `Frequency Histogram` metric.
   message FrequencyHistogramParams {
+    // Differential privacy parameters.
+    DifferentialPrivacyParams privacy_params = 1;
     // Maximum frequency cut-off value in the frequency histogram. Counts with
     // frequency higher than `max_frequency` will be aggregated together.
-    int32 maximum_frequency_per_user = 1
+    int32 maximum_frequency_per_user = 2
         [(google.api.field_behavior) = REQUIRED];
   }
   // Parameters that are used to generate `Impression Count` metric.
   message ImpressionCountParams {
+    // Differential privacy parameters.
+    DifferentialPrivacyParams privacy_params = 1;
     // Maximum frequency per user that will be included in this metric. Enforced
     // on a per EDP basis.
     //
@@ -48,18 +65,20 @@ message MetricSpec {
     // too small, there's a truncation bias. Through optimization, the
     // recommended value for maximum_frequency_per_user = 60 for the case with
     // over 1M audience size.
-    int32 maximum_frequency_per_user = 1
+    int32 maximum_frequency_per_user = 2
         [(google.api.field_behavior) = REQUIRED];
   }
   // Parameters that are used to generate `Watch Duration` metric.
   message WatchDurationParams {
+    // Differential privacy parameters.
+    DifferentialPrivacyParams privacy_params = 1;
     // Maximum watch duration per user in second that will be included in this
     // metric.
     //
     // Recommended maximum_watch_duration_per_user = cap on the total watch
     // duration of all the impressions of a user = 4000 sec for the case with
     // over 1M audience size. Enforced on a per EDP basis.
-    int32 maximum_watch_duration_per_user = 1
+    int32 maximum_watch_duration_per_user = 2
         [(google.api.field_behavior) = REQUIRED];
   }
 
@@ -81,6 +100,18 @@ message MetricSpec {
     WatchDurationParams watch_duration = 4
         [(google.api.field_behavior) = IMMUTABLE];
   }
+
+  // Specifies a range of VIDs to be sampled.
+  message VidSamplingInterval {
+    // The start of the sampling interval in [0, 1)
+    float start = 1;
+    // The width of the sampling interval.
+    //
+    // start + width cannot be larger than 1
+    float width = 2;
+  }
+  // Range of VIDs that will be included in this measurement
+  VidSamplingInterval vid_sampling_interval = 5;
 }
 
 // The calculation result of a metric
