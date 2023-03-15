@@ -132,8 +132,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
     val doesNotExistComputationId = 1234L
 
     // TODO(world-federation-of-advertisers/cross-media-measurement#889): deleteComputation should
-    // throw
-    // NOT_FOUND exception rather than return empty response.
+    // throw NOT_FOUND exception rather than return empty response.
     val deleteRequest = deleteComputationRequest { localComputationId = doesNotExistComputationId }
     assertThat(service.deleteComputation(deleteRequest)).isEqualToDefaultInstance()
   }
