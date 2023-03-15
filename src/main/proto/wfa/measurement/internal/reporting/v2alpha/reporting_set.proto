@@ -60,13 +60,9 @@ message ReportingSet {
     Operand rhs = 4;
   }
 
-  message Composite {
-    SetExpression expression = 1;
-  }
-
   oneof value {
     Primitive primitive = 5;
-    Composite composite = 6;
+    SetExpression composite = 6;
   }
 
   message PrimitiveReportingSetBasis {

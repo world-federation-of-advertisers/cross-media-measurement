@@ -29,9 +29,7 @@ message Report {
   string cmms_measurement_consumer_id = 1;
   fixed64 external_report_id = 2;
 
-  string report_idempotency_key = 3;
-
-  google.protobuf.Timestamp create_time = 4;
+  google.protobuf.Timestamp create_time = 3;
 
   message MetricCalculationSpec {
     // Represents all `Metric`s associated with this MetricCalculation.
@@ -55,7 +53,7 @@ message Report {
   }
 
   // Map of `external_reporting_set_id` to `ReportingMetricCalculationSpec`.
-  map<fixed64, ReportingMetricCalculationSpec> reporting_metric_entries = 5;
+  map<fixed64, ReportingMetricCalculationSpec> reporting_metric_entries = 4;
 
   enum State {
     // Default value. This value is unused.
@@ -68,7 +66,7 @@ message Report {
     FAILED = 3;
   }
   // Depends on `Metric` states. Output-only.
-  State state = 6;
+  State state = 5;
 
   message Details {
     oneof time {
@@ -76,5 +74,5 @@ message Report {
       PeriodicTimeInterval periodic_time_interval = 2;
     }
   }
-  Details details = 7;
+  Details details = 6;
 }

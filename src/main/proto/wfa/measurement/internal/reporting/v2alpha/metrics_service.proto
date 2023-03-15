@@ -23,6 +23,8 @@ option java_multiple_files = true;
 
 // Internal service for persistence of Metric entities.
 service Metrics {
+  rpc CreateMetric(CreateMetricRequest) returns (Metric);
+
   rpc BatchCreateMetrics(BatchCreateMetricsRequest)
       returns (BatchCreateMetricsResponse);
 
@@ -43,7 +45,7 @@ message BatchCreateMetricsRequest {
   string cmms_measurement_consumer_id = 1;
 
   // Maximum is 200.
-  repeated Metric metrics = 2;
+  repeated CreateMetricRequest createMetricRequests = 2;
 }
 
 message BatchCreateMetricsResponse {

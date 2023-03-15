@@ -74,15 +74,13 @@ message Metric {
 
   fixed64 external_metric_id = 2;
 
-  string request_id = 3;
+  google.protobuf.Timestamp create_time = 3;
 
-  google.protobuf.Timestamp create_time = 4;
+  fixed64 external_reporting_set_id = 4;
 
-  fixed64 external_reporting_set_id = 5;
+  TimeInterval time_interval = 5;
 
-  TimeInterval time_interval = 6;
-
-  MetricSpec metric_spec = 7;
+  MetricSpec metric_spec = 6;
 
   enum State {
     // Default value. This value is unused.
@@ -95,17 +93,17 @@ message Metric {
     FAILED = 3;
   }
 
-  State state = 8;
+  State state = 7;
 
   message WeightedMeasurement {
     int32 weight = 1;
     Measurement measurement = 2;
   }
-  repeated WeightedMeasurement weighted_measurements = 9;
+  repeated WeightedMeasurement weighted_measurements = 8;
 
   message Details {
     repeated string filters = 1;
     MetricResult result = 2;
   }
-  Details details = 10;
+  Details details = 9;
 }
