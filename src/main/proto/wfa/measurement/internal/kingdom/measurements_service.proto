@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
+import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/kingdom/measurement.proto";
 
@@ -42,6 +43,10 @@ service Measurements {
 
   // Marks a Measurement as CANCELLED by transitioning its state.
   rpc CancelMeasurement(CancelMeasurementRequest) returns (Measurement);
+
+  // Permanently deletes a Measurement.
+  rpc DeleteMeasurement(DeleteMeasurementRequest)
+      returns (google.protobuf.Empty);
 }
 
 message GetMeasurementRequest {
@@ -96,6 +101,11 @@ message SetMeasurementResultRequest {
 }
 
 message CancelMeasurementRequest {
+  fixed64 external_measurement_consumer_id = 1;
+  fixed64 external_measurement_id = 2;
+}
+
+message DeleteMeasurementRequest {
   fixed64 external_measurement_consumer_id = 1;
   fixed64 external_measurement_id = 2;
 }
