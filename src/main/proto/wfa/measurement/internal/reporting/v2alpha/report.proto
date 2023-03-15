@@ -68,11 +68,11 @@ message Report {
   // Depends on `Metric` states. Output-only.
   State state = 5;
 
-  message Details {
-    oneof time {
-      TimeIntervals time_intervals = 1;
-      PeriodicTimeInterval periodic_time_interval = 2;
-    }
+  oneof time {
+    TimeIntervals time_intervals = 6;
+    PeriodicTimeInterval periodic_time_interval = 7;
   }
-  Details details = 6;
+
+  message Details {}
+  Details details = 8;
 }
