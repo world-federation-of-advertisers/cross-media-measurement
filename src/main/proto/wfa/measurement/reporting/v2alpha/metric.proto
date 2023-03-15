@@ -90,7 +90,7 @@ message MetricResult {
   // TODO(@riemanli): Add error bar.
   message ReachResult {
     // Reach value.
-    int64 result = 1;
+    int64 value = 1;
   }
   // Histogram result format.
   //
@@ -98,8 +98,8 @@ message MetricResult {
   message HistogramResult {
     // Bin result format.
     message BinResult {
-      // The result of a bin.
-      double result = 2;
+      // The result value of a bin.
+      double value = 2;
     }
     // The bin in a histogram.
     message Bin {
@@ -116,14 +116,14 @@ message MetricResult {
   // TODO(@riemanli): Add error bar.
   message ImpressionCountResult {
     // Impression value.
-    int64 result = 1;
+    int64 value = 1;
   }
   // Watch duration result format.
   //
   // TODO(@riemanli): Add error bar.
   message WatchDurationResult {
     // Watch duration value in second.
-    double result = 1;
+    double value = 1;
   }
 
   // The metric result
