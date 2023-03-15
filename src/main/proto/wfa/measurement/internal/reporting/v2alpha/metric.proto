@@ -24,16 +24,26 @@ option java_package = "org.wfanet.measurement.internal.reporting.v2alpha";
 option java_multiple_files = true;
 
 message MetricSpec {
-  message ReachParams {}
+  message DifferentialPrivacyParams {
+    double epsilon = 1;
+    double delta = 2;
+  }
+
+  message ReachParams {
+    DifferentialPrivacyParams privacy_params = 1;
+  }
   message FrequencyHistogramParams {
-    int32 maximum_frequency_per_user = 1;
+    DifferentialPrivacyParams privacy_params = 1;
+    int32 maximum_frequency_per_user = 2;
   }
   message ImpressionCountParams {
-    int32 maximum_frequency_per_user = 1;
+    DifferentialPrivacyParams privacy_params = 1;
+    int32 maximum_frequency_per_user = 2;
   }
   message WatchDurationParams {
+    DifferentialPrivacyParams privacy_params = 1;
     // In seconds.
-    int32 maximum_watch_duration_per_user = 1;
+    int32 maximum_watch_duration_per_user = 2;
   }
 
   oneof type {
@@ -42,28 +52,43 @@ message MetricSpec {
     ImpressionCountParams impression_count = 3;
     WatchDurationParams watch_duration = 4;
   }
+
+  message VidSamplingInterval {
+    float start = 1;
+    float width = 2;
+  }
+  VidSamplingInterval vid_sampling_interval = 5;
 }
 
 message MetricResult {
-  message IntegerResult {
+  message ReachResult {
     int64 value = 1;
   }
-  message DoubleResult {
-    double value = 1;
-  }
+
   message HistogramResult {
+    message BinResult {
+      double value = 1;
+    }
     message Bin {
       string label = 1;
-      DoubleResult value = 2;
+      BinResult bin_result = 2;
     }
     repeated Bin bins = 1;
   }
 
+  message ImpressionCountResult {
+    int64 value = 1;
+  }
+
+  message WatchDurationResult {
+    double value = 1;
+  }
+
   oneof result {
-    IntegerResult reach = 1;
+    ReachResult reach = 1;
     HistogramResult frequency_histogram = 2;
-    IntegerResult impression_count = 3;
-    DoubleResult watch_duration = 4;
+    ImpressionCountResult impression_count = 3;
+    WatchDurationResult watch_duration = 4;
   }
 }
 
