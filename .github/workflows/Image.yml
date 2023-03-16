@@ -68,7 +68,7 @@ jobs:
         with:
           context: ${{ github.workspace }}/src/main/docker
           push: true
-          tags: ghcr.io/${{ env.GHCR_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          tags: ghcr.io/${{ env.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
         env:
           DOCKER_USERNAME: ${{ github.actor }}
           DOCKER_PASSWORD: ${{ secrets.GHCR_TOKEN }}
