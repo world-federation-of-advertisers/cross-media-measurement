@@ -28,7 +28,8 @@ env:
   SERVICE_ACCOUNT: '${{ vars.SERVICE_ACCOUNT }}'
 
 permissions:
-  contents: read
+  contents: 'read'
+  id-token: 'write'
 
 jobs:
   terraform:
@@ -50,11 +51,13 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v1
 
-      # TODO(issues/888): Use workload Identity in place of Service account authentication.
-      - name: Setting up GCP account Connection
-        uses: google-github-actions/auth@v1
+      # Authenticate with workload Identity federation.
+      - id: 'auth'
+        name: 'Authenticate to Google Cloud'
+        uses: 'google-github-actions/auth@v1'
         with:
-          credentials_json: ${{ secrets.GCP_CREDENTIALS }}
+          workload_identity_provider: 'projects/36966063264/locations/global/workloadIdentityPools/githubactions/providers/my-provider'
+          service_account: 'github-actions@halo-cmm-sandbox.iam.gserviceaccount.com'
 
       # Setup the SDK
       - name: Set up Cloud SDK
