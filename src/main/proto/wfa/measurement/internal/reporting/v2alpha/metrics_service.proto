@@ -45,7 +45,7 @@ message BatchCreateMetricsRequest {
   string cmms_measurement_consumer_id = 1;
 
   // Maximum is 200.
-  repeated CreateMetricRequest createMetricRequests = 2;
+  repeated CreateMetricRequest requests = 2;
 }
 
 message BatchCreateMetricsResponse {

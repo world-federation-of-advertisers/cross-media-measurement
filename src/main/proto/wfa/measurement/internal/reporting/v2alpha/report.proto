@@ -72,7 +72,4 @@ message Report {
     TimeIntervals time_intervals = 6;
     PeriodicTimeInterval periodic_time_interval = 7;
   }
-
-  message Details {}
-  Details details = 8;
 }

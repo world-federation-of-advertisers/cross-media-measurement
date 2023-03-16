@@ -41,7 +41,7 @@ message BatchGetReportingSetsRequest {
 }
 
 message BatchGetReportingSetsResponse {
-  repeated fixed64 external_reporting_set_ids = 1;
+  repeated ReportingSet reporting_sets = 1;
 }
 
 message StreamReportingSetsRequest {
