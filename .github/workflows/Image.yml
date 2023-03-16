@@ -17,7 +17,7 @@ name: "Build and Push image in GHCR"
 on:
   push:
     branches:
-      - main
+      - feature/halo-kingdom-image
 
 env:
   REGISTRY: ghcr.io
