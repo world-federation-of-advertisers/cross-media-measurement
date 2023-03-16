@@ -15,9 +15,10 @@
 name: 'Halo IAC'
 
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
+  workflow_run:
+    workflows: [ "Terraform Kingdom" ]
+    types:
+      - completed
 
 env:
   ROOT_PATH: '${{ github.workspace }}/src/main/terraform'
@@ -83,3 +84,4 @@ jobs:
       - name: Terraform Apply
         run: terraform apply '${{env.ENV}}_tfplan'
         working-directory: ${{env.ROOT_PATH}}
+
