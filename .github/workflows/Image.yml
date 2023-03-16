@@ -62,13 +62,13 @@ jobs:
             --define image_repo_prefix=${{ env.GHCR_USERNAME }}/${{ env.IMAGE_NAME }} \
             --define image_tag=${{ env.IMAGE_TAG }}
 
+      # Push Docker image
       - name: Push Docker image
-        run: |
-          bazel query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
-            xargs -n 1 bazel run -c opt --define container_registry=ghcr.io \
-            --define image_repo_prefix=${{ env.GHCR_USERNAME }}/${{ env.IMAGE_NAME }} \
-            --define image_tag=${{ env.IMAGE_TAG }} \
-            -- //src/main/docker:<DOCKER_IMAGE_NAME> --password=${{ secrets.GHCR_TOKEN }}
-
+        uses: docker/build-push-action@v2
+        with:
+          context: ${{ github.workspace }}/src/main/docker
+          push: true
+          tags: ghcr.io/${{ env.GHCR_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
         env:
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          DOCKER_USERNAME: ${{ github.actor }}
+          DOCKER_PASSWORD: ${{ secrets.GHCR_TOKEN }}
