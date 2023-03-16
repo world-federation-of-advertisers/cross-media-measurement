@@ -15,10 +15,9 @@
 name: 'Halo IAC'
 
 on:
-  workflow_run:
-    workflows: [ "Terraform Kingdom" ]
-    types:
-      - completed
+  push:
+    branches: [ "main" ]
+  pull_request:
 
 env:
   ROOT_PATH: '${{ github.workspace }}/src/main/terraform'
