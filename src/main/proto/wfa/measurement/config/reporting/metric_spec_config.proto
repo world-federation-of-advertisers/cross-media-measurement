@@ -31,20 +31,19 @@ message MetricSpecConfig {
     double delta = 2;
   }
 
-  // Parameters that are used to generate `Reach` metric.
-  message ReachParams {
-    // Differential privacy parameters.
-    DifferentialPrivacyParams privacy_params = 1;
-  }
-  // Parameters that are used to generate `Frequency Histogram` metric.
-  message FrequencyHistogramParams {
-    // Differential privacy parameters.
-    DifferentialPrivacyParams privacy_params = 1;
+  // Parameters that are used to generate `Reach` metric or
+  // `Frequency Histogram` metric.
+  message ReachFrequencyParams {
+    // Differential privacy parameters for reach.
+    DifferentialPrivacyParams reach_privacy_params = 1;
+
+    // Differential privacy parameters for frequency.
+    DifferentialPrivacyParams frequency_privacy_params = 2;
     // Maximum frequency cut-off value in the frequency histogram.
     //
     // Counts with frequency higher than `max_frequency` will be aggregated
     // together.
-    int32 maximum_frequency_per_user = 2;
+    int32 maximum_frequency_per_user = 3;
   }
   // Parameters that are used to generate `Impression Count` metric.
   message ImpressionCountParams {
