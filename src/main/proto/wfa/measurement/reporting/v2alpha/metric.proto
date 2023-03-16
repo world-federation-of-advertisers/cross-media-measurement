@@ -40,20 +40,30 @@ message MetricSpec {
   // Parameters that are used to generate `Reach` metric.
   message ReachParams {
     // Differential privacy parameters.
+    //
+    // The parameters cannot be set partially. If no parameters are set, the
+    // default values will be used and outputted here.
     DifferentialPrivacyParams privacy_params = 1;
   }
   // Parameters that are used to generate `Frequency Histogram` metric.
   message FrequencyHistogramParams {
     // Differential privacy parameters.
+    //
+    // The parameters cannot be set partially. If no parameters are set, the
+    // default values will be used and outputted here.
     DifferentialPrivacyParams privacy_params = 1;
-    // Maximum frequency cut-off value in the frequency histogram. Counts with
-    // frequency higher than `max_frequency` will be aggregated together.
-    int32 maximum_frequency_per_user = 2
-        [(google.api.field_behavior) = REQUIRED];
+    // Maximum frequency cut-off value in the frequency histogram.
+    //
+    // Counts with frequency higher than `max_frequency` will be aggregated
+    // together. If not set, the default value will be used and outputted here.
+    int32 maximum_frequency_per_user = 2;
   }
   // Parameters that are used to generate `Impression Count` metric.
   message ImpressionCountParams {
     // Differential privacy parameters.
+    //
+    // The parameters cannot be set partially. If no parameters are set, the
+    // default values will be used and outputted here.
     DifferentialPrivacyParams privacy_params = 1;
     // Maximum frequency per user that will be included in this metric. Enforced
     // on a per EDP basis.
@@ -65,12 +75,15 @@ message MetricSpec {
     // too small, there's a truncation bias. Through optimization, the
     // recommended value for maximum_frequency_per_user = 60 for the case with
     // over 1M audience size.
-    int32 maximum_frequency_per_user = 2
-        [(google.api.field_behavior) = REQUIRED];
+    // If not set, the default value will be used and outputted here.
+    int32 maximum_frequency_per_user = 2;
   }
   // Parameters that are used to generate `Watch Duration` metric.
   message WatchDurationParams {
     // Differential privacy parameters.
+    //
+    // The parameters cannot be set partially. If no parameters are set, the
+    // default values will be used and outputted here.
     DifferentialPrivacyParams privacy_params = 1;
     // Maximum watch duration per user in second that will be included in this
     // metric.
@@ -78,8 +91,8 @@ message MetricSpec {
     // Recommended maximum_watch_duration_per_user = cap on the total watch
     // duration of all the impressions of a user = 4000 sec for the case with
     // over 1M audience size. Enforced on a per EDP basis.
-    int32 maximum_watch_duration_per_user = 2
-        [(google.api.field_behavior) = REQUIRED];
+    // If not set, the default value will be used and outputted here.
+    int32 maximum_watch_duration_per_user = 2;
   }
 
   // Types of metric with parameters.
@@ -111,6 +124,9 @@ message MetricSpec {
     float width = 2;
   }
   // Range of VIDs that will be included in this measurement
+  //
+  // The parameters cannot be set partially. If no parameters are set, the
+  // default values will be used and outputted here.
   VidSamplingInterval vid_sampling_interval = 5;
 }
 
