@@ -327,10 +327,6 @@ CREATE TABLE Reports (
   -- protobuf enum encoded as an integer.
   State integer NOT NULL,
 
-  -- Serialized org.wfanet.measurement.internal.reporting.Report.Details
-  -- protobuf message.
-  ReportDetails bytea NOT NULL,
-
   PRIMARY KEY(MeasurementConsumerId, ReportId),
   UNIQUE (MeasurementConsumerId, CreateReportRequestId),
   UNIQUE (MeasurementConsumerId, ExternalReportId),
