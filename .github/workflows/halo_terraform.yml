@@ -17,6 +17,7 @@ name: 'Halo IAC'
 on:
   push:
     branches: [ "main" ]
+  pull_request:
 
 env:
   ROOT_PATH: '${{ github.workspace }}/src/main/terraform'
@@ -75,7 +76,7 @@ jobs:
 
       # Creates a plan
       - name: Terraform Plan
-        run: terraform plan '-out=${{env.ENV}}_tfplan' -var env=${{env.ENV}} -var project=${{tenv.PROJECT}} -var service_account=${{env.SERVICE_ACCOUNT}}
+        run: terraform plan '-out=${{env.ENV}}_tfplan' -var env=${{env.ENV}} -var project=${{env.PROJECT}} -var service_account=${{env.SERVICE_ACCOUNT}}
         working-directory: ${{env.ROOT_PATH}}
 
       # Applies the above created plan
