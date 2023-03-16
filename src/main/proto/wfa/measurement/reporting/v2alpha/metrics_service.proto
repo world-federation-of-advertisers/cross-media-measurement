@@ -1,0 +1,182 @@
+// Copyright 2023 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.reporting.v2alpha;
+
+import "google/api/client.proto";
+import "google/api/field_behavior.proto";
+import "google/api/annotations.proto";
+import "google/api/resource.proto";
+import "wfa/measurement/reporting/v2alpha/metric.proto";
+
+option java_package = "org.wfanet.measurement.reporting.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "MetricsServiceProto";
+
+// Service for interacting with `Metric` resources.
+service Metrics {
+  // Returns the `Metric` with the specified resource key.
+  rpc GetMetric(GetMetricRequest) returns (Metric) {
+    option (google.api.http) = {
+      get: "/v2alpha/{name=measurementConsumers/*/metrics/*}"
+    };
+    option (google.api.method_signature) = "name";
+  }
+
+  // Return the `Metric`s specified in the request. Fail for all resources or
+  // succeed for all resources (no partial success).
+  rpc BatchGetMetrics(BatchGetMetricsRequest)
+      returns (BatchGetMetricsResponse) {
+    option (google.api.http) = {
+      get: "/v2alpha/{parent=measurementConsumers/*}/metrics:batchGet"
+    };
+  }
+
+  // Lists `Metric`s.
+  rpc ListMetrics(ListMetricsRequest) returns (ListMetricsResponse) {
+    option (google.api.http) = {
+      get: "/v2alpha/{parent=measurementConsumers/*}/metrics"
+    };
+    option (google.api.method_signature) = "parent";
+  }
+
+  // Creates a `Metric`.
+  rpc CreateMetric(CreateMetricRequest) returns (Metric) {
+    option (google.api.http) = {
+      post: "/v2alpha/{parent=measurementConsumers/*}/metrics"
+      body: "metric"
+    };
+    option (google.api.method_signature) = "parent,metric";
+  }
+
+  // Creates a batch of `Metric`s. Fail for all resources or succeed for all
+  // resources (no partial success).
+  rpc BatchCreateMetrics(BatchCreateMetricsRequest)
+      returns (BatchCreateMetricsResponse) {
+    option (google.api.http) = {
+      post: "/v2alpha/{parent=measurementConsumers/*}/metrics:batchCreate"
+      body: "*"
+    };
+  }
+}
+
+// Request message for `GetMetric` method.
+message GetMetricRequest {
+  // The name of the metric to retrieve.
+  // Format: measurementConsumers/{measurement_consumer}/metrics/{metric}
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = { type: "reporting.halo-cmm.org/Metric" }
+  ];
+}
+
+// Request message for `BatchGetMetric` method.
+message BatchGetMetricsRequest {
+  // The parent of all the metrics specified in `names` must match this field.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "reporting.halo-cmm.org/Metric"
+    }
+  ];
+  // A maximum of 100 metrics can be retrieved in a batch.
+  // Format: measurementConsumers/{measurement_consumer}/metrics/{metric}
+  repeated string names = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = { type: "reporting.halo-cmm.org/Metric" }
+  ];
+}
+
+// Response message for `BatchGetMetric` method.
+message BatchGetMetricsResponse {
+  // Metrics requested.
+  repeated Metric metrics = 1;
+}
+
+// Request message for `ListMetrics` method.
+message ListMetricsRequest {
+  // Format: measurementConsumers/{measurement_consumer}
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "reporting.halo-cmm.org/Metric"
+    }
+  ];
+
+  // The maximum number of metrics to return. The service may return fewer than
+  // this value.
+  // If unspecified, at most 50 metrics will be returned.
+  // The maximum value is 1000; values above 1000 will be coerced to 1000.
+  int32 page_size = 2;
+
+  // A page token, received from a previous `ListMetrics` call.
+  // Provide this to retrieve the subsequent page.
+  //
+  // When paginating, all other parameters provided to `ListMetrics` must match
+  // the call that provided the page token.
+  string page_token = 3;
+}
+
+// Response message for `ListMetrics` method.
+message ListMetricsResponse {
+  // The metrics from the specified measurement consumer.
+  repeated Metric metrics = 1;
+
+  // A token, which can be sent as `page_token` to retrieve the next page.
+  // If this field is omitted, there are no subsequent pages.
+  string next_page_token = 2;
+}
+
+// Request message for `CreateMetric` method.
+message CreateMetricRequest {
+  // The parent resource where this metric will be created.
+  // Format: measurementConsumers/{measurement_consumer}
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "reporting.halo-cmm.org/Metric"
+    }
+  ];
+
+  // The metric to create.
+  Metric metric = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // A unique identifier for this request. Restricted to 36 ASCII characters.
+  // A random UUID is recommended.
+  // This request is only idempotent if a `request_id` is provided.
+  string request_id = 3;
+}
+
+// Request message for `BatchCreateMetric` method.
+message BatchCreateMetricsRequest {
+  // The parent of all of the metrics specified in `requests` must match this
+  // field.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "reporting.halo-cmm.org/Metric"
+    }
+  ];
+  // A maximum of 100 metrics can be created in a batch.
+  repeated CreateMetricRequest requests = 2
+      [(google.api.field_behavior) = REQUIRED];
+}
+
+// Response message for `BatchCreateMetric` method.
+message BatchCreateMetricsResponse {
+  // Metrics created.
+  repeated Metric metrics = 1;
+}

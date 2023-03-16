@@ -1,0 +1,185 @@
+load("@rules_proto//proto:defs.bzl", "proto_library")
+load("@rules_java//java:defs.bzl", "java_proto_library")
+load("@wfa_common_jvm//build/kt_jvm_proto:defs.bzl", "kt_jvm_proto_library")
+load("@wfa_common_jvm//build:macros.bzl", "kt_jvm_grpc_proto_library")
+
+package(default_visibility = ["//visibility:public"])
+
+IMPORT_PREFIX = "/src/main/proto"
+
+# Resources and shared message types.
+
+proto_library(
+    name = "event_group_proto",
+    srcs = ["event_group.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_protobuf//:any_proto",
+    ],
+)
+
+java_proto_library(
+    name = "event_group_java_proto",
+    deps = [":event_group_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "event_group_kt_jvm_proto",
+    srcs = [":event_group_proto"],
+    deps = [":event_group_java_proto"],
+)
+
+proto_library(
+    name = "metric_proto",
+    srcs = ["metric.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":time_interval_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+java_proto_library(
+    name = "metric_java_proto",
+    deps = [":metric_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "metric_kt_jvm_proto",
+    srcs = [":metric_proto"],
+    deps = [":metric_java_proto"],
+)
+
+proto_library(
+    name = "report_proto",
+    srcs = ["report.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":metric_proto",
+        ":time_interval_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+java_proto_library(
+    name = "report_java_proto",
+    deps = [":report_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "report_kt_jvm_proto",
+    srcs = [":report_proto"],
+    deps = [":report_java_proto"],
+)
+
+proto_library(
+    name = "reporting_set_proto",
+    srcs = ["reporting_set.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+java_proto_library(
+    name = "reporting_set_java_proto",
+    deps = [":reporting_set_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "reporting_set_kt_jvm_proto",
+    srcs = [":reporting_set_proto"],
+    deps = [":reporting_set_java_proto"],
+)
+
+proto_library(
+    name = "time_interval_proto",
+    srcs = ["time_interval.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_protobuf//:duration_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+# Services.
+
+proto_library(
+    name = "event_groups_service_proto",
+    srcs = ["event_groups_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":event_group_proto",
+        "@com_google_googleapis//google/api:annotations_proto",
+        "@com_google_googleapis//google/api:client_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "event_groups_service_kt_jvm_grpc_proto",
+    srcs = [":event_groups_service_proto"],
+)
+
+proto_library(
+    name = "metrics_service_proto",
+    srcs = ["metrics_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":metric_proto",
+        "@com_google_googleapis//google/api:annotations_proto",
+        "@com_google_googleapis//google/api:client_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "metrics_service_kt_jvm_grpc_proto",
+    srcs = [":metrics_service_proto"],
+)
+
+proto_library(
+    name = "reports_service_proto",
+    srcs = ["reports_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":report_proto",
+        "@com_google_googleapis//google/api:annotations_proto",
+        "@com_google_googleapis//google/api:client_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "reports_service_kt_jvm_grpc_proto",
+    srcs = [":reports_service_proto"],
+)
+
+proto_library(
+    name = "reporting_sets_service_proto",
+    srcs = ["reporting_sets_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":reporting_set_proto",
+        "@com_google_googleapis//google/api:annotations_proto",
+        "@com_google_googleapis//google/api:client_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "reporting_sets_service_kt_jvm_grpc_proto",
+    srcs = [":reporting_sets_service_proto"],
+)
