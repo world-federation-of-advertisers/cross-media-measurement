@@ -76,4 +76,6 @@ enum ErrorCode {
   EXCHANGE_STEP_NOT_FOUND = 25;
   /** Required duchies are inactive */
   DUCHY_NOT_ACTIVE = 26;
+  /** EventGroup state is in an illegal state for the operation. */
+  EVENT_GROUP_STATE_ILLEGAL = 27;
 }

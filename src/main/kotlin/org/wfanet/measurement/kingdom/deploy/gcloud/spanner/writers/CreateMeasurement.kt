@@ -79,14 +79,12 @@ class CreateMeasurement(private val measurement: Measurement) :
       }
     }
 
-    // protocol has to be set for the measurement to require computation
-    return if (
-      measurement.details.protocolConfig.protocolCase !=
-        ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
-    ) {
-      createComputedMeasurement(measurement, measurementConsumerId)
-    } else {
-      createDirectMeasurement(measurement, measurementConsumerId)
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields are never null.
+    return when (measurement.details.protocolConfig.protocolCase) {
+      ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2 ->
+        createComputedMeasurement(measurement, measurementConsumerId)
+      ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET ->
+        createDirectMeasurement(measurement, measurementConsumerId)
     }
   }
 

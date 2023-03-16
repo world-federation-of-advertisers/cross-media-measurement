@@ -253,10 +253,10 @@ class EventGroupsService(private val internalEventGroupsStub: EventGroupsCorouti
     } catch (ex: StatusException) {
       when (ex.status.code) {
         Status.Code.INVALID_ARGUMENT ->
-          failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid.." }
+          failGrpc(Status.INVALID_ARGUMENT, ex) { "Required field unspecified or invalid." }
         Status.Code.FAILED_PRECONDITION ->
-          failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition.." }
-        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "EventGroup not found.." }
+          failGrpc(Status.FAILED_PRECONDITION, ex) { ex.message ?: "Failed precondition." }
+        Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "EventGroup not found." }
         else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
       }
     }
@@ -366,6 +366,7 @@ private fun InternalEventGroup.toEventGroup(): EventGroup {
       details.eventTemplatesList.map { event -> eventTemplate { type = event.fullyQualifiedType } }
     )
     encryptedMetadata = details.encryptedMetadata
+    state = this@toEventGroup.state.toV2Alpha()
   }
 }
 
@@ -457,6 +458,7 @@ private fun ListEventGroupsRequest.toListEventGroupPageToken(): ListEventGroupsP
       ) {
         pageSize = source.pageSize
       }
+      this.showDeleted = source.showDeleted
     }
   } else {
     listEventGroupsPageToken {
@@ -469,6 +471,7 @@ private fun ListEventGroupsRequest.toListEventGroupPageToken(): ListEventGroupsP
 
       this.externalDataProviderId = externalDataProviderId
       externalMeasurementConsumerIds += externalMeasurementConsumerIdsList
+      this.showDeleted = source.showDeleted
     }
   }
 }
@@ -484,6 +487,7 @@ private fun ListEventGroupsPageToken.toStreamEventGroupsRequest(): StreamEventGr
       externalMeasurementConsumerIds += source.externalMeasurementConsumerIdsList
       externalDataProviderIdAfter = source.lastEventGroup.externalDataProviderId
       externalEventGroupIdAfter = source.lastEventGroup.externalEventGroupId
+      showDeleted = source.showDeleted
     }
   }
 }

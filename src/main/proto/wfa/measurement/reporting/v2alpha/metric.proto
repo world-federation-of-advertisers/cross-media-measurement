@@ -1,0 +1,231 @@
+// Copyright 2023 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.reporting.v2alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/reporting/v2alpha/time_interval.proto";
+
+option java_package = "org.wfanet.measurement.reporting.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "MetricProto";
+
+// The specification of a metric that can be selected to be in a `Report`.
+message MetricSpec {
+  // Parameters for differential privacy (DP).
+  //
+  // For detail, refer to "Dwork, C. and Roth, A., 2014. The algorithmic
+  // foundations of differential privacy. Foundations and Trends in Theoretical
+  // Computer Science, 9(3-4), pp.211-407."
+  message DifferentialPrivacyParams {
+    double epsilon = 1;
+    double delta = 2;
+  }
+
+  // Parameters that are used to generate `Reach` metric.
+  message ReachParams {
+    // Differential privacy parameters.
+    DifferentialPrivacyParams privacy_params = 1;
+  }
+  // Parameters that are used to generate `Frequency Histogram` metric.
+  message FrequencyHistogramParams {
+    // Differential privacy parameters.
+    DifferentialPrivacyParams privacy_params = 1;
+    // Maximum frequency cut-off value in the frequency histogram. Counts with
+    // frequency higher than `max_frequency` will be aggregated together.
+    int32 maximum_frequency_per_user = 2
+        [(google.api.field_behavior) = REQUIRED];
+  }
+  // Parameters that are used to generate `Impression Count` metric.
+  message ImpressionCountParams {
+    // Differential privacy parameters.
+    DifferentialPrivacyParams privacy_params = 1;
+    // Maximum frequency per user that will be included in this metric. Enforced
+    // on a per EDP basis.
+    //
+    // Setting the maximum frequency for each user is for noising the impression
+    // estimation with the noise proportional to maximum_frequency_per_user to
+    // guarantee epsilon-DP, i.e. the higher maximum_frequency_per_user, the
+    // larger the variance. On the other hand, if maximum_frequency_per_user is
+    // too small, there's a truncation bias. Through optimization, the
+    // recommended value for maximum_frequency_per_user = 60 for the case with
+    // over 1M audience size.
+    int32 maximum_frequency_per_user = 2
+        [(google.api.field_behavior) = REQUIRED];
+  }
+  // Parameters that are used to generate `Watch Duration` metric.
+  message WatchDurationParams {
+    // Differential privacy parameters.
+    DifferentialPrivacyParams privacy_params = 1;
+    // Maximum watch duration per user in second that will be included in this
+    // metric.
+    //
+    // Recommended maximum_watch_duration_per_user = cap on the total watch
+    // duration of all the impressions of a user = 4000 sec for the case with
+    // over 1M audience size. Enforced on a per EDP basis.
+    int32 maximum_watch_duration_per_user = 2
+        [(google.api.field_behavior) = REQUIRED];
+  }
+
+  // Types of metric with parameters.
+  oneof type {
+    // The count of unique audiences reached given a set of event groups.
+    ReachParams reach = 1 [(google.api.field_behavior) = IMMUTABLE];
+    // The reach frequency histogram given a set of event groups.
+    //
+    // Currently, we only support union operations for frequency histograms. Any
+    // other operations on frequency histograms won't guarantee the result is a
+    // frequency histogram.
+    FrequencyHistogramParams frequency_histogram = 2
+        [(google.api.field_behavior) = IMMUTABLE];
+    // The impression count given a set of event groups.
+    ImpressionCountParams impression_count = 3
+        [(google.api.field_behavior) = IMMUTABLE];
+    // The watch duration given a set of event groups.
+    WatchDurationParams watch_duration = 4
+        [(google.api.field_behavior) = IMMUTABLE];
+  }
+
+  // Specifies a range of VIDs to be sampled.
+  message VidSamplingInterval {
+    // The start of the sampling interval in [0, 1)
+    float start = 1;
+    // The width of the sampling interval.
+    //
+    // start + width cannot be larger than 1
+    float width = 2;
+  }
+  // Range of VIDs that will be included in this measurement
+  VidSamplingInterval vid_sampling_interval = 5;
+}
+
+// The calculation result of a metric
+message MetricResult {
+  // Reach result format.
+  //
+  // TODO(@riemanli): Add error bar.
+  message ReachResult {
+    // Reach value.
+    int64 value = 1;
+  }
+  // Histogram result format.
+  //
+  // TODO(@riemanli): Add error bar.
+  message HistogramResult {
+    // Bin result format.
+    message BinResult {
+      // The result value of a bin.
+      double value = 2;
+    }
+    // The bin in a histogram.
+    message Bin {
+      // The label of the bin.
+      string label = 1;
+      // The result of the bin.
+      BinResult bin_result = 2;
+    }
+    // The bins that form a histogram. Ordering is not guaranteed.
+    repeated Bin bins = 1;
+  }
+  // Impression count result format.
+  //
+  // TODO(@riemanli): Add error bar.
+  message ImpressionCountResult {
+    // Impression value.
+    int64 value = 1;
+  }
+  // Watch duration result format.
+  //
+  // TODO(@riemanli): Add error bar.
+  message WatchDurationResult {
+    // Watch duration value in second.
+    double value = 1;
+  }
+
+  // The metric result
+  oneof result {
+    // Reach result.
+    ReachResult reach = 3;
+    // Histogram result.
+    HistogramResult frequency_histogram = 4;
+    // Impression count result.
+    ImpressionCountResult impression_count = 5;
+    // Watch duration result.
+    WatchDurationResult watch_duration = 6;
+  }
+}
+
+// A resource that will calculate a particular quantity as defined by
+// `MetricSpec` cumulatively over a time interval for the given `ReportingSet`.
+//
+// The metric value once calculated is stored in `MetricResult`.
+message Metric {
+  option (google.api.resource) = {
+    type: "reporting.halo-cmm.org/Metric"
+    pattern: "measurementConsumers/{measurement_consumer}/metrics/{metric}"
+  };
+  // Resource name
+  string name = 1;
+
+  // The resource name of the reporting set to calculate the metric on.
+  string reporting_set = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.resource_reference) = {
+      type: "reporting.halo-cmm.org/ReportingSet"
+    }
+  ];
+
+  // The time over which to calculate the metric cumulatively.
+  TimeInterval time_interval = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+
+  // The specification of what metric to calculate
+  MetricSpec metric_spec = 4 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+
+  // Additional filters that will be combined with AND boolean operation and
+  // applied to the reporting set. If unspecified, evaluates to `true`
+  repeated string filters = 5 [(google.api.field_behavior) = IMMUTABLE];
+
+  // Possible states of a `Metric`.
+  enum State {
+    // Default value. This value is unused.
+    STATE_UNSPECIFIED = 0;
+    // Computation is running.
+    RUNNING = 1;
+    // Completed successfully. Terminal state.
+    SUCCEEDED = 2;
+    // Completed with failure. Terminal state.
+    FAILED = 3;
+  }
+
+  // Metric state.
+  State state = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The time when the metric is successfully created.
+  google.protobuf.Timestamp create_time = 7
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // The result of calculating the metric.
+  MetricResult result = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+}

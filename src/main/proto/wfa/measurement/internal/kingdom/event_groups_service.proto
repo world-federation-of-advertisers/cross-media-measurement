@@ -60,6 +60,7 @@ message StreamEventGroupsRequest {
     // for next page token, both after fields need to be set
     fixed64 external_data_provider_id_after = 3;
     fixed64 external_event_group_id_after = 4;
+    bool show_deleted = 5;
   }
   Filter filter = 1;
 

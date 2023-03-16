@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.db.computation.testing
 
 import io.grpc.Status
 import java.time.Duration
+import java.time.Instant
 import kotlin.experimental.ExperimentalTypeInference
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.duchy.db.computation.AfterTransition
@@ -130,8 +131,8 @@ private constructor(
     requisitions: List<RequisitionMetadata> = listOf()
   ) {
     addComputation(
-      // For the purpose of a fake it is fine to assume that the globalId can be parsed as Long and
-      // use the Long value for the localId.
+      // For the purpose of a fake it is fine to assume that the globalId can be parsed as Long
+      // and use the Long value for the localId.
       localId = globalId.toLong(),
       stage = stage,
       computationDetails = computationDetails,
@@ -374,7 +375,10 @@ private constructor(
     externalRequisitionKey: ExternalRequisitionKey
   ): ComputationToken? = tokens[requisitionMap[externalRequisitionKey]]
 
-  override suspend fun readGlobalComputationIds(stages: Set<ComputationStage>): Set<String> =
+  override suspend fun readGlobalComputationIds(
+    stages: Set<ComputationStage>,
+    updatedBefore: Instant?
+  ): Set<String> =
     tokens.filterValues { it.computationStage in stages }.map { it.key.toString() }.toSet()
 
   /** For testing purposes, doesn't do anything useful. */

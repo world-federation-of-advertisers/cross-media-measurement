@@ -44,6 +44,7 @@ objectSets: [
 	duchy.deployments,
 	duchy.services,
 	duchy.networkPolicies,
+	duchy.cronjobs,
 ]
 
 _cloudStorageConfig: #CloudStorageConfig & {
@@ -59,6 +60,7 @@ _imageSuffixes: {
 	"requisition-fulfillment-server":   "duchy/requisition-fulfillment"
 	"spanner-computations-server":      "duchy/spanner-computations"
 	"update-duchy-schema":              "duchy/spanner-update-schema"
+	"computations-cleaner":             "duchy/computations-cleaner"
 }
 _imageConfigs: [_=string]: #ImageConfig
 _imageConfigs: {

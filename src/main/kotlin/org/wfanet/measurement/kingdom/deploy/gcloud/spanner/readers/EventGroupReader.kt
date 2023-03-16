@@ -21,6 +21,7 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
+import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.eventGroup
@@ -38,7 +39,8 @@ private val BASE_SQL =
       EventGroups.EventGroupDetails,
       MeasurementConsumers.ExternalMeasurementConsumerId,
       DataProviders.ExternalDataProviderId,
-      MeasurementConsumerCertificates.ExternalMeasurementConsumerCertificateId
+      MeasurementConsumerCertificates.ExternalMeasurementConsumerCertificateId,
+      EventGroups.State
     FROM EventGroups
     JOIN MeasurementConsumers USING (MeasurementConsumerId)
     JOIN DataProviders USING (DataProviderId)
@@ -124,5 +126,6 @@ class EventGroupReader : BaseSpannerReader<EventGroupReader.Result>() {
     if (!struct.isNull("EventGroupDetails")) {
       details = struct.getProtoMessage("EventGroupDetails", EventGroup.Details.parser())
     }
+    state = struct.getProtoEnum("State", EventGroup.State::forNumber)
   }
 }

@@ -25,6 +25,7 @@ import org.wfanet.measurement.internal.kingdom.Account
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.ErrorCode
+import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.Requisition
 
@@ -398,6 +399,21 @@ class EventGroupInvalidArgsException(
       mapOf(
         "original_external_measurement_id" to originalExternalMeasurementId.toString(),
         "provided_external_measurement_id" to providedExternalMeasurementId.toString()
+      )
+}
+
+class EventGroupStateIllegalException(
+  val externalDataProviderId: ExternalId,
+  val externalEventGroupId: ExternalId,
+  val state: EventGroup.State,
+  provideDescription: () -> String = { "EventGroup state illegal" }
+) : KingdomInternalException(ErrorCode.EVENT_GROUP_STATE_ILLEGAL, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "external_data_provider_id" to externalDataProviderId.toString(),
+        "external_event_group_id" to externalEventGroupId.toString(),
+        "event_group_state" to state.toString()
       )
 }
 
