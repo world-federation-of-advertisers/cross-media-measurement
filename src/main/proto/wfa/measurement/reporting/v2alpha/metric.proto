@@ -37,33 +37,35 @@ message MetricSpec {
     double delta = 2;
   }
 
-  // Parameters that are used to generate `Reach` metric.
-  message ReachParams {
-    // Differential privacy parameters.
+  // Parameters that are used to generate `Reach` metric or
+  // `Frequency Histogram` metric.
+  message ReachFrequencyParams {
+    // Differential privacy parameters for reach.
     //
-    // The parameters cannot be set partially. If no parameters are set, the
-    // default values will be used and outputted here.
-    DifferentialPrivacyParams privacy_params = 1;
-  }
-  // Parameters that are used to generate `Frequency Histogram` metric.
-  message FrequencyHistogramParams {
-    // Differential privacy parameters.
+    // This field is either unset or fully set. The parameters in this field
+    // cannot be set partially. If this field is not set, the default values
+    // will be used and outputted here.
+    DifferentialPrivacyParams reach_privacy_params = 1;
+
+    // Differential privacy parameters for frequency.
     //
-    // The parameters cannot be set partially. If no parameters are set, the
-    // default values will be used and outputted here.
-    DifferentialPrivacyParams privacy_params = 1;
+    // This field is either unset or fully set. The parameters in this field
+    // cannot be set partially. If this field is not set, the default values
+    // will be used and outputted here.
+    DifferentialPrivacyParams frequency_privacy_params = 2;
     // Maximum frequency cut-off value in the frequency histogram.
     //
     // Counts with frequency higher than `max_frequency` will be aggregated
     // together. If not set, the default value will be used and outputted here.
-    int32 maximum_frequency_per_user = 2;
+    int32 maximum_frequency_per_user = 3;
   }
   // Parameters that are used to generate `Impression Count` metric.
   message ImpressionCountParams {
     // Differential privacy parameters.
     //
-    // The parameters cannot be set partially. If no parameters are set, the
-    // default values will be used and outputted here.
+    // This field is either unset or fully set. The parameters in this field
+    // cannot be set partially. If this field is not set, the default values
+    // will be used and outputted here.
     DifferentialPrivacyParams privacy_params = 1;
     // Maximum frequency per user that will be included in this metric. Enforced
     // on a per EDP basis.
@@ -82,8 +84,9 @@ message MetricSpec {
   message WatchDurationParams {
     // Differential privacy parameters.
     //
-    // The parameters cannot be set partially. If no parameters are set, the
-    // default values will be used and outputted here.
+    // This field is either unset or fully set. The parameters in this field
+    // cannot be set partially. If this field is not set, the default values
+    // will be used and outputted here.
     DifferentialPrivacyParams privacy_params = 1;
     // Maximum watch duration per user in second that will be included in this
     // metric.
@@ -98,13 +101,13 @@ message MetricSpec {
   // Types of metric with parameters.
   oneof type {
     // The count of unique audiences reached given a set of event groups.
-    ReachParams reach = 1 [(google.api.field_behavior) = IMMUTABLE];
+    ReachFrequencyParams reach = 1 [(google.api.field_behavior) = IMMUTABLE];
     // The reach frequency histogram given a set of event groups.
     //
     // Currently, we only support union operations for frequency histograms. Any
     // other operations on frequency histograms won't guarantee the result is a
     // frequency histogram.
-    FrequencyHistogramParams frequency_histogram = 2
+    ReachFrequencyParams frequency_histogram = 2
         [(google.api.field_behavior) = IMMUTABLE];
     // The impression count given a set of event groups.
     ImpressionCountParams impression_count = 3
