@@ -16,10 +16,10 @@ provider "google" {
   project = var.project
 }
 
-terraform {
-  backend "gcs" {
-  }
-}
+#terraform {
+#  backend "gcs" {
+#  }
+#}
 
 module "kingdom" {
   source = "./kingdom/gcloud"

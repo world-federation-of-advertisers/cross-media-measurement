@@ -20,7 +20,7 @@ on:
   pull_request:
 
 env:
-  GCP_CREDENTIALS: '${{ secrets.GCP_CREDENTIALS }}'
+#  GCP_CREDENTIALS: '${{ secrets.GCP_CREDENTIALS }}'
   ROOT_PATH: '${{ github.workspace }}/src/main/terraform'
   ENV: '${{ vars.ENV }}'
   PROJECT: '${{ vars.PROJECT }}'
@@ -50,18 +50,18 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v1
 
-      - name: 'Setting up GCP account Connection'
-        uses: 'google-github-actions/auth@v1'
-        with:
-          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
-
-    #  # Authenticate with workload Identity federation.
-    #  - id: 'auth'
-    #    name: 'Authenticate to Google Cloud'
+    #  - name: 'Setting up GCP account Connection'
     #    uses: 'google-github-actions/auth@v1'
     #    with:
-    #      workload_identity_provider: ${{ secrets.WFI_PROVIDER }}
-    #      service_account: ${{ secrets.WFI_SA }}
+    #      credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+
+      # Authenticate with workload Identity federation.
+      - id: 'auth'
+        name: 'Authenticate to Google Cloud'
+        uses: 'google-github-actions/auth@v1'
+        with:
+          workload_identity_provider: ${{ secrets.WFI_PROVIDER }}
+          service_account: ${{ secrets.WFI_SA }}
 
       # Setup the SDK
       - name: Set up Cloud SDK
