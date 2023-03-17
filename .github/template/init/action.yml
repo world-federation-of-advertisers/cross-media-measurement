@@ -47,3 +47,13 @@ runs:
         terraform_version: ${{ inputs.terraform_version }}
         terraform_wrapper: false
 
+    - name: 'Setting up GCP account Connection'
+      uses: 'google-github-actions/auth@v1'
+      with:
+        credentials_json: '${{ env.GOOGLE_APPLICATION_CREDENTIALS }}'
+
+    # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
+    - name: Terraform Init
+      run: terraform init
+      working-directory: ${{ inputs.working-directory }}
+      shell: bash
