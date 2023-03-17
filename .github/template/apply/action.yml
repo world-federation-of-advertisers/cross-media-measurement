@@ -12,33 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: 'Terraform Plan'
-description: 'Run Terraform plan'
+name: 'Terraform Apply'
+description: 'Run Terraform Apply'
 inputs:
-  working_directory:
+  working-directory:
     description: 'The directory where the Terraform configuration is located.'
-    required: true
-    default: .
-  environment:
-    description: 'The terraform workspace to be used'
-    required: true
-    default: "qa"
-  project:
-    description: 'The project name to be used'
     required: true
     default: .
 
 runs:
   using: "composite"
   steps:
-    # Workspace selection
-    - name: Workspace selection
-      run:  terraform workspace select ${{ inputs.environment }} || terraform workspace new ${{ inputs.environment }}
-      shell: bash
-
-    # Terraform plan
-    - name: Terraform Plan
+    - name: Terraform Apply
+      run: |
+        terraform apply ${{env.ENV}}_tfplan
       working-directory: ${{ inputs.working-directory }}
       shell: bash
-      run: |
-        terraform plan '-out=${{ inputs.environment }}_tfplan' -var env=${{ inputs.environment }} -var project=${{ inputs.project }}
