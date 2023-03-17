@@ -67,6 +67,7 @@ import org.wfanet.measurement.common.k8s.KubernetesClient
 import org.wfanet.measurement.common.k8s.testing.KindCluster
 import org.wfanet.measurement.common.k8s.testing.PortForwarder
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
+import org.wfanet.measurement.integration.common.LLV2_PROTOCOL_CONFIG_CONFIG
 import org.wfanet.measurement.integration.common.MC_DISPLAY_NAME
 import org.wfanet.measurement.integration.common.createEntityContent
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
@@ -75,6 +76,7 @@ import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineS
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineStub as InternalCertificatesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
 import org.wfanet.measurement.internal.testing.ForwardedStorageGrpcKt.ForwardedStorageCoroutineStub
+import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.loadtest.config.EventFilters
 import org.wfanet.measurement.loadtest.frontend.FrontendSimulator
 import org.wfanet.measurement.loadtest.frontend.MeasurementConsumerData
@@ -313,6 +315,7 @@ class CorrectnessTest {
     @JvmStatic
     fun initCluster() = runBlocking {
       withTimeout(Duration.ofMinutes(5)) {
+        llv2Setup()
         val apiClient = k8sClient.apiClient
         apiClient.httpClient =
           apiClient.httpClient.newBuilder().readTimeout(Duration.ofHours(1L)).build()
@@ -470,6 +473,15 @@ class CorrectnessTest {
         val emulatorsConfig: File = checkNotNull(getRuntimePath(EMULATORS_CONFIG_PATH)).toFile()
         kubectlApply(emulatorsConfig)
       }
+    }
+
+    private fun llv2Setup() {
+      Llv2ProtocolConfig.setForTest(
+        LLV2_PROTOCOL_CONFIG_CONFIG.protocolConfig,
+        LLV2_PROTOCOL_CONFIG_CONFIG.duchyProtocolConfig,
+        setOf("aggregator"),
+        2
+      )
     }
 
     private suspend fun loadKingdom(
