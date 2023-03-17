@@ -30,8 +30,6 @@ runs:
     # Install gcloud, `setup-gcloud` automatically picks up authentication from `auth`.
     - name: 'Set up Cloud SDK'
       uses: 'google-github-actions/setup-gcloud@v1'
-      with:
-        version: '>= 390.0.0'
 
     # Install the latest version of Terraform CLI and configure the Terraform CLI configuration file with a Terraform Cloud user API token
     - name: Setup Terraform
