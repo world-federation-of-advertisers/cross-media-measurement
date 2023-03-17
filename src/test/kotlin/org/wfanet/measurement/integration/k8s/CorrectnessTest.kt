@@ -102,6 +102,10 @@ class CorrectnessTest {
 
   @Test(timeout = 8 * 60 * 1000)
   fun `reach and frequency measurement completes with expected result`() = runBlocking {
+    logger.info(
+      "minimum number of required duchies: " + Llv2ProtocolConfig.minimumNumberOfRequiredDuchies
+    )
+    logger.info("required external duchies ids: " + Llv2ProtocolConfig.requiredExternalDuchyIds)
     testHarness.executeReachAndFrequency("$runId-reach-and-freq")
   }
 
