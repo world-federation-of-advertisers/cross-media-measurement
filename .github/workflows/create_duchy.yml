@@ -23,7 +23,6 @@ env:
   ROOT_PATH: '${{ github.workspace }}/src/main/terraform/duchy/gcloud'
   ENV: '${{ vars.ENV }}'
   PROJECT: '${{ vars.PROJECT }}'
-  SERVICE_ACCOUNT: '${{ vars.SERVICE_ACCOUNT }}'
 
 jobs:
   terraform:
@@ -75,7 +74,7 @@ jobs:
 
       # Creates a plan
       - name: Terraform Plan
-        run: terraform plan '-out=${{env.ENV}}_tfplan' -var env=${{env.ENV}} -var project=${{env.PROJECT}} -var service_account=${{env.SERVICE_ACCOUNT}}
+        run: terraform plan '-out=${{env.ENV}}_tfplan' -var env=${{env.ENV}} -var project=${{env.PROJECT}}
         working-directory: ${{env.ROOT_PATH}}
 
       # Applies the above created plan
