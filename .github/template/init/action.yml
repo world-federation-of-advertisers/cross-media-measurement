@@ -1,0 +1,54 @@
+name: 'Terraform Init'
+description: 'Prepare Terraform environment'
+inputs:
+  working_directory:
+    description: 'The directory where the Terraform configuration is located.'
+    required: true
+    default: .
+  terraform_version:
+    description: 'The Terraform version to use'
+    required: false
+    default: '1.3.6'
+  gcp_service_account_email:
+    description: 'GCP Service Account email for federation'
+    required: true
+  gcp_workload_identity_provider:
+    description: 'GCP Workload Identity Provider'
+    required: true
+  tf_state_encryption_key:
+    description: 'Optional customer supplied encryption key'
+    required: false
+runs:
+  using: "composite"
+  steps:
+    # Setup Gcloud identity federation
+    - name: "Authenticate to Google Cloud"
+      uses: "google-github-actions/auth@v1"
+      with:
+        workload_identity_provider: ${{ inputs.gcp_workload_identity_provider }}
+        service_account: ${{ inputs.gcp_service_account_email }}
+
+    # Install Gcloud Cli
+    - name: "Set up Cloud SDK"
+      uses: "google-github-actions/setup-gcloud@v1"
+
+    # Export Secrets - gcp action will automatically mask this from user output
+    - name: Prepare Environment
+      env:
+        GOOGLE_ENCRYPTION_KEY: ${{ inputs.tf_state_encryption_key }}
+      run: |
+        echo "GOOGLE_ENCRYPTION_KEY=$GOOGLE_ENCRYPTION_KEY" >> $GITHUB_ENV
+      shell: bash
+
+    # Install the latest version of Terraform CLI and configure the Terraform CLI configuration file with a Terraform Cloud user API token
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: ${{ inputs.terraform_version }}
+        terraform_wrapper: false
+
+    # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
+    - name: Terraform Init
+      run: terraform init
+      working-directory: ${{ inputs.working_directory }}
+      shell: bash
