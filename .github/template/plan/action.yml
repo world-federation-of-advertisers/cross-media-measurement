@@ -18,7 +18,7 @@ runs:
   using: "composite"
   steps:
     - name: Terraform Plan
-      working-directory: ${{ inputs.working_directory }}
+      working-directory: ${{ inputs.working-directory }}
       shell: bash
       run: |
         terraform plan '-out=${{ inputs.environment }}_tfplan' -var env=${{ inputs.environment }} -var project=${{ inputs.project }}
