@@ -16,7 +16,7 @@ name: 'Create Kingdom Plan'
 
 on:
   push:
-    branches: [ "feature/create-kingdom","main" ]
+    branches: [ "main" ]
   pull_request:
 
 permissions:
