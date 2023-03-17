@@ -21,7 +21,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/k8s/testing:kind_cluster",
         "//src/main/kotlin/org/wfanet/measurement/common/k8s/testing:port_forwarder",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
-        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:llv2_protocol_config",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:event_filters",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/frontend:frontend_simulator",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:resource_setup",
