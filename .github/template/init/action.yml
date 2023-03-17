@@ -48,7 +48,7 @@ runs:
         terraform_wrapper: false
 
     - name: using Cred to Login
-      run: cat env.GOOGLE_APPLICATION_CREDENTIALS
+      run: cat ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
       shell: bash
 
     - name: 'Setting up GCP account Connection'
