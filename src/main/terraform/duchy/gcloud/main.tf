@@ -17,6 +17,11 @@ provider "google" {
 }
 
 terraform {
+  required_providers {
+    google = {
+      version = "~> 3.90.0"
+    }
+  }
   backend "gcs" {
     bucket  = "terraform-state-halo-cmm"
     prefix  = "wfa"
