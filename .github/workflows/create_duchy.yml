@@ -25,15 +25,14 @@ env:
   PROJECT: '${{ vars.PROJECT }}'
   SERVICE_ACCOUNT: '${{ vars.SERVICE_ACCOUNT }}'
 
-permissions:
-  contents: 'read'
-  id-token: 'write'
-
 jobs:
   terraform:
     name: 'Halo IAC'
     runs-on: ubuntu-22.04
     environment: production
+    permissions:
+      contents: 'read'
+      id-token: 'write'
 
     # Use the Bash shell regardless whether the GitHub Actions runner is ubuntu-latest, macos-latest, or windows-latest
     defaults:
@@ -56,10 +55,6 @@ jobs:
         with:
           workload_identity_provider: ${{ secrets.WFI_PROVIDER }}
           service_account: ${{ secrets.WFI_SA }}
-
-      # Connect using the credentials generated.
-      - name: 'Connect using credentials generated'
-        uses: 'google-github-actions/auth@v1'
 
       # Setup the SDK
       - name: Set up Cloud SDK
