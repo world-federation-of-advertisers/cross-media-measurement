@@ -18,5 +18,7 @@ provider "google" {
 
 terraform {
   backend "gcs" {
+    bucket  = "terraform-state-halo-cmm"
+    prefix  = "wfa"
   }
 }
