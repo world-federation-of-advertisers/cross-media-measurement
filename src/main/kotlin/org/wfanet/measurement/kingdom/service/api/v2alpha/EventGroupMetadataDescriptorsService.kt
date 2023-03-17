@@ -33,6 +33,7 @@ import org.wfanet.measurement.api.v2alpha.UpdateEventGroupMetadataDescriptorRequ
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
+import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -222,7 +223,9 @@ class EventGroupMetadataDescriptorsService(
 
     val streamRequest = streamEventGroupMetadataDescriptorsRequest {
       filter = filter {
-        externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
+        if (parentKey.dataProviderId != ResourceKey.WILDCARD_ID) {
+          externalDataProviderId = apiIdToExternalId(parentKey.dataProviderId)
+        }
         externalEventGroupMetadataDescriptorIds += descriptorIds
       }
     }
