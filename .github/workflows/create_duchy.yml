@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: 'Create Kingdom Plan'
+name: 'Create Duchy Plan'
 
 on:
   push:
@@ -24,7 +24,7 @@ permissions:
   id-token: write
 
 env:
-  ROOT_PATH: '${{ github.workspace }}/src/main/terraform/kingdom/gcloud'
+  ROOT_PATH: '${{ github.workspace }}/src/main/terraform/duchy/gcloud'
   ENV: '${{ vars.ENV }}'
   PROJECT: '${{ vars.PROJECT }}'
 
