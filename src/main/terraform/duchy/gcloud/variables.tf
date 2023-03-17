@@ -50,7 +50,7 @@ locals {
 
 variable "project" {
   type = string
-  default = "halo-cmm-dev"
+  default = "halo-cmm-sandbox"
   description = "Project name used"
 }
 
