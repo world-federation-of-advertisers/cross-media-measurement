@@ -1,0 +1,85 @@
+# Copyright 2023 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: 'Create Duchy'
+
+on:
+  push:
+    branches: [ "feature/create-duchy","main" ]
+  pull_request:
+
+env:
+  ROOT_PATH: '${{ github.workspace }}/src/main/terraform/duchy/gcloud'
+  ENV: '${{ vars.ENV }}'
+  PROJECT: '${{ vars.PROJECT }}'
+  SERVICE_ACCOUNT: '${{ vars.SERVICE_ACCOUNT }}'
+
+permissions:
+  contents: 'read'
+  id-token: 'write'
+
+jobs:
+  terraform:
+    name: 'Halo IAC'
+    runs-on: ubuntu-22.04
+    environment: production
+
+    # Use the Bash shell regardless whether the GitHub Actions runner is ubuntu-latest, macos-latest, or windows-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      # Checkout the repository to the GitHub Actions runner
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      # Install the latest version of Terraform CLI and configure the Terraform CLI configuration file with a Terraform Cloud user API token
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v1
+
+      # Authenticate with workload Identity federation.
+      - id: 'auth'
+        name: 'Authenticate to Google Cloud'
+        uses: 'google-github-actions/auth@v1'
+        with:
+          workload_identity_provider: ${{ secrets.WFI_PROVIDER }}
+          service_account: ${{ secrets.WFI_SA }}
+
+      # Setup the SDK
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
+      - name: Terraform initialization
+        run:  terraform init -backend-config=duchy.properties -reconfigure
+        working-directory: ${{env.ROOT_PATH}}
+
+      # Workspace selection
+      - name: Workspace selection
+        run:  terraform workspace select ${{env.ENV}} || terraform workspace new ${{env.ENV}}
+
+      # Checks that all Terraform configuration files adhere to a canonical format
+      - name: Terraform Format and validate
+        run: terraform fmt -check && terraform validate
+
+      # Creates a plan
+      - name: Terraform Plan
+        run: terraform plan '-out=${{env.ENV}}_tfplan' -var env=${{env.ENV}} -var project=${{env.PROJECT}} -var service_account=${{env.SERVICE_ACCOUNT}}
+        working-directory: ${{env.ROOT_PATH}}
+
+      # Applies the above created plan
+      - name: Terraform Apply
+        run: terraform apply '${{env.ENV}}_tfplan'
+        working-directory: ${{env.ROOT_PATH}}
