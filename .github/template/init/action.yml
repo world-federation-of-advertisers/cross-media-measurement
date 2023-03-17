@@ -60,6 +60,6 @@ runs:
 
     # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
     - name: Terraform Unlock
-      run: terraform forc-unlock --force 1679039438838174
+      run: terraform force-unlock --force 1679039438838174
       working-directory: ${{ inputs.working-directory }}
       shell: bash
