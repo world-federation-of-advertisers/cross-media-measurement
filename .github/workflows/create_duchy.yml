@@ -45,3 +45,10 @@ jobs:
           working-directory: ${{env.ROOT_PATH}}
           workload-identity-provider: ${{ secrets.WFI_PROVIDER }}
           service-account: ${{ secrets.WFI_SA }}
+
+      - name: Terraform Plan
+        uses: "./.github/template/plan"
+        with:
+          working-directory: ${{env.ROOT_PATH}}
+          environment: ${{ env.ENV }}
+          project: ${{ env.PROJECT }}
