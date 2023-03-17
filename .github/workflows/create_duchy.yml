@@ -16,7 +16,7 @@ name: 'Create Duchy Plan'
 
 on:
   push:
-    branches: [ "feature/create-duchy","main" ]
+    branches: [ "main" ]
   pull_request:
 
 permissions:
