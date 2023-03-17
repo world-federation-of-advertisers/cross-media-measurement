@@ -18,7 +18,7 @@ provider "google" {
 
 terraform {
   backend "gcs" {
-    bucket  = "terraform-state-halo-cmm/duchy"
-    prefix  = "halo-cmm"
+    bucket  = "terraform-state-halo-cmm"
+    prefix  = "duchy"
   }
 }
