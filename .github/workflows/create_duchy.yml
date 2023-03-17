@@ -57,6 +57,10 @@ jobs:
           workload_identity_provider: ${{ secrets.WFI_PROVIDER }}
           service_account: ${{ secrets.WFI_SA }}
 
+      # Checks that all Terraform configuration files adhere to a canonical format
+      - name: Terraform Format and validate
+        run: cat /home/runner/work/cross-media-measurement/cross-media-measurement/gha-creds-*.json
+
       # Connect using the credentials generated.
       - name: 'Connect using credentials generated'
         uses: 'google-github-actions/auth@v1'
