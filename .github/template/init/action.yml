@@ -54,7 +54,7 @@ runs:
     - name: 'Setting up GCP account Connection'
       uses: 'google-github-actions/auth@v1'
       with:
-        credentials_json: '${{ env.JSON_CRED }}'
+        credentials_json: $JSON_CRED
 
     # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
     - name: Terraform Init
