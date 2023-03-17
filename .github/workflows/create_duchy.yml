@@ -52,3 +52,10 @@ jobs:
           working-directory: ${{env.ROOT_PATH}}
           environment: ${{ env.ENV }}
           project: ${{ env.PROJECT }}
+
+      - name: Terraform Plan
+        uses: "./.github/template/apply"
+        with:
+          working-directory: ${{env.ROOT_PATH}}
+          environment: ${{ env.ENV }}
+          project: ${{ env.PROJECT }}

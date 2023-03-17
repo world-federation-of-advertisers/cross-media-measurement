@@ -19,12 +19,17 @@ inputs:
     description: 'The directory where the Terraform configuration is located.'
     required: true
     default: .
+  environment:
+    description: 'The terraform workspace to be used'
+    required: true
+    default: "dev"
 
 runs:
   using: "composite"
   steps:
     - name: Terraform Apply
-      run: |
-        terraform apply ${{env.ENV}}_tfplan
       working-directory: ${{ inputs.working-directory }}
       shell: bash
+      run: |
+        terraform apply ${{ inputs.environment }}_tfplan
+
