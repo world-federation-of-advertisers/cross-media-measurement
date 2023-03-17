@@ -68,6 +68,17 @@ message MetricSpecConfig {
     int32 maximum_watch_duration_per_user = 2;
   }
 
+  // Parameters for generating the count of unique audiences reached given a set
+  // of event groups.
+  ReachFrequencyParams reach_params = 1;
+  // Parameters for generating the reach frequency histogram given a set of
+  // event groups.
+  ReachFrequencyParams frequency_histogram_params = 2;
+  // Parameters for generating the impression count given a set of event groups.
+  ImpressionCountParams impression_count_params = 3;
+  // Parameters for generating the watch duration given a set of event groups.
+  WatchDurationParams watch_duration_params = 4;
+
   // Specifies a range of VIDs to be sampled.
   message VidSamplingInterval {
     // The start of the sampling interval in [0, 1)
