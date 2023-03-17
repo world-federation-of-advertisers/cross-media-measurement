@@ -25,6 +25,8 @@ permissions:
 
 env:
   ROOT_PATH: '${{ github.workspace }}/src/main/terraform/duchy/gcloud'
+  ENV: '${{ vars.ENV }}'
+  PROJECT: '${{ vars.PROJECT }}'
 
 jobs:
   terraform:
@@ -41,10 +43,12 @@ jobs:
         uses: "./.github/template/init"
         with:
           working-directory: ${{env.ROOT_PATH}}
-          workload_identity_provider: ${{ secrets.WFI_PROVIDER }}
-          service_account: ${{ secrets.WFI_SA }}
+          workload-identity-provider: ${{ secrets.WFI_PROVIDER }}
+          service-account: ${{ secrets.WFI_SA }}
 
       - name: Terraform Plan
         uses: "./.github/template/plan"
         with:
           working-directory: ${{env.ROOT_PATH}}
+          environment: ${{ vars.ENV }}
+          project: ${{ vars.PROJECT }}
