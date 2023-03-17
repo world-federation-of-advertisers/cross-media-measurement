@@ -15,8 +15,3 @@
 provider "google" {
   project = local.project
 }
-
-terraform {
-  backend "gcs" {
-  }
-}
