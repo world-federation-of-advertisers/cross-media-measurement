@@ -21,9 +21,9 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  REGISTRY_USERNAME: ${{ secrets.GHCR_USERNAME }}
-  IMAGE_NAME: ${{ secrets.IMAGE_NAME }}
-  IMAGE_TAG: ${{ secrets.IMAGE_TAG }}
+  REGISTRY_USERNAME: world-federation-of-advertisers
+  IMAGE_NAME: cross-media-measurement
+  IMAGE_TAG: latest
 
 jobs:
   build-and-push-image:
@@ -63,10 +63,6 @@ jobs:
             xargs bazel build -c opt --define container_registry=ghcr.io \
             --define image_repo_prefix=${{ env.GHCR_USERNAME }}/${{ env.IMAGE_NAME }} \
             --define image_tag=${{ env.IMAGE_TAG }}
-
-      - name: Tag Docker image
-        run: |
-          docker tag ${REGISTRY_USERNAME}/${IMAGE_NAME}:${IMAGE_TAG} ghcr.io/${REGISTRY_USERNAME}/${IMAGE_NAME}:${IMAGE_TAG}
 
       - name: Push Docker image to GHCR
         run: docker push ghcr.io/${{ env.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
