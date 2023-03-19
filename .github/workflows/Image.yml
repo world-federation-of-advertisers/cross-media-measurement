@@ -72,11 +72,19 @@ jobs:
           | xargs bazel build -c opt --define container_registry=ghcr.io \
           --define image_repo_prefix=halo-kingdom-demo \
           --define image_tag=${{ env.IMAGE_TAG }}
-          
-    #  # Push the image
+
+    # Push the image
       - name: Push Docker image
         run: |
-          docker push ghcr.io/${{ env.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          IMAGE_NAME="${{ env.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
+          docker tag halo-kingdom-demo/push_kingdom:latest "${{ IMAGE_NAME }}"
+          docker push "${{ IMAGE_NAME }}"
+      
+
+    #  #  # Push the image
+    #  - name: Push Docker image
+    #    run: |
+    #      docker push ghcr.io/${{ env.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
 
     #  # Tag the image
     #  - name: Tag Docker image
