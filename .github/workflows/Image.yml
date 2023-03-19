@@ -87,27 +87,11 @@ jobs:
             exit 1
           fi
 
-      # Tag the image
-      - name: Tag Docker image
-        uses: docker/build-push-action@v2
-        with:
-          context: ${{ github.workspace }}/src/main/docker
-          push: false
-          tags: ${{ env.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
 
       # Push the image
       - name: Push Docker image
-        uses: docker/build-push-action@v2
-        with:
-          context: ${{ github.workspace }}/src/main/docker
-          push: true
-          tags: ${{ env.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
-
-
-    #  # Push the image
-    #  - name: Push Docker image
-    #    run: |
-    #      docker push ghcr.io/${{ env.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+        run: |
+          docker push ghcr.io/${{ env.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
 
     #  # Tag the image
     #  - name: Tag Docker image
