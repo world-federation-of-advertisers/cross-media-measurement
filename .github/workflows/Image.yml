@@ -54,15 +54,15 @@ jobs:
           git clone -b main https://github.com/world-federation-of-advertisers/cross-media-measurement.git
           cd cross-media-measurement
 
-   #  - name: Build Docker image
-   #    run: |
-   #      cd ${{ github.workspace }}/src/main/docker
-   #      mkdir -p src/main/docker
-   #      cd ../..
-   #      bazel query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
-   #        xargs bazel build -c opt --define container_registry=ghcr.io \
-   #        --define image_repo_prefix=${{ env.GHCR_USERNAME }}/${{ env.IMAGE_NAME }} \
-   #        --define image_tag=${{ env.IMAGE_TAG }}
+      - name: Build Docker image
+        run: |
+          cd ${{ github.workspace }}/src/main/docker
+          mkdir -p src/main/docker
+          cd ../..
+          bazel query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
+            xargs bazel build -c opt --define container_registry=ghcr.io \
+            --define image_repo_prefix=${{ env.GHCR_USERNAME }}/${{ env.IMAGE_NAME }} \
+            --define image_tag=${{ env.IMAGE_TAG }}
 
       # Push Docker image
       - name: Push Docker image to GHCR
