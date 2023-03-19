@@ -21,8 +21,9 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
   REGISTRY_USERNAME: ${{ secrets.GHCR_USERNAME }}
+  IMAGE_NAME: cross-media-measurement
+  IMAGE_TAG: latest
 
 jobs:
   build-and-push-image:
