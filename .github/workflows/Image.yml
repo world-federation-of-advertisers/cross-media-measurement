@@ -68,8 +68,9 @@ jobs:
       - name: Push Docker image
         uses: docker/build-push-action@v2
         with:
-          #context: ${{ github.workspace }}/src/main/docker
-          context: .
+          context: ${{ github.workspace }}/src/main/docker
+          #context: .
+          dockerfile: Dockerfile
           push: true
           tags: ghcr.io/${{ env.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
         env:
