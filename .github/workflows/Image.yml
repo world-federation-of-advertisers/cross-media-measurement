@@ -65,14 +65,6 @@ jobs:
     #        --define image_repo_prefix=${{ env.GHCR_USERNAME }}/${{ env.IMAGE_NAME }} \
     #        --define image_tag=${{ env.IMAGE_TAG }}
 
-      - name: Check if Docker image is available locally
-        run: |
-          if docker images kingdom:latest | awk '{ print $2 }' | grep -q latest; then
-            echo "Docker image is available locally"
-          else
-            echo "Docker image is not available locally"
-            exit 1
-          fi
       # Build the image
       - name: Build Docker image
         run: |
@@ -84,13 +76,14 @@ jobs:
             --define image_repo_prefix=halo-kingdom-demo \
             --define image_tag=${{ env.IMAGE_TAG }}
           
-
       - name: Check if Docker image is available locally
         run: |
+          ls -l
+          docker images --format "{{.Repository}}:{{.Tag}}\t{{.ID}}\t{{.CreatedAt}}\t{{.Size}}" | grep kingdom:latest
           if docker images kingdom:latest | awk '{ print $2 }' | grep -q latest; then
-            echo "Docker image is available locally"
+            echo "kingdom image is available locally"
           else
-            echo "Docker image is not available locally"
+            echo "kingdom image is not available locally"
             exit 1
           fi
 
