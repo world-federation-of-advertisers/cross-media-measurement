@@ -65,24 +65,32 @@ jobs:
     #        --define image_repo_prefix=${{ env.GHCR_USERNAME }}/${{ env.IMAGE_NAME }} \
     #        --define image_tag=${{ env.IMAGE_TAG }}
 
+      # Build the image
+      - name: Build Docker image
+        run: |
+          bazel query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' \
+          | xargs bazel build -c opt --define container_registry=ghcr.io \
+          --define image_repo_prefix=halo-kingdom-demo \
+          --define image_tag=${{ env.IMAGE_TAG }}
+
       # Tag the image
       - name: Tag Docker image
         run: |
           IMAGE_NAME="${{ env.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
-          docker tag halo-kingdom-demo/push_kingdom:latest "${{ IMAGE_NAME }}"
+          docker tag halo-kingdom-demo/push_kingdom:latest "${IMAGE_NAME}"
 
       # Push the image
       - name: Push Docker image
         run: |
           IMAGE_NAME="${{ env.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
-          docker push "${{ IMAGE_NAME }}"
+          docker push "${IMAGE_NAME}"
 
       # Build the image and push it to GHCR
       - name: Build and Push Docker image
         run: |
           IMAGE_NAME="${{ env.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
-          docker build -t "${{ IMAGE_NAME }}" .
-          docker push "${{ IMAGE_NAME }}"
+          docker build -t "${IMAGE_NAME}" .
+          docker push "${IMAGE_NAME}"
 
       
 
