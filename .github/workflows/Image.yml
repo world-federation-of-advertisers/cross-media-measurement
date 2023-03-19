@@ -21,9 +21,9 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  REGISTRY_USERNAME: world-federation-of-advertisers
-  IMAGE_NAME: kingdom
-  IMAGE_TAG: latest
+  REGISTRY_USERNAME: 'world-federation-of-advertisers/cross-media-measurement'
+  IMAGE_NAME: 'kingdom'
+  IMAGE_TAG: 'latest'
 
 jobs:
   build-and-push-image:
