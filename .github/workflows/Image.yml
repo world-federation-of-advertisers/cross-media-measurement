@@ -76,9 +76,10 @@ jobs:
     # Push the image
       - name: Push Docker image
         run: |
-          IMAGE_NAME="${{ env.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
-          docker tag halo-kingdom-demo/push_kingdom:latest "${{ IMAGE_NAME }}"
-          docker push "${{ IMAGE_NAME }}"
+          IMAGE="${{ env.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
+          docker tag halo-kingdom-demo/push_kingdom:latest "${IMAGE}"
+          docker push "${IMAGE}"
+
       
 
     #  #  # Push the image
