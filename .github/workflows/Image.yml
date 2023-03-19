@@ -68,13 +68,10 @@ jobs:
       # Build the image
       - name: Build Docker image
         run: |
-        #  cd ${{ github.workspace }}/src/main/docker
-        #  mkdir -p src/main/docker
-        #  cd ../..
-          bazel query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
-            xargs bazel build -c opt --define container_registry=ghcr.io \
-            --define image_repo_prefix=halo-kingdom-demo \
-            --define image_tag=${{ env.IMAGE_TAG }}
+          bazel query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' \
+          | xargs bazel build -c opt --define container_registry=ghcr.io \
+          --define image_repo_prefix=halo-kingdom-demo \
+          --define image_tag=${{ env.IMAGE_TAG }}
           
     #  # Push the image
       - name: Push Docker image
