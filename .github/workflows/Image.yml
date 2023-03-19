@@ -22,8 +22,8 @@ on:
 env:
   REGISTRY: ghcr.io
   REGISTRY_USERNAME: ${{ secrets.GHCR_USERNAME }}
-  IMAGE_NAME: cross-media-measurement
-  IMAGE_TAG: latest
+  IMAGE_NAME: ${{ secrets.IMAGE_NAME }}
+  IMAGE_TAG: ${{ secrets.IMAGE_TAG }}
 
 jobs:
   build-and-push-image:
