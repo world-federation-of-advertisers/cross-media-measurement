@@ -22,7 +22,7 @@ on:
 env:
   REGISTRY: ghcr.io
   REGISTRY_USERNAME: world-federation-of-advertisers
-  IMAGE_NAME: cross-media-measurement
+  IMAGE_NAME: kingdom
   IMAGE_TAG: latest
 
 jobs:
@@ -54,6 +54,17 @@ jobs:
           git clone -b main https://github.com/world-federation-of-advertisers/cross-media-measurement.git
           cd cross-media-measurement
 
+    #  # Build Kingdom image (working)
+    #  - name: Build Docker image
+    #    run: |
+    #      cd ${{ github.workspace }}/src/main/docker
+    #      mkdir -p src/main/docker
+    #      cd ../..
+    #      bazel query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
+    #        xargs bazel build -c opt --define container_registry=ghcr.io \
+    #        --define image_repo_prefix=${{ env.GHCR_USERNAME }}/${{ env.IMAGE_NAME }} \
+    #        --define image_tag=${{ env.IMAGE_TAG }}
+
       - name: Build Docker image
         run: |
           cd ${{ github.workspace }}/src/main/docker
@@ -61,8 +72,10 @@ jobs:
           cd ../..
           bazel query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
             xargs bazel build -c opt --define container_registry=ghcr.io \
-            --define image_repo_prefix=${{ env.GHCR_USERNAME }}/${{ env.IMAGE_NAME }} \
-            --define image_tag=${{ env.IMAGE_TAG }}
+            --define image_repo_prefix=halo-kingdom-demo \
+            --define image_tag=${{ env.IMAGE_TAG }}       
+          
+          
 
       - name: Push Docker image to GHCR
         run: docker push ghcr.io/${{ env.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
