@@ -32,4 +32,3 @@ runs:
       shell: bash
       run: |
         terraform apply ${{ inputs.environment }}_tfplan
-        

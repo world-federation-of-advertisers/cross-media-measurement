@@ -12,12 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: 'Create Duchy Plan'
+name: 'Create Duchy'
 
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to run the flow for.'
+        type: environment
+        required: true
+      duchy:
+        description: 'Name of the duchy you are trying to create.'
+        type: string
+        required: true
 
 permissions:
   contents: read
@@ -25,12 +32,10 @@ permissions:
 
 env:
   ROOT_PATH: '${{ github.workspace }}/src/main/terraform/duchy/gcloud'
-  ENV: '${{ vars.ENV }}'
-  PROJECT: '${{ vars.PROJECT }}'
 
 jobs:
   terraform:
-    name: 'Halo IAC'
+    name: 'Halo CMM'
     runs-on: ubuntu-22.04
     environment: production
 
@@ -39,22 +44,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
+      # Initialize terraform
       - name: Terraform Init
-        uses: "./.github/template/init"
+        uses: "./.github/template/terraform-init"
         with:
           working-directory: ${{env.ROOT_PATH}}
           workload-identity-provider: ${{ secrets.WFI_PROVIDER }}
           service-account: ${{ secrets.WFI_SA }}
 
+      # Generate a Plan to implement
       - name: Terraform Plan
-        uses: "./.github/template/plan"
+        uses: "./.github/template/terraform-plan"
         with:
           working-directory: ${{env.ROOT_PATH}}
-          environment: ${{ env.ENV }}
-          project: ${{ env.PROJECT }}
+          environment: ${{ inputs.environment }}
+          component: ${{ inputs.duchy }}
 
+      # Apply the generated plan.
  #     - name: Terraform Apply
- #       uses: "./.github/template/apply"
+ #       uses: "./.github/template/terraform-apply"
  #       with:
  #         working-directory: ${{env.ROOT_PATH}}
- #         environment: ${{ env.ENV }}
+ #         environment: ${{ inputs.environment }}
