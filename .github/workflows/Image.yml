@@ -71,16 +71,23 @@ jobs:
         run: |
           bazel query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' \
           | xargs bazel build -c opt --define container_registry=${{ env.REGISTRY }} \
+          --define image_repo_prefix=kingdom \
           --define image_tag=build-0001 \
           --define push_kingdom_image_tag=latest
 
 
-      # Push the image to the registry
-      - name: Push Docker image
-        run: |
-          docker tag kingdom:${{ env.IMAGE_TAG }} ${{ env.REGISTRY }}/${{ env.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
-          docker push ${{ env.REGISTRY }}/${{ env.REGISTRY_USERNAME }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
-
+      # Push the image to GHCR
+      - name: Push Docker image to GHCR
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ env.REGISTRY_USERNAME }}/kingdom:build-0001
+            ghcr.io/${{ env.REGISTRY_USERNAME }}/kingdom:latest
+        env:
+          DOCKER_USERNAME: ${{ github.actor }}
+          DOCKER_PASSWORD: ${{ secrets.GHCR_TOKEN }}
 
 
       
