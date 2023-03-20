@@ -12,12 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: 'Create Kingdom Plan'
+name: 'Create Kingdom'
 
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to run the flow for.'
+        type: environment
+        required: true
+      kingdom:
+        description: 'Name of the kingdom you are trying to create.'
+        type: string
+        required: true
 
 permissions:
   contents: read
@@ -25,12 +32,10 @@ permissions:
 
 env:
   ROOT_PATH: '${{ github.workspace }}/src/main/terraform/kingdom/gcloud'
-  ENV: '${{ vars.ENV }}'
-  PROJECT: '${{ vars.PROJECT }}'
 
 jobs:
   terraform:
-    name: 'Halo IAC'
+    name: 'Halo CMM'
     runs-on: ubuntu-22.04
     environment: production
 
@@ -40,18 +45,18 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Terraform Init
-        uses: "./.github/template/init"
+        uses: "./.github/template/terraform-init"
         with:
           working-directory: ${{env.ROOT_PATH}}
           workload-identity-provider: ${{ secrets.WFI_PROVIDER }}
           service-account: ${{ secrets.WFI_SA }}
 
       - name: Terraform Plan
-        uses: "./.github/template/plan"
+        uses: "./.github/template/terraform-plan"
         with:
           working-directory: ${{env.ROOT_PATH}}
-          environment: ${{ env.ENV }}
-          project: ${{ env.PROJECT }}
+          environment: ${{ inputs.environment }}
+          component: ${{ inputs.kingdom }}
 
  #     - name: Terraform Apply
  #       uses: "./.github/template/apply"
