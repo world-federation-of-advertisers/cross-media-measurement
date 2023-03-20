@@ -55,6 +55,26 @@ jobs:
           git clone -b main https://github.com/world-federation-of-advertisers/cross-media-measurement.git
           cd cross-media-measurement
 
+      # Build the image
+      - name: Build Bazel image
+        working-directory: /tmp/cross-media-measurement
+        run: |
+          cd src/main/docker
+          mkdir -p src/main/docker
+          cd ../..
+          bazel query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
+          xargs bazel build -c opt --define container_registry=ghcr.io \
+          --define image_repo_prefix=halo-cmm-sandbox --define image_tag=build-0001
+
+      # Push the image
+      - name: Push Bazel image
+        working-directory: /tmp/cross-media-measurement
+        run: |
+          bazel query 'kind("container_push", "//src/main/docker:*")' --output=label |
+          xargs -L 1 bazel run -c opt --define container_registry=ghcr.io \
+          --define image_repo_prefix=halo-cmm-sandbox  --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=build-0001
+
+
     #  # Build Kingdom image (working)
     #  - name: Build Docker image
     #    run: |
@@ -65,35 +85,3 @@ jobs:
     #        xargs bazel build -c opt --define container_registry=ghcr.io \
     #        --define image_repo_prefix=${{ env.GHCR_USERNAME }}/${{ env.IMAGE_NAME }} \
     #        --define image_tag=${{ env.IMAGE_TAG }}
-
-      # Build the image
-      - name: Build Docker image
-        run: |
-          bazel query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' \
-          | xargs bazel build -c opt --define container_registry=${{ env.REGISTRY }} \
-          --define image_repo_prefix=kingdom \
-          --define image_tag=build-0001 \
-          --define push_kingdom_image_tag=latest
-
-      # Get Docker build context
-      - name: Get Docker build context
-        run: |
-          DOCKER_BUILD_CONTEXT=$(bazel query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' \
-          | xargs bazel info output_path \
-          | xargs dirname)
-          echo "DOCKER_BUILD_CONTEXT=$DOCKER_BUILD_CONTEXT"
-
-      # Push the image to GHCR
-      - name: Push Docker image to GHCR
-        uses: docker/build-push-action@v2
-        with:
-          context: ${{ env.DOCKER_BUILD_CONTEXT }}
-          dockerfile: ${{ env.DOCKER_BUILD_CONTEXT }}/Dockerfile
-          push: true
-          tags: |
-            ghcr.io/${{ env.REGISTRY_USERNAME }}/kingdom:build-0001
-            ghcr.io/${{ env.REGISTRY_USERNAME }}/kingdom:latest
-        env:
-          DOCKER_USERNAME: ${{ github.actor }}
-          DOCKER_PASSWORD: ${{ secrets.GHCR_TOKEN }}
-
