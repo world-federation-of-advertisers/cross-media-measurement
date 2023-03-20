@@ -33,8 +33,8 @@
 --       │   └── MeasurementPrimitiveReportingSetBases
 --       └── Reports
 --           ├── ReportTimeIntervals
---           └── MetricCalculations
---               └── MetricCalculationMetrics
+--           └── MetricCalculationSpecs
+--               └── MetricCalculationSpecMetrics
 
 -- changeset riemanli:create-measurement-consumers-table dbms:postgresql
 CREATE TABLE MeasurementConsumers (
@@ -243,9 +243,12 @@ CREATE TABLE Metrics (
 
   CreateTime TIMESTAMP WITH TIME ZONE NOT NULL,
 
-  -- Serialized org.wfanet.measurement.internal.reporting.Metric.Details
-  -- protobuf message.
-  MetricDetails bytea NOT NULL,
+  -- Serialized JSON string of a proto3 protobuf with details about the
+  -- metric which do not need to be indexed by the database.
+  --
+  -- See org.wfanet.measurement.internal.reporting.Metric.Details protobuf
+  -- message.
+  MetricDetailsJson STRING(MAX) NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, MetricId),
   UNIQUE (MeasurementConsumerId, CreateMetricRequestId),
@@ -269,13 +272,19 @@ CREATE TABLE Measurements (
   -- protobuf enum encoded as an integer.
   State integer NOT NULL,
 
-  -- Serialized org.wfanet.measurement.internal.reporting.Measurement.Failure
-  -- protobuf message.
-  Failure bytea,
+  -- Serialized JSON string of a proto3 protobuf with details about the
+  -- measurement failure which do not need to be indexed by the database.
+  --
+  -- See org.wfanet.measurement.internal.reporting.Measurement.Failure protobuf
+  -- message.
+  Failure STRING(MAX),
 
-  -- Serialized org.wfanet.measurement.internal.reporting.Measurement.Result
-  -- protobuf message.
-  Result bytea,
+  -- Serialized JSON string of a proto3 protobuf with details about the
+  -- measurement result which do not need to be indexed by the database.
+  --
+  -- See org.wfanet.measurement.internal.reporting.Measurement.Result protobuf
+  -- message.
+  Result STRING(MAX),
 
   PRIMARY KEY(MeasurementConsumerId, MeasurementId),
   UNIQUE (MeasurementConsumerId, CmmsCreateMeasurementRequestId),
@@ -349,17 +358,20 @@ CREATE TABLE ReportTimeIntervals (
 );
 
 -- changeset riemanli:create-metric-calculations-table dbms:postgresql
-CREATE TABLE MetricCalculations (
+CREATE TABLE MetricCalculationSpecs (
   MeasurementConsumerId bigint NOT NULL,
   ReportId bigint NOT NULL,
-  MetricCalculationId bigint NOT NULL,
+  MetricCalculationSpecId bigint NOT NULL,
   ReportingSetId bigint NOT NULL,
 
-  -- Serialized org.wfanet.measurement.internal.reporting.Report.MetricCalculation.Details
+  -- Serialized JSON string of a proto3 protobuf with details about the
+  -- metric calculation which do not need to be indexed by the database.
+  --
+  -- See org.wfanet.measurement.internal.reporting.Report.MetricCalculationSpec.Details
   -- protobuf message.
-  MetricCalculationDetails bytea NOT NULL,
+  MetricCalculationSpecDetailsJson STRING(MAX) NOT NULL,
 
-  PRIMARY KEY(MeasurementConsumerId, ReportId, MetricCalculationId),
+  PRIMARY KEY(MeasurementConsumerId, ReportId, MetricCalculationSpecId),
   FOREIGN KEY(MeasurementConsumerId, ReportId)
     REFERENCES Reports(MeasurementConsumerId, ReportId)
     ON DELETE CASCADE,
@@ -369,15 +381,15 @@ CREATE TABLE MetricCalculations (
 );
 
 -- changeset riemanli:create-metric-calculation-metrics-table dbms:postgresql
-CREATE TABLE MetricCalculationMetrics (
+CREATE TABLE MetricCalculationSpecMetrics (
   MeasurementConsumerId bigint NOT NULL,
   ReportId bigint NOT NULL,
-  MetricCalculationId bigint NOT NULL,
+  MetricCalculationSpecId bigint NOT NULL,
   MetricId bigint NOT NULL,
 
-  PRIMARY KEY(MeasurementConsumerId, ReportId, MetricCalculationId, MetricId),
-  FOREIGN KEY(MeasurementConsumerId, ReportId, MetricCalculationId)
-    REFERENCES MetricCalculations(MeasurementConsumerId, ReportId, MetricCalculationId)
+  PRIMARY KEY(MeasurementConsumerId, ReportId, MetricCalculationSpecId, MetricId),
+  FOREIGN KEY(MeasurementConsumerId, ReportId, MetricCalculationSpecId)
+    REFERENCES MetricCalculationSpecs(MeasurementConsumerId, ReportId, MetricCalculationSpecId)
     ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, MetricId)
     REFERENCES Metrics(MeasurementConsumerId, MetricId)
