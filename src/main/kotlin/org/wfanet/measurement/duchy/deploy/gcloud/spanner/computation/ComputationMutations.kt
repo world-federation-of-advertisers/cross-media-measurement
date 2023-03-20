@@ -68,6 +68,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
   private fun computation(
     newBuilderFunction: MutationBuilderFunction,
     localId: Long,
+    creationTime: Timestamp?,
     updateTime: Timestamp,
     globalId: String? = null,
     protocol: ProtocolT? = null,
@@ -78,6 +79,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
   ): Mutation {
     val m = newBuilderFunction("Computations")
     m.set("ComputationId").to(localId)
+    m.set("CreationTime").to(creationTime)
     m.set("UpdateTime").to(nonNullValueTimestamp(updateTime))
     globalId?.let { m.set("GlobalComputationId").to(it) }
     protocol?.let { m.set("Protocol").to(protocolEnumToLong(it)) }
@@ -100,6 +102,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
    */
   fun insertComputation(
     localId: Long,
+    creationTime: Timestamp,
     updateTime: Timestamp,
     globalId: String,
     protocol: ProtocolT,
@@ -111,6 +114,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     return computation(
       newBuilderFunction = Mutation::newInsertBuilder,
       localId = localId,
+      creationTime = creationTime,
       updateTime = updateTime,
       globalId = globalId,
       protocol = protocol,
@@ -139,6 +143,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
     return computation(
       newBuilderFunction = Mutation::newUpdateBuilder,
       localId = localId,
+      creationTime = null,
       updateTime = updateTime,
       stage = stage,
       lockOwner = lockOwner,

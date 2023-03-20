@@ -169,9 +169,17 @@ abstract class MillBase(
     computationsServerReady = true
 
     if (claimWorkResponse.hasToken()) {
+      val token = claimWorkResponse.token
+      if (token.attempt > maximumAttempts) {
+        val errorMessage = "Failing computation due to too many failed ComputationStageAttempts."
+        logger.log(Level.SEVERE, "${token.globalComputationId}@$millId: $errorMessage")
+        failComputationAtKingdom(token, errorMessage)
+        completeComputation(token, CompletedReason.FAILED)
+      }
+
       val wallDurationLogger = wallDurationLogger()
       val cpuDurationLogger = cpuDurationLogger()
-      val token = claimWorkResponse.token
+
       processComputation(token)
       wallDurationLogger.logStageDurationMetric(
         token,
@@ -224,7 +232,7 @@ abstract class MillBase(
         // Treat all other errors as transient.
         logger.log(Level.WARNING, "$globalId@$millId: TRANSIENT error", e)
         sendStatusUpdateToKingdom(newErrorUpdateRequest(token, e.localizedMessage, Type.TRANSIENT))
-        if (token.attempt >= maximumAttempts) {
+        if (token.attempt > maximumAttempts) {
           val errorMessage = "Failing computation due to too many failed attempts."
           logger.log(Level.SEVERE, "$globalId@$millId: $errorMessage")
           failComputationAtKingdom(token, errorMessage)

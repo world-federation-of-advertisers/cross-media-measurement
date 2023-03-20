@@ -701,8 +701,7 @@ class LiquidLegionsV2MillTest {
           }
           .build()
       )
-
-    // Second attempt fails, which will fail the computation.
+    // Second attempt fails, which doesn't change the computation stage.
     nonAggregatorMill.pollAndProcessNextComputation()
 
     assertThat(fakeComputationDb[LOCAL_ID])
@@ -712,8 +711,38 @@ class LiquidLegionsV2MillTest {
             globalComputationId = GLOBAL_ID
             localComputationId = LOCAL_ID
             attempt = 2
+            computationStage = INITIALIZATION_PHASE.toProtocolStage()
+            version = 5 // claimTask + updateComputationDetails + enqueueComputation
+            computationDetails =
+              initialComputationDetails
+                .toBuilder()
+                .apply {
+                  liquidLegionsV2Builder.localElgamalKeyBuilder.apply {
+                    publicKeyBuilder.apply {
+                      generator = ByteString.copyFromUtf8("generator-foo")
+                      element = ByteString.copyFromUtf8("element-foo")
+                    }
+                    secretKey = ByteString.copyFromUtf8("secretKey-foo")
+                  }
+                }
+                .build()
+            addAllRequisitions(REQUISITIONS)
+          }
+          .build()
+      )
+
+    // Third attempt fails, which will fail the computation.
+    nonAggregatorMill.pollAndProcessNextComputation()
+
+    assertThat(fakeComputationDb[LOCAL_ID])
+      .isEqualTo(
+        ComputationToken.newBuilder()
+          .apply {
+            globalComputationId = GLOBAL_ID
+            localComputationId = LOCAL_ID
+            attempt = 3
             computationStage = COMPLETE.toProtocolStage()
-            version = 5 // claimTask + updateComputationDetails + enqueueComputation + claimTask +
+            version = 8 // claimTask + updateComputationDetails + enqueueComputation + claimTask +
             // EndComputation
             computationDetails =
               initialComputationDetails
