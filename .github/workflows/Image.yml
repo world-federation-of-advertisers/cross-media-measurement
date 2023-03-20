@@ -16,7 +16,7 @@ name: Push Docker Image to Github Artifacts
 
 on:
   push:
-    branches: [ "halo-kingdom-image " ]
+    branches: [ "halo-kingdom-image" ]
 
 env:
   REGISTRY: ghcr.io
