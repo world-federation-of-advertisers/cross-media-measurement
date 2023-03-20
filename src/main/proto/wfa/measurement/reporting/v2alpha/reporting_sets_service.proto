@@ -1,0 +1,97 @@
+// Copyright 2023 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.reporting.v2alpha;
+
+import "google/api/client.proto";
+import "google/api/field_behavior.proto";
+import "google/api/annotations.proto";
+import "google/api/resource.proto";
+import "wfa/measurement/reporting/v2alpha/reporting_set.proto";
+
+option java_package = "org.wfanet.measurement.reporting.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "ReportingSetsServiceProto";
+
+// Service for interacting with `ReportingSet` resources.
+service ReportingSets {
+  // Lists `ReportingSet`s.
+  rpc ListReportingSets(ListReportingSetsRequest)
+      returns (ListReportingSetsResponse) {
+    option (google.api.http) = {
+      get: "/v2alpha/{parent=measurementConsumers/*}/reportingSets"
+    };
+    option (google.api.method_signature) = "parent";
+  }
+
+  // Creates a `ReportingSet`.
+  rpc CreateReportingSet(CreateReportingSetRequest) returns (ReportingSet) {
+    option (google.api.http) = {
+      post: "/v2alpha/{parent=measurementConsumers/*}/reportingSets"
+      body: "reporting_set"
+    };
+    option (google.api.method_signature) = "parent,reporting_set";
+  }
+}
+
+// Request message for `ListReportingSet` method.
+message ListReportingSetsRequest {
+  // Format: measurementConsumers/{measurement_consumer}
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "reporting.halo-cmm.org/ReportingSet"
+    }
+  ];
+
+  // The maximum number of reportingSets to return. The service may return fewer
+  // than this value.
+  // If unspecified, at most 50 reportingSets will be returned.
+  // The maximum value is 1000; values above 1000 will be coerced to 1000.
+  int32 page_size = 2;
+
+  // A page token, received from a previous `ListReportingSets` call.
+  // Provide this to retrieve the subsequent page.
+  //
+  // When paginating, all other parameters provided to `ListReportingSets` must
+  // match the call that provided the page token.
+  string page_token = 3;
+}
+
+// Response message for `ListReportingSet` method.
+message ListReportingSetsResponse {
+  // The reportingSets from the specified measurement consumer.
+  repeated ReportingSet reporting_sets = 1;
+
+  // A token, which can be sent as `page_token` to retrieve the next page.
+  // If this field is omitted, there are no subsequent pages.
+  string next_page_token = 2;
+}
+
+// Request message for `CreateReportingSet` method.
+message CreateReportingSetRequest {
+  // The parent resource where this reportingSet will be created.
+  // Format: measurementConsumers/{measurement_consumer}
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "reporting.halo-cmm.org/ReportingSet"
+    }
+  ];
+
+  // The ReportingSet to create.
+  ReportingSet reporting_set = 2 [(google.api.field_behavior) = REQUIRED];
+}

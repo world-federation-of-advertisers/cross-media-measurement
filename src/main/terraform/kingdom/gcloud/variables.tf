@@ -19,7 +19,7 @@ locals {
   zone = "us-central1"
 
   # e.g. Prefix will look like dev-halo-kingdom
-  prefix = "${local.env}-${local.project}-${local.component}"
+  prefix = "${local.env}-${local.component}"
 
   spanner_db = {
     deletion_protection = true
@@ -42,7 +42,7 @@ locals {
 
 variable "project" {
   type = string
-  default = "halo-cmm-dev"
+  default = "halo-cmm-sandbox"
   description = "Project name used"
 }
 

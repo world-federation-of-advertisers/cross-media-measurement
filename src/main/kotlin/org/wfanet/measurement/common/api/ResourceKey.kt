@@ -27,4 +27,8 @@ interface ResourceKey {
      */
     fun fromName(resourceName: String): T?
   }
+
+  companion object {
+    const val WILDCARD_ID = "-"
+  }
 }
