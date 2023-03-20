@@ -23,7 +23,7 @@ env:
   REGISTRY: ghcr.io
   REGISTRY_USERNAME: world-federation-of-advertisers/cross-media-measurement
   IMAGE_NAME: kingdom
-  IMAGE_TAG: latest
+  IMAGE_TAG: build-0001
 
 
 jobs:
@@ -72,7 +72,9 @@ jobs:
           bazel query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' \
           | xargs bazel build -c opt --define container_registry=${{ env.REGISTRY }} \
           --define image_repo_prefix=${{ env.REGISTRY_USERNAME }}/halo-kingdom-demo \
-          --define image_tag=${{ env.IMAGE_TAG }}
+          --define image_tag=build-0001 \
+          --define push_kingdom_image_tag=latest
+
 
       # Push the image to GHCR
       - name: Push Docker image
