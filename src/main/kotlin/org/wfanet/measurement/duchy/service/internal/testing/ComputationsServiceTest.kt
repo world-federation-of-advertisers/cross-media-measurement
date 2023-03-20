@@ -506,4 +506,331 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
 
       assertThat(exception.message).contains("editVersion mismatch")
     }
+
+  @Test
+  fun `finishComputation returns computation in terminal stage`() = runBlocking {
+    val createComputationResp = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+
+    val finishComputationRequest = finishComputationRequest {
+      token = createComputationResp.token
+      endingComputationStage = Stage.COMPLETE.toProtocolStage()
+      reason = ComputationDetails.CompletedReason.SUCCEEDED
+    }
+    val finishComputationResponse = service.finishComputation(finishComputationRequest)
+
+    val expectedComputationToken =
+      createComputationResp.token.copy {
+        computationStage = Stage.COMPLETE.toProtocolStage()
+        computationDetails =
+          this.computationDetails.copy {
+            endingState = ComputationDetails.CompletedReason.SUCCEEDED
+          }
+      }
+    assertThat(finishComputationResponse.token)
+      .ignoringFields(ComputationToken.VERSION_FIELD_NUMBER)
+      .isEqualTo(expectedComputationToken)
+  }
+
+  @Test
+  fun `finishComputation throws IllegalStateException when complete reason is UNSPECIFIED`() =
+    runBlocking {
+      val createComputationResp = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+
+      val finishComputationRequest = finishComputationRequest {
+        token = createComputationResp.token
+        endingComputationStage = Stage.COMPLETE.toProtocolStage()
+        reason = ComputationDetails.CompletedReason.UNSPECIFIED
+      }
+      val exception =
+        assertFailsWith<IllegalStateException> {
+          service.finishComputation(finishComputationRequest)
+        }
+
+      assertThat(exception.message).contains("Unknown CompletedReason")
+    }
+
+  @Test
+  fun `finishComputation throws IllegalStateException when terminal stage is invalid`() =
+    runBlocking {
+      val createComputationResp = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+
+      val finishComputationRequest = finishComputationRequest {
+        token = createComputationResp.token
+        endingComputationStage = Stage.SETUP_PHASE.toProtocolStage()
+        reason = ComputationDetails.CompletedReason.SUCCEEDED
+      }
+      val exception =
+        assertFailsWith<IllegalArgumentException> {
+          service.finishComputation(finishComputationRequest)
+        }
+
+      assertThat(exception.message).contains("Invalid terminal stage of computation")
+    }
+
+  @Test
+  fun `claimWork returns empty response when no computation to be claimed`() = runBlocking {
+    val claimWorkRequest = claimWorkRequest {
+      computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+    }
+    val claimWorkResponse = service.claimWork(claimWorkRequest)
+
+    assertThat(claimWorkResponse).isEqualTo(ClaimWorkResponse.getDefaultInstance())
+  }
+
+  @Test
+  fun `claimWork returns empty response when all computations are claimed`() = runBlocking {
+    service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+    val claimWorkRequest = claimWorkRequest {
+      computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+    }
+    service.claimWork(claimWorkRequest)
+
+    val claimWorkResponse = service.claimWork(claimWorkRequest)
+
+    assertThat(claimWorkResponse).isEqualTo(ClaimWorkResponse.getDefaultInstance())
+  }
+
+  @Test
+  fun `claimWork returns claimed computation token`() = runBlocking {
+    val createComputationResponse = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+
+    val claimWorkRequest = claimWorkRequest {
+      computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+    }
+    val claimWorkResponse = service.claimWork(claimWorkRequest)
+
+    val expectedClaimedComputationToken = createComputationResponse.token.copy { attempt = 1 }
+    assertThat(claimWorkResponse.token)
+      .ignoringFields(ComputationToken.VERSION_FIELD_NUMBER)
+      .isEqualTo(expectedClaimedComputationToken)
+  }
+
+  @Test
+  fun `getComputationIds returns empty response when no matching computations`() = runBlocking {
+    service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+
+    val getComputationIdsRequest = getComputationIdsRequest {
+      stages += Stage.WAIT_REQUISITIONS_AND_KEY_SET.toProtocolStage()
+    }
+    val getComputationIdsResponse = service.getComputationIds(getComputationIdsRequest)
+
+    assertThat(getComputationIdsResponse).isEqualTo(GetComputationIdsResponse.getDefaultInstance())
+  }
+
+  @Test
+  fun `getComputationIds returns all IDs in given stages`(): Unit = runBlocking {
+    service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+    val secondComputationId = "5678"
+    service.createComputation(
+      DEFAULT_CREATE_COMPUTATION_REQUEST.copy {
+        globalComputationId = secondComputationId
+        requisitions[0] = requisitions[0].copy { key = key.copy { externalRequisitionId = "5678" } }
+      }
+    )
+    val claimWorkRequest = claimWorkRequest {
+      computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+    }
+    service.claimWork(claimWorkRequest)
+
+    val getComputationIdsRequest = getComputationIdsRequest {
+      stages += Stage.INITIALIZATION_PHASE.toProtocolStage()
+      stages += Stage.WAIT_REQUISITIONS_AND_KEY_SET.toProtocolStage()
+    }
+    val getComputationIdsResponse = service.getComputationIds(getComputationIdsRequest)
+
+    assertThat(getComputationIdsResponse.globalIdsList)
+      .containsExactly(GLOBAL_COMPUTATION_ID, secondComputationId)
+  }
+
+  @Test
+  fun `recordOutputBlobPath returns token with updated blob path`() = runBlocking {
+    service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+    val claimWorkRequest = claimWorkRequest {
+      computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+    }
+    val claimWorkResponse = service.claimWork(claimWorkRequest)
+    val advanceComputationStageResp =
+      service.advanceComputationStage(
+        advanceComputationStageRequest {
+          token = claimWorkResponse.token
+          nextComputationStage = computationStage {
+            liquidLegionsSketchAggregationV2 = Stage.WAIT_REQUISITIONS_AND_KEY_SET
+          }
+          afterTransition = AfterTransition.RETAIN_AND_EXTEND_LOCK
+          outputBlobs = 2
+        }
+      )
+
+    var latestToken = advanceComputationStageResp.token
+    var expectedToken = latestToken
+    val blobPathTemplate = "/path/to/output/blob_"
+    advanceComputationStageResp.token.blobsList.forEach { blobMetadata ->
+      val blobId = blobMetadata.blobId
+      val blobPath = blobPathTemplate + blobId
+      val recordOutputBlobPathRequest = recordOutputBlobPathRequest {
+        token = latestToken
+        this.outputBlobId = blobId
+        this.blobPath = blobPath
+      }
+      val recordOutputBlobPathResponse = service.recordOutputBlobPath(recordOutputBlobPathRequest)
+
+      expectedToken =
+        expectedToken.copy {
+          blobs[blobId.toInt()] = blobs[blobId.toInt()].copy { path = blobPath }
+        }
+      assertThat(recordOutputBlobPathResponse.token)
+        .ignoringFields(ComputationToken.VERSION_FIELD_NUMBER)
+        .isEqualTo(expectedToken)
+      latestToken = recordOutputBlobPathResponse.token
+    }
+  }
+
+  @Test
+  fun `recordOutputBlobPath throws IllegalStateException when blobId does not exist`(): Unit =
+    runBlocking {
+      val createComputationResponse = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+
+      val computationToken = createComputationResponse.token
+      val blobId = 0L
+      val blobPath = "blobPath"
+      val recordOutputBlobPathRequest = recordOutputBlobPathRequest {
+        token = computationToken
+        this.outputBlobId = blobId
+        this.blobPath = blobPath
+      }
+      val exception =
+        assertFailsWith<IllegalStateException> {
+          service.recordOutputBlobPath(recordOutputBlobPathRequest)
+        }
+
+      assertThat(exception.message).contains("No ComputationBlobReferences row")
+    }
+
+  @Test
+  fun `recordOutputBlobPath throws IllegalArgumentException when blob is not OUTPUT type`(): Unit =
+    runBlocking {
+      service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+      val claimWorkRequest = claimWorkRequest {
+        computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+      }
+      val claimWorkResponse = service.claimWork(claimWorkRequest)
+      val advanceComputationStageResp =
+        service.advanceComputationStage(
+          advanceComputationStageRequest {
+            token = claimWorkResponse.token
+            nextComputationStage = computationStage {
+              liquidLegionsSketchAggregationV2 = Stage.WAIT_REQUISITIONS_AND_KEY_SET
+            }
+            afterTransition = AfterTransition.RETAIN_AND_EXTEND_LOCK
+            inputBlobs += "input_blob"
+          }
+        )
+
+      val recordOutputBlobPathRequest = recordOutputBlobPathRequest {
+        token = advanceComputationStageResp.token
+        this.outputBlobId = advanceComputationStageResp.token.blobsList[0].blobId
+        this.blobPath = "blob_path"
+      }
+      val exception =
+        assertFailsWith<IllegalArgumentException> {
+          service.recordOutputBlobPath(recordOutputBlobPathRequest)
+        }
+
+      assertThat(exception.message).contains("Cannot write to")
+    }
+
+  @Test
+  fun `enqueueComputation returns empty response`() = runBlocking {
+    val createComputationResponse = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+
+    val enqueueComputationRequest = enqueueComputationRequest {
+      token = createComputationResponse.token
+      delaySecond = 1
+    }
+    val enqueueComputationResponse = service.enqueueComputation(enqueueComputationRequest)
+
+    assertThat(enqueueComputationResponse)
+      .isEqualTo(EnqueueComputationResponse.getDefaultInstance())
+  }
+
+  @Test
+  fun `enqueueComputation throws INVALID_ARGUMENT when delay seconds is negative`(): Unit =
+    runBlocking {
+      val createComputationResponse = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+
+      val enqueueComputationRequest = enqueueComputationRequest {
+        token = createComputationResponse.token
+        delaySecond = -1
+      }
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.enqueueComputation(enqueueComputationRequest)
+        }
+
+      assertThat(exception.message).contains("should be non-negative")
+    }
+
+  @Test
+  fun `recordRequisitionBlobPath returns updated token`() = runBlocking {
+    val createComputationResponse =
+      service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST.copy {})
+
+    val blobPath = "/path/to/requisition/blob"
+    val recordRequisitionBlobPathRequest = recordRequisitionBlobPathRequest {
+      token = createComputationResponse.token
+      key = DEFAULT_REQUISITION_ENTRY.key
+      this.blobPath = blobPath
+    }
+    val recordRequisitionBlobResponse =
+      service.recordRequisitionBlobPath(recordRequisitionBlobPathRequest)
+
+    val expectedToken =
+      createComputationResponse.token.copy {
+        requisitions[0] = requisitions[0].copy { path = blobPath }
+      }
+    assertThat(recordRequisitionBlobResponse.token)
+      .ignoringFields(ComputationToken.VERSION_FIELD_NUMBER)
+      .isEqualTo(expectedToken)
+  }
+
+  @Test
+  fun `recordRequisitionBlobPath throws IllegalArgumentException when path is blank`(): Unit =
+    runBlocking {
+      val createComputationResponse = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+
+      val blankBlobPath = ""
+      val recordRequisitionBlobPathRequest = recordRequisitionBlobPathRequest {
+        token = createComputationResponse.token
+        key = DEFAULT_REQUISITION_ENTRY.key
+        this.blobPath = blankBlobPath
+      }
+      val exception =
+        assertFailsWith<IllegalArgumentException> {
+          service.recordRequisitionBlobPath(recordRequisitionBlobPathRequest)
+        }
+
+      assertThat(exception.message).contains("Cannot insert blank path to blob")
+    }
+
+  @Test
+  fun `recordRequisitionBlobPath throws IllegalStateException when requisition does not exist`():
+    Unit = runBlocking {
+    val createComputationResponse = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+
+    val blobPath = "/path/to/requisition/blob"
+    val recordRequisitionBlobPathRequest = recordRequisitionBlobPathRequest {
+      token = createComputationResponse.token
+      key = externalRequisitionKey {
+        externalRequisitionId = "dne_external_requsition_id"
+        requisitionFingerprint = "dne_finger_print".toByteStringUtf8()
+      }
+      this.blobPath = blobPath
+    }
+    val exception =
+      assertFailsWith<IllegalStateException> {
+        service.recordRequisitionBlobPath(recordRequisitionBlobPathRequest)
+      }
+
+    assertThat(exception.message).contains("No Computation found")
+  }
 }
