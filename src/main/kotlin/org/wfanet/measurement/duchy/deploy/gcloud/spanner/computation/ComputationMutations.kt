@@ -79,7 +79,7 @@ class ComputationMutations<ProtocolT, StageT, StageDT : Message, ComputationDT :
   ): Mutation {
     val m = newBuilderFunction("Computations")
     m.set("ComputationId").to(localId)
-    m.set("CreationTime").to(creationTime)
+    creationTime?.let { m.set("CreationTime").to(creationTime) }
     m.set("UpdateTime").to(nonNullValueTimestamp(updateTime))
     globalId?.let { m.set("GlobalComputationId").to(it) }
     protocol?.let { m.set("Protocol").to(protocolEnumToLong(it)) }
