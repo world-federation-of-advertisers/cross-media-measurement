@@ -71,7 +71,7 @@ jobs:
         run: |
           bazel query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' \
           | xargs bazel build -c opt --define container_registry=${{ env.REGISTRY }} \
-          --define image_repo_prefix=${{ env.REGISTRY_USERNAME }}/halo-kingdom-demo \
+          --define image_repo_prefix=${{ env.REGISTRY_USERNAME }}/kingdom \
           --define image_tag=build-0001 \
           --define push_kingdom_image_tag=latest
 
@@ -82,8 +82,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ env.REGISTRY_USERNAME }}/halo-kingdom-demo:build-0001
-            ghcr.io/${{ env.REGISTRY_USERNAME }}/halo-kingdom-demo:latest
+            ghcr.io/${{ env.REGISTRY_USERNAME }}/kingdom:build-0001
+            ghcr.io/${{ env.REGISTRY_USERNAME }}/kingdom:latest
         env:
           DOCKER_USERNAME: ${{ github.actor }}
           DOCKER_PASSWORD: ${{ secrets.GHCR_TOKEN }}
