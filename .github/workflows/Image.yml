@@ -21,7 +21,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   push_docker_image:
@@ -30,37 +29,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: 'Setting up GCP account Connection'
-        uses: 'google-github-actions/auth@v1'
-        with:
-          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
-
       - name: Login to GitHub Packages
         uses: docker/login-action@v1
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_TOKEN }}
-
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v2
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-
-      # Clone the repositories
-      - name: Clone repositories
-        run: |
-          cd /tmp
-          echo "Cloning the cross-media-measurement repository"
-          git clone -b main https://github.com/world-federation-of-advertisers/cross-media-measurement.git
-          cd cross-media-measurement
-
-      # Export Docker Build
-      - name: export docker built
-        run: |
-          export DOCKER_BUILDKIT=0 
-          export COMPOSE_DOCKER_CLI_BUILD=0
 
       # Build Duchy Image
       - name: Build Duchy image
