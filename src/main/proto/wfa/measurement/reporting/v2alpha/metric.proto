@@ -33,25 +33,29 @@ message MetricSpec {
   // foundations of differential privacy. Foundations and Trends in Theoretical
   // Computer Science, 9(3-4), pp.211-407."
   message DifferentialPrivacyParams {
-    double epsilon = 1;
-    double delta = 2;
+    double epsilon = 1 [(google.api.field_behavior) = REQUIRED];
+    double delta = 2 [(google.api.field_behavior) = REQUIRED];
   }
 
-  // Parameters that are used to generate `Reach` metric or
-  // `Frequency Histogram` metric.
-  message ReachFrequencyParams {
+  // Parameters that are used to generate `Reach` metric.
+  message ReachParams {
     // Differential privacy parameters for reach.
     //
-    // This field is either unset or fully set. The parameters in this field
-    // cannot be set partially. If this field is not set, the default values
-    // will be used and outputted here.
-    DifferentialPrivacyParams reach_privacy_params = 1;
-
-    // Differential privacy parameters for frequency.
+    // If this field is unspecified in a request message, the service
+    // implementation will choose a value.
+    DifferentialPrivacyParams privacy_params = 1;
+  }
+  // Parameters that are used to generate `Frequency Histogram` metric.
+  message FrequencyHistogramParams {
+    // Differential privacy parameters for reach.
     //
-    // This field is either unset or fully set. The parameters in this field
-    // cannot be set partially. If this field is not set, the default values
-    // will be used and outputted here.
+    // If this field is unspecified in a request message, the service
+    // implementation will choose a value.
+    DifferentialPrivacyParams reach_privacy_params = 1;
+    // Differential privacy parameters for frequency distribution.
+    //
+    // If this field is unspecified in a request message, the service
+    // implementation will choose a value.
     DifferentialPrivacyParams frequency_privacy_params = 2;
     // Maximum frequency cut-off value in the frequency histogram.
     //
@@ -63,9 +67,8 @@ message MetricSpec {
   message ImpressionCountParams {
     // Differential privacy parameters.
     //
-    // This field is either unset or fully set. The parameters in this field
-    // cannot be set partially. If this field is not set, the default values
-    // will be used and outputted here.
+    // If this field is unspecified in a request message, the service
+    // implementation will choose a value.
     DifferentialPrivacyParams privacy_params = 1;
     // Maximum frequency per user that will be included in this metric. Enforced
     // on a per EDP basis.
@@ -84,9 +87,8 @@ message MetricSpec {
   message WatchDurationParams {
     // Differential privacy parameters.
     //
-    // This field is either unset or fully set. The parameters in this field
-    // cannot be set partially. If this field is not set, the default values
-    // will be used and outputted here.
+    // If this field is unspecified in a request message, the service
+    // implementation will choose a value.
     DifferentialPrivacyParams privacy_params = 1;
     // Maximum watch duration per user in second that will be included in this
     // metric.
@@ -101,13 +103,13 @@ message MetricSpec {
   // Types of metric with parameters.
   oneof type {
     // The count of unique audiences reached given a set of event groups.
-    ReachFrequencyParams reach = 1 [(google.api.field_behavior) = IMMUTABLE];
+    ReachParams reach = 1 [(google.api.field_behavior) = IMMUTABLE];
     // The reach frequency histogram given a set of event groups.
     //
     // Currently, we only support union operations for frequency histograms. Any
     // other operations on frequency histograms won't guarantee the result is a
     // frequency histogram.
-    ReachFrequencyParams frequency_histogram = 2
+    FrequencyHistogramParams frequency_histogram = 2
         [(google.api.field_behavior) = IMMUTABLE];
     // The impression count given a set of event groups.
     ImpressionCountParams impression_count = 3
@@ -120,16 +122,16 @@ message MetricSpec {
   // Specifies a range of VIDs to be sampled.
   message VidSamplingInterval {
     // The start of the sampling interval in [0, 1)
-    float start = 1;
+    float start = 1 [(google.api.field_behavior) = REQUIRED];
     // The width of the sampling interval.
     //
     // start + width cannot be larger than 1
-    float width = 2;
+    float width = 2 [(google.api.field_behavior) = REQUIRED];
   }
   // Range of VIDs that will be included in this measurement
   //
-  // The parameters cannot be set partially. If no parameters are set, the
-  // default values will be used and outputted here.
+  // If this field is unspecified in a request message, the service
+  // implementation will choose a value.
   VidSamplingInterval vid_sampling_interval = 5;
 }
 
