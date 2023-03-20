@@ -18,8 +18,8 @@
 
 resource "google_container_cluster" "worker" {
 
-  # The name will look like dev-halo-duchy-worker1
-  name     = "${local.prefix}-worker1"
+  # The name will look like dev-halo-duchy-worker
+  name     = "${local.prefix}-worker"
 
   location = local.zone
   initial_node_count = local.duchy.cluster_node_count

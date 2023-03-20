@@ -16,3 +16,9 @@ provider "google" {
   project = local.project
 }
 
+terraform {
+  backend "gcs" {
+    bucket  = "terraform-state-halo-cmm"
+    prefix  = "duchy"
+  }
+}
