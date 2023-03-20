@@ -31,12 +31,24 @@ message MetricSpecConfig {
     double delta = 2;
   }
 
-  // Parameters that are used to generate `Reach` metric or
-  // `Frequency Histogram` metric.
-  message ReachFrequencyParams {
+  // Parameters that are used to generate `Reach` metric.
+  message ReachParams {
     // Differential privacy parameters for reach.
     DifferentialPrivacyParams reach_privacy_params = 1;
-
+    // Differential privacy parameters for frequency.
+    //
+    // Small default values are selected for the reach computation execution.
+    DifferentialPrivacyParams frequency_privacy_params = 2;
+    // Maximum frequency cut-off value in the frequency histogram.
+    //
+    // Counts with frequency higher than `max_frequency` will be aggregated
+    // together. For reach, this is equal to 1.
+    int32 maximum_frequency_per_user = 3;
+  }
+  // Parameters that are used to generate `Frequency Histogram` metric.
+  message FrequencyHistogramParams {
+    // Differential privacy parameters for reach.
+    DifferentialPrivacyParams reach_privacy_params = 1;
     // Differential privacy parameters for frequency.
     DifferentialPrivacyParams frequency_privacy_params = 2;
     // Maximum frequency cut-off value in the frequency histogram.
@@ -70,10 +82,10 @@ message MetricSpecConfig {
 
   // Parameters for generating the count of unique audiences reached given a set
   // of event groups.
-  ReachFrequencyParams reach_params = 1;
+  ReachParams reach_params = 1;
   // Parameters for generating the reach frequency histogram given a set of
   // event groups.
-  ReachFrequencyParams frequency_histogram_params = 2;
+  FrequencyHistogramParams frequency_histogram_params = 2;
   // Parameters for generating the impression count given a set of event groups.
   ImpressionCountParams impression_count_params = 3;
   // Parameters for generating the watch duration given a set of event groups.
