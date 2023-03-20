@@ -12,40 +12,40 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: "Build and Push image in GHCR"
+name: Push Docker Image to Github Artifacts
 
 on:
   push:
-    branches:
-      - feature/halo-kingdom-image
+    branches: [ "terraform-duchy" ]
 
 env:
   REGISTRY: ghcr.io
-  REGISTRY_USERNAME: world-federation-of-advertisers/cross-media-measurement
-  IMAGE_NAME: kingdom
-  IMAGE_TAG: build-0001
-
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build-and-push-image:
-    name: 'Build and push image'
-    runs-on: ubuntu-22.04
-    environment: production
-
-    permissions:
-      contents: 'read'
-      packages: 'write'
-
+  push_docker_image:
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-      - name: Log in to the Container registry
-        uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
+      - name: 'Setting up GCP account Connection'
+        uses: 'google-github-actions/auth@v1'
+        with:
+          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+
+      - name: Login to GitHub Packages
+        uses: docker/login-action@v1
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v2
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
 
       # Clone the repositories
       - name: Clone repositories
@@ -55,40 +55,40 @@ jobs:
           git clone -b main https://github.com/world-federation-of-advertisers/cross-media-measurement.git
           cd cross-media-measurement
 
-      # Build the image
-      - name: Build Bazel image
+      # Export Docker Build
+      - name: export docker built
+        run: |
+          export DOCKER_BUILDKIT=0 
+          export COMPOSE_DOCKER_CLI_BUILD=0
+
+      # Build Duchy Image
+      - name: Build Duchy image
         working-directory: /tmp/cross-media-measurement
         run: |
-          cd src/main/docker
-          mkdir -p src/main/docker
-          cd ../..
+          bazel query 'filter("push_duchy", kind("container_push", //src/main/docker:all))' |
+          xargs bazel build -c opt --define container_registry=ghcr.io \
+          --define image_repo_prefix=world-federation-of-advertisers/cross-media-measurement --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=build-0001
+
+      # Build Kingdom Image
+      - name: Build kingdom image
+        working-directory: /tmp/cross-media-measurement
+        run: |
           bazel query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
           xargs bazel build -c opt --define container_registry=ghcr.io \
-          --define image_repo_prefix=halo-cmm-sandbox --define image_tag=build-0001
+          --define image_repo_prefix=world-federation-of-advertisers/cross-media-measurement --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=build-0001    
 
-      - name: Log in to the Container registry
-        uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_TOKEN }}
-
-      # Push the image
-      - name: Push Bazel image
+      # Push Duchy Image to GitHub Artifacts.
+      - name: Push Image to GitHub repo
         working-directory: /tmp/cross-media-measurement
         run: |
-          bazel query 'kind("container_push", "//src/main/docker:*")' --output=label |
-          xargs -L 1 bazel run -c opt --define container_registry=ghcr.io \
-          --define image_repo_prefix=halo-cmm-sandbox  --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=build-0001
+          bazel query 'filter("push_duchy", kind("container_push", //src/main/docker:all))' |
+            xargs -n 1 bazel run -c opt --define container_registry=ghcr.io \
+            --define image_repo_prefix=world-federation-of-advertisers/cross-media-measurement --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=build-0001
 
-
-    #  # Build Kingdom image (working)
-    #  - name: Build Docker image
-    #    run: |
-    #      cd ${{ github.workspace }}/src/main/docker
-    #      mkdir -p src/main/docker
-    #      cd ../..
-    #      bazel query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
-    #        xargs bazel build -c opt --define container_registry=ghcr.io \
-    #        --define image_repo_prefix=${{ env.GHCR_USERNAME }}/${{ env.IMAGE_NAME }} \
-    #        --define image_tag=${{ env.IMAGE_TAG }}
+      # Push Kingdom Image to GitHub Artifacts.
+      - name: Push Image to GitHub repo
+        working-directory: /tmp/cross-media-measurement
+        run: |
+          bazel query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
+            xargs -n 1 bazel run -c opt --define container_registry=ghcr.io \
+            --define image_repo_prefix=world-federation-of-advertisers/cross-media-measurement --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=build-0001
