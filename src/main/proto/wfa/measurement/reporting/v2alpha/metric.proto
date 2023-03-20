@@ -42,7 +42,7 @@ message MetricSpec {
     // Differential privacy parameters for reach.
     //
     // If this field is unspecified in a request message, the service
-    // implementation will choose a value.
+    // implementation will use the value specified in the system defaults.
     DifferentialPrivacyParams privacy_params = 1;
   }
   // Parameters that are used to generate `Frequency Histogram` metric.
@@ -50,12 +50,12 @@ message MetricSpec {
     // Differential privacy parameters for reach.
     //
     // If this field is unspecified in a request message, the service
-    // implementation will choose a value.
+    // implementation will use the value specified in the system defaults.
     DifferentialPrivacyParams reach_privacy_params = 1;
     // Differential privacy parameters for frequency distribution.
     //
     // If this field is unspecified in a request message, the service
-    // implementation will choose a value.
+    // implementation will use the value specified in the system defaults.
     DifferentialPrivacyParams frequency_privacy_params = 2;
     // Maximum frequency cut-off value in the frequency histogram.
     //
@@ -68,7 +68,7 @@ message MetricSpec {
     // Differential privacy parameters.
     //
     // If this field is unspecified in a request message, the service
-    // implementation will choose a value.
+    // implementation will use the value specified in the system defaults.
     DifferentialPrivacyParams privacy_params = 1;
     // Maximum frequency per user that will be included in this metric. Enforced
     // on a per EDP basis.
@@ -88,7 +88,7 @@ message MetricSpec {
     // Differential privacy parameters.
     //
     // If this field is unspecified in a request message, the service
-    // implementation will choose a value.
+    // implementation will use the value specified in the system defaults.
     DifferentialPrivacyParams privacy_params = 1;
     // Maximum watch duration per user in second that will be included in this
     // metric.
@@ -131,7 +131,7 @@ message MetricSpec {
   // Range of VIDs that will be included in this measurement
   //
   // If this field is unspecified in a request message, the service
-  // implementation will choose a value.
+  // implementation will use the value specified in the system defaults.
   VidSamplingInterval vid_sampling_interval = 5;
 }
 
