@@ -16,7 +16,7 @@ name: Push Docker Image to Github Artifacts
 
 on:
   push:
-    branches: [ "terraform-duchy" ]
+    branches: [ "feature/halo-kingdom-image " ]
 
 env:
   REGISTRY: ghcr.io
