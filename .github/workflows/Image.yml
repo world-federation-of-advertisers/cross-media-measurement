@@ -38,7 +38,7 @@ jobs:
 
       # Build Duchy Image
       - name: Build Duchy image
-        working-directory: /tmp/cross-media-measurement
+        working-directory: cross-media-measurement
         run: |
           bazel query 'filter("push_duchy", kind("container_push", //src/main/docker:all))' |
           xargs bazel build -c opt --define container_registry=ghcr.io \
@@ -46,7 +46,7 @@ jobs:
 
       # Build Kingdom Image
       - name: Build kingdom image
-        working-directory: /tmp/cross-media-measurement
+        working-directory: cross-media-measurement
         run: |
           bazel query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
           xargs bazel build -c opt --define container_registry=ghcr.io \
@@ -54,7 +54,7 @@ jobs:
 
       # Push Duchy Image to GitHub Artifacts.
       - name: Push Image to GitHub repo
-        working-directory: /tmp/cross-media-measurement
+        working-directory: cross-media-measurement
         run: |
           bazel query 'filter("push_duchy", kind("container_push", //src/main/docker:all))' |
             xargs -n 1 bazel run -c opt --define container_registry=ghcr.io \
@@ -62,7 +62,7 @@ jobs:
 
       # Push Kingdom Image to GitHub Artifacts.
       - name: Push Image to GitHub repo
-        working-directory: /tmp/cross-media-measurement
+        working-directory: cross-media-measurement
         run: |
           bazel query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
             xargs -n 1 bazel run -c opt --define container_registry=ghcr.io \
