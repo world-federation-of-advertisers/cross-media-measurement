@@ -171,10 +171,10 @@ abstract class MillBase(
     if (claimWorkResponse.hasToken()) {
       val token = claimWorkResponse.token
       if (token.attempt > maximumAttempts) {
-        val errorMessage = "Failing computation due to too many failed ComputationStageAttempts."
-        logger.log(Level.SEVERE, "${token.globalComputationId}@$millId: $errorMessage")
-        failComputationAtKingdom(token, errorMessage)
-        completeComputation(token, CompletedReason.FAILED)
+        failComputation(
+          token,
+          "Failing computation due to too many failed ComputationStageAttempts."
+        )
       }
 
       val wallDurationLogger = wallDurationLogger()
@@ -223,20 +223,14 @@ abstract class MillBase(
       is IllegalStateException,
       is IllegalArgumentException,
       is PermanentComputationError -> {
-        logger.log(Level.SEVERE, "$globalId@$millId: PERMANENT error:", e)
-        failComputationAtKingdom(token, e.localizedMessage)
-        // Mark the computation FAILED for all permanent errors
-        completeComputation(token, CompletedReason.FAILED)
+        failComputation(token, "PERMANENT error: ${e.localizedMessage}")
       }
       else -> {
         // Treat all other errors as transient.
         logger.log(Level.WARNING, "$globalId@$millId: TRANSIENT error", e)
         sendStatusUpdateToKingdom(newErrorUpdateRequest(token, e.localizedMessage, Type.TRANSIENT))
         if (token.attempt > maximumAttempts) {
-          val errorMessage = "Failing computation due to too many failed attempts."
-          logger.log(Level.SEVERE, "$globalId@$millId: $errorMessage")
-          failComputationAtKingdom(token, errorMessage)
-          completeComputation(token, CompletedReason.FAILED)
+          failComputation(token, "Failing computation due to too many failed attempts.")
         } else {
           // Enqueue the computation again for future retry
           enqueueComputation(token)
@@ -266,6 +260,12 @@ abstract class MillBase(
         }
         .build()
     systemComputationParticipantsClient.failComputationParticipant(request)
+  }
+
+  private suspend fun failComputation(token: ComputationToken, errorMessage: String) {
+    logger.log(Level.SEVERE, "${token.globalComputationId}@$millId: $errorMessage")
+    failComputationAtKingdom(token, errorMessage)
+    completeComputation(token, CompletedReason.FAILED)
   }
 
   /** Actual implementation of processComputation(). */

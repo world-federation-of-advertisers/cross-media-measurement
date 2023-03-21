@@ -921,7 +921,8 @@ class LiquidLegionsV2MillTest {
             failureBuilder.apply {
               participantChildReferenceId = MILL_ID
               errorMessage =
-                "java.lang.Exception: @Mill a nice mill, Computation 1234 failed due to:\n" +
+                "PERMANENT error: java.lang.Exception: @Mill a nice mill, Computation 1234 " +
+                  "failed due to:\n" +
                   "Cannot verify participation of all DataProviders.\n" +
                   "Missing expected data for requisition 222."
               stageAttemptBuilder.apply {
@@ -1111,7 +1112,8 @@ class LiquidLegionsV2MillTest {
             failureBuilder.apply {
               participantChildReferenceId = MILL_ID
               errorMessage =
-                "java.lang.Exception: @Mill a nice mill, Computation 1234 failed due to:\n" +
+                "PERMANENT error: java.lang.Exception: @Mill a nice mill, Computation 1234 " +
+                  "failed due to:\n" +
                   "Cannot verify participation of all DataProviders.\n" +
                   "Invalid ElGamal public key signature for Duchy $DUCHY_TWO_NAME"
               stageAttemptBuilder.apply {

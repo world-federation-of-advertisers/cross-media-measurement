@@ -27,8 +27,8 @@ class UnclaimedTasksQuery<StageT>(
   timestamp: Timestamp
 ) : SqlBasedQuery<UnclaimedTaskQueryResult<StageT>> {
   companion object {
-    // The column CreationTime is nullable due to later change to the schema, thus a null check is
-    // required.
+    // The column CreationTime is nullable due to later change to the schema. The timestamp of null
+    // is regarded as the oldest one (the smallest value).
     private const val parameterizedQueryString =
       """
       SELECT c.ComputationId,  c.GlobalComputationId,
@@ -42,7 +42,6 @@ class UnclaimedTasksQuery<StageT>(
       JOIN ComputationStages AS cs USING(ComputationId, ComputationStage)
       WHERE c.Protocol = @protocol
         AND c.LockExpirationTime IS NOT NULL
-        AND c.CreationTime IS NOT NULL
         AND c.UpdateTime IS NOT NULL
         AND c.LockExpirationTime <= @current_time
       ORDER BY c.CreationTime ASC, c.LockExpirationTime ASC, c.UpdateTime ASC

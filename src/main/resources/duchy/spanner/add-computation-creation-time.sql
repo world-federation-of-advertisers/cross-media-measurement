@@ -15,12 +15,9 @@
 -- limitations under the License.
 
 -- changeset renjiez:3 dbms:cloudspanner
-START BATCH DDL;
 
 ALTER TABLE Computations
     -- The time the Computation was created. Due to conflict with default value
     -- and option `allow_commit_timestamp`, this column has to be nullable. The
     -- application code is supposed to check whether the value is null.
     ADD COLUMN CreationTime TIMESTAMP OPTIONS(allow_commit_timestamp = true);
-
-RUN BATCH;
