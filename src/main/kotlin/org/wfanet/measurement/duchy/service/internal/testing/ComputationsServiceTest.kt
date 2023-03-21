@@ -480,7 +480,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   fun `advanceComputationStage throws IllegalStateException when token is not the latest`() =
     runBlocking {
       val createComputationResp = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
-      clock.tickSeconds("wait a minute", 1)
+      clock.tickSeconds("1_second_later", 1)
       service.claimWork(DEFAULT_CLAIM_WORK_REQUEST)
 
       val nextStage = computationStage {
