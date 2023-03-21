@@ -93,3 +93,19 @@ spanner_emulator_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
     ],
 )
+
+spanner_emulator_test(
+    name = "SpannerComputationStatsServiceTest",
+    srcs = ["SpannerComputationStatsServiceTest.kt"],
+    test_class = "org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation.SpannerComputationStatsServiceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computation",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/testing",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computations",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computationstats:service",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
+    ],
+)
