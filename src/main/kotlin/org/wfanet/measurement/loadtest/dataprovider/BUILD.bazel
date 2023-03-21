@@ -22,7 +22,10 @@ kt_jvm_library(
         "EdpSimulatorFlags.kt",
         "EdpSimulatorRunner.kt",
         "EventQuery.kt",
+        "GaussianNoiser.kt",
         "InMemoryEventQuery.kt",
+        "LaplaceNoiser.kt",
+        "Noiser.kt",
         "RandomEventQuery.kt",
     ],
     deps = [
