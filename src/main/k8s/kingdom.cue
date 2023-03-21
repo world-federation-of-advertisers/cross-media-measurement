@@ -78,6 +78,7 @@ package k8s
 				args: [
 					_duchy_info_config_flag,
 					_duchy_id_config_flag,
+					_llv2_protocol_config_config,
 					_kingdom_tls_cert_file_flag,
 					_kingdom_tls_key_file_flag,
 					// Internal Kingdom API server should only trust Kingdom certs.
