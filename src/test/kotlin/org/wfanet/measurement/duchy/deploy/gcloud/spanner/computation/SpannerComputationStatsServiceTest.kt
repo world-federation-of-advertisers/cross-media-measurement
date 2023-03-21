@@ -15,7 +15,6 @@
 package org.wfanet.measurement.duchy.deploy.gcloud.spanner.computation
 
 import java.time.Clock
-import org.junit.Before
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
