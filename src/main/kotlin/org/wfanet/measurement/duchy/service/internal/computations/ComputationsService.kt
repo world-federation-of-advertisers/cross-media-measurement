@@ -83,6 +83,7 @@ class ComputationsService(
 ) : ComputationsCoroutineImplBase() {
 
   override suspend fun claimWork(request: ClaimWorkRequest): ClaimWorkResponse {
+    grpcRequire(request.owner.isNotEmpty() && request.owner.isNotBlank()) { "owner is missing." }
     val lockDuration =
       if (request.hasLockDuration()) request.lockDuration.toDuration() else defaultLockDuration
     val claimed =
