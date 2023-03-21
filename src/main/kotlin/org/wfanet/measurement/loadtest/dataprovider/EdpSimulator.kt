@@ -30,7 +30,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
-import org.apache.commons.math3.distribution.LaplaceDistribution
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
@@ -728,8 +727,14 @@ class EdpSimulator(
     val (sampledReachValue, frequencyMap) = calculateDirectReachAndFrequency(vidList)
 
     logger.info("Adding publisher noise to direct reach and frequency...")
+    // Reseed random number generator so the results can be verified in unit test and integration
+    // tests.
+    val laplaceNoiser = LaplaceNoiser(measurementSpec.reachAndFrequency, 1)
     val (sampledNoisedReachValue, noisedFrequencyMap) =
-      addPublisherNoise(sampledReachValue, frequencyMap, measurementSpec.reachAndFrequency)
+      laplaceNoiser.addPublisherNoise(
+        sampledReachValue,
+        frequencyMap,
+      )
 
     // Differentially private reach value is calculated by reach_dp = (reach + noise) /
     // sampling_rate.
@@ -838,7 +843,7 @@ class EdpSimulator(
      */
     private fun calculateDirectReachAndFrequency(
       vidList: List<Long>,
-    ): Pair<Long, Map<Long, Double>> {
+    ): ReachAndFrequencyPair {
       // Example: vidList: [1L, 1L, 1L, 2L, 2L, 3L, 4L, 5L]
       // 5 unique people(1, 2, 3, 4, 5) being reached
       // reach = 5
@@ -860,44 +865,7 @@ class EdpSimulator(
         frequencyMap[frequency] = frequencyMap.getValue(frequency) / reachValue.toDouble()
       }
 
-      return Pair(reachValue, frequencyMap)
-    }
-
-    //
-    /**
-     * Add Laplace publisher noise to calculated direct reach and frequency. TODO(@iverson52000):
-     * Create a noiser class for this function when we need to add Gaussian noise.
-     *
-     * @param reachValue Direct reach value.
-     * @param frequencyMap Direct frequency.
-     * @param reachAndFrequency ReachAndFrequency from MeasurementSpec.
-     * @return Pair of noised reach value and frequency map.
-     */
-    private fun addPublisherNoise(
-      reachValue: Long,
-      frequencyMap: Map<Long, Double>,
-      reachAndFrequency: MeasurementSpec.ReachAndFrequency
-    ): Pair<Long, Map<Long, Double>> {
-      val laplaceForReach =
-        LaplaceDistribution(0.0, 1 / reachAndFrequency.reachPrivacyParams.epsilon)
-      // Reseed random number generator so the results can be verified in tests.
-      // TODO(@iverson52000): make randomSeed an input once create noiser class.
-      laplaceForReach.reseedRandomGenerator(1)
-
-      val noisedReachValue = (reachValue + laplaceForReach.sample().toInt())
-
-      val laplaceForFrequency =
-        LaplaceDistribution(0.0, 1 / reachAndFrequency.frequencyPrivacyParams.epsilon)
-      laplaceForFrequency.reseedRandomGenerator(1)
-
-      val noisedFrequencyMap = mutableMapOf<Long, Double>()
-      frequencyMap.forEach { (frequency, percentage) ->
-        noisedFrequencyMap[frequency] =
-          (percentage * reachValue.toDouble() + laplaceForFrequency.sample()) /
-            reachValue.toDouble()
-      }
-
-      return Pair(noisedReachValue, noisedFrequencyMap)
+      return ReachAndFrequencyPair(reachValue, frequencyMap)
     }
   }
 }
