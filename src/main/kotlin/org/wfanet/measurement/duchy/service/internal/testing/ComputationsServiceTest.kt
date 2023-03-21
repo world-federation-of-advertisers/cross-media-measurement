@@ -23,11 +23,11 @@ import java.time.Clock
 import java.time.Duration
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.time.delay
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.common.toProtoTime
@@ -45,11 +45,13 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   private lateinit var service: T
 
   /** Constructs the service being tested. */
-  protected abstract fun newService(): T
+  protected abstract fun newService(clock: Clock): T
+
+  private val clock = TestClockWithNamedInstants(Clock.systemUTC().instant().minusSeconds(10))
 
   @Before
   fun initService() {
-    service = newService()
+    service = newService(clock)
   }
 
   companion object {
@@ -478,6 +480,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   fun `advanceComputationStage throws IllegalStateException when token is not the latest`() =
     runBlocking {
       val createComputationResp = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+      clock.tickSeconds("wait a minute", 1)
       service.claimWork(DEFAULT_CLAIM_WORK_REQUEST)
 
       val nextStage = computationStage {
@@ -565,32 +568,24 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   }
 
   @Test
-  fun `claimWork throws INVALID_ARGUMENT when owner is missing`() = runBlocking {
-    val claimWorkRequest = DEFAULT_CLAIM_WORK_REQUEST.copy { clearOwner() }
-    val exception = assertFailsWith<StatusRuntimeException> { service.claimWork(claimWorkRequest) }
-
-    assertThat(exception.status.code).isEqualTo(Status.INVALID_ARGUMENT.code)
-    assertThat(exception.message).contains("owner is missing")
-  }
-
-  @Test
   fun `claimWork throws INVALID_ARGUMENT when owner is blank`() = runBlocking {
-    val claimWorkRequest = DEFAULT_CLAIM_WORK_REQUEST.copy { owner = "" }
+    val claimWorkRequest = DEFAULT_CLAIM_WORK_REQUEST.copy { clearOwner() }
 
     val exception = assertFailsWith<StatusRuntimeException> { service.claimWork(claimWorkRequest) }
 
     assertThat(exception.status.code).isEqualTo(Status.INVALID_ARGUMENT.code)
-    assertThat(exception.message).contains("owner is missing")
+    assertThat(exception.message).contains("owner should not be blank")
   }
 
   @Test
   fun `claimWork returns created computation when previous claim lock expired`() = runBlocking {
     val createComputationResponse = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
 
+    val lockDuration = Duration.ofSeconds(1)
     val claimWorkRequest =
-      DEFAULT_CLAIM_WORK_REQUEST.copy { lockDuration = Duration.ofSeconds(1).toProtoDuration() }
+      DEFAULT_CLAIM_WORK_REQUEST.copy { this.lockDuration = lockDuration.toProtoDuration() }
     service.claimWork(claimWorkRequest)
-    delay(Duration.ofSeconds(2))
+    clock.tickSeconds("after_expiration", lockDuration.seconds)
     val claimWorkResponse = service.claimWork(claimWorkRequest)
 
     val expectedClaimedComputationToken = createComputationResponse.token.copy { attempt = 2 }
