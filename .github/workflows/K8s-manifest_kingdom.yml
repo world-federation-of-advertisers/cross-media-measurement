@@ -1,0 +1,44 @@
+# Copyright 2023 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Create Manifest Kingdom
+
+on:
+  push:
+    branches: [ "feature/create_k8s_manifest_kingdom"]
+
+jobs:
+  push_create_k8s_manifest:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Install Kubectl
+        run: |
+          curl -LO https://dl.k8s.io/release/v1.26.0/bin/linux/amd64/kubectl
+          curl -LO "https://dl.k8s.io/release/v1.26.0/bin/linux/amd64/kubectl.sha256"
+          echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check
+          sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+
+      # Create k8s manifest
+      - name: Build K8s manifest
+        run: |
+          bazel build //src/main/k8s/dev:kingdom_gke \
+          --define=k8s_kingdom_secret_name=certs-and-configs-abcdedg \
+          --define image_tag=build-0001
+
+    #    - name: Apply k8s manifest
+    #     run: |
+    #      kubectl apply -f bazel-bin/src/main/k8s/dev/kingdom_gke.yaml
