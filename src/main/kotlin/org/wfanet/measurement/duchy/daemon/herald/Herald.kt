@@ -230,6 +230,7 @@ class Herald(
     logger.info("[id=$globalId] Creating Computation...")
     try {
       when (systemComputation.toMeasurementType()) {
+        MeasurementType.REACH,
         MeasurementType.REACH_AND_FREQUENCY -> {
           LiquidLegionsV2Starter.createComputation(
             internalComputationsClient,
