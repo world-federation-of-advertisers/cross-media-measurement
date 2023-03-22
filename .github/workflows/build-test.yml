@@ -37,7 +37,7 @@ jobs:
           workspace-path: .
           target-patterns: |
             //...
-            //src/test/kotlin/org/wfanet/measurement/integration/k8s:CorrectnessTest
+            //src/test/kotlin/org/wfanet/measurement/integration/k8s:KindCorrectnessTest
           build-options: |
             --compilation_mode=opt
             --host_platform=//build/platforms:ubuntu_20_04

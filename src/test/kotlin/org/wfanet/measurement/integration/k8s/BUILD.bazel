@@ -16,9 +16,7 @@ kt_jvm_library(
     deps = [
         "//imports/java/io/kubernetes/client",
         "//imports/java/io/kubernetes/client/extended",
-        "//imports/java/okhttp3",
         "//src/main/kotlin/org/wfanet/measurement/common/k8s",
-        "//src/main/kotlin/org/wfanet/measurement/common/k8s/testing:kind_cluster",
         "//src/main/kotlin/org/wfanet/measurement/common/k8s/testing:port_forwarder",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:configs",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/config:event_filters",
@@ -33,8 +31,21 @@ kt_jvm_library(
     ],
 )
 
+kt_jvm_library(
+    name = "kind_correctness_test",
+    srcs = ["KindCorrectnessTest.kt"],
+    deps = [
+        ":correctness_test",
+        "//src/main/kotlin/org/wfanet/measurement/common/k8s",
+        "//src/main/kotlin/org/wfanet/measurement/common/k8s/testing:kind_cluster",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:security_provider",
+    ],
+)
+
 java_test(
-    name = "CorrectnessTest",
+    name = "KindCorrectnessTest",
     size = "enormous",
     timeout = "long",
     data = [
@@ -45,6 +56,6 @@ java_test(
         "cpu:8",
         "manual",
     ],
-    test_class = "org.wfanet.measurement.integration.k8s.CorrectnessTest",
-    runtime_deps = [":correctness_test"],
+    test_class = "org.wfanet.measurement.integration.k8s.KindCorrectnessTest",
+    runtime_deps = [":kind_correctness_test"],
 )
