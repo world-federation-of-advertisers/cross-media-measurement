@@ -970,7 +970,9 @@ class LiquidLegionsV2Mill(
       token.computationDetails.liquidLegionsV2.parameters.maximumFrequency
     val measurementSpec =
       MeasurementSpec.parseFrom(token.computationDetails.kingdomComputation.measurementSpec)
-    val measurementSpecMaximumFrequency = measurementSpec.reachAndFrequency.maximumFrequencyPerUser
+    val measurementSpecMaximumFrequency =
+      if (measurementSpec.hasReach()) 1
+      else measurementSpec.reachAndFrequency.maximumFrequencyPerUser
     if (measurementSpecMaximumFrequency > 0) {
       maximumRequestedFrequency = min(maximumRequestedFrequency, measurementSpecMaximumFrequency)
     }
