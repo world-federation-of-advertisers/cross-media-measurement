@@ -243,6 +243,13 @@ CREATE TABLE Metrics (
 
   CreateTime TIMESTAMP WITH TIME ZONE NOT NULL,
 
+  -- Serialized bytes string of a proto3 protobuf with details about the
+  -- metric which do not need to be indexed by the database.
+  --
+  -- See org.wfanet.measurement.internal.reporting.Metric.Details protobuf
+  -- message.
+  MetricDetails BYTES(MAX) NOT NULL,
+
   -- Serialized JSON string of a proto3 protobuf with details about the
   -- metric which do not need to be indexed by the database.
   --
@@ -272,19 +279,33 @@ CREATE TABLE Measurements (
   -- protobuf enum encoded as an integer.
   State integer NOT NULL,
 
+  -- Serialized bytes string of a proto3 protobuf with details about the
+  -- measurement failure which do not need to be indexed by the database.
+  --
+  -- See org.wfanet.measurement.internal.reporting.Measurement.Failure protobuf
+  -- message.
+  Failure BYTES(MAX),
+
   -- Serialized JSON string of a proto3 protobuf with details about the
   -- measurement failure which do not need to be indexed by the database.
   --
   -- See org.wfanet.measurement.internal.reporting.Measurement.Failure protobuf
   -- message.
-  Failure STRING(MAX),
+  FailureJson STRING(MAX),
+
+  -- Serialized bytes string of a proto3 protobuf with details about the
+  -- measurement result which do not need to be indexed by the database.
+  --
+  -- See org.wfanet.measurement.internal.reporting.Measurement.Result protobuf
+  -- message.
+  Result BYTES(MAX),
 
   -- Serialized JSON string of a proto3 protobuf with details about the
   -- measurement result which do not need to be indexed by the database.
   --
   -- See org.wfanet.measurement.internal.reporting.Measurement.Result protobuf
   -- message.
-  Result STRING(MAX),
+  ResultJson STRING(MAX),
 
   PRIMARY KEY(MeasurementConsumerId, MeasurementId),
   UNIQUE (MeasurementConsumerId, CmmsCreateMeasurementRequestId),
@@ -363,6 +384,13 @@ CREATE TABLE MetricCalculationSpecs (
   ReportId bigint NOT NULL,
   MetricCalculationSpecId bigint NOT NULL,
   ReportingSetId bigint NOT NULL,
+
+  -- Serialized bytes string of a proto3 protobuf with details about the
+  -- metric calculation which do not need to be indexed by the database.
+  --
+  -- See org.wfanet.measurement.internal.reporting.Report.MetricCalculationSpec.Details
+  -- protobuf message.
+  MetricCalculationSpecDetails BYTES(MAX) NOT NULL,
 
   -- Serialized JSON string of a proto3 protobuf with details about the
   -- metric calculation which do not need to be indexed by the database.
