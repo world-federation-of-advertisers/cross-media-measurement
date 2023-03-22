@@ -95,6 +95,7 @@ class FakeMeasurementsService(
     val result =
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
       when (measurementSpec.measurementTypeCase) {
+        MeasurementSpec.MeasurementTypeCase.REACH,
         MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
           throw Status.UNIMPLEMENTED.asRuntimeException()
         MeasurementSpec.MeasurementTypeCase.IMPRESSION ->
