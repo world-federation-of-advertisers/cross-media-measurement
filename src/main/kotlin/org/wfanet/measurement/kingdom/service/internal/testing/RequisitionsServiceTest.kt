@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
+import org.junit.BeforeClass
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -38,6 +39,7 @@ import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase as CertificatesCoroutineService
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase as ComputationParticipantsCoroutineService
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase as DataProvidersCoroutineService
+import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.computedRequisitionParams
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.directRequisitionParams
 import org.wfanet.measurement.internal.kingdom.Measurement
@@ -60,6 +62,7 @@ import org.wfanet.measurement.internal.kingdom.refuseRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.requisition
 import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRequest
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
+import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.DUCHIES
 
@@ -87,7 +90,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
   protected val clock: Clock = Clock.systemUTC()
   protected val idGenerator = RandomIdGenerator(clock, Random(RANDOM_SEED))
   private val population = Population(clock, idGenerator)
-  @get:Rule val duchyIdSetter = DuchyIdSetter(Population.DUCHIES)
+  @get:Rule val duchyIdSetter = DuchyIdSetter(DUCHIES)
 
   protected lateinit var dataServices: TestDataServices
     private set
@@ -212,7 +215,6 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
         "measurement2",
         dataProvider2
       )
-
       for (duchyCertificate in duchyCertificates.values) {
         dataServices.computationParticipantsService.setParticipantRequisitionParams(
           setParticipantRequisitionParamsRequest {
@@ -1347,7 +1349,6 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
             }
           )
           .first()
-
       val exception =
         assertFailsWith(StatusRuntimeException::class) {
           service.refuseRequisition(
@@ -1361,4 +1362,17 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     }
+
+  companion object {
+    @BeforeClass
+    @JvmStatic
+    fun initConfig() {
+      Llv2ProtocolConfig.setForTest(
+        ProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
+        DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
+        setOf(Population.AGGREGATOR_DUCHY.externalDuchyId),
+        2
+      )
+    }
+  }
 }

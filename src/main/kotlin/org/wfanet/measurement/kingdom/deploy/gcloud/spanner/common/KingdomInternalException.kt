@@ -94,6 +94,16 @@ class DuchyNotFoundException(
     get() = mapOf("external_duchy_id" to externalDuchyId)
 }
 
+class DuchyNotActiveException(
+  val externalDuchyId: String,
+  provideDescription: () -> String = {
+    "One or more required duchies were inactive at measurement creation time"
+  }
+) : KingdomInternalException(ErrorCode.DUCHY_NOT_ACTIVE, provideDescription) {
+  override val context
+    get() = mapOf("external_duchy_id" to externalDuchyId)
+}
+
 open class MeasurementNotFoundException(
   provideDescription: () -> String = { "Measurement not found" }
 ) : KingdomInternalException(ErrorCode.MEASUREMENT_NOT_FOUND, provideDescription) {

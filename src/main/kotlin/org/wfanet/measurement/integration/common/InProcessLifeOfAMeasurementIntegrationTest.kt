@@ -288,7 +288,9 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
       DuchyIds.setForTest(ALL_DUCHIES)
       Llv2ProtocolConfig.setForTest(
         LLV2_PROTOCOL_CONFIG_CONFIG.protocolConfig,
-        LLV2_PROTOCOL_CONFIG_CONFIG.duchyProtocolConfig
+        LLV2_PROTOCOL_CONFIG_CONFIG.duchyProtocolConfig,
+        setOf("aggregator"),
+        2
       )
       DuchyInfo.initializeFromConfig(
         loadTextProto("duchy_cert_config.textproto", DuchyCertConfig.getDefaultInstance())
