@@ -40,7 +40,7 @@ class GaussianNoiserTest {
 
     val expectedNoisedReachValue = 500
     val expectedNoisedFrequencyMap =
-      mapOf(1L to 0.6017729973990973, 2L to 0.20087241257893376, 3L to 0.20232952399863266)
+      mapOf(1L to 0.6000013282959348, 2L to 0.20000065359491367, 3L to 0.20000174523507977)
 
     assertThat(noisedReachValue).isEqualTo(expectedNoisedReachValue)
     noisedFrequencyMap.forEach { (frequency, percentage) ->
