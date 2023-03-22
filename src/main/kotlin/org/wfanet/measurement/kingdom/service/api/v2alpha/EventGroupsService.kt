@@ -43,6 +43,7 @@ import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.signedData
+import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -65,7 +66,7 @@ import org.wfanet.measurement.internal.kingdom.updateEventGroupRequest
 private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 100
-private const val WILDCARD = "-"
+private const val WILDCARD = ResourceKey.WILDCARD_ID
 private val API_VERSION = Version.V2_ALPHA
 
 class EventGroupsService(private val internalEventGroupsStub: EventGroupsCoroutineStub) :
