@@ -27,6 +27,7 @@ import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
+import org.junit.BeforeClass
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -41,12 +42,14 @@ import org.wfanet.measurement.internal.kingdom.CertificateKt.details
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt.CertificatesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.GetCertificateRequestKt
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.certificate
@@ -57,6 +60,7 @@ import org.wfanet.measurement.internal.kingdom.releaseCertificateHoldRequest
 import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
 import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRequest
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
+import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.DUCHIES
 
@@ -637,7 +641,6 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
   fun `revokeCertificate for Duchy fails pending Measurements`(): Unit = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
-
     val measurementOne =
       population.createComputedMeasurement(
         measurementsService,
@@ -656,9 +659,7 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         externalMeasurementId = measurementTwo.externalMeasurementId
       }
     )
-
     val externalDuchyId = DUCHIES[0].externalDuchyId
-
     val certificate =
       certificatesService.createCertificate(
         certificate {
@@ -668,7 +669,6 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           details = details { x509Der = X509_DER }
         }
       )
-
     computationParticipantsService.setParticipantRequisitionParams(
       setParticipantRequisitionParamsRequest {
         this.externalDuchyId = externalDuchyId
@@ -676,15 +676,12 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         externalComputationId = measurementOne.externalComputationId
       }
     )
-
     val request = revokeCertificateRequest {
       this.externalDuchyId = externalDuchyId
       externalCertificateId = certificate.externalCertificateId
       revocationState = Certificate.RevocationState.REVOKED
     }
-
     certificatesService.revokeCertificate(request)
-
     val measurements =
       measurementsService
         .streamMeasurements(
@@ -697,7 +694,6 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
           }
         )
         .toList()
-
     assertThat(measurements)
       .comparingExpectedFieldsOnly()
       .containsExactly(
@@ -1053,5 +1049,18 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
 
     assertThat(releasedCertificate.revocationState)
       .isEqualTo(Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED)
+  }
+
+  companion object {
+    @BeforeClass
+    @JvmStatic
+    fun initConfig() {
+      Llv2ProtocolConfig.setForTest(
+        ProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
+        DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
+        setOf(Population.AGGREGATOR_DUCHY.externalDuchyId),
+        2
+      )
+    }
   }
 }

@@ -69,8 +69,8 @@ private const val API_VERSION = "v2alpha"
 
 class Population(val clock: Clock, val idGenerator: IdGenerator) {
   companion object {
-    private val VALID_ACTIVE_START_TIME = Instant.parse("2022-01-01T00:00:00Z")
-    private val VALID_ACTIVE_END_TIME = Instant.parse("2032-01-01T00:00:00Z")
+    private val VALID_ACTIVE_START_TIME = Instant.now().minusSeconds(100L)
+    private val VALID_ACTIVE_END_TIME = Instant.now().plusSeconds(2000L)
     val AGGREGATOR_DUCHY =
       DuchyIds.Entry(1, "aggregator", VALID_ACTIVE_START_TIME..VALID_ACTIVE_END_TIME)
     val WORKER1_DUCHY = DuchyIds.Entry(2, "worker1", VALID_ACTIVE_START_TIME..VALID_ACTIVE_END_TIME)
@@ -132,7 +132,8 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
   suspend fun createDataProvider(
     dataProvidersService: DataProvidersCoroutineImplBase,
     notValidBefore: Instant = clock.instant(),
-    notValidAfter: Instant = notValidBefore.plus(365L, ChronoUnit.DAYS)
+    notValidAfter: Instant = notValidBefore.plus(365L, ChronoUnit.DAYS),
+    customize: (DataProviderKt.Dsl.() -> Unit)? = null
   ): DataProvider {
     return dataProvidersService.createDataProvider(
       dataProvider {
@@ -151,6 +152,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
           }
         requiredExternalDuchyIds += WORKER1_DUCHY.externalDuchyId
         requiredExternalDuchyIds += WORKER2_DUCHY.externalDuchyId
+        customize?.invoke(this)
       }
     )
   }
