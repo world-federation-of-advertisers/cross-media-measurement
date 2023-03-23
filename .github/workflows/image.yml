@@ -22,7 +22,7 @@ env:
 
 jobs:
   push_docker_image:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-20.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
