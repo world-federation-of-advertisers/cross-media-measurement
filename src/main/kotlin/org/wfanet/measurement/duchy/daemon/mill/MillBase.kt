@@ -406,10 +406,13 @@ abstract class MillBase(
   protected suspend fun existingOutputOr(
     token: ComputationToken,
     block: suspend () -> ByteString
-  ): ComputationResult {
+  ): EncryptedComputationResult {
     if (token.singleOutputBlobMetadata().path.isNotEmpty()) {
       // Reuse cached result if it exists
-      return ComputationResult(checkNotNull(dataClients.readSingleOutputBlob(token)), token)
+      return EncryptedComputationResult(
+        checkNotNull(dataClients.readSingleOutputBlob(token)),
+        token
+      )
     }
     val newResult: ByteString =
       try {
@@ -425,7 +428,10 @@ abstract class MillBase(
         // All errors from block() are permanent and would cause the computation to FAIL
         throw PermanentComputationError(error)
       }
-    return ComputationResult(flowOf(newResult), dataClients.writeSingleOutputBlob(token, newResult))
+    return EncryptedComputationResult(
+      flowOf(newResult),
+      dataClients.writeSingleOutputBlob(token, newResult)
+    )
   }
 
   /** Reads all input blobs and combines all the bytes together. */
@@ -527,7 +533,7 @@ const val CURRENT_RUNTIME_MEMORY_MAXIMUM = "current_runtime_memory_maximum"
 const val CURRENT_RUNTIME_MEMORY_TOTAL = "current_runtime_memory_total"
 const val CURRENT_RUNTIME_MEMORY_FREE = "current_runtime_memory_free"
 
-data class ComputationResult(val bytes: Flow<ByteString>, val token: ComputationToken)
+data class EncryptedComputationResult(val bytes: Flow<ByteString>, val token: ComputationToken)
 
 data class Certificate(
   // The public API name of this certificate.
