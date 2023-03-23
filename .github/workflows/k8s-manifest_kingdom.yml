@@ -15,30 +15,27 @@
 name: Create Manifest Kingdom
 
 on:
-  push:
-    branches: [ "feature/create_k8s_manifest_kingdom"]
+  workflow_dispatch:
+    inputs:
+      kubectl_apply:
+        required: false
+        type: boolean
 
 jobs:
   push_create_k8s_manifest:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-20.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Install Kubectl
-        run: |
-          curl -LO https://dl.k8s.io/release/v1.26.0/bin/linux/amd64/kubectl
-          curl -LO "https://dl.k8s.io/release/v1.26.0/bin/linux/amd64/kubectl.sha256"
-          echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check
-          sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-
       # Create k8s manifest
       - name: Build K8s manifest
         run: |
-          bazel build //src/main/k8s/dev:kingdom_gke \
+          bazelisk run //src/main/k8s/dev:kingdom_gke \
           --define=k8s_kingdom_secret_name=certs-and-configs-abcdedg \
           --define image_tag=build-0001
 
-    #    - name: Apply k8s manifest
-    #     run: |
-    #      kubectl apply -f bazel-bin/src/main/k8s/dev/kingdom_gke.yaml
+      # Apply kubectl
+      - name: kubectl Apply
+        if: inputs.kubectl_apply == true
+        run: kubectl apply -f bazel-bin/src/main/k8s/dev/kingdom_gke.yaml
