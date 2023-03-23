@@ -250,11 +250,8 @@ CREATE TABLE Metrics (
   -- message.
   MetricDetails bytea(MAX) NOT NULL,
 
-  -- Serialized JSON string of a proto3 protobuf with details about the
-  -- metric which do not need to be indexed by the database.
-  --
-  -- See org.wfanet.measurement.internal.reporting.Metric.Details protobuf
-  -- message.
+  -- Human-readable copy of the MetricDetails column solely for debugging
+  -- purposes.
   MetricDetailsJson STRING(MAX) NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, MetricId),
@@ -280,32 +277,15 @@ CREATE TABLE Measurements (
   State integer NOT NULL,
 
   -- Serialized bytea string of a proto3 protobuf with details about the
-  -- measurement failure which do not need to be indexed by the database.
+  -- measurement which do not need to be indexed by the database.
   --
-  -- See org.wfanet.measurement.internal.reporting.Measurement.Failure protobuf
+  -- See org.wfanet.measurement.internal.reporting.Measurement.Details protobuf
   -- message.
-  Failure bytea(MAX),
+  MeasurementDetails bytea(MAX) NOT NULL,
 
-  -- Serialized JSON string of a proto3 protobuf with details about the
-  -- measurement failure which do not need to be indexed by the database.
-  --
-  -- See org.wfanet.measurement.internal.reporting.Measurement.Failure protobuf
-  -- message.
-  FailureJson STRING(MAX),
-
-  -- Serialized bytea string of a proto3 protobuf with details about the
-  -- measurement result which do not need to be indexed by the database.
-  --
-  -- See org.wfanet.measurement.internal.reporting.Measurement.Result protobuf
-  -- message.
-  Result bytea(MAX),
-
-  -- Serialized JSON string of a proto3 protobuf with details about the
-  -- measurement result which do not need to be indexed by the database.
-  --
-  -- See org.wfanet.measurement.internal.reporting.Measurement.Result protobuf
-  -- message.
-  ResultJson STRING(MAX),
+  -- Human-readable copy of the MeasurementDetails column solely for debugging
+  -- purposes.
+  MeasurementDetailsJson STRING(MAX) NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, MeasurementId),
   UNIQUE (MeasurementConsumerId, CmmsCreateMeasurementRequestId),
@@ -392,11 +372,8 @@ CREATE TABLE MetricCalculationSpecs (
   -- protobuf message.
   MetricCalculationSpecDetails bytea(MAX) NOT NULL,
 
-  -- Serialized JSON string of a proto3 protobuf with details about the
-  -- metric calculation which do not need to be indexed by the database.
-  --
-  -- See org.wfanet.measurement.internal.reporting.Report.MetricCalculationSpec.Details
-  -- protobuf message.
+  -- Human-readable copy of the MetricCalculationSpecDetails column solely for
+  -- debugging purposes.
   MetricCalculationSpecDetailsJson STRING(MAX) NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, ReportId, MetricCalculationSpecId),
