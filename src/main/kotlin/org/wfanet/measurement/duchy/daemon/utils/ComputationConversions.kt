@@ -255,15 +255,29 @@ fun V2AlphaElGamalPublicKey.toDuchyElGamalPublicKey(): ElGamalPublicKey {
   }
 }
 
-/** The result and frequency estimation of a computation. */
-data class ReachAndFrequency(val reach: Long, val frequency: Map<Long, Double>)
+interface ComputationResult {
+  fun toV2AlphaMeasurementResult(): Measurement.Result
+}
 
-/** Converts a ReachAndFrequency object to the v2Alpha measurement result. */
-fun ReachAndFrequency.toV2AlphaMeasurementResult(): Measurement.Result {
-  val source = this
-  return MeasurementKt.result {
-    reach = reach { value = source.reach }
-    frequency = frequency { relativeFrequencyDistribution.putAll(source.frequency) }
+/** The result and frequency estimation of a computation. */
+data class ReachAndFrequency(val reach: Long, val frequency: Map<Long, Double>) :
+  ComputationResult {
+  /** Converts a ReachAndFrequency object to the v2Alpha measurement result. */
+  override fun toV2AlphaMeasurementResult(): Measurement.Result {
+    val source = this
+    return MeasurementKt.result {
+      reach = reach { value = source.reach }
+      frequency = frequency { relativeFrequencyDistribution.putAll(source.frequency) }
+    }
+  }
+}
+
+data class Reach(val reach: Long) : ComputationResult {
+
+  /** Converts a Reach object to the v2Alpha measurement result. */
+  override fun toV2AlphaMeasurementResult(): Measurement.Result {
+    val source = this
+    return MeasurementKt.result { reach = reach { value = source.reach } }
   }
 }
 
