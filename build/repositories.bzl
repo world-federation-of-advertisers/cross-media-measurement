@@ -35,7 +35,7 @@ def wfa_measurement_system_repositories():
         version = "0.8.0",
     )
 
-    # TODO: DO_NOT_SUBMIT
+    # DO_NOT_SUBMIT(world-federation-of-advertisers/cross-media-measurement-api#126): Use version once released.
     wfa_repo_archive(
         name = "wfa_measurement_proto",
         commit = "265e1ac06d4d793f6debfdfec84201b59f11642b",
