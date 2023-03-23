@@ -298,27 +298,50 @@ object LiquidLegionsV2Starter {
           when (Version.fromString(publicApiVersion)) {
             Version.V2_ALPHA -> {
               val measurementSpec = MeasurementSpec.parseFrom(measurementSpec)
-              require(measurementSpec.hasReachAndFrequency()) {
-                "Missing ReachAndFrequency in the measurementSpec."
+
+              @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+              when (measurementSpec.measurementTypeCase) {
+                MeasurementSpec.MeasurementTypeCase.REACH -> {
+                  val reach = measurementSpec.reach
+                  require(reach.privacyParams.delta > 0) {
+                    "LLv2 requires that privacy_params.delta be greater than 0"
+                  }
+                  require(reach.privacyParams.epsilon > MIN_REACH_EPSILON) {
+                    "LLv2 requires that privacy_params.epsilon be greater than $MIN_REACH_EPSILON"
+                  }
+                  reachNoiseConfigBuilder.globalReachDpNoise =
+                    reach.privacyParams.toDuchyDifferentialPrivacyParams()
+                }
+                MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
+                  val reachAndFrequency = measurementSpec.reachAndFrequency
+                  require(reachAndFrequency.reachPrivacyParams.delta > 0) {
+                    "LLv2 requires that reach_privacy_params.delta be greater than 0"
+                  }
+                  require(reachAndFrequency.reachPrivacyParams.epsilon > MIN_REACH_EPSILON) {
+                    "LLv2 requires that reach_privacy_params.epsilon be greater than $MIN_REACH_EPSILON"
+                  }
+                  require(reachAndFrequency.frequencyPrivacyParams.delta > 0) {
+                    "LLv2 requires that frequency_privacy_params.delta be greater than 0"
+                  }
+                  require(
+                    reachAndFrequency.frequencyPrivacyParams.epsilon > MIN_FREQUENCY_EPSILON
+                  ) {
+                    "LLv2 requires that frequency_privacy_params.epsilon be greater than " +
+                      "$MIN_FREQUENCY_EPSILON"
+                  }
+                  reachNoiseConfigBuilder.globalReachDpNoise =
+                    reachAndFrequency.reachPrivacyParams.toDuchyDifferentialPrivacyParams()
+                  frequencyNoiseConfig =
+                    reachAndFrequency.frequencyPrivacyParams.toDuchyDifferentialPrivacyParams()
+                }
+                MeasurementSpec.MeasurementTypeCase.IMPRESSION,
+                MeasurementSpec.MeasurementTypeCase.DURATION,
+                MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> {
+                  throw IllegalArgumentException(
+                    "Missing Reach and ReachAndFrequency in the measurementSpec."
+                  )
+                }
               }
-              val reachAndFrequency = measurementSpec.reachAndFrequency
-              require(reachAndFrequency.reachPrivacyParams.delta > 0) {
-                "LLv2 requires that reach_privacy_params.delta be greater than 0"
-              }
-              require(reachAndFrequency.reachPrivacyParams.epsilon > MIN_REACH_EPSILON) {
-                "LLv2 requires that reach_privacy_params.epsilon be greater than $MIN_REACH_EPSILON"
-              }
-              require(reachAndFrequency.frequencyPrivacyParams.delta > 0) {
-                "LLv2 requires that frequency_privacy_params.delta be greater than 0"
-              }
-              require(reachAndFrequency.frequencyPrivacyParams.epsilon > MIN_FREQUENCY_EPSILON) {
-                "LLv2 requires that frequency_privacy_params.epsilon be greater than " +
-                  "$MIN_FREQUENCY_EPSILON"
-              }
-              reachNoiseConfigBuilder.globalReachDpNoise =
-                reachAndFrequency.reachPrivacyParams.toDuchyDifferentialPrivacyParams()
-              frequencyNoiseConfig =
-                reachAndFrequency.frequencyPrivacyParams.toDuchyDifferentialPrivacyParams()
             }
             Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
           }
