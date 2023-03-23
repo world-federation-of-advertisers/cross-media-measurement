@@ -28,12 +28,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
+      - name: Export IMAGE_TAG
+        env:
+          DEFAULT_BRANCH: main
+        run: chmod +x ./.github/workflows/export-image-tag.sh && ./.github/workflows/export-image-tag.sh
+
       # Create k8s manifest
       - name: Build K8s manifest
         run: |
           bazelisk run //src/main/k8s/dev:kingdom_gke \
           --define=k8s_kingdom_secret_name=certs-and-configs-abcdedg \
-          --define image_tag=build-0001
+          --define image_tag=$IMAGE_TAG
 
       # Apply kubectl
       - name: kubectl Apply
