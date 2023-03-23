@@ -264,6 +264,14 @@ private fun MeasurementSpec.validate() {
 
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
   when (measurementTypeCase) {
+    MeasurementSpec.MeasurementTypeCase.REACH -> {
+      grpcRequire(reach.privacyParams.hasEpsilonAndDeltaSet()) {
+        "Reach privacy params are unspecified"
+      }
+
+      val vidSamplingInterval = vidSamplingInterval
+      grpcRequire(vidSamplingInterval.width > 0) { "Vid sampling interval is unspecified" }
+    }
     MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
       grpcRequire(reachAndFrequency.reachPrivacyParams.hasEpsilonAndDeltaSet()) {
         "Reach privacy params are unspecified"
