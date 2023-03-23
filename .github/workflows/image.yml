@@ -39,13 +39,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_TOKEN }}
 
-      # Build Duchy Image
-      - name: Build Duchy image
-        run: |
-          bazel query 'filter("push_duchy", kind("container_push", //src/main/docker:all))' |
-          xargs bazel build -c opt --define container_registry=ghcr.io \
-          --define image_repo_prefix=world-federation-of-advertisers/packages --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=$IMAGE_TAG
-
       # Build Kingdom Image
       - name: Build kingdom image
         run: |
@@ -53,16 +46,23 @@ jobs:
           xargs bazel build -c opt --define container_registry=ghcr.io \
           --define image_repo_prefix=world-federation-of-advertisers/packages --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=$IMAGE_TAG
 
-      # Push Duchy Image to GitHub Artifacts.
-      - name: Push Image to GitHub repo
+      # Push Kingdom Image to GitHub Artifacts.
+      - name: Push Kingdom Image
         run: |
-          bazel query 'filter("push_duchy", kind("container_push", //src/main/docker:all))' |
+          bazel query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
             xargs -n 1 bazel run -c opt --define container_registry=ghcr.io \
             --define image_repo_prefix=world-federation-of-advertisers/packages --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=$IMAGE_TAG
 
-      # Push Kingdom Image to GitHub Artifacts.
-      - name: Push Image to GitHub repo
+      # Build Duchy Image
+      - name: Build Duchy image
         run: |
-          bazel query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
+          bazel query 'filter("push_duchy", kind("container_push", //src/main/docker:all))' |
+          xargs bazel build -c opt --define container_registry=ghcr.io \
+          --define image_repo_prefix=world-federation-of-advertisers/packages --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=$IMAGE_TAG
+
+      # Push Duchy Image to GitHub Artifacts.
+      - name: Push Duchy Image
+        run: |
+          bazel query 'filter("push_duchy", kind("container_push", //src/main/docker:all))' |
             xargs -n 1 bazel run -c opt --define container_registry=ghcr.io \
             --define image_repo_prefix=world-federation-of-advertisers/packages --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=$IMAGE_TAG
