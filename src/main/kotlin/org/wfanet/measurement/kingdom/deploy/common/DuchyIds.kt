@@ -57,11 +57,15 @@ object DuchyIds {
     entries = duchyIds
   }
 
-  data class Entry(
+  class Entry(
     val internalDuchyId: Long,
     val externalDuchyId: String,
     val activeRange: ClosedRange<Instant>
-  )
+  ) {
+    fun isActive(instant: Instant): Boolean {
+      return instant in activeRange
+    }
+  }
 }
 
 class DuchyIdsFlags {
@@ -75,9 +79,15 @@ class DuchyIdsFlags {
 }
 
 private fun DuchyIdConfig.Duchy.toDuchyIdsEntry(): DuchyIds.Entry {
+  val activeEndTime =
+    if (hasActiveEndTime()) {
+      activeEndTime.toInstant()
+    } else {
+      Instant.MAX
+    }
   return DuchyIds.Entry(
     internalDuchyId,
     externalDuchyId,
-    activeStartTime.toInstant()..activeEndTime.toInstant()
+    activeStartTime.toInstant()..activeEndTime
   )
 }
