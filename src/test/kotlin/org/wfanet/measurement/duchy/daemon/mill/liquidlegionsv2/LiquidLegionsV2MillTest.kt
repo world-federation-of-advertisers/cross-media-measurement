@@ -51,6 +51,7 @@ import org.mockito.kotlin.whenever
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey as V2AlphaElGamalPublicKey
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.measurementSpec
@@ -336,6 +337,14 @@ private val MEASUREMENT_SPEC_FREQUENCY_ONE = measurementSpec {
 private val SERIALIZED_MEASUREMENT_SPEC_FREQUENCY_ONE: ByteString =
   MEASUREMENT_SPEC_FREQUENCY_ONE.toByteString()
 
+private val REACH_MEASUREMENT_SPEC = measurementSpec {
+  nonceHashes += TEST_REQUISITION_1.nonceHash
+  nonceHashes += TEST_REQUISITION_2.nonceHash
+  nonceHashes += TEST_REQUISITION_3.nonceHash
+  reach = reach {}
+}
+private val SERIALIZED_REACH_MEASUREMENT_SPEC: ByteString = REACH_MEASUREMENT_SPEC.toByteString()
+
 private val SERIALIZED_MEASUREMENT_SPEC_WITH_VID_SAMPLING_WIDTH =
   MEASUREMENT_SPEC_WITH_VID_SAMPLING_WIDTH.toByteString()
 
@@ -393,6 +402,28 @@ private val AGGREGATOR_COMPUTATION_DETAILS_FREQUENCY_ONE =
     }
     .build()
 
+private val AGGREGATOR_REACH_COMPUTATION_DETAILS =
+  ComputationDetails.newBuilder()
+    .apply {
+      kingdomComputationBuilder.apply {
+        publicApiVersion = PUBLIC_API_VERSION
+        measurementPublicKey = ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
+        measurementSpec = SERIALIZED_REACH_MEASUREMENT_SPEC
+      }
+      liquidLegionsV2Builder.apply {
+        role = RoleInComputation.AGGREGATOR
+        parameters = LLV2_PARAMETERS
+        addAllParticipant(
+          listOf(COMPUTATION_PARTICIPANT_2, COMPUTATION_PARTICIPANT_3, COMPUTATION_PARTICIPANT_1)
+        )
+        combinedPublicKey = COMBINED_PUBLIC_KEY
+        // partiallyCombinedPublicKey and combinedPublicKey are the same at the aggregator.
+        partiallyCombinedPublicKey = COMBINED_PUBLIC_KEY
+        localElgamalKey = DUCHY_ONE_KEY_PAIR
+      }
+    }
+    .build()
+
 private val NON_AGGREGATOR_COMPUTATION_DETAILS =
   ComputationDetails.newBuilder()
     .apply {
@@ -421,6 +452,27 @@ private val NON_AGGREGATOR_COMPUTATION_DETAILS_FREQUENCY_ONE =
         publicApiVersion = PUBLIC_API_VERSION
         measurementPublicKey = ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
         measurementSpec = SERIALIZED_MEASUREMENT_SPEC_FREQUENCY_ONE
+      }
+      liquidLegionsV2Builder.apply {
+        role = RoleInComputation.NON_AGGREGATOR
+        parameters = LLV2_PARAMETERS
+        addAllParticipant(
+          listOf(COMPUTATION_PARTICIPANT_1, COMPUTATION_PARTICIPANT_2, COMPUTATION_PARTICIPANT_3)
+        )
+        combinedPublicKey = COMBINED_PUBLIC_KEY
+        partiallyCombinedPublicKey = PARTIALLY_COMBINED_PUBLIC_KEY
+        localElgamalKey = DUCHY_ONE_KEY_PAIR
+      }
+    }
+    .build()
+
+private val NON_AGGREGATOR_REACH_COMPUTATION_DETAILS =
+  ComputationDetails.newBuilder()
+    .apply {
+      kingdomComputationBuilder.apply {
+        publicApiVersion = PUBLIC_API_VERSION
+        measurementPublicKey = ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
+        measurementSpec = SERIALIZED_REACH_MEASUREMENT_SPEC
       }
       liquidLegionsV2Builder.apply {
         role = RoleInComputation.NON_AGGREGATOR
@@ -1600,6 +1652,60 @@ class LiquidLegionsV2MillTest {
   }
 
   @Test
+  fun `execution phase one at aggregator with reach measurement`() = runBlocking {
+    // Stage 0. preparing the storage and set up mock
+    val partialToken =
+      FakeComputationsDatabase.newPartialToken(
+          localId = LOCAL_ID,
+          stage = EXECUTION_PHASE_ONE.toProtocolStage()
+        )
+        .build()
+    val inputBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_ONE.toProtocolStage(), 0L)
+    val calculatedBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_ONE.toProtocolStage(), 1L)
+    computationStore.writeString(inputBlobContext, "data")
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
+      computationDetails = AGGREGATOR_REACH_COMPUTATION_DETAILS,
+      blobs =
+        listOf(
+          inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
+          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)
+        ),
+      requisitions = REQUISITIONS
+    )
+
+    var cryptoRequest = CompleteExecutionPhaseOneAtAggregatorRequest.getDefaultInstance()
+
+    whenever(mockCryptoWorker.completeExecutionPhaseOneAtAggregator(any())).thenAnswer {
+      cryptoRequest = it.getArgument(0)
+      val postFix = ByteString.copyFromUtf8("-completeExecutionPhaseOneAtAggregator-done")
+      CompleteExecutionPhaseOneAtAggregatorResponse.newBuilder()
+        .apply { flagCountTuples = cryptoRequest.combinedRegisterVector.concat(postFix) }
+        .build()
+    }
+
+    // Process the above computation
+    aggregatorMill.pollAndProcessNextComputation()
+
+    // Check that the request sent to the crypto worker was correct.
+    assertThat(cryptoRequest)
+      .isEqualTo(
+        CompleteExecutionPhaseOneAtAggregatorRequest.newBuilder()
+          .apply {
+            combinedRegisterVector = ByteString.copyFromUtf8("data")
+            localElGamalKeyPair = DUCHY_ONE_KEY_PAIR
+            compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
+            curveId = CURVE_ID
+            totalSketchesCount = REQUISITIONS.size
+          }
+          .build()
+      )
+  }
+
+  @Test
   fun `execution phase two at non-aggregator using calculated result`() = runBlocking {
     // Stage 0. preparing the storage and set up mock
     val partialToken =
@@ -1713,6 +1819,59 @@ class LiquidLegionsV2MillTest {
       partialToken.localComputationId,
       partialToken.computationStage,
       computationDetails = NON_AGGREGATOR_COMPUTATION_DETAILS_FREQUENCY_ONE,
+      blobs =
+        listOf(
+          inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
+          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)
+        ),
+      requisitions = REQUISITIONS
+    )
+
+    var cryptoRequest = CompleteExecutionPhaseTwoRequest.getDefaultInstance()
+    whenever(mockCryptoWorker.completeExecutionPhaseTwo(any())).thenAnswer {
+      cryptoRequest = it.getArgument(0)
+      val postFix = ByteString.copyFromUtf8("-completeExecutionPhaseTwo-done")
+      CompleteExecutionPhaseTwoResponse.newBuilder()
+        .apply { flagCountTuples = cryptoRequest.flagCountTuples.concat(postFix) }
+        .build()
+    }
+
+    // Process the above computation
+    nonAggregatorMill.pollAndProcessNextComputation()
+
+    // Check that the request sent to the crypto worker was correct.
+    assertThat(cryptoRequest)
+      .isEqualTo(
+        CompleteExecutionPhaseTwoRequest.newBuilder()
+          .apply {
+            flagCountTuples = ByteString.copyFromUtf8("data")
+            localElGamalKeyPair = DUCHY_ONE_KEY_PAIR
+            compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
+            partialCompositeElGamalPublicKey = PARTIALLY_COMBINED_PUBLIC_KEY
+            curveId = CURVE_ID
+          }
+          .build()
+      )
+  }
+
+  @Test
+  fun `execution phase two at non-aggregator with reach measurement`() = runBlocking {
+    // Stage 0. preparing the storage and set up mock
+    val partialToken =
+      FakeComputationsDatabase.newPartialToken(
+          localId = LOCAL_ID,
+          stage = EXECUTION_PHASE_TWO.toProtocolStage()
+        )
+        .build()
+    val inputBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_TWO.toProtocolStage(), 0L)
+    val calculatedBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_TWO.toProtocolStage(), 1L)
+    computationStore.writeString(inputBlobContext, "data")
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
+      computationDetails = NON_AGGREGATOR_REACH_COMPUTATION_DETAILS,
       blobs =
         listOf(
           inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
@@ -1895,6 +2054,126 @@ class LiquidLegionsV2MillTest {
       AGGREGATOR_COMPUTATION_DETAILS.copy {
         kingdomComputation =
           kingdomComputation.copy { measurementSpec = SERIALIZED_MEASUREMENT_SPEC_FREQUENCY_ONE }
+      }
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
+      computationDetails = computationDetailsWithVidSamplingWidth,
+      blobs =
+        listOf(
+          inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
+          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)
+        ),
+      requisitions = REQUISITIONS
+    )
+
+    val testReach = 123L
+    var cryptoRequest = CompleteExecutionPhaseTwoAtAggregatorRequest.getDefaultInstance()
+    whenever(mockCryptoWorker.completeExecutionPhaseTwoAtAggregator(any())).thenAnswer {
+      cryptoRequest = it.getArgument(0)
+      val postFix = ByteString.copyFromUtf8("-completeExecutionPhaseTwoAtAggregator-done")
+      CompleteExecutionPhaseTwoAtAggregatorResponse.newBuilder()
+        .apply {
+          sameKeyAggregatorMatrix = cryptoRequest.flagCountTuples.concat(postFix)
+          reach = testReach
+        }
+        .build()
+    }
+
+    var systemComputationResult = SetComputationResultRequest.getDefaultInstance()
+    whenever(mockSystemComputations.setComputationResult(any())).thenAnswer {
+      systemComputationResult = it.getArgument(0)
+      Computation.getDefaultInstance()
+    }
+
+    // Process the above computation
+    aggregatorMill.pollAndProcessNextComputation()
+
+    // Check the status of the computation
+    val blobKey = calculatedBlobContext.blobKey
+    assertThat(fakeComputationDb[LOCAL_ID])
+      .isEqualTo(
+        ComputationToken.newBuilder()
+          .apply {
+            globalComputationId = GLOBAL_ID
+            localComputationId = LOCAL_ID
+            attempt = 1
+            computationStage = COMPLETE.toProtocolStage()
+            version = 4 // claimTask + writeOutputBlob + transitionStage
+            computationDetails =
+              computationDetailsWithReach
+                .toBuilder()
+                .apply { endingState = CompletedReason.SUCCEEDED }
+                .build()
+            addAllRequisitions(REQUISITIONS)
+          }
+          .build()
+      )
+    assertThat(computationStore.get(blobKey)?.readToString()).isNotEmpty()
+
+    assertThat(systemComputationResult.name).isEqualTo("computations/$GLOBAL_ID")
+    // The signature is non-deterministic, so we only verity the encryption is not empty.
+    assertThat(systemComputationResult.encryptedResult).isNotEmpty()
+    assertThat(systemComputationResult)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        setComputationResultRequest {
+          name = "computations/$GLOBAL_ID"
+          aggregatorCertificate = CONSENT_SIGNALING_CERT_NAME
+          resultPublicKey = ENCRYPTION_PUBLIC_KEY.toByteString()
+        }
+      )
+
+    // Check that the cryptoRequest is correct
+    assertThat(cryptoRequest)
+      .isEqualTo(
+        CompleteExecutionPhaseTwoAtAggregatorRequest.newBuilder()
+          .apply {
+            flagCountTuples = ByteString.copyFromUtf8("data")
+            localElGamalKeyPair = DUCHY_ONE_KEY_PAIR
+            compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
+            curveId = CURVE_ID
+            maximumFrequency = 1
+            vidSamplingIntervalWidth = 0.0f
+            liquidLegionsParametersBuilder.apply {
+              decayRate = DECAY_RATE
+              size = SKETCH_SIZE
+            }
+            reachDpNoiseBaselineBuilder.apply {
+              contributorsCount = WORKER_COUNT
+              globalReachDpNoise = TEST_NOISE_CONFIG.reachNoiseConfig.globalReachDpNoise
+            }
+          }
+          .build()
+      )
+  }
+
+  @Test
+  fun `execution phase two at aggregator using reach measurement`() = runBlocking {
+    // Stage 0. preparing the storage and set up mock
+    val partialToken =
+      FakeComputationsDatabase.newPartialToken(
+          localId = LOCAL_ID,
+          stage = EXECUTION_PHASE_TWO.toProtocolStage()
+        )
+        .build()
+    val computationDetailsWithReach =
+      AGGREGATOR_COMPUTATION_DETAILS.toBuilder()
+        .apply {
+          liquidLegionsV2Builder.apply { reachEstimateBuilder.reach = 123 }
+          kingdomComputation =
+            kingdomComputation.copy { measurementSpec = SERIALIZED_REACH_MEASUREMENT_SPEC }
+        }
+        .build()
+    val inputBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_TWO.toProtocolStage(), 0L)
+    val calculatedBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_TWO.toProtocolStage(), 1L)
+    computationStore.writeString(inputBlobContext, "data")
+    val computationDetailsWithVidSamplingWidth =
+      AGGREGATOR_COMPUTATION_DETAILS.copy {
+        kingdomComputation =
+          kingdomComputation.copy { measurementSpec = SERIALIZED_REACH_MEASUREMENT_SPEC }
       }
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
