@@ -67,8 +67,8 @@ jobs:
           component: ${{ inputs.duchy }}
 
       # Apply the generated plan.
-      - name: Terraform Applyif: inputs.terraform_apply == true
-
+      - name: Terraform Apply
+        if: inputs.terraform_apply == true
         uses: "./.github/template/terraform-apply"
         with:
           working-directory: ${{env.ROOT_PATH}}
