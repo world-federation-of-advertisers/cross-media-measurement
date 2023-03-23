@@ -243,16 +243,16 @@ CREATE TABLE Metrics (
 
   CreateTime TIMESTAMP WITH TIME ZONE NOT NULL,
 
-  -- Serialized bytea string of a proto3 protobuf with details about the
+  -- Serialized byte string of a proto3 protobuf with details about the
   -- metric which do not need to be indexed by the database.
   --
   -- See org.wfanet.measurement.internal.reporting.Metric.Details protobuf
   -- message.
-  MetricDetails bytea(MAX) NOT NULL,
+  MetricDetails bytea NOT NULL,
 
   -- Human-readable copy of the MetricDetails column solely for debugging
   -- purposes.
-  MetricDetailsJson STRING(MAX) NOT NULL,
+  MetricDetailsJson text NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, MetricId),
   UNIQUE (MeasurementConsumerId, CreateMetricRequestId),
@@ -276,16 +276,16 @@ CREATE TABLE Measurements (
   -- protobuf enum encoded as an integer.
   State integer NOT NULL,
 
-  -- Serialized bytea string of a proto3 protobuf with details about the
+  -- Serialized byte string of a proto3 protobuf with details about the
   -- measurement which do not need to be indexed by the database.
   --
   -- See org.wfanet.measurement.internal.reporting.Measurement.Details protobuf
   -- message.
-  MeasurementDetails bytea(MAX) NOT NULL,
+  MeasurementDetails bytea NOT NULL,
 
   -- Human-readable copy of the MeasurementDetails column solely for debugging
   -- purposes.
-  MeasurementDetailsJson STRING(MAX) NOT NULL,
+  MeasurementDetailsJson text NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, MeasurementId),
   UNIQUE (MeasurementConsumerId, CmmsCreateMeasurementRequestId),
@@ -365,16 +365,16 @@ CREATE TABLE MetricCalculationSpecs (
   MetricCalculationSpecId bigint NOT NULL,
   ReportingSetId bigint NOT NULL,
 
-  -- Serialized bytea string of a proto3 protobuf with details about the
+  -- Serialized byte string of a proto3 protobuf with details about the
   -- metric calculation which do not need to be indexed by the database.
   --
   -- See org.wfanet.measurement.internal.reporting.Report.MetricCalculationSpec.Details
   -- protobuf message.
-  MetricCalculationSpecDetails bytea(MAX) NOT NULL,
+  MetricCalculationSpecDetails bytea NOT NULL,
 
   -- Human-readable copy of the MetricCalculationSpecDetails column solely for
   -- debugging purposes.
-  MetricCalculationSpecDetailsJson STRING(MAX) NOT NULL,
+  MetricCalculationSpecDetailsJson text NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, ReportId, MetricCalculationSpecId),
   FOREIGN KEY(MeasurementConsumerId, ReportId)
