@@ -1409,7 +1409,9 @@ class MeasurementsServiceTest {
     fun initConfig() {
       Llv2ProtocolConfig.setForTest(
         INTERNAL_PROTOCOL_CONFIG.liquidLegionsV2,
-        DUCHY_PROTOCOL_CONFIG.liquidLegionsV2
+        DUCHY_PROTOCOL_CONFIG.liquidLegionsV2,
+        setOf("aggregator"),
+        2
       )
     }
 
