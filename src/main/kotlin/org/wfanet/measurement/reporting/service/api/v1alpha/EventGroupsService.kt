@@ -253,6 +253,7 @@ class EventGroupsService(
           Status.Code.CANCELLED -> Status.CANCELLED
           else -> Status.UNKNOWN
         }
+        .withDescription("Error retrieving EventGroupMetadataDescriptors")
         .withCause(e)
         .asRuntimeException()
     }
@@ -277,6 +278,11 @@ class EventGroupsService(
     cmmsEventGroup: CmmsEventGroup,
     principalName: String,
   ): CmmsEventGroup.Metadata {
+    if (!cmmsEventGroup.hasMeasurementConsumerPublicKey()) {
+      failGrpc(Status.FAILED_PRECONDITION) {
+        "EventGroup ${cmmsEventGroup.name} has encrypted metadata but no encryption public key"
+      }
+    }
     val encryptionKey =
       EncryptionPublicKey.parseFrom(cmmsEventGroup.measurementConsumerPublicKey.data)
     val decryptionKeyHandle: PrivateKeyHandle =

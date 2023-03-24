@@ -522,7 +522,7 @@ class CorrectnessTest {
                   MeasurementConsumersCoroutineStub(publicChannel),
                   runId,
                   outputDir = resourceSetupOutput,
-                  requiredDuchies = listOf("worker1", "worker2")
+                  requiredDuchies = listOf("aggregator", "worker1", "worker2")
                 )
               withContext(Dispatchers.IO) {
                 resourceSetup

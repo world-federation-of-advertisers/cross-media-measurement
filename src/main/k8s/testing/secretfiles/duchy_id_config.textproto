@@ -3,12 +3,21 @@
 duchies {
   external_duchy_id: "aggregator"
   internal_duchy_id: 1234
+  active_start_time: {
+    seconds: 1640995200
+  }
 }
 duchies {
   external_duchy_id: "worker1"
   internal_duchy_id: 2345
+  active_start_time: {
+    seconds: 1640995200
+  }
 }
 duchies {
   external_duchy_id: "worker2"
   internal_duchy_id: 3456
+  active_start_time: {
+    seconds: 1640995200
+  }
 }

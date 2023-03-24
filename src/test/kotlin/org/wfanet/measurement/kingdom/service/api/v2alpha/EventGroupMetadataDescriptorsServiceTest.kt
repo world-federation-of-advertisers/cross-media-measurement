@@ -28,6 +28,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.stub
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor
@@ -38,13 +39,12 @@ import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.getEventGroupMetadataDescriptorRequest
-import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
 import org.wfanet.measurement.api.v2alpha.updateEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptor as InternalEventGroupMetadataDescriptor
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorKt.details
@@ -54,53 +54,12 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.eventGroupMetadataDescriptor as internalEventGroupMetadataDescriptor
 import org.wfanet.measurement.internal.kingdom.getEventGroupMetadataDescriptorRequest as internalGetEventGroupMetadataDescriptorRequest
 
-private val DATA_PROVIDER_NAME = makeDataProvider(123L)
-private val DATA_PROVIDER_NAME_2 = makeDataProvider(124L)
-private val DATA_PROVIDER_EXTERNAL_ID =
-  apiIdToExternalId(DataProviderKey.fromName(DATA_PROVIDER_NAME)!!.dataProviderId)
-
-private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
-
-private val EVENT_GROUP_METADATA_DESCRIPTOR_NAME =
-  "$DATA_PROVIDER_NAME/eventGroupMetadataDescriptors/AAAAAAAAAHs"
-private val EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2 =
-  "$DATA_PROVIDER_NAME/eventGroupMetadataDescriptors/AAAAAAAABHs"
-private val FILE_DESCRIPTOR_SET = FileDescriptorSet.getDefaultInstance()
-private val API_VERSION = Version.V2_ALPHA
-private val EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID =
-  apiIdToExternalId(
-    EventGroupMetadataDescriptorKey.fromName(EVENT_GROUP_METADATA_DESCRIPTOR_NAME)!!
-      .eventGroupMetadataDescriptorId
-  )
-private val EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID_2 =
-  apiIdToExternalId(
-    EventGroupMetadataDescriptorKey.fromName(EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2)!!
-      .eventGroupMetadataDescriptorId
-  )
-
-private val EVENT_GROUP_METADATA_DESCRIPTOR: EventGroupMetadataDescriptor =
-  eventGroupMetadataDescriptor {
-    name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
-    descriptorSet = FILE_DESCRIPTOR_SET
-  }
-
-private val INTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR: InternalEventGroupMetadataDescriptor =
-  internalEventGroupMetadataDescriptor {
-    externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-    externalEventGroupMetadataDescriptorId = EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID
-
-    details = details {
-      apiVersion = API_VERSION.string
-      descriptorSet = FILE_DESCRIPTOR_SET
-    }
-  }
-
 @RunWith(JUnit4::class)
 class EventGroupMetadataDescriptorsServiceTest {
 
   private val internalEventGroupMetadataDescriptorsMock:
     EventGroupMetadataDescriptorsCoroutineImplBase =
-    mockService() {
+    mockService {
       onBlocking { getEventGroupMetadataDescriptor(any()) }
         .thenReturn(INTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR)
       onBlocking { createEventGroupMetadataDescriptor(any()) }
@@ -112,7 +71,8 @@ class EventGroupMetadataDescriptorsServiceTest {
           flowOf(
             INTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR,
             INTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR.copy {
-              externalEventGroupMetadataDescriptorId = EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID_2
+              externalEventGroupMetadataDescriptorId =
+                EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID_2.value
             }
           )
         )
@@ -152,8 +112,8 @@ class EventGroupMetadataDescriptorsServiceTest {
       )
       .isEqualTo(
         internalGetEventGroupMetadataDescriptorRequest {
-          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-          externalEventGroupMetadataDescriptorId = EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID
+          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
+          externalEventGroupMetadataDescriptorId = EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.value
         }
       )
 
@@ -179,8 +139,8 @@ class EventGroupMetadataDescriptorsServiceTest {
       )
       .isEqualTo(
         internalGetEventGroupMetadataDescriptorRequest {
-          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
-          externalEventGroupMetadataDescriptorId = EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID
+          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
+          externalEventGroupMetadataDescriptorId = EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.value
         }
       )
 
@@ -373,6 +333,51 @@ class EventGroupMetadataDescriptorsServiceTest {
   }
 
   @Test
+  fun `batchGetEventGroupMetadataDescriptors returns descriptors for multiple DataProviders`() {
+    internalEventGroupMetadataDescriptorsMock.stub {
+      onBlocking { streamEventGroupMetadataDescriptors(any()) }
+        .thenReturn(
+          flowOf(
+            INTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR,
+            INTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR.copy {
+              externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID_2.value
+              externalEventGroupMetadataDescriptorId =
+                EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID_2.value
+            }
+          )
+        )
+    }
+    val eventGroupMetadataDescriptor2Key =
+      EventGroupMetadataDescriptorKey(
+        DATA_PROVIDER_EXTERNAL_ID_2.apiId.value,
+        EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID_2.apiId.value
+      )
+    val request = batchGetEventGroupMetadataDescriptorsRequest {
+      parent = "dataProviders/-"
+      names +=
+        listOf(EVENT_GROUP_METADATA_DESCRIPTOR_NAME, eventGroupMetadataDescriptor2Key.toName())
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.batchGetEventGroupMetadataDescriptors(request) }
+      }
+
+    assertThat(result)
+      .isEqualTo(
+        batchGetEventGroupMetadataDescriptorsResponse {
+          eventGroupMetadataDescriptors +=
+            listOf(
+              EVENT_GROUP_METADATA_DESCRIPTOR,
+              EVENT_GROUP_METADATA_DESCRIPTOR.copy {
+                name = eventGroupMetadataDescriptor2Key.toName()
+              }
+            )
+        }
+      )
+  }
+
+  @Test
   fun `batchGetEventGroupMetadataDescriptors throws NOT_FOUND if descriptor not found`() {
     val eventGroupMetadataDescriptorName3 =
       "$DATA_PROVIDER_NAME/eventGroupMetadataDescriptors/AAAAAAAACHs"
@@ -404,5 +409,50 @@ class EventGroupMetadataDescriptorsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  companion object {
+    private val DATA_PROVIDER_EXTERNAL_ID = ExternalId(123L)
+    private val DATA_PROVIDER_EXTERNAL_ID_2 = ExternalId(124L)
+    private val DATA_PROVIDER_KEY = DataProviderKey(DATA_PROVIDER_EXTERNAL_ID.apiId.value)
+    private val DATA_PROVIDER_KEY_2 = DataProviderKey(DATA_PROVIDER_EXTERNAL_ID_2.apiId.value)
+    private val DATA_PROVIDER_NAME = DATA_PROVIDER_KEY.toName()
+    private val DATA_PROVIDER_NAME_2 = DATA_PROVIDER_KEY_2.toName()
+
+    private const val MEASUREMENT_CONSUMER_NAME = "measurementConsumers/AAAAAAAAAHs"
+
+    private val EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID = ExternalId(456L)
+    private val EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID_2 = ExternalId(789L)
+    private val EVENT_GROUP_METADATA_DESCRIPTOR_NAME =
+      EventGroupMetadataDescriptorKey(
+          DATA_PROVIDER_KEY.dataProviderId,
+          EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.apiId.value
+        )
+        .toName()
+    private val EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2 =
+      EventGroupMetadataDescriptorKey(
+          DATA_PROVIDER_KEY.dataProviderId,
+          EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID_2.apiId.value
+        )
+        .toName()
+    private val FILE_DESCRIPTOR_SET = FileDescriptorSet.getDefaultInstance()
+    private val API_VERSION = Version.V2_ALPHA
+
+    private val EVENT_GROUP_METADATA_DESCRIPTOR: EventGroupMetadataDescriptor =
+      eventGroupMetadataDescriptor {
+        name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME
+        descriptorSet = FILE_DESCRIPTOR_SET
+      }
+
+    private val INTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR: InternalEventGroupMetadataDescriptor =
+      internalEventGroupMetadataDescriptor {
+        externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
+        externalEventGroupMetadataDescriptorId = EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.value
+
+        details = details {
+          apiVersion = API_VERSION.string
+          descriptorSet = FILE_DESCRIPTOR_SET
+        }
+      }
   }
 }
