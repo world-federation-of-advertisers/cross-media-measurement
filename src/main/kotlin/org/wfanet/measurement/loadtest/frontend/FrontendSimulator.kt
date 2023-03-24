@@ -60,6 +60,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.result
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach as reachSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
@@ -240,13 +241,13 @@ class FrontendSimulator(
     logger.info("Created reach-only measurement ${createdReachOnlyMeasurement.name}.")
 
     // Get the CMMS computed result and compare it with the expected result.
-    var reachOnlyResult = getReachAndFrequencyResult(createdReachOnlyMeasurement.name)
+    var reachOnlyResult = getReachResult(createdReachOnlyMeasurement.name)
     var nAttempts = 0
     while (reachOnlyResult == null && (nAttempts < 4)) {
       nAttempts++
       logger.info("Computation not done yet, wait for another 30 seconds.  Attempt $nAttempts")
       delay(Duration.ofSeconds(30))
-      reachOnlyResult = getReachAndFrequencyResult(createdReachOnlyMeasurement.name)
+      reachOnlyResult = getReachResult(createdReachOnlyMeasurement.name)
     }
     checkNotNull(reachOnlyResult) { "Timed out waiting for response to reach-only request" }
     logger.info("Actual result: $reachOnlyResult")
@@ -259,7 +260,6 @@ class FrontendSimulator(
       getExpectedResult(createdReachOnlyMeasurement.name, liquidLegionV2Protocol)
     val expectedResult = result {
       reach = reach { value = expectedResultWithFrequencies.reach.value }
-      frequency = frequency { relativeFrequencyDistribution.putAll(mapOf(1L to 1.0)) }
     }
 
     logger.info("Expected result: $expectedResult")
@@ -267,7 +267,7 @@ class FrontendSimulator(
     assertDpResultsEqual(
       expectedResult,
       reachOnlyResult,
-      liquidLegionV2Protocol.maximumFrequency.toLong()
+      0L
     )
     logger.info("Reach-only result is equal to the expected result. Correctness Test passes.")
   }
@@ -424,6 +424,26 @@ class FrontendSimulator(
     return result
   }
 
+  /** Gets the result of a [Measurement] if it is succeeded. */
+  private suspend fun getReachResult(measurementName: String): Result? {
+    val measurement = getMeasurement(measurementName)
+    logger.info("Current Measurement state is: " + measurement.state)
+    if (measurement.state == Measurement.State.FAILED) {
+      val failure: Failure = measurement.failure
+      throw Exception("Measurement failed with reason ${failure.reason}: ${failure.message}")
+    }
+    if (measurement.state != Measurement.State.SUCCEEDED) {
+      return null
+    }
+
+    val resultPair = measurement.resultsList[0]
+    val result = parseAndVerifyResult(resultPair)
+    assertThat(result.hasReach()).isTrue()
+    assertThat(result.hasFrequency()).isFalse()
+
+    return result
+  }
+
   private suspend fun getMeasurement(measurementName: String) =
     try {
       measurementsClient
@@ -560,11 +580,7 @@ class FrontendSimulator(
   ): MeasurementSpec {
     return measurementSpec {
       measurementPublicKey = serializedMeasurementPublicKey
-      reachAndFrequency = reachAndFrequency {
-        reachPrivacyParams = outputDpParams
-        frequencyPrivacyParams = outputDpParams
-        maximumFrequencyPerUser = 1
-      }
+      reach = reachSpec { privacyParams = outputDpParams }
       vidSamplingInterval = vidSamplingInterval {
         start = 0.0f
         width = 1.0f
