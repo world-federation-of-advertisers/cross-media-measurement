@@ -137,19 +137,12 @@ data class EdpData(
   val signingKey: SigningKeyHandle
 )
 
-/**
- * Mechanism for generating noise for direct measurements.
- *
- * TODO(@iverson52000): Move this to public API if EDP needs to report back the noise mechanism for
- *   PBM tracking.
- */
-enum class NoiseMechanism {
-  LAPLACE,
-  GAUSSIAN,
-}
-
-/** The reach and frequency estimation of a computation. */
-data class ReachAndFrequencyPair(val reach: Long, val frequency: Map<Long, Double>)
+data class PublisherNoise(
+  val reachNoise: Int = 0,
+  val frequencyNoises: Map<Long, Double> = mapOf(),
+  val impressionNoise: Int = 0,
+  val watchDurationNoise: Double = 0.0,
+)
 
 /** A simulator handling EDP businesses. */
 class EdpSimulator(
@@ -410,6 +403,7 @@ class EdpSimulator(
       val protocols: List<ProtocolConfig.Protocol> = requisition.protocolConfig.protocolsList
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
       when (measurementSpec.measurementTypeCase) {
+        MeasurementSpec.MeasurementTypeCase.REACH,
         MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
           if (protocols.any { it.hasDirect() }) {
             fulfillDirectReachAndFrequencyMeasurement(requisition, requisitionSpec, measurementSpec)
@@ -743,7 +737,15 @@ class EdpSimulator(
         }
     val (sampledReachValue, frequencyMap) = calculateDirectReachAndFrequency(vidList)
 
-    logger.info("Adding $noiseMechanism publisher noise to direct reach and frequency...")
+    logger.info("Adding publisher noise to direct reach and frequency...")
+    val publisherNoise = generatePublisherNoise(measurementSpec, frequencyMap.keys.toList())
+    val sampledNoisedReachValue = sampledReachValue + publisherNoise.reachNoise
+    val noisedFrequencyMap: Map<Long, Double> =
+      if (measurementSpec.hasReachAndFrequency()) {
+        publisherNoise.frequencyNoises.mapValues { (frequency, noise) ->
+          (frequencyMap.getValue(frequency) * sampledReachValue + noise) / sampledReachValue
+        }
+      } else frequencyMap
 
     val reachNoiser: AbstractNoiser =
       when (noiseMechanism) {
@@ -773,7 +775,9 @@ class EdpSimulator(
     val requisitionData =
       MeasurementKt.result {
         reach = reach { value = scaledNoisedReachValue }
-        frequency = frequency { relativeFrequencyDistribution.putAll(noisedFrequencyMap) }
+        if (measurementSpec.hasReachAndFrequency()) {
+          frequency = frequency { relativeFrequencyDistribution.putAll(noisedFrequencyMap) }
+        }
       }
 
     fulfillDirectMeasurement(requisition, requisitionSpec, measurementSpec, requisitionData)
@@ -896,7 +900,69 @@ class EdpSimulator(
         frequencyMap[frequency] = frequencyMap.getValue(frequency) / reachValue.toDouble()
       }
 
-      return ReachAndFrequencyPair(reachValue, frequencyMap)
+      return Pair(reachValue, frequencyMap)
+    }
+
+    /**
+     * Generate Laplace publisher noise for measurements.
+     *
+     * @param measurementSpec MeasurementSpec.
+     * @param frequencies Frequencies for frequency map noises.
+     * @return PublisherNoise which contains the noises for the measurement type specified in
+     *   measurementSpec.
+     *
+     * TODO(@iverson52000): Create a noiser class for this function when we need to add Gaussian
+     *   noise.
+     */
+    private fun generatePublisherNoise(
+      measurementSpec: MeasurementSpec,
+      frequencies: List<Long>,
+    ): PublisherNoise {
+
+      val publisherNoise =
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
+        when (measurementSpec.measurementTypeCase) {
+          MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
+            val laplaceForReach =
+              LaplaceDistribution(
+                0.0,
+                1 / measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon
+              )
+            // Reseed random number generator so the results can be verified in tests.
+            // TODO(@iverson52000): make randomSeed an input once create noiser class.
+            laplaceForReach.reseedRandomGenerator(1)
+
+            val laplaceForFrequency =
+              LaplaceDistribution(
+                0.0,
+                1 / measurementSpec.reachAndFrequency.frequencyPrivacyParams.epsilon
+              )
+            laplaceForFrequency.reseedRandomGenerator(1)
+
+            val frequencyMapNoises: Map<Long, Double> =
+              frequencies.associateWith { laplaceForFrequency.sample() }
+
+            PublisherNoise(laplaceForReach.sample().toInt(), frequencyMapNoises)
+          }
+          MeasurementSpec.MeasurementTypeCase.IMPRESSION,
+          MeasurementSpec.MeasurementTypeCase.DURATION -> {
+            PublisherNoise()
+          }
+          MeasurementSpec.MeasurementTypeCase.REACH -> {
+            val laplaceForReach =
+              LaplaceDistribution(0.0, 1 / measurementSpec.reach.privacyParams.epsilon)
+            // Reseed random number generator so the results can be verified in tests.
+            // TODO(@iverson52000): make randomSeed an input once create noiser class.
+            laplaceForReach.reseedRandomGenerator(1)
+
+            PublisherNoise(laplaceForReach.sample().toInt())
+          }
+          MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> {
+            error("Measurement type not set.")
+          }
+        }
+
+      return publisherNoise
     }
   }
 }
