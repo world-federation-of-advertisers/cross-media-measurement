@@ -35,7 +35,7 @@ jobs:
 
       # Create k8s manifest
       - name: Build K8s manifest
-        run: |
+        run: |  
           bazelisk run //src/main/k8s/dev:kingdom_gke \
           --define=k8s_kingdom_secret_name=certs-and-configs-abcdedg \
           --define image_tag=$IMAGE_TAG
