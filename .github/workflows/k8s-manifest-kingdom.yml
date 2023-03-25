@@ -15,11 +15,8 @@
 name: Create Manifest Kingdom
 
 on:
-  workflow_dispatch:
-    inputs:
-      kubectl_apply:
-        required: false
-        type: boolean
+  push:
+    branches: [ "feature/create_k8s_manifest_kingdom" ]
 
 jobs:
   push_create_k8s_manifest:
