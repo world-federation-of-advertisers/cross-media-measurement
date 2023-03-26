@@ -70,6 +70,7 @@ import org.wfanet.measurement.api.v2alpha.FulfillDirectRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
@@ -621,6 +622,72 @@ class EdpSimulatorTest {
   }
 
   @Test
+  fun `fulfill direct reach-only requisition correctly with sampling rate equal to 1`() {
+    val throttlerMock = mock<Throttler>()
+    val eventQuery = RandomEventQuery(SketchGenerationParams(reach = 1000, universeSize = 10000))
+    val simulator =
+      EdpSimulator(
+        EDP_DATA,
+        MC_NAME,
+        measurementConsumersStub,
+        certificatesStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        sketchStore,
+        eventQuery,
+        throttlerMock,
+        listOf(),
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES
+      )
+
+    val vidSamplingIntervalWidth = 1f
+    val newMeasurementSpec =
+      MEASUREMENT_SPEC.copy {
+        clearReachAndFrequency()
+        reach = reach { privacyParams = differentialPrivacyParams { epsilon = 1.0 } }
+        vidSamplingInterval = vidSamplingInterval.copy { width = vidSamplingIntervalWidth }
+      }
+    val requisition =
+      REQUISITION_ONE.copy {
+        name = "requisition_direct_reach_only"
+        protocolConfig =
+          protocolConfig.copy {
+            protocols += ProtocolConfigKt.protocol { direct = ProtocolConfigKt.direct {} }
+          }
+        measurementSpec = signMeasurementSpec(newMeasurementSpec, MC_SIGNING_KEY)
+      }
+
+    requisitionsServiceMock.stub {
+      onBlocking { requisitionsServiceMock.listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+    }
+
+    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+
+    val fulfillDirectRequisitionRequest: FulfillDirectRequisitionRequest =
+      verifyAndCapture(
+        requisitionsServiceMock,
+        RequisitionsCoroutineImplBase::fulfillDirectRequisition
+      )
+
+    val signedResult = decryptResult(fulfillDirectRequisitionRequest.encryptedData, MC_PRIVATE_KEY)
+    val reachAndFrequencyResult = Measurement.Result.parseFrom(signedResult.data)
+
+    val expectedReachValue = 948L
+    val expectedFrequencyMap = mapOf<Long, Double>()
+
+    assertThat(reachAndFrequencyResult.reach.value).isEqualTo(expectedReachValue)
+    assertThat(reachAndFrequencyResult.frequency.relativeFrequencyDistributionMap)
+      .isEqualTo(expectedFrequencyMap)
+
+    verifyBlocking(requisitionFulfillmentServiceMock, never()) { fulfillRequisition(any()) }
+    verifyBlocking(requisitionsServiceMock, times(1)) { fulfillDirectRequisition(any()) }
+  }
+
+  @Test
   fun `fulfill direct reach and frequency requisition correctly with sampling rate smaller than 1`() {
     val throttlerMock = mock<Throttler>()
     val eventQuery = RandomEventQuery(SketchGenerationParams(reach = 1000, universeSize = 10000))
@@ -690,6 +757,73 @@ class EdpSimulatorTest {
       (frequency, percentage) ->
       assertThat(percentage).isEqualTo(expectedFrequencyMap[frequency])
     }
+
+    verifyBlocking(requisitionFulfillmentServiceMock, never()) { fulfillRequisition(any()) }
+    verifyBlocking(requisitionsServiceMock, times(1)) { fulfillDirectRequisition(any()) }
+  }
+
+  @Test
+  fun `fulfill direct reach-only requisition correctly with sampling rate smaller than 1`() {
+    val throttlerMock = mock<Throttler>()
+    val eventQuery = RandomEventQuery(SketchGenerationParams(reach = 1000, universeSize = 10000))
+    val simulator =
+      EdpSimulator(
+        EDP_DATA,
+        MC_NAME,
+        measurementConsumersStub,
+        certificatesStub,
+        eventGroupsStub,
+        eventGroupMetadataDescriptorsStub,
+        requisitionsStub,
+        requisitionFulfillmentStub,
+        sketchStore,
+        eventQuery,
+        throttlerMock,
+        listOf(),
+        privacyBudgetManager,
+        TRUSTED_CERTIFICATES
+      )
+
+    val vidSamplingIntervalWidth = 0.1f
+    val newMeasurementSpec =
+      MEASUREMENT_SPEC.copy {
+        reach = reach { privacyParams = differentialPrivacyParams { epsilon = 1.0 } }
+        vidSamplingInterval = vidSamplingInterval.copy { width = vidSamplingIntervalWidth }
+      }
+    val requisition =
+      REQUISITION_ONE.copy {
+        name = "requisition_direct_reach_only"
+        protocolConfig =
+          protocolConfig.copy {
+            protocols += ProtocolConfigKt.protocol { direct = ProtocolConfigKt.direct {} }
+          }
+        measurementSpec = signMeasurementSpec(newMeasurementSpec, MC_SIGNING_KEY)
+      }
+
+    requisitionsServiceMock.stub {
+      onBlocking { requisitionsServiceMock.listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += requisition })
+    }
+
+    runBlocking { simulator.executeRequisitionFulfillingWorkflow() }
+
+    val fulfillDirectRequisitionRequest: FulfillDirectRequisitionRequest =
+      verifyAndCapture(
+        requisitionsServiceMock,
+        RequisitionsCoroutineImplBase::fulfillDirectRequisition
+      )
+
+    val signedResult = decryptResult(fulfillDirectRequisitionRequest.encryptedData, MC_PRIVATE_KEY)
+    val reachAndFrequencyResult = Measurement.Result.parseFrom(signedResult.data)
+
+    // vidList is first filtered by vidSampler and noised reach is scaled by sampling rate which is
+    // vidSamplingInterval.
+    val expectedReachValue = 1010L
+    val expectedFrequencyMap = mapOf<Long, Double>()
+
+    assertThat(reachAndFrequencyResult.reach.value).isEqualTo(expectedReachValue)
+    assertThat(reachAndFrequencyResult.frequency.relativeFrequencyDistributionMap)
+      .isEqualTo(expectedFrequencyMap)
 
     verifyBlocking(requisitionFulfillmentServiceMock, never()) { fulfillRequisition(any()) }
     verifyBlocking(requisitionsServiceMock, times(1)) { fulfillDirectRequisition(any()) }
