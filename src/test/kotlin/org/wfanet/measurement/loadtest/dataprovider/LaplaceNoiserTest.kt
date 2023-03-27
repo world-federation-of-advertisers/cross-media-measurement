@@ -15,6 +15,7 @@
 package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.common.truth.Truth.assertThat
+import java.util.Random
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -32,15 +33,17 @@ class LaplaceNoiserTest {
     val reachValue = 500L
     val frequencyMap = mapOf(1L to 0.6, 2L to 0.2, 3L to 0.2)
 
+    val random = Random(RANDOM_SEED)
+    val laplaceNoiser = LaplaceNoiser(MEASUREMENT_SPEC.reachAndFrequency, random)
     val (noisedReachValue, noisedFrequencyMap) =
       laplaceNoiser.addPublisherNoise(
         reachValue,
         frequencyMap,
       )
 
-    val expectedNoisedReachValue = 499
+    val expectedNoisedReachValue = 500
     val expectedNoisedFrequencyMap =
-      mapOf(1L to 0.5961455846667975, 2L to 0.19919901208134336, 3L to 0.20523867948429547)
+      mapOf(1L to 0.5996034922861095, 2L to 0.1982431161708369, 3L to 0.19918536869714157)
 
     assertThat(noisedReachValue).isEqualTo(expectedNoisedReachValue)
     noisedFrequencyMap.forEach { (frequency, percentage) ->
@@ -67,7 +70,5 @@ class LaplaceNoiserTest {
           width = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
         }
     }
-
-    val laplaceNoiser = LaplaceNoiser(MEASUREMENT_SPEC.reachAndFrequency, RANDOM_SEED)
   }
 }
