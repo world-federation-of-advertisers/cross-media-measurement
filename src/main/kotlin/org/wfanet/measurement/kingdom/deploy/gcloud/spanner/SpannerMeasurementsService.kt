@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import com.google.protobuf.Empty
 import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -22,6 +23,7 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.internal.kingdom.BatchDeleteMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.CancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.GetMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.GetMeasurementRequest
@@ -41,6 +43,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNo
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurements
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchDeleteMeasurements
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CancelMeasurement
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateMeasurement
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetMeasurementResult
@@ -156,6 +159,16 @@ class SpannerMeasurementsService(
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "Measurement not found." }
     } catch (e: MeasurementStateIllegalException) {
       e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Measurement state illegal." }
+    } catch (e: KingdomInternalException) {
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+    }
+  }
+
+  override suspend fun batchDeleteMeasurements(request: BatchDeleteMeasurementsRequest): Empty {
+    try {
+      return BatchDeleteMeasurements(request).execute(client, idGenerator)
+    } catch (e: MeasurementNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Measurement not found." }
     } catch (e: KingdomInternalException) {
       e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
