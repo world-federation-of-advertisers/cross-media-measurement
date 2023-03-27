@@ -14,9 +14,9 @@
 
 syntax = "proto3";
 
-package wfa.measurement.internal.reporting.v2alpha;
+package wfa.measurement.internal.reporting.v2;
 
-option java_package = "org.wfanet.measurement.internal.reporting.v2alpha";
+option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
 
 // Proto representation of the internal ReportingSet entity type.

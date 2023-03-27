@@ -14,13 +14,13 @@
 
 syntax = "proto3";
 
-package wfa.measurement.internal.reporting.v2alpha;
+package wfa.measurement.internal.reporting.v2;
 
 import "google/protobuf/timestamp.proto";
-import "wfa/measurement/internal/reporting/v2alpha/metric.proto";
-import "wfa/measurement/internal/reporting/v2alpha/time_interval.proto";
+import "wfa/measurement/internal/reporting/v2/metric.proto";
+import "wfa/measurement/internal/reporting/v2/time_interval.proto";
 
-option java_package = "org.wfanet.measurement.internal.reporting.v2alpha";
+option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
 
 // Proto representation of the internal Report entity type.

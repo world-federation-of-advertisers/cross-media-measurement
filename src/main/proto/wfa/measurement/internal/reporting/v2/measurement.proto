@@ -14,13 +14,13 @@
 
 syntax = "proto3";
 
-package wfa.measurement.internal.reporting.v2alpha;
+package wfa.measurement.internal.reporting.v2;
 
 import "google/protobuf/duration.proto";
-import "wfa/measurement/internal/reporting/v2alpha/reporting_set.proto";
-import "wfa/measurement/internal/reporting/v2alpha/time_interval.proto";
+import "wfa/measurement/internal/reporting/v2/reporting_set.proto";
+import "wfa/measurement/internal/reporting/v2/time_interval.proto";
 
-option java_package = "org.wfanet.measurement.internal.reporting.v2alpha";
+option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
 
 // Proto representation of the internal Measurement entity type.
@@ -63,9 +63,6 @@ message Measurement {
     // Human-readable message.
     string message = 2;
   }
-  // Failure reason of the `Measurement` derived from the CMMS public API.
-  // Set when the state is set to FAILED.
-  Failure failure = 7;
 
   message Result {
     message Reach {
@@ -88,6 +85,13 @@ message Measurement {
     }
     WatchDuration watchDuration = 4;
   }
-  // The result of the `Measurement` derived from the CMMS public API.
-  Result result = 8;
+
+  message Details {
+    // Failure reason of the `Measurement` derived from the CMMS public API.
+    // Set when the state is set to FAILED.
+    Failure failure = 1;
+    // The result of the `Measurement` derived from the CMMS public API.
+    Result result = 2;
+  }
+  Details details = 7;
 }

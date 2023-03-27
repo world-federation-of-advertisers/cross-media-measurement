@@ -14,11 +14,11 @@
 
 syntax = "proto3";
 
-package wfa.measurement.internal.reporting.v2alpha;
+package wfa.measurement.internal.reporting.v2;
 
-import "wfa/measurement/internal/reporting/v2alpha/metric.proto";
+import "wfa/measurement/internal/reporting/v2/metric.proto";
 
-option java_package = "org.wfanet.measurement.internal.reporting.v2alpha";
+option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
 
 // Internal service for persistence of Metric entities.
