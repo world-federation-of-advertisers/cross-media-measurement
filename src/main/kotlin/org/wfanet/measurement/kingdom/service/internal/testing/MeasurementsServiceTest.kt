@@ -54,9 +54,11 @@ import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
+import org.wfanet.measurement.internal.kingdom.batchDeleteMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.deleteMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
@@ -647,7 +649,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         )
       assertThat(secondCreateMeasurementAttempt).isEqualTo(createdMeasurement)
     }
-
   @Test
   fun `createMeasurement returns new measurement when called without providedMeasurementId`() =
     runBlocking {
@@ -1304,6 +1305,111 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
     assertThat(measurements).containsExactly(succeededMeasurement)
   }
+
+  @Test
+  fun `batchDeleteMeasurements deletes all requested Measurements`(): Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val measurement1 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+    val measurement2 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+    val measurement3 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 4
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+
+    val deleteMeasurementRequest1 = deleteMeasurementRequest {
+      externalMeasurementId = measurement1.externalMeasurementId
+      externalMeasurementConsumerId = measurement1.externalMeasurementConsumerId
+    }
+
+    val deleteMeasurementRequest2 = deleteMeasurementRequest {
+      externalMeasurementId = measurement2.externalMeasurementId
+      externalMeasurementConsumerId = measurement2.externalMeasurementConsumerId
+    }
+
+    measurementsService.batchDeleteMeasurements(
+      batchDeleteMeasurementsRequest {
+        requests += listOf(deleteMeasurementRequest1, deleteMeasurementRequest2)
+      }
+    )
+
+    val measurements: List<Measurement> =
+      measurementsService
+        .streamMeasurements(
+          streamMeasurementsRequest {
+            filter = filter {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            }
+          }
+        )
+        .toList()
+
+    assertThat(measurements).containsExactly(measurement3)
+  }
+
+  @Test
+  fun `batchDeleteMeasurements throws NOT_FOUND when Measurement does not exist`(): Unit =
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val measurement =
+        measurementsService.createMeasurement(
+          MEASUREMENT.copy {
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            providedMeasurementId = PROVIDED_MEASUREMENT_ID
+            externalMeasurementConsumerCertificateId =
+              measurementConsumer.certificate.externalCertificateId
+          }
+        )
+
+      val invalidMeasurementRequest = deleteMeasurementRequest {
+        externalMeasurementId = 123L
+        externalMeasurementConsumerId = 123L
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          measurementsService.batchDeleteMeasurements(
+            batchDeleteMeasurementsRequest { requests += listOf(invalidMeasurementRequest) }
+          )
+        }
+
+      val measurements: List<Measurement> =
+        measurementsService
+          .streamMeasurements(
+            streamMeasurementsRequest {
+              filter = filter {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              }
+            }
+          )
+          .toList()
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+      assertThat(exception).hasMessageThat().contains("Measurement not found")
+      assertThat(measurements).containsExactly(measurement)
+    }
 
   companion object {
     @BeforeClass
