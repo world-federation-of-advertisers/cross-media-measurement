@@ -15,6 +15,7 @@
 package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.common.truth.Truth.assertThat
+import java.util.Random
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -32,6 +33,9 @@ class GaussianNoiserTest {
     val reachValue = 500L
     val frequencyMap = mapOf(1L to 0.6, 2L to 0.2, 3L to 0.2)
 
+    val random = Random(RANDOM_SEED)
+    val gaussianNoiser = GaussianNoiser(MEASUREMENT_SPEC.reachAndFrequency, random)
+
     val (noisedReachValue, noisedFrequencyMap) =
       gaussianNoiser.addPublisherNoise(
         reachValue,
@@ -40,7 +44,7 @@ class GaussianNoiserTest {
 
     val expectedNoisedReachValue = 500
     val expectedNoisedFrequencyMap =
-      mapOf(1L to 0.6000013282959348, 2L to 0.20000065359491367, 3L to 0.20000174523507977)
+      mapOf(1L to 0.5999993912234646, 2L to 0.1999989077064648, 3L to 0.19999937484996114)
 
     assertThat(noisedReachValue).isEqualTo(expectedNoisedReachValue)
     noisedFrequencyMap.forEach { (frequency, percentage) ->
@@ -67,7 +71,5 @@ class GaussianNoiserTest {
           width = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
         }
     }
-
-    val gaussianNoiser = GaussianNoiser(MEASUREMENT_SPEC.reachAndFrequency, RANDOM_SEED)
   }
 }

@@ -24,6 +24,7 @@ import java.security.GeneralSecurityException
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
+import java.util.Random
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
@@ -151,7 +152,8 @@ class EdpSimulator(
   private val throttler: Throttler,
   private val eventTemplateNames: List<String>,
   private val privacyBudgetManager: PrivacyBudgetManager,
-  private val trustedCertificates: Map<ByteString, X509Certificate>
+  private val trustedCertificates: Map<ByteString, X509Certificate>,
+  private val random: Random
 ) {
 
   /** A sequence of operations done in the simulator. */
@@ -727,9 +729,8 @@ class EdpSimulator(
     val (sampledReachValue, frequencyMap) = calculateDirectReachAndFrequency(vidList)
 
     logger.info("Adding publisher noise to direct reach and frequency...")
-    // Reseed random number generator so the results can be verified in unit test and integration
-    // tests.
-    val laplaceNoiser = LaplaceNoiser(measurementSpec.reachAndFrequency, 1)
+
+    val laplaceNoiser = LaplaceNoiser(measurementSpec.reachAndFrequency, random)
     val (sampledNoisedReachValue, noisedFrequencyMap) =
       laplaceNoiser.addPublisherNoise(
         sampledReachValue,
