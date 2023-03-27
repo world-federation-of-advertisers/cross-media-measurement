@@ -13,7 +13,7 @@
 # limitations under the License.
 
 name: Create Manifest Kingdom
-
+#TODO add workflow_run
 on:
   workflow_dispatch:
     inputs:
