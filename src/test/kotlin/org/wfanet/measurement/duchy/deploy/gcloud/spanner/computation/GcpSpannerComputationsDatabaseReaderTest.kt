@@ -93,6 +93,7 @@ class GcpSpannerComputationsDatabaseReaderTest :
     val computationRow =
       computationMutations.insertComputation(
         localId = localId,
+        creationTime = lastUpdated.toGcloudTimestamp(),
         updateTime = lastUpdated.toGcloudTimestamp(),
         globalId = globalId,
         protocol = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
@@ -179,6 +180,7 @@ class GcpSpannerComputationsDatabaseReaderTest :
     val computationRow =
       computationMutations.insertComputation(
         localId = localId,
+        creationTime = lastUpdated.toGcloudTimestamp(),
         updateTime = lastUpdated.toGcloudTimestamp(),
         globalId = globalId,
         protocol = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
@@ -339,6 +341,7 @@ class GcpSpannerComputationsDatabaseReaderTest :
     val computationRow =
       computationMutations.insertComputation(
         localId = localId,
+        creationTime = lastUpdated.toGcloudTimestamp(),
         updateTime = lastUpdated.toGcloudTimestamp(),
         globalId = globalId,
         protocol = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
@@ -389,6 +392,7 @@ class GcpSpannerComputationsDatabaseReaderTest :
       val nonAggregatorSetupPhaseRow =
         computationMutations.insertComputation(
           localId = 123,
+          creationTime = lastUpdatedTimeStamp,
           updateTime = lastUpdatedTimeStamp,
           protocol = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
           stage = Stage.SETUP_PHASE.toProtocolStage(),
@@ -398,6 +402,7 @@ class GcpSpannerComputationsDatabaseReaderTest :
       val nonAggregatorExecutionPhaseOneRow =
         computationMutations.insertComputation(
           localId = 234,
+          creationTime = lastUpdatedTimeStamp,
           updateTime = lastUpdatedTimeStamp,
           protocol = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
           stage = Stage.EXECUTION_PHASE_ONE.toProtocolStage(),
@@ -407,6 +412,7 @@ class GcpSpannerComputationsDatabaseReaderTest :
       val aggregatorSetupPhaseRow =
         computationMutations.insertComputation(
           localId = 345,
+          creationTime = lastUpdatedTimeStamp,
           updateTime = lastUpdatedTimeStamp,
           protocol = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
           stage = Stage.SETUP_PHASE.toProtocolStage(),
@@ -416,6 +422,7 @@ class GcpSpannerComputationsDatabaseReaderTest :
       val aggregatorCompletedRow =
         computationMutations.insertComputation(
           localId = 456,
+          creationTime = lastUpdatedTimeStamp,
           updateTime = lastUpdatedTimeStamp,
           protocol = ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
           stage = Stage.COMPLETE.toProtocolStage(),
