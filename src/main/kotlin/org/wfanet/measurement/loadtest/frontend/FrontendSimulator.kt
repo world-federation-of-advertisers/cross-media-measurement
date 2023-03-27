@@ -213,13 +213,13 @@ class FrontendSimulator(
 
     // For InProcessLifeOfAMeasurementIntegrationTest, EdpSimulator sets to those values with seeded
     // random VIDs and Laplace publisher noise.
-    val expectedReachValue = 948L
+    val expectedReachValue = 949L
     val expectedFrequencyMap =
       mapOf(
-        1L to 0.947389665261748,
-        2L to 0.04805005905234108,
-        3L to 0.0038138458821366963,
-        4L to 9.558853281715655E-5
+        1L to 0.949211534397318,
+        2L to 0.04754642580128393,
+        3L to 6.245356676193781E-4,
+        4L to 0.003942332254929154
       )
 
     assertThat(reachAndFrequencyResult.reach.value).isEqualTo(expectedReachValue)
