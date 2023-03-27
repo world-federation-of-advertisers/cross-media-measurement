@@ -36,7 +36,6 @@ START BATCH DDL;
 --   │   └── Measurements
 --   │       ├── ComputationParticipants
 --   │       ├── MeasurementLogEntries
---   │       │   └── DuchyMeasurementLogEntries
 --   │       ├── Requisitions
 --   │       └── DuchyMeasurementResults
 --   └── Accounts
