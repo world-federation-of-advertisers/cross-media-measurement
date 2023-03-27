@@ -77,6 +77,10 @@ abstract class EdpSimulatorRunner : Runnable {
         loadPrivateKey(flags.edpEncryptionPrivateKeyset),
         loadSigningKey(flags.edpCsCertificateDerFile, flags.edpCsPrivateKeyDerFile)
       )
+
+    val randomSeed: Long = 1
+    val random = java.util.Random(randomSeed)
+
     val edpSimulator =
       EdpSimulator(
         edpData,
@@ -92,7 +96,8 @@ abstract class EdpSimulatorRunner : Runnable {
         MinimumIntervalThrottler(Clock.systemUTC(), flags.throttlerMinimumInterval),
         eventTemplateNames = EVENT_TEMPLATES_TO_FILTERS_MAP.keys.toList(),
         createNoOpPrivacyBudgetManager(),
-        clientCerts.trustedCertificates
+        clientCerts.trustedCertificates,
+        random
       )
     runBlocking {
       edpSimulator.createEventGroup()
