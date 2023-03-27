@@ -19,6 +19,7 @@ import io.grpc.Channel
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
+import java.util.Random
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.coroutines.CoroutineContext
@@ -98,7 +99,8 @@ class InProcessEdpSimulator(
           100.0f,
           100.0f
         ),
-      trustedCertificates = trustedCertificates
+      trustedCertificates = trustedCertificates,
+      random
     )
 
   private lateinit var edpJob: Job
@@ -124,5 +126,7 @@ class InProcessEdpSimulator(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private const val randomSeed: Long = 1
+    private val random = Random(randomSeed)
   }
 }

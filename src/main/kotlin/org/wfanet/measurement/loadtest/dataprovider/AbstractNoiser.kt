@@ -14,11 +14,13 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
-/** The reach and frequency estimation of a computation. */
-data class ReachAndFrequencyPair(val reach: Long, val frequency: Map<Long, Double>)
+import org.apache.commons.math3.distribution.RealDistribution
 
 /** A base noiser class for direct measurement */
-interface Noiser {
+abstract class AbstractNoiser : Noiser {
+  protected abstract val distributionForReach: RealDistribution
+  protected abstract val distributionForFrequency: RealDistribution
+
   /**
    * Add publisher noise to calculated direct reach and frequency.
    *
@@ -26,8 +28,17 @@ interface Noiser {
    * @param frequencyMap Direct frequency.
    * @return Pair of noised reach value and frequency map.
    */
-  fun addPublisherNoise(
+  override fun addPublisherNoise(
     reachValue: Long,
     frequencyMap: Map<Long, Double>,
-  ): ReachAndFrequencyPair
+  ): ReachAndFrequencyPair {
+    val noisedReachValue = reachValue + distributionForReach.sample().toInt()
+    val noisedFrequencyMap =
+      frequencyMap.mapValues {
+        (it.value * reachValue.toDouble() + distributionForFrequency.sample()) /
+          reachValue.toDouble()
+      }
+
+    return ReachAndFrequencyPair(noisedReachValue, noisedFrequencyMap)
+  }
 }
