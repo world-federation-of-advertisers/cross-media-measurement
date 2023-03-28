@@ -13,7 +13,7 @@
 # limitations under the License.
 
 name: Push Docker Image to Github Artifacts
-#TODO(wfa-hkawalkar add workflow_run.
+
 on:
   workflow_dispatch:
   #TODO: (@wfa-siyengar): introduce workflow_call/workflow_run as appropriate.
