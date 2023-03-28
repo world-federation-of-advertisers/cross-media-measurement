@@ -1,0 +1,86 @@
+// Copyright 2023 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.reporting.v2;
+
+import "wfa/measurement/internal/reporting/v2/measurement.proto";
+
+option java_package = "org.wfanet.measurement.internal.reporting.v2";
+option java_multiple_files = true;
+
+// Internal service for persistence of Measurement entities.
+service Measurements {
+  rpc BatchSetCmmsMeasurementIds(BatchSetCmmsMeasurementIdsRequest)
+      returns (BatchSetCmmsMeasurementIdsResponse);
+
+  rpc BatchSetMeasurementResults(BatchSetMeasurementResultsRequest)
+      returns (BatchSetCmmsMeasurementResultsResponse);
+
+  rpc BatchSetMeasurementFailures(BatchSetMeasurementFailuresRequest)
+      returns (BatchSetCmmsMeasurementFailuresResponse);
+}
+
+message BatchSetCmmsMeasurementIdsRequest {
+  // `MeasurementConsumer` ID from the CMMS public API.
+  string cmms_measurement_consumer_id = 1;
+
+  message MeasurementIds {
+    string cmms_create_measurement_request_id = 1;
+
+    // `Measurement` ID from the CMMS public API.
+    string cmms_measurement_id = 2;
+  }
+  // Maximum is 1000.
+  repeated MeasurementIds measurement_ids = 2;
+}
+
+message BatchSetCmmsMeasurementIdsResponse {
+  repeated Measurement measurements = 1;
+}
+
+message BatchSetMeasurementResultsRequest {
+  // `MeasurementConsumer` ID from the CMMS public API.
+  string cmms_measurement_consumer_id = 1;
+
+  message MeasurementResult {
+    // `Measurement` ID from the CMMS public API.
+    string cmms_measurement_id = 1;
+    Measurement.Result result = 2;
+  }
+  // Maximum is 1000.
+  repeated MeasurementResult measurement_results = 2;
+}
+
+message BatchSetCmmsMeasurementResultsResponse {
+  repeated Measurement measurements = 1;
+}
+
+message BatchSetMeasurementFailuresRequest {
+  // `MeasurementConsumer` ID from the CMMS public API.
+  string cmms_measurement_consumer_id = 1;
+
+  message MeasurementFailure {
+    // `Measurement` ID from the CMMS public API.
+    string cmms_measurement_id = 1;
+    Measurement.Failure failure = 2;
+  }
+  // Maximum is 1000.
+  repeated MeasurementFailure measurement_failures = 2;
+}
+
+message BatchSetCmmsMeasurementFailuresResponse {
+  repeated Measurement measurements = 1;
+}
