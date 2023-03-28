@@ -1,0 +1,57 @@
+// Copyright 2023 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.reporting.v2;
+
+import "wfa/measurement/internal/reporting/v2/reporting_set.proto";
+
+option java_package = "org.wfanet.measurement.internal.reporting.v2";
+option java_multiple_files = true;
+
+// Internal service for persistence of ReportingSet entities.
+service ReportingSets {
+  rpc CreateReportingSet(ReportingSet) returns (ReportingSet);
+
+  rpc BatchGetReportingSets(BatchGetReportingSetsRequest)
+      returns (BatchGetReportingSetsResponse);
+
+  rpc StreamReportingSets(StreamReportingSetsRequest)
+      returns (stream ReportingSet);
+}
+
+message BatchGetReportingSetsRequest {
+  // `MeasurementConsumer` ID from the CMMS public API.
+  string cmms_measurement_consumer_id = 1;
+
+  // Maximum is 200.
+  repeated fixed64 external_reporting_set_ids = 2;
+}
+
+message BatchGetReportingSetsResponse {
+  repeated ReportingSet reporting_sets = 1;
+}
+
+message StreamReportingSetsRequest {
+  message Filter {
+    // `MeasurementConsumer` ID from the CMMS public API.
+    string cmms_measurement_consumer_id = 1;
+    // Skips to results with an external id greater than this.
+    fixed64 external_reporting_set_id_after = 2;
+  }
+  Filter filter = 1;
+
+  int32 limit = 2;
+}

@@ -1,0 +1,97 @@
+// Copyright 2023 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.reporting.v2;
+
+import "google/protobuf/duration.proto";
+import "wfa/measurement/internal/reporting/v2/reporting_set.proto";
+import "wfa/measurement/internal/reporting/v2/time_interval.proto";
+
+option java_package = "org.wfanet.measurement.internal.reporting.v2";
+option java_multiple_files = true;
+
+// Proto representation of the internal Measurement entity type.
+message Measurement {
+  // `MeasurementConsumer` ID from the CMMS public API.
+  string cmms_measurement_consumer_id = 1;
+  // `Measurement` ID from the CMMS public API.
+  string cmms_measurement_id = 2;
+
+  // This is a UUID in string format. See https://www.ietf.org/rfc/rfc4122.txt.
+  string cmms_create_measurement_request_id = 3;
+
+  TimeInterval time_interval = 4;
+
+  repeated ReportingSet.PrimitiveReportingSetBasis
+      primitive_reporting_set_bases = 5;
+
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    PENDING = 1;
+    // Completed successfully. Terminal state.
+    SUCCEEDED = 2;
+    // Completed with failure. Terminal state.
+    FAILED = 3;
+  }
+  // The state of the `Measurement` derived from the CMMS public API.
+  State state = 6;
+
+  message Failure {
+    enum Reason {
+      REASON_UNSPECIFIED = 0;
+      // An associated certificate was revoked.
+      CERTIFICATE_REVOKED = 1;
+      // Requisition state was set to REFUSED.
+      REQUISITION_REFUSED = 2;
+      // ComputationParticipant state was set to FAILED.
+      COMPUTATION_PARTICIPANT_FAILED = 3;
+    }
+    Reason reason = 1;
+    // Human-readable message.
+    string message = 2;
+  }
+
+  message Result {
+    message Reach {
+      int64 value = 1;
+    }
+    Reach reach = 1;
+
+    message Frequency {
+      map<int64, double> relative_frequency_distribution = 1;
+    }
+    Frequency frequency = 2;
+
+    message Impression {
+      int64 value = 1;
+    }
+    Impression impression = 3;
+
+    message WatchDuration {
+      google.protobuf.Duration value = 1;
+    }
+    WatchDuration watchDuration = 4;
+  }
+
+  message Details {
+    // Failure reason of the `Measurement` derived from the CMMS public API.
+    // Set when the state is set to FAILED.
+    Failure failure = 1;
+    // The result of the `Measurement` derived from the CMMS public API.
+    Result result = 2;
+  }
+  Details details = 7;
+}

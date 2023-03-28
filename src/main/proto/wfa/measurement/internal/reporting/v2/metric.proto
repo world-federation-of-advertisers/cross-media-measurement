@@ -1,0 +1,134 @@
+// Copyright 2023 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.reporting.v2;
+
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/internal/reporting/v2/measurement.proto";
+import "wfa/measurement/internal/reporting/v2/time_interval.proto";
+
+option java_package = "org.wfanet.measurement.internal.reporting.v2";
+option java_multiple_files = true;
+
+message MetricSpec {
+  message DifferentialPrivacyParams {
+    double epsilon = 1;
+    double delta = 2;
+  }
+
+  message ReachParams {
+    DifferentialPrivacyParams privacy_params = 1;
+  }
+  message FrequencyHistogramParams {
+    DifferentialPrivacyParams privacy_params = 1;
+    int32 maximum_frequency_per_user = 2;
+  }
+  message ImpressionCountParams {
+    DifferentialPrivacyParams privacy_params = 1;
+    int32 maximum_frequency_per_user = 2;
+  }
+  message WatchDurationParams {
+    DifferentialPrivacyParams privacy_params = 1;
+    // In seconds.
+    int32 maximum_watch_duration_per_user = 2;
+  }
+
+  oneof type {
+    ReachParams reach = 1;
+    FrequencyHistogramParams frequency_histogram = 2;
+    ImpressionCountParams impression_count = 3;
+    WatchDurationParams watch_duration = 4;
+  }
+
+  message VidSamplingInterval {
+    float start = 1;
+    float width = 2;
+  }
+  VidSamplingInterval vid_sampling_interval = 5;
+}
+
+message MetricResult {
+  message ReachResult {
+    int64 value = 1;
+  }
+
+  message HistogramResult {
+    message BinResult {
+      double value = 1;
+    }
+    message Bin {
+      string label = 1;
+      BinResult bin_result = 2;
+    }
+    repeated Bin bins = 1;
+  }
+
+  message ImpressionCountResult {
+    int64 value = 1;
+  }
+
+  message WatchDurationResult {
+    double value = 1;
+  }
+
+  oneof result {
+    ReachResult reach = 1;
+    HistogramResult frequency_histogram = 2;
+    ImpressionCountResult impression_count = 3;
+    WatchDurationResult watch_duration = 4;
+  }
+}
+
+// Proto representation of the internal Metric entity type.
+message Metric {
+  // `MeasurementConsumer` ID from the CMMS public API.
+  string cmms_measurement_consumer_id = 1;
+
+  fixed64 external_metric_id = 2;
+
+  google.protobuf.Timestamp create_time = 3;
+
+  fixed64 external_reporting_set_id = 4;
+
+  TimeInterval time_interval = 5;
+
+  MetricSpec metric_spec = 6;
+
+  enum State {
+    // Default value. This value is unused.
+    STATE_UNSPECIFIED = 0;
+    // Computation is running.
+    RUNNING = 1;
+    // Completed successfully. Terminal state.
+    SUCCEEDED = 2;
+    // Completed with failure. Terminal state.
+    FAILED = 3;
+  }
+
+  State state = 7;
+
+  message WeightedMeasurement {
+    int32 weight = 1;
+    Measurement measurement = 2;
+  }
+  repeated WeightedMeasurement weighted_measurements = 8;
+
+  message Details {
+    repeated string filters = 1;
+    MetricResult result = 2;
+  }
+  Details details = 9;
+}
