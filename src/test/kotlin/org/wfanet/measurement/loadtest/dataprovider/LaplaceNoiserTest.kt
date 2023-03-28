@@ -50,7 +50,6 @@ class LaplaceNoiserTest {
       assertThat(percentage).isEqualTo(expectedNoisedFrequencyMap[frequency])
     }
   }
-
   companion object {
     private val MEASUREMENT_SPEC = measurementSpec {
       reachAndFrequency =
