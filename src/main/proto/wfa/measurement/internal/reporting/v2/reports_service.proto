@@ -1,0 +1,57 @@
+// Copyright 2023 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.reporting.v2;
+
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/internal/reporting/v2/report.proto";
+
+option java_package = "org.wfanet.measurement.internal.reporting.v2";
+option java_multiple_files = true;
+
+// Internal service for persistence of Report entities.
+service Reports {
+  rpc CreateReport(CreateReportRequest) returns (Report);
+
+  rpc GetReport(GetReportRequest) returns (Report);
+
+  rpc StreamReports(StreamReportsRequest) returns (stream Report);
+}
+
+message CreateReportRequest {
+  Report report = 1;
+  string request_id = 2;
+}
+
+message GetReportRequest {
+  // `MeasurementConsumer` ID from the CMMS public API.
+  string cmms_measurement_consumer_id = 1;
+  fixed64 external_report_id = 2;
+}
+
+message StreamReportsRequest {
+  message Filter {
+    // `MeasurementConsumer` ID from the CMMS public API.
+    string cmms_measurement_consumer_id = 1;
+    // Any `Report created after this time, exclusive, will be included.
+    google.protobuf.Timestamp create_time = 2;
+    // Skips to results with an external id greater than this.
+    fixed64 external_report_id_after = 3;
+  }
+  Filter filter = 1;
+
+  int32 limit = 2;
+}

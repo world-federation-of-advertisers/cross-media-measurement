@@ -21,3 +21,6 @@ databaseChangeLog:
 - include:
     file: create-herald-continuation-tokens-table.sql
     relativeToChangeLogFile: true
+- include:
+    file: add-computation-creation-time.sql
+    relativeToChangeLogFile: true

@@ -1,0 +1,78 @@
+// Copyright 2023 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.reporting.v2;
+
+option java_package = "org.wfanet.measurement.internal.reporting.v2";
+option java_multiple_files = true;
+
+// Proto representation of the internal ReportingSet entity type.
+message ReportingSet {
+  // `MeasurementConsumer` ID from the CMMS public API.
+  string cmms_measurement_consumer_id = 1;
+  fixed64 external_reporting_set_id = 2;
+
+  string display_name = 3;
+  string filter = 4;
+
+  message Primitive {
+    message EventGroupKey {
+      // `MeasurementConsumer` ID from the CMMS public API.
+      string cmms_measurement_consumer_id = 1;
+      // `DataProvider` ID from the CMMS public API.
+      string cmms_data_provider_id = 2;
+      // `EventGroup` ID from the CMMS public API.
+      string cmms_event_group_id = 3;
+    }
+    repeated EventGroupKey event_group_keys = 1;
+  }
+
+  message SetExpression {
+    enum Operation {
+      OPERATION_UNSPECIFIED = 0;
+      UNION = 1;
+      DIFFERENCE = 2;
+      INTERSECTION = 3;
+    }
+    Operation operation = 1;
+
+    message Operand {
+      oneof operand {
+        fixed64 external_reporting_set_id = 1;
+        SetExpression expression = 2;
+      }
+    }
+
+    Operand lhs = 3;
+    Operand rhs = 4;
+  }
+
+  oneof value {
+    Primitive primitive = 5;
+    SetExpression composite = 6;
+  }
+
+  message PrimitiveReportingSetBasis {
+    fixed64 external_reporting_set_id = 1;
+    repeated string filters = 2;
+  }
+
+  message WeightedSubsetUnion {
+    repeated PrimitiveReportingSetBasis primitive_reporting_set_bases = 1;
+    int32 weight = 2;
+  }
+  repeated WeightedSubsetUnion weighted_subset_unions = 7;
+}
