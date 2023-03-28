@@ -23,23 +23,18 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 
 class GaussianNoiser(reachAndFrequency: MeasurementSpec.ReachAndFrequency, random: Random) :
   AbstractNoiser() {
-  override val distributionForReach: NormalDistribution by lazy {
-    val sigma =
-      solveSigma(
-        reachAndFrequency.reachPrivacyParams.epsilon,
-        reachAndFrequency.reachPrivacyParams.delta
-      )
-    NormalDistribution(RandomGeneratorFactory.createRandomGenerator(random), 0.0, sigma)
-  }
-
-  override val distributionForFrequency: NormalDistribution by lazy {
-    val sigma =
-      solveSigma(
-        reachAndFrequency.frequencyPrivacyParams.epsilon,
-        reachAndFrequency.frequencyPrivacyParams.delta
-      )
-    NormalDistribution(RandomGeneratorFactory.createRandomGenerator(random), 0.0, sigma)
-  }
+  override val distributionForReach: NormalDistribution =
+    getNormalDistribution(
+      reachAndFrequency.reachPrivacyParams.epsilon,
+      reachAndFrequency.reachPrivacyParams.delta,
+      random
+    )
+  override val distributionForFrequency: NormalDistribution =
+    getNormalDistribution(
+      reachAndFrequency.frequencyPrivacyParams.epsilon,
+      reachAndFrequency.frequencyPrivacyParams.delta,
+      random
+    )
 
   /**
    * This implementation is adapted from jiayu-google. Assuming sensitivity = 1, solve delta given
@@ -60,7 +55,6 @@ class GaussianNoiser(reachAndFrequency: MeasurementSpec.ReachAndFrequency, rando
     return (1 - normalDistribution.cumulativeProbability(x - 1 / sigma)) -
       exp(epsilon) * (1 - normalDistribution.cumulativeProbability(x))
   }
-
   /**
    * This implementation is adapted from jiayu-google. Assuming sensitivity = 1, solve std given
    * epsilon and delta.
@@ -79,5 +73,14 @@ class GaussianNoiser(reachAndFrequency: MeasurementSpec.ReachAndFrequency, rando
 
     return BisectionSolver()
       .solve(10000, { x: Double -> solveDelta(x, sigma) - delta }, sigma / 2, sigma)
+  }
+  private fun getNormalDistribution(
+    epsilon: Double,
+    delta: Double,
+    random: Random
+  ): NormalDistribution {
+    val sigma = solveSigma(epsilon, delta)
+
+    return NormalDistribution(RandomGeneratorFactory.createRandomGenerator(random), 0.0, sigma)
   }
 }
