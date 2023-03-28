@@ -12,20 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: 'Deploy Duchy'
+name: 'Deploy Kingdom'
 
 on:
-  # todo (@wfa-siyengar) add workflow_call
-  workflow_run:
-    types:
-      - requested
+  #TODO: (@wfa-siyengar) add workflow_call
   workflow_dispatch:
     inputs:
       environment:
         description: 'Environment to run the flow for.'
         type: environment
         required: true
-      duchy:
+      kingdom:
         description: 'Name of the duchy you are trying to create.'
         type: string
         required: true
@@ -38,11 +35,11 @@ permissions:
   id-token: write
 
 env:
-  ROOT_PATH: '${{ github.workspace }}/src/main/terraform/duchy/gcloud'
+  ROOT_PATH: '${{ github.workspace }}/src/main/terraform/kingdom/gcloud'
 
 jobs:
   terraform:
-    name: 'Terraform Halo Duchy'
+    name: 'Terraform Halo Kingdom'
     runs-on: ubuntu-22.04
 
     steps:
@@ -50,7 +47,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      # Initialize terraform
       - name: Terraform Init
         uses: "./.github/template/terraform-init"
         with:
@@ -58,20 +54,18 @@ jobs:
           workload-identity-provider: ${{ secrets.WFI_PROVIDER }}
           service-account: ${{ secrets.WFI_SA }}
 
-      # Generate a Plan to implement
       - name: Terraform Plan
         uses: "./.github/template/terraform-plan"
         with:
           working-directory: ${{env.ROOT_PATH}}
           environment: ${{ inputs.environment }}
-          component: ${{ inputs.duchy }}
+          component: ${{ inputs.kingdom }}
 
-      # Apply the generated plan.
       - name: Terraform Apply
         if: inputs.terraform_apply == true
-        uses: "./.github/template/terraform-apply"
+        uses: "./.github/template/apply"
         with:
           working-directory: ${{env.ROOT_PATH}}
-          environment: ${{ inputs.environment }}
+          environment: ${{ env.ENV }}
 
-# todo (@wfa-hkawalkar) add k8s deploy.
+# TODO: (@wfa-hkawalkar) add k8s deploy.

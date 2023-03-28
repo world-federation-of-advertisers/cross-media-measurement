@@ -12,15 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: 'Deploy Kingdom'
+name: 'Deploy Duchy'
 
 on:
-  # todo (@wfa-siyengar) add workflow_call
+  # TODO: (@wfa-siyengar) add workflow_call
+  workflow_run:
+    types:
+      - requested
   workflow_dispatch:
     inputs:
       environment:
         description: 'Environment to run the flow for.'
         type: environment
+        required: true
+      duchy:
+        description: 'Name of the duchy you are trying to create.'
+        type: string
         required: true
       terraform_apply:
         required: false
@@ -31,11 +38,11 @@ permissions:
   id-token: write
 
 env:
-  ROOT_PATH: '${{ github.workspace }}/src/main/terraform/kingdom/gcloud'
+  ROOT_PATH: '${{ github.workspace }}/src/main/terraform/duchy/gcloud'
 
 jobs:
   terraform:
-    name: 'Terraform Halo Kingdom'
+    name: 'Terraform Halo Duchy'
     runs-on: ubuntu-22.04
 
     steps:
@@ -43,6 +50,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
+      # Initialize terraform
       - name: Terraform Init
         uses: "./.github/template/terraform-init"
         with:
@@ -50,18 +58,20 @@ jobs:
           workload-identity-provider: ${{ secrets.WFI_PROVIDER }}
           service-account: ${{ secrets.WFI_SA }}
 
+      # Generate a Plan to implement
       - name: Terraform Plan
         uses: "./.github/template/terraform-plan"
         with:
           working-directory: ${{env.ROOT_PATH}}
           environment: ${{ inputs.environment }}
-          component: ${{ inputs.kingdom }}
+          component: ${{ inputs.duchy }}
 
+      # Apply the generated plan.
       - name: Terraform Apply
         if: inputs.terraform_apply == true
-        uses: "./.github/template/apply"
+        uses: "./.github/template/terraform-apply"
         with:
           working-directory: ${{env.ROOT_PATH}}
-          environment: ${{ env.ENV }}
+          environment: ${{ inputs.environment }}
 
 # todo (@wfa-hkawalkar) add k8s deploy.
