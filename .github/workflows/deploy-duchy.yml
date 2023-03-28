@@ -26,7 +26,7 @@ on:
         type: environment
         required: true
       duchy:
-        description: 'Name of the kingdom you are trying to create.'
+        description: 'Name of the duchy you are trying to create.'
         type: string
         required: true
       terraform_apply:
