@@ -44,6 +44,7 @@ import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProviders
 import org.wfanet.measurement.internal.kingdom.GetCertificateRequestKt
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
@@ -431,6 +432,14 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         measurement {
           state = Measurement.State.FAILED
           externalMeasurementId = measurementOne.externalMeasurementId
+          details =
+            measurementOne.details.copy {
+              failure =
+                MeasurementKt.failure {
+                  reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
+                  message = "An associated Data Provider certificate has been revoked."
+                }
+            }
         }
       )
   }
@@ -552,6 +561,14 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         measurement {
           state = Measurement.State.FAILED
           externalMeasurementId = measurementOne.externalMeasurementId
+          details =
+            measurementOne.details.copy {
+              failure =
+                MeasurementKt.failure {
+                  reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
+                  message = "The associated Measurement Consumer certificate has been revoked."
+                }
+            }
         }
       )
   }
@@ -687,6 +704,14 @@ abstract class CertificatesServiceTest<T : CertificatesCoroutineImplBase> {
         measurement {
           state = Measurement.State.FAILED
           externalMeasurementId = measurementOne.externalMeasurementId
+          details =
+            measurementOne.details.copy {
+              failure =
+                MeasurementKt.failure {
+                  reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
+                  message = "An associated Duchy certificate has been revoked."
+                }
+            }
         }
       )
   }

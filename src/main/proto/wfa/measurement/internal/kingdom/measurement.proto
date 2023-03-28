@@ -126,9 +126,8 @@ message Measurement {
     ProtocolConfig protocol_config = 6;
     DuchyProtocolConfig duchy_protocol_config = 7;
 
-    // DEPRECATED: failure information are available in the corresponding
-    // MeasurementLogEntries row
-    Failure failure = 8 [deprecated = true];
+    // Set when the state is set to FAILED.
+    Failure failure = 8;
   }
   Details details = 10;
 

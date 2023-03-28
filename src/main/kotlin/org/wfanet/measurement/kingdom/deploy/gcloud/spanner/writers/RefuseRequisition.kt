@@ -16,8 +16,10 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import java.time.Clock
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.RefuseRequisitionRequest
@@ -43,7 +45,7 @@ class RefuseRequisition(private val request: RefuseRequisitionRequest) :
   SpannerWriter<Requisition, Requisition>() {
   override suspend fun TransactionScope.runTransaction(): Requisition {
     val readResult: RequisitionReader.Result = readRequisition()
-    val (measurementConsumerId, measurementId, _, requisition) = readResult
+    val (measurementConsumerId, measurementId, _, requisition, measurementDetails) = readResult
 
     val state = requisition.state
     if (state != Requisition.State.UNFULFILLED) {
@@ -76,12 +78,23 @@ class RefuseRequisition(private val request: RefuseRequisitionRequest) :
           }
       }
 
+    val updatedMeasurementDetails =
+      measurementDetails.copy {
+        failure =
+          MeasurementKt.failure {
+            reason = Measurement.Failure.Reason.REQUISITION_REFUSED
+            message =
+              "ID of refused Requisition: " + externalIdToApiId(request.externalRequisitionId)
+          }
+      }
+
     updateMeasurementState(
       measurementConsumerId = measurementConsumerId,
       measurementId = measurementId,
       nextState = Measurement.State.FAILED,
       previousState = measurementState,
-      measurementLogEntryDetails = measurementLogEntryDetails
+      measurementLogEntryDetails = measurementLogEntryDetails,
+      details = updatedMeasurementDetails
     )
 
     return requisition.copy {

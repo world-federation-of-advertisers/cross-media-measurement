@@ -25,6 +25,7 @@ import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.Certificate.RevocationState
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.RevokeCertificateRequest
@@ -158,7 +159,16 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
           }
 
         StreamMeasurements(Measurement.View.DEFAULT, filter).execute(transactionContext).collect {
-          failMeasurement(it.measurementConsumerId, it.measurementId)
+          val details =
+            it.measurement.details.copy {
+              failure =
+                MeasurementKt.failure {
+                  reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
+                  message = "The associated Measurement Consumer certificate has been revoked."
+                }
+            }
+
+          failMeasurement(it.measurementConsumerId, it.measurementId, details)
         }
       }
       RevokeCertificateRequest.ParentCase.EXTERNAL_DATA_PROVIDER_ID -> {
@@ -167,7 +177,18 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
             PENDING_MEASUREMENT_STATES
           )
           .execute(transactionContext)
-          .collect { failMeasurement(it.measurementConsumerId, it.measurementId) }
+          .collect {
+            val details =
+              it.measurementDetails.copy {
+                failure =
+                  MeasurementKt.failure {
+                    reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
+                    message = "An associated Data Provider certificate has been revoked."
+                  }
+              }
+
+            failMeasurement(it.measurementConsumerId, it.measurementId, details)
+          }
       }
       RevokeCertificateRequest.ParentCase.EXTERNAL_DUCHY_ID -> {
         StreamMeasurementsByDuchyCertificate(
@@ -175,7 +196,18 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
             PENDING_MEASUREMENT_STATES
           )
           .execute(transactionContext)
-          .collect { failMeasurement(it.measurementConsumerId, it.measurementId) }
+          .collect {
+            val details =
+              it.measurementDetails.copy {
+                failure =
+                  MeasurementKt.failure {
+                    reason = Measurement.Failure.Reason.CERTIFICATE_REVOKED
+                    message = "An associated Duchy certificate has been revoked."
+                  }
+              }
+
+            failMeasurement(it.measurementConsumerId, it.measurementId, details)
+          }
       }
       else -> {}
     }
@@ -189,7 +221,8 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
 
   private suspend fun TransactionScope.failMeasurement(
     measurementConsumerId: InternalId,
-    measurementId: InternalId
+    measurementId: InternalId,
+    details: Measurement.Details
   ) {
 
     val measurementState =
@@ -216,7 +249,8 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
       measurementId = measurementId,
       nextState = Measurement.State.FAILED,
       previousState = measurementState,
-      measurementLogEntryDetails = measurementLogEntryDetails
+      measurementLogEntryDetails = measurementLogEntryDetails,
+      details = details
     )
   }
 }
