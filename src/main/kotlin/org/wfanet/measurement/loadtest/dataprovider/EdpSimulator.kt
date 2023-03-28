@@ -730,6 +730,7 @@ class EdpSimulator(
 
     logger.info("Adding publisher noise to direct reach and frequency...")
 
+    // TODO(@iverson52000): use the noiser specified in the measurementSpec
     val laplaceNoiser = LaplaceNoiser(measurementSpec.reachAndFrequency, random)
     val (sampledNoisedReachValue, noisedFrequencyMap) =
       laplaceNoiser.addPublisherNoise(
