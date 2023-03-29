@@ -433,6 +433,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
     val computation =
       computationMutations.insertComputation(
         localId = token.localId,
+        creationTime = lastUpdated.toGcloudTimestamp(),
         updateTime = lastUpdated.toGcloudTimestamp(),
         globalId = "0",
         protocol = token.protocol,
@@ -444,6 +445,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
     val differentComputation =
       computationMutations.insertComputation(
         localId = 456789,
+        creationTime = lastUpdated.toGcloudTimestamp(),
         updateTime = lastUpdated.toGcloudTimestamp(),
         globalId = "10111213",
         protocol = token.protocol,
@@ -521,6 +523,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
       val computation =
         computationMutations.insertComputation(
           localId = token.localId,
+          creationTime = lastUpdated.toGcloudTimestamp(),
           updateTime = lastUpdated.toGcloudTimestamp(),
           globalId = "1234",
           protocol = FakeProtocol.ONE,
@@ -545,6 +548,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
     val enqueuedSevenMinutesAgoForOtherProtocol =
       computationMutations.insertComputation(
         localId = 111,
+        creationTime = fiveMinutesAgo,
         updateTime = fiveMinutesAgo,
         globalId = "11",
         protocol = FakeProtocol.ZERO,
@@ -565,6 +569,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
     val enqueuedFiveMinutesAgo =
       computationMutations.insertComputation(
         localId = 555,
+        creationTime = fiveMinutesAgo,
         updateTime = fiveMinutesAgo,
         globalId = "55",
         protocol = FakeProtocol.ONE,
@@ -587,6 +592,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
         localId = 66,
         protocol = FakeProtocol.ONE,
         stage = A,
+        creationTime = sixMinutesAgo,
         updateTime = sixMinutesAgo,
         globalId = "6",
         lockOwner = WRITE_NULL_STRING,
@@ -670,6 +676,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
         localId = 111L,
         protocol = FakeProtocol.ZERO,
         stage = A,
+        creationTime = testClock["start"].toGcloudTimestamp(),
         updateTime = testClock["start"].toGcloudTimestamp(),
         globalId = "11",
         lockOwner = "owner-of-the-lock",
@@ -699,6 +706,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
         localId = 333,
         protocol = FakeProtocol.ZERO,
         stage = A,
+        creationTime = testClock["start"].toGcloudTimestamp(),
         updateTime = testClock["start"].toGcloudTimestamp(),
         globalId = "33",
         lockOwner = "owner-of-the-lock",
@@ -779,6 +787,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
     val computation =
       computationMutations.insertComputation(
         localId = token.localId,
+        creationTime = testClock["last_updated"].toGcloudTimestamp(),
         updateTime = testClock["last_updated"].toGcloudTimestamp(),
         globalId = globalId,
         protocol = token.protocol,
@@ -1064,6 +1073,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
           localId = token.localId,
           protocol = token.protocol,
           stage = B,
+          creationTime = testClock.last().toGcloudTimestamp(),
           updateTime = testClock.last().toGcloudTimestamp(),
           globalId = "2002",
           lockOwner = WRITE_NULL_STRING,
@@ -1157,6 +1167,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
     val computation =
       computationMutations.insertComputation(
         localId = token.localId,
+        creationTime = lastUpdated.toGcloudTimestamp(),
         updateTime = lastUpdated.toGcloudTimestamp(),
         protocol = token.protocol,
         stage = token.stage,
@@ -1218,6 +1229,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
     val computation =
       computationMutations.insertComputation(
         localId = token.localId,
+        creationTime = lastUpdated.toGcloudTimestamp(),
         updateTime = lastUpdated.toGcloudTimestamp(),
         protocol = token.protocol,
         stage = token.stage,
@@ -1344,6 +1356,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
     val computation =
       computationMutations.insertComputation(
         localId = token.localId,
+        creationTime = lastUpdated.toGcloudTimestamp(),
         updateTime = lastUpdated.toGcloudTimestamp(),
         protocol = token.protocol,
         stage = token.stage,
@@ -1448,6 +1461,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
     val computation =
       computationMutations.insertComputation(
         localId = token.localId,
+        creationTime = testClock.last().toGcloudTimestamp(),
         updateTime = testClock.last().toGcloudTimestamp(),
         protocol = token.protocol,
         stage = C,
@@ -1565,6 +1579,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
     val computation =
       computationMutations.insertComputation(
         localId = token.localId,
+        creationTime = testClock.last().toGcloudTimestamp(),
         updateTime = testClock.last().toGcloudTimestamp(),
         protocol = token.protocol,
         stage = C,
@@ -1667,6 +1682,7 @@ class GcpSpannerComputationsDatabaseTransactorTest :
     val computation =
       computationMutations.insertComputation(
         localId = localId,
+        creationTime = testClock.last().toGcloudTimestamp(),
         updateTime = testClock.last().toGcloudTimestamp(),
         protocol = FakeProtocol.ZERO,
         stage = C,

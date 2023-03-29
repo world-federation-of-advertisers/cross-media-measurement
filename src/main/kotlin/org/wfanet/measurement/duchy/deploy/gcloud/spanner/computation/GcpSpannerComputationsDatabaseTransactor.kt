@@ -77,10 +77,11 @@ class GcpSpannerComputationsDatabaseTransactor<
     val computationRow =
       computationMutations.insertComputation(
         localId,
+        creationTime = writeTimestamp,
         updateTime = writeTimestamp,
         globalId = globalId,
         lockOwner = WRITE_NULL_STRING,
-        lockExpirationTime = clock.gcloudTimestamp(),
+        lockExpirationTime = writeTimestamp,
         details = computationDetails,
         protocol = protocol,
         stage = initialStage

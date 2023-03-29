@@ -20,12 +20,14 @@ import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
+import java.time.Clock
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.duchy.deploy.gcloud.spanner.testing.Schemata
+import org.wfanet.measurement.gcloud.common.gcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.testing.UsingSpannerEmulator
 import org.wfanet.measurement.gcloud.spanner.testing.assertQueryReturns
 
@@ -145,9 +147,12 @@ class ComputationsSchemaTest : UsingSpannerEmulator(Schemata.DUCHY_CHANGELOG_PAT
     }
 
   private fun makeInsertMutation(): Mutation {
+    val clock = Clock.systemUTC()
     return Mutation.newInsertBuilder("Computations")
       .set("ComputationId")
       .to(computationId)
+      .set("CreationTime")
+      .to(clock.gcloudTimestamp())
       .set("Protocol")
       .to(1000)
       .set("ComputationStage")
