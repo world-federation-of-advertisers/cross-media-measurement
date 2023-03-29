@@ -143,19 +143,12 @@ gcloud container clusters create reporting \
   --service-account="gke-cluster@halo-cmm-dev.iam.gserviceaccount.com" \
   --database-encryption-key=projects/halo-cmm-dev/locations/us-central1/keyRings/test-key-ring/cryptoKeys/k8s-secret \
   --num-nodes=3 --enable-autoscaling --min-nodes=2 --max-nodes=4 \
-  --machine-type=e2-small --release-channel=regular \
-  --cluster-version='1.24.5-gke.600'
+  --machine-type=e2-small
 ```
 
 Adjust the number of nodes and machine type according to your expected usage.
-
 The cluster version should be no older than `1.24.0` in order to support
-built-in gRPC health probe. You can use the following command to determine what
-versions are supported for each release channel:
-
-```shell
-gcloud container get-server-config
-```
+built-in gRPC health probe.
 
 ## Create the K8s ServiceAccount
 
@@ -339,7 +332,8 @@ To generate the YAML manifest from the CUE files, run the following
 bazel build //src/main/k8s/dev:reporting_gke \
   --define=k8s_reporting_secret_name=signing-abcdef
   --define=k8s_reporting_mc_config_secret_name=mc-config-abcdef \
-  --define image_tag=build-0001
+  --define container_registry=gcr.io \
+  --define image_repo_prefix=halo-cmm-dev --define image_tag=build-0001
 ```
 
 You can also do your customization to the generated YAML file rather than to the

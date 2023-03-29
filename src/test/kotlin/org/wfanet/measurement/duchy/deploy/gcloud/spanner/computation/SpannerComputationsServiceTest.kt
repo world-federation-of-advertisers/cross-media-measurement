@@ -67,7 +67,7 @@ class SpannerComputationsServiceTest : ComputationsServiceTest<ComputationsServi
 
   @get:Rule val ruleChain = chainRulesSequentially(tempDirectory, grpcTestServerRule)
 
-  override fun newService(): ComputationsService {
+  override fun newService(clock: Clock): ComputationsService {
     val computationsDatabaseReader =
       GcpSpannerComputationsDatabaseReader(spannerDatabase.databaseClient, protocolStageEnumHelper)
     val computationsDatabaseTransactor =
@@ -78,7 +78,8 @@ class SpannerComputationsServiceTest : ComputationsServiceTest<ComputationsServi
             ComputationTypes,
             protocolStageEnumHelper,
             computationProtocolStageDetails
-          )
+          ),
+        clock = clock
       )
     val systemComputationLogEntriesClient =
       ComputationLogEntriesCoroutineStub(grpcTestServerRule.channel)
@@ -99,7 +100,7 @@ class SpannerComputationsServiceTest : ComputationsServiceTest<ComputationsServi
       ComputationStore(storageClient),
       RequisitionStore(storageClient),
       ALSACE,
-      Clock.systemUTC()
+      clock
     )
   }
 }
