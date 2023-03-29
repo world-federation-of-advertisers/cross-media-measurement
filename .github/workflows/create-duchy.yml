@@ -13,7 +13,7 @@
 # limitations under the License.
 
 name: 'Create Duchy'
-#TODO add workflow_run
+#TODO:(@wfs-siyengar) to add workflow_run
 on:
   workflow_dispatch:
     inputs:
@@ -25,6 +25,9 @@ on:
         description: 'Name of the duchy you are trying to create.'
         type: string
         required: true
+      kubectl_apply:
+        required: false
+        type: boolean
 
 permissions:
   contents: read
@@ -61,8 +64,9 @@ jobs:
           component: ${{ inputs.duchy }}
 
       # Apply the generated plan.
- #     - name: Terraform Apply
- #       uses: "./.github/template/terraform-apply"
- #       with:
- #         working-directory: ${{env.ROOT_PATH}}
- #         environment: ${{ inputs.environment }}
+      - name: Terraform Apply
+        if: inputs.kubectl_apply == true
+        uses: "./.github/template/terraform-apply"
+        with:
+          working-directory: ${{env.ROOT_PATH}}
+          environment: ${{ inputs.environment }}
