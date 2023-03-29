@@ -14,6 +14,9 @@
 
 #include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/noise_parameters_computation.h"
 
+#include "math/distributed_discrete_gaussian_noiser.h"
+#include "math/distributed_geometric_noiser.h"
+
 namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
 
 namespace {
@@ -28,9 +31,62 @@ int ComputateMuPolya(double epsilon, double delta, int sensitivity, int n) {
       (epsilon / sensitivity));
 }
 
+std::unique_ptr<math::DistributedGeometricNoiseComponentOptions>
+GetGeometricsNoiseOptions(
+    const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
+    int publisher_count, int contributor_count) {
+  ABSL_ASSERT(contributor_count > 0);
+  double success_ratio = std::exp(-params.epsilon() / publisher_count);
+  int offset = ComputateMuPolya(params.epsilon(), params.delta(),
+                                publisher_count, contributor_count);
+  return std::make_unique<math::DistributedGeometricNoiseComponentOptions>(
+      contributor_count, success_ratio, offset, offset);
+}
+
+int ComputeMuDiscreteGaussian(double epsilon, double delta,
+                              double sigma_distributed,
+                              int64_t contributor_count) {
+  ABSL_ASSERT(epsilon > 0);
+  ABSL_ASSERT(delta > 0);
+  ABSL_ASSERT(contributor_count > 0);
+
+  // The sum of delta1 and delta2 should be delta.
+  // In practice, set delta1 = delta2 = 0.5 * delta for simplicity.
+  double delta2 = 0.5 * delta;
+
+  return std::ceil(sigma_distributed *
+                   std::sqrt(2 * std::log(contributor_count *
+                                          (1 + std::exp(epsilon)) / delta2)));
+}
+
+std::unique_ptr<math::DistributedDiscreteGaussianNoiseComponentOptions>
+GetDiscreteGaussianNoiseOptions(
+    const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
+    int64_t contributor_count) {
+  double epsilon = params.epsilon();
+  double delta = params.delta();
+
+  ABSL_ASSERT(epsilon > 0);
+  ABSL_ASSERT(delta > 0);
+
+  // The sum of delta1 and delta2 should be delta.
+  // In practice, set delta1 = delta2 = 0.5 * delta for simplicity.
+  double delta1 = 0.5 * delta;
+  double sigma = std::sqrt(2 * std::log(1.25 / delta1)) / epsilon;
+  // This simple formula to derive sigma_distributed is valid only for
+  // continuous Gaussian and is used as an approximation here.
+  double sigma_distributed = sigma / sqrt(contributor_count);
+  int offset = ComputeMuDiscreteGaussian(params.epsilon(), params.delta(),
+                                         sigma_distributed, contributor_count);
+
+  return std::make_unique<
+      math::DistributedDiscreteGaussianNoiseComponentOptions>(
+      contributor_count, sigma_distributed, offset, offset);
+}
+
 }  // namespace
 
-math::DistributedGeometricNoiseComponentOptions
+std::unique_ptr<math::DistributedGeometricNoiseComponentOptions>
 GetBlindHistogramGeometricNoiseOptions(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
     int uncorrupted_party_count) {
@@ -38,61 +94,104 @@ GetBlindHistogramGeometricNoiseOptions(
   double success_ratio = std::exp(-params.epsilon() / 2);
   int offset = ComputateMuPolya(params.epsilon(), params.delta(), 2,
                                 uncorrupted_party_count);
-  return {
-      .contributor_count = uncorrupted_party_count,
-      .p = success_ratio,
-      .truncate_threshold = offset,
-      .shift_offset = offset,
-  };
+  return std::make_unique<math::DistributedGeometricNoiseComponentOptions>(
+      uncorrupted_party_count, success_ratio, offset, offset);
 }
 
-math::DistributedGeometricNoiseComponentOptions
-GetNoiseForPublisherGeometricNoiseOptions(
+NoiserAndOptions GetBlindHistogramNoiserAndOptions(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
-    int publisher_count, int uncorrupted_party_count) {
-  ABSL_ASSERT(publisher_count > 0);
-  ABSL_ASSERT(uncorrupted_party_count > 0);
-  double success_ratio = std::exp(-params.epsilon() / publisher_count);
-  int offset = ComputateMuPolya(params.epsilon(), params.delta(),
-                                publisher_count, uncorrupted_party_count);
-  return {
-      .contributor_count = uncorrupted_party_count,
-      .p = success_ratio,
-      .truncate_threshold = offset,
-      .shift_offset = offset,
-  };
+    int uncorrupted_party_count,
+    LiquidLegionsV2NoiseConfig::NoiseMechanism noise_mechanism) {
+  ABSL_ASSERT(noise_mechanism ==
+                  LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN ||
+              noise_mechanism == LiquidLegionsV2NoiseConfig::GEOMETRIC);
+
+  if (noise_mechanism == LiquidLegionsV2NoiseConfig::GEOMETRIC) {
+    auto noiseOptions =
+        GetGeometricsNoiseOptions(params, 2, uncorrupted_party_count);
+    auto noiser =
+        std::make_unique<math::DistributedGeometricNoiser>(*noiseOptions);
+    return {.noiser = std::move(noiser), .options = std::move(noiseOptions)};
+  }
+  if (noise_mechanism == LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN) {
+    auto noiseOptions =
+        GetDiscreteGaussianNoiseOptions(params, uncorrupted_party_count);
+    auto noiser = std::make_unique<math::DistributedDiscreteGaussianNoiser>(
+        *noiseOptions);
+    return {.noiser = std::move(noiser), .options = std::move(noiseOptions)};
+  }
 }
 
-math::DistributedGeometricNoiseComponentOptions
-GetGlobalReachDpGeometricNoiseOptions(
+NoiserAndOptions GetPublisherNoiserAndOptions(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
-    int uncorrupted_party_count) {
-  ABSL_ASSERT(uncorrupted_party_count > 0);
-  double success_ratio = std::exp(-params.epsilon());
-  int offset = ComputateMuPolya(params.epsilon(), params.delta(), 1,
-                                uncorrupted_party_count);
-  return {
-      .contributor_count = uncorrupted_party_count,
-      .p = success_ratio,
-      .truncate_threshold = offset,
-      .shift_offset = offset,
-  };
+    int publisher_count, int uncorrupted_party_count,
+    LiquidLegionsV2NoiseConfig::NoiseMechanism noise_mechanism) {
+  ABSL_ASSERT(noise_mechanism ==
+                  LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN ||
+              noise_mechanism == LiquidLegionsV2NoiseConfig::GEOMETRIC);
+
+  if (noise_mechanism == LiquidLegionsV2NoiseConfig::GEOMETRIC) {
+    auto noiseOptions = GetGeometricsNoiseOptions(params, publisher_count,
+                                                  uncorrupted_party_count);
+    auto noiser =
+        std::make_unique<math::DistributedGeometricNoiser>(*noiseOptions);
+    return {.noiser = std::move(noiser), .options = std::move(noiseOptions)};
+  }
+  if (noise_mechanism == LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN) {
+    auto noiseOptions =
+        GetDiscreteGaussianNoiseOptions(params, uncorrupted_party_count);
+    auto noiser = std::make_unique<math::DistributedDiscreteGaussianNoiser>(
+        *noiseOptions);
+    return {.noiser = std::move(noiser), .options = std::move(noiseOptions)};
+  }
 }
 
-math::DistributedGeometricNoiseComponentOptions
-GetFrequencyGeometricNoiseOptions(
+NoiserAndOptions GetGlobalReachDpNoiserAndOptions(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
-    int uncorrupted_party_count) {
-  ABSL_ASSERT(uncorrupted_party_count > 0);
-  double success_ratio = std::exp(-params.epsilon() / 2);
-  int offset = ComputateMuPolya(params.epsilon(), params.delta(), 2,
-                                uncorrupted_party_count);
-  return {
-      .contributor_count = uncorrupted_party_count,
-      .p = success_ratio,
-      .truncate_threshold = offset,
-      .shift_offset = offset,
-  };
+    int uncorrupted_party_count,
+    LiquidLegionsV2NoiseConfig::NoiseMechanism noise_mechanism) {
+  ABSL_ASSERT(noise_mechanism ==
+                  LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN ||
+              noise_mechanism == LiquidLegionsV2NoiseConfig::GEOMETRIC);
+
+  if (noise_mechanism == LiquidLegionsV2NoiseConfig::GEOMETRIC) {
+    auto noiseOptions =
+        GetGeometricsNoiseOptions(params, 1, uncorrupted_party_count);
+    auto noiser =
+        std::make_unique<math::DistributedGeometricNoiser>(*noiseOptions);
+    return {.noiser = std::move(noiser), .options = std::move(noiseOptions)};
+  }
+  if (noise_mechanism == LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN) {
+    auto noiseOptions =
+        GetDiscreteGaussianNoiseOptions(params, uncorrupted_party_count);
+    auto noiser = std::make_unique<math::DistributedDiscreteGaussianNoiser>(
+        *noiseOptions);
+    return {.noiser = std::move(noiser), .options = std::move(noiseOptions)};
+  }
+}
+
+NoiserAndOptions GetFrequencyNoiserAndOptions(
+    const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
+    int uncorrupted_party_count,
+    LiquidLegionsV2NoiseConfig::NoiseMechanism noise_mechanism) {
+  ABSL_ASSERT(noise_mechanism ==
+                  LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN ||
+              noise_mechanism == LiquidLegionsV2NoiseConfig::GEOMETRIC);
+
+  if (noise_mechanism == LiquidLegionsV2NoiseConfig::GEOMETRIC) {
+    auto noiseOptions =
+        GetGeometricsNoiseOptions(params, 2, uncorrupted_party_count);
+    auto noiser =
+        std::make_unique<math::DistributedGeometricNoiser>(*noiseOptions);
+    return {.noiser = std::move(noiser), .options = std::move(noiseOptions)};
+  }
+  if (noise_mechanism == LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN) {
+    auto noiseOptions =
+        GetDiscreteGaussianNoiseOptions(params, uncorrupted_party_count);
+    auto noiser = std::make_unique<math::DistributedDiscreteGaussianNoiser>(
+        *noiseOptions);
+    return {.noiser = std::move(noiser), .options = std::move(noiseOptions)};
+  }
 }
 
 }  // namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2

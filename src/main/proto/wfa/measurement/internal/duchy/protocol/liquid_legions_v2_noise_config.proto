@@ -45,4 +45,13 @@ message LiquidLegionsV2NoiseConfig {
   // Differential privacy parameters for noise tuples.
   // Same value is used for both (0, R, R) and (R, R, R) tuples.
   DifferentialPrivacyParams frequency_noise_config = 2;
+
+  // The mechanism used to generate noise in computations.
+  enum NoiseMechanism {
+    NOISE_MECHANISM_UNSPECIFIED = 0;
+
+    GEOMETRIC = 1;
+    DISCRETE_GAUSSIAN = 2;
+  }
+  NoiseMechanism noise_mechanism = 3;
 }

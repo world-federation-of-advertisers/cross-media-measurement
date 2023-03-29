@@ -93,6 +93,14 @@ message Computation {
 
   // MPC Protocol configuration that need to be known by Duchies.
   message MpcProtocolConfig {
+    // The mechanism used to generate noise in computations.
+    enum NoiseMechanism {
+      NOISE_MECHANISM_UNSPECIFIED = 0;
+
+      GEOMETRIC = 1;
+      DISCRETE_GAUSSIAN = 2;
+    }
+
     // Configuration for the Liquid Legions v2 R/F protocol.
     message LiquidLegionsV2 {
       // Parameters for a Liquid Legions sketch.
@@ -126,6 +134,9 @@ message Computation {
 
       // The maximum frequency to reveal in the histogram.
       int32 maximum_frequency = 4;
+
+      // The mechanism to generate noise during computation.
+      NoiseMechanism noise_mechanism = 5;
     }
 
     // Configuration for the specific protocol.

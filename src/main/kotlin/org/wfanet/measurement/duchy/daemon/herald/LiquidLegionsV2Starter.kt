@@ -35,8 +35,10 @@ import org.wfanet.measurement.internal.duchy.createComputationRequest
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.Parameters
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfig.NoiseMechanism
 import org.wfanet.measurement.internal.duchy.updateComputationDetailsRequest
 import org.wfanet.measurement.system.v1alpha.Computation
+import org.wfanet.measurement.system.v1alpha.Computation.MpcProtocolConfig.NoiseMechanism as SystemNoiseMechanism
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant as SystemComputationParticipant
 
 private const val MIN_REACH_EPSILON = 0.00001
@@ -274,6 +276,15 @@ object LiquidLegionsV2Starter {
       .build()
   }
 
+  private fun SystemNoiseMechanism.toInternalNoiseMechanism(): NoiseMechanism {
+    return when (this) {
+      SystemNoiseMechanism.GEOMETRIC -> NoiseMechanism.GEOMETRIC
+      SystemNoiseMechanism.DISCRETE_GAUSSIAN -> NoiseMechanism.DISCRETE_GAUSSIAN
+      SystemNoiseMechanism.UNRECOGNIZED,
+      SystemNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED -> error("Invalid system NoiseMechanism")
+    }
+  }
+
   /** Creates a liquid legions v2 `Parameters` from the system Api computation. */
   private fun Computation.toLiquidLegionsV2Parameters(): Parameters {
     require(mpcProtocolConfig.hasLiquidLegionsV2()) {
@@ -319,6 +330,8 @@ object LiquidLegionsV2Starter {
                 reachAndFrequency.reachPrivacyParams.toDuchyDifferentialPrivacyParams()
               frequencyNoiseConfig =
                 reachAndFrequency.frequencyPrivacyParams.toDuchyDifferentialPrivacyParams()
+              noiseMechanism =
+                mpcProtocolConfig.liquidLegionsV2.noiseMechanism.toInternalNoiseMechanism()
             }
             Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
           }

@@ -8,6 +8,31 @@ package(default_visibility = ["//:__subpackages__"])
 IMPORT_PREFIX = "/src/main/proto"
 
 proto_library(
+    name = "liquid_legions_v2_noise_config_proto",
+    srcs = ["liquid_legions_v2_noise_config.proto"],
+    strip_import_prefix = "/src/main/proto",
+    deps = [
+        "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "liquid_legions_v2_noise_config_cc_proto",
+    deps = [":liquid_legions_v2_noise_config_proto"],
+)
+
+java_proto_library(
+    name = "liquid_legions_v2_noise_config_java_proto",
+    deps = [":liquid_legions_v2_noise_config_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "liquid_legions_v2_noise_config_kt_jvm_proto",
+    srcs = [":liquid_legions_v2_noise_config_proto"],
+    deps = [":liquid_legions_v2_noise_config_java_proto"],
+)
+
+proto_library(
     name = "liquid_legions_v2_encryption_methods_proto",
     srcs = ["liquid_legions_v2_encryption_methods.proto"],
     strip_import_prefix = "/src/main/proto",
@@ -15,6 +40,7 @@ proto_library(
         ":liquid_legions_sketch_parameter_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:crypto_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_noise_config_proto",
     ],
 )
 
@@ -32,26 +58,6 @@ kt_jvm_proto_library(
     name = "liquid_legions_v2_encryption_methods_kt_jvm_proto",
     srcs = [":liquid_legions_v2_encryption_methods_proto"],
     deps = [":liquid_legions_v2_encryption_methods_java_proto"],
-)
-
-proto_library(
-    name = "liquid_legions_v2_noise_config_proto",
-    srcs = ["liquid_legions_v2_noise_config.proto"],
-    strip_import_prefix = "/src/main/proto",
-    deps = [
-        "//src/main/proto/wfa/measurement/internal/duchy:differential_privacy_proto",
-    ],
-)
-
-java_proto_library(
-    name = "liquid_legions_v2_noise_config_java_proto",
-    deps = [":liquid_legions_v2_noise_config_proto"],
-)
-
-kt_jvm_proto_library(
-    name = "liquid_legions_v2_noise_config_kt_jvm_proto",
-    srcs = [":liquid_legions_v2_noise_config_proto"],
-    deps = [":liquid_legions_v2_noise_config_java_proto"],
 )
 
 proto_library(

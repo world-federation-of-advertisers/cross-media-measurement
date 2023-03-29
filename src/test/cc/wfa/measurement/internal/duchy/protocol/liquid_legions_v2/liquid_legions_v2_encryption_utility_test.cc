@@ -58,6 +58,7 @@ using ::wfa::measurement::common::crypto::kPublisherNoiseRegisterId;
 using ::wfa::measurement::internal::duchy::DifferentialPrivacyParams;
 using ::wfa::measurement::internal::duchy::ElGamalKeyPair;
 using ::wfa::measurement::internal::duchy::ElGamalPublicKey;
+using ::wfa::measurement::internal::duchy::protocol::LiquidLegionsV2NoiseConfig;
 
 constexpr int kWorkerCount = 3;
 constexpr int kPublisherCount = 3;
@@ -323,7 +324,8 @@ class TestData {
   absl::StatusOr<MpcResult> GoThroughEntireMpcProtocol(
       const std::string& encrypted_sketch,
       RegisterNoiseGenerationParameters* reach_noise_parameters,
-      FlagCountTupleNoiseGenerationParameters* frequency_noise_parameters) {
+      FlagCountTupleNoiseGenerationParameters* frequency_noise_parameters,
+      LiquidLegionsV2NoiseConfig::NoiseMechanism noise_mechanism) {
     // Setup phase at Duchy 1.
     // We assume all test data comes from duchy 1 in the test.
     CompleteSetupPhaseRequest complete_setup_phase_request_1;
@@ -334,6 +336,7 @@ class TestData {
       *complete_setup_phase_request_1.mutable_noise_parameters() =
           *reach_noise_parameters;
     }
+    complete_setup_phase_request_1.set_noise_mechanise(noise_mechanism);
 
     ASSIGN_OR_RETURN(CompleteSetupPhaseResponse complete_setup_phase_response_1,
                      CompleteSetupPhase(complete_setup_phase_request_1));
@@ -348,6 +351,7 @@ class TestData {
       *complete_setup_phase_request_2.mutable_noise_parameters() =
           *reach_noise_parameters;
     }
+    complete_setup_phase_request_2.set_noise_mechanise(noise_mechanism);
 
     ASSIGN_OR_RETURN(CompleteSetupPhaseResponse complete_setup_phase_response_2,
                      CompleteSetupPhase(complete_setup_phase_request_2));
@@ -362,6 +366,7 @@ class TestData {
       *complete_setup_phase_request_3.mutable_noise_parameters() =
           *reach_noise_parameters;
     }
+    complete_setup_phase_request_3.set_noise_mechanise(noise_mechanism);
 
     ASSIGN_OR_RETURN(CompleteSetupPhaseResponse complete_setup_phase_response_3,
                      CompleteSetupPhase(complete_setup_phase_request_3));
@@ -426,6 +431,8 @@ class TestData {
       *complete_execution_phase_one_at_aggregator_request
            .mutable_noise_parameters() = *frequency_noise_parameters;
     }
+    complete_execution_phase_one_at_aggregator_request.set_noise_mechanise(
+        noise_mechanism);
 
     ASSIGN_OR_RETURN(CompleteExecutionPhaseOneAtAggregatorResponse
                          complete_execution_phase_one_at_aggregator_response,
@@ -452,6 +459,7 @@ class TestData {
       *complete_execution_phase_two_request_1.mutable_noise_parameters() =
           *frequency_noise_parameters;
     }
+    complete_execution_phase_two_request_1.set_noise_mechanise(noise_mechanism);
 
     ASSIGN_OR_RETURN(
         CompleteExecutionPhaseTwoResponse
@@ -476,6 +484,7 @@ class TestData {
       *complete_execution_phase_two_request_2.mutable_noise_parameters() =
           *frequency_noise_parameters;
     }
+    complete_execution_phase_two_request_2.set_noise_mechanise(noise_mechanism);
 
     ASSIGN_OR_RETURN(
         CompleteExecutionPhaseTwoResponse
@@ -518,6 +527,9 @@ class TestData {
         complete_execution_phase_two_response_2.flag_count_tuples());
     complete_execution_phase_two_at_aggregator_request
         .set_vid_sampling_interval_width(kVidSamplingIntervalWidth);
+    complete_execution_phase_two_at_aggregator_request.set_noise_mechanise(
+        noise_mechanism);
+
     ASSIGN_OR_RETURN(CompleteExecutionPhaseTwoAtAggregatorResponse
                          complete_execution_phase_two_at_aggregator_response,
                      CompleteExecutionPhaseTwoAtAggregator(
@@ -571,6 +583,8 @@ class TestData {
           .mutable_global_frequency_dp_noise_per_bucket()
           ->set_contributors_count(3);
     }
+    complete_execution_phase_three_at_aggregator_request.set_noise_mechanise(
+        noise_mechanism);
 
     ASSIGN_OR_RETURN(CompleteExecutionPhaseThreeAtAggregatorResponse
                          complete_execution_phase_three_at_aggregator_response,
@@ -587,7 +601,7 @@ class TestData {
   }
 };
 
-TEST(CompleteSetupPhase, NoiseSumAndMeanShouldBeCorrect) {
+TEST(CompleteSetupPhase, GeometricNoiseSumAndMeanShouldBeCorrect) {
   Context ctx;
   ASSERT_OK_AND_ASSIGN(ECGroup ec_group, ECGroup::Create(kTestCurveId, &ctx));
   ASSERT_OK_AND_ASSIGN(std::unique_ptr<CommutativeElGamal> el_gamal_cipher,
@@ -622,6 +636,98 @@ TEST(CompleteSetupPhase, NoiseSumAndMeanShouldBeCorrect) {
   // resulted p ~= 0 , offset = 4
   *noise_parameters->mutable_dp_params()->mutable_global_reach_dp_noise() =
       MakeDifferentialPrivacyParams(40, std::exp(-80));
+  request.set_noise_mechanise(LiquidLegionsV2NoiseConfig::GEOMETRIC);
+
+  ASSERT_OK_AND_ASSIGN(CompleteSetupPhaseResponse response,
+                       CompleteSetupPhase(request));
+  // There was no data in the request, so all registers in the response are
+  // noise.
+  std::string noises = response.combined_register_vector();
+  ASSERT_THAT(noises, SizeIs(expected_total_register_count *
+                             kBytesPerEncryptedRegister));
+
+  int64_t blinded_histogram_noise_count = 0;
+  int64_t publisher_noise_count = 0;
+  int64_t reach_dp_noise_count = 0;
+  int64_t padding_noise_count = 0;
+
+  for (int i = 0; i < expected_total_register_count; ++i) {
+    ASSERT_OK_AND_ASSIGN(
+        bool is_blinded_histogram_noise,
+        IsBlindedHistogramNoise(*el_gamal_cipher, ec_group,
+                                noises.substr(i * kBytesPerEncryptedRegister,
+                                              kBytesPerEncryptedRegister)));
+    ASSERT_OK_AND_ASSIGN(
+        bool is_reach_dp_noise,
+        IsReachDpNoiseRegister(*el_gamal_cipher, ec_group,
+                               noises.substr(i * kBytesPerEncryptedRegister,
+                                             kBytesPerEncryptedRegister)));
+    ASSERT_OK_AND_ASSIGN(bool is_publisher_noise,
+                         IsNoiseForPublisherNoiseRegister(
+                             *el_gamal_cipher, ec_group,
+                             noises.substr(i * kBytesPerEncryptedRegister,
+                                           kBytesPerEncryptedRegister)));
+    ASSERT_OK_AND_ASSIGN(
+        bool is_padding_noise,
+        IsPaddingNoiseRegister(*el_gamal_cipher, ec_group,
+                               noises.substr(i * kBytesPerEncryptedRegister,
+                                             kBytesPerEncryptedRegister)));
+    blinded_histogram_noise_count += is_blinded_histogram_noise;
+    reach_dp_noise_count += is_reach_dp_noise;
+    publisher_noise_count += is_publisher_noise;
+    padding_noise_count += is_padding_noise;
+    // Assert exact 1 boolean is true.
+    EXPECT_EQ(is_blinded_histogram_noise + is_reach_dp_noise +
+                  is_publisher_noise + is_padding_noise,
+              1);
+  }
+
+  EXPECT_EQ(publisher_noise_count, computed_publisher_noise_offset);
+  EXPECT_EQ(blinded_histogram_noise_count,
+            computed_blinded_histogram_noise_offset * kPublisherCount *
+                (kPublisherCount + 1) / 2);
+  EXPECT_EQ(reach_dp_noise_count, computed_reach_dp_noise_offset);
+  EXPECT_EQ(padding_noise_count,
+            expected_total_register_count - publisher_noise_count -
+                blinded_histogram_noise_count - reach_dp_noise_count);
+}
+
+TEST(CompleteSetupPhase, GaussianNoiseSumAndMeanShouldBeCorrect) {
+  Context ctx;
+  ASSERT_OK_AND_ASSIGN(ECGroup ec_group, ECGroup::Create(kTestCurveId, &ctx));
+  ASSERT_OK_AND_ASSIGN(std::unique_ptr<CommutativeElGamal> el_gamal_cipher,
+                       CommutativeElGamal::CreateWithNewKeyPair(kTestCurveId));
+  ASSERT_OK_AND_ASSIGN(auto public_key_pair,
+                       el_gamal_cipher->GetPublicKeyBytes());
+  ElGamalPublicKey public_key;
+  public_key.set_generator(public_key_pair.first);
+  public_key.set_element(public_key_pair.second);
+
+  int64_t computed_blinded_histogram_noise_offset = 3;
+  int64_t computed_publisher_noise_offset = 2;
+  int64_t computed_reach_dp_noise_offset = 3;
+  int64_t expected_total_register_count =
+      computed_publisher_noise_offset * 2 + computed_reach_dp_noise_offset * 2 +
+      computed_blinded_histogram_noise_offset * kPublisherCount *
+          (kPublisherCount + 1);
+
+  CompleteSetupPhaseRequest request;
+  RegisterNoiseGenerationParameters* noise_parameters =
+      request.mutable_noise_parameters();
+  noise_parameters->set_curve_id(kTestCurveId);
+  noise_parameters->set_total_sketches_count(kPublisherCount);
+  noise_parameters->set_contributors_count(kWorkerCount);
+  *noise_parameters->mutable_composite_el_gamal_public_key() = public_key;
+  // resulted sigma_distributed ~= 0.18, offset = 3
+  *noise_parameters->mutable_dp_params()->mutable_blind_histogram() =
+      MakeDifferentialPrivacyParams(40, std::exp(-80));
+  // resulted sigma_distributed ~= 0.13, offset = 2
+  *noise_parameters->mutable_dp_params()->mutable_noise_for_publisher_noise() =
+      MakeDifferentialPrivacyParams(40, std::exp(-40));
+  // resulted sigma_distributed ~= 0.18, offset = 3
+  *noise_parameters->mutable_dp_params()->mutable_global_reach_dp_noise() =
+      MakeDifferentialPrivacyParams(40, std::exp(-80));
+  request.set_noise_mechanise(LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN);
 
   ASSERT_OK_AND_ASSIGN(CompleteSetupPhaseResponse response,
                        CompleteSetupPhase(request));
@@ -711,7 +817,7 @@ TEST(CompleteSetupPhase, FrequencyOneWorksAsExpectedWithoutNoise) {
   EXPECT_EQ("def", response_crv.substr(kBytesPerCipherRegister, 3));
 }
 
-TEST(CompleteSetupPhase, FrequencyOneWorksAsExpectedWithNoise) {
+TEST(CompleteSetupPhase, FrequencyOneWorksAsExpectedWithGeometricNoise) {
   CompleteSetupPhaseRequest request;
   TestData test_data;
 
@@ -730,6 +836,46 @@ TEST(CompleteSetupPhase, FrequencyOneWorksAsExpectedWithNoise) {
       test_data.client_el_gamal_public_key_;
 
   *request.mutable_noise_parameters() = reach_noise_parameters;
+
+  request.set_noise_mechanise(LiquidLegionsV2NoiseConfig::GEOMETRIC);
+
+  std::string register1 = "abc";
+  std::string register2 = "def";
+  for (int i = 3; i < kBytesPerCipherRegister; i++) {
+    register1 = register1 + " ";
+    register2 = register2 + " ";
+  }
+  std::string registers = register1 + register2;
+
+  request.set_combined_register_vector(registers);
+  request.set_maximum_frequency(1);
+
+  auto result = CompleteSetupPhase(request);
+  ASSERT_TRUE(result.ok());
+  EXPECT_NE(registers, result->combined_register_vector());
+}
+
+TEST(CompleteSetupPhase, FrequencyOneWorksAsExpectedWithGaussianNoise) {
+  CompleteSetupPhaseRequest request;
+  TestData test_data;
+
+  RegisterNoiseGenerationParameters reach_noise_parameters;
+  reach_noise_parameters.set_curve_id(kTestCurveId);
+  reach_noise_parameters.set_total_sketches_count(kPublisherCount);
+  reach_noise_parameters.set_contributors_count(kWorkerCount);
+  *reach_noise_parameters.mutable_dp_params()->mutable_blind_histogram() =
+      MakeDifferentialPrivacyParams(100, 1);
+  *reach_noise_parameters.mutable_dp_params()
+       ->mutable_noise_for_publisher_noise() =
+      MakeDifferentialPrivacyParams(100, 1);
+  *reach_noise_parameters.mutable_dp_params()->mutable_global_reach_dp_noise() =
+      MakeDifferentialPrivacyParams(40, std::exp(-80));
+  *reach_noise_parameters.mutable_composite_el_gamal_public_key() =
+      test_data.client_el_gamal_public_key_;
+
+  *request.mutable_noise_parameters() = reach_noise_parameters;
+
+  request.set_noise_mechanise(LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN);
 
   std::string register1 = "abc";
   std::string register2 = "def";
@@ -817,13 +963,23 @@ TEST(EndToEnd, SumOfCountsShouldBeCorrect) {
   std::string encrypted_sketch =
       test_data.EncryptWithFlaggedKey(plain_sketch).value();
 
-  ASSERT_OK_AND_ASSIGN(MpcResult result,
+  ASSERT_OK_AND_ASSIGN(
+      MpcResult geometric_noise_result,
+      test_data.GoThroughEntireMpcProtocol(
+          encrypted_sketch, /*reach_noise=*/nullptr,
+          /*frequency_noise=*/nullptr, LiquidLegionsV2NoiseConfig::GEOMETRIC));
+
+  ASSERT_THAT(geometric_noise_result.frequency_distribution, SizeIs(1));
+  EXPECT_NEAR(geometric_noise_result.frequency_distribution[6], 1.0, 0.001);
+
+  ASSERT_OK_AND_ASSIGN(MpcResult gaussian_noise_result,
                        test_data.GoThroughEntireMpcProtocol(
                            encrypted_sketch, /*reach_noise=*/nullptr,
-                           /*frequency_noise=*/nullptr));
+                           /*frequency_noise=*/nullptr,
+                           LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN));
 
-  ASSERT_THAT(result.frequency_distribution, SizeIs(1));
-  EXPECT_NEAR(result.frequency_distribution[6], 1.0, 0.001);
+  ASSERT_THAT(gaussian_noise_result.frequency_distribution, SizeIs(1));
+  EXPECT_NEAR(gaussian_noise_result.frequency_distribution[6], 1.0, 0.001);
 }
 
 TEST(EndToEnd, LocallyDestroyedRegisterShouldBeIgnored) {
@@ -836,13 +992,23 @@ TEST(EndToEnd, LocallyDestroyedRegisterShouldBeIgnored) {
   std::string encrypted_sketch =
       test_data.EncryptWithFlaggedKey(plain_sketch).value();
 
-  ASSERT_OK_AND_ASSIGN(MpcResult result,
+  ASSERT_OK_AND_ASSIGN(
+      MpcResult geometric_noise_result,
+      test_data.GoThroughEntireMpcProtocol(
+          encrypted_sketch, /*reach_noise=*/nullptr,
+          /*frequency_noise=*/nullptr, LiquidLegionsV2NoiseConfig::GEOMETRIC));
+
+  ASSERT_THAT(geometric_noise_result.frequency_distribution, SizeIs(1));
+  EXPECT_NEAR(geometric_noise_result.frequency_distribution[3], 1.0, 0.001);
+
+  ASSERT_OK_AND_ASSIGN(MpcResult gaussian_noise_result,
                        test_data.GoThroughEntireMpcProtocol(
                            encrypted_sketch, /*reach_noise=*/nullptr,
-                           /*frequency_noise=*/nullptr));
+                           /*frequency_noise=*/nullptr,
+                           LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN));
 
-  ASSERT_THAT(result.frequency_distribution, SizeIs(1));
-  EXPECT_NEAR(result.frequency_distribution[3], 1.0, 0.001);
+  ASSERT_THAT(gaussian_noise_result.frequency_distribution, SizeIs(1));
+  EXPECT_NEAR(gaussian_noise_result.frequency_distribution[3], 1.0, 0.001);
 }
 
 TEST(EndToEnd, CrossPublisherDestroyedRegistersShouldBeIgnored) {
@@ -854,13 +1020,23 @@ TEST(EndToEnd, CrossPublisherDestroyedRegistersShouldBeIgnored) {
   std::string encrypted_sketch =
       test_data.EncryptWithFlaggedKey(plain_sketch).value();
 
-  ASSERT_OK_AND_ASSIGN(MpcResult result,
+  ASSERT_OK_AND_ASSIGN(
+      MpcResult geometric_noise_result,
+      test_data.GoThroughEntireMpcProtocol(
+          encrypted_sketch, /*reach_noise=*/nullptr,
+          /*frequency_noise=*/nullptr, LiquidLegionsV2NoiseConfig::GEOMETRIC));
+
+  ASSERT_THAT(geometric_noise_result.frequency_distribution, SizeIs(1));
+  EXPECT_NEAR(geometric_noise_result.frequency_distribution[3], 1.0, 0.001);
+
+  ASSERT_OK_AND_ASSIGN(MpcResult gaussian_noise_result,
                        test_data.GoThroughEntireMpcProtocol(
                            encrypted_sketch, /*reach_noise=*/nullptr,
-                           /*frequency_noise=*/nullptr));
+                           /*frequency_noise=*/nullptr,
+                           LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN));
 
-  ASSERT_THAT(result.frequency_distribution, SizeIs(1));
-  EXPECT_NEAR(result.frequency_distribution[3], 1.0, 0.001);
+  ASSERT_THAT(gaussian_noise_result.frequency_distribution, SizeIs(1));
+  EXPECT_NEAR(gaussian_noise_result.frequency_distribution[3], 1.0, 0.001);
 }
 
 TEST(EndToEnd, SumOfCountsShouldBeCappedbyMaxFrequency) {
@@ -872,14 +1048,27 @@ TEST(EndToEnd, SumOfCountsShouldBeCappedbyMaxFrequency) {
   std::string encrypted_sketch =
       test_data.EncryptWithFlaggedKey(plain_sketch).value();
 
-  ASSERT_OK_AND_ASSIGN(MpcResult result,
+  ASSERT_OK_AND_ASSIGN(
+      MpcResult geometric_noise_result,
+      test_data.GoThroughEntireMpcProtocol(
+          encrypted_sketch, /*reach_noise=*/nullptr,
+          /*frequency_noise=*/nullptr, LiquidLegionsV2NoiseConfig::GEOMETRIC));
+
+  ASSERT_THAT(geometric_noise_result.frequency_distribution, SizeIs(2));
+  EXPECT_NEAR(geometric_noise_result.frequency_distribution[3], 0.5, 0.001);
+  EXPECT_NEAR(geometric_noise_result.frequency_distribution[kMaxFrequency], 0.5,
+              0.001);
+
+  ASSERT_OK_AND_ASSIGN(MpcResult gaussian_noise_result,
                        test_data.GoThroughEntireMpcProtocol(
                            encrypted_sketch, /*reach_noise=*/nullptr,
-                           /*frequency_noise=*/nullptr));
+                           /*frequency_noise=*/nullptr,
+                           LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN));
 
-  ASSERT_THAT(result.frequency_distribution, SizeIs(2));
-  EXPECT_NEAR(result.frequency_distribution[3], 0.5, 0.001);
-  EXPECT_NEAR(result.frequency_distribution[kMaxFrequency], 0.5, 0.001);
+  ASSERT_THAT(gaussian_noise_result.frequency_distribution, SizeIs(2));
+  EXPECT_NEAR(gaussian_noise_result.frequency_distribution[3], 0.5, 0.001);
+  EXPECT_NEAR(gaussian_noise_result.frequency_distribution[kMaxFrequency], 0.5,
+              0.001);
 }
 
 TEST(ReachEstimation, NonDpNoiseShouldNotImpactTheResult) {
@@ -894,16 +1083,16 @@ TEST(ReachEstimation, NonDpNoiseShouldNotImpactTheResult) {
   reach_noise_parameters.set_curve_id(kTestCurveId);
   reach_noise_parameters.set_total_sketches_count(kPublisherCount);
   reach_noise_parameters.set_contributors_count(kWorkerCount);
-  // resulted p = 0.716531, offset = 15.
+  // For geometric noise, resulted p = 0.716531, offset = 15.
   // Random blind histogram noise.
   *reach_noise_parameters.mutable_dp_params()->mutable_blind_histogram() =
       MakeDifferentialPrivacyParams(1, 1);
-  // resulted p = 0.716531, offset = 10.
+  // For geometric noise, resulted p = 0.716531, offset = 10.
   // Random noise for publisher noise.
   *reach_noise_parameters.mutable_dp_params()
        ->mutable_noise_for_publisher_noise() =
       MakeDifferentialPrivacyParams(1, 1);
-  // resulted p ~= 0 , offset = 3.
+  // For geometric noise, resulted p ~= 0 , offset = 3.
   // Deterministic reach dp noise.
   *reach_noise_parameters.mutable_dp_params()->mutable_global_reach_dp_noise() =
       MakeDifferentialPrivacyParams(40, std::exp(-80));
@@ -912,18 +1101,27 @@ TEST(ReachEstimation, NonDpNoiseShouldNotImpactTheResult) {
 
   std::string encrypted_sketch =
       test_data.EncryptWithFlaggedKey(plain_sketch).value();
-  ASSERT_OK_AND_ASSIGN(MpcResult result,
-                       test_data.GoThroughEntireMpcProtocol(
-                           encrypted_sketch, &reach_noise_parameters,
-                           /*frequency_noise=*/nullptr));
+
   int64_t expected_reach = wfa::estimation::EstimateCardinalityLiquidLegions(
       kDecayRate, kLiquidLegionsSize, valid_register_count,
       kVidSamplingIntervalWidth);
 
-  EXPECT_EQ(result.reach, expected_reach);
+  ASSERT_OK_AND_ASSIGN(
+      MpcResult geometric_noise_result,
+      test_data.GoThroughEntireMpcProtocol(
+          encrypted_sketch, &reach_noise_parameters,
+          /*frequency_noise=*/nullptr, LiquidLegionsV2NoiseConfig::GEOMETRIC));
+  EXPECT_EQ(geometric_noise_result.reach, expected_reach);
+
+  ASSERT_OK_AND_ASSIGN(MpcResult gaussian_noise_result,
+                       test_data.GoThroughEntireMpcProtocol(
+                           encrypted_sketch, &reach_noise_parameters,
+                           /*frequency_noise=*/nullptr,
+                           LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN));
+  EXPECT_EQ(gaussian_noise_result.reach, expected_reach);
 }
 
-TEST(FrequencyNoise, TotalNoiseBytesShouldBeCorrect) {
+TEST(FrequencyGeometricNoise, TotalNoiseBytesShouldBeCorrect) {
   Context ctx;
   ASSERT_OK_AND_ASSIGN(ECGroup ec_group, ECGroup::Create(kTestCurveId, &ctx));
   ASSERT_OK_AND_ASSIGN(std::unique_ptr<CommutativeElGamal> el_gamal_cipher,
@@ -955,6 +1153,7 @@ TEST(FrequencyNoise, TotalNoiseBytesShouldBeCorrect) {
   *request.mutable_composite_el_gamal_public_key() = public_key;
   *request.mutable_partial_composite_el_gamal_public_key() = public_key;
   *request.mutable_noise_parameters() = frequency_noise_params;
+  request.set_noise_mechanise(LiquidLegionsV2NoiseConfig::GEOMETRIC);
 
   ASSERT_OK_AND_ASSIGN(CompleteExecutionPhaseTwoResponse Response,
                        CompleteExecutionPhaseTwo(request));
@@ -963,7 +1162,7 @@ TEST(FrequencyNoise, TotalNoiseBytesShouldBeCorrect) {
       SizeIs(expected_total_noise_tuple_count * kBytesPerFlagsCountTuple));
 
   int frequency_dp_noise_tuples_count = 0;
-  int idestroyed_frequency_noise_tuples_count = 0;
+  int destroyed_frequency_noise_tuples_count = 0;
   int padding_frequency_noise_tuples_count = 0;
 
   for (int i = 0; i < expected_total_noise_tuple_count; ++i) {
@@ -987,7 +1186,7 @@ TEST(FrequencyNoise, TotalNoiseBytesShouldBeCorrect) {
                                                 kBytesPerFlagsCountTuple)));
 
     frequency_dp_noise_tuples_count += is_frequency_dp_noise_tuples;
-    idestroyed_frequency_noise_tuples_count +=
+    destroyed_frequency_noise_tuples_count +=
         is_destroyed_frequency_noise_tuples;
     padding_frequency_noise_tuples_count += is_padding_frequency_noise_tuples;
     // Assert exact 1 boolean is true.
@@ -998,11 +1197,91 @@ TEST(FrequencyNoise, TotalNoiseBytesShouldBeCorrect) {
   }
   EXPECT_EQ(expected_total_noise_tuple_count,
             frequency_dp_noise_tuples_count +
-                idestroyed_frequency_noise_tuples_count +
+                destroyed_frequency_noise_tuples_count +
                 padding_frequency_noise_tuples_count);
 }
 
-TEST(FrequencyNoise, AllFrequencyBucketsShouldHaveNoise) {
+TEST(FrequencyGaussianNoise, TotalNoiseBytesShouldBeCorrect) {
+  Context ctx;
+  ASSERT_OK_AND_ASSIGN(ECGroup ec_group, ECGroup::Create(kTestCurveId, &ctx));
+  ASSERT_OK_AND_ASSIGN(std::unique_ptr<CommutativeElGamal> el_gamal_cipher,
+                       CommutativeElGamal::CreateWithNewKeyPair(kTestCurveId));
+  ASSERT_OK_AND_ASSIGN(auto public_key_pair,
+                       el_gamal_cipher->GetPublicKeyBytes());
+  ASSERT_OK_AND_ASSIGN(std::string private_key,
+                       el_gamal_cipher->GetPrivateKeyBytes());
+  ElGamalPublicKey public_key;
+  public_key.set_generator(public_key_pair.first);
+  public_key.set_element(public_key_pair.second);
+
+  FlagCountTupleNoiseGenerationParameters frequency_noise_params;
+  frequency_noise_params.set_maximum_frequency(kMaxFrequency);
+  frequency_noise_params.set_contributors_count(kWorkerCount);
+  // resulted sigma_distributed ~= 0.78, offset = 2
+  *frequency_noise_params.mutable_dp_params() =
+      MakeDifferentialPrivacyParams(1, 1);
+
+  int computed_offset = 2;
+  int64_t expected_total_noise_tuple_count =
+      (kMaxFrequency + 1) * computed_offset * 2;
+
+  CompleteExecutionPhaseTwoRequest request;
+  request.set_curve_id(kTestCurveId);
+  *request.mutable_local_el_gamal_key_pair()->mutable_public_key() = public_key;
+  *request.mutable_local_el_gamal_key_pair()->mutable_secret_key() =
+      private_key;
+  *request.mutable_composite_el_gamal_public_key() = public_key;
+  *request.mutable_partial_composite_el_gamal_public_key() = public_key;
+  *request.mutable_noise_parameters() = frequency_noise_params;
+  request.set_noise_mechanise(LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN);
+
+  ASSERT_OK_AND_ASSIGN(CompleteExecutionPhaseTwoResponse Response,
+                       CompleteExecutionPhaseTwo(request));
+  ASSERT_THAT(
+      Response.flag_count_tuples(),
+      SizeIs(expected_total_noise_tuple_count * kBytesPerFlagsCountTuple));
+
+  int frequency_dp_noise_tuples_count = 0;
+  int destroyed_frequency_noise_tuples_count = 0;
+  int padding_frequency_noise_tuples_count = 0;
+
+  for (int i = 0; i < expected_total_noise_tuple_count; ++i) {
+    ASSERT_OK_AND_ASSIGN(
+        bool is_frequency_dp_noise_tuples,
+        IsFrequencyDpNoiseTuples(
+            *el_gamal_cipher,
+            Response.flag_count_tuples().substr(i * kBytesPerFlagsCountTuple,
+                                                kBytesPerFlagsCountTuple)));
+    ASSERT_OK_AND_ASSIGN(
+        bool is_destroyed_frequency_noise_tuples,
+        IsDestroyedFrequencyNoiseTuples(
+            *el_gamal_cipher,
+            Response.flag_count_tuples().substr(i * kBytesPerFlagsCountTuple,
+                                                kBytesPerFlagsCountTuple)));
+    ASSERT_OK_AND_ASSIGN(
+        bool is_padding_frequency_noise_tuples,
+        IsPaddingFrequencyNoiseTuples(
+            *el_gamal_cipher,
+            Response.flag_count_tuples().substr(i * kBytesPerFlagsCountTuple,
+                                                kBytesPerFlagsCountTuple)));
+
+    frequency_dp_noise_tuples_count += is_frequency_dp_noise_tuples;
+    destroyed_frequency_noise_tuples_count +=
+        is_destroyed_frequency_noise_tuples;
+    padding_frequency_noise_tuples_count += is_padding_frequency_noise_tuples;
+    // Assert exact 1 boolean is true.
+    EXPECT_EQ(is_frequency_dp_noise_tuples +
+                  is_destroyed_frequency_noise_tuples +
+                  is_padding_frequency_noise_tuples,
+              1);
+  }
+  EXPECT_EQ(expected_total_noise_tuple_count,
+            frequency_dp_noise_tuples_count +
+                destroyed_frequency_noise_tuples_count +
+                padding_frequency_noise_tuples_count);
+}
+
+TEST(FrequencyGeomatricNoise, AllFrequencyBucketsShouldHaveNoise) {
   Context ctx;
   ASSERT_OK_AND_ASSIGN(ECGroup ec_group, ECGroup::Create(kTestCurveId, &ctx));
   ASSERT_OK_AND_ASSIGN(std::unique_ptr<CommutativeElGamal> el_gamal_cipher,
@@ -1034,6 +1313,81 @@ TEST(FrequencyNoise, AllFrequencyBucketsShouldHaveNoise) {
   *request.mutable_composite_el_gamal_public_key() = public_key;
   *request.mutable_partial_composite_el_gamal_public_key() = public_key;
   *request.mutable_noise_parameters() = frequency_noise_params;
+  request.set_noise_mechanise(LiquidLegionsV2NoiseConfig::GEOMETRIC);
+
+  ASSERT_OK_AND_ASSIGN(CompleteExecutionPhaseTwoResponse Response,
+                       CompleteExecutionPhaseTwo(request));
+  ASSERT_THAT(
+      Response.flag_count_tuples(),
+      SizeIs(expected_total_noise_tuple_count * kBytesPerFlagsCountTuple));
+
+  ASSERT_OK_AND_ASSIGN(std::vector<std::string> count_values_plaintext,
+                       GetCountValuesPlaintext(kMaxFrequency, kTestCurveId));
+
+  std::array<int, kMaxFrequency> noise_count_per_bucket = {};
+  for (int i = 0; i < expected_total_noise_tuple_count; ++i) {
+    absl::string_view current_tuples =
+        absl::string_view(Response.flag_count_tuples())
+            .substr(i * kBytesPerFlagsCountTuple, kBytesPerFlagsCountTuple);
+    ASSERT_OK_AND_ASSIGN(
+        bool is_frequency_dp_noise_tuples,
+        IsFrequencyDpNoiseTuples(*el_gamal_cipher, current_tuples));
+    if (is_frequency_dp_noise_tuples) {
+      ASSERT_OK_AND_ASSIGN(
+          ElGamalCiphertext count,
+          ExtractElGamalCiphertextFromString(
+              current_tuples.substr(kBytesCipherText * 3, kBytesCipherText)));
+      for (int j = 0; j < kMaxFrequency; ++j) {
+        ASSERT_OK_AND_ASSIGN(
+            bool is_count_j,
+            IsEncryptionOfPlaintext(*el_gamal_cipher, count_values_plaintext[j],
+                                    count));
+        if (is_count_j) {
+          ++noise_count_per_bucket[j];
+          break;
+        }
+      }
+    }
+  }
+
+  for (int i = 0; i < kMaxFrequency; ++i) {
+    EXPECT_GT(noise_count_per_bucket[i], 0);
+  }
+}
+
+TEST(FrequencyGaussianNoise, AllFrequencyBucketsShouldHaveNoise) {
+  Context ctx;
+  ASSERT_OK_AND_ASSIGN(ECGroup ec_group, ECGroup::Create(kTestCurveId, &ctx));
+  ASSERT_OK_AND_ASSIGN(std::unique_ptr<CommutativeElGamal> el_gamal_cipher,
+                       CommutativeElGamal::CreateWithNewKeyPair(kTestCurveId));
+  ASSERT_OK_AND_ASSIGN(auto public_key_pair,
+                       el_gamal_cipher->GetPublicKeyBytes());
+  ASSERT_OK_AND_ASSIGN(std::string private_key,
+                       el_gamal_cipher->GetPrivateKeyBytes());
+  ElGamalPublicKey public_key;
+  public_key.set_generator(public_key_pair.first);
+  public_key.set_element(public_key_pair.second);
+
+  FlagCountTupleNoiseGenerationParameters frequency_noise_params;
+  frequency_noise_params.set_maximum_frequency(kMaxFrequency);
+  frequency_noise_params.set_contributors_count(kWorkerCount);
+  // resulted sigma_distributed ~= 1.46, offset = 5
+  *frequency_noise_params.mutable_dp_params() =
+      MakeDifferentialPrivacyParams(1, 0.1);
+
+  int computed_offset = 5;
+  int64_t expected_total_noise_tuple_count =
+      (kMaxFrequency + 1) * computed_offset * 2;
+
+  CompleteExecutionPhaseTwoRequest request;
+  request.set_curve_id(kTestCurveId);
+  *request.mutable_local_el_gamal_key_pair()->mutable_public_key() = public_key;
+  *request.mutable_local_el_gamal_key_pair()->mutable_secret_key() =
+      private_key;
+  *request.mutable_composite_el_gamal_public_key() = public_key;
+  *request.mutable_partial_composite_el_gamal_public_key() = public_key;
+  *request.mutable_noise_parameters() = frequency_noise_params;
+  request.set_noise_mechanise(LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN);
 
   ASSERT_OK_AND_ASSIGN(CompleteExecutionPhaseTwoResponse Response,
                        CompleteExecutionPhaseTwo(request));
@@ -1088,20 +1442,33 @@ TEST(FrequencyNoise, DeterministicNoiseShouldHaveNoImpact) {
   FlagCountTupleNoiseGenerationParameters frequency_noise_params;
   frequency_noise_params.set_maximum_frequency(kMaxFrequency);
   frequency_noise_params.set_contributors_count(kWorkerCount);
-  // resulted p ~= 0, offset = 7, such that the number of frequency DP noise is
-  // almost a constant, and thus the result is deterministic.
+  // For geometric noise, resulted p ~= 0, offset = 7, such that the number of
+  // frequency DP noise is almost a constant, and thus the result is
+  // deterministic.
   *frequency_noise_params.mutable_dp_params() =
       MakeDifferentialPrivacyParams(40, std::exp(-80));
 
   ASSERT_OK_AND_ASSIGN(
       MpcResult result,
       test_data.GoThroughEntireMpcProtocol(
-          encrypted_sketch, /*reach_noise=*/nullptr, &frequency_noise_params));
+          encrypted_sketch, /*reach_noise=*/nullptr, &frequency_noise_params,
+          LiquidLegionsV2NoiseConfig::GEOMETRIC));
 
   ASSERT_THAT(result.frequency_distribution, SizeIs(2));
   // All noises are compensated since the p is ~=0.
   EXPECT_EQ(result.frequency_distribution[2], 0.25);
   EXPECT_EQ(result.frequency_distribution[3], 0.75);
+
+  ASSERT_OK_AND_ASSIGN(
+      MpcResult gaussian_noise_result,
+      test_data.GoThroughEntireMpcProtocol(
+          encrypted_sketch, /*reach_noise=*/nullptr, &frequency_noise_params,
+          LiquidLegionsV2NoiseConfig::GEOMETRIC));
+
+  ASSERT_THAT(gaussian_noise_result.frequency_distribution, SizeIs(2));
+
+  EXPECT_EQ(gaussian_noise_result.frequency_distribution[2], 0.25);
+  EXPECT_EQ(gaussian_noise_result.frequency_distribution[3], 0.75);
 }
 
 TEST(FrequencyNoise, NonDeterministicNoiseShouldRandomizeTheResult) {
@@ -1124,10 +1491,12 @@ TEST(FrequencyNoise, NonDeterministicNoiseShouldRandomizeTheResult) {
   *frequency_noise_params.mutable_dp_params() =
       MakeDifferentialPrivacyParams(1, 0.5);
 
+  // Result with geometric noise.
   ASSERT_OK_AND_ASSIGN(
       MpcResult result,
       test_data.GoThroughEntireMpcProtocol(
-          encrypted_sketch, /*reach_noise=*/nullptr, &frequency_noise_params));
+          encrypted_sketch, /*reach_noise=*/nullptr, &frequency_noise_params,
+          LiquidLegionsV2NoiseConfig::GEOMETRIC));
 
   // Since there are noise, there should be other entries in the histogram.
   ASSERT_THAT(result.frequency_distribution, testing::Not(SizeIs(2)));
@@ -1136,6 +1505,25 @@ TEST(FrequencyNoise, NonDeterministicNoiseShouldRandomizeTheResult) {
 
   double total_p = 0;
   for (auto x : result.frequency_distribution) {
+    total_p += x.second;
+  }
+  EXPECT_NEAR(total_p, 1, 0.0001);
+
+  // Result of gaussian noise.
+  ASSERT_OK_AND_ASSIGN(
+      MpcResult gaussian_noise_result,
+      test_data.GoThroughEntireMpcProtocol(
+          encrypted_sketch, /*reach_noise=*/nullptr, &frequency_noise_params,
+          LiquidLegionsV2NoiseConfig::GEOMETRIC));
+
+  // Since there are noise, there should be other entries in the histogram.
+  ASSERT_THAT(gaussian_noise_result.frequency_distribution,
+              testing::Not(SizeIs(2)));
+  EXPECT_NE(gaussian_noise_result.frequency_distribution[2], 0.25);
+  EXPECT_NE(gaussian_noise_result.frequency_distribution[3], 0.75);
+
+  total_p = 0;
+  for (auto x : gaussian_noise_result.frequency_distribution) {
     total_p += x.second;
   }
   EXPECT_NEAR(total_p, 1, 0.0001);
@@ -1174,16 +1562,16 @@ TEST(EndToEnd, CombinedCasesWithDeterministicReachAndFrequencyDpNoises) {
   reach_noise_parameters.set_curve_id(kTestCurveId);
   reach_noise_parameters.set_total_sketches_count(3);
   reach_noise_parameters.set_contributors_count(kWorkerCount);
-  // resulted p = 0.716531, offset = 15.
+  // For geometric noise, resulted p = 0.716531, offset = 15.
   // Random blind histogram noise.
   *reach_noise_parameters.mutable_dp_params()->mutable_blind_histogram() =
       MakeDifferentialPrivacyParams(1, 1);
-  // resulted p = 0.716531, offset = 10.
+  // For geometric noise, resulted p = 0.716531, offset = 10.
   // Random noise for publisher noise.
   *reach_noise_parameters.mutable_dp_params()
        ->mutable_noise_for_publisher_noise() =
       MakeDifferentialPrivacyParams(1, 1);
-  // resulted p ~= 0 , offset = 3.
+  // For geometric noise, resulted p ~= 0 , offset = 3.
   // Deterministic reach dp noise.
   *reach_noise_parameters.mutable_dp_params()->mutable_global_reach_dp_noise() =
       MakeDifferentialPrivacyParams(40, std::exp(-80));
@@ -1193,23 +1581,37 @@ TEST(EndToEnd, CombinedCasesWithDeterministicReachAndFrequencyDpNoises) {
   FlagCountTupleNoiseGenerationParameters frequency_noise_params;
   frequency_noise_params.set_maximum_frequency(kMaxFrequency);
   frequency_noise_params.set_contributors_count(kWorkerCount);
-  // resulted p ~= 0, offset = 5, such that the number of frequency DP noise is
-  // almost a constant, and thus the result is deterministic.
+  // For geometric noise, resulted p ~= 0, offset = 5, such that the number of
+  // frequency DP noise is almost a constant, and thus the result is
+  // deterministic.
   *frequency_noise_params.mutable_dp_params() =
       MakeDifferentialPrivacyParams(40, std::exp(-80));
-
-  ASSERT_OK_AND_ASSIGN(
-      MpcResult result,
-      test_data.GoThroughEntireMpcProtocol(
-          encrypted_sketch, &reach_noise_parameters, &frequency_noise_params));
 
   int64_t expected_reach = wfa::estimation::EstimateCardinalityLiquidLegions(
       kDecayRate, kLiquidLegionsSize, 7, kVidSamplingIntervalWidth);
 
-  EXPECT_EQ(result.reach, expected_reach);
+  ASSERT_OK_AND_ASSIGN(
+      MpcResult geometric_noise_result,
+      test_data.GoThroughEntireMpcProtocol(
+          encrypted_sketch, &reach_noise_parameters, &frequency_noise_params,
+          LiquidLegionsV2NoiseConfig::GEOMETRIC));
 
+  EXPECT_EQ(geometric_noise_result.reach, expected_reach);
   EXPECT_THAT(
-      result.frequency_distribution,
+      geometric_noise_result.frequency_distribution,
+      UnorderedElementsAre(Pair(3, DoubleNear(0.25, 0.001)),
+                           Pair(6, DoubleNear(0.5, 0.001)),
+                           Pair(kMaxFrequency, DoubleNear(0.25, 0.001))));
+
+  ASSERT_OK_AND_ASSIGN(
+      MpcResult gaussian_noise_result,
+      test_data.GoThroughEntireMpcProtocol(
+          encrypted_sketch, &reach_noise_parameters, &frequency_noise_params,
+          LiquidLegionsV2NoiseConfig::GEOMETRIC));
+
+  EXPECT_EQ(gaussian_noise_result.reach, expected_reach);
+  EXPECT_THAT(
+      gaussian_noise_result.frequency_distribution,
       UnorderedElementsAre(Pair(3, DoubleNear(0.25, 0.001)),
                            Pair(6, DoubleNear(0.5, 0.001)),
                            Pair(kMaxFrequency, DoubleNear(0.25, 0.001))));
