@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.kingdom;
 
+import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/kingdom/measurement.proto";
 
@@ -42,6 +43,14 @@ service Measurements {
 
   // Marks a Measurement as CANCELLED by transitioning its state.
   rpc CancelMeasurement(CancelMeasurementRequest) returns (Measurement);
+
+  // Marks Measurements as CANCELLED by transitioning their states.
+  rpc BatchCancelMeasurements(BatchCancelMeasurementsRequest)
+      returns (BatchCancelMeasurementsResponse);
+
+  // Permanently deletes Measurements.
+  rpc BatchDeleteMeasurements(BatchDeleteMeasurementsRequest)
+      returns (google.protobuf.Empty);
 }
 
 message GetMeasurementRequest {
@@ -98,4 +107,26 @@ message SetMeasurementResultRequest {
 message CancelMeasurementRequest {
   fixed64 external_measurement_consumer_id = 1;
   fixed64 external_measurement_id = 2;
+}
+
+message BatchCancelMeasurementsRequest {
+  // The request message specifying the Measurements to cancel. A maximum of
+  // 1000 Measurements can be cancelled in a batch.
+  repeated CancelMeasurementRequest requests = 1;
+}
+
+message BatchCancelMeasurementsResponse {
+  // Measurements cancelled.
+  repeated Measurement measurements = 1;
+}
+
+message DeleteMeasurementRequest {
+  fixed64 external_measurement_consumer_id = 1;
+  fixed64 external_measurement_id = 2;
+}
+
+message BatchDeleteMeasurementsRequest {
+  // The request message specifying the Measurements to permanently delete. A
+  // maximum of 1000 Measurements can be deleted in a batch.
+  repeated DeleteMeasurementRequest requests = 1;
 }
