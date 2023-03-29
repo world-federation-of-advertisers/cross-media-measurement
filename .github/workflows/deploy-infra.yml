@@ -58,13 +58,13 @@ jobs:
 
   deploy-kingdom:
     if: inputs.deploy_kingdom == true
-    uses: ./.github/workflows/create-kingdom.yml
+    uses: ./.github/workflows/deploy-kingdom.yml
 
   # TODO(wfa-hkawalkar):  Add K8 configuration for kingdom
 
   deploy-duchy-1:
     if: inputs.deploy_duchy-1 == true
-    uses: ./.github/workflows/create-duchy.yml
+    uses: ./.github/workflows/deploy-duchy.yml
     with:
       duchy_name: "duchy-1"
       environment: ${{ inputs.environment }}
@@ -73,7 +73,7 @@ jobs:
 
   deploy-duchy-2:
     if: inputs.deploy_duchy-2 == true
-    uses: ./.github/workflows/create-duchy.yml
+    uses: ./.github/workflows/deploy-duchy.yml
     with:
       duchy_name: "duchy-2"
       environment: ${{ inputs.environment }}
@@ -82,7 +82,7 @@ jobs:
 
   deploy-duchy-3:
     if: inputs.deploy_duchy-3 == true
-    uses: ./.github/workflows/create-duchy.yml
+    uses: ./.github/workflows/deploy-duchy.yml
     with:
       duchy_name: "duchy-3"
       environment: ${{ inputs.environment }}
