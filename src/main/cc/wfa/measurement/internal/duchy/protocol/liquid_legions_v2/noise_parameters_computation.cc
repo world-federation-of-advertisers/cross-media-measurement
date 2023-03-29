@@ -14,6 +14,8 @@
 
 #include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2/noise_parameters_computation.h"
 
+#include <utility>
+
 #include "math/distributed_discrete_gaussian_noiser.h"
 #include "math/distributed_geometric_noiser.h"
 
