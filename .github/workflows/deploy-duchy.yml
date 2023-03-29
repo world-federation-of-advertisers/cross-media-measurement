@@ -70,3 +70,7 @@ jobs:
         with:
           working-directory: ${{env.ROOT_PATH}}
           environment: ${{ inputs.environment }}
+
+# TODO:(@wfa-hkawalkar) add k8s deploy.
+
+
