@@ -115,6 +115,7 @@ abstract class ComputationStatsServiceTest<T : ComputationStatsCoroutineImplBase
     computationsService.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
     val claimWorkRequest = claimWorkRequest {
       computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+      owner = "owner"
     }
     val claimWorkResponse = computationsService.claimWork(claimWorkRequest)
     val computationToken = claimWorkResponse.token
