@@ -264,11 +264,7 @@ class FrontendSimulator(
 
     logger.info("Expected result: $expectedResult")
 
-    assertDpResultsEqual(
-      expectedResult,
-      reachOnlyResult,
-      0L
-    )
+    assertDpResultsEqual(expectedResult, reachOnlyResult, 0L)
     logger.info("Reach-only result is equal to the expected result. Correctness Test passes.")
   }
 
