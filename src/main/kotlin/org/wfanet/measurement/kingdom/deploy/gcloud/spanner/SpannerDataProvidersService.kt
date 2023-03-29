@@ -41,7 +41,6 @@ class SpannerDataProvidersService(
     }
     return CreateDataProvider(request).execute(client, idGenerator)
   }
-
   override suspend fun getDataProvider(request: GetDataProviderRequest): DataProvider {
     return DataProviderReader()
       .readByExternalDataProviderId(client.singleUse(), ExternalId(request.externalDataProviderId))

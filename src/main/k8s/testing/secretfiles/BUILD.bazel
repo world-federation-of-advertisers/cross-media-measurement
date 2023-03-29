@@ -36,8 +36,8 @@ filegroup(
 filegroup(
     name = "mc_trusted_certs",
     srcs = [
-        "aggregator_root.pem",
         "kingdom_root.pem",
+        "aggregator_root.pem",
     ] + glob(["edp*_root.pem"]),
 )
 
