@@ -544,6 +544,102 @@ class HeraldTest {
         }
       )
   }
+  @Test
+  fun `syncStatuses creates new computations for reach-only`() = runTest {
+    val confirmingKnown =
+      buildComputationAtKingdom(
+        "1",
+        Computation.State.PENDING_REQUISITION_PARAMS,
+        serializedMeasurementSpec = SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC
+      )
+
+    val systemApiRequisitions1 =
+      REACH_ONLY_REQUISITION_1.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+    val systemApiRequisitions2 =
+      REACH_ONLY_REQUISITION_2.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+    val confirmingUnknown =
+      buildComputationAtKingdom(
+        "2",
+        Computation.State.PENDING_REQUISITION_PARAMS,
+        listOf(systemApiRequisitions1, systemApiRequisitions2),
+        serializedMeasurementSpec = SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC
+      )
+    mockStreamActiveComputationsToReturn(confirmingKnown, confirmingUnknown)
+
+    fakeComputationDatabase.addComputation(
+      globalId = confirmingKnown.key.computationId,
+      stage = INITIALIZATION_PHASE.toProtocolStage(),
+      computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
+      blobs = listOf(newInputBlobMetadata(0L, "input-blob"), newEmptyOutputBlobMetadata(1L))
+    )
+
+    aggregatorHerald.syncStatuses()
+
+    verifyBlocking(continuationTokensService, atLeastOnce()) {
+      setContinuationToken(eq(setContinuationTokenRequest { this.token = "2" }))
+    }
+    assertThat(
+        fakeComputationDatabase.mapValues { (_, fakeComputation) ->
+          fakeComputation.computationStage
+        }
+      )
+      .containsExactly(
+        confirmingKnown.key.computationId.toLong(),
+        INITIALIZATION_PHASE.toProtocolStage(),
+        confirmingUnknown.key.computationId.toLong(),
+        INITIALIZATION_PHASE.toProtocolStage()
+      )
+
+    assertThat(
+        fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.requisitionsList
+      )
+      .containsExactly(
+        REACH_ONLY_REQUISITION_1.toRequisitionMetadata(Requisition.State.UNFULFILLED),
+        REACH_ONLY_REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED)
+      )
+    assertThat(
+        fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.computationDetails
+      )
+      .isEqualTo(
+        ComputationDetails.newBuilder()
+          .apply {
+            blobsStoragePrefix = "computation-blob-storage/2"
+            kingdomComputationBuilder.apply {
+              publicApiVersion = PUBLIC_API_VERSION
+              measurementSpec = SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC
+              measurementPublicKey = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
+            }
+            liquidLegionsV2Builder.apply {
+              role = RoleInComputation.AGGREGATOR
+              parametersBuilder.apply {
+                maximumFrequency = 10
+                liquidLegionsSketchBuilder.apply {
+                  decayRate = 12.0
+                  size = 100_000L
+                }
+                noiseBuilder.apply {
+                  reachNoiseConfigBuilder.apply {
+                    blindHistogramNoiseBuilder.apply {
+                      epsilon = 3.1
+                      delta = 3.2
+                    }
+                    noiseForPublisherNoiseBuilder.apply {
+                      epsilon = 4.1
+                      delta = 4.2
+                    }
+                    globalReachDpNoiseBuilder.apply {
+                      epsilon = 1.1
+                      delta = 1.2
+                    }
+                  }
+                }
+                ellipticCurveId = 415
+              }
+            }
+          }
+          .build()
+      )
+  }
 
   @Test
   fun `syncStatuses update llv2 computations in WAIT_REQUISITIONS_AND_KEY_SET`() = runTest {
