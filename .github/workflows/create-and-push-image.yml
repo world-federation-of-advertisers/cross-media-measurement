@@ -1,0 +1,68 @@
+# Copyright 2023 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Push Docker Image to Github Artifacts
+
+on:
+  workflow_dispatch:
+  #TODO:(@wfa-siyengar): introduce workflow_call/workflow_run as appropriate.
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  push_docker_image:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Export IMAGE_TAG
+        env:
+          DEFAULT_BRANCH: main
+        run: ./.github/workflows/export-image-tag.sh
+
+      - name: Login to GitHub Packages
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      # Build Kingdom Image
+      - name: Build kingdom image
+        run: |
+          bazelisk query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
+          xargs bazelisk build -c opt --define container_registry=ghcr.io \
+          --define image_repo_prefix=world-federation-of-advertisers/packages --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=$IMAGE_TAG
+
+      # Push Kingdom Image to GitHub Artifacts.
+      - name: Push Kingdom Image
+        run: |
+          bazelisk query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
+            xargs -n 1 bazelisk run -c opt --define container_registry=ghcr.io \
+            --define image_repo_prefix=world-federation-of-advertisers/packages --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=$IMAGE_TAG
+
+      # Build Duchy Image
+      - name: Build Duchy image
+        run: |
+          bazelisk query 'filter("push_duchy", kind("container_push", //src/main/docker:all))' |
+          xargs bazelisk build -c opt --define container_registry=ghcr.io \
+          --define image_repo_prefix=world-federation-of-advertisers/packages --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=$IMAGE_TAG
+
+      # Push Duchy Image to GitHub Artifacts.
+      - name: Push Duchy Image
+        run: |
+          bazelisk query 'filter("push_duchy", kind("container_push", //src/main/docker:all))' |
+            xargs -n 1 bazelisk run -c opt --define container_registry=ghcr.io \
+            --define image_repo_prefix=world-federation-of-advertisers/packages --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=$IMAGE_TAG

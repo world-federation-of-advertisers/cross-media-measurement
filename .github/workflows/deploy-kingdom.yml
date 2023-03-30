@@ -1,0 +1,71 @@
+# Copyright 2023 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: 'Deploy Kingdom'
+
+on:
+  #TODO: (@wfa-siyengar) add workflow_call
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to run the flow for.'
+        type: environment
+        required: true
+      kingdom:
+        description: 'Name of the kingdom you are trying to create.'
+        type: string
+        required: true
+      terraform_apply:
+        required: false
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  ROOT_PATH: '${{ github.workspace }}/src/main/terraform/kingdom/gcloud'
+
+jobs:
+  terraform:
+    name: 'Terraform Halo Kingdom'
+    runs-on: ubuntu-22.04
+
+    steps:
+      # Checkout the repository to the GitHub Actions runner
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Terraform Init
+        uses: "./.github/template/terraform-init"
+        with:
+          working-directory: ${{env.ROOT_PATH}}
+          workload-identity-provider: ${{ secrets.WFI_PROVIDER }}
+          service-account: ${{ secrets.WFI_SA }}
+
+      - name: Terraform Plan
+        uses: "./.github/template/terraform-plan"
+        with:
+          working-directory: ${{env.ROOT_PATH}}
+          environment: ${{ inputs.environment }}
+          component: ${{ inputs.kingdom }}
+
+      - name: Terraform Apply
+        if: inputs.terraform_apply == true
+        uses: "./.github/template/apply"
+        with:
+          working-directory: ${{env.ROOT_PATH}}
+          environment: ${{ env.ENV }}
+
+# TODO(@wfa-hkawalkar): Add k8s deploy.

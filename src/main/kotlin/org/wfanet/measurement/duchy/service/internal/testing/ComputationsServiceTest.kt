@@ -20,13 +20,16 @@ import com.google.protobuf.kotlin.toByteStringUtf8
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
+import java.time.Duration
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.testing.TestClockWithNamedInstants
 import org.wfanet.measurement.common.toByteString
+import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.*
@@ -42,11 +45,13 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   private lateinit var service: T
 
   /** Constructs the service being tested. */
-  protected abstract fun newService(): T
+  protected abstract fun newService(clock: Clock): T
+
+  private val clock = TestClockWithNamedInstants(Clock.systemUTC().instant().minusSeconds(10))
 
   @Before
   fun initService() {
-    service = newService()
+    service = newService(clock)
   }
 
   companion object {
@@ -89,6 +94,11 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
         externalKey = DEFAULT_REQUISITION_ENTRY.key
         details = DEFAULT_REQUISITION_ENTRY.value
       }
+    }
+    private const val DEFAULT_OWNER = "Saul Goodman"
+    private val DEFAULT_CLAIM_WORK_REQUEST = claimWorkRequest {
+      computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
+      owner = DEFAULT_OWNER
     }
   }
 
@@ -242,10 +252,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   fun `purgeComputations only deletes computations of target stages`() = runBlocking {
     // Creates a computation in WAIT_REQUISITIONS_AND_KEY_SET stage
     service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
-    val claimWorkRequest = claimWorkRequest {
-      computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
-    }
-    val claimWorkResponse = service.claimWork(claimWorkRequest)
+    val claimWorkResponse = service.claimWork(DEFAULT_CLAIM_WORK_REQUEST)
     val nextStage = computationStage {
       liquidLegionsSketchAggregationV2 = Stage.WAIT_REQUISITIONS_AND_KEY_SET
     }
@@ -406,12 +413,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   @Test
   fun `advanceComputationStage returns token with updated stage`() = runBlocking {
     service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
-    val claimWorkResponse =
-      service.claimWork(
-        claimWorkRequest {
-          computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
-        }
-      )
+    val claimWorkResponse = service.claimWork(DEFAULT_CLAIM_WORK_REQUEST)
 
     val nextStage = computationStage {
       liquidLegionsSketchAggregationV2 = Stage.WAIT_REQUISITIONS_AND_KEY_SET
@@ -454,13 +456,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   fun `advanceComputationStage throws IllegalStateException when afterTransition is invalid`() =
     runBlocking {
       service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
-      val claimWorkResponse =
-        service.claimWork(
-          claimWorkRequest {
-            computationType =
-              ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
-          }
-        )
+      val claimWorkResponse = service.claimWork(DEFAULT_CLAIM_WORK_REQUEST)
 
       val nextStage = computationStage {
         liquidLegionsSketchAggregationV2 = Stage.WAIT_REQUISITIONS_AND_KEY_SET
@@ -484,11 +480,8 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   fun `advanceComputationStage throws IllegalStateException when token is not the latest`() =
     runBlocking {
       val createComputationResp = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
-      service.claimWork(
-        claimWorkRequest {
-          computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
-        }
-      )
+      clock.tickSeconds("1_second_later", 1)
+      service.claimWork(DEFAULT_CLAIM_WORK_REQUEST)
 
       val nextStage = computationStage {
         liquidLegionsSketchAggregationV2 = Stage.WAIT_REQUISITIONS_AND_KEY_SET
@@ -569,23 +562,44 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
 
   @Test
   fun `claimWork returns empty response when no computation to be claimed`() = runBlocking {
-    val claimWorkRequest = claimWorkRequest {
-      computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
-    }
-    val claimWorkResponse = service.claimWork(claimWorkRequest)
+    val claimWorkResponse = service.claimWork(DEFAULT_CLAIM_WORK_REQUEST)
 
     assertThat(claimWorkResponse).isEqualTo(ClaimWorkResponse.getDefaultInstance())
   }
 
   @Test
+  fun `claimWork throws INVALID_ARGUMENT when owner is blank`() = runBlocking {
+    val claimWorkRequest = DEFAULT_CLAIM_WORK_REQUEST.copy { clearOwner() }
+
+    val exception = assertFailsWith<StatusRuntimeException> { service.claimWork(claimWorkRequest) }
+
+    assertThat(exception.status.code).isEqualTo(Status.INVALID_ARGUMENT.code)
+    assertThat(exception.message).contains("owner should not be blank")
+  }
+
+  @Test
+  fun `claimWork returns created computation when previous claim lock expired`() = runBlocking {
+    val createComputationResponse = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+
+    val lockDuration = Duration.ofSeconds(1)
+    val claimWorkRequest =
+      DEFAULT_CLAIM_WORK_REQUEST.copy { this.lockDuration = lockDuration.toProtoDuration() }
+    service.claimWork(claimWorkRequest)
+    clock.tickSeconds("after_expiration", lockDuration.seconds)
+    val claimWorkResponse = service.claimWork(claimWorkRequest)
+
+    val expectedClaimedComputationToken = createComputationResponse.token.copy { attempt = 2 }
+    assertThat(claimWorkResponse.token)
+      .ignoringFields(ComputationToken.VERSION_FIELD_NUMBER)
+      .isEqualTo(expectedClaimedComputationToken)
+  }
+
+  @Test
   fun `claimWork returns empty response when all computations are claimed`() = runBlocking {
     service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
-    val claimWorkRequest = claimWorkRequest {
-      computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
-    }
-    service.claimWork(claimWorkRequest)
+    service.claimWork(DEFAULT_CLAIM_WORK_REQUEST)
 
-    val claimWorkResponse = service.claimWork(claimWorkRequest)
+    val claimWorkResponse = service.claimWork(DEFAULT_CLAIM_WORK_REQUEST)
 
     assertThat(claimWorkResponse).isEqualTo(ClaimWorkResponse.getDefaultInstance())
   }
@@ -594,10 +608,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   fun `claimWork returns claimed computation token`() = runBlocking {
     val createComputationResponse = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
 
-    val claimWorkRequest = claimWorkRequest {
-      computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
-    }
-    val claimWorkResponse = service.claimWork(claimWorkRequest)
+    val claimWorkResponse = service.claimWork(DEFAULT_CLAIM_WORK_REQUEST)
 
     val expectedClaimedComputationToken = createComputationResponse.token.copy { attempt = 1 }
     assertThat(claimWorkResponse.token)
@@ -627,10 +638,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
         requisitions[0] = requisitions[0].copy { key = key.copy { externalRequisitionId = "5678" } }
       }
     )
-    val claimWorkRequest = claimWorkRequest {
-      computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
-    }
-    service.claimWork(claimWorkRequest)
+    service.claimWork(DEFAULT_CLAIM_WORK_REQUEST)
 
     val getComputationIdsRequest = getComputationIdsRequest {
       stages += Stage.INITIALIZATION_PHASE.toProtocolStage()
@@ -645,10 +653,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   @Test
   fun `recordOutputBlobPath returns token with updated blob path`() = runBlocking {
     service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
-    val claimWorkRequest = claimWorkRequest {
-      computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
-    }
-    val claimWorkResponse = service.claimWork(claimWorkRequest)
+    val claimWorkResponse = service.claimWork(DEFAULT_CLAIM_WORK_REQUEST)
     val advanceComputationStageResp =
       service.advanceComputationStage(
         advanceComputationStageRequest {
@@ -710,10 +715,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   fun `recordOutputBlobPath throws IllegalArgumentException when blob is not OUTPUT type`(): Unit =
     runBlocking {
       service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
-      val claimWorkRequest = claimWorkRequest {
-        computationType = ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
-      }
-      val claimWorkResponse = service.claimWork(claimWorkRequest)
+      val claimWorkResponse = service.claimWork(DEFAULT_CLAIM_WORK_REQUEST)
       val advanceComputationStageResp =
         service.advanceComputationStage(
           advanceComputationStageRequest {
