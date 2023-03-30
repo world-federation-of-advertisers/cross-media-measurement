@@ -24,6 +24,7 @@ on:
         options:
           - QA
           - NIGHTLY
+      # TODO(wfa-mdharmalingam): Remove the conditional variables once the whole flow is seen working.
       create_image:
         required: true
         type: boolean
