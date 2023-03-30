@@ -48,6 +48,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CancelMeasur
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateMeasurement
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetMeasurementResult
 
+private const val MAX_BATCH_DELETE = 1000
+
 class SpannerMeasurementsService(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient
@@ -165,12 +167,27 @@ class SpannerMeasurementsService(
   }
 
   override suspend fun batchDeleteMeasurements(request: BatchDeleteMeasurementsRequest): Empty {
+    validateBatchDeleteMeasurementsRequest(request)
     try {
       return BatchDeleteMeasurements(request).execute(client, idGenerator)
     } catch (e: MeasurementNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "Measurement not found." }
     } catch (e: KingdomInternalException) {
       e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+    }
+  }
+
+  private fun validateBatchDeleteMeasurementsRequest(request: BatchDeleteMeasurementsRequest) {
+    grpcRequire(request.requestsList.size < MAX_BATCH_DELETE) {
+      "number of requested Measurements exceeds limit: $MAX_BATCH_DELETE"
+    }
+    for (measurementDeleteRequest in request.requestsList) {
+      grpcRequire(measurementDeleteRequest.externalMeasurementConsumerId != 0L) {
+        "external_measurement_consumer_id not specified"
+      }
+      grpcRequire(measurementDeleteRequest.externalMeasurementId != 0L) {
+        "external_measurement_id not specified"
+      }
     }
   }
 }

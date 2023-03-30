@@ -27,11 +27,9 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomIntern
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByMeasurementConsumerException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 
-private const val MAX_BATCH_DELETE = 1000
-
 /**
- * Permanently Deletes up to 1000 [Measurement]s. Operation will fail for all [Measurement]s when
- * one is not found.
+ * Permanently deletes [Measurement]s. Operation will fail for all [Measurement]s when one is not
+ * found.
  *
  * Throws the following [KingdomInternalException] type on [execute]
  *
@@ -44,7 +42,7 @@ class BatchDeleteMeasurements(
   override suspend fun TransactionScope.runTransaction(): Empty {
     val keySet = KeySet.newBuilder()
 
-    for (request in requests.requestsList.take(MAX_BATCH_DELETE)) {
+    for (request in requests.requestsList) {
       val externalMeasurementConsumerId = ExternalId(request.externalMeasurementConsumerId)
       val externalMeasurementId = ExternalId(request.externalMeasurementId)
       val result =
