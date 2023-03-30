@@ -114,8 +114,8 @@ NoiserAndOptions GetBlindHistogramNoiserAndOptions(
     auto noiser =
         std::make_unique<math::DistributedGeometricNoiser>(*noiseOptions);
     return {.noiser = std::move(noiser), .options = std::move(noiseOptions)};
-  }
-  if (noise_mechanism == LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN) {
+  } else {
+    // noise_mechanism == LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN
     auto noiseOptions =
         GetDiscreteGaussianNoiseOptions(params, uncorrupted_party_count);
     auto noiser = std::make_unique<math::DistributedDiscreteGaussianNoiser>(
@@ -138,8 +138,8 @@ NoiserAndOptions GetPublisherNoiserAndOptions(
     auto noiser =
         std::make_unique<math::DistributedGeometricNoiser>(*noiseOptions);
     return {.noiser = std::move(noiser), .options = std::move(noiseOptions)};
-  }
-  if (noise_mechanism == LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN) {
+  } else {
+    // noise_mechanism == LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN
     auto noiseOptions =
         GetDiscreteGaussianNoiseOptions(params, uncorrupted_party_count);
     auto noiser = std::make_unique<math::DistributedDiscreteGaussianNoiser>(
@@ -162,8 +162,8 @@ NoiserAndOptions GetGlobalReachDpNoiserAndOptions(
     auto noiser =
         std::make_unique<math::DistributedGeometricNoiser>(*noiseOptions);
     return {.noiser = std::move(noiser), .options = std::move(noiseOptions)};
-  }
-  if (noise_mechanism == LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN) {
+  } else {
+    // noise_mechanism == LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN
     auto noiseOptions =
         GetDiscreteGaussianNoiseOptions(params, uncorrupted_party_count);
     auto noiser = std::make_unique<math::DistributedDiscreteGaussianNoiser>(
@@ -187,7 +187,8 @@ NoiserAndOptions GetFrequencyNoiserAndOptions(
         std::make_unique<math::DistributedGeometricNoiser>(*noiseOptions);
     return {.noiser = std::move(noiser), .options = std::move(noiseOptions)};
   }
-  if (noise_mechanism == LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN) {
+  {
+    // noise_mechanism == LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN
     auto noiseOptions =
         GetDiscreteGaussianNoiseOptions(params, uncorrupted_party_count);
     auto noiser = std::make_unique<math::DistributedDiscreteGaussianNoiser>(

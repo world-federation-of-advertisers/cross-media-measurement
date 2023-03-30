@@ -162,7 +162,8 @@ fun InternalProtocolConfig.toProtocolConfig(
       when (measurementTypeCase) {
         MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
           throw IllegalArgumentException("Measurement type not specified")
-        MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
+        MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY,
+        MeasurementSpec.MeasurementTypeCase.REACH ->
           ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
         MeasurementSpec.MeasurementTypeCase.IMPRESSION -> ProtocolConfig.MeasurementType.IMPRESSION
         MeasurementSpec.MeasurementTypeCase.DURATION -> ProtocolConfig.MeasurementType.DURATION

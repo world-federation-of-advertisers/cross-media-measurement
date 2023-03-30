@@ -67,6 +67,7 @@ fun SystemComputation.toMeasurementType(): MeasurementType {
       val v2AlphaMeasurementSpec = MeasurementSpec.parseFrom(measurementSpec)
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (v2AlphaMeasurementSpec.measurementTypeCase) {
+        MeasurementTypeCase.REACH,
         MeasurementTypeCase.REACH_AND_FREQUENCY -> MeasurementType.REACH_AND_FREQUENCY
         MeasurementTypeCase.DURATION,
         MeasurementTypeCase.IMPRESSION ->
