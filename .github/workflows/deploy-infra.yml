@@ -59,7 +59,9 @@ jobs:
       - id: get-image-tag-step
         run: echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-  # TODO(wfa-mdharmalingam): connect the actual module calls.
+  # TODO(wfa-mdharmalingam): Call the create-push-image workflow.
+
+  # TODO(wfa-mdharmalingam): Connect the deploy-kingdom calls.
   deploy-kingdom:
     if: inputs.deploy_kingdom == true
     uses: ./.github/workflows/deploy-kingdom.yml
@@ -67,7 +69,7 @@ jobs:
     with:
       image_tag: ${{ needs.get-image-tag.outputs.image_tag }}
 
-  # TODO(wfa-mdharmalingam): connect the actual module calls.
+  # TODO(wfa-mdharmalingam): Connect the deploy-duchy call with duchy name duchy-1.
   deploy-duchy-1:
     if: inputs.deploy_duchy-1 == true
     uses: ./.github/workflows/deploy-duchy.yml
@@ -75,7 +77,7 @@ jobs:
       duchy_name: "duchy-1"
       environment: ${{ inputs.environment }}
 
-  # TODO(wfa-mdharmalingam): connect the actual module calls.
+  # TODO(wfa-mdharmalingam): Connect the deploy-duchy call with duchy name duchy-2.
   deploy-duchy-2:
     if: inputs.deploy_duchy-2 == true
     uses: ./.github/workflows/deploy-duchy.yml
@@ -83,7 +85,7 @@ jobs:
       duchy_name: "duchy-2"
       environment: ${{ inputs.environment }}
 
-  # TODO(wfa-mdharmalingam): connect the actual module calls.
+  # TODO(wfa-mdharmalingam): Connect the deploy-duchy call with duchy name duchy-3.
   deploy-duchy-3:
     if: inputs.deploy_duchy-3 == true
     uses: ./.github/workflows/deploy-duchy.yml
