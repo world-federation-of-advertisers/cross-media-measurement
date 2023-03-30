@@ -120,6 +120,11 @@ private const val DUCHY_THREE = "AUSTRIA"
 private val REQUISITION_1 = TestRequisition("1") { SERIALIZED_MEASUREMENT_SPEC }
 private val REQUISITION_2 = TestRequisition("2") { SERIALIZED_MEASUREMENT_SPEC }
 
+private val REACH_ONLY_REQUISITION_1 =
+  TestRequisition("1") { SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC }
+private val REACH_ONLY_REQUISITION_2 =
+  TestRequisition("2") { SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC }
+
 private val PUBLIC_API_ENCRYPTION_PUBLIC_KEY = encryptionPublicKey {
   format = EncryptionPublicKey.Format.TINK_KEYSET
   data = ByteString.copyFromUtf8("A nice encryption public key.")
@@ -144,6 +149,23 @@ private val PUBLIC_API_MEASUREMENT_SPEC =
     }
     .build()
 private val SERIALIZED_MEASUREMENT_SPEC: ByteString = PUBLIC_API_MEASUREMENT_SPEC.toByteString()
+
+private val PUBLIC_API_REACH_ONLY_MEASUREMENT_SPEC =
+  MeasurementSpec.newBuilder()
+    .apply {
+      measurementPublicKey = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.toByteString()
+      reachBuilder.apply {
+        privacyParamsBuilder.apply {
+          epsilon = 1.1
+          delta = 1.2
+        }
+      }
+      addNonceHashes(REACH_ONLY_REQUISITION_1.nonceHash)
+      addNonceHashes(REACH_ONLY_REQUISITION_2.nonceHash)
+    }
+    .build()
+private val SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC: ByteString =
+  PUBLIC_API_REACH_ONLY_MEASUREMENT_SPEC.toByteString()
 
 private val MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
   liquidLegionsV2 = liquidLegionsV2 {
@@ -411,6 +433,102 @@ class HeraldTest {
                   frequencyNoiseConfigBuilder.apply {
                     epsilon = 2.1
                     delta = 2.2
+                  }
+                }
+                ellipticCurveId = 415
+              }
+            }
+          }
+          .build()
+      )
+  }
+  @Test
+  fun `syncStatuses creates new computations for reach-only`() = runTest {
+    val confirmingKnown =
+      buildComputationAtKingdom(
+        "1",
+        Computation.State.PENDING_REQUISITION_PARAMS,
+        serializedMeasurementSpec = SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC
+      )
+
+    val systemApiRequisitions1 =
+      REACH_ONLY_REQUISITION_1.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+    val systemApiRequisitions2 =
+      REACH_ONLY_REQUISITION_2.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+    val confirmingUnknown =
+      buildComputationAtKingdom(
+        "2",
+        Computation.State.PENDING_REQUISITION_PARAMS,
+        listOf(systemApiRequisitions1, systemApiRequisitions2),
+        serializedMeasurementSpec = SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC
+      )
+    mockStreamActiveComputationsToReturn(confirmingKnown, confirmingUnknown)
+
+    fakeComputationDatabase.addComputation(
+      globalId = confirmingKnown.key.computationId,
+      stage = INITIALIZATION_PHASE.toProtocolStage(),
+      computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
+      blobs = listOf(newInputBlobMetadata(0L, "input-blob"), newEmptyOutputBlobMetadata(1L))
+    )
+
+    aggregatorHerald.syncStatuses()
+
+    verifyBlocking(continuationTokensService, atLeastOnce()) {
+      setContinuationToken(eq(setContinuationTokenRequest { this.token = "2" }))
+    }
+    assertThat(
+        fakeComputationDatabase.mapValues { (_, fakeComputation) ->
+          fakeComputation.computationStage
+        }
+      )
+      .containsExactly(
+        confirmingKnown.key.computationId.toLong(),
+        INITIALIZATION_PHASE.toProtocolStage(),
+        confirmingUnknown.key.computationId.toLong(),
+        INITIALIZATION_PHASE.toProtocolStage()
+      )
+
+    assertThat(
+        fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.requisitionsList
+      )
+      .containsExactly(
+        REACH_ONLY_REQUISITION_1.toRequisitionMetadata(Requisition.State.UNFULFILLED),
+        REACH_ONLY_REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED)
+      )
+    assertThat(
+        fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.computationDetails
+      )
+      .isEqualTo(
+        ComputationDetails.newBuilder()
+          .apply {
+            blobsStoragePrefix = "computation-blob-storage/2"
+            kingdomComputationBuilder.apply {
+              publicApiVersion = PUBLIC_API_VERSION
+              measurementSpec = SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC
+              measurementPublicKey = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
+            }
+            liquidLegionsV2Builder.apply {
+              role = RoleInComputation.AGGREGATOR
+              parametersBuilder.apply {
+                maximumFrequency = 10
+                liquidLegionsSketchBuilder.apply {
+                  decayRate = 12.0
+                  size = 100_000L
+                }
+                noiseBuilder.apply {
+                  reachNoiseConfigBuilder.apply {
+                    blindHistogramNoiseBuilder.apply {
+                      epsilon = 3.1
+                      delta = 3.2
+                    }
+                    noiseForPublisherNoiseBuilder.apply {
+                      epsilon = 4.1
+                      delta = 4.2
+                    }
+                    globalReachDpNoiseBuilder.apply {
+                      epsilon = 1.1
+                      delta = 1.2
+                    }
                   }
                 }
                 ellipticCurveId = 415
@@ -884,13 +1002,14 @@ class HeraldTest {
     globalId: String,
     stateAtKingdom: Computation.State,
     systemApiRequisitions: List<Requisition> = listOf(),
-    systemComputationParticipant: List<SystemComputationParticipant> = listOf()
+    systemComputationParticipant: List<SystemComputationParticipant> = listOf(),
+    serializedMeasurementSpec: ByteString = SERIALIZED_MEASUREMENT_SPEC,
   ): Computation {
     return Computation.newBuilder()
       .also {
         it.name = ComputationKey(globalId).toName()
         it.publicApiVersion = PUBLIC_API_VERSION
-        it.measurementSpec = SERIALIZED_MEASUREMENT_SPEC
+        it.measurementSpec = serializedMeasurementSpec
         it.state = stateAtKingdom
         it.addAllRequisitions(systemApiRequisitions)
         it.addAllComputationParticipants(systemComputationParticipant)
