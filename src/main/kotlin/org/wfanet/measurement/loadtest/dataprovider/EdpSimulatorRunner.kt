@@ -16,6 +16,7 @@ package org.wfanet.measurement.loadtest.dataprovider
 
 import io.grpc.ManagedChannel
 import java.time.Clock
+import java.util.Random
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
@@ -78,8 +79,13 @@ abstract class EdpSimulatorRunner : Runnable {
         loadSigningKey(flags.edpCsCertificateDerFile, flags.edpCsPrivateKeyDerFile)
       )
 
-    val randomSeed: Long = 1
-    val random = java.util.Random(randomSeed)
+    val randomSeed = flags.randomSeed
+    val random =
+      if (randomSeed != null) {
+        Random(randomSeed)
+      } else {
+        Random()
+      }
 
     val edpSimulator =
       EdpSimulator(
