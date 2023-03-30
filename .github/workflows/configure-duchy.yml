@@ -51,16 +51,17 @@ jobs:
       # TODO(wfa-hkawalkar): import secrets to manifest from k8s secretsfile.
       # Create k8s manifest
       - name: Build K8s manifest
-        working-directory: /tmp/cross-media-measurement
         run: |
-          bazel run //src/main/k8s/dev:duchy_gke.cue \
+          bazelisk build //src/main/k8s/dev:worker1_duchy_gke \
           --define k8s_duchy_secret_name=certs-and-configs \
           --define duchy_cert_id=SVVse4xWHL0 \
-          --define duchy_storage_bucket=terraform-state-halo-cmm \
-          --define container_registry=ghcr.io \
-          --define image_repo_prefix=world-federation-of-advertisers/packages --define image_tag=${{ inputs.image_tag }}
+          --define duchy_storage_bucket=worker1-duchy \
+          --define container_registry=${{ env.REGISTRY }} \
+          --define image_repo_prefix=world-federation-of-advertisers/packages \
+          --define image_tag=${{ inputs.image_tag }}
 
+      # Apply manifest
       - name: apply k8s manifest
         if: inputs.kubectl_apply == true
-        run: |
-          kubectl apply -f bazel-bin/src/main/k8s/dev/worker1_duchy_gke.yaml     
+        run: kubectl apply -f bazel-bin/src/main/k8s/dev/worker1_duchy_gke.yaml
+
