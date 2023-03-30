@@ -126,7 +126,7 @@ class InProcessEdpSimulator(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-    private const val randomSeed: Long = 1
-    private val random = Random(randomSeed)
+    private const val RANDOM_SEED: Long = 1
+    private val random = Random(RANDOM_SEED)
   }
 }

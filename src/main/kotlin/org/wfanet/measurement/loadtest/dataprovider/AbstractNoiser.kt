@@ -21,13 +21,6 @@ abstract class AbstractNoiser : Noiser {
   protected abstract val distributionForReach: RealDistribution
   protected abstract val distributionForFrequency: RealDistribution
 
-  /**
-   * Add publisher noise to calculated direct reach and frequency.
-   *
-   * @param reachValue Direct reach value.
-   * @param frequencyMap Direct frequency.
-   * @return Pair of noised reach value and frequency map.
-   */
   override fun addPublisherNoise(
     reachValue: Long,
     frequencyMap: Map<Long, Double>,

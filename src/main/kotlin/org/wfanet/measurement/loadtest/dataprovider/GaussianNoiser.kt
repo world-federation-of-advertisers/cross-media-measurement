@@ -37,8 +37,7 @@ class GaussianNoiser(reachAndFrequency: MeasurementSpec.ReachAndFrequency, rando
     )
 
   /**
-   * This implementation is adapted from jiayu-google. Assuming sensitivity = 1, solve delta given
-   * epsilon and std.
+   * Assuming sensitivity = 1, solve delta given epsilon and std.
    *
    * With sensitivity=1 and any std, the difference in log(likelihood) = -(1/2) (x - 1 / std)^2 -
    * (1/2) x^2 = (1 / std) x - 1 / (2 std^2). Let it equal epsilon, we have x = std * epsilon + 1 /
@@ -56,8 +55,7 @@ class GaussianNoiser(reachAndFrequency: MeasurementSpec.ReachAndFrequency, rando
       exp(epsilon) * (1 - normalDistribution.cumulativeProbability(x))
   }
   /**
-   * This implementation is adapted from jiayu-google. Assuming sensitivity = 1, solve std given
-   * epsilon and delta.
+   * Assuming sensitivity = 1, solve std given epsilon and delta.
    *
    * The exact solution satisfies that solveDelta(epsilon, std) = delta. This is a transcendental
    * equation. Note that the left-hand side is a decreasing function in std. To solve it, we first
