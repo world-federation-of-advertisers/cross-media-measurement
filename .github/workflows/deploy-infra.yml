@@ -23,6 +23,9 @@ on:
         options:
           - QA
           - NIGHTLY
+      create_image:
+        required: true
+        type: boolean
       deploy_kingdom:
         required: true
         type: boolean
@@ -35,32 +38,34 @@ on:
       deploy_duchy-3:
         required: true
         type: boolean
-      image-tag:
-        required: true
-        type: boolean
-      build-push-images:
-        required: true
-        type: boolean
 
 permissions:
   contents: read
   id-token: write
 
 jobs:
-  image-tag:
-    if: inputs.image-tag == true
-    uses: ./.github/workflows/export-image-tag.sh
+  get-image-tag:
+    runs-on: ubuntu-latest
+    if: inputs.create_image == true
+    outputs:
+      image_tag: ${{ steps.get-image-tag-step.outputs.image_tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - id: generate-tag
+        run: sh ./.github/workflows/export-image-tag.sh
+      - id: get-image-tag-step
+        run: echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-  build-push-images:
-    if: inputs.build-push-images == true
-    uses: ./.github/workflows/create-and-push-image.yml
-
+  # TODO(wfa-mdharmalingam): connect the actual module calls.
   deploy-kingdom:
     if: inputs.deploy_kingdom == true
     uses: ./.github/workflows/deploy-kingdom.yml
+    needs: get-image-tag
+    with:
+      image_tag: ${{ needs.get-image-tag.outputs.image_tag }}
 
-  # TODO(wfa-hkawalkar):  Add K8 configuration for kingdom
-
+  # TODO(wfa-mdharmalingam): connect the actual module calls.
   deploy-duchy-1:
     if: inputs.deploy_duchy-1 == true
     uses: ./.github/workflows/deploy-duchy.yml
@@ -68,8 +73,7 @@ jobs:
       duchy_name: "duchy-1"
       environment: ${{ inputs.environment }}
 
-  # TODO(wfa-hkawalkar):  Add K8 configuration for kingdom
-
+  # TODO(wfa-mdharmalingam): connect the actual module calls.
   deploy-duchy-2:
     if: inputs.deploy_duchy-2 == true
     uses: ./.github/workflows/deploy-duchy.yml
@@ -77,13 +81,10 @@ jobs:
       duchy_name: "duchy-2"
       environment: ${{ inputs.environment }}
 
-  # TODO(wfa-hkawalkar):  Add K8 configuration for kingdom
-
+  # TODO(wfa-mdharmalingam): connect the actual module calls.
   deploy-duchy-3:
     if: inputs.deploy_duchy-3 == true
     uses: ./.github/workflows/deploy-duchy.yml
     with:
       duchy_name: "duchy-3"
       environment: ${{ inputs.environment }}
-
-  # TODO(wfa-hkawalkar):  Add K8 configuration for kingdom
