@@ -649,6 +649,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         )
       assertThat(secondCreateMeasurementAttempt).isEqualTo(createdMeasurement)
     }
+
   @Test
   fun `createMeasurement returns new measurement when called without providedMeasurementId`() =
     runBlocking {
