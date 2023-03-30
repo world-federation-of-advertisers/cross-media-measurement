@@ -91,4 +91,12 @@ class EdpSimulatorFlags {
   @CommandLine.Mixin
   lateinit var requisitionFulfillmentServiceFlags: RequisitionFulfillmentServiceFlags
     private set
+
+  @CommandLine.Option(
+    names = ["--random-seed"],
+    description = ["Random seed of dp noisers for direct measurements"],
+    required = false,
+  )
+  var randomSeed: Long? = 1
+    private set
 }

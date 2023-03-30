@@ -16,6 +16,8 @@ package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.common.truth.Truth.assertThat
 import java.util.Random
+import kotlin.math.pow
+import kotlin.math.sqrt
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -30,7 +32,7 @@ private const val RANDOM_SEED: Long = 1
 @RunWith(JUnit4::class)
 class GaussianNoiserTest {
   @Test
-  fun `calculate Gaussian noised direct reach and frequency correctly with epsilon equals to 1`() {
+  fun `calculate Gaussian noised direct reach and frequency correctly with seeded random number generator and epsilon equals to 1`() {
     val random = Random(RANDOM_SEED)
     val gaussianNoiser = GaussianNoiser(MEASUREMENT_SPEC.reachAndFrequency, random)
 
@@ -50,7 +52,7 @@ class GaussianNoiserTest {
     }
   }
   @Test
-  fun `calculate Gaussian noised direct reach and frequency correctly with epsilon equals to 1E-4`() {
+  fun `calculate Gaussian noised direct reach and frequency correctly with seeded random number generator and epsilon equals to 1E-4`() {
     val measurementSpec =
       MEASUREMENT_SPEC.copy {
         reachAndFrequency =
@@ -70,6 +72,7 @@ class GaussianNoiserTest {
       )
 
     val expectedNoisedReachValue = 52897
+    // Frequency values can be negative due to large variance
     val expectedNoisedFrequencyMap =
       mapOf(1L to -40.21444386138276, 2L to -73.03106359061003, 3L to -41.71217907726343)
 
@@ -77,6 +80,27 @@ class GaussianNoiserTest {
     noisedFrequencyMap.forEach { (frequency, percentage) ->
       assertThat(percentage).isEqualTo(expectedNoisedFrequencyMap[frequency])
     }
+  }
+  @Test
+  fun `standard deviation from noisedReachValues is close to the theoretical sigma`() {
+    val random = Random(RANDOM_SEED)
+    val gaussianNoiser = GaussianNoiser(MEASUREMENT_SPEC.reachAndFrequency, random)
+    val noisedReachValues =
+      List(1000) {
+        gaussianNoiser
+          .addPublisherNoise(
+            reachValue,
+            frequencyMap,
+          )
+          .reach
+      }
+
+    val sigma = calculateStandardDeviation(noisedReachValues)
+    // Sigma value with pre-set epsilon and delta
+    val expectedSigma = 6.557822067460045
+    val diffRatio = (expectedSigma - sigma) / expectedSigma
+
+    assertThat(diffRatio).isLessThan(0.2)
   }
   companion object {
     private val MEASUREMENT_SPEC = measurementSpec {
@@ -97,7 +121,13 @@ class GaussianNoiserTest {
           width = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
         }
     }
-    private val reachValue = 500L
+    private const val reachValue = 500L
     private val frequencyMap = mapOf(1L to 0.6, 2L to 0.2, 3L to 0.2)
+    private fun calculateStandardDeviation(nums: List<Long>): Double {
+      val mean = nums.average()
+      val standardDeviation = nums.fold(0.0) { acc, num -> acc + (num - mean).pow(2.0) }
+
+      return sqrt(standardDeviation / nums.size)
+    }
   }
 }
