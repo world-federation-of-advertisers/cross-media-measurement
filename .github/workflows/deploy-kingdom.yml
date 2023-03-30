@@ -15,16 +15,12 @@
 name: 'Deploy Kingdom'
 
 on:
-  #TODO: (@wfa-siyengar) add workflow_call
+  workflow_call:
   workflow_dispatch:
     inputs:
       environment:
         description: 'Environment to run the flow for.'
         type: environment
-        required: true
-      kingdom:
-        description: 'Name of the kingdom you are trying to create.'
-        type: string
         required: true
       terraform_apply:
         required: false
