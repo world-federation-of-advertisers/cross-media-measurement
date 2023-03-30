@@ -16,9 +16,8 @@ package k8s
 
 import "strings"
 
-#GCloudProject:     "halo-cmm-dev"
-#ContainerRegistry: "gcr.io"
-#SpannerInstance:   "dev-instance"
+#GCloudProject:   "halo-cmm-dev"
+#SpannerInstance: "dev-instance"
 
 #GCloudConfig: {
 	project: #GCloudProject
@@ -53,8 +52,8 @@ import "strings"
 }
 
 #ContainerRegistryConfig: {
-	registry:   #ContainerRegistry
-	repoPrefix: #GCloudProject
+	registry:   string @tag("container_registry")
+	repoPrefix: string @tag("image_repo_prefix")
 }
 
 #ImageConfig: Config={

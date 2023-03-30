@@ -166,19 +166,12 @@ gcloud container clusters create halo-cmm-kingdom-demo-cluster \
   --service-account='gke-cluster@halo-kingdom-demo.iam.gserviceaccount.com' \
   --database-encryption-key=projects/halo-cmm-dev/locations/us-central1/keyRings/test-key-ring/cryptoKeys/k8s-secret \
   --num-nodes=3 --enable-autoscaling --min-nodes=3 --max-nodes=6 \
-  --machine-type=e2-highcpu-2 --release-channel=regular \
-  --cluster-version='1.24.5-gke.600'
+  --machine-type=e2-highcpu-2
 ```
 
 Adjust the number of nodes and machine type according to your expected usage.
-
 The cluster version should be no older than `1.24.0` in order to support
-built-in gRPC health probe. You can use the following command to determine what
-versions are supported for each release channel:
-
-```shell
-gcloud container get-server-config
-```
+built-in gRPC health probe.
 
 After creating the cluster, we can configure `kubectl` to be able to access it
 
@@ -360,7 +353,8 @@ To generate the YAML manifest from the CUE files, run the following
 ```shell
 bazel build //src/main/k8s/dev:kingdom_gke \
   --define=k8s_kingdom_secret_name=certs-and-configs-abcdedg \
-  --define image_tag=build-0001
+  --define container_registry=gcr.io \
+  --define image_repo_prefix=halo-kingdom-demo --define image_tag=build-0001
 ```
 
 You can also do your customization to the generated YAML file rather than to the
