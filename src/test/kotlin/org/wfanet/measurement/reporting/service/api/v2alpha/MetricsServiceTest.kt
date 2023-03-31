@@ -30,7 +30,6 @@ import java.time.Duration
 import java.time.Instant
 import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -110,46 +109,46 @@ import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisit
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
-import org.wfanet.measurement.internal.reporting.v2alpha.BatchGetReportingSetsRequest
-import org.wfanet.measurement.internal.reporting.v2alpha.BatchSetCmmsMeasurementIdsRequest
-import org.wfanet.measurement.internal.reporting.v2alpha.BatchSetCmmsMeasurementIdsRequestKt.measurementIds
-import org.wfanet.measurement.internal.reporting.v2alpha.GetMetricByIdempotencyKeyRequest
-import org.wfanet.measurement.internal.reporting.v2alpha.GetReportingSetRequest as InternalGetReportingSetRequest
-import org.wfanet.measurement.internal.reporting.v2alpha.Measurement as InternalMeasurement
-import org.wfanet.measurement.internal.reporting.v2alpha.MeasurementKt as InternalMeasurementKt
-import org.wfanet.measurement.internal.reporting.v2alpha.MeasurementsGrpcKt as InternalMeasurementsGrpcKt
-import org.wfanet.measurement.internal.reporting.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as InternalMeasurementsCoroutineImplBase
-import org.wfanet.measurement.internal.reporting.v2alpha.Metric as InternalMetric
-import org.wfanet.measurement.internal.reporting.v2alpha.MetricKt as InternalMetricKt
-import org.wfanet.measurement.internal.reporting.v2alpha.MetricKt.weightedMeasurement
-import org.wfanet.measurement.internal.reporting.v2alpha.MetricResultKt as InternalMetricResultKt
-import org.wfanet.measurement.internal.reporting.v2alpha.MetricSpecKt as InternalMetricSpecKt
-import org.wfanet.measurement.internal.reporting.v2alpha.MetricsGrpcKt as InternalMetricsGrpcKt
-import org.wfanet.measurement.internal.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineImplBase
-import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSet as InternalReportingSet
-import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSet.SetExpression as InternalSetExpression
-import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSetKt as InternalReportingSetKt
-import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSetKt.SetExpressionKt.operand as internalOperand
-import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSetKt.composite as internalComposite
-import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSetKt.primitive as internalPrimitive
-import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSetKt.primitiveReportingSetBasis
-import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSetKt.setExpression as internalSetExpression
-import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSetKt.weightedSubsetUnion
-import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSetsGrpcKt as InternalReportingSetsGrpcKt
-import org.wfanet.measurement.internal.reporting.v2alpha.batchCreateMetricsRequest as internalBatchCreateMetricsRequest
-import org.wfanet.measurement.internal.reporting.v2alpha.batchGetReportingSetsRequest
-import org.wfanet.measurement.internal.reporting.v2alpha.batchSetCmmsMeasurementIdsRequest
-import org.wfanet.measurement.internal.reporting.v2alpha.copy
-import org.wfanet.measurement.internal.reporting.v2alpha.getReportingSetRequest as internalGetReportingSetRequest
-import org.wfanet.measurement.internal.reporting.v2alpha.measurement as internalMeasurement
-import org.wfanet.measurement.internal.reporting.v2alpha.metric as internalMetric
-import org.wfanet.measurement.internal.reporting.v2alpha.metricResult as internalMetricResult
-import org.wfanet.measurement.internal.reporting.v2alpha.metricSpec as internalMetricSpec
-import org.wfanet.measurement.internal.reporting.v2alpha.reportingSet as internalReportingSet
-import org.wfanet.measurement.internal.reporting.v2alpha.timeInterval as internalTimeInterval
+import org.wfanet.measurement.internal.reporting.v2.BatchGetReportingSetsRequest
+import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequest
+import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequestKt.measurementIds
+import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
+import org.wfanet.measurement.internal.reporting.v2.MeasurementKt as InternalMeasurementKt
+import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt as InternalMeasurementsGrpcKt
+import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as InternalMeasurementsCoroutineImplBase
+import org.wfanet.measurement.internal.reporting.v2.Metric as InternalMetric
+import org.wfanet.measurement.internal.reporting.v2.MetricKt as InternalMetricKt
+import org.wfanet.measurement.internal.reporting.v2.MetricKt.weightedMeasurement
+import org.wfanet.measurement.internal.reporting.v2.MetricResultKt as InternalMetricResultKt
+import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt as InternalMetricSpecKt
+import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt as InternalMetricsGrpcKt
+import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineImplBase
+import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
+import org.wfanet.measurement.internal.reporting.v2.ReportingSet.SetExpression as InternalSetExpression
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt as InternalReportingSetKt
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt.SetExpressionKt.operand as internalOperand
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt.primitive as internalPrimitive
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt.primitiveReportingSetBasis
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt.setExpression as internalSetExpression
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt.weightedSubsetUnion
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt as InternalReportingSetsGrpcKt
+import org.wfanet.measurement.internal.reporting.v2.batchCreateMetricsRequest as internalBatchCreateMetricsRequest
+import org.wfanet.measurement.internal.reporting.v2.batchCreateMetricsResponse as internalBatchCreateMetricsResponse
+import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
+import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsResponse
+import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsRequest
+import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsResponse
+import org.wfanet.measurement.internal.reporting.v2.copy
+import org.wfanet.measurement.internal.reporting.v2.createMetricRequest as internalCreateMetricRequest
+import org.wfanet.measurement.internal.reporting.v2.measurement as internalMeasurement
+import org.wfanet.measurement.internal.reporting.v2.metric as internalMetric
+import org.wfanet.measurement.internal.reporting.v2.metricResult as internalMetricResult
+import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetricSpec
+import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
+import org.wfanet.measurement.internal.reporting.v2.timeInterval as internalTimeInterval
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v2alpha.Metric
-import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.integerResult
+import org.wfanet.measurement.reporting.v2alpha.MetricResultKt
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt.frequencyHistogramParams
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt.impressionCountParams
@@ -431,16 +430,14 @@ private val INTERNAL_INCREMENTAL_REPORTING_SET = internalReportingSet {
   cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
   externalReportingSetId =
     INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET.externalReportingSetId + 1
-  this.composite = internalComposite {
-    expression = internalSetExpression {
-      operation = InternalSetExpression.Operation.DIFFERENCE
-      lhs = internalOperand {
-        externalReportingSetId = INTERNAL_UNION_ALL_REPORTING_SET.externalReportingSetId
-      }
-      rhs = internalOperand {
-        externalReportingSetId =
-          INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET.externalReportingSetId
-      }
+  this.composite = internalSetExpression {
+    operation = InternalSetExpression.Operation.DIFFERENCE
+    lhs = internalOperand {
+      externalReportingSetId = INTERNAL_UNION_ALL_REPORTING_SET.externalReportingSetId
+    }
+    rhs = internalOperand {
+      externalReportingSetId =
+        INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET.externalReportingSetId
     }
   }
   filter = INCREMENTAL_REPORTING_SET_FILTER
@@ -586,13 +583,11 @@ private val INTERNAL_REQUESTING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
 
 private val INTERNAL_PENDING_NOT_CREATED_UNION_ALL_REACH_MEASUREMENT =
   INTERNAL_REQUESTING_UNION_ALL_REACH_MEASUREMENT.copy {
-    externalMeasurementId = 411L
     cmmsCreateMeasurementRequestId = "UNION_ALL_REACH_MEASUREMENT"
     state = InternalMeasurement.State.PENDING
   }
 private val INTERNAL_PENDING_NOT_CREATED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
   INTERNAL_REQUESTING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.copy {
-    externalMeasurementId = 412L
     cmmsCreateMeasurementRequestId = "UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT"
     state = InternalMeasurement.State.PENDING
   }
@@ -609,25 +604,33 @@ private val INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
 private val INTERNAL_SUCCEEDED_UNION_ALL_REACH_MEASUREMENT =
   INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.copy {
     state = InternalMeasurement.State.SUCCEEDED
-    result =
-      InternalMeasurementKt.result {
-        reach = InternalMeasurementKt.ResultKt.reach { value = UNION_ALL_REACH_VALUE }
-        frequency =
-          InternalMeasurementKt.ResultKt.frequency {
-            relativeFrequencyDistribution.putAll(FREQUENCY_DISTRIBUTION)
+    details =
+      InternalMeasurementKt.details {
+        result =
+          InternalMeasurementKt.result {
+            reach = InternalMeasurementKt.ResultKt.reach { value = UNION_ALL_REACH_VALUE }
+            frequency =
+              InternalMeasurementKt.ResultKt.frequency {
+                relativeFrequencyDistribution.putAll(FREQUENCY_DISTRIBUTION)
+              }
           }
       }
   }
 private val INTERNAL_SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
   INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.copy {
     state = InternalMeasurement.State.SUCCEEDED
-    result =
-      InternalMeasurementKt.result {
-        reach =
-          InternalMeasurementKt.ResultKt.reach { value = UNION_ALL_BUT_LAST_PUBLISHER_REACH_VALUE }
-        frequency =
-          InternalMeasurementKt.ResultKt.frequency {
-            relativeFrequencyDistribution.putAll(FREQUENCY_DISTRIBUTION)
+    details =
+      InternalMeasurementKt.details {
+        result =
+          InternalMeasurementKt.result {
+            reach =
+              InternalMeasurementKt.ResultKt.reach {
+                value = UNION_ALL_BUT_LAST_PUBLISHER_REACH_VALUE
+              }
+            frequency =
+              InternalMeasurementKt.ResultKt.frequency {
+                relativeFrequencyDistribution.putAll(FREQUENCY_DISTRIBUTION)
+              }
           }
       }
   }
@@ -645,7 +648,6 @@ private val INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT = intern
 
 private val INTERNAL_PENDING_NOT_CREATED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
   INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
-    externalMeasurementId = 413L
     cmmsCreateMeasurementRequestId = "SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT"
     state = InternalMeasurement.State.PENDING
   }
@@ -899,7 +901,6 @@ private const val INVALID_METRIC_NAME = "measurementConsumer/AAAAAAAAAG8/metric/
 // Internal Incremental Metrics
 private val INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC = internalMetric {
   cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-  metricIdempotencyKey = INCREMENTAL_REACH_METRIC_IDEMPOTENCY_KEY
   externalReportingSetId = INTERNAL_INCREMENTAL_REPORTING_SET.externalReportingSetId
   timeInterval = INTERNAL_TIME_INTERVAL
   metricSpec = internalMetricSpec { reach = InternalMetricSpecKt.reachParams {} }
@@ -950,7 +951,7 @@ private val INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC =
       InternalMetricKt.details {
         filters += this@copy.details.filtersList
         result = internalMetricResult {
-          reach = InternalMetricResultKt.integerResult { value = INCREMENTAL_REACH_VALUE }
+          reach = InternalMetricResultKt.reachResult { value = INCREMENTAL_REACH_VALUE }
         }
       }
   }
@@ -958,7 +959,6 @@ private val INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC =
 // Internal Single publisher Metrics
 private val INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC = internalMetric {
   cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-  metricIdempotencyKey = SINGLE_PUBLISHER_IMPRESSION_METRIC_IDEMPOTENCY_KEY
   externalReportingSetId = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.externalReportingSetId
   timeInterval = INTERNAL_TIME_INTERVAL
   metricSpec = internalMetricSpec {
@@ -1023,9 +1023,10 @@ private val SUCCEEDED_INCREMENTAL_REACH_METRIC =
   PENDING_INCREMENTAL_REACH_METRIC.copy {
     state = Metric.State.SUCCEEDED
     result = metricResult {
-      reach = integerResult {
-        value = INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.details.result.reach.value
-      }
+      reach =
+        MetricResultKt.reachResult {
+          value = INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.details.result.reach.value
+        }
     }
   }
 
@@ -1057,6 +1058,13 @@ class MetricsServiceTest {
       .thenReturn(
         INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC,
       )
+    onBlocking { batchCreateMetrics(any()) }
+      .thenReturn(
+        internalBatchCreateMetricsResponse {
+          metrics += INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC
+          metrics += INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_IMPRESSION_METRIC
+        }
+      )
     // onBlocking { streamMetrics(any()) }
     //   .thenReturn(
     //     flowOf(
@@ -1073,30 +1081,27 @@ class MetricsServiceTest {
     //     INTERNAL_SUCCEEDED_WATCH_DURATION_METRIC,
     //     INTERNAL_SUCCEEDED_FREQUENCY_HISTOGRAM_METRIC,
     //   )
-    onBlocking { getMetricByIdempotencyKey(any()) }
-      .thenThrow(StatusRuntimeException(Status.NOT_FOUND))
   }
 
   private val internalReportingSetsMock:
     InternalReportingSetsGrpcKt.ReportingSetsCoroutineImplBase =
     mockService {
-      onBlocking { getReportingSet(any()) }.thenReturn(INTERNAL_INCREMENTAL_REPORTING_SET)
       onBlocking { batchGetReportingSets(any()) }
         .thenReturn(
-          flowOf(
-            INTERNAL_UNION_ALL_REPORTING_SET,
-            INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET
-          )
+          batchGetReportingSetsResponse {
+            reportingSets += INTERNAL_UNION_ALL_REPORTING_SET
+            reportingSets += INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET
+          }
         )
     }
 
   private val internalMeasurementsMock: InternalMeasurementsCoroutineImplBase = mockService {
     onBlocking { batchSetCmmsMeasurementIds(any()) }
       .thenReturn(
-        flowOf(
-          INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT,
-          INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
-        )
+        batchSetCmmsMeasurementIdsResponse {
+          measurements += INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT
+          measurements += INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
+        }
       )
   }
 
@@ -1206,29 +1211,24 @@ class MetricsServiceTest {
 
     val expected = PENDING_INCREMENTAL_REACH_METRIC
 
-    // Verify proto argument of the internal MetricsCoroutineImplBase::getMetricByIdempotencyKey
-    val getMetricByIdempotencyKeyCaptor: KArgumentCaptor<GetMetricByIdempotencyKeyRequest> =
-      argumentCaptor()
-    verifyBlocking(internalMetricsMock, never()) {
-      getMetricByIdempotencyKey(getMetricByIdempotencyKeyCaptor.capture())
-    }
-
     // Verify proto argument of the internal ReportingSetsCoroutineImplBase::getReportingSet
     verifyProtoArgument(
         internalReportingSetsMock,
-        InternalReportingSetsGrpcKt.ReportingSetsCoroutineImplBase::getReportingSet
+        InternalReportingSetsGrpcKt.ReportingSetsCoroutineImplBase::batchGetReportingSets
       )
       .isEqualTo(
-        internalGetReportingSetRequest {
+        batchGetReportingSetsRequest {
           cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-          externalReportingSetId += INTERNAL_INCREMENTAL_REPORTING_SET.externalReportingSetId
+          externalReportingSetIds += INTERNAL_INCREMENTAL_REPORTING_SET.externalReportingSetId
         }
       )
 
     // Verify proto argument of the internal MetricsCoroutineImplBase::createMetric
     verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::createMetric)
       .ignoringRepeatedFieldOrder()
-      .isEqualTo(INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC.copy { clearMetricIdempotencyKey() })
+      .isEqualTo(
+        internalCreateMetricRequest { metric = INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC }
+      )
 
     // Verify proto argument of MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
     verifyProtoArgument(
@@ -1334,13 +1334,14 @@ class MetricsServiceTest {
         batchSetCmmsMeasurementIdsRequest {
           cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
           this.measurementIds += measurementIds {
-            externalMeasurementId =
-              INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.externalMeasurementId
+            cmmsCreateMeasurementRequestId =
+              INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.cmmsCreateMeasurementRequestId
             cmmsMeasurementId = INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.cmmsMeasurementId
           }
           this.measurementIds += measurementIds {
-            externalMeasurementId =
-              INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.externalMeasurementId
+            cmmsCreateMeasurementRequestId =
+              INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
+                .cmmsCreateMeasurementRequestId
             cmmsMeasurementId =
               INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.cmmsMeasurementId
           }
@@ -1353,12 +1354,16 @@ class MetricsServiceTest {
   @Test
   fun `createMetric without request ID returns single pub impression metric with RUNNING state`() =
     runBlocking {
-      whenever(internalReportingSetsMock.getReportingSet(any()))
-        .thenReturn(INTERNAL_SINGLE_PUBLISHER_REPORTING_SET)
+      whenever(internalReportingSetsMock.batchGetReportingSets(any()))
+        .thenReturn(
+          batchGetReportingSetsResponse { reportingSets += INTERNAL_SINGLE_PUBLISHER_REPORTING_SET }
+        )
       whenever(internalMetricsMock.createMetric(any()))
         .thenReturn(INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_IMPRESSION_METRIC)
       whenever(internalReportingSetsMock.batchGetReportingSets(any()))
-        .thenReturn(flowOf(INTERNAL_SINGLE_PUBLISHER_REPORTING_SET))
+        .thenReturn(
+          batchGetReportingSetsResponse { reportingSets += INTERNAL_SINGLE_PUBLISHER_REPORTING_SET }
+        )
       whenever(measurementsMock.createMeasurement(any()))
         .thenReturn(PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT)
 
@@ -1374,22 +1379,25 @@ class MetricsServiceTest {
 
       val expected = PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
 
-      // Verify proto argument of the internal MetricsCoroutineImplBase::getMetricByIdempotencyKey
-      val getMetricByIdempotencyKeyCaptor: KArgumentCaptor<GetMetricByIdempotencyKeyRequest> =
+      // Verify proto argument of the internal ReportingSetsCoroutineImplBase::batchGetReportingSets
+      val batchGetReportingSetsCaptor: KArgumentCaptor<BatchGetReportingSetsRequest> =
         argumentCaptor()
-      verifyBlocking(internalMetricsMock, never()) {
-        getMetricByIdempotencyKey(getMetricByIdempotencyKeyCaptor.capture())
+      verifyBlocking(internalReportingSetsMock, times(2)) {
+        batchGetReportingSets(batchGetReportingSetsCaptor.capture())
       }
 
-      // Verify proto argument of the internal ReportingSetsCoroutineImplBase::getReportingSet
-      verifyProtoArgument(
-          internalReportingSetsMock,
-          InternalReportingSetsGrpcKt.ReportingSetsCoroutineImplBase::getReportingSet
-        )
-        .isEqualTo(
-          internalGetReportingSetRequest {
+      val capturedBatchGetReportingSetsRequests = batchGetReportingSetsCaptor.allValues
+      assertThat(capturedBatchGetReportingSetsRequests)
+        .containsExactly(
+          batchGetReportingSetsRequest {
             cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-            externalReportingSetId += INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.externalReportingSetId
+            externalReportingSetIds +=
+              INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.externalReportingSetId
+          },
+          batchGetReportingSetsRequest {
+            cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+            externalReportingSetIds +=
+              INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalReportingSetId
           }
         )
 
@@ -1397,8 +1405,8 @@ class MetricsServiceTest {
       verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::createMetric)
         .ignoringRepeatedFieldOrder()
         .isEqualTo(
-          INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
-            clearMetricIdempotencyKey()
+          internalCreateMetricRequest {
+            metric = INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC
           }
         )
 
@@ -1409,19 +1417,6 @@ class MetricsServiceTest {
         )
         .isEqualTo(
           getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMERS.values.first().name }
-        )
-
-      // Verify proto argument of the internal ReportingSetsCoroutineImplBase::batchGetReportingSets
-      verifyProtoArgument(
-          internalReportingSetsMock,
-          InternalReportingSetsGrpcKt.ReportingSetsCoroutineImplBase::batchGetReportingSets
-        )
-        .isEqualTo(
-          batchGetReportingSetsRequest {
-            cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-            externalReportingSetIds +=
-              INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalReportingSetId
-          }
         )
 
       // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
@@ -1494,8 +1489,9 @@ class MetricsServiceTest {
           batchSetCmmsMeasurementIdsRequest {
             cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
             this.measurementIds += measurementIds {
-              externalMeasurementId =
-                INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.externalMeasurementId
+              cmmsCreateMeasurementRequestId =
+                INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+                  .cmmsCreateMeasurementRequestId
               cmmsMeasurementId =
                 INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementId
             }
@@ -1520,36 +1516,20 @@ class MetricsServiceTest {
 
     val expected = PENDING_INCREMENTAL_REACH_METRIC
 
-    // Verify proto argument of the internal ReportingSetsCoroutineImplBase::getReportingSet
-    verifyProtoArgument(
-        internalReportingSetsMock,
-        InternalReportingSetsGrpcKt.ReportingSetsCoroutineImplBase::getReportingSet
-      )
-      .isEqualTo(
-        internalGetReportingSetRequest {
-          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-          externalReportingSetId += INTERNAL_INCREMENTAL_REPORTING_SET.externalReportingSetId
-        }
-      )
-
-    // Verify proto argument of the internal MetricsCoroutineImplBase::createMetric
-    verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::createMetric)
-      .ignoringRepeatedFieldOrder()
-      .isEqualTo(INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC)
-
-    // Verify proto argument of MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
-    verifyProtoArgument(
-        measurementConsumersMock,
-        MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
-      )
-      .isEqualTo(getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMERS.values.first().name })
-
     // Verify proto argument of the internal ReportingSetsCoroutineImplBase::batchGetReportingSets
-    verifyProtoArgument(
-        internalReportingSetsMock,
-        InternalReportingSetsGrpcKt.ReportingSetsCoroutineImplBase::batchGetReportingSets
-      )
-      .isEqualTo(
+    val batchGetReportingSetsCaptor: KArgumentCaptor<BatchGetReportingSetsRequest> =
+      argumentCaptor()
+    verifyBlocking(internalReportingSetsMock, times(2)) {
+      batchGetReportingSets(batchGetReportingSetsCaptor.capture())
+    }
+
+    val capturedBatchGetReportingSetsRequests = batchGetReportingSetsCaptor.allValues
+    assertThat(capturedBatchGetReportingSetsRequests)
+      .containsExactly(
+        batchGetReportingSetsRequest {
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          externalReportingSetIds += INTERNAL_INCREMENTAL_REPORTING_SET.externalReportingSetId
+        },
         batchGetReportingSetsRequest {
           cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
           externalReportingSetIds += INTERNAL_UNION_ALL_REPORTING_SET.externalReportingSetId
@@ -1557,6 +1537,20 @@ class MetricsServiceTest {
             INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET.externalReportingSetId
         }
       )
+
+    // Verify proto argument of the internal MetricsCoroutineImplBase::createMetric
+    verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::createMetric)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        internalCreateMetricRequest { metric = INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC }
+      )
+
+    // Verify proto argument of MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
+    verifyProtoArgument(
+        measurementConsumersMock,
+        MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
+      )
+      .isEqualTo(getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMERS.values.first().name })
 
     // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
     val dataProvidersCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
@@ -1641,13 +1635,14 @@ class MetricsServiceTest {
         batchSetCmmsMeasurementIdsRequest {
           cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
           this.measurementIds += measurementIds {
-            externalMeasurementId =
-              INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.externalMeasurementId
+            cmmsCreateMeasurementRequestId =
+              INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.cmmsCreateMeasurementRequestId
             cmmsMeasurementId = INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.cmmsMeasurementId
           }
           this.measurementIds += measurementIds {
-            externalMeasurementId =
-              INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.externalMeasurementId
+            cmmsCreateMeasurementRequestId =
+              INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
+                .cmmsCreateMeasurementRequestId
             cmmsMeasurementId =
               INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.cmmsMeasurementId
           }
@@ -1674,43 +1669,20 @@ class MetricsServiceTest {
 
     val expected = PENDING_INCREMENTAL_REACH_METRIC
 
-    // Verify proto argument of the internal MetricsCoroutineImplBase::getMetricByIdempotencyKey
-    val getMetricByIdempotencyKeyCaptor: KArgumentCaptor<GetMetricByIdempotencyKeyRequest> =
+    // Verify proto argument of the internal ReportingSetsCoroutineImplBase::batchGetReportingSets
+    val batchGetReportingSetsCaptor: KArgumentCaptor<BatchGetReportingSetsRequest> =
       argumentCaptor()
-    verifyBlocking(internalMetricsMock, never()) {
-      getMetricByIdempotencyKey(getMetricByIdempotencyKeyCaptor.capture())
+    verifyBlocking(internalReportingSetsMock, times(2)) {
+      batchGetReportingSets(batchGetReportingSetsCaptor.capture())
     }
 
-    // Verify proto argument of the internal ReportingSetsCoroutineImplBase::getReportingSet
-    verifyProtoArgument(
-        internalReportingSetsMock,
-        InternalReportingSetsGrpcKt.ReportingSetsCoroutineImplBase::getReportingSet
-      )
-      .isEqualTo(
-        internalGetReportingSetRequest {
+    val capturedBatchGetReportingSetsRequests = batchGetReportingSetsCaptor.allValues
+    assertThat(capturedBatchGetReportingSetsRequests)
+      .containsExactly(
+        batchGetReportingSetsRequest {
           cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-          externalReportingSetId += INTERNAL_INCREMENTAL_REPORTING_SET.externalReportingSetId
-        }
-      )
-
-    // Verify proto argument of the internal MetricsCoroutineImplBase::createMetric
-    verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::createMetric)
-      .ignoringRepeatedFieldOrder()
-      .isEqualTo(INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC.copy { clearMetricIdempotencyKey() })
-
-    // Verify proto argument of MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
-    verifyProtoArgument(
-        measurementConsumersMock,
-        MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
-      )
-      .isEqualTo(getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMERS.values.first().name })
-
-    // Verify proto argument of the internal ReportingSetsCoroutineImplBase::batchGetReportingSets
-    verifyProtoArgument(
-        internalReportingSetsMock,
-        InternalReportingSetsGrpcKt.ReportingSetsCoroutineImplBase::batchGetReportingSets
-      )
-      .isEqualTo(
+          externalReportingSetIds += INTERNAL_INCREMENTAL_REPORTING_SET.externalReportingSetId
+        },
         batchGetReportingSetsRequest {
           cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
           externalReportingSetIds += INTERNAL_UNION_ALL_REPORTING_SET.externalReportingSetId
@@ -1718,6 +1690,20 @@ class MetricsServiceTest {
             INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET.externalReportingSetId
         }
       )
+
+    // Verify proto argument of the internal MetricsCoroutineImplBase::createMetric
+    verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::createMetric)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        internalCreateMetricRequest { metric = INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC }
+      )
+
+    // Verify proto argument of MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
+    verifyProtoArgument(
+        measurementConsumersMock,
+        MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
+      )
+      .isEqualTo(getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMERS.values.first().name })
 
     // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
     val dataProvidersCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
@@ -1755,36 +1741,20 @@ class MetricsServiceTest {
 
     val expected = PENDING_INCREMENTAL_REACH_METRIC
 
-    // Verify proto argument of the internal ReportingSetsCoroutineImplBase::getReportingSet
-    verifyProtoArgument(
-        internalReportingSetsMock,
-        InternalReportingSetsGrpcKt.ReportingSetsCoroutineImplBase::getReportingSet
-      )
-      .isEqualTo(
-        internalGetReportingSetRequest {
-          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-          externalReportingSetId += INTERNAL_INCREMENTAL_REPORTING_SET.externalReportingSetId
-        }
-      )
-
-    // Verify proto argument of the internal MetricsCoroutineImplBase::createMetric
-    verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::createMetric)
-      .ignoringRepeatedFieldOrder()
-      .isEqualTo(INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC)
-
-    // Verify proto argument of MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
-    verifyProtoArgument(
-        measurementConsumersMock,
-        MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
-      )
-      .isEqualTo(getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMERS.values.first().name })
-
     // Verify proto argument of the internal ReportingSetsCoroutineImplBase::batchGetReportingSets
-    verifyProtoArgument(
-        internalReportingSetsMock,
-        InternalReportingSetsGrpcKt.ReportingSetsCoroutineImplBase::batchGetReportingSets
-      )
-      .isEqualTo(
+    val batchGetReportingSetsCaptor: KArgumentCaptor<BatchGetReportingSetsRequest> =
+      argumentCaptor()
+    verifyBlocking(internalReportingSetsMock, times(2)) {
+      batchGetReportingSets(batchGetReportingSetsCaptor.capture())
+    }
+
+    val capturedBatchGetReportingSetsRequests = batchGetReportingSetsCaptor.allValues
+    assertThat(capturedBatchGetReportingSetsRequests)
+      .containsExactly(
+        batchGetReportingSetsRequest {
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          externalReportingSetIds += INTERNAL_INCREMENTAL_REPORTING_SET.externalReportingSetId
+        },
         batchGetReportingSetsRequest {
           cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
           externalReportingSetIds += INTERNAL_UNION_ALL_REPORTING_SET.externalReportingSetId
@@ -1792,6 +1762,20 @@ class MetricsServiceTest {
             INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET.externalReportingSetId
         }
       )
+
+    // Verify proto argument of the internal MetricsCoroutineImplBase::createMetric
+    verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::createMetric)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        internalCreateMetricRequest { metric = INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC }
+      )
+
+    // Verify proto argument of MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
+    verifyProtoArgument(
+        measurementConsumersMock,
+        MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
+      )
+      .isEqualTo(getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMERS.values.first().name })
 
     // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
     val dataProvidersCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
@@ -1829,35 +1813,34 @@ class MetricsServiceTest {
 
     val expected = SUCCEEDED_INCREMENTAL_REACH_METRIC
 
-    // Verify proto argument of the internal ReportingSetsCoroutineImplBase::getReportingSet
-    verifyProtoArgument(
-        internalReportingSetsMock,
-        InternalReportingSetsGrpcKt.ReportingSetsCoroutineImplBase::getReportingSet
-      )
-      .isEqualTo(
-        internalGetReportingSetRequest {
+    // Verify proto argument of the internal ReportingSetsCoroutineImplBase::batchGetReportingSets
+    val batchGetReportingSetsCaptor: KArgumentCaptor<BatchGetReportingSetsRequest> =
+      argumentCaptor()
+    verifyBlocking(internalReportingSetsMock, times(1)) {
+      batchGetReportingSets(batchGetReportingSetsCaptor.capture())
+    }
+
+    val capturedBatchGetReportingSetsRequests = batchGetReportingSetsCaptor.allValues
+    assertThat(capturedBatchGetReportingSetsRequests)
+      .containsExactly(
+        batchGetReportingSetsRequest {
           cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-          externalReportingSetId += INTERNAL_INCREMENTAL_REPORTING_SET.externalReportingSetId
+          externalReportingSetIds += INTERNAL_INCREMENTAL_REPORTING_SET.externalReportingSetId
         }
       )
 
     // Verify proto argument of the internal MetricsCoroutineImplBase::createMetric
     verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::createMetric)
       .ignoringRepeatedFieldOrder()
-      .isEqualTo(INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC)
+      .isEqualTo(
+        internalCreateMetricRequest { metric = INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC }
+      )
 
     // Verify proto argument of MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
     val getMeasurementConsumerCaptor: KArgumentCaptor<GetMeasurementConsumerRequest> =
       argumentCaptor()
     verifyBlocking(measurementConsumersMock, never()) {
       getMeasurementConsumer(getMeasurementConsumerCaptor.capture())
-    }
-
-    // Verify proto argument of the internal ReportingSetsCoroutineImplBase::batchGetReportingSets
-    val batchGetReportingSetsCaptor: KArgumentCaptor<BatchGetReportingSetsRequest> =
-      argumentCaptor()
-    verifyBlocking(internalReportingSetsMock, never()) {
-      batchGetReportingSets(batchGetReportingSetsCaptor.capture())
     }
 
     // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
@@ -2126,7 +2109,9 @@ class MetricsServiceTest {
   @Test
   fun `createMetric throws NOT_FOUND when reporting set is not found`() = runBlocking {
     whenever(internalReportingSetsMock.batchGetReportingSets(any()))
-      .thenReturn(flowOf(INTERNAL_UNION_ALL_REPORTING_SET))
+      .thenReturn(
+        batchGetReportingSetsResponse { reportingSets += INTERNAL_UNION_ALL_REPORTING_SET }
+      )
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric = REQUESTING_INCREMENTAL_REACH_METRIC
@@ -2321,22 +2306,17 @@ class MetricsServiceTest {
 
   @Test
   fun `batchCreateMetrics returns metrics with RUNNING state`() = runBlocking {
-    whenever(internalReportingSetsMock.getReportingSet(any()))
-      .thenReturn(INTERNAL_INCREMENTAL_REPORTING_SET, INTERNAL_SINGLE_PUBLISHER_REPORTING_SET)
-    whenever(internalMetricsMock.batchCreateMetrics(any()))
-      .thenReturn(
-        flowOf(
-          INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC,
-          INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_IMPRESSION_METRIC
-        )
-      )
     whenever(internalReportingSetsMock.batchGetReportingSets(any()))
       .thenReturn(
-        flowOf(
-          INTERNAL_UNION_ALL_REPORTING_SET,
-          INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET,
-          INTERNAL_SINGLE_PUBLISHER_REPORTING_SET
-        )
+        batchGetReportingSetsResponse {
+          reportingSets += INTERNAL_INCREMENTAL_REPORTING_SET
+          reportingSets += INTERNAL_SINGLE_PUBLISHER_REPORTING_SET
+        },
+        batchGetReportingSetsResponse {
+          reportingSets += INTERNAL_UNION_ALL_REPORTING_SET
+          reportingSets += INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET
+          reportingSets += INTERNAL_SINGLE_PUBLISHER_REPORTING_SET
+        }
       )
 
     val request = batchCreateMetricsRequest {
@@ -2361,58 +2341,24 @@ class MetricsServiceTest {
       metrics += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
     }
 
-    // Verify proto argument of the internal MetricsCoroutineImplBase::getMetricByIdempotencyKey
-    val getMetricByIdempotencyKeyCaptor: KArgumentCaptor<GetMetricByIdempotencyKeyRequest> =
-      argumentCaptor()
-    verifyBlocking(internalMetricsMock, never()) {
-      getMetricByIdempotencyKey(getMetricByIdempotencyKeyCaptor.capture())
-    }
-
-    // Verify proto argument of the internal ReportingSetsCoroutineImplBase::getReportingSet
-    val getReportingSetCaptor: KArgumentCaptor<InternalGetReportingSetRequest> = argumentCaptor()
-    verifyBlocking(internalReportingSetsMock, times(2)) {
-      getReportingSet(getReportingSetCaptor.capture())
-    }
-    assertThat(getReportingSetCaptor.allValues)
-      .containsExactly(
-        internalGetReportingSetRequest {
-          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-          externalReportingSetId += INTERNAL_INCREMENTAL_REPORTING_SET.externalReportingSetId
-        },
-        internalGetReportingSetRequest {
-          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-          externalReportingSetId += INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.externalReportingSetId
-        }
-      )
-
-    // Verify proto argument of the internal MetricsCoroutineImplBase::batchCreateMetrics
-    verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::batchCreateMetrics)
-      .ignoringRepeatedFieldOrder()
-      .isEqualTo(
-        internalBatchCreateMetricsRequest {
-          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-          metrics +=
-            INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC.copy { clearMetricIdempotencyKey() }
-          metrics +=
-            INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
-              clearMetricIdempotencyKey()
-            }
-        }
-      )
-
-    // Verify proto argument of MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
-    verifyProtoArgument(
-        measurementConsumersMock,
-        MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
-      )
-      .isEqualTo(getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMERS.values.first().name })
-
     // Verify proto argument of the internal ReportingSetsCoroutineImplBase::batchGetReportingSets
-    verifyProtoArgument(
-        internalReportingSetsMock,
-        InternalReportingSetsGrpcKt.ReportingSetsCoroutineImplBase::batchGetReportingSets
-      )
-      .isEqualTo(
+    val batchGetReportingSetsCaptor: KArgumentCaptor<BatchGetReportingSetsRequest> =
+      argumentCaptor()
+    verifyBlocking(internalReportingSetsMock, times(3)) {
+      batchGetReportingSets(batchGetReportingSetsCaptor.capture())
+    }
+
+    val capturedBatchGetReportingSetsRequests = batchGetReportingSetsCaptor.allValues
+    assertThat(capturedBatchGetReportingSetsRequests)
+      .containsExactly(
+        batchGetReportingSetsRequest {
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          externalReportingSetIds += INTERNAL_INCREMENTAL_REPORTING_SET.externalReportingSetId
+        },
+        batchGetReportingSetsRequest {
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          externalReportingSetIds += INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.externalReportingSetId
+        },
         batchGetReportingSetsRequest {
           cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
           externalReportingSetIds += INTERNAL_UNION_ALL_REPORTING_SET.externalReportingSetId
@@ -2422,6 +2368,28 @@ class MetricsServiceTest {
             INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalReportingSetId
         }
       )
+
+    // Verify proto argument of the internal MetricsCoroutineImplBase::batchCreateMetrics
+    verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::batchCreateMetrics)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        internalBatchCreateMetricsRequest {
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          requests += internalCreateMetricRequest {
+            metric = INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC
+          }
+          requests += internalCreateMetricRequest {
+            metric = INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC
+          }
+        }
+      )
+
+    // Verify proto argument of MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
+    verifyProtoArgument(
+        measurementConsumersMock,
+        MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
+      )
+      .isEqualTo(getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMERS.values.first().name })
 
     // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
     val dataProvidersCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
@@ -2512,19 +2480,21 @@ class MetricsServiceTest {
         batchSetCmmsMeasurementIdsRequest {
           cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
           this.measurementIds += measurementIds {
-            externalMeasurementId =
-              INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.externalMeasurementId
+            cmmsCreateMeasurementRequestId =
+              INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.cmmsCreateMeasurementRequestId
             cmmsMeasurementId = INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.cmmsMeasurementId
           }
           this.measurementIds += measurementIds {
-            externalMeasurementId =
-              INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.externalMeasurementId
+            cmmsCreateMeasurementRequestId =
+              INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
+                .cmmsCreateMeasurementRequestId
             cmmsMeasurementId =
               INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.cmmsMeasurementId
           }
           this.measurementIds += measurementIds {
-            externalMeasurementId =
-              INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.externalMeasurementId
+            cmmsCreateMeasurementRequestId =
+              INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+                .cmmsCreateMeasurementRequestId
             cmmsMeasurementId =
               INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementId
           }
