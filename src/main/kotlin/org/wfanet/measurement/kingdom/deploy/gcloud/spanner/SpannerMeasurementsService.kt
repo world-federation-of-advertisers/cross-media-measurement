@@ -178,7 +178,7 @@ class SpannerMeasurementsService(
   }
 
   private fun validateBatchDeleteMeasurementsRequest(request: BatchDeleteMeasurementsRequest) {
-    grpcRequire(request.requestsList.size < MAX_BATCH_DELETE) {
+    grpcRequire(request.requestsList.size <= MAX_BATCH_DELETE) {
       "number of requested Measurements exceeds limit: $MAX_BATCH_DELETE"
     }
     for (measurementDeleteRequest in request.requestsList) {
