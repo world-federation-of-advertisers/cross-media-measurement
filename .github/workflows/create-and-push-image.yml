@@ -52,7 +52,7 @@ jobs:
           password: ${{ secrets.GHCR_TOKEN }}
       - name: show-tag
         id: show-tag
-        runs: echo ${{ image_tag }}
+        run: echo ${{ image_tag }}
 
   build-duchy-image:
     runs-on: ubuntu-20.04
@@ -69,4 +69,4 @@ jobs:
           password: ${{ secrets.GHCR_TOKEN }}
       - name: show-tag
         id: show-tag
-        runs: echo ${{ image_tag }}
+        run: echo ${{ image_tag }}
