@@ -55,7 +55,7 @@ jobs:
         run: |
           bazelisk query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
           xargs bazelisk build -c opt --define container_registry=ghcr.io \
-          --define image_repo_prefix=world-federation-of-advertisers/packages --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=${{ image_tag }}
+          --define image_repo_prefix=world-federation-of-advertisers/packages --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=$IMAGE_TAG
 
       # Push Kingdom Image to GitHub Artifacts.
       - name: Push Kingdom Image
