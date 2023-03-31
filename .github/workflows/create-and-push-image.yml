@@ -12,25 +12,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: Push Docker Image to Github Artifacts
+name: Build and Push Images
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
-  #TODO:(@wfa-siyengar): introduce workflow_call/workflow_run as appropriate.
+  workflow_call:
+
 env:
   REGISTRY: ghcr.io
 
 jobs:
-  push_docker_image:
+
+  create-image-tag:
     runs-on: ubuntu-20.04
+    outputs:
+      image_tag: ${{ steps.get-image-tag-step.outputs.image_tag }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+      - id: generate-tag
+        run: sh ./.github/workflows/export-image-tag.sh
+      - id: get-image-tag-step
+        run: echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-      - name: Export IMAGE_TAG
-        env:
-          DEFAULT_BRANCH: main
-        run: ./.github/workflows/export-image-tag.sh
+  build-kingdom-image:
+    runs-on: ubuntu-20.04
+    needs: create-image-tag
+    with:
+      image_tag: ${{ needs.get-image-tag.outputs.image_tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
 
       - name: Login to GitHub Packages
         uses: docker/login-action@v1
@@ -52,6 +66,23 @@ jobs:
           bazelisk query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
             xargs -n 1 bazelisk run -c opt --define container_registry=ghcr.io \
             --define image_repo_prefix=world-federation-of-advertisers/packages --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=$IMAGE_TAG
+  
+
+  build-duchy-image:
+    runs-on: ubuntu-20.04
+    needs: create-image-tag
+    with:
+      image_tag: ${{ needs.get-image-tag.outputs.image_tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Login to GitHub Packages
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
 
       # Build Duchy Image
       - name: Build Duchy image
