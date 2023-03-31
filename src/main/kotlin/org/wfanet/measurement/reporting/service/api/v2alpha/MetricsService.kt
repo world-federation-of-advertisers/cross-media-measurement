@@ -27,7 +27,6 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
@@ -74,40 +73,43 @@ import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisit
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptionPublicKey
-import org.wfanet.measurement.internal.reporting.v2alpha.BatchSetCmmsMeasurementIdsRequest.MeasurementIds
-import org.wfanet.measurement.internal.reporting.v2alpha.BatchSetCmmsMeasurementIdsRequestKt.measurementIds
-import org.wfanet.measurement.internal.reporting.v2alpha.Measurement as InternalMeasurement
-import org.wfanet.measurement.internal.reporting.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2alpha.Metric as InternalMetric
-import org.wfanet.measurement.internal.reporting.v2alpha.Metric.WeightedMeasurement
-import org.wfanet.measurement.internal.reporting.v2alpha.MetricKt as InternalMetricKt
-import org.wfanet.measurement.internal.reporting.v2alpha.MetricKt.weightedMeasurement
-import org.wfanet.measurement.internal.reporting.v2alpha.MetricResult as InternalMetricResult
-import org.wfanet.measurement.internal.reporting.v2alpha.MetricSpec as InternalMetricSpec
-import org.wfanet.measurement.internal.reporting.v2alpha.MetricSpecKt as InternalMetricSpecKt
-import org.wfanet.measurement.internal.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineStub as InternalMetricsCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSet as InternalReportingSet
-import org.wfanet.measurement.internal.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2alpha.TimeInterval as InternalTimeInterval
-import org.wfanet.measurement.internal.reporting.v2alpha.batchCreateMetricsRequest as internalBatchCreateMetricsRequest
-import org.wfanet.measurement.internal.reporting.v2alpha.batchGetReportingSetsRequest
-import org.wfanet.measurement.internal.reporting.v2alpha.batchSetCmmsMeasurementIdsRequest
-import org.wfanet.measurement.internal.reporting.v2alpha.copy
-import org.wfanet.measurement.internal.reporting.v2alpha.getReportingSetRequest as getInternalReportingSetRequest
-import org.wfanet.measurement.internal.reporting.v2alpha.measurement as internalMeasurement
-import org.wfanet.measurement.internal.reporting.v2alpha.metric as internalMetric
-import org.wfanet.measurement.internal.reporting.v2alpha.metricSpec as internalMetricSpec
-import org.wfanet.measurement.internal.reporting.v2alpha.timeInterval as internalTimeInterval
+import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequest.MeasurementIds
+import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequestKt.measurementIds
+import org.wfanet.measurement.internal.reporting.v2.CreateMetricRequest as InternalCreateMetricRequest
+import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
+import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.Metric as InternalMetric
+import org.wfanet.measurement.internal.reporting.v2.Metric.WeightedMeasurement
+import org.wfanet.measurement.internal.reporting.v2.MetricKt as InternalMetricKt
+import org.wfanet.measurement.internal.reporting.v2.MetricKt.weightedMeasurement
+import org.wfanet.measurement.internal.reporting.v2.MetricResult as InternalMetricResult
+import org.wfanet.measurement.internal.reporting.v2.MetricSpec as InternalMetricSpec
+import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt as InternalMetricSpecKt
+import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineStub as InternalMetricsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.TimeInterval as InternalTimeInterval
+import org.wfanet.measurement.internal.reporting.v2.batchCreateMetricsRequest as internalBatchCreateMetricsRequest
+import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
+import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsRequest
+import org.wfanet.measurement.internal.reporting.v2.copy
+import org.wfanet.measurement.internal.reporting.v2.createMetricRequest as internalCreateMetricRequest
+import org.wfanet.measurement.internal.reporting.v2.measurement as internalMeasurement
+import org.wfanet.measurement.internal.reporting.v2.metric as internalMetric
+import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetricSpec
+import org.wfanet.measurement.internal.reporting.v2.timeInterval as internalTimeInterval
 import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.Metric
-import org.wfanet.measurement.reporting.v2alpha.MetricResult as MetricResult
+import org.wfanet.measurement.reporting.v2alpha.MetricResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.HistogramResultKt.bin
-import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.doubleResult
+import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.HistogramResultKt.binResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.histogramResult
-import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.integerResult
+import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.impressionCountResult
+import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.reachResult
+import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.watchDurationResult
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineImplBase
@@ -123,6 +125,8 @@ private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 
+private const val DIFFERENTIAL_PRIVACY_DELTA = 1e-12
+
 private const val NUMBER_VID_BUCKETS = 300
 private const val REACH_ONLY_VID_SAMPLING_WIDTH = 3.0f / NUMBER_VID_BUCKETS
 private const val NUMBER_REACH_ONLY_BUCKETS = 16
@@ -131,6 +135,12 @@ private val REACH_ONLY_VID_SAMPLING_START_LIST =
 private const val REACH_ONLY_REACH_EPSILON = 0.0041
 private const val REACH_ONLY_FREQUENCY_EPSILON = 0.0001
 private const val REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER = 1
+
+private val REACH_ONLY_DIFFERENTIAL_PRIVACY_PARAMS =
+  InternalMetricSpecKt.differentialPrivacyParams {
+    epsilon = REACH_ONLY_REACH_EPSILON
+    delta = DIFFERENTIAL_PRIVACY_DELTA
+  }
 
 private const val REACH_FREQUENCY_VID_SAMPLING_WIDTH = 5.0f / NUMBER_VID_BUCKETS
 private const val NUMBER_REACH_FREQUENCY_BUCKETS = 19
@@ -142,6 +152,18 @@ private val REACH_FREQUENCY_VID_SAMPLING_START_LIST =
   }
 private const val REACH_FREQUENCY_REACH_EPSILON = 0.0033
 private const val REACH_FREQUENCY_FREQUENCY_EPSILON = 0.115
+private const val REACH_FREQUENCY_MAXIMUM_FREQUENCY_PER_USER = 10
+
+private val REACH_FREQUENCY_REACH_DIFFERENTIAL_PRIVACY_PARAMS =
+  InternalMetricSpecKt.differentialPrivacyParams {
+    epsilon = REACH_FREQUENCY_REACH_EPSILON
+    delta = DIFFERENTIAL_PRIVACY_DELTA
+  }
+private val REACH_FREQUENCY_FREQUENCY_DIFFERENTIAL_PRIVACY_PARAMS =
+  InternalMetricSpecKt.differentialPrivacyParams {
+    epsilon = REACH_FREQUENCY_FREQUENCY_EPSILON
+    delta = DIFFERENTIAL_PRIVACY_DELTA
+  }
 
 private const val IMPRESSION_VID_SAMPLING_WIDTH = 62.0f / NUMBER_VID_BUCKETS
 private const val NUMBER_IMPRESSION_BUCKETS = 1
@@ -152,6 +174,11 @@ private val IMPRESSION_VID_SAMPLING_START_LIST =
       it * IMPRESSION_VID_SAMPLING_WIDTH
   }
 private const val IMPRESSION_EPSILON = 0.0011
+private val IMPRESSION_DIFFERENTIAL_PRIVACY_PARAMS =
+  InternalMetricSpecKt.differentialPrivacyParams {
+    epsilon = IMPRESSION_EPSILON
+    delta = DIFFERENTIAL_PRIVACY_DELTA
+  }
 
 private const val WATCH_DURATION_VID_SAMPLING_WIDTH = 95.0f / NUMBER_VID_BUCKETS
 private const val NUMBER_WATCH_DURATION_BUCKETS = 1
@@ -162,8 +189,11 @@ private val WATCH_DURATION_VID_SAMPLING_START_LIST =
       it * WATCH_DURATION_VID_SAMPLING_WIDTH
   }
 private const val WATCH_DURATION_EPSILON = 0.001
-
-private const val DIFFERENTIAL_PRIVACY_DELTA = 1e-12
+private val WATCH_DURATION_DIFFERENTIAL_PRIVACY_PARAMS =
+  InternalMetricSpecKt.differentialPrivacyParams {
+    epsilon = WATCH_DURATION_EPSILON
+    delta = DIFFERENTIAL_PRIVACY_DELTA
+  }
 
 private val REACH_ONLY_MEASUREMENT_SPEC =
   MeasurementSpecKt.reachAndFrequency {
@@ -189,7 +219,7 @@ class MetricsService(
   private val encryptionKeyPairStore: EncryptionKeyPairStore,
   private val secureRandom: SecureRandom,
   private val signingPrivateKeyDir: File,
-  private val trustedCertificates: Map<ByteString, X509Certificate>
+  private val trustedCertificates: Map<ByteString, X509Certificate>,
 ) : MetricsCoroutineImplBase() {
 
   private val measurementSupplier =
@@ -256,7 +286,8 @@ class MetricsService(
           deferred.add(
             async {
               measurementIds {
-                externalMeasurementId = weightedMeasurement.measurement.externalMeasurementId
+                cmmsCreateMeasurementRequestId =
+                  weightedMeasurement.measurement.cmmsCreateMeasurementRequestId
                 val measurement =
                   createCmmsMeasurement(
                     weightedMeasurement.measurement,
@@ -272,30 +303,28 @@ class MetricsService(
         }
       }
 
-      // Set CMMs measurement IDs.
+      // Set CMMS measurement IDs.
       val measurementIdsList = deferred.awaitAll()
       if (measurementIdsList.isEmpty()) {
         return@coroutineScope
       }
 
       try {
-        internalMeasurementsStub
-          .batchSetCmmsMeasurementIds(
-            batchSetCmmsMeasurementIdsRequest {
-              this.cmmsMeasurementConsumerId = principal.resourceKey.measurementConsumerId
-              measurementIds += measurementIdsList
-            }
-          )
-          .toList()
+        internalMeasurementsStub.batchSetCmmsMeasurementIds(
+          batchSetCmmsMeasurementIdsRequest {
+            this.cmmsMeasurementConsumerId = principal.resourceKey.measurementConsumerId
+            measurementIds += measurementIdsList
+          }
+        )
       } catch (e: StatusException) {
         throw Exception(
-          "Unable to set the CMMs measurement IDs for the measurements in the reporting database.",
+          "Unable to set the CMMS measurement IDs for the measurements in the reporting database.",
           e
         )
       }
     }
 
-    /** Creates a CMMs measurement from an [InternalMeasurement]. */
+    /** Creates a CMMS measurement from an [InternalMeasurement]. */
     private suspend fun createCmmsMeasurement(
       internalMeasurement: InternalMeasurement,
       metricSpec: InternalMetricSpec,
@@ -320,11 +349,11 @@ class MetricsService(
           .withAuthenticationKey(principal.config.apiKey)
           .createMeasurement(createMeasurementRequest)
       } catch (e: StatusException) {
-        throw Exception("Unable to create a CMMs measurement.", e)
+        throw Exception("Unable to create a CMMS measurement.", e)
       }
     }
 
-    /** Builds a CMMs [CreateMeasurementRequest]. */
+    /** Builds a CMMS [CreateMeasurementRequest]. */
     private suspend fun buildCreateMeasurementRequest(
       internalMeasurement: InternalMeasurement,
       metricSpec: InternalMetricSpec,
@@ -364,7 +393,7 @@ class MetricsService(
 
     /** Gets a [SigningKeyHandle] for a [MeasurementConsumerPrincipal]. */
     private suspend fun getMeasurementConsumerSigningKey(
-      principal: MeasurementConsumerPrincipal
+      principal: MeasurementConsumerPrincipal,
     ): SigningKeyHandle {
       // TODO: Factor this out to a separate class similar to EncryptionKeyPairStore.
       val signingPrivateKeyDer: ByteString =
@@ -381,7 +410,7 @@ class MetricsService(
     private fun buildUnsignedMeasurementSpec(
       measurementEncryptionPublicKey: ByteString,
       nonceHashes: List<ByteString>,
-      metricSpec: InternalMetricSpec
+      metricSpec: InternalMetricSpec,
     ): MeasurementSpec {
       return measurementSpec {
         measurementPublicKey = measurementEncryptionPublicKey
@@ -558,9 +587,9 @@ class MetricsService(
       return filters.joinToString(separator = " AND ") { filter -> "($filter)" }
     }
 
-    /** Get a [MeasurementConsumer] based on a CMMs ID. */
+    /** Get a [MeasurementConsumer] based on a CMMS ID. */
     private suspend fun getMeasurementConsumer(
-      principal: MeasurementConsumerPrincipal
+      principal: MeasurementConsumerPrincipal,
     ): MeasurementConsumer {
       return try {
         measurementConsumersStub
@@ -589,7 +618,9 @@ class MetricsService(
       }
 
       val internalReportingSetsList =
-        internalReportingSetsStub.batchGetReportingSets(batchGetReportingSetsRequest).toList()
+        internalReportingSetsStub
+          .batchGetReportingSets(batchGetReportingSetsRequest)
+          .reportingSetsList
 
       if (internalReportingSetsList.size < externalReportingSetIds.size) {
         val missingExternalReportingSetIds = externalReportingSetIds.toMutableSet()
@@ -610,7 +641,7 @@ class MetricsService(
 
     /** Gets a signing certificate x509Der in ByteString. */
     private suspend fun getSigningCertificateDer(
-      principal: MeasurementConsumerPrincipal
+      principal: MeasurementConsumerPrincipal,
     ): ByteString {
       // TODO: Replace this with caching certificates or having them stored alongside the private
       // key.
@@ -646,8 +677,10 @@ class MetricsService(
       }
     }
 
-    val internalCreateMetricRequest: InternalMetric =
-      buildInternalMetric(principal.resourceKey.measurementConsumerId, request)
+    val internalCreateMetricRequest: InternalCreateMetricRequest = internalCreateMetricRequest {
+      requestId = request.requestId
+      metric = buildInternalMetric(principal.resourceKey.measurementConsumerId, request)
+    }
 
     val initialInternalMetric =
       try {
@@ -665,7 +698,7 @@ class MetricsService(
   }
 
   override suspend fun batchCreateMetrics(
-    request: BatchCreateMetricsRequest
+    request: BatchCreateMetricsRequest,
   ): BatchCreateMetricsResponse {
     grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
       "Parent is either unspecified or invalid."
@@ -688,9 +721,13 @@ class MetricsService(
       "At most $MAX_BATCH_SIZE requests can be supported in a batch."
     }
 
-    val internalCreateMetricRequestsList: List<InternalMetric> =
+    val internalCreateMetricRequestsList: List<InternalCreateMetricRequest> =
       request.requestsList.map { createMetricRequest ->
-        buildInternalMetric(principal.resourceKey.measurementConsumerId, createMetricRequest)
+        internalCreateMetricRequest {
+          requestId = createMetricRequest.requestId
+          metric =
+            buildInternalMetric(principal.resourceKey.measurementConsumerId, createMetricRequest)
+        }
       }
 
     val initialInternalMetrics =
@@ -699,10 +736,10 @@ class MetricsService(
           .batchCreateMetrics(
             internalBatchCreateMetricsRequest {
               cmmsMeasurementConsumerId = principal.resourceKey.measurementConsumerId
-              metrics += internalCreateMetricRequestsList
+              requests += internalCreateMetricRequestsList
             }
           )
-          .toList()
+          .metricsList
       } catch (e: StatusException) {
         throw Exception("Unable to create the metric in the reporting database.", e)
       }
@@ -748,7 +785,6 @@ class MetricsService(
 
     return internalMetric {
       this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-      metricIdempotencyKey = request.requestId
       externalReportingSetId = internalReportingSet.externalReportingSetId
       timeInterval = request.metric.timeInterval.toInternal()
       metricSpec = request.metric.metricSpec.toInternal()
@@ -766,7 +802,7 @@ class MetricsService(
   private fun buildInitialInternalMeasurements(
     cmmsMeasurementConsumerId: String,
     metric: Metric,
-    internalReportingSet: InternalReportingSet
+    internalReportingSet: InternalReportingSet,
   ): List<WeightedMeasurement> {
     return internalReportingSet.weightedSubsetUnionsList.map { weightedSubsetUnion ->
       weightedMeasurement {
@@ -798,12 +834,15 @@ class MetricsService(
     }
 
     return try {
-      internalReportingSetsStub.getReportingSet(
-        getInternalReportingSetRequest {
-          this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-          this.externalReportingSetId = apiIdToExternalId(reportingSetKey.reportingSetId)
-        }
-      )
+      internalReportingSetsStub
+        .batchGetReportingSets(
+          batchGetReportingSetsRequest {
+            this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+            this.externalReportingSetIds += apiIdToExternalId(reportingSetKey.reportingSetId)
+          }
+        )
+        .reportingSetsList
+        .first()
     } catch (e: StatusException) {
       throw Exception(
         "Unable to retrieve a reporting set from the reporting database using the provided " +
@@ -829,25 +868,72 @@ private fun MetricSpec.toInternal(): InternalMetricSpec {
   return internalMetricSpec {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     when (source.typeCase) {
-      MetricSpec.TypeCase.REACH -> reach = InternalMetricSpecKt.reachParams {}
+      MetricSpec.TypeCase.REACH -> reach = source.reach.toInternal()
       MetricSpec.TypeCase.FREQUENCY_HISTOGRAM ->
-        frequencyHistogram =
-          InternalMetricSpecKt.frequencyHistogramParams {
-            maximumFrequencyPerUser = source.frequencyHistogram.maximumFrequencyPerUser
-          }
+        frequencyHistogram = source.frequencyHistogram.toInternal()
       MetricSpec.TypeCase.IMPRESSION_COUNT ->
         impressionCount =
           InternalMetricSpecKt.impressionCountParams {
-            maximumFrequencyPerUser = source.impressionCount.maximumFrequencyPerUser
+            if (source.impressionCount.maximumFrequencyPerUser != 0) {
+              maximumFrequencyPerUser = source.impressionCount.maximumFrequencyPerUser
+            }
+            privacyParams = source.impressionCount.privacyParams.toInternal()
           }
       MetricSpec.TypeCase.WATCH_DURATION ->
         watchDuration =
           InternalMetricSpecKt.watchDurationParams {
-            maximumWatchDurationPerUser = source.watchDuration.maximumWatchDurationPerUser
+            if (source.watchDuration.maximumWatchDurationPerUser != 0) {
+              maximumWatchDurationPerUser = source.watchDuration.maximumWatchDurationPerUser
+            }
+            privacyParams = source.watchDuration.privacyParams.toInternal()
           }
       MetricSpec.TypeCase.TYPE_NOT_SET ->
         failGrpc(Status.INVALID_ARGUMENT) { "The metric type in Metric is not specified." }
     }
+  }
+}
+
+private fun MetricSpec.FrequencyHistogramParams.toInternal():
+  InternalMetricSpec.FrequencyHistogramParams {
+  val source = this
+  return InternalMetricSpecKt.frequencyHistogramParams {
+    maximumFrequencyPerUser =
+      if (source.maximumFrequencyPerUser != 0) {
+        source.maximumFrequencyPerUser
+      } else {
+        REACH_FREQUENCY_MAXIMUM_FREQUENCY_PER_USER
+      }
+    privacyParams =
+      if (source.hasPrivacyParams()) {
+        source.privacyParams.toInternal()
+      } else {
+        REACH_ONLY_DIFFERENTIAL_PRIVACY_PARAMS
+      }
+  }
+}
+
+private fun MetricSpec.ReachParams.toInternal(): InternalMetricSpec.ReachParams {
+  val source = this
+  return InternalMetricSpecKt.reachParams {
+    privacyParams =
+      if (source.hasPrivacyParams()) {
+        source.privacyParams.toInternal()
+      } else {
+        REACH_ONLY_DIFFERENTIAL_PRIVACY_PARAMS
+      }
+  }
+}
+
+/**
+ * Converts an [MetricSpec.DifferentialPrivacyParams] to a public
+ * [InternalMetricSpec.DifferentialPrivacyParams].
+ */
+private fun MetricSpec.DifferentialPrivacyParams.toInternal():
+  InternalMetricSpec.DifferentialPrivacyParams {
+  val source = this
+  return InternalMetricSpecKt.differentialPrivacyParams {
+    epsilon = source.epsilon
+    delta = source.delta
   }
 }
 
@@ -895,27 +981,47 @@ private fun InternalMetricResult.toResult(): MetricResult {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     when (source.resultCase) {
       InternalMetricResult.ResultCase.REACH -> {
-        reach = source.reach.toIntegerResult()
+        reach = source.reach.toReachResult()
       }
       InternalMetricResult.ResultCase.FREQUENCY_HISTOGRAM -> {
         frequencyHistogram = source.frequencyHistogram.toHistogramResult()
       }
       InternalMetricResult.ResultCase.IMPRESSION_COUNT -> {
-        impressionCount = source.impressionCount.toIntegerResult()
+        impressionCount = source.impressionCount.toImpressionCountResult()
       }
       InternalMetricResult.ResultCase.WATCH_DURATION -> {
-        watchDuration = source.watchDuration.toDoubleResult()
+        watchDuration = source.watchDuration.toWatchDurationResult()
       }
       InternalMetricResult.ResultCase
-        .RESULT_NOT_SET -> {} // No action if the result hasn't been set yet.
+        .RESULT_NOT_SET, -> {} // No action if the result hasn't been set yet.
     }
   }
 }
 
-/** Converts an [InternalMetricResult.DoubleResult] to a public [MetricResult.DoubleResult]. */
-private fun InternalMetricResult.DoubleResult.toDoubleResult(): MetricResult.DoubleResult {
+/**
+ * Converts an [InternalMetricResult.WatchDurationResult] to a public
+ * [MetricResult.WatchDurationResult].
+ */
+private fun InternalMetricResult.WatchDurationResult.toWatchDurationResult():
+  MetricResult.WatchDurationResult {
   val source = this
-  return doubleResult { value = source.value }
+  return watchDurationResult { value = source.value }
+}
+
+/**
+ * Converts an [InternalMetricResult.ImpressionCountResult] to a public
+ * [MetricResult.ImpressionCountResult].
+ */
+private fun InternalMetricResult.ImpressionCountResult.toImpressionCountResult():
+  MetricResult.ImpressionCountResult {
+  val source = this
+  return impressionCountResult { value = source.value }
+}
+
+/** Converts an [InternalMetricResult.ReachResult] to a public [MetricResult.ReachResult]. */
+private fun InternalMetricResult.ReachResult.toReachResult(): MetricResult.ReachResult {
+  val source = this
+  return reachResult { value = source.value }
 }
 
 /**
@@ -928,16 +1034,10 @@ private fun InternalMetricResult.HistogramResult.toHistogramResult(): MetricResu
       source.binsList.map { internalBin ->
         bin {
           label = internalBin.label
-          value = internalBin.value.toDoubleResult()
+          binResult = binResult { value = internalBin.binResult.value }
         }
       }
   }
-}
-
-/** Converts an [InternalMetricResult.IntegerResult] to a public [MetricResult.IntegerResult]. */
-private fun InternalMetricResult.IntegerResult.toIntegerResult(): MetricResult.IntegerResult {
-  val source = this
-  return integerResult { value = source.value }
 }
 
 /** Converts an [InternalMetric.State] to a public [Metric.State]. */
@@ -958,25 +1058,43 @@ private fun InternalMetricSpec.toMetricSpec(): MetricSpec {
   return metricSpec {
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
     when (source.typeCase) {
-      InternalMetricSpec.TypeCase.REACH -> reach = MetricSpecKt.reachParams {}
+      InternalMetricSpec.TypeCase.REACH ->
+        reach =
+          MetricSpecKt.reachParams { privacyParams = source.reach.privacyParams.toPrivacyParams() }
       InternalMetricSpec.TypeCase.FREQUENCY_HISTOGRAM ->
         frequencyHistogram =
           MetricSpecKt.frequencyHistogramParams {
             maximumFrequencyPerUser = source.frequencyHistogram.maximumFrequencyPerUser
+            privacyParams = source.frequencyHistogram.privacyParams.toPrivacyParams()
           }
       InternalMetricSpec.TypeCase.IMPRESSION_COUNT ->
         impressionCount =
           MetricSpecKt.impressionCountParams {
             maximumFrequencyPerUser = source.impressionCount.maximumFrequencyPerUser
+            privacyParams = source.impressionCount.privacyParams.toPrivacyParams()
           }
       InternalMetricSpec.TypeCase.WATCH_DURATION ->
         watchDuration =
           MetricSpecKt.watchDurationParams {
             maximumWatchDurationPerUser = source.watchDuration.maximumWatchDurationPerUser
+            privacyParams = source.watchDuration.privacyParams.toPrivacyParams()
           }
       InternalMetricSpec.TypeCase.TYPE_NOT_SET ->
         failGrpc(Status.INVALID_ARGUMENT) { "The metric type in Metric is not specified." }
     }
+  }
+}
+
+/**
+ * Converts an [InternalMetricSpec.DifferentialPrivacyParams] to a public
+ * [MetricSpec.DifferentialPrivacyParams].
+ */
+private fun InternalMetricSpec.DifferentialPrivacyParams.toPrivacyParams():
+  MetricSpec.DifferentialPrivacyParams {
+  val source = this
+  return MetricSpecKt.differentialPrivacyParams {
+    epsilon = source.epsilon
+    delta = source.delta
   }
 }
 
@@ -1001,7 +1119,7 @@ private fun buildReachOnlyVidSamplingInterval(secureRandom: SecureRandom): VidSa
 
 /** Builds a [VidSamplingInterval] for reach-frequency. */
 private fun buildReachAndFrequencyVidSamplingInterval(
-  secureRandom: SecureRandom
+  secureRandom: SecureRandom,
 ): VidSamplingInterval {
   return MeasurementSpecKt.vidSamplingInterval {
     // Random draw the start point from the list
@@ -1033,7 +1151,7 @@ private fun buildDurationVidSamplingInterval(secureRandom: SecureRandom): VidSam
 
 /** Builds a [MeasurementSpec.ReachAndFrequency] for reach-frequency. */
 private fun buildReachAndFrequencyMeasurementSpec(
-  maximumFrequencyPerUser: Int
+  maximumFrequencyPerUser: Int,
 ): MeasurementSpec.ReachAndFrequency {
   return MeasurementSpecKt.reachAndFrequency {
     reachPrivacyParams = differentialPrivacyParams {
@@ -1050,7 +1168,7 @@ private fun buildReachAndFrequencyMeasurementSpec(
 
 /** Builds a [MeasurementSpec.ReachAndFrequency] for impression count. */
 private fun buildImpressionMeasurementSpec(
-  maximumFrequencyPerUser: Int
+  maximumFrequencyPerUser: Int,
 ): MeasurementSpec.Impression {
   return MeasurementSpecKt.impression {
     privacyParams = differentialPrivacyParams {
