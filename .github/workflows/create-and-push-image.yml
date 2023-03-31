@@ -24,7 +24,6 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-
   create-image-tag:
     runs-on: ubuntu-20.04
     outputs:
@@ -41,7 +40,7 @@ jobs:
     runs-on: ubuntu-20.04
     needs: create-image-tag
     with:
-      image_tag: ${{ needs.get-image-tag.outputs.image_tag }}
+      image_tag: ${{ needs.create-image-tag.outputs.image_tag }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -72,7 +71,7 @@ jobs:
     runs-on: ubuntu-20.04
     needs: create-image-tag
     with:
-      image_tag: ${{ needs.get-image-tag.outputs.image_tag }}
+      image_tag: ${{ needs.create-image-tag.outputs.image_tag }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
