@@ -737,45 +737,23 @@ class EdpSimulator(
         }
     val (sampledReachValue, frequencyMap) = calculateDirectReachAndFrequency(vidList)
 
-    logger.info("Adding publisher noise to direct reach and frequency...")
+    logger.info("Generating publisher noise for direct reach and frequency...")
     val publisherNoise = generatePublisherNoise(measurementSpec, frequencyMap.keys.toList())
-    val sampledNoisedReachValue = sampledReachValue + publisherNoise.reachNoise
-    val noisedFrequencyMap: Map<Long, Double> =
-      if (measurementSpec.hasReachAndFrequency()) {
-        publisherNoise.frequencyNoises.mapValues { (frequency, noise) ->
-          (frequencyMap.getValue(frequency) * sampledReachValue + noise) / sampledReachValue
-        }
-      } else frequencyMap
-
-    val reachNoiser: AbstractNoiser =
-      when (noiseMechanism) {
-        NoiseMechanism.LAPLACE ->
-          LaplaceNoiser(measurementSpec.reachAndFrequency.reachPrivacyParams, random)
-        NoiseMechanism.GAUSSIAN ->
-          GaussianNoiser(measurementSpec.reachAndFrequency.reachPrivacyParams, random)
-      }
-    val frequencyNoiser: AbstractNoiser =
-      when (noiseMechanism) {
-        NoiseMechanism.LAPLACE ->
-          LaplaceNoiser(measurementSpec.reachAndFrequency.frequencyPrivacyParams, random)
-        NoiseMechanism.GAUSSIAN ->
-          GaussianNoiser(measurementSpec.reachAndFrequency.frequencyPrivacyParams, random)
-      }
-
-    val sampledNoisedReachValue = sampledReachValue + reachNoiser.sample().toInt()
-    val noisedFrequencyMap =
-      frequencyMap.mapValues {
-        (it.value * sampledReachValue.toDouble() + frequencyNoiser.sample()) /
-          sampledReachValue.toDouble()
-      }
-    // Differentially private reach value is calculated by reach_dp = (reach + noise) /
-    // sampling_rate.
-    val scaledNoisedReachValue = (sampledNoisedReachValue / vidSamplingIntervalWidth).toLong()
 
     val requisitionData =
       MeasurementKt.result {
-        reach = reach { value = scaledNoisedReachValue }
+        reach = reach {
+          val sampledNoisedReachValue = sampledReachValue + publisherNoise.reachNoise
+          // Differentially private reach value is calculated by reach_dp = (reach + noise) /
+          // sampling_rate.
+          val scaledNoisedReachValue = (sampledNoisedReachValue / vidSamplingIntervalWidth).toLong()
+          value = scaledNoisedReachValue
+        }
         if (measurementSpec.hasReachAndFrequency()) {
+          val noisedFrequencyMap: Map<Long, Double> =
+            publisherNoise.frequencyNoises.mapValues { (frequency, noise) ->
+              (frequencyMap.getValue(frequency) * sampledReachValue + noise) / sampledReachValue
+            }
           frequency = frequency { relativeFrequencyDistribution.putAll(noisedFrequencyMap) }
         }
       }
