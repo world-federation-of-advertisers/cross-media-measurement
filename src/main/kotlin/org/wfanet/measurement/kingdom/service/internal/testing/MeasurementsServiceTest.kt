@@ -40,6 +40,7 @@ import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.DeleteMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
@@ -78,6 +79,7 @@ import org.wfanet.measurement.kingdom.service.internal.testing.Population.Compan
 private const val RANDOM_SEED = 1
 private const val API_VERSION = "v2alpha"
 private const val PROVIDED_MEASUREMENT_ID = "ProvidedMeasurementId"
+private const val MAX_BATCH_DELETE = 1000
 
 private val MEASUREMENT = measurement {
   providedMeasurementId = PROVIDED_MEASUREMENT_ID
@@ -1370,7 +1372,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
-  fun `batchDeleteMeasurements throws NOT_FOUND when Measurement does not exist`(): Unit =
+  fun `batchDeleteMeasurements throws NOT_FOUND when Measurement is missing`(): Unit =
     runBlocking {
       val measurementConsumer =
         population.createMeasurementConsumer(measurementConsumersService, accountsService)
@@ -1384,7 +1386,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           }
         )
 
-      val invalidMeasurementRequest = deleteMeasurementRequest {
+      val missingMeasurementRequest = deleteMeasurementRequest {
         externalMeasurementId = 123L
         externalMeasurementConsumerId = 123L
       }
@@ -1392,7 +1394,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       val exception =
         assertFailsWith<StatusRuntimeException> {
           measurementsService.batchDeleteMeasurements(
-            batchDeleteMeasurementsRequest { requests += listOf(invalidMeasurementRequest) }
+            batchDeleteMeasurementsRequest { requests += missingMeasurementRequest }
           )
         }
 
@@ -1411,6 +1413,44 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       assertThat(exception).hasMessageThat().contains("Measurement not found")
       assertThat(measurements).containsExactly(measurement)
     }
+
+  @Test
+  fun `batchDeleteMeasurements throws INVALID_ARGUMENT when Measurement ids are not specified`():
+    Unit = runBlocking {
+    val invalidMeasurementRequest = deleteMeasurementRequest {}
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        measurementsService.batchDeleteMeasurements(
+          batchDeleteMeasurementsRequest { requests += invalidMeasurementRequest }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("not specified")
+    }
+
+  @Test
+  fun `batchDeleteMeasurements throws INVALID_ARGUMENT when Measurements requested exceed limit`():
+    Unit = runBlocking {
+    val deletionRequests = mutableListOf<DeleteMeasurementRequest>()
+    for (i in 1..MAX_BATCH_DELETE + 1) {
+      deletionRequests.add(
+        deleteMeasurementRequest {
+          externalMeasurementId = (123L + 2 * i)
+          externalMeasurementConsumerId = (123L + 2 * i)
+        }
+      )
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        measurementsService.batchDeleteMeasurements(
+          batchDeleteMeasurementsRequest { requests += deletionRequests }
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("exceeds limit")
+  }
 
   companion object {
     @BeforeClass
