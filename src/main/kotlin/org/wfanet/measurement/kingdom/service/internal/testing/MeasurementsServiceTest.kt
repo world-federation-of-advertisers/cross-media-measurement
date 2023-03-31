@@ -1372,19 +1372,53 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
-  fun `batchDeleteMeasurements throws NOT_FOUND when Measurement is missing`(): Unit = runBlocking {
-    val measurementConsumer =
-      population.createMeasurementConsumer(measurementConsumersService, accountsService)
-    val measurement =
-      measurementsService.createMeasurement(
-        MEASUREMENT.copy {
-          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-          providedMeasurementId = PROVIDED_MEASUREMENT_ID
-          externalMeasurementConsumerCertificateId =
-            measurementConsumer.certificate.externalCertificateId
-        }
-      )
+  fun `batchDeleteMeasurements does not delete any Measurements when any are missing`(): Unit =
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val measurement =
+        measurementsService.createMeasurement(
+          MEASUREMENT.copy {
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            providedMeasurementId = PROVIDED_MEASUREMENT_ID
+            externalMeasurementConsumerCertificateId =
+              measurementConsumer.certificate.externalCertificateId
+          }
+        )
+      val validMeasurementRequest = deleteMeasurementRequest {
+        externalMeasurementId = measurement.externalMeasurementId
+        externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+      }
 
+      val missingMeasurementRequest = deleteMeasurementRequest {
+        externalMeasurementId = 123L
+        externalMeasurementConsumerId = 123L
+      }
+
+      assertFailsWith<StatusRuntimeException> {
+        measurementsService.batchDeleteMeasurements(
+          batchDeleteMeasurementsRequest {
+            requests += listOf(validMeasurementRequest, missingMeasurementRequest)
+          }
+        )
+      }
+
+      val measurements: List<Measurement> =
+        measurementsService
+          .streamMeasurements(
+            streamMeasurementsRequest {
+              filter = filter {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              }
+            }
+          )
+          .toList()
+
+      assertThat(measurements).containsExactly(measurement)
+    }
+
+  @Test
+  fun `batchDeleteMeasurements throws NOT_FOUND when Measurement is missing`(): Unit = runBlocking {
     val missingMeasurementRequest = deleteMeasurementRequest {
       externalMeasurementId = 123L
       externalMeasurementConsumerId = 123L
@@ -1397,20 +1431,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         )
       }
 
-    val measurements: List<Measurement> =
-      measurementsService
-        .streamMeasurements(
-          streamMeasurementsRequest {
-            filter = filter {
-              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
-            }
-          }
-        )
-        .toList()
-
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception).hasMessageThat().contains("Measurement not found")
-    assertThat(measurements).containsExactly(measurement)
   }
 
   @Test
