@@ -16,7 +16,7 @@ name: Build and Push Images
 
 on:
   push:
-    branches: [main]
+    branches: [ main, feature/create-push-images ]
   workflow_dispatch:
   workflow_call:
 
