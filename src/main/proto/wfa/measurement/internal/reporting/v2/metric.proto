@@ -33,8 +33,9 @@ message MetricSpec {
     DifferentialPrivacyParams privacy_params = 1;
   }
   message FrequencyHistogramParams {
-    DifferentialPrivacyParams privacy_params = 1;
-    int32 maximum_frequency_per_user = 2;
+    DifferentialPrivacyParams reach_privacy_params = 1;
+    DifferentialPrivacyParams frequency_privacy_params = 2;
+    int32 maximum_frequency_per_user = 3;
   }
   message ImpressionCountParams {
     DifferentialPrivacyParams privacy_params = 1;
