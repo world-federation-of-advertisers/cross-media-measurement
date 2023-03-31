@@ -32,7 +32,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
       - id: generate-tag
-        run: sh ./.github/workflows/export-image-tag.sh
+        run: ./.github/workflows/export-image-tag.sh
       - id: get-image-tag-step
         run: echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
