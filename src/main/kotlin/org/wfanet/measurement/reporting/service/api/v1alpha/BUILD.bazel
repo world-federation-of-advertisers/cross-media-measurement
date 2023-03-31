@@ -35,6 +35,7 @@ kt_jvm_library(
         ":resource_key",
         "//imports/java/org/projectnessie/cel",
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:encryption_key_pair_store",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:principal_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:reporting_principal",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
