@@ -53,6 +53,8 @@ jobs:
       - name: show-tag
         id: show-tag
         run: echo ${{ image_tag }}
+        with:
+          image_tag: ${{ needs.create-image-tag.outputs.image_tag }}
 
   build-duchy-image:
     runs-on: ubuntu-20.04
@@ -70,3 +72,5 @@ jobs:
       - name: show-tag
         id: show-tag
         run: echo ${{ image_tag }}
+        with:
+          image_tag: ${{ needs.create-image-tag.outputs.image_tag }}
