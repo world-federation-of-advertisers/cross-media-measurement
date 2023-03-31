@@ -1,0 +1,95 @@
+# Copyright 2023 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: 'Deploy CMM'
+
+on:
+  # TODO(wfa-mdharmalingam): trigger on release.
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        description: 'Environment to run the flow for.'
+        options:
+          - QA
+          - NIGHTLY
+      # TODO(wfa-mdharmalingam): Remove the conditional variables once the whole flow is seen working.
+      create_image:
+        required: true
+        type: boolean
+      deploy_kingdom:
+        required: true
+        type: boolean
+      deploy_duchy-1:
+        required: true
+        type: boolean
+      deploy_duchy-2:
+        required: true
+        type: boolean
+      deploy_duchy-3:
+        required: true
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  # Generate the Image Tag and pass to the modules where needed.
+  get-image-tag:
+    runs-on: ubuntu-latest
+    if: inputs.create_image == true
+    outputs:
+      image_tag: ${{ steps.get-image-tag-step.outputs.image_tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - id: generate-tag
+        run: sh ./.github/workflows/export-image-tag.sh
+      - id: get-image-tag-step
+        run: echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+  # TODO(wfa-mdharmalingam): Call the create-push-image workflow.
+
+  # TODO(wfa-mdharmalingam): Connect the deploy-kingdom workflow.
+  deploy-kingdom:
+    if: inputs.deploy_kingdom == true
+    uses: ./.github/workflows/deploy-kingdom.yml
+    needs: get-image-tag
+    with:
+      image_tag: ${{ needs.get-image-tag.outputs.image_tag }}
+
+  # TODO(wfa-mdharmalingam): Connect the deploy-duchy workflow with duchy name duchy-1.
+  deploy-duchy-1:
+    if: inputs.deploy_duchy-1 == true
+    uses: ./.github/workflows/deploy-duchy.yml
+    with:
+      duchy_name: "duchy-1"
+      environment: ${{ inputs.environment }}
+
+  # TODO(wfa-mdharmalingam): Connect the deploy-duchy workflow with duchy name duchy-2.
+  deploy-duchy-2:
+    if: inputs.deploy_duchy-2 == true
+    uses: ./.github/workflows/deploy-duchy.yml
+    with:
+      duchy_name: "duchy-2"
+      environment: ${{ inputs.environment }}
+
+  # TODO(wfa-mdharmalingam): Connect the deploy-duchy workflow with duchy name duchy-3.
+  deploy-duchy-3:
+    if: inputs.deploy_duchy-3 == true
+    uses: ./.github/workflows/deploy-duchy.yml
+    with:
+      duchy_name: "duchy-3"
+      environment: ${{ inputs.environment }}
