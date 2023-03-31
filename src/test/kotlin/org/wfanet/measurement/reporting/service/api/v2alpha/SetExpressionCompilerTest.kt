@@ -37,19 +37,17 @@ private const val REPORTING_SET_EXTERNAL_ID_2 = 332L
 private const val REPORTING_SET_EXTERNAL_ID_3 = 333L
 
 private val REPORTING_SET_NAME =
-    ReportingSetKey(MEASUREMENT_CONSUMER_REFERENCE_ID, externalIdToApiId(REPORTING_SET_EXTERNAL_ID))
-        .toName()
+  ReportingSetKey(MEASUREMENT_CONSUMER_REFERENCE_ID, externalIdToApiId(REPORTING_SET_EXTERNAL_ID))
+    .toName()
 private val REPORTING_SET_NAME_2 =
-    ReportingSetKey(
-            MEASUREMENT_CONSUMER_REFERENCE_ID, externalIdToApiId(REPORTING_SET_EXTERNAL_ID_2))
-        .toName()
+  ReportingSetKey(MEASUREMENT_CONSUMER_REFERENCE_ID, externalIdToApiId(REPORTING_SET_EXTERNAL_ID_2))
+    .toName()
 private val REPORTING_SET_NAME_3 =
-    ReportingSetKey(
-            MEASUREMENT_CONSUMER_REFERENCE_ID, externalIdToApiId(REPORTING_SET_EXTERNAL_ID_3))
-        .toName()
+  ReportingSetKey(MEASUREMENT_CONSUMER_REFERENCE_ID, externalIdToApiId(REPORTING_SET_EXTERNAL_ID_3))
+    .toName()
 
 private val EXPECTED_REPORTING_SET_NAMES_LIST_ALL_UNION =
-    listOf(REPORTING_SET_NAME, REPORTING_SET_NAME_2, REPORTING_SET_NAME_3).sorted()
+  listOf(REPORTING_SET_NAME, REPORTING_SET_NAME_2, REPORTING_SET_NAME_3).sorted()
 
 private val SET_EXPRESSION = setExpression {
   operation = ReportingSet.SetExpression.Operation.UNION
@@ -74,37 +72,38 @@ private const val SET_EXPRESSION_ALL_UNION_DISPLAY_NAME = "SET_EXPRESSION_ALL_UN
 private const val SET_EXPRESSION_ALL_UNION_BUT_ONE_DISPLAY_NAME = "SET_EXPRESSION_ALL_UNION_BUT_ONE"
 
 private val EXPECTED_RESULT_FOR_ALL_UNION_SET_EXPRESSION =
-    listOf(WeightedSubSetUnion(EXPECTED_REPORTING_SET_NAMES_LIST_ALL_UNION, coefficient = 1))
+  listOf(WeightedSubSetUnion(EXPECTED_REPORTING_SET_NAMES_LIST_ALL_UNION, coefficient = 1))
 
 private val EXPECTED_RESULT_FOR_ALL_UNION_BUT_ONE_SET_EXPRESSION =
-    listOf(
-      WeightedSubSetUnion(EXPECTED_REPORTING_SET_NAMES_LIST_ALL_UNION, coefficient = 1),
-      WeightedSubSetUnion(
-            listOf(EXPECTED_REPORTING_SET_NAMES_LIST_ALL_UNION[1]), coefficient = -1))
+  listOf(
+    WeightedSubSetUnion(EXPECTED_REPORTING_SET_NAMES_LIST_ALL_UNION, coefficient = 1),
+    WeightedSubSetUnion(listOf(EXPECTED_REPORTING_SET_NAMES_LIST_ALL_UNION[1]), coefficient = -1)
+  )
 
 private val EXPECTED_CACHE_FOR_ALL_UNION_SET_EXPRESSION =
-    mapOf(
-        EXPECTED_REPORTING_SET_NAMES_LIST_ALL_UNION.size to
-            mapOf(
-                1UL to mapOf(6UL to -1, 7UL to 1),
-                2UL to mapOf(5UL to -1, 7UL to 1),
-                3UL to mapOf(4UL to -1, 5UL to 1, 6UL to 1, 7UL to -1),
-                4UL to mapOf(3UL to -1, 7UL to 1),
-                5UL to mapOf(2UL to -1, 3UL to 1, 6UL to 1, 7UL to -1),
-                6UL to mapOf(1UL to -1, 3UL to 1, 5UL to 1, 7UL to -1),
-                7UL to
-                    mapOf(1UL to 1, 2UL to 1, 3UL to -1, 4UL to 1, 5UL to -1, 6UL to -1, 7UL to 1),
-            ))
+  mapOf(
+    EXPECTED_REPORTING_SET_NAMES_LIST_ALL_UNION.size to
+      mapOf(
+        1UL to mapOf(6UL to -1, 7UL to 1),
+        2UL to mapOf(5UL to -1, 7UL to 1),
+        3UL to mapOf(4UL to -1, 5UL to 1, 6UL to 1, 7UL to -1),
+        4UL to mapOf(3UL to -1, 7UL to 1),
+        5UL to mapOf(2UL to -1, 3UL to 1, 6UL to 1, 7UL to -1),
+        6UL to mapOf(1UL to -1, 3UL to 1, 5UL to 1, 7UL to -1),
+        7UL to mapOf(1UL to 1, 2UL to 1, 3UL to -1, 4UL to 1, 5UL to -1, 6UL to -1, 7UL to 1),
+      )
+  )
 
 // {4: {3: -1, 7: 1}, 1: {6: -1, 7: 1}, 5: {2: -1, 3: 1, 6: 1, 7: -1}}
 private val EXPECTED_CACHE_FOR_ALL_UNION_BUT_ONE_SET_EXPRESSION =
-    mapOf(
-        EXPECTED_REPORTING_SET_NAMES_LIST_ALL_UNION.size to
-            mapOf(
-                1UL to mapOf(6UL to -1, 7UL to 1),
-                4UL to mapOf(3UL to -1, 7UL to 1),
-                5UL to mapOf(2UL to -1, 3UL to 1, 6UL to 1, 7UL to -1),
-            ))
+  mapOf(
+    EXPECTED_REPORTING_SET_NAMES_LIST_ALL_UNION.size to
+      mapOf(
+        1UL to mapOf(6UL to -1, 7UL to 1),
+        4UL to mapOf(3UL to -1, 7UL to 1),
+        5UL to mapOf(2UL to -1, 3UL to 1, 6UL to 1, 7UL to -1),
+      )
+  )
 
 @RunWith(JUnit4::class)
 class SetExpressionCompilerTest {
@@ -123,9 +122,9 @@ class SetExpressionCompilerTest {
     val primitiveRegionCacheAllUnionButOne = reportResultCompiler.getPrimitiveRegionCache()
 
     Truth.assertThat(resultAllUnionButOne)
-        .containsExactlyElementsIn(EXPECTED_RESULT_FOR_ALL_UNION_BUT_ONE_SET_EXPRESSION)
+      .containsExactlyElementsIn(EXPECTED_RESULT_FOR_ALL_UNION_BUT_ONE_SET_EXPRESSION)
     Truth.assertThat(primitiveRegionCacheAllUnionButOne)
-        .isEqualTo(EXPECTED_CACHE_FOR_ALL_UNION_BUT_ONE_SET_EXPRESSION)
+      .isEqualTo(EXPECTED_CACHE_FOR_ALL_UNION_BUT_ONE_SET_EXPRESSION)
 
     val resultAllUnion = runBlocking {
       reportResultCompiler.compileSetExpression(SET_EXPRESSION_ALL_UNION)
@@ -133,9 +132,9 @@ class SetExpressionCompilerTest {
     val primitiveRegionCacheAllUnion = reportResultCompiler.getPrimitiveRegionCache()
 
     Truth.assertThat(resultAllUnion)
-        .containsExactlyElementsIn(EXPECTED_RESULT_FOR_ALL_UNION_SET_EXPRESSION)
+      .containsExactlyElementsIn(EXPECTED_RESULT_FOR_ALL_UNION_SET_EXPRESSION)
     Truth.assertThat(primitiveRegionCacheAllUnion)
-        .isEqualTo(EXPECTED_CACHE_FOR_ALL_UNION_SET_EXPRESSION)
+      .isEqualTo(EXPECTED_CACHE_FOR_ALL_UNION_SET_EXPRESSION)
   }
 
   @Test
@@ -154,9 +153,9 @@ class SetExpressionCompilerTest {
     val setExpressionWithLhsNotSet = SET_EXPRESSION_ALL_UNION.copy { clearLhs() }
 
     val exception =
-        Assert.assertThrows(IllegalArgumentException::class.java) {
-          runBlocking { reportResultCompiler.compileSetExpression(setExpressionWithLhsNotSet) }
-        }
+      Assert.assertThrows(IllegalArgumentException::class.java) {
+        runBlocking { reportResultCompiler.compileSetExpression(setExpressionWithLhsNotSet) }
+      }
     Truth.assertThat(exception.message).isEqualTo("lhs in SetExpression must be set.")
   }
 
@@ -165,13 +164,13 @@ class SetExpressionCompilerTest {
     val setExpressionWithLhsOperandTypeNotSet = SET_EXPRESSION_ALL_UNION.copy { lhs = operand {} }
 
     val exception =
-        Assert.assertThrows(IllegalArgumentException::class.java) {
-          runBlocking {
-            reportResultCompiler.compileSetExpression(setExpressionWithLhsOperandTypeNotSet)
-          }
+      Assert.assertThrows(IllegalArgumentException::class.java) {
+        runBlocking {
+          reportResultCompiler.compileSetExpression(setExpressionWithLhsOperandTypeNotSet)
         }
+      }
     Truth.assertThat(exception.message)
-        .isEqualTo("Operand type of lhs in SetExpression must be set.")
+      .isEqualTo("Operand type of lhs in SetExpression must be set.")
   }
 
   @Test
@@ -179,11 +178,11 @@ class SetExpressionCompilerTest {
     val setExpressionWithSetOperatorTypeNotSet = SET_EXPRESSION_ALL_UNION.copy { clearOperation() }
 
     val exception =
-        Assert.assertThrows(IllegalArgumentException::class.java) {
-          runBlocking {
-            reportResultCompiler.compileSetExpression(setExpressionWithSetOperatorTypeNotSet)
-          }
+      Assert.assertThrows(IllegalArgumentException::class.java) {
+        runBlocking {
+          reportResultCompiler.compileSetExpression(setExpressionWithSetOperatorTypeNotSet)
         }
+      }
     Truth.assertThat(exception.message).isEqualTo("Set operator type is not specified.")
   }
 }
