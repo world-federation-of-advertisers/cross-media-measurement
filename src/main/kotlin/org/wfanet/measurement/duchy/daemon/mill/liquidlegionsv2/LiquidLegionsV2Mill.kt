@@ -46,8 +46,8 @@ import org.wfanet.measurement.duchy.daemon.mill.MillBase
 import org.wfanet.measurement.duchy.daemon.mill.PermanentComputationError
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.LiquidLegionsV2Encryption
 import org.wfanet.measurement.duchy.daemon.utils.ComputationResult
-import org.wfanet.measurement.duchy.daemon.utils.Reach
-import org.wfanet.measurement.duchy.daemon.utils.ReachAndFrequency
+import org.wfanet.measurement.duchy.daemon.utils.ReachAndFrequencyResult
+import org.wfanet.measurement.duchy.daemon.utils.ReachResult
 import org.wfanet.measurement.duchy.daemon.utils.toAnySketchElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toCmmsElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaElGamalPublicKey
@@ -719,7 +719,7 @@ class LiquidLegionsV2Mill(
 
     // If this is a reach-only computation, then our job is done.
     if (measurementSpec.hasReach() || maximumRequestedFrequency == 1) {
-      sendResultToKingdom(token, Reach(reach))
+      sendResultToKingdom(token, ReachResult(reach))
       return completeComputation(nextToken, CompletedReason.SUCCEEDED)
     }
 
@@ -842,7 +842,7 @@ class LiquidLegionsV2Mill(
 
     sendResultToKingdom(
       token,
-      ReachAndFrequency(llv2Details.reachEstimate.reach, frequencyDistributionMap)
+      ReachAndFrequencyResult(llv2Details.reachEstimate.reach, frequencyDistributionMap)
     )
     return completeComputation(nextToken, CompletedReason.SUCCEEDED)
   }
