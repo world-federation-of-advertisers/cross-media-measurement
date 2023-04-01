@@ -15,8 +15,6 @@
 name: Create CMM infrastructure
 
 on:
-  push:
-    branches: [ main, feature/create-cmm-infra ]
   workflow_call:
   workflow_dispatch:
     inputs:
@@ -79,5 +77,16 @@ jobs:
         run: terraform init -reconfigure
         working-directory: ${{env.ROOT_PATH}}
 
-      - name: names
-        run: echo ${{ inputs.environment}} || ${{ env.ENVIRONMENT }}
+      # Generate a plan
+      - name: Terraform Plan
+        working-directory: ${{ env.ROOT_PATH }}
+        run: | 
+          terraform plan '-out=${{ inputs.environment }}_tfplan' \
+            -var env=${{ inputs.environment }} \
+            -var project=${{ inputs.project }}
+
+      # Apply the plan Generated.
+      - name: Terraform Apply
+        if: inputs.terraform_apply == true
+        working-directory: ${{ env.ROOT_PATH }}
+        run: terraform apply ${{ inputs.environment }}_tfplan
