@@ -26,6 +26,12 @@ on:
         description: "Apply the manifest to the cluster"
         required: false
         type: boolean
+      duchy_name:
+        description: "Name of the duchy to be configured."
+        type: string
+        required: true
+        default: worker1
+
 
 env:
   REGISTRY: ghcr.io
@@ -45,10 +51,10 @@ jobs:
       # Create k8s manifest
       - name: Build K8s manifest
         run: |
-          bazelisk build //src/main/k8s/dev:worker1_duchy_gke \
+          bazelisk build //src/main/k8s/dev:${{ inputs.duchy_name }} \
           --define k8s_duchy_secret_name=certs-and-configs \
           --define duchy_cert_id=SVVse4xWHL0 \
-          --define duchy_storage_bucket=worker1-duchy \
+          --define duchy_storage_bucket=${{ inputs.duchy_name }}-duchy \
           --define container_registry=${{ env.REGISTRY }} \
           --define image_repo_prefix=world-federation-of-advertisers/packages \
           --define image_tag=${{ inputs.image_tag }}
@@ -56,5 +62,5 @@ jobs:
       # Apply manifest
       - name: apply k8s manifest
         if: inputs.kubectl_apply == true
-        run: kubectl apply -f bazel-bin/src/main/k8s/dev/worker1_duchy_gke.yaml
+        run: kubectl apply -f bazel-bin/src/main/k8s/dev/${{ inputs.duchy_name }}.yaml
 
