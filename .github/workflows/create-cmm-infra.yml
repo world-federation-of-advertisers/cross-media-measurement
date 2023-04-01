@@ -56,8 +56,8 @@ jobs:
         uses: google-github-actions/setup-gcloud@v1
 
       # Setup Gcloud identity federation
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v1
+      - name: "Authenticate to Google Cloud"
+        uses: "google-github-actions/auth@v1"
         with:
           workload_identity_provider: ${{ secrets.WFI_PROVIDER }}
           service_account: ${{ secrets.service-account }}
