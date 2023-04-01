@@ -25,28 +25,28 @@ terraform {
 }
 
 module "kingdom" {
-  source = "kingdom"
+  source = "./kingdom"
   env = var.env
   project = var.project
   service_account = var.service_account
 }
 
 module "duchy-1" {
-  source = "duchy"
+  source = "./duchy"
   env = var.env
   project = var.project
   component = "duchy1"
 }
 
 module "duchy-2" {
-  source = "duchy"
+  source = "./duchy"
   env = var.env
   project = var.project
   component = "duchy2"
 }
 
 module "duchy-3" {
-  source = "duchy"
+  source = "./duchy"
   env = var.env
   project = var.project
   component = "duchy3"
