@@ -22,7 +22,7 @@ inputs:
   environment:
     description: 'The terraform workspace to be used'
     required: false
-    default: "QA"
+    default: "qa"
   project:
     description: 'The project name to be used'
     required: true
@@ -34,11 +34,11 @@ runs:
     # Workspace selection
     - name: Workspace selection
       #TODO: Remove the hardcoding of environment
-      run:  terraform workspace select QA || terraform workspace new QA
+      run:  terraform workspace select qa || terraform workspace new qa
       shell: bash
 
     # Terraform plan
     - name: Terraform Plan
       working-directory: /home/runner/work/cross-media-measurement/cross-media-measurement/src/main/terraform/gcloud
       shell: bash
-      run: terraform plan '-out=QA_tfplan' -var env=QA -var project=cmm
+      run: terraform plan '-out=qa_tfplan' -var env=qa -var project=cmm
