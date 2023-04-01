@@ -28,6 +28,7 @@ on:
         type: choice
         description: 'Environment to run the flow for.'
         default: qa
+        required: false
         options:
           - qa
           - nightly
@@ -46,6 +47,8 @@ jobs:
   create-cmm-infra:
     name: CMM Infrastructure
     runs-on: ubuntu-22.04
+    defaults:
+
     steps:
       # Checkout the repository to the GitHub Actions runner
       - name: Checkout Code
