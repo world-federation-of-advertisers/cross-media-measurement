@@ -37,13 +37,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Login to GitHub Packages
-        uses: docker/login-action@v1
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GIT_SECRETS }}
-
       # TODO(wfa-hkawalkar): applying manifest failing.
       - name: Apply secrets
         run: bazelisk run //src/main/k8s/testing/secretfiles:apply_kustomization
