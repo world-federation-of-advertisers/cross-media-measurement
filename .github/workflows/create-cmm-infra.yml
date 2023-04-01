@@ -25,9 +25,9 @@ on:
         required: false
         default: '1.3.6'
       environment:
-        type: string
         description: 'Environment to run the flow for.'
-        default: qa
+        required: false
+        default: 'qa'
       terraform_apply:
         required: false
         type: boolean
@@ -75,6 +75,4 @@ jobs:
         working-directory: ${{env.ROOT_PATH}}
 
       - name: Echo Environment Used
-        run: env
-        with:
-          environment: ${{ inputs.environment }}
+        run: ech ${{ inputs.environment }}
