@@ -35,6 +35,10 @@ import org.wfanet.measurement.internal.duchy.createComputationRequest
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.Parameters
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.parameters
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfigKt.reachNoiseConfig
+import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsSketchParameters
+import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsV2NoiseConfig
 import org.wfanet.measurement.internal.duchy.updateComputationDetailsRequest
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant as SystemComputationParticipant
@@ -281,20 +285,20 @@ object LiquidLegionsV2Starter {
     }
     val llv2Config = mpcProtocolConfig.liquidLegionsV2
 
-    return Parameters.newBuilder()
-      .also {
-        it.maximumFrequency = llv2Config.maximumFrequency
-        it.liquidLegionsSketchBuilder.apply {
-          decayRate = llv2Config.sketchParams.decayRate
-          size = llv2Config.sketchParams.maxSize
-        }
-        it.noiseBuilder.apply {
-          reachNoiseConfigBuilder.apply {
-            val mpcNoise = llv2Config.mpcNoise
-            blindHistogramNoise = mpcNoise.blindedHistogramNoise.toDuchyDifferentialPrivacyParams()
-            noiseForPublisherNoise =
-              mpcNoise.noiseForPublisherNoise.toDuchyDifferentialPrivacyParams()
-          }
+    return parameters {
+      maximumFrequency = llv2Config.maximumFrequency
+      liquidLegionsSketch = liquidLegionsSketchParameters {
+        decayRate = llv2Config.sketchParams.decayRate
+        size = llv2Config.sketchParams.maxSize
+      }
+      ellipticCurveId = llv2Config.ellipticCurveId
+      noise = liquidLegionsV2NoiseConfig {
+        reachNoiseConfig = reachNoiseConfig {
+          val mpcNoise = llv2Config.mpcNoise
+          blindHistogramNoise = mpcNoise.blindedHistogramNoise.toDuchyDifferentialPrivacyParams()
+          noiseForPublisherNoise =
+            mpcNoise.noiseForPublisherNoise.toDuchyDifferentialPrivacyParams()
+
           when (Version.fromString(publicApiVersion)) {
             Version.V2_ALPHA -> {
               val measurementSpec = MeasurementSpec.parseFrom(measurementSpec)
@@ -309,8 +313,7 @@ object LiquidLegionsV2Starter {
                   require(reach.privacyParams.epsilon > MIN_REACH_EPSILON) {
                     "LLv2 requires that privacy_params.epsilon be greater than $MIN_REACH_EPSILON"
                   }
-                  reachNoiseConfigBuilder.globalReachDpNoise =
-                    reach.privacyParams.toDuchyDifferentialPrivacyParams()
+                  globalReachDpNoise = reach.privacyParams.toDuchyDifferentialPrivacyParams()
                 }
                 MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
                   val reachAndFrequency = measurementSpec.reachAndFrequency
@@ -329,9 +332,9 @@ object LiquidLegionsV2Starter {
                     "LLv2 requires that frequency_privacy_params.epsilon be greater than " +
                       "$MIN_FREQUENCY_EPSILON"
                   }
-                  reachNoiseConfigBuilder.globalReachDpNoise =
+                  globalReachDpNoise =
                     reachAndFrequency.reachPrivacyParams.toDuchyDifferentialPrivacyParams()
-                  frequencyNoiseConfig =
+                  this@liquidLegionsV2NoiseConfig.frequencyNoiseConfig =
                     reachAndFrequency.frequencyPrivacyParams.toDuchyDifferentialPrivacyParams()
                 }
                 MeasurementSpec.MeasurementTypeCase.IMPRESSION,
@@ -346,8 +349,7 @@ object LiquidLegionsV2Starter {
             Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
           }
         }
-        it.ellipticCurveId = llv2Config.ellipticCurveId
       }
-      .build()
+    }
   }
 }
