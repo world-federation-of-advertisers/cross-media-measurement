@@ -35,7 +35,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  REPO_PREFIX:
+  REPO_PREFIX: world-federation-of-advertisers/packages
 
 jobs:
   create_k8s_manifest:
@@ -57,7 +57,7 @@ jobs:
           --define duchy_cert_id=SVVse4xWHL0 \
           --define duchy_storage_bucket=${{ inputs.duchy_name }}-duchy \
           --define container_registry=${{ env.REGISTRY }} \
-          --define image_repo_prefix=${{ REPO_PREFIX }} \
+          --define image_repo_prefix=${{ env.REPO_PREFIX }} \
           --define image_tag=${{ inputs.image_tag }}
 
       # Apply manifest
