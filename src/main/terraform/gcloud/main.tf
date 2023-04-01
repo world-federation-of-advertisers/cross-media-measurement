@@ -31,23 +31,23 @@ module "kingdom" {
   service_account = var.service_account
 }
 
-module "duchy-1" {
+module "worker-1" {
   source = "./duchy"
   env = var.env
   project = var.project
-  component = "duchy1"
+  component = "worker1"
 }
 
-module "duchy-2" {
+module "worker-3" {
   source = "./duchy"
   env = var.env
   project = var.project
-  component = "duchy2"
+  component = "worker2"
 }
 
-module "duchy-3" {
+module "worker-3" {
   source = "./duchy"
   env = var.env
   project = var.project
-  component = "duchy3"
+  component = "worker3"
 }
