@@ -1,5 +1,4 @@
-#!/usr/bin/env bash
-# Copyright 2022 The Cross-Media Measurement Authors
+# Copyright 2023 The Cross-Media Measurement Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,17 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#set -eu -o pipefail
+variable "project" {
+  type = string
+  default = "halo-cmm-dev"
+  description = "Project name used"
+}
 
-DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
+variable env {
+  type = string
+  default = "dev"
+  description = "Represents the environment used."
+}
 
-declare tag
-if [[ "$GITHUB_EVENT_NAME" == 'release' ]]; then
-  tag="${GITHUB_REF_NAME#v}"
-elif [[ "$GITHUB_REF_NAME" == "$DEFAULT_BRANCH" ]]; then
-  tag="latest"
-else
-  tag="$GITHUB_SHA"
-fi
-
-echo "IMAGE_TAG=${tag}" >> "$GITHUB_ENV"
+variable "service_account" {
+  type = string
+  default = "serviceAccount:service-1049178966878@compute-system.iam.gserviceaccount.com"
+  description = "The Service account to be used to create these resources"
+}
