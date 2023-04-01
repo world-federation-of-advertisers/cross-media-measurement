@@ -17,30 +17,16 @@ provider "google" {
   project = var.project
 }
 
+terraform {
+  backend "gcs" {
+    bucket  = "terraform-state-halo-cmm"
+    prefix  = "cmm"
+  }
+}
+
 module "kingdom" {
   source = "./kingdom"
   env = var.env
   project = var.project
   service_account = var.service_account
-}
-
-module "duchy-1" {
-  source = "./duchy"
-  env = var.env
-  project = var.project
-  component = "duchy1"
-}
-
-module "duchy-2" {
-  source = "./duchy"
-  env = var.env
-  project = var.project
-  component = "duchy2"
-}
-
-module "duchy-3" {
-  source = "./duchy"
-  env = var.env
-  project = var.project
-  component = "duchy3"
 }
