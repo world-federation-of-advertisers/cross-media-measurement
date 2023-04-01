@@ -21,8 +21,8 @@ inputs:
     default: .
   environment:
     description: 'The terraform workspace to be used'
-    required: true
-    default: "dev"
+    required: false
+    default: "QA"
   project:
     description: 'The project name to be used'
     required: true
