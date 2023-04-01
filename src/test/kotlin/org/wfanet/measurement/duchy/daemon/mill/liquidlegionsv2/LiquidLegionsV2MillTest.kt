@@ -129,8 +129,12 @@ import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggrega
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfig
+import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseOneAtAggregatorRequest
 import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseOneAtAggregatorResponse
 import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseTwoAtAggregatorRequest
+import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseTwoAtAggregatorResponse
+import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseTwoRequest
+import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseTwoResponse
 import org.wfanet.measurement.internal.duchy.protocol.copy
 import org.wfanet.measurement.internal.duchy.protocol.globalReachDpNoiseBaseline
 import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsSketchParameters
@@ -1713,15 +1717,13 @@ class LiquidLegionsV2MillTest {
     // Check that the request sent to the crypto worker was correct.
     assertThat(cryptoRequest)
       .isEqualTo(
-        CompleteExecutionPhaseOneAtAggregatorRequest.newBuilder()
-          .apply {
-            combinedRegisterVector = ByteString.copyFromUtf8("data")
-            localElGamalKeyPair = DUCHY_ONE_KEY_PAIR
-            compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
-            curveId = CURVE_ID
-            totalSketchesCount = REQUISITIONS.size
-          }
-          .build()
+        completeExecutionPhaseOneAtAggregatorRequest {
+          combinedRegisterVector = ByteString.copyFromUtf8("data")
+          localElGamalKeyPair = DUCHY_ONE_KEY_PAIR
+          compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
+          curveId = CURVE_ID
+          totalSketchesCount = REQUISITIONS.size
+        }
       )
   }
 
@@ -1904,9 +1906,9 @@ class LiquidLegionsV2MillTest {
     whenever(mockCryptoWorker.completeExecutionPhaseTwo(any())).thenAnswer {
       cryptoRequest = it.getArgument(0)
       val postFix = ByteString.copyFromUtf8("-completeExecutionPhaseTwo-done")
-      CompleteExecutionPhaseTwoResponse.newBuilder()
-        .apply { flagCountTuples = cryptoRequest.flagCountTuples.concat(postFix) }
-        .build()
+      completeExecutionPhaseTwoResponse {
+        flagCountTuples = cryptoRequest.flagCountTuples.concat(postFix)
+      }
     }
 
     // Process the above computation
@@ -1915,15 +1917,13 @@ class LiquidLegionsV2MillTest {
     // Check that the request sent to the crypto worker was correct.
     assertThat(cryptoRequest)
       .isEqualTo(
-        CompleteExecutionPhaseTwoRequest.newBuilder()
-          .apply {
-            flagCountTuples = ByteString.copyFromUtf8("data")
-            localElGamalKeyPair = DUCHY_ONE_KEY_PAIR
-            compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
-            partialCompositeElGamalPublicKey = PARTIALLY_COMBINED_PUBLIC_KEY
-            curveId = CURVE_ID
-          }
-          .build()
+        completeExecutionPhaseTwoRequest {
+          flagCountTuples = ByteString.copyFromUtf8("data")
+          localElGamalKeyPair = DUCHY_ONE_KEY_PAIR
+          compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
+          partialCompositeElGamalPublicKey = PARTIALLY_COMBINED_PUBLIC_KEY
+          curveId = CURVE_ID
+        }
       )
   }
 
@@ -2092,12 +2092,10 @@ class LiquidLegionsV2MillTest {
     whenever(mockCryptoWorker.completeExecutionPhaseTwoAtAggregator(any())).thenAnswer {
       cryptoRequest = it.getArgument(0)
       val postFix = ByteString.copyFromUtf8("-completeExecutionPhaseTwoAtAggregator-done")
-      CompleteExecutionPhaseTwoAtAggregatorResponse.newBuilder()
-        .apply {
-          sameKeyAggregatorMatrix = cryptoRequest.flagCountTuples.concat(postFix)
-          reach = testReach
-        }
-        .build()
+      completeExecutionPhaseTwoAtAggregatorResponse {
+        sameKeyAggregatorMatrix = cryptoRequest.flagCountTuples.concat(postFix)
+        reach = testReach
+      }
     }
 
     var systemComputationResult = SetComputationResultRequest.getDefaultInstance()
