@@ -76,3 +76,5 @@ jobs:
 
       - name: Echo Environment Used
         run: env
+        with:
+          environment: ${{ inputs.environment }}
