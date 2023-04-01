@@ -17,13 +17,6 @@ provider "google" {
   project = var.project
 }
 
-terraform {
-  backend "gcs" {
-    bucket  = "terraform-state-halo-cmm"
-    prefix  = "cmm"
-  }
-}
-
 module "kingdom" {
   source = "./kingdom"
   env = var.env
