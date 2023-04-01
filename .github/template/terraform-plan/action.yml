@@ -41,5 +41,4 @@ runs:
     - name: Terraform Plan
       working-directory: ${{ inputs.working-directory }}
       shell: bash
-      run: |
-        terraform plan '-out=QA_tfplan' -var env=QA -var project=${{ inputs.project }}
+      run: terraform plan '-out=QA_tfplan' -var env=QA -var project=cmm
