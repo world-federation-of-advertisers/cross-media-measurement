@@ -23,6 +23,7 @@ on:
       environment:
         type: choice
         description: 'Environment to run the flow for.'
+        default: QA
         options:
           - QA
           - NIGHTLY
@@ -58,7 +59,6 @@ jobs:
         with:
           working-directory: ${{env.ROOT_PATH}}
           environment: ${{ inputs.environment }}
-          component: ${{ inputs.kingdom }}
 
       - name: Terraform Apply
         if: inputs.terraform_apply == true
