@@ -28,7 +28,7 @@ jobs:
       image_tag: ${{ steps.get-image-tag-step.outputs.image_tag }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - id: generate-tag
         run: ./.github/workflows/export-image-tag.sh
       - id: get-image-tag-step
@@ -39,7 +39,7 @@ jobs:
     needs: create-image-tag
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: show-tag
         id: show-tag
@@ -72,7 +72,7 @@ jobs:
     needs: create-image-tag
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: show-tag
         id: show-tag
