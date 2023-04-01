@@ -20,9 +20,14 @@ on:
   workflow_call:
   workflow_dispatch:
     inputs:
+      terraform_version:
+        description: 'The Terraform version to use'
+        required: false
+        default: '1.3.6'
       environment:
         type: choice
         description: 'Environment to run the flow for.'
+        default: qa
         options:
           - qa
           - nightly
@@ -43,25 +48,36 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       # Checkout the repository to the GitHub Actions runner
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v3
 
+      # Install gcloud, `setup-gcloud` automatically picks up authentication from `auth`.
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      # Install the latest version of Terraform CLI and configure the Terraform CLI
+      # configuration file with a Terraform Cloud user API token
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ inputs.terraform_version }}
+          terraform_wrapper: false
+
+      # Initialize a new or existing Terraform working directory by creating initial files,
+      # loading any remote state, downloading modules, etc.
       - name: Terraform Init
-        uses: "./.github/template/terraform-init"
-        with:
-          working-directory: ${{env.ROOT_PATH}}
-          workload-identity-provider: ${{ secrets.WFI_PROVIDER }}
-          service-account: ${{ secrets.WFI_SA }}
+        run: terraform init -reconfigure
+        working-directory: ${{env.ROOT_PATH}}
 
+      # Generate a plan
       - name: Terraform Plan
-        uses: "./.github/template/terraform-plan"
-        with:
-          working-directory: ${{env.ROOT_PATH}}
-          environment: ${{ inputs.environment }}
+        working-directory: ${{env.ROOT_PATH}}
+        run: | 
+          terraform plan '-out=${{ inputs.environment }}_tfplan' \
+            -var env=${{ inputs.environment }} \
+            -var project=${{ inputs.project }}
 
+      # Apply the plan Generated.
       - name: Terraform Apply
-        if: inputs.terraform_apply == true
-        uses: "./.github/template/apply"
-        with:
-          working-directory: ${{env.ROOT_PATH}}
-          environment: ${{ env.ENV }}
+        working-directory: ${{env.ROOT_PATH}}
+        run: terraform apply ${{ inputs.environment }}_tfplan
