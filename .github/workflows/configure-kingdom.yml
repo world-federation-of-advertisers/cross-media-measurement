@@ -29,6 +29,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
+  REPO_PREFIX: world-federation-of-advertisers/packages
 
 jobs:
   create_k8s_manifest:
@@ -36,13 +37,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-
-      - name: Login to GitHub Packages
-        uses: docker/login-action@v1
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GIT_SECRETS }}
 
       # TODO(wfa-hkawalkar): applying manifest failing.
       - name: Apply secrets
@@ -54,11 +48,12 @@ jobs:
         run: |
           bazelisk build //src/main/k8s/dev:kingdom_gke \
           --define=k8s_kingdom_secret_name=certs-and-configs \
-          --define container_registry=ghcr.io \
-          --define image_repo_prefix=world-federation-of-advertisers/packages \
+          --define container_registry=${{ env.REGISTRY }} \
+          --define image_repo_prefix=${{ env.REPO_PREFIX }} \
           --define image_tag=${{ inputs.image_tag }}
 
       # Apply manifest
       - name: apply k8s manifest
         if: inputs.kubectl_apply == true
         run: kubectl apply -f bazel-bin/src/main/k8s/dev/kingdom_gke.yaml
+
