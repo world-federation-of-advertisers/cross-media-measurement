@@ -601,33 +601,33 @@ class HeraldTest {
         fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.computationDetails
       )
       .isEqualTo(
-        ComputationDetails.newBuilder()
-          .apply {
-            blobsStoragePrefix = "computation-blob-storage/2"
-            kingdomComputationBuilder.apply {
-              publicApiVersion = PUBLIC_API_VERSION
-              measurementSpec = SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC
-              measurementPublicKey = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
-            }
-            liquidLegionsV2Builder.apply {
+        computationDetails {
+          blobsStoragePrefix = "computation-blob-storage/2"
+          kingdomComputation = kingdomComputationDetails {
+            publicApiVersion = PUBLIC_API_VERSION
+            measurementSpec = SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC
+            measurementPublicKey = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
+          }
+          liquidLegionsV2 =
+            LiquidLegionsSketchAggregationV2Kt.computationDetails {
               role = RoleInComputation.AGGREGATOR
-              parametersBuilder.apply {
+              parameters = parameters {
                 maximumFrequency = 10
-                liquidLegionsSketchBuilder.apply {
+                liquidLegionsSketch = liquidLegionsSketchParameters {
                   decayRate = 12.0
                   size = 100_000L
                 }
-                noiseBuilder.apply {
-                  reachNoiseConfigBuilder.apply {
-                    blindHistogramNoiseBuilder.apply {
+                noise = liquidLegionsV2NoiseConfig {
+                  reachNoiseConfig = reachNoiseConfig {
+                    blindHistogramNoise = duchyDifferentialPrivacyParams {
                       epsilon = 3.1
                       delta = 3.2
                     }
-                    noiseForPublisherNoiseBuilder.apply {
+                    noiseForPublisherNoise = duchyDifferentialPrivacyParams {
                       epsilon = 4.1
                       delta = 4.2
                     }
-                    globalReachDpNoiseBuilder.apply {
+                    globalReachDpNoise = duchyDifferentialPrivacyParams {
                       epsilon = 1.1
                       delta = 1.2
                     }
@@ -636,8 +636,7 @@ class HeraldTest {
                 ellipticCurveId = 415
               }
             }
-          }
-          .build()
+        }
       )
   }
 
