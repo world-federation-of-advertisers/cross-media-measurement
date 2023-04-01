@@ -39,6 +39,6 @@ runs:
 
     # Terraform plan
     - name: Terraform Plan
-      working-directory: /home/runner/work/cross-media-measurement/cross-media-measurement/src/main/terraform/
+      working-directory: /home/runner/work/cross-media-measurement/cross-media-measurement/src/main/terraform/gcloud
       shell: bash
       run: terraform plan '-out=QA_tfplan' -var env=QA -var project=cmm
