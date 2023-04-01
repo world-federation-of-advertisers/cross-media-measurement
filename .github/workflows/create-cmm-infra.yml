@@ -60,7 +60,7 @@ jobs:
         uses: "google-github-actions/auth@v1"
         with:
           workload_identity_provider: ${{ secrets.WFI_PROVIDER }}
-          service_account: ${{ secrets.service-account }}
+          service_account: ${{ secrets.WFI_SA }}
           token_format: 'access_token'
 
       # Install the latest version of Terraform CLI and configure the Terraform CLI
