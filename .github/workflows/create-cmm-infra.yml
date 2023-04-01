@@ -55,6 +55,14 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
 
+      # Setup Gcloud identity federation
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          workload_identity_provider: ${{ secrets.WFI_PROVIDER }}
+          service_account: ${{ inputs.service-account }}
+          token_format: access_token
+
       # Install the latest version of Terraform CLI and configure the Terraform CLI
       # configuration file with a Terraform Cloud user API token
       - name: Setup Terraform
