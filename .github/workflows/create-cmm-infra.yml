@@ -17,8 +17,6 @@ name: Create CMM infrastructure
 on:
   push:
     branches: [ main, feature/create-cmm-infra ]
-  workflow_call:
-  workflow_dispatch:
     inputs:
       terraform_version:
         description: 'The Terraform version to use'
