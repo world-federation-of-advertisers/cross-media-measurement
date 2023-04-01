@@ -33,7 +33,8 @@ runs:
   steps:
     # Workspace selection
     - name: Workspace selection
-      run:  terraform workspace select ${{ inputs.environment }} || terraform workspace new ${{ inputs.environment }}
+      #TODO: Remove the hardcoding of environment
+      run:  terraform workspace select QA || terraform workspace new QA
       shell: bash
 
     # Terraform plan
@@ -41,4 +42,4 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       shell: bash
       run: |
-        terraform plan '-out=${{ inputs.environment }}_tfplan' -var env=${{ inputs.environment }} -var project=${{ inputs.project }}
+        terraform plan '-out=QA_tfplan' -var env=QA -var project=${{ inputs.project }}
