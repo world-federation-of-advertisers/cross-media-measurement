@@ -15,7 +15,7 @@
 name: 'Terraform Init'
 description: 'Prepare Terraform environment'
 inputs:
-  working_directory:
+  working-directory:
     description: 'The directory where the Terraform configuration is located.'
     required: true
     default: .
