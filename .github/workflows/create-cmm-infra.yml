@@ -79,7 +79,7 @@ jobs:
 
       # Generate a plan
       - name: Terraform Plan
-        working-directory: ${{env.ROOT_PATH}
+        working-directory: ${{ env.ROOT_PATH }}
         run: | 
           terraform plan '-out=${{ inputs.environment }}_tfplan' \
             -var env=${{ inputs.environment }} \
