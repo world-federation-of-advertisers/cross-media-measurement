@@ -36,7 +36,7 @@ permissions:
   id-token: write
 
 env:
-  ROOT_PATH: '${{ github.workspace }}/src/main/terraform/'
+  ROOT_PATH: '${{ github.workspace }}/src/main/terraform/gcloud'
 
 jobs:
   create-cmm-infra:
