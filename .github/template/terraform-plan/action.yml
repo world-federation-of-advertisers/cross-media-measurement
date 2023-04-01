@@ -15,7 +15,7 @@
 name: 'Terraform Plan'
 description: 'Run Terraform plan'
 inputs:
-  working_directory:
+  working-directory:
     description: 'The directory where the Terraform configuration is located.'
     required: true
     default: .
