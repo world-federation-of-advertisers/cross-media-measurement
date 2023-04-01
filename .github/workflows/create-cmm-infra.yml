@@ -15,10 +15,10 @@
 name: Create CMM infrastructure
 
 on:
-  workflow_call:
-  workflow_dispatch:
   push:
     branches: [ main, feature/create-cmm-infra ]
+  workflow_call:
+  workflow_dispatch:
     inputs:
       terraform_version:
         description: 'The Terraform version to use'
@@ -75,6 +75,4 @@ jobs:
         working-directory: ${{env.ROOT_PATH}}
 
       - name: Echo Environment Used
-        run: |
-          echo ${{ inputs.project }}
-          echo ${{ inputs.environment }}
+        run: env
