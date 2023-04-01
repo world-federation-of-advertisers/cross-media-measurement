@@ -61,7 +61,7 @@ jobs:
         with:
           workload_identity_provider: ${{ secrets.WFI_PROVIDER }}
           service_account: ${{ secrets.service-account }}
-          token_format: access_token
+          token_format: 'access_token'
 
       # Install the latest version of Terraform CLI and configure the Terraform CLI
       # configuration file with a Terraform Cloud user API token
