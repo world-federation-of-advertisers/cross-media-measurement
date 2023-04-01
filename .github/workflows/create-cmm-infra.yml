@@ -77,15 +77,5 @@ jobs:
         run: terraform init -reconfigure
         working-directory: ${{env.ROOT_PATH}}
 
-      # Generate a plan
-      - name: Terraform Plan
-        working-directory: ${{ env.ROOT_PATH }}
-        run: | 
-          terraform plan '-out=${{ inputs.environment }}_tfplan' \
-            -var env=${{ inputs.environment }} \
-            -var project=${{ inputs.project }}
-
-      # Apply the plan Generated.
-      - name: Terraform Apply
-        working-directory: ${{env.ROOT_PATH}}
-        run: terraform apply ${{ inputs.environment }}_tfplan
+      - name: Echo Environment Used
+        run: echo ${{ inputs.environment }}
