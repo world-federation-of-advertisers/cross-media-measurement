@@ -260,9 +260,9 @@ interface ComputationResult {
 }
 
 /** The result and frequency estimation of a computation. */
-data class ReachAndFrequency(val reach: Long, val frequency: Map<Long, Double>) :
+data class ReachAndFrequencyResult(val reach: Long, val frequency: Map<Long, Double>) :
   ComputationResult {
-  /** Converts a ReachAndFrequency object to the v2Alpha measurement result. */
+  /** Converts a ReachAndFrequencyResult object to the v2Alpha measurement result. */
   override fun toV2AlphaMeasurementResult(): Measurement.Result {
     val source = this
     return MeasurementKt.result {
@@ -272,9 +272,9 @@ data class ReachAndFrequency(val reach: Long, val frequency: Map<Long, Double>) 
   }
 }
 
-data class Reach(val reach: Long) : ComputationResult {
+data class ReachResult(val reach: Long) : ComputationResult {
 
-  /** Converts a Reach object to the v2Alpha measurement result. */
+  /** Converts a ReachResult object to the v2Alpha measurement result. */
   override fun toV2AlphaMeasurementResult(): Measurement.Result {
     val source = this
     return MeasurementKt.result { reach = reach { value = source.reach } }

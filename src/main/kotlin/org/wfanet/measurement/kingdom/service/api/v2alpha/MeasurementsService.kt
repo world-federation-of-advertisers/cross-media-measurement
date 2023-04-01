@@ -269,7 +269,6 @@ private fun MeasurementSpec.validate() {
         "Reach privacy params are unspecified"
       }
 
-      val vidSamplingInterval = vidSamplingInterval
       grpcRequire(vidSamplingInterval.width > 0) { "Vid sampling interval is unspecified" }
     }
     MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
@@ -281,7 +280,6 @@ private fun MeasurementSpec.validate() {
         "Frequency privacy params are unspecified"
       }
 
-      val vidSamplingInterval = vidSamplingInterval
       grpcRequire(vidSamplingInterval.width > 0) { "Vid sampling interval is unspecified" }
     }
     MeasurementSpec.MeasurementTypeCase.IMPRESSION -> {
