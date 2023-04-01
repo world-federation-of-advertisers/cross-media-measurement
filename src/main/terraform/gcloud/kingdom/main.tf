@@ -1,5 +1,4 @@
-#!/usr/bin/env bash
-# Copyright 2022 The Cross-Media Measurement Authors
+# Copyright 2023 The Cross-Media Measurement Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,17 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#set -eu -o pipefail
-
-DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
-
-declare tag
-if [[ "$GITHUB_EVENT_NAME" == 'release' ]]; then
-  tag="${GITHUB_REF_NAME#v}"
-elif [[ "$GITHUB_REF_NAME" == "$DEFAULT_BRANCH" ]]; then
-  tag="latest"
-else
-  tag="$GITHUB_SHA"
-fi
-
-echo "IMAGE_TAG=${tag}" >> "$GITHUB_ENV"
+provider "google" {
+  project = local.project
+}
