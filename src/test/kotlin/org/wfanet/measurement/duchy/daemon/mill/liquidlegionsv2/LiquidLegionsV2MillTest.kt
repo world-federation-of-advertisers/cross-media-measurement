@@ -129,6 +129,11 @@ import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggrega
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfig
+import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseOneAtAggregatorResponse
+import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseTwoAtAggregatorRequest
+import org.wfanet.measurement.internal.duchy.protocol.copy
+import org.wfanet.measurement.internal.duchy.protocol.globalReachDpNoiseBaseline
+import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsSketchParameters
 import org.wfanet.measurement.storage.Store.Blob
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
@@ -1697,9 +1702,9 @@ class LiquidLegionsV2MillTest {
     whenever(mockCryptoWorker.completeExecutionPhaseOneAtAggregator(any())).thenAnswer {
       cryptoRequest = it.getArgument(0)
       val postFix = ByteString.copyFromUtf8("-completeExecutionPhaseOneAtAggregator-done")
-      CompleteExecutionPhaseOneAtAggregatorResponse.newBuilder()
-        .apply { flagCountTuples = cryptoRequest.combinedRegisterVector.concat(postFix) }
-        .build()
+      completeExecutionPhaseOneAtAggregatorResponse {
+        flagCountTuples = cryptoRequest.combinedRegisterVector.concat(postFix)
+      }
     }
 
     // Process the above computation
@@ -2108,21 +2113,16 @@ class LiquidLegionsV2MillTest {
     val blobKey = calculatedBlobContext.blobKey
     assertThat(fakeComputationDb[LOCAL_ID])
       .isEqualTo(
-        ComputationToken.newBuilder()
-          .apply {
-            globalComputationId = GLOBAL_ID
-            localComputationId = LOCAL_ID
-            attempt = 1
-            computationStage = COMPLETE.toProtocolStage()
-            version = 4 // claimTask + writeOutputBlob + transitionStage
-            computationDetails =
-              computationDetailsWithReach
-                .toBuilder()
-                .apply { endingState = CompletedReason.SUCCEEDED }
-                .build()
-            addAllRequisitions(REQUISITIONS)
-          }
-          .build()
+        computationToken {
+          globalComputationId = GLOBAL_ID
+          localComputationId = LOCAL_ID
+          attempt = 1
+          computationStage = COMPLETE.toProtocolStage()
+          version = 4 // claimTask + writeOutputBlob + transitionStage
+          computationDetails =
+            computationDetailsWithReach.copy { endingState = CompletedReason.SUCCEEDED }
+          requisitions += REQUISITIONS
+        }
       )
     assertThat(computationStore.get(blobKey)?.readToString()).isNotEmpty()
 
@@ -2142,24 +2142,22 @@ class LiquidLegionsV2MillTest {
     // Check that the cryptoRequest is correct
     assertThat(cryptoRequest)
       .isEqualTo(
-        CompleteExecutionPhaseTwoAtAggregatorRequest.newBuilder()
-          .apply {
-            flagCountTuples = ByteString.copyFromUtf8("data")
-            localElGamalKeyPair = DUCHY_ONE_KEY_PAIR
-            compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
-            curveId = CURVE_ID
-            maximumFrequency = 1
-            vidSamplingIntervalWidth = 0.0f
-            liquidLegionsParametersBuilder.apply {
-              decayRate = DECAY_RATE
-              size = SKETCH_SIZE
-            }
-            reachDpNoiseBaselineBuilder.apply {
-              contributorsCount = WORKER_COUNT
-              globalReachDpNoise = TEST_NOISE_CONFIG.reachNoiseConfig.globalReachDpNoise
-            }
+        completeExecutionPhaseTwoAtAggregatorRequest {
+          flagCountTuples = ByteString.copyFromUtf8("data")
+          localElGamalKeyPair = DUCHY_ONE_KEY_PAIR
+          compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
+          curveId = CURVE_ID
+          maximumFrequency = 1
+          vidSamplingIntervalWidth = 0.0f
+          liquidLegionsParameters = liquidLegionsSketchParameters {
+            decayRate = DECAY_RATE
+            size = SKETCH_SIZE
           }
-          .build()
+          reachDpNoiseBaseline = globalReachDpNoiseBaseline {
+            contributorsCount = WORKER_COUNT
+            globalReachDpNoise = TEST_NOISE_CONFIG.reachNoiseConfig.globalReachDpNoise
+          }
+        }
       )
   }
 
@@ -2173,13 +2171,12 @@ class LiquidLegionsV2MillTest {
         )
         .build()
     val computationDetailsWithReach =
-      AGGREGATOR_COMPUTATION_DETAILS.toBuilder()
-        .apply {
-          liquidLegionsV2Builder.apply { reachEstimateBuilder.reach = 123 }
-          kingdomComputation =
-            kingdomComputation.copy { measurementSpec = SERIALIZED_REACH_MEASUREMENT_SPEC }
-        }
-        .build()
+      AGGREGATOR_COMPUTATION_DETAILS.copy {
+        liquidLegionsV2 =
+          liquidLegionsV2.copy { reachEstimate = reachEstimate.copy { reach = 123 } }
+        kingdomComputation =
+          kingdomComputation.copy { measurementSpec = SERIALIZED_REACH_MEASUREMENT_SPEC }
+      }
     val inputBlobContext =
       ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_TWO.toProtocolStage(), 0L)
     val calculatedBlobContext =
