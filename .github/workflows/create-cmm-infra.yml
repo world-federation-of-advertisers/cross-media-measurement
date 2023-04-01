@@ -23,10 +23,9 @@ on:
       environment:
         type: choice
         description: 'Environment to run the flow for.'
-        default: QA
         options:
-          - QA
-          - NIGHTLY
+          - qa
+          - nightly
       terraform_apply:
         required: false
         type: boolean
