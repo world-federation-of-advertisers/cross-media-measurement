@@ -56,4 +56,3 @@ jobs:
       - name: apply k8s manifest
         if: inputs.kubectl_apply == true
         run: kubectl apply -f bazel-bin/src/main/k8s/dev/kingdom_gke.yaml
-
