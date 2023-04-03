@@ -439,6 +439,15 @@ class FrontendSimulator(
     return measurement
   }
 
+  /** Checks if the given [Measurement] is failed. */
+  private fun checkNotFailed(measurement: Measurement): Measurement {
+    check(measurement.state != Measurement.State.FAILED) {
+      val failure: Failure = measurement.failure
+      "Measurement failed with reason ${failure.reason}: ${failure.message}"
+    }
+    return measurement
+  }
+
   /** Gets the failure of an invalid [Measurement] if it is failed */
   private suspend fun getFailure(measurementName: String): Failure? {
     val measurement = getMeasurement(measurementName)
