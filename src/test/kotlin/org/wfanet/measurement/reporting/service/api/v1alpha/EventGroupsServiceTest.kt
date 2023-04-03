@@ -70,6 +70,8 @@ import org.wfanet.measurement.reporting.v1alpha.eventGroup
 import org.wfanet.measurement.reporting.v1alpha.listEventGroupsRequest
 import org.wfanet.measurement.reporting.v1alpha.listEventGroupsResponse
 
+private const val DEFAULT_PAGE_SIZE = 200
+
 private const val API_AUTHENTICATION_KEY = "nR5QPN7ptx"
 private val CONFIG = measurementConsumerConfig { apiKey = API_AUTHENTICATION_KEY }
 private val SECRET_FILES_PATH: Path =
@@ -302,7 +304,7 @@ class EventGroupsServiceTest {
 
     val expectedCmmsEventGroupsRequest = cmmsListEventGroupsRequest {
       parent = DATA_PROVIDER_NAME
-      pageSize = 0
+      pageSize = DEFAULT_PAGE_SIZE
       pageToken = PAGE_TOKEN
       filter = ListEventGroupsRequestKt.filter { measurementConsumers += MEASUREMENT_CONSUMER_NAME }
     }
