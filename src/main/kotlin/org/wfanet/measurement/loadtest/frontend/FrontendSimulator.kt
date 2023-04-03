@@ -436,6 +436,9 @@ class FrontendSimulator(
     return measurement
   }
 
+    return measurement
+  }
+
   /** Gets the failure of an invalid [Measurement] if it is failed */
   private suspend fun getFailure(measurementName: String): Failure? {
     val measurement = getMeasurement(measurementName)
