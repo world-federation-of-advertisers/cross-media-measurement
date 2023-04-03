@@ -60,7 +60,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
-import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach as reachSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
