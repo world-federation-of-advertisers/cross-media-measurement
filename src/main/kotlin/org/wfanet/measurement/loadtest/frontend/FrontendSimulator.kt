@@ -380,17 +380,17 @@ class FrontendSimulator(
 
   /** Gets the result of a [Measurement] if it is succeeded. */
   private suspend fun getImpressionResults(measurementName: String): List<Measurement.ResultPair> {
-    return getMeasurement(measurementName).resultsList.toList()
+    return getNotFailedMeasurement(measurementName).resultsList.toList()
   }
 
   /** Gets the result of a [Measurement] if it is succeeded. */
   private suspend fun getDurationResults(measurementName: String): List<Measurement.ResultPair> {
-    return getMeasurement(measurementName).resultsList.toList()
+    return getNotFailedMeasurement(measurementName).resultsList.toList()
   }
 
   /** Gets the result of a [Measurement] if it is succeeded. */
   private suspend fun getReachAndFrequencyResult(measurementName: String): Result? {
-    val measurement = getMeasurement(measurementName)
+    val measurement = getNotFailedMeasurement(measurementName)
     if (measurement.state != Measurement.State.SUCCEEDED) {
       return null
     }
@@ -405,7 +405,7 @@ class FrontendSimulator(
 
   /** Gets the result of a [Measurement] if it is succeeded. */
   private suspend fun getReachResult(measurementName: String): Result? {
-    val measurement = getMeasurement(measurementName)
+    val measurement = getNotFailedMeasurement(measurementName)
     if (measurement.state != Measurement.State.SUCCEEDED) {
       return null
     }
@@ -418,15 +418,17 @@ class FrontendSimulator(
     return result
   }
 
-  private suspend fun getMeasurement(measurementName: String): Measurement {
-    val measurement =
-      try {
-        measurementsClient
-          .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-          .getMeasurement(getMeasurementRequest { name = measurementName })
-      } catch (e: StatusException) {
-        throw Exception("Error fetching measurement $measurementName", e)
-      }
+  private suspend fun getMeasurement(measurementName: String) =
+    try {
+      measurementsClient
+        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+        .getMeasurement(getMeasurementRequest { name = measurementName })
+    } catch (e: StatusException) {
+      throw Exception("Error fetching measurement $measurementName", e)
+    }
+
+  private suspend fun getNotFailedMeasurement(measurementName: String): Measurement {
+    val measurement = getMeasurement(measurementName)
 
     logger.info("Current Measurement state is: " + measurement.state)
     if (measurement.state == Measurement.State.FAILED) {
