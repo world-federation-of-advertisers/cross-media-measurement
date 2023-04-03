@@ -418,7 +418,7 @@ class FrontendSimulator(
     return result
   }
 
-  /** Gets [Measurement] with logging state.*/
+  /** Gets [Measurement] with logging state. */
   private suspend fun getMeasurement(measurementName: String): Measurement {
     val measurement: Measurement =
       try {
