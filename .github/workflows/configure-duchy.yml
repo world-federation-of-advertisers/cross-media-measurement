@@ -40,6 +40,8 @@ jobs:
       # Checkout the repository to the GitHub Actions runner
       - name: Checkout Code
         uses: actions/checkout@v3
+        
+      # TODO(wfa-hkawalkar) add gcloud authentication.        
 
       - name: Build Target
         run: bazelisk build //src/main/k8s/testing/secretfiles:apply_kustomization
@@ -61,8 +63,12 @@ jobs:
           --define image_repo_prefix=${{ env.REPO_PREFIX }} \
           --define image_tag=${{ inputs.image_tag }}
           cat bazel-bin/src/main/k8s/dev/worker1_duchy_gke.yaml
+     
+     # Update KUBECONFIG
+      - name: Update KUBECONFIG
+        run: gcloud container clusters get-credentials dev-halo-duchy-worker --zone us-central1          
 
       # Apply manifest
       - name: apply k8s manifest
         if: inputs.kubectl_apply == true
-        run: kubectl apply -f bazel-bin/src/main/k8s/dev/worker1_duchy_gke.yaml
+        run: kubectl apply -f bazel-bin/src/main/k8s/dev/${{ inputs.duchy_name }}.yaml
