@@ -38,19 +38,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      # TODO(wfa-hkawalkar): applying manifest failing.
+  # TODO(wfa-hkawalkar): add gcloud authentication to connect to cluster.
+
       - name: Apply secrets
         run: bazelisk run //src/main/k8s/testing/secretfiles:apply_kustomization
 
-      # TODO(wfa-hkawalkar): import secrets to manifest from k8s secretsfile.
+      - name: Get Hash Value
+        run: echo $(bazelisk info bazel-bin)/src/main/k8s/testing/secretfiles/apply_kustomization.tar | sha256sum > hash.txt
+
       # Create k8s manifest
       - name: Build K8s manifest
         run: |
           bazelisk build //src/main/k8s/dev:kingdom_gke \
-          --define=k8s_kingdom_secret_name=certs-and-configs \
+          --define=k8s_kingdom_secret_name=certs-and-configs-$HASH \
           --define container_registry=${{ env.REGISTRY }} \
           --define image_repo_prefix=${{ env.REPO_PREFIX }} \
           --define image_tag=${{ inputs.image_tag }}
+
+      - name: Adding Kubeconfig
+        run: gcloud container clusters get-credentials dev-halo-kingdom-gke-cluster --zone us-central1
 
       # Apply manifest
       - name: apply k8s manifest
