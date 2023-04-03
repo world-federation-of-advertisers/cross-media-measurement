@@ -736,7 +736,7 @@ class EdpSimulator(
     val (sampledReachValue, frequencyMap) = calculateDirectReachAndFrequency(vidList)
 
     logger.info("Generating publisher noise for direct reach and frequency...")
-    val publisherNoise = generatePublisherNoise(measurementSpec, frequencyMap.keys.toList())
+    val publisherNoise = generatePublisherNoise(measurementSpec, frequencyMap.keys)
 
     val requisitionData =
       MeasurementKt.result {
@@ -892,7 +892,7 @@ class EdpSimulator(
      */
     private fun generatePublisherNoise(
       measurementSpec: MeasurementSpec,
-      frequencies: List<Long>,
+      frequencies: Iterable<Long>,
     ): PublisherNoise {
 
       val publisherNoise =
