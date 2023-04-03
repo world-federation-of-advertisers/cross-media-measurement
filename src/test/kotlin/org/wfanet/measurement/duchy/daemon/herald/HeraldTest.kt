@@ -448,6 +448,7 @@ class HeraldTest {
         }
       )
   }
+
   @Test
   fun `syncStatuses creates new computations for reach-only`() = runTest {
     val confirmingKnown =
