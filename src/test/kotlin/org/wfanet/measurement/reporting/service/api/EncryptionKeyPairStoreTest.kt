@@ -69,8 +69,8 @@ class EncryptionKeyPairStoreTest {
     val keyPairStore = InMemoryEncryptionKeyPairStore(getKeyPairs())
 
     Truth.assertThat(
-      runBlocking { keyPairStore.getPrivateKeyHandle(PRINCIPAL_NAME, NON_EXISTENT_PUBLIC_KEY) }
-    )
+        runBlocking { keyPairStore.getPrivateKeyHandle(PRINCIPAL_NAME, NON_EXISTENT_PUBLIC_KEY) }
+      )
       .isNull()
   }
 
@@ -79,8 +79,8 @@ class EncryptionKeyPairStoreTest {
     val keyPairStore = InMemoryEncryptionKeyPairStore(getKeyPairs())
 
     Truth.assertThat(
-      runBlocking { keyPairStore.getPrivateKeyHandle(NON_EXISTENT_PRINCIPAL_NAME, PUBLIC_KEY_1) }
-    )
+        runBlocking { keyPairStore.getPrivateKeyHandle(NON_EXISTENT_PRINCIPAL_NAME, PUBLIC_KEY_1) }
+      )
       .isNull()
   }
 
