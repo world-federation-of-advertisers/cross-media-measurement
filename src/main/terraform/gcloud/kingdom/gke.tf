@@ -18,15 +18,33 @@
 resource "google_container_cluster" "primary" {
 
   # the name will look like dev-halo-duchy-gke-cluster
-  name     = "${local.prefix}-gke-cluster"
-  location = local.zone
+  name     = local.kingdom.name
+  location = "us-central1-a" # TODO(wfa-dharmalingam): change it to local.zone
   initial_node_count = local.kingdom.cluster_node_count
   database_encryption {
-    key_name = "projects/${local.project}/locations/${local.zone}/keyRings/test-key-ring/cryptoKeys/k8s-secret"
-    state = "ENCRYPTED"
+    key_name = local.kingdom.encryption_key
+    state = local.kingdom.database_encryption_state
   }
   cluster_autoscaling {
-    enabled = true
+    enabled = local.kingdom.auto_scaling
+    dynamic "auto_provisioning_defaults" {
+      for_each = local.kingdom.auto_scaling ? [1] : []
+
+      content {
+        service_account = google_service_account.gke_sa.email
+        oauth_scopes = [
+          "https://www.googleapis.com/auth/cloud-platform"
+        ]
+      }
+    }
+    dynamic "resource_limits" {
+      for_each = local.autoscaling_resource_limits
+      content {
+        resource_type = lookup(resource_limits.value, "resource_type")
+        minimum       = lookup(resource_limits.value, "minimum")
+        maximum       = lookup(resource_limits.value, "maximum")
+      }
+    }
   }
 }
 
@@ -35,6 +53,7 @@ resource "google_container_node_pool" "data_server"{
   # the name will look like dev-halo-duchy-data-server
   name       = "${local.prefix}-data-server"
   cluster    = google_container_cluster.primary.id
+  location = "us-central1-a" # TODO(wfa-dharmalingam): change it to local.zone
 
   autoscaling {
     max_node_count = local.kingdom.max_node_count

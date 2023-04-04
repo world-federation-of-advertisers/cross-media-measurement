@@ -22,18 +22,31 @@ locals {
   prefix = "${local.env}-${local.component}"
 
   spanner_db = {
-    deletion_protection = true
+    deletion_protection = false
     version_retention_period = "3d"
     num_nodes    = 1
   }
 
   kingdom = {
     # configured as per the document.
-    cluster_node_count = 3
+    name = "${local.prefix}-gke-cluster"
+    cluster_node_count = 2 # TODO(wfa-dharmalingam): change it 3, once the quota increased
     machine_type = "e2-highcpu-2"
-    min_node_count = 3
+    min_node_count = 2 # TODO(wfa-dharmalingam): change it 3, once the quota increased
     max_node_count = 6
+    auto_scaling = true
+    database_encryption_state = "DECRYPTED" # TODO(wfa-dharmalingam): Set the state to ENCRYPTED state - (Required) ENCRYPTED or DECRYPTED
+    encryption_key = "" #"TODO(wfa-dharmalingam): Set the value to "projects/${local.project}/locations/${local.zone}/keyRings/test-key-ring/cryptoKeys/k8s-secret"
   }
+  autoscaling_resource_limits = local.kingdom.auto_scaling ? concat([{
+    resource_type = "cpu"
+    minimum       = 1
+    maximum       = 8
+  }, {
+    resource_type = "memory"
+    minimum       = 2
+    maximum       = 16
+  }]): []
 
   kms = {
     ring_name = "test-key-ring"
