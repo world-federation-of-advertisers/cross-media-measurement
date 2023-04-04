@@ -24,16 +24,14 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.internal.kingdom.BatchDeleteMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByMeasurementConsumerException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 
 /**
  * Permanently deletes [Measurement]s. Operation will fail for all [Measurement]s when one is not
  * found.
  *
- * Throws the following [KingdomInternalException] type on [execute]
- *
- * @throws [MeasurementNotFoundByMeasurementConsumerException] Measurement not found
+ * Throws the following [KingdomInternalException] type on [execute]:
+ * * [MeasurementNotFoundException] when the Measurement is not found
  */
 class BatchDeleteMeasurements(
   private val requests: BatchDeleteMeasurementsRequest,
@@ -45,21 +43,15 @@ class BatchDeleteMeasurements(
     for (request in requests.requestsList) {
       val externalMeasurementConsumerId = ExternalId(request.externalMeasurementConsumerId)
       val externalMeasurementId = ExternalId(request.externalMeasurementId)
-      val result =
-        MeasurementReader(Measurement.View.DEFAULT)
-          .readByExternalIds(
-            transactionContext,
-            externalMeasurementConsumerId,
-            externalMeasurementId
-          )
-          ?: throw MeasurementNotFoundByMeasurementConsumerException(
-            externalMeasurementConsumerId,
-            externalMeasurementId
-          ) {
-            "Measurement with external MeasurementConsumer ID $externalMeasurementConsumerId and " +
-              "external Measurement ID $externalMeasurementId not found"
-          }
-      keySet.addKey(Key.of(result.measurementConsumerId.value, result.measurementId.value))
+
+      val result: Key =
+        MeasurementReader.readKeyByExternalIds(
+          transactionContext,
+          externalMeasurementConsumerId,
+          externalMeasurementId
+        )
+
+      keySet.addKey(result)
     }
 
     transactionContext.buffer(Mutation.delete("Measurements", keySet.build()))
