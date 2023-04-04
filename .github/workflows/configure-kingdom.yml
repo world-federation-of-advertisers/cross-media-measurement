@@ -40,11 +40,23 @@ jobs:
 
   # TODO(wfa-hkawalkar): add gcloud authentication to connect to cluster.
 
+      - name: Connect to the cluster
+        run: gcloud container clusters get-credentials dev-halo-kingdom-gke-cluster --zone us-central
+
       - name: Apply secrets
         run: bazelisk run //src/main/k8s/testing/secretfiles:apply_kustomization
 
-      - name: Get Hash Value
-        run: echo $(bazelisk info bazel-bin)/src/main/k8s/testing/secretfiles/apply_kustomization.tar | sha256sum > hash.txt
+      - name: create directory
+        run: mkdir secretfiles
+
+      - name: copying secret files
+        run: tar -xf "$(bazelisk info bazel-bin)/src/main/k8s/testing/secretfiles/kustomization.tar" -C secretfiles
+
+      - name: creating an env variable
+        run: secret_name="$(kubectl apply -k secretfiles/src/main/k8s/testing/secretfiles/kustomization -o name)"
+
+      - name: checking secrets
+        run: echo $secret_name
 
       # Create k8s manifest
       - name: Build K8s manifest
@@ -54,9 +66,6 @@ jobs:
           --define container_registry=${{ env.REGISTRY }} \
           --define image_repo_prefix=${{ env.REPO_PREFIX }} \
           --define image_tag=${{ inputs.image_tag }}
-
-      - name: Adding Kubeconfig
-        run: gcloud container clusters get-credentials dev-halo-kingdom-gke-cluster --zone us-central1
 
       # Apply manifest
       - name: apply k8s manifest
