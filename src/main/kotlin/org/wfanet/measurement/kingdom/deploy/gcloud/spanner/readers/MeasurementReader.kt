@@ -15,6 +15,7 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.spanner.Key
+import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.identity.ExternalId
@@ -122,6 +123,44 @@ class MeasurementReader(private val view: Measurement.View) :
         )
         ?.getProtoEnum(column, Measurement.State::forNumber)
         ?: throw MeasurementNotFoundException() { "Measurement not found $measurementId" }
+    }
+
+    suspend fun readKeyByExternalIds(
+      readContext: AsyncDatabaseClient.ReadContext,
+      externalMeasurementConsumerId: ExternalId,
+      externalMeasurementId: ExternalId,
+    ): Key {
+      val sql =
+        """
+          SELECT
+          Measurements.MeasurementId AS measurementId,
+          Measurements.MeasurementConsumerId AS measurementConsumerId,
+          FROM
+          Measurements
+          JOIN MeasurementConsumers USING (MeasurementConsumerId)
+          """
+          .trimIndent()
+      val statement = Statement.newBuilder(sql)
+      statement
+        .appendClause(
+          """
+          WHERE ExternalMeasurementConsumerId = @externalMeasurementConsumerId
+            AND ExternalMeasurementId = @externalMeasurementId
+          """
+        )
+        .bind("externalMeasurementConsumerId")
+        .to(externalMeasurementConsumerId.value)
+        .bind("externalMeasurementId")
+        .to(externalMeasurementId.value)
+        .appendClause("LIMIT 1")
+
+      val row: Struct = readContext.executeQuery(statement.build()).singleOrNull()
+        ?: throw MeasurementNotFoundException { "Measurement not found $externalMeasurementId" }
+
+      return Key.of(
+        row.getInternalId("measurementConsumerId").value,
+        row.getInternalId("measurementId").value
+      )
     }
 
     private val defaultViewBaseSql =
