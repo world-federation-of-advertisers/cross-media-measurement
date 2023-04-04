@@ -62,7 +62,7 @@ jobs:
       - name: Build K8s manifest
         run: |
           bazelisk build //src/main/k8s/dev:kingdom_gke \
-          --define=k8s_kingdom_secret_name=certs-and-configs-$HASH \
+          --define=k8s_kingdom_secret_name=$secret_name \
           --define container_registry=${{ env.REGISTRY }} \
           --define image_repo_prefix=${{ env.REPO_PREFIX }} \
           --define image_tag=${{ inputs.image_tag }}
