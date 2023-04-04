@@ -22,6 +22,8 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.internal.kingdom.BatchCancelMeasurementsRequest
+import org.wfanet.measurement.internal.kingdom.BatchCancelMeasurementsResponse
 import org.wfanet.measurement.internal.kingdom.CancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.GetMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.GetMeasurementRequest
@@ -41,9 +43,12 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNo
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurements
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchCancelMeasurements
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CancelMeasurement
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateMeasurement
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetMeasurementResult
+
+private const val MAX_BATCH_CANCEL = 1000
 
 class SpannerMeasurementsService(
   private val idGenerator: IdGenerator,
@@ -158,6 +163,33 @@ class SpannerMeasurementsService(
       e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Measurement state illegal." }
     } catch (e: KingdomInternalException) {
       e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+    }
+  }
+
+  override suspend fun batchCancelMeasurements(
+    request: BatchCancelMeasurementsRequest
+  ): BatchCancelMeasurementsResponse {
+    validateBatchCancelMeasurementsRequest(request)
+    try {
+      return BatchCancelMeasurements(request).execute(client, idGenerator)
+    } catch (e: MeasurementNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Measurement not found." }
+    } catch (e: KingdomInternalException) {
+      e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
+    }
+  }
+
+  private fun validateBatchCancelMeasurementsRequest(request: BatchCancelMeasurementsRequest) {
+    grpcRequire(request.requestsList.size <= MAX_BATCH_CANCEL) {
+      "number of requested Measurements exceeds limit: $MAX_BATCH_CANCEL"
+    }
+    for (measurementCancelRequest in request.requestsList) {
+      grpcRequire(measurementCancelRequest.externalMeasurementConsumerId != 0L) {
+        "external_measurement_consumer_id not specified"
+      }
+      grpcRequire(measurementCancelRequest.externalMeasurementId != 0L) {
+        "external_measurement_id not specified"
+      }
     }
   }
 }
