@@ -36,6 +36,7 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.CancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
@@ -55,6 +56,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
+import org.wfanet.measurement.internal.kingdom.batchCancelMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.batchDeleteMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.computationParticipant
@@ -80,6 +82,7 @@ private const val RANDOM_SEED = 1
 private const val API_VERSION = "v2alpha"
 private const val PROVIDED_MEASUREMENT_ID = "ProvidedMeasurementId"
 private const val MAX_BATCH_DELETE = 1000
+private const val MAX_BATCH_CANCEL = 1000
 
 private val MEASUREMENT = measurement {
   providedMeasurementId = PROVIDED_MEASUREMENT_ID
@@ -1467,6 +1470,177 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       assertFailsWith<StatusRuntimeException> {
         measurementsService.batchDeleteMeasurements(
           batchDeleteMeasurementsRequest { requests += deletionRequests }
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("exceeds limit")
+  }
+
+  @Test
+  fun `batchCancelMeasurements cancels all requested Measurements`(): Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val measurement1 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+    val measurement2 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+
+    val cancelMeasurementRequest1 = cancelMeasurementRequest {
+      externalMeasurementId = measurement1.externalMeasurementId
+      externalMeasurementConsumerId = measurement1.externalMeasurementConsumerId
+    }
+
+    val cancelMeasurementRequest2 = cancelMeasurementRequest {
+      externalMeasurementId = measurement2.externalMeasurementId
+      externalMeasurementConsumerId = measurement2.externalMeasurementConsumerId
+    }
+
+    val cancelledMeasurements =
+      measurementsService
+        .batchCancelMeasurements(
+          batchCancelMeasurementsRequest {
+            requests += listOf(cancelMeasurementRequest1, cancelMeasurementRequest2)
+          }
+        )
+        .measurementsList
+
+    val cancelledMeasurement1 =
+      measurementsService.getMeasurement(
+        getMeasurementRequest {
+          externalMeasurementConsumerId = measurement1.externalMeasurementConsumerId
+          externalMeasurementId = measurement1.externalMeasurementId
+        }
+      )
+
+    val cancelledMeasurement2 =
+      measurementsService.getMeasurement(
+        getMeasurementRequest {
+          externalMeasurementConsumerId = measurement2.externalMeasurementConsumerId
+          externalMeasurementId = measurement2.externalMeasurementId
+        }
+      )
+
+    assertThat(cancelledMeasurement1.state).isEqualTo(Measurement.State.CANCELLED)
+    assertThat(cancelledMeasurement2.state).isEqualTo(Measurement.State.CANCELLED)
+    assertThat(cancelledMeasurement1.updateTime.toInstant())
+      .isGreaterThan(measurement1.updateTime.toInstant())
+    assertThat(cancelledMeasurement2.updateTime.toInstant())
+      .isGreaterThan(measurement2.updateTime.toInstant())
+    assertThat(cancelledMeasurements)
+      .containsExactly(cancelledMeasurement1, cancelledMeasurement2)
+      .inOrder()
+  }
+
+  @Test
+  fun `batchCancelMeasurements does not cancel any Measurements when any are missing`(): Unit =
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val measurement =
+        measurementsService.createMeasurement(
+          MEASUREMENT.copy {
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            providedMeasurementId = PROVIDED_MEASUREMENT_ID
+            externalMeasurementConsumerCertificateId =
+              measurementConsumer.certificate.externalCertificateId
+          }
+        )
+      val validMeasurementRequest = cancelMeasurementRequest {
+        externalMeasurementId = measurement.externalMeasurementId
+        externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+      }
+
+      val missingMeasurementRequest = cancelMeasurementRequest {
+        externalMeasurementId = 123L
+        externalMeasurementConsumerId = 123L
+      }
+
+      assertFailsWith<StatusRuntimeException> {
+        measurementsService.batchCancelMeasurements(
+          batchCancelMeasurementsRequest {
+            requests += listOf(validMeasurementRequest, missingMeasurementRequest)
+          }
+        )
+      }
+
+      val measurements: List<Measurement> =
+        measurementsService
+          .streamMeasurements(
+            streamMeasurementsRequest {
+              filter = filter {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              }
+            }
+          )
+          .toList()
+
+      assertThat(measurements).containsExactly(measurement)
+    }
+
+  @Test
+  fun `batchCancelMeasurements throws NOT_FOUND when Measurement is missing`(): Unit = runBlocking {
+    val missingMeasurementRequest = cancelMeasurementRequest {
+      externalMeasurementId = 123L
+      externalMeasurementConsumerId = 123L
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        measurementsService.batchCancelMeasurements(
+          batchCancelMeasurementsRequest { requests += missingMeasurementRequest }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("Measurement not found")
+  }
+
+  @Test
+  fun `batchCancelMeasurements throws INVALID_ARGUMENT when Measurement ids are not specified`():
+    Unit = runBlocking {
+    val invalidMeasurementRequest = cancelMeasurementRequest {}
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        measurementsService.batchCancelMeasurements(
+          batchCancelMeasurementsRequest { requests += invalidMeasurementRequest }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("not specified")
+  }
+
+  @Test
+  fun `batchCancelMeasurements throws INVALID_ARGUMENT when Measurements requested exceed limit`():
+    Unit = runBlocking {
+    val cancelRequests = mutableListOf<CancelMeasurementRequest>()
+    for (i in 1..MAX_BATCH_CANCEL + 1) {
+      cancelRequests.add(
+        cancelMeasurementRequest {
+          externalMeasurementId = (123L + 2 * i)
+          externalMeasurementConsumerId = (123L + 2 * i)
+        }
+      )
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        measurementsService.batchCancelMeasurements(
+          batchCancelMeasurementsRequest { requests += cancelRequests }
         )
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
