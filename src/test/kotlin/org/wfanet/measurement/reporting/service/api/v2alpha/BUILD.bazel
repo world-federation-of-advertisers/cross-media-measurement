@@ -37,22 +37,3 @@ kt_jvm_test(
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/duchy",
     ],
 )
-
-kt_jvm_test(
-    name = "SetExpressionCompilerTest",
-    srcs = ["SetExpressionCompilerTest.kt"],
-    associates = [
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:set_expression_compiler",
-    ],
-    test_class = "org.wfanet.measurement.reporting.service.api.v2alpha.SetExpressionCompilerTest",
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:resource_key",
-        "@wfa_common_jvm//imports/java/com/google/common/truth",
-        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
-        "@wfa_common_jvm//imports/java/com/google/protobuf",
-        "@wfa_common_jvm//imports/kotlin/kotlin/test",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
-    ],
-)
