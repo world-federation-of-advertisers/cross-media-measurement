@@ -38,7 +38,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-  # TODO(wfa-hkawalkar): add gcloud authentication to connect to cluster.
+      # Install gcloud, `setup-gcloud` automatically picks up authentication from `auth`.
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      # Setup Gcloud identity federation
+      - name: "Authenticate to Google Cloud"
+        uses: "google-github-actions/auth@v1"
+        with:
+          workload_identity_provider: ${{ secrets.WFI_PROVIDER }}
+          service_account: ${{ secrets.WFI_SA }}
+          token_format: 'access_token'
 
       - name: Connect to the cluster
         run: gcloud container clusters get-credentials dev-halo-kingdom-gke-cluster --zone us-central
@@ -53,7 +63,7 @@ jobs:
           --define image_tag=${{ inputs.image_tag }}        
 
       - name: Apply secrets
-        run: bazelisk run //src/main/k8s/testing/secretfiles:apply_kustomization
+        run: bazelisk build //src/main/k8s/testing/secretfiles:apply_kustomization
 
       - name: create directory
         run: mkdir secretfiles
