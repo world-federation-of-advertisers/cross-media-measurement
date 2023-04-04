@@ -29,34 +29,31 @@ option java_outer_classname = "MetricProto";
 message MetricSpec {
   // Parameters for differential privacy (DP).
   //
+  // If any of the fields are not specified in a request message, the service
+  // implementation will choose values.
+  //
   // For detail, refer to "Dwork, C. and Roth, A., 2014. The algorithmic
   // foundations of differential privacy. Foundations and Trends in Theoretical
   // Computer Science, 9(3-4), pp.211-407."
   message DifferentialPrivacyParams {
-    double epsilon = 1 [(google.api.field_behavior) = REQUIRED];
-    double delta = 2 [(google.api.field_behavior) = REQUIRED];
+    optional double epsilon = 1;
+    optional double delta = 2;
   }
 
   // Parameters that are used to generate `Reach` metric.
   message ReachParams {
     // Differential privacy parameters for reach.
-    //
-    // If this field is unspecified in a request message, the service
-    // implementation will use the value specified in the system defaults.
-    DifferentialPrivacyParams privacy_params = 1;
+    DifferentialPrivacyParams privacy_params = 1
+        [(google.api.field_behavior) = REQUIRED];
   }
   // Parameters that are used to generate `Frequency Histogram` metric.
   message FrequencyHistogramParams {
     // Differential privacy parameters for reach.
-    //
-    // If this field is unspecified in a request message, the service
-    // implementation will use the value specified in the system defaults.
-    DifferentialPrivacyParams reach_privacy_params = 1;
+    DifferentialPrivacyParams reach_privacy_params = 1
+        [(google.api.field_behavior) = REQUIRED];
     // Differential privacy parameters for frequency distribution.
-    //
-    // If this field is unspecified in a request message, the service
-    // implementation will use the value specified in the system defaults.
-    DifferentialPrivacyParams frequency_privacy_params = 2;
+    DifferentialPrivacyParams frequency_privacy_params = 2
+        [(google.api.field_behavior) = REQUIRED];
     // Maximum frequency cut-off value in the frequency histogram.
     //
     // Counts with frequency higher than `max_frequency` will be aggregated
@@ -66,10 +63,8 @@ message MetricSpec {
   // Parameters that are used to generate `Impression Count` metric.
   message ImpressionCountParams {
     // Differential privacy parameters.
-    //
-    // If this field is unspecified in a request message, the service
-    // implementation will use the value specified in the system defaults.
-    DifferentialPrivacyParams privacy_params = 1;
+    DifferentialPrivacyParams privacy_params = 1
+        [(google.api.field_behavior) = REQUIRED];
     // Maximum frequency per user that will be included in this metric. Enforced
     // on a per EDP basis.
     //
@@ -86,10 +81,8 @@ message MetricSpec {
   // Parameters that are used to generate `Watch Duration` metric.
   message WatchDurationParams {
     // Differential privacy parameters.
-    //
-    // If this field is unspecified in a request message, the service
-    // implementation will use the value specified in the system defaults.
-    DifferentialPrivacyParams privacy_params = 1;
+    DifferentialPrivacyParams privacy_params = 1
+        [(google.api.field_behavior) = REQUIRED];
     // Maximum watch duration per user in second that will be included in this
     // metric.
     //
