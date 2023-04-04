@@ -1,8 +1,6 @@
-load("//build/k8s:defs.bzl", "k8s_kustomize", "kustomization_dir")
-load("//src/main/docker:images.bzl", "COMMON_IMAGES", "LOCAL_IMAGES")
+load("//build/k8s:defs.bzl", "kustomization_dir")
 load("//src/main/k8s:macros.bzl", "cue_dump")
-
-SECRET_NAME = "certs-and-configs"
+load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
 
 package(
     default_testonly = True,
@@ -11,59 +9,20 @@ package(
     ],
 )
 
-filegroup(
-    name = "cmms_image_archives",
-    srcs = [image.image + ".tar" for image in COMMON_IMAGES + LOCAL_IMAGES],
-)
-
-kustomization_dir(
-    name = "emulators",
-    srcs = [
-        "//src/main/k8s/local:emulators",
-    ],
-    generate_kustomization = True,
-    deps = ["//src/main/k8s/testing/secretfiles:kustomization"],
-)
-
-k8s_kustomize(
-    name = "emulators_config",
-    srcs = [":emulators"],
-)
-
-kustomization_dir(
-    name = "config_files",
-    srcs = [
-        "authority_key_identifier_to_principal_map.textproto",
-        "config_files_kustomization.yaml",
-    ],
-    renames = {"config_files_kustomization.yaml": "kustomization.yaml"},
-)
-
-kustomization_dir(
-    name = "kingdom",
-    srcs = [
-        "//src/main/k8s/local:kingdom",
-    ],
-    generate_kustomization = True,
-    deps = [
-        ":config_files",
-        "//src/main/k8s/testing/secretfiles:kustomization",
-    ],
-)
-
-k8s_kustomize(
-    name = "kingdom_config",
-    srcs = [":kingdom"],
-)
+SECRET_NAME = "certs-and-configs"
 
 cue_dump(
     name = "duchies",
     cue_tags = {
         "secret_name": SECRET_NAME,
+        "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
+        "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
+        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
         "aggregator_cert_name": "{aggregator_cert_name}",
         "worker1_cert_name": "{worker1_cert_name}",
         "worker2_cert_name": "{worker2_cert_name}",
     },
+    tags = ["manual"],
     deps = ["//src/main/k8s/local:duchies_cue"],
 )
 
@@ -71,6 +30,9 @@ cue_dump(
     name = "edp_simulators",
     cue_tags = {
         "secret_name": SECRET_NAME,
+        "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
+        "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
+        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
         "mc_name": "{mc_name}",
         "edp1_name": "{edp1_name}",
         "edp2_name": "{edp2_name}",
@@ -79,20 +41,33 @@ cue_dump(
         "edp5_name": "{edp5_name}",
         "edp6_name": "{edp6_name}",
     },
-    deps = ["//src/main/k8s/local:edp_simulators_cue"],
+    tags = ["manual"],
+    deps = [
+        "//src/main/k8s/local:edp_simulators_cue",
+    ],
 )
 
 kustomization_dir(
-    name = "duchies_and_edps",
+    name = "config_files",
+    srcs = [
+        "config_files_kustomization.yaml",
+    ],
+    renames = {"config_files_kustomization.yaml": "kustomization.yaml"},
+)
+
+kustomization_dir(
+    name = "cmms",
+    testonly = True,
     srcs = [
         ":duchies",
         ":edp_simulators",
+        "//src/main/k8s/local:emulators",
+        "//src/main/k8s/local:kingdom",
     ],
     generate_kustomization = True,
-    deps = ["//src/main/k8s/testing/secretfiles:kustomization"],
-)
-
-k8s_kustomize(
-    name = "duchies_and_edps_config",
-    srcs = [":duchies_and_edps"],
+    tags = ["manual"],
+    deps = [
+        ":config_files",
+        "//src/main/k8s/testing/secretfiles:kustomization",
+    ],
 )

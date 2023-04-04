@@ -56,6 +56,12 @@ _computationControlTargets: {
 
 duchies: [ for duchyConfig in _duchyConfigs {
 	#Duchy & {
+		_imageSuffixes: {
+			"computation-control-server":     "duchy/local-computation-control"
+			"liquid-legions-v2-mill-daemon":  "duchy/local-liquid-legions-v2-mill"
+			"requisition-fulfillment-server": "duchy/local-requisition-fulfillment"
+			"spanner-computations-server":    "duchy/local-spanner-computations"
+		}
 		_duchy: {
 			name:                   duchyConfig.name
 			protocols_setup_config: duchyConfig.protocolsSetupConfig
@@ -68,17 +74,6 @@ duchies: [ for duchyConfig in _duchyConfigs {
 			"--forwarded-storage-service-target=" + (#Target & {name: "fake-storage-server"}).target,
 			"--forwarded-storage-cert-host=localhost",
 		]
-		_images: {
-			"async-computation-control-server": "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:async_computation_control_server_image"
-			"computation-control-server":       "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:forwarded_storage_computation_control_server_image"
-			"herald-daemon":                    "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/herald:herald_daemon_image"
-			"liquid-legions-v2-mill-daemon":    "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/mill/liquidlegionsv2:forwarded_storage_liquid_legions_v2_mill_daemon_image"
-			"requisition-fulfillment-server":   "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:forwarded_storage_requisition_fulfillment_server_image"
-			"spanner-computations-server":      "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:forwarded_storage_spanner_computations_server_image"
-			"update-duchy-schema":              "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/tools:update_schema_image"
-			"computations-cleaner":             "bazel/src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/job:computations_cleaner_image"
-		}
-		_duchy_image_pull_policy: "Never"
-		_verbose_grpc_logging:    "true"
+		_verbose_grpc_logging: "true"
 	}
 }]

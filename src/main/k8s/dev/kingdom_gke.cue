@@ -52,29 +52,9 @@ objectSets: [
 	kingdom.networkPolicies,
 ]
 
-_imageSuffixes: [string]: string
-_imageSuffixes: {
-	"gcp-kingdom-data-server":   "kingdom/data-server"
-	"system-api-server":         "kingdom/system-api"
-	"v2alpha-public-api-server": "kingdom/v2alpha-public-api"
-	"update-kingdom-schema":     "kingdom/spanner-update-schema"
-}
-_imageConfigs: [string]: #ImageConfig
-_imageConfigs: {
-	for name, suffix in _imageSuffixes {
-		"\(name)": {repoSuffix: suffix}
-	}
-}
-
 kingdom: #Kingdom & {
 	_kingdom_secret_name: _secret_name
 	_spannerConfig: database: "kingdom"
-
-	_images: {
-		for name, config in _imageConfigs {
-			"\(name)": config.image
-		}
-	}
 
 	_kingdom_image_pull_policy: "Always"
 	_verboseGrpcServerLogging:  true
