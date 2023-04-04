@@ -154,8 +154,9 @@ class MeasurementReader(private val view: Measurement.View) :
         .to(externalMeasurementId.value)
         .appendClause("LIMIT 1")
 
-      val row: Struct = readContext.executeQuery(statement.build()).singleOrNull()
-        ?: throw MeasurementNotFoundException { "Measurement not found $externalMeasurementId" }
+      val row: Struct =
+        readContext.executeQuery(statement.build()).singleOrNull()
+          ?: throw MeasurementNotFoundException { "Measurement not found $externalMeasurementId" }
 
       return Key.of(
         row.getInternalId("measurementConsumerId").value,
