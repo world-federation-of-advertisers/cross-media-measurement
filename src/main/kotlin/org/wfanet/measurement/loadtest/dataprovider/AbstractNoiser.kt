@@ -21,7 +21,7 @@ abstract class AbstractNoiser : Noiser {
   protected abstract val distributionForReach: RealDistribution
   protected abstract val distributionForFrequency: RealDistribution
 
-  override fun addPublisherNoise(
+  override fun addReachAndFrequencyPublisherNoise(
     reachValue: Long,
     frequencyMap: Map<Long, Double>,
   ): ReachAndFrequencyPair {
