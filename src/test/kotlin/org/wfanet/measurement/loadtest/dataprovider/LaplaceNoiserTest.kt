@@ -36,7 +36,7 @@ class LaplaceNoiserTest {
     val random = Random(RANDOM_SEED)
     val laplaceNoiser = LaplaceNoiser(MEASUREMENT_SPEC.reachAndFrequency, random)
     val (noisedReachValue, noisedFrequencyMap) =
-      laplaceNoiser.addPublisherNoise(
+      laplaceNoiser.addReachAndFrequencyPublisherNoise(
         reachValue,
         frequencyMap,
       )
