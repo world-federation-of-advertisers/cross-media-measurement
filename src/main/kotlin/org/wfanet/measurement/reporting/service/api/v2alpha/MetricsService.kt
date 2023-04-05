@@ -45,6 +45,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec.VidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
@@ -395,24 +396,23 @@ class MetricsService(
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
         when (metricSpec.typeCase) {
           InternalMetricSpec.TypeCase.REACH -> {
+            // TODO(@riemanli): convert the reach params in metricSpec after the kingdom API is
+            // updated.
             reachAndFrequency = REACH_ONLY_MEASUREMENT_SPEC
-            vidSamplingInterval = buildReachOnlyVidSamplingInterval(secureRandom)
           }
           InternalMetricSpec.TypeCase.FREQUENCY_HISTOGRAM -> {
             reachAndFrequency = metricSpec.frequencyHistogram.toReachAndFrequency()
-            vidSamplingInterval = buildReachAndFrequencyVidSamplingInterval(secureRandom)
           }
           InternalMetricSpec.TypeCase.IMPRESSION_COUNT -> {
             impression = metricSpec.impressionCount.toImpression()
-            vidSamplingInterval = buildImpressionVidSamplingInterval(secureRandom)
           }
           InternalMetricSpec.TypeCase.WATCH_DURATION -> {
             duration = metricSpec.watchDuration.toDuration()
-            vidSamplingInterval = buildDurationVidSamplingInterval(secureRandom)
           }
           InternalMetricSpec.TypeCase.TYPE_NOT_SET ->
             error("Unset metric type should've already raised error.")
         }
+        vidSamplingInterval = metricSpec.vidSamplingInterval.toCmmsVidSamplingInterval()
       }
     }
 
@@ -822,6 +822,16 @@ class MetricsService(
   }
 }
 
+/** Converts an [InternalMetricSpec.VidSamplingInterval] to a CMMS [VidSamplingInterval]. */
+private fun InternalMetricSpec.VidSamplingInterval.toCmmsVidSamplingInterval():
+  VidSamplingInterval {
+  val source = this
+  return vidSamplingInterval {
+    start = source.start
+    width = source.width
+  }
+}
+
 /** Converts an [InternalTimeInterval] to a [CmmsTimeInterval]. */
 private fun InternalTimeInterval.toCmmsTimeInterval(): CmmsTimeInterval {
   val source = this
@@ -1173,50 +1183,8 @@ private fun InternalTimeInterval.toTimeInterval(): TimeInterval {
   }
 }
 
-/** Builds a [VidSamplingInterval] for reach-only. */
-private fun buildReachOnlyVidSamplingInterval(secureRandom: SecureRandom): VidSamplingInterval {
-  return MeasurementSpecKt.vidSamplingInterval {
-    // Random draw the start point from the list
-    val index = secureRandom.nextInt(NUMBER_REACH_ONLY_BUCKETS)
-    start = REACH_ONLY_VID_SAMPLING_START_LIST[index]
-    width = REACH_ONLY_VID_SAMPLING_WIDTH
-  }
-}
-
-/** Builds a [VidSamplingInterval] for reach-frequency. */
-private fun buildReachAndFrequencyVidSamplingInterval(
-  secureRandom: SecureRandom,
-): VidSamplingInterval {
-  return MeasurementSpecKt.vidSamplingInterval {
-    // Random draw the start point from the list
-    val index = secureRandom.nextInt(NUMBER_REACH_FREQUENCY_BUCKETS)
-    start = REACH_FREQUENCY_VID_SAMPLING_START_LIST[index]
-    width = REACH_FREQUENCY_VID_SAMPLING_WIDTH
-  }
-}
-
-/** Builds a [VidSamplingInterval] for impression count. */
-private fun buildImpressionVidSamplingInterval(secureRandom: SecureRandom): VidSamplingInterval {
-  return MeasurementSpecKt.vidSamplingInterval {
-    // Random draw the start point from the list
-    val index = secureRandom.nextInt(NUMBER_IMPRESSION_BUCKETS)
-    start = IMPRESSION_VID_SAMPLING_START_LIST[index]
-    width = IMPRESSION_VID_SAMPLING_WIDTH
-  }
-}
-
-/** Builds a [VidSamplingInterval] for watch duration. */
-private fun buildDurationVidSamplingInterval(secureRandom: SecureRandom): VidSamplingInterval {
-  return MeasurementSpecKt.vidSamplingInterval {
-    // Random draw the start point from the list
-    val index = secureRandom.nextInt(NUMBER_WATCH_DURATION_BUCKETS)
-    start = WATCH_DURATION_VID_SAMPLING_START_LIST[index]
-    width = WATCH_DURATION_VID_SAMPLING_WIDTH
-  }
-}
-
 /** Converts an [InternalMetricSpec.DifferentialPrivacyParams] to [DifferentialPrivacyParams]. */
-private fun InternalMetricSpec.DifferentialPrivacyParams.toMeasurementPrivacyParams():
+private fun InternalMetricSpec.DifferentialPrivacyParams.toCmmsPrivacyParams():
   DifferentialPrivacyParams {
   val source = this
   return differentialPrivacyParams {
@@ -1233,8 +1201,8 @@ private fun InternalMetricSpec.FrequencyHistogramParams.toReachAndFrequency():
   MeasurementSpec.ReachAndFrequency {
   val source = this
   return MeasurementSpecKt.reachAndFrequency {
-    reachPrivacyParams = source.reachPrivacyParams.toMeasurementPrivacyParams()
-    frequencyPrivacyParams = source.frequencyPrivacyParams.toMeasurementPrivacyParams()
+    reachPrivacyParams = source.reachPrivacyParams.toCmmsPrivacyParams()
+    frequencyPrivacyParams = source.frequencyPrivacyParams.toCmmsPrivacyParams()
     maximumFrequencyPerUser = source.maximumFrequencyPerUser
   }
 }
@@ -1243,7 +1211,7 @@ private fun InternalMetricSpec.FrequencyHistogramParams.toReachAndFrequency():
 private fun InternalMetricSpec.ImpressionCountParams.toImpression(): MeasurementSpec.Impression {
   val source = this
   return MeasurementSpecKt.impression {
-    privacyParams = source.privacyParams.toMeasurementPrivacyParams()
+    privacyParams = source.privacyParams.toCmmsPrivacyParams()
     maximumFrequencyPerUser = source.maximumFrequencyPerUser
   }
 }
@@ -1252,7 +1220,7 @@ private fun InternalMetricSpec.ImpressionCountParams.toImpression(): Measurement
 private fun InternalMetricSpec.WatchDurationParams.toDuration(): MeasurementSpec.Duration {
   val source = this
   return MeasurementSpecKt.duration {
-    privacyParams = source.privacyParams.toMeasurementPrivacyParams()
+    privacyParams = source.privacyParams.toCmmsPrivacyParams()
     maximumWatchDurationPerUser = source.maximumWatchDurationPerUser
   }
 }
