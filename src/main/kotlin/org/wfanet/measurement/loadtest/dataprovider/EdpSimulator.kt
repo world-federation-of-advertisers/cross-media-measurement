@@ -776,7 +776,7 @@ class EdpSimulator(
         error("Measurement type not supported.")
       }
       MeasurementSpec.MeasurementTypeCase.REACH -> {
-        val (sampledReachValue, _) = calculateDirectReachAndFrequency(vidList)
+        val sampledReachValue = calculateDirectReach(vidList)
         logger.info("Adding publisher noise to direct reach...")
         val sampledNoisedReachValue =
           addReachPublisherNoise(sampledReachValue, measurementSpec.reach.privacyParams.epsilon)
@@ -878,8 +878,22 @@ class EdpSimulator(
     }
 
     /**
-     * Calculate direct reach and frequency from VIDs in
-     * fulfillDirectReachAndFrequencyMeasurement().
+     * Calculate direct reach from VIDs.
+     *
+     * @param vidList List of VIDs.
+     * @return Reach value.
+     */
+    private fun calculateDirectReach(
+      vidList: List<Long>,
+    ): Long {
+      // Example: vidList: [1L, 1L, 1L, 2L, 2L, 3L, 4L, 5L]
+      // 5 unique people(1, 2, 3, 4, 5) being reached
+      // reach = 5
+      return vidList.toSet().size.toLong()
+    }
+
+    /**
+     * Calculate direct reach and frequency from VIDs.
      *
      * @param vidList List of VIDs.
      * @return Pair of reach value and frequency map.
@@ -894,7 +908,7 @@ class EdpSimulator(
       // 2 reach -> 0.2(1/5)(VID 2L)
       // 3 reach -> 0.2(1/5)(VID 1L)
       // frequencyMap = {1L: 0.6, 2L to 0.2, 3L: 0.2}
-      val reachValue = vidList.toSet().size.toLong()
+      val reachValue = calculateDirectReach(vidList)
       val frequencyMap = mutableMapOf<Long, Double>().withDefault { 0.0 }
 
       vidList
