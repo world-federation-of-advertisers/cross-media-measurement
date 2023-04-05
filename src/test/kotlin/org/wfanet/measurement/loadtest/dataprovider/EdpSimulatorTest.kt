@@ -236,7 +236,7 @@ private val REQUISITION_ONE_SPEC = requisitionSpec {
 }
 private const val DUCHY_ID = "worker1"
 private const val RANDOM_SEED: Long = 1
-private const val NOISE_MECHANISM = "LAPLACE"
+private val NOISE_MECHANISM = NoiseMechanism.LAPLACE
 
 @RunWith(JUnit4::class)
 class EdpSimulatorTest {

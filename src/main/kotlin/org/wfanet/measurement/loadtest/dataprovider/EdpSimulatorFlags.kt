@@ -24,7 +24,7 @@ import picocli.CommandLine
 
 // TODO(@iverson52000): Move this to public API if EDP needs to report back which noiser is used for
 // PBM tracking.
-internal enum class NoiseMechanism {
+enum class NoiseMechanism {
   LAPLACE,
   GAUSSIAN,
 }
@@ -111,9 +111,8 @@ class EdpSimulatorFlags {
   @set:CommandLine.Option(
     names = ["--noise-mechanism"],
     description = ["Differential privacy noise mechanism for direct measurements"],
-    required = true,
     defaultValue = "LAPLACE",
   )
-  var noiseMechanism by Delegates.notNull<String>()
+  var noiseMechanism by Delegates.notNull<NoiseMechanism>()
     private set
 }
