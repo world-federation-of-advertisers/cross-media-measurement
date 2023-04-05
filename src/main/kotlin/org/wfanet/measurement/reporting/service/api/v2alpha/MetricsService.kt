@@ -136,12 +136,6 @@ private const val REACH_ONLY_REACH_EPSILON = 0.0041
 private const val REACH_ONLY_FREQUENCY_EPSILON = 0.0001
 private const val REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER = 1
 
-private val REACH_ONLY_DIFFERENTIAL_PRIVACY_PARAMS =
-  InternalMetricSpecKt.differentialPrivacyParams {
-    epsilon = REACH_ONLY_REACH_EPSILON
-    delta = DIFFERENTIAL_PRIVACY_DELTA
-  }
-
 private const val REACH_FREQUENCY_VID_SAMPLING_WIDTH = 5.0f / NUMBER_VID_BUCKETS
 private const val NUMBER_REACH_FREQUENCY_BUCKETS = 19
 private val REACH_FREQUENCY_VID_SAMPLING_START_LIST =
@@ -154,17 +148,6 @@ private const val REACH_FREQUENCY_REACH_EPSILON = 0.0033
 private const val REACH_FREQUENCY_FREQUENCY_EPSILON = 0.115
 private const val REACH_FREQUENCY_MAXIMUM_FREQUENCY_PER_USER = 10
 
-private val REACH_FREQUENCY_REACH_DIFFERENTIAL_PRIVACY_PARAMS =
-  InternalMetricSpecKt.differentialPrivacyParams {
-    epsilon = REACH_FREQUENCY_REACH_EPSILON
-    delta = DIFFERENTIAL_PRIVACY_DELTA
-  }
-private val REACH_FREQUENCY_FREQUENCY_DIFFERENTIAL_PRIVACY_PARAMS =
-  InternalMetricSpecKt.differentialPrivacyParams {
-    epsilon = REACH_FREQUENCY_FREQUENCY_EPSILON
-    delta = DIFFERENTIAL_PRIVACY_DELTA
-  }
-
 private const val IMPRESSION_VID_SAMPLING_WIDTH = 62.0f / NUMBER_VID_BUCKETS
 private const val NUMBER_IMPRESSION_BUCKETS = 1
 private val IMPRESSION_VID_SAMPLING_START_LIST =
@@ -174,11 +157,7 @@ private val IMPRESSION_VID_SAMPLING_START_LIST =
       it * IMPRESSION_VID_SAMPLING_WIDTH
   }
 private const val IMPRESSION_EPSILON = 0.0011
-private val IMPRESSION_DIFFERENTIAL_PRIVACY_PARAMS =
-  InternalMetricSpecKt.differentialPrivacyParams {
-    epsilon = IMPRESSION_EPSILON
-    delta = DIFFERENTIAL_PRIVACY_DELTA
-  }
+private const val IMPRESSION_MAXIMUM_FREQUENCY_PER_USER = 60
 
 private const val WATCH_DURATION_VID_SAMPLING_WIDTH = 95.0f / NUMBER_VID_BUCKETS
 private const val NUMBER_WATCH_DURATION_BUCKETS = 1
@@ -189,11 +168,7 @@ private val WATCH_DURATION_VID_SAMPLING_START_LIST =
       it * WATCH_DURATION_VID_SAMPLING_WIDTH
   }
 private const val WATCH_DURATION_EPSILON = 0.001
-private val WATCH_DURATION_DIFFERENTIAL_PRIVACY_PARAMS =
-  InternalMetricSpecKt.differentialPrivacyParams {
-    epsilon = WATCH_DURATION_EPSILON
-    delta = DIFFERENTIAL_PRIVACY_DELTA
-  }
+private const val MAXIMUM_WATCH_DURATION_PER_USER = 4000
 
 private val REACH_ONLY_MEASUREMENT_SPEC =
   MeasurementSpecKt.reachAndFrequency {
@@ -871,56 +846,83 @@ private fun MetricSpec.toInternal(): InternalMetricSpec {
       MetricSpec.TypeCase.REACH -> reach = source.reach.toInternal()
       MetricSpec.TypeCase.FREQUENCY_HISTOGRAM ->
         frequencyHistogram = source.frequencyHistogram.toInternal()
-      MetricSpec.TypeCase.IMPRESSION_COUNT ->
-        impressionCount =
-          InternalMetricSpecKt.impressionCountParams {
-            if (source.impressionCount.maximumFrequencyPerUser != 0) {
-              maximumFrequencyPerUser = source.impressionCount.maximumFrequencyPerUser
-            }
-            privacyParams = source.impressionCount.privacyParams.toInternal()
-          }
-      MetricSpec.TypeCase.WATCH_DURATION ->
-        watchDuration =
-          InternalMetricSpecKt.watchDurationParams {
-            if (source.watchDuration.maximumWatchDurationPerUser != 0) {
-              maximumWatchDurationPerUser = source.watchDuration.maximumWatchDurationPerUser
-            }
-            privacyParams = source.watchDuration.privacyParams.toInternal()
-          }
+      MetricSpec.TypeCase.IMPRESSION_COUNT -> impressionCount = source.impressionCount.toInternal()
+      MetricSpec.TypeCase.WATCH_DURATION -> watchDuration = source.watchDuration.toInternal()
       MetricSpec.TypeCase.TYPE_NOT_SET ->
         failGrpc(Status.INVALID_ARGUMENT) { "The metric type in Metric is not specified." }
     }
   }
 }
 
+private fun MetricSpec.WatchDurationParams.toInternal(): InternalMetricSpec.WatchDurationParams {
+  val source = this
+  grpcRequire(source.hasPrivacyParams()) { "privacyParams in watch duration is not set." }
+
+  return InternalMetricSpecKt.watchDurationParams {
+    privacyParams =
+      source.privacyParams.toInternal(WATCH_DURATION_EPSILON, DIFFERENTIAL_PRIVACY_DELTA)
+    maximumWatchDurationPerUser =
+      if (source.hasMaximumWatchDurationPerUser()) {
+        source.maximumWatchDurationPerUser
+      } else {
+        MAXIMUM_WATCH_DURATION_PER_USER
+      }
+  }
+}
+
+private fun MetricSpec.ImpressionCountParams.toInternal():
+  InternalMetricSpec.ImpressionCountParams {
+  val source = this
+  grpcRequire(source.hasPrivacyParams()) { "privacyParams in impression count is not set." }
+
+  return InternalMetricSpecKt.impressionCountParams {
+    privacyParams = source.privacyParams.toInternal(IMPRESSION_EPSILON, DIFFERENTIAL_PRIVACY_DELTA)
+    maximumFrequencyPerUser =
+      if (source.hasMaximumFrequencyPerUser()) {
+        source.maximumFrequencyPerUser
+      } else {
+        IMPRESSION_MAXIMUM_FREQUENCY_PER_USER
+      }
+  }
+}
+
 private fun MetricSpec.FrequencyHistogramParams.toInternal():
   InternalMetricSpec.FrequencyHistogramParams {
   val source = this
+  grpcRequire(source.hasReachPrivacyParams()) {
+    "reachPrivacyParams in frequency histogram is not set."
+  }
+  grpcRequire(source.hasFrequencyPrivacyParams()) {
+    "frequencyPrivacyParams in frequency histogram is not set."
+  }
+
   return InternalMetricSpecKt.frequencyHistogramParams {
+    reachPrivacyParams =
+      source.reachPrivacyParams.toInternal(
+        REACH_FREQUENCY_REACH_EPSILON,
+        DIFFERENTIAL_PRIVACY_DELTA
+      )
+    frequencyPrivacyParams =
+      source.frequencyPrivacyParams.toInternal(
+        REACH_FREQUENCY_FREQUENCY_EPSILON,
+        DIFFERENTIAL_PRIVACY_DELTA
+      )
     maximumFrequencyPerUser =
-      if (source.maximumFrequencyPerUser != 0) {
+      if (source.hasMaximumFrequencyPerUser()) {
         source.maximumFrequencyPerUser
       } else {
         REACH_FREQUENCY_MAXIMUM_FREQUENCY_PER_USER
-      }
-    privacyParams =
-      if (source.hasPrivacyParams()) {
-        source.privacyParams.toInternal()
-      } else {
-        REACH_ONLY_DIFFERENTIAL_PRIVACY_PARAMS
       }
   }
 }
 
 private fun MetricSpec.ReachParams.toInternal(): InternalMetricSpec.ReachParams {
   val source = this
+  grpcRequire(source.hasPrivacyParams()) { "privacyParams in reach is not set." }
+
   return InternalMetricSpecKt.reachParams {
     privacyParams =
-      if (source.hasPrivacyParams()) {
-        source.privacyParams.toInternal()
-      } else {
-        REACH_ONLY_DIFFERENTIAL_PRIVACY_PARAMS
-      }
+      source.privacyParams.toInternal(REACH_ONLY_REACH_EPSILON, DIFFERENTIAL_PRIVACY_DELTA)
   }
 }
 
@@ -928,12 +930,14 @@ private fun MetricSpec.ReachParams.toInternal(): InternalMetricSpec.ReachParams 
  * Converts an [MetricSpec.DifferentialPrivacyParams] to a public
  * [InternalMetricSpec.DifferentialPrivacyParams].
  */
-private fun MetricSpec.DifferentialPrivacyParams.toInternal():
-  InternalMetricSpec.DifferentialPrivacyParams {
+private fun MetricSpec.DifferentialPrivacyParams.toInternal(
+  defaultEpsilon: Double,
+  defaultDelta: Double
+): InternalMetricSpec.DifferentialPrivacyParams {
   val source = this
   return InternalMetricSpecKt.differentialPrivacyParams {
-    epsilon = source.epsilon
-    delta = source.delta
+    epsilon = if (source.hasEpsilon()) source.epsilon else defaultEpsilon
+    delta = if (source.hasDelta()) source.delta else defaultDelta
   }
 }
 
@@ -1065,7 +1069,7 @@ private fun InternalMetricSpec.toMetricSpec(): MetricSpec {
         frequencyHistogram =
           MetricSpecKt.frequencyHistogramParams {
             maximumFrequencyPerUser = source.frequencyHistogram.maximumFrequencyPerUser
-            privacyParams = source.frequencyHistogram.privacyParams.toPrivacyParams()
+            reachPrivacyParams = source.frequencyHistogram.reachPrivacyParams.toPrivacyParams()
           }
       InternalMetricSpec.TypeCase.IMPRESSION_COUNT ->
         impressionCount =
