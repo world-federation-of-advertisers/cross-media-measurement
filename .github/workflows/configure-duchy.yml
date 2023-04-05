@@ -15,20 +15,20 @@
 name: "Configure Duchy"
 
 on:
-  #workflow_call:
-  workflow_dispatch:
-    inputs:
-      image_tag:
-        description: "Image tag needed for configuration"
-        type: string
-        required: true
-      duchy_name:
-        description: "The name of the Duchy to build"
-        required: true
-      kubectl_apply:
-        description: "Apply the manifest to the cluster"
-        required: false
-        type: boolean
+  workflow_call:
+    workflow_dispatch:
+      inputs:
+        image_tag:
+          description: "Image tag needed for configuration"
+          type: string
+          required: true
+        duchy_name:
+          description: "The name of the Duchy to build"
+          required: true
+        kubectl_apply:
+          description: "Apply the manifest to the cluster"
+          required: false
+          type: boolean
 
 env:
   REGISTRY: ghcr.io
@@ -41,32 +41,40 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
         
-      # TODO(wfa-hkawalkar) add gcloud authentication.        
+      # Install gcloud, `setup-gcloud` automatically picks up authentication from `auth`.
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
 
-      - name: Build Target
-        run: bazelisk build //src/main/k8s/testing/secretfiles:apply_kustomization
+      # Setup Gcloud identity federation
+      - name: "Authenticate to Google Cloud"
+        uses: "google-github-actions/auth@v1"
+        with:
+          workload_identity_provider: ${{ secrets.WFI_PROVIDER }}
+          service_account: ${{ secrets.WFI_SA }}
+          token_format: 'access_token'
 
-      - name: Get Hash Value
-        run: echo $(bazelisk info bazel-bin)/src/main/k8s/testing/secretfiles/apply_kustomization.tar | sha256sum > hash.txt
-
-      - name: Display Hash Value
-        run: echo "HASH=`cat hash.txt`" >> $GITHUB_ENV
+      # Update KUBECONFIG
+      - name: Update KUBECONFIG
+        run: gcloud container clusters get-credentials dev-halo-duchy-worker --zone us-central1
 
       # Create k8s manifest
       - name: Build K8s manifest
         run: |
           bazelisk build //src/main/k8s/dev:${{ inputs.duchy_name }}_duchy_gke \
-          --define k8s_duchy_secret_name=certs-and-configs-$HASH \
+          --define k8s_duchy_secret_name=$SECRET_NAME \
           --define duchy_cert_id=SVVse4xWHL0 \
           --define duchy_storage_bucket=${{ inputs.duchy_name }}-duchy \
           --define container_registry=${{ env.REGISTRY }} \
           --define image_repo_prefix=${{ env.REPO_PREFIX }} \
           --define image_tag=${{ inputs.image_tag }}
-          cat bazel-bin/src/main/k8s/dev/worker1_duchy_gke.yaml
-     
-     # Update KUBECONFIG
-      - name: Update KUBECONFIG
-        run: gcloud container clusters get-credentials dev-halo-duchy-worker --zone us-central1          
+
+      - name: Apply secrets
+        run: |
+          bazelisk build //src/main/k8s/testing/secretfiles:kustomization.tar
+          mkdir secretfiles
+          tar -xf "$(bazelisk info bazel-bin)/src/main/k8s/testing/secretfiles/kustomization.tar" -C secretfiles
+          resource_name="$(kubectl apply -k secretfiles/src/main/k8s/testing/secretfiles/kustomization -o name)"
+          echo "SECRET_NAME=$(basename $resource_name)" >> "$GITHUB_ENV"                
 
       # Apply manifest
       - name: apply k8s manifest
