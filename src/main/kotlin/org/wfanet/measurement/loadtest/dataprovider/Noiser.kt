@@ -26,7 +26,7 @@ interface Noiser {
    * @param frequencyMap Direct frequency.
    * @return Pair of noised reach value and frequency map.
    */
-  fun addPublisherNoise(
+  fun addReachAndFrequencyPublisherNoise(
     reachValue: Long,
     frequencyMap: Map<Long, Double>,
   ): ReachAndFrequencyPair
