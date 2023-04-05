@@ -150,18 +150,20 @@ class MeasurementReader(private val view: Measurement.View) :
           JOIN MeasurementConsumers USING (MeasurementConsumerId)
         """
           .trimIndent()
-      val statement = statement(sql) {
-        appendClause(
-          """
-          WHERE
-            ExternalMeasurementConsumerId = @externalMeasurementConsumerId
-            AND ExternalMeasurementId = @externalMeasurementId
-          """.trimIndent()
-        )
-        bind("externalMeasurementConsumerId").to(externalMeasurementConsumerId.value)
-        bind("externalMeasurementId").to(externalMeasurementId.value)
-        appendClause("LIMIT 1")
-      }
+      val statement =
+        statement(sql) {
+          appendClause(
+            """
+            WHERE
+              ExternalMeasurementConsumerId = @externalMeasurementConsumerId
+              AND ExternalMeasurementId = @externalMeasurementId
+            """
+              .trimIndent()
+          )
+          bind("externalMeasurementConsumerId").to(externalMeasurementConsumerId.value)
+          bind("externalMeasurementId").to(externalMeasurementId.value)
+          appendClause("LIMIT 1")
+        }
 
       val row: Struct =
         readContext.executeQuery(statement).singleOrNull()
