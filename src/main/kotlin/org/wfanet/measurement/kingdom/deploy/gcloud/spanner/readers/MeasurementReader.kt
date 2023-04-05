@@ -33,7 +33,6 @@ import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByMeasurementConsumerException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundException
 
