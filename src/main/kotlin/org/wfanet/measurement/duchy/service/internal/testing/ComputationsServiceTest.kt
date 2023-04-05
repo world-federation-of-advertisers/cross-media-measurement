@@ -17,10 +17,12 @@ package org.wfanet.measurement.duchy.service.internal.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.kotlin.toByteStringUtf8
+import com.google.protobuf.util.Durations
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
 import java.time.Duration
+import java.time.Instant
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -32,12 +34,42 @@ import org.wfanet.measurement.common.toByteString
 import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.duchy.toProtocolStage
-import org.wfanet.measurement.internal.duchy.*
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest.AfterTransition
+import org.wfanet.measurement.internal.duchy.ClaimWorkResponse
+import org.wfanet.measurement.internal.duchy.ComputationDetails
+import org.wfanet.measurement.internal.duchy.ComputationStageDetails
+import org.wfanet.measurement.internal.duchy.ComputationToken
+import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase
+import org.wfanet.measurement.internal.duchy.CreateComputationResponse
+import org.wfanet.measurement.internal.duchy.EnqueueComputationResponse
+import org.wfanet.measurement.internal.duchy.GetComputationIdsResponse
+import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
+import org.wfanet.measurement.internal.duchy.advanceComputationStageRequest
+import org.wfanet.measurement.internal.duchy.claimWorkRequest
+import org.wfanet.measurement.internal.duchy.computationDetails
+import org.wfanet.measurement.internal.duchy.computationStage
+import org.wfanet.measurement.internal.duchy.computationToken
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig
+import org.wfanet.measurement.internal.duchy.copy
+import org.wfanet.measurement.internal.duchy.createComputationRequest
+import org.wfanet.measurement.internal.duchy.deleteComputationRequest
+import org.wfanet.measurement.internal.duchy.enqueueComputationRequest
+import org.wfanet.measurement.internal.duchy.externalRequisitionKey
+import org.wfanet.measurement.internal.duchy.finishComputationRequest
+import org.wfanet.measurement.internal.duchy.getComputationIdsRequest
+import org.wfanet.measurement.internal.duchy.getComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.computationParticipant
+import org.wfanet.measurement.internal.duchy.protocol.copy
+import org.wfanet.measurement.internal.duchy.purgeComputationsRequest
+import org.wfanet.measurement.internal.duchy.recordOutputBlobPathRequest
+import org.wfanet.measurement.internal.duchy.recordRequisitionBlobPathRequest
+import org.wfanet.measurement.internal.duchy.requisitionDetails
+import org.wfanet.measurement.internal.duchy.requisitionEntry
+import org.wfanet.measurement.internal.duchy.requisitionMetadata
+import org.wfanet.measurement.internal.duchy.updateComputationDetailsRequest
 
 @RunWith(JUnit4::class)
 abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
@@ -104,16 +136,21 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
 
   @Test
   fun `createComputation returns response with token`() = runBlocking {
-    val createComputationResponse = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+    val writeTime: Instant = clock.last()
 
-    assertThat(createComputationResponse.token.localComputationId).isNotEqualTo(0L)
-    assertThat(createComputationResponse.token.version).isNotEqualTo(0L)
-    assertThat(createComputationResponse.token)
+    val response: CreateComputationResponse =
+      service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+
+    assertThat(response.token.localComputationId).isNotEqualTo(0L)
+    assertThat(response.token.version).isNotEqualTo(0L)
+    assertThat(response.token)
       .ignoringFields(
         ComputationToken.LOCAL_COMPUTATION_ID_FIELD_NUMBER,
         ComputationToken.VERSION_FIELD_NUMBER
       )
-      .isEqualTo(DEFAULT_CREATE_COMPUTATION_RESP_TOKEN)
+      .isEqualTo(
+        DEFAULT_CREATE_COMPUTATION_RESP_TOKEN.copy { lockExpirationTime = writeTime.toProtoTime() }
+      )
   }
 
   @Test
@@ -179,29 +216,25 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
 
   @Test
   fun `purgeComputations does not delete Computations when force is false`() = runBlocking {
-    service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
-    val currentTime = Clock.systemUTC().instant()
+    val createTime = clock.last()
+    val createdToken = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST).token
+
     service.purgeComputations(
       purgeComputationsRequest {
-        updatedBefore = currentTime.plusSeconds(1000L).toProtoTime()
+        updatedBefore = createTime.plusSeconds(1000L).toProtoTime()
         stages += Stage.INITIALIZATION_PHASE.toProtocolStage()
         force = false
       }
     )
 
-    val getComputationResponse =
-      service.getComputationToken(
-        getComputationTokenRequest { globalComputationId = GLOBAL_COMPUTATION_ID }
+    assertThat(
+        service
+          .getComputationToken(
+            getComputationTokenRequest { globalComputationId = GLOBAL_COMPUTATION_ID }
+          )
+          .token
       )
-
-    assertThat(getComputationResponse.token.localComputationId).isNotEqualTo(0L)
-    assertThat(getComputationResponse.token.version).isNotEqualTo(0L)
-    assertThat(getComputationResponse.token)
-      .ignoringFields(
-        ComputationToken.LOCAL_COMPUTATION_ID_FIELD_NUMBER,
-        ComputationToken.VERSION_FIELD_NUMBER
-      )
-      .isEqualTo(DEFAULT_CREATE_COMPUTATION_RESP_TOKEN)
+      .isEqualTo(createdToken)
   }
 
   @Test
@@ -226,26 +259,6 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
 
     assertThat(purgeComputationsResp.purgeSampleList).isEmpty()
     assertThat(purgeComputationsResp.purgeCount).isEqualTo(2)
-  }
-
-  @Test
-  fun `getComputationToken throws NOT_FOUND when computation is purged`() = runBlocking {
-    service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
-    val currentTime = Clock.systemUTC().instant()
-    val purgeComputationsRequest = purgeComputationsRequest {
-      updatedBefore = currentTime.plusSeconds(1000L).toProtoTime()
-      stages += Stage.INITIALIZATION_PHASE.toProtocolStage()
-      force = true
-    }
-    service.purgeComputations(purgeComputationsRequest)
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.getComputationToken(
-          getComputationTokenRequest { globalComputationId = GLOBAL_COMPUTATION_ID }
-        )
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
   }
 
   @Test
@@ -299,41 +312,47 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   }
 
   @Test
-  fun `getComputationToken by global computation ID returns created computation`() = runBlocking {
+  fun `getComputationToken throws NOT_FOUND when computation is purged`() = runBlocking {
     service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+    val currentTime = Clock.systemUTC().instant()
+    val purgeComputationsRequest = purgeComputationsRequest {
+      updatedBefore = currentTime.plusSeconds(1000L).toProtoTime()
+      stages += Stage.INITIALIZATION_PHASE.toProtocolStage()
+      force = true
+    }
+    service.purgeComputations(purgeComputationsRequest)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.getComputationToken(
+          getComputationTokenRequest { globalComputationId = GLOBAL_COMPUTATION_ID }
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `getComputationToken by global computation ID returns created computation`() = runBlocking {
+    val createdToken = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST).token
 
     val getComputationResponse =
       service.getComputationToken(
         getComputationTokenRequest { globalComputationId = GLOBAL_COMPUTATION_ID }
       )
 
-    assertThat(getComputationResponse.token.localComputationId).isNotEqualTo(0L)
-    assertThat(getComputationResponse.token.version).isNotEqualTo(0L)
-    assertThat(getComputationResponse.token)
-      .ignoringFields(
-        ComputationToken.LOCAL_COMPUTATION_ID_FIELD_NUMBER,
-        ComputationToken.VERSION_FIELD_NUMBER
-      )
-      .isEqualTo(DEFAULT_CREATE_COMPUTATION_RESP_TOKEN)
+    assertThat(getComputationResponse.token).isEqualTo(createdToken)
   }
 
   @Test
   fun `getComputationToken by requisition key returns created computation`() = runBlocking {
-    service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+    val createdToken = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST).token
 
-    val getComputationRequest = getComputationTokenRequest {
-      requisitionKey = DEFAULT_REQUISITION_ENTRY.key
-    }
-    val getComputationResponse = service.getComputationToken(getComputationRequest)
-
-    assertThat(getComputationResponse.token.localComputationId).isNotEqualTo(0L)
-    assertThat(getComputationResponse.token.version).isNotEqualTo(0L)
-    assertThat(getComputationResponse.token)
-      .ignoringFields(
-        ComputationToken.LOCAL_COMPUTATION_ID_FIELD_NUMBER,
-        ComputationToken.VERSION_FIELD_NUMBER
+    val response =
+      service.getComputationToken(
+        getComputationTokenRequest { requisitionKey = DEFAULT_REQUISITION_ENTRY.key }
       )
-      .isEqualTo(DEFAULT_CREATE_COMPUTATION_RESP_TOKEN)
+
+    assertThat(response.token).isEqualTo(createdToken)
   }
 
   @Test
@@ -364,32 +383,35 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   }
 
   @Test
-  fun `updateComputationDetails returns token with updated computationDetails`() = runBlocking {
-    val createComputationResp = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+  fun `updateComputationDetails updates ComputationDetails`() = runBlocking {
+    val createdToken = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST).token
 
     val updatedComputationDetails =
-      AGGREGATOR_COMPUTATION_DETAILS.copy {
+      createdToken.computationDetails.copy {
         liquidLegionsV2 =
-          LiquidLegionsSketchAggregationV2Kt.computationDetails {
-            role = LiquidLegionsV2SetupConfig.RoleInComputation.NON_AGGREGATOR
+          liquidLegionsV2.copy {
+            participant.clear()
+            participant += computationParticipant { duchyId = "worker1" }
           }
       }
-    val updateComputationsDetailsResponse =
+    val response =
       service.updateComputationDetails(
         updateComputationDetailsRequest {
-          token = createComputationResp.token
+          token = createdToken
           details = updatedComputationDetails
         }
       )
 
-    val expectedUpdatedToken =
-      DEFAULT_CREATE_COMPUTATION_RESP_TOKEN.copy { computationDetails = updatedComputationDetails }
-    assertThat(updateComputationsDetailsResponse.token)
-      .ignoringFields(
-        ComputationToken.LOCAL_COMPUTATION_ID_FIELD_NUMBER,
-        ComputationToken.VERSION_FIELD_NUMBER
+    assertThat(response.token)
+      .isEqualTo(createdToken.copy { computationDetails = updatedComputationDetails })
+    assertThat(
+        service
+          .getComputationToken(
+            getComputationTokenRequest { globalComputationId = createdToken.globalComputationId }
+          )
+          .token
       )
-      .isEqualTo(expectedUpdatedToken)
+      .isEqualTo(response.token)
   }
 
   @Test
@@ -503,6 +525,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   @Test
   fun `finishComputation returns computation in terminal stage`() = runBlocking {
     val createComputationResp = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+    clock.tickSeconds("finish", 1)
 
     val finishComputationRequest = finishComputationRequest {
       token = createComputationResp.token
@@ -518,6 +541,7 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
           this.computationDetails.copy {
             endingState = ComputationDetails.CompletedReason.SUCCEEDED
           }
+        clearLockExpirationTime()
       }
     assertThat(finishComputationResponse.token)
       .ignoringFields(ComputationToken.VERSION_FIELD_NUMBER)
@@ -568,30 +592,77 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
   }
 
   @Test
-  fun `claimWork throws INVALID_ARGUMENT when owner is blank`() = runBlocking {
+  fun `claimWork throws INVALID_ARGUMENT when owner is not specified`() = runBlocking {
     val claimWorkRequest = DEFAULT_CLAIM_WORK_REQUEST.copy { clearOwner() }
 
     val exception = assertFailsWith<StatusRuntimeException> { service.claimWork(claimWorkRequest) }
 
     assertThat(exception.status.code).isEqualTo(Status.INVALID_ARGUMENT.code)
-    assertThat(exception.message).contains("owner should not be blank")
+    assertThat(exception.message).contains("owner")
   }
 
   @Test
-  fun `claimWork returns created computation when previous claim lock expired`() = runBlocking {
-    val createComputationResponse = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
+  fun `claimWork updates computation lock`(): Unit = runBlocking {
+    val createdToken = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST).token
+    val writeTime = clock.last()
+    val lockDuration = Duration.ofMinutes(10)
 
-    val lockDuration = Duration.ofSeconds(1)
-    val claimWorkRequest =
-      DEFAULT_CLAIM_WORK_REQUEST.copy { this.lockDuration = lockDuration.toProtoDuration() }
-    service.claimWork(claimWorkRequest)
-    clock.tickSeconds("after_expiration", lockDuration.seconds)
-    val claimWorkResponse = service.claimWork(claimWorkRequest)
+    val response =
+      service.claimWork(
+        DEFAULT_CLAIM_WORK_REQUEST.copy { this.lockDuration = lockDuration.toProtoDuration() }
+      )
 
-    val expectedClaimedComputationToken = createComputationResponse.token.copy { attempt = 2 }
-    assertThat(claimWorkResponse.token)
+    assertThat(response.token)
       .ignoringFields(ComputationToken.VERSION_FIELD_NUMBER)
-      .isEqualTo(expectedClaimedComputationToken)
+      .isEqualTo(
+        createdToken.copy {
+          attempt = 1
+          lockOwner = DEFAULT_OWNER
+          lockExpirationTime = writeTime.plus(lockDuration).toProtoTime()
+        }
+      )
+    assertThat(
+        service
+          .getComputationToken(
+            getComputationTokenRequest { globalComputationId = response.token.globalComputationId }
+          )
+          .token
+      )
+      .isEqualTo(response.token)
+  }
+
+  @Test
+  fun `claimWork updates computation lock when previous lock expired`() = runBlocking {
+    val createdToken = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST).token
+    service.claimWork(
+      DEFAULT_CLAIM_WORK_REQUEST.copy { this.lockDuration = Durations.fromSeconds(1) }
+    )
+    clock.tickSeconds("lock-expired", 1)
+    val updateTime = clock.last()
+    val lockDuration = Duration.ofMinutes(10)
+
+    val response =
+      service.claimWork(
+        DEFAULT_CLAIM_WORK_REQUEST.copy { this.lockDuration = lockDuration.toProtoDuration() }
+      )
+
+    assertThat(response.token)
+      .ignoringFields(ComputationToken.VERSION_FIELD_NUMBER)
+      .isEqualTo(
+        createdToken.copy {
+          attempt = 2
+          lockOwner = DEFAULT_OWNER
+          lockExpirationTime = updateTime.plus(lockDuration).toProtoTime()
+        }
+      )
+    assertThat(
+        service
+          .getComputationToken(
+            getComputationTokenRequest { globalComputationId = response.token.globalComputationId }
+          )
+          .token
+      )
+      .isEqualTo(response.token)
   }
 
   @Test
@@ -602,18 +673,6 @@ abstract class ComputationsServiceTest<T : ComputationsCoroutineImplBase> {
     val claimWorkResponse = service.claimWork(DEFAULT_CLAIM_WORK_REQUEST)
 
     assertThat(claimWorkResponse).isEqualTo(ClaimWorkResponse.getDefaultInstance())
-  }
-
-  @Test
-  fun `claimWork returns claimed computation token`() = runBlocking {
-    val createComputationResponse = service.createComputation(DEFAULT_CREATE_COMPUTATION_REQUEST)
-
-    val claimWorkResponse = service.claimWork(DEFAULT_CLAIM_WORK_REQUEST)
-
-    val expectedClaimedComputationToken = createComputationResponse.token.copy { attempt = 1 }
-    assertThat(claimWorkResponse.token)
-      .ignoringFields(ComputationToken.VERSION_FIELD_NUMBER)
-      .isEqualTo(expectedClaimedComputationToken)
   }
 
   @Test
