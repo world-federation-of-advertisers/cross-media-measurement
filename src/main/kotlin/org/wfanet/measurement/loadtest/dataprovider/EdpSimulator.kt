@@ -746,7 +746,8 @@ class EdpSimulator(
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
     return when (measurementSpec.measurementTypeCase) {
       MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
-        val (sampledReachValue, frequencyMap) = calculateDirectReachAndFrequency(vidList)
+        val sampledReachValue = calculateDirectReach(vidList)
+        val frequencyMap = calculateDirectFrequency(vidList, sampledReachValue)
 
         logger.info("Adding publisher noise to direct reach and frequency...")
         val noisedFrequencyMap =
@@ -891,22 +892,21 @@ class EdpSimulator(
     }
 
     /**
-     * Calculate direct reach and frequency from VIDs.
+     * Calculate direct frequency from VIDs.
      *
      * @param vidList List of VIDs.
-     * @return Pair of reach value and frequency map.
+     * @param directReachValue Direct reach value.
+     * @return Frequency map.
      */
-    private fun calculateDirectReachAndFrequency(
+    private fun calculateDirectFrequency(
       vidList: List<Long>,
-    ): Pair<Long, Map<Long, Double>> {
+      directReachValue: Long
+    ): Map<Long, Double> {
       // Example: vidList: [1L, 1L, 1L, 2L, 2L, 3L, 4L, 5L]
-      // 5 unique people(1, 2, 3, 4, 5) being reached
-      // reach = 5
       // 1 reach -> 0.6(3/5)(VID 3L, 4L, 5L)
       // 2 reach -> 0.2(1/5)(VID 2L)
       // 3 reach -> 0.2(1/5)(VID 1L)
       // frequencyMap = {1L: 0.6, 2L to 0.2, 3L: 0.2}
-      val reachValue = calculateDirectReach(vidList)
       val frequencyMap = mutableMapOf<Long, Double>().withDefault { 0.0 }
 
       vidList
@@ -917,10 +917,10 @@ class EdpSimulator(
         }
 
       frequencyMap.forEach { (frequency, _) ->
-        frequencyMap[frequency] = frequencyMap.getValue(frequency) / reachValue.toDouble()
+        frequencyMap[frequency] = frequencyMap.getValue(frequency) / directReachValue.toDouble()
       }
 
-      return Pair(reachValue, frequencyMap)
+      return frequencyMap
     }
 
     /**
