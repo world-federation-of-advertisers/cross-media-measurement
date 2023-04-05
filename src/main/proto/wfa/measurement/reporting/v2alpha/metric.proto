@@ -58,7 +58,7 @@ message MetricSpec {
     //
     // Counts with frequency higher than `max_frequency` will be aggregated
     // together. If not set, the default value will be used and outputted here.
-    int32 maximum_frequency_per_user = 3;
+    optional int32 maximum_frequency_per_user = 3;
   }
   // Parameters that are used to generate `Impression Count` metric.
   message ImpressionCountParams {
@@ -76,7 +76,7 @@ message MetricSpec {
     // recommended value for maximum_frequency_per_user = 60 for the case with
     // over 1M audience size.
     // If not set, the default value will be used and outputted here.
-    int32 maximum_frequency_per_user = 2;
+    optional int32 maximum_frequency_per_user = 2;
   }
   // Parameters that are used to generate `Watch Duration` metric.
   message WatchDurationParams {
@@ -90,7 +90,7 @@ message MetricSpec {
     // duration of all the impressions of a user = 4000 sec for the case with
     // over 1M audience size. Enforced on a per EDP basis.
     // If not set, the default value will be used and outputted here.
-    int32 maximum_watch_duration_per_user = 2;
+    optional int32 maximum_watch_duration_per_user = 2;
   }
 
   // Types of metric with parameters.
