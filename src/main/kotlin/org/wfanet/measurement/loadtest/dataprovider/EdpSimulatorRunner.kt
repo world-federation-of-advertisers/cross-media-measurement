@@ -103,7 +103,8 @@ abstract class EdpSimulatorRunner : Runnable {
         eventTemplateNames = EVENT_TEMPLATES_TO_FILTERS_MAP.keys.toList(),
         createNoOpPrivacyBudgetManager(),
         clientCerts.trustedCertificates,
-        random
+        random,
+        flags.noiseMechanism
       )
     runBlocking {
       edpSimulator.createEventGroup()

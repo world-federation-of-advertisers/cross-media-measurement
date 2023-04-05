@@ -153,7 +153,8 @@ class EdpSimulator(
   private val eventTemplateNames: List<String>,
   private val privacyBudgetManager: PrivacyBudgetManager,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
-  private val random: Random
+  private val random: Random,
+  private val noiseMechanism: String
 ) {
 
   /** A sequence of operations done in the simulator. */
@@ -730,10 +731,15 @@ class EdpSimulator(
 
     logger.info("Adding publisher noise to direct reach and frequency...")
 
-    // TODO(@iverson52000): use the noiser specified in the EDP flags
-    val laplaceNoiser = LaplaceNoiser(measurementSpec.reachAndFrequency, random)
+    val noiser: AbstractNoiser =
+      when (noiseMechanism) {
+        NoiseMechanism.LAPLACE.name -> LaplaceNoiser(measurementSpec.reachAndFrequency, random)
+        NoiseMechanism.GAUSSIAN.name -> GaussianNoiser(measurementSpec.reachAndFrequency, random)
+        else -> error("Unknown noiseMechanism $noiseMechanism")
+      }
+
     val (sampledNoisedReachValue, noisedFrequencyMap) =
-      laplaceNoiser.addPublisherNoise(
+      noiser.addReachAndFrequencyPublisherNoise(
         sampledReachValue,
         frequencyMap,
       )

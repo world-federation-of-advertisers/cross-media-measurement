@@ -236,6 +236,7 @@ private val REQUISITION_ONE_SPEC = requisitionSpec {
 }
 private const val DUCHY_ID = "worker1"
 private const val RANDOM_SEED: Long = 1
+private const val NOISE_MECHANISM = "LAPLACE"
 
 @RunWith(JUnit4::class)
 class EdpSimulatorTest {
@@ -408,7 +409,8 @@ class EdpSimulatorTest {
           EVENT_TEMPLATES,
           privacyBudgetManager,
           TRUSTED_CERTIFICATES,
-          random
+          random,
+          NOISE_MECHANISM
         )
       edpSimulator.createEventGroup()
       edpSimulator.executeRequisitionFulfillingWorkflow()
@@ -500,7 +502,8 @@ class EdpSimulatorTest {
         listOf(),
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        random
+        random,
+        NOISE_MECHANISM
       )
     val requisition =
       REQUISITION_ONE.copy {
@@ -563,7 +566,8 @@ class EdpSimulatorTest {
         listOf(),
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        random
+        random,
+        NOISE_MECHANISM
       )
 
     val vidSamplingIntervalWidth = 1f
@@ -638,7 +642,8 @@ class EdpSimulatorTest {
         listOf(),
         privacyBudgetManager,
         TRUSTED_CERTIFICATES,
-        random
+        random,
+        NOISE_MECHANISM
       )
 
     val vidSamplingIntervalWidth = 0.1f
