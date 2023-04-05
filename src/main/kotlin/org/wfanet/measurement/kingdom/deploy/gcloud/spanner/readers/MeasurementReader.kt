@@ -131,8 +131,6 @@ class MeasurementReader(private val view: Measurement.View) :
      * Returns a [Key] for the specified external Measurement ID and external Measurement consumer
      * ID pair.
      *
-     * Throws a subclass of [KingdomInternalException]:
-     *
      * @throws [MeasurementNotFoundByMeasurementConsumerException] when the Measurement is not found
      */
     suspend fun readKeyByExternalIds(
