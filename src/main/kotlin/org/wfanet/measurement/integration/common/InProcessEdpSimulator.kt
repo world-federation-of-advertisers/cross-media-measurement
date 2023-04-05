@@ -44,6 +44,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
 import org.wfanet.measurement.loadtest.dataprovider.EdpData
 import org.wfanet.measurement.loadtest.dataprovider.EdpSimulator
+import org.wfanet.measurement.loadtest.dataprovider.NoiseMechanism
 import org.wfanet.measurement.loadtest.dataprovider.RandomEventQuery
 import org.wfanet.measurement.loadtest.dataprovider.SketchGenerationParams
 import org.wfanet.measurement.loadtest.storage.SketchStore
@@ -129,6 +130,6 @@ class InProcessEdpSimulator(
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val RANDOM_SEED: Long = 1
     private val random = Random(RANDOM_SEED)
-    private const val NOISE_MECHANISM = "LAPLACE"
+    private val NOISE_MECHANISM = NoiseMechanism.LAPLACE
   }
 }

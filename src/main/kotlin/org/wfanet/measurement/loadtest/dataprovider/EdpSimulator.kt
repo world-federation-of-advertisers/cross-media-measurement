@@ -154,7 +154,7 @@ class EdpSimulator(
   private val privacyBudgetManager: PrivacyBudgetManager,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   private val random: Random,
-  private val noiseMechanism: String
+  private val noiseMechanism: NoiseMechanism
 ) {
 
   /** A sequence of operations done in the simulator. */
@@ -733,9 +733,8 @@ class EdpSimulator(
 
     val noiser: AbstractNoiser =
       when (noiseMechanism) {
-        NoiseMechanism.LAPLACE.name -> LaplaceNoiser(measurementSpec.reachAndFrequency, random)
-        NoiseMechanism.GAUSSIAN.name -> GaussianNoiser(measurementSpec.reachAndFrequency, random)
-        else -> error("Unknown noiseMechanism $noiseMechanism")
+        NoiseMechanism.LAPLACE -> LaplaceNoiser(measurementSpec.reachAndFrequency, random)
+        NoiseMechanism.GAUSSIAN -> GaussianNoiser(measurementSpec.reachAndFrequency, random)
       }
 
     val (sampledNoisedReachValue, noisedFrequencyMap) =
