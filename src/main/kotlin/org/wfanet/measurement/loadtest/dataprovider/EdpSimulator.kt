@@ -729,9 +729,9 @@ class EdpSimulator(
           vidSampler.vidIsInSamplingBucket(vid, vidSamplingIntervalStart, vidSamplingIntervalWidth)
         }
 
-    val requisitionData = buildMeasurementResult(measurementSpec, vidList)
+    val measurementResult = buildMeasurementResult(measurementSpec, vidList)
 
-    fulfillDirectMeasurement(requisition, requisitionSpec, measurementSpec, requisitionData)
+    fulfillDirectMeasurement(requisition, requisitionSpec, measurementSpec, measurementResult)
   }
 
   /**
@@ -739,7 +739,7 @@ class EdpSimulator(
    *
    * @param measurementSpec Measurement spec.
    * @param vidList List of VIDs.
-   * @return Noised reach value.
+   * @return [Measurement.Result].
    */
   private fun buildMeasurementResult(
     measurementSpec: MeasurementSpec,
@@ -796,7 +796,7 @@ class EdpSimulator(
     requisitionSpec: RequisitionSpec,
     measurementSpec: MeasurementSpec
   ) {
-    val requisitionData =
+    val measurementResult =
       MeasurementKt.result {
         impression = impression {
           // Use externalDataProviderId since it's a known value the FrontendSimulator can verify.
@@ -805,7 +805,7 @@ class EdpSimulator(
         }
       }
 
-    fulfillDirectMeasurement(requisition, requisitionSpec, measurementSpec, requisitionData)
+    fulfillDirectMeasurement(requisition, requisitionSpec, measurementSpec, measurementResult)
   }
 
   private suspend fun fulfillDurationMeasurement(
@@ -813,7 +813,7 @@ class EdpSimulator(
     requisitionSpec: RequisitionSpec,
     measurementSpec: MeasurementSpec
   ) {
-    val requisitionData =
+    val measurementResult =
       MeasurementKt.result {
         watchDuration = watchDuration {
           value = duration {
@@ -823,21 +823,21 @@ class EdpSimulator(
         }
       }
 
-    fulfillDirectMeasurement(requisition, requisitionSpec, measurementSpec, requisitionData)
+    fulfillDirectMeasurement(requisition, requisitionSpec, measurementSpec, measurementResult)
   }
 
   private suspend fun fulfillDirectMeasurement(
     requisition: Requisition,
     requisitionSpec: RequisitionSpec,
     measurementSpec: MeasurementSpec,
-    requisitionData: Measurement.Result
+    measurementResult: Measurement.Result
   ) {
     val measurementEncryptionPublicKey =
       EncryptionPublicKey.parseFrom(measurementSpec.measurementPublicKey)
 
     // TODO(world-federation-of-advertisers/consent-signaling-client#41): Use method from
     // DataProviders client instead of Duchies client.
-    val signedData = signResult(requisitionData, edpData.signingKey)
+    val signedData = signResult(measurementResult, edpData.signingKey)
 
     val encryptedData =
       measurementEncryptionPublicKey.toPublicKeyHandle().hybridEncrypt(signedData.toByteString())
