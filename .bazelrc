@@ -17,10 +17,6 @@ test --test_env=TESTCONTAINERS_RYUK_DISABLED
 build:debian-bullseye --platforms=//build/platforms:debian_bullseye
 build:ubuntu-bionic --platforms=//build/platforms:ubuntu_bionic
 
-# Enable explicit presence in proto3.
-# See https://github.com/protocolbuffers/protobuf/blob/main/docs/field_presence.md#how-to-enable-explicit-presence-in-proto3
-build --protocopt=--experimental_allow_proto3_optional
-
 import %workspace%/container.bazelrc
 import %workspace%/remote.bazelrc
 import %workspace%/results.bazelrc
