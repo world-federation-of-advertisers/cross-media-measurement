@@ -16,16 +16,16 @@ name: "Configure Kingdom"
 
 on:
   workflow_call:
-  workflow_dispatch:
-    inputs:
-      image_tag:
-        description: "Image tag needed for configuration"
-        type: string
-        required: true
-      kubectl_apply:
-        description: "Apply the manifest to the cluster"
-        required: false
-        type: boolean
+    workflow_dispatch:
+      inputs:
+        image_tag:
+          description: "Image tag needed for configuration"
+          type: string
+          required: true
+        kubectl_apply:
+          description: "Apply the manifest to the cluster"
+          required: false
+          type: boolean
 
 env:
   REGISTRY: ghcr.io
@@ -60,22 +60,15 @@ jobs:
           --define=k8s_kingdom_secret_name=$secret_name \
           --define container_registry=${{ env.REGISTRY }} \
           --define image_repo_prefix=${{ env.REPO_PREFIX }} \
-          --define image_tag=${{ inputs.image_tag }}        
+          --define image_tag=${{ inputs.image_tag }}
 
       - name: Apply secrets
-        run: bazelisk build //src/main/k8s/testing/secretfiles:apply_kustomization
-
-      - name: create directory
-        run: mkdir secretfiles
-
-      - name: copying secret files
-        run: tar -xf "$(bazelisk info bazel-bin)/src/main/k8s/testing/secretfiles/kustomization.tar" -C secretfiles
-
-      - name: creating an env variable
-        run: secret_name="$(kubectl apply -k secretfiles/src/main/k8s/testing/secretfiles/kustomization -o name)"
-
-      - name: checking secrets
-        run: echo $secret_name
+        run: |
+          bazelisk build //src/main/k8s/testing/secretfiles:kustomization.tar
+          mkdir secretfiles
+          tar -xf "$(bazelisk info bazel-bin)/src/main/k8s/testing/secretfiles/kustomization.tar" -C secretfiles
+          resource_name="$(kubectl apply -k secretfiles/src/main/k8s/testing/secretfiles/kustomization -o name)"
+          echo "SECRET_NAME=$(basename $resource_name)" >> "$GITHUB_ENV"
 
       # Apply manifest
       - name: apply k8s manifest
