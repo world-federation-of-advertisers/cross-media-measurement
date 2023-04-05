@@ -54,15 +54,6 @@ jobs:
       - name: Connect to the cluster
         run: gcloud container clusters get-credentials dev-halo-kingdom-gke-cluster --zone us-central
 
-      # Create k8s manifest
-      - name: Build K8s manifest
-        run: |
-          bazelisk build //src/main/k8s/dev:kingdom_gke \
-          --define=k8s_kingdom_secret_name=$SECRET_NAME \
-          --define container_registry=${{ env.REGISTRY }} \
-          --define image_repo_prefix=${{ env.REPO_PREFIX }} \
-          --define image_tag=${{ inputs.image_tag }}
-
       - name: Apply secrets
         run: |
           bazelisk build //src/main/k8s/testing/secretfiles:kustomization.tar
@@ -70,6 +61,15 @@ jobs:
           tar -xf "$(bazelisk info bazel-bin)/src/main/k8s/testing/secretfiles/kustomization.tar" -C secretfiles
           resource_name="$(kubectl apply -k secretfiles/src/main/k8s/testing/secretfiles/kustomization -o name)"
           echo "SECRET_NAME=$(basename $resource_name)" >> "$GITHUB_ENV"
+
+      # Create k8s manifest
+      - name: Build K8s manifest
+        run: |
+          bazelisk build //src/main/k8s/dev:kingdom_gke \
+          --define=k8s_kingdom_secret_name=$SECRET_NAME \
+          --define container_registry=${{ env.REGISTRY }} \
+          --define image_repo_prefix=${{ env.REPO_PREFIX }} \
+          --define image_tag=${{ inputs.image_tag }}          
 
       # Apply manifest
       - name: apply k8s manifest
