@@ -854,13 +854,18 @@ private fun MetricSpec.toInternal(): InternalMetricSpec {
   }
 }
 
+/** Converts a [MetricSpec.WatchDurationParams] to an [InternalMetricSpec.WatchDurationParams]. */
 private fun MetricSpec.WatchDurationParams.toInternal(): InternalMetricSpec.WatchDurationParams {
   val source = this
   grpcRequire(source.hasPrivacyParams()) { "privacyParams in watch duration is not set." }
 
   return InternalMetricSpecKt.watchDurationParams {
     privacyParams =
-      source.privacyParams.toInternal(WATCH_DURATION_EPSILON, DIFFERENTIAL_PRIVACY_DELTA)
+      buildInternalDifferentialPrivacyParams(
+        source.privacyParams,
+        WATCH_DURATION_EPSILON,
+        DIFFERENTIAL_PRIVACY_DELTA
+      )
     maximumWatchDurationPerUser =
       if (source.hasMaximumWatchDurationPerUser()) {
         source.maximumWatchDurationPerUser
@@ -870,13 +875,21 @@ private fun MetricSpec.WatchDurationParams.toInternal(): InternalMetricSpec.Watc
   }
 }
 
+/**
+ * Converts a [MetricSpec.ImpressionCountParams] to an [InternalMetricSpec.ImpressionCountParams].
+ */
 private fun MetricSpec.ImpressionCountParams.toInternal():
   InternalMetricSpec.ImpressionCountParams {
   val source = this
   grpcRequire(source.hasPrivacyParams()) { "privacyParams in impression count is not set." }
 
   return InternalMetricSpecKt.impressionCountParams {
-    privacyParams = source.privacyParams.toInternal(IMPRESSION_EPSILON, DIFFERENTIAL_PRIVACY_DELTA)
+    privacyParams =
+      buildInternalDifferentialPrivacyParams(
+        source.privacyParams,
+        IMPRESSION_EPSILON,
+        DIFFERENTIAL_PRIVACY_DELTA
+      )
     maximumFrequencyPerUser =
       if (source.hasMaximumFrequencyPerUser()) {
         source.maximumFrequencyPerUser
@@ -886,6 +899,10 @@ private fun MetricSpec.ImpressionCountParams.toInternal():
   }
 }
 
+/**
+ * Converts a [MetricSpec.FrequencyHistogramParams] to an
+ * [InternalMetricSpec.FrequencyHistogramParams].
+ */
 private fun MetricSpec.FrequencyHistogramParams.toInternal():
   InternalMetricSpec.FrequencyHistogramParams {
   val source = this
@@ -898,12 +915,14 @@ private fun MetricSpec.FrequencyHistogramParams.toInternal():
 
   return InternalMetricSpecKt.frequencyHistogramParams {
     reachPrivacyParams =
-      source.reachPrivacyParams.toInternal(
+      buildInternalDifferentialPrivacyParams(
+        source.reachPrivacyParams,
         REACH_FREQUENCY_REACH_EPSILON,
         DIFFERENTIAL_PRIVACY_DELTA
       )
     frequencyPrivacyParams =
-      source.frequencyPrivacyParams.toInternal(
+      buildInternalDifferentialPrivacyParams(
+        source.frequencyPrivacyParams,
         REACH_FREQUENCY_FREQUENCY_EPSILON,
         DIFFERENTIAL_PRIVACY_DELTA
       )
@@ -916,28 +935,34 @@ private fun MetricSpec.FrequencyHistogramParams.toInternal():
   }
 }
 
+/** Converts a [MetricSpec.ReachParams] to an [InternalMetricSpec.ReachParams]. */
 private fun MetricSpec.ReachParams.toInternal(): InternalMetricSpec.ReachParams {
   val source = this
   grpcRequire(source.hasPrivacyParams()) { "privacyParams in reach is not set." }
 
   return InternalMetricSpecKt.reachParams {
     privacyParams =
-      source.privacyParams.toInternal(REACH_ONLY_REACH_EPSILON, DIFFERENTIAL_PRIVACY_DELTA)
+      buildInternalDifferentialPrivacyParams(
+        source.privacyParams,
+        REACH_ONLY_REACH_EPSILON,
+        DIFFERENTIAL_PRIVACY_DELTA
+      )
   }
 }
 
 /**
- * Converts an [MetricSpec.DifferentialPrivacyParams] to a public
- * [InternalMetricSpec.DifferentialPrivacyParams].
+ * Build an [InternalMetricSpec.DifferentialPrivacyParams] given
+ * [MetricSpec.DifferentialPrivacyParams]. If any field in the given
+ * [MetricSpec.DifferentialPrivacyParams] is unspecified, it will use the provided default value.
  */
-private fun MetricSpec.DifferentialPrivacyParams.toInternal(
+private fun buildInternalDifferentialPrivacyParams(
+  dpParams: MetricSpec.DifferentialPrivacyParams,
   defaultEpsilon: Double,
   defaultDelta: Double
 ): InternalMetricSpec.DifferentialPrivacyParams {
-  val source = this
   return InternalMetricSpecKt.differentialPrivacyParams {
-    epsilon = if (source.hasEpsilon()) source.epsilon else defaultEpsilon
-    delta = if (source.hasDelta()) source.delta else defaultDelta
+    epsilon = if (dpParams.hasEpsilon()) dpParams.epsilon else defaultEpsilon
+    delta = if (dpParams.hasDelta()) dpParams.delta else defaultDelta
   }
 }
 
