@@ -33,6 +33,7 @@ import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
@@ -398,22 +399,15 @@ class MetricsService(
             vidSamplingInterval = buildReachOnlyVidSamplingInterval(secureRandom)
           }
           InternalMetricSpec.TypeCase.FREQUENCY_HISTOGRAM -> {
-            reachAndFrequency =
-              buildReachAndFrequencyMeasurementSpec(
-                metricSpec.frequencyHistogram.maximumFrequencyPerUser
-              )
+            reachAndFrequency = metricSpec.frequencyHistogram.toReachAndFrequency()
             vidSamplingInterval = buildReachAndFrequencyVidSamplingInterval(secureRandom)
           }
           InternalMetricSpec.TypeCase.IMPRESSION_COUNT -> {
-            impression =
-              buildImpressionMeasurementSpec(metricSpec.impressionCount.maximumFrequencyPerUser)
+            impression = metricSpec.impressionCount.toImpression()
             vidSamplingInterval = buildImpressionVidSamplingInterval(secureRandom)
           }
           InternalMetricSpec.TypeCase.WATCH_DURATION -> {
-            duration =
-              buildDurationMeasurementSpec(
-                metricSpec.watchDuration.maximumWatchDurationPerUser,
-              )
+            duration = metricSpec.watchDuration.toDuration()
             vidSamplingInterval = buildDurationVidSamplingInterval(secureRandom)
           }
           InternalMetricSpec.TypeCase.TYPE_NOT_SET ->
@@ -762,7 +756,7 @@ class MetricsService(
       this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
       externalReportingSetId = internalReportingSet.externalReportingSetId
       timeInterval = request.metric.timeInterval.toInternal()
-      metricSpec = request.metric.metricSpec.toInternal()
+      metricSpec = buildInternalMetricSpec(request.metric.metricSpec, secureRandom)
       weightedMeasurements +=
         buildInitialInternalMeasurements(
           cmmsMeasurementConsumerId,
@@ -838,19 +832,62 @@ private fun InternalTimeInterval.toCmmsTimeInterval(): CmmsTimeInterval {
 }
 
 /** Converts a [MetricSpec] to an [InternalMetricSpec]. */
-private fun MetricSpec.toInternal(): InternalMetricSpec {
-  val source = this
+private fun buildInternalMetricSpec(
+  metricSpec: MetricSpec,
+  secureRandom: SecureRandom
+): InternalMetricSpec {
   return internalMetricSpec {
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-    when (source.typeCase) {
-      MetricSpec.TypeCase.REACH -> reach = source.reach.toInternal()
-      MetricSpec.TypeCase.FREQUENCY_HISTOGRAM ->
-        frequencyHistogram = source.frequencyHistogram.toInternal()
-      MetricSpec.TypeCase.IMPRESSION_COUNT -> impressionCount = source.impressionCount.toInternal()
-      MetricSpec.TypeCase.WATCH_DURATION -> watchDuration = source.watchDuration.toInternal()
-      MetricSpec.TypeCase.TYPE_NOT_SET ->
-        failGrpc(Status.INVALID_ARGUMENT) { "The metric type in Metric is not specified." }
-    }
+    val defaultVidSamplingInterval: InternalMetricSpec.VidSamplingInterval =
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+      when (metricSpec.typeCase) {
+        MetricSpec.TypeCase.REACH -> {
+          reach = metricSpec.reach.toInternal()
+          InternalMetricSpecKt.vidSamplingInterval {
+            val index = secureRandom.nextInt(NUMBER_REACH_ONLY_BUCKETS)
+            start = REACH_ONLY_VID_SAMPLING_START_LIST[index]
+            width = REACH_ONLY_VID_SAMPLING_WIDTH
+          }
+        }
+        MetricSpec.TypeCase.FREQUENCY_HISTOGRAM -> {
+          frequencyHistogram = metricSpec.frequencyHistogram.toInternal()
+          InternalMetricSpecKt.vidSamplingInterval {
+            val index = secureRandom.nextInt(NUMBER_REACH_FREQUENCY_BUCKETS)
+            start = REACH_FREQUENCY_VID_SAMPLING_START_LIST[index]
+            width = REACH_FREQUENCY_VID_SAMPLING_WIDTH
+          }
+        }
+        MetricSpec.TypeCase.IMPRESSION_COUNT -> {
+          impressionCount = metricSpec.impressionCount.toInternal()
+          InternalMetricSpecKt.vidSamplingInterval {
+            val index = secureRandom.nextInt(NUMBER_IMPRESSION_BUCKETS)
+            start = IMPRESSION_VID_SAMPLING_START_LIST[index]
+            width = IMPRESSION_VID_SAMPLING_WIDTH
+          }
+        }
+        MetricSpec.TypeCase.WATCH_DURATION -> {
+          watchDuration = metricSpec.watchDuration.toInternal()
+          InternalMetricSpecKt.vidSamplingInterval {
+            val index = secureRandom.nextInt(NUMBER_WATCH_DURATION_BUCKETS)
+            start = WATCH_DURATION_VID_SAMPLING_START_LIST[index]
+            width = WATCH_DURATION_VID_SAMPLING_WIDTH
+          }
+        }
+        MetricSpec.TypeCase.TYPE_NOT_SET ->
+          failGrpc(Status.INVALID_ARGUMENT) { "The metric type in Metric is not specified." }
+      }
+
+    vidSamplingInterval =
+      if (metricSpec.hasVidSamplingInterval()) metricSpec.vidSamplingInterval.toInternal()
+      else defaultVidSamplingInterval
+  }
+}
+
+/** Converts a [MetricSpec.VidSamplingInterval] to an [InternalMetricSpec.VidSamplingInterval]. */
+private fun MetricSpec.VidSamplingInterval.toInternal(): InternalMetricSpec.VidSamplingInterval {
+  val source = this
+  return InternalMetricSpecKt.vidSamplingInterval {
+    start = source.start
+    width = source.width
   }
 }
 
@@ -1178,45 +1215,44 @@ private fun buildDurationVidSamplingInterval(secureRandom: SecureRandom): VidSam
   }
 }
 
-/** Builds a [MeasurementSpec.ReachAndFrequency] for reach-frequency. */
-private fun buildReachAndFrequencyMeasurementSpec(
-  maximumFrequencyPerUser: Int,
-): MeasurementSpec.ReachAndFrequency {
+/** Converts an [InternalMetricSpec.DifferentialPrivacyParams] to [DifferentialPrivacyParams]. */
+private fun InternalMetricSpec.DifferentialPrivacyParams.toMeasurementPrivacyParams():
+  DifferentialPrivacyParams {
+  val source = this
+  return differentialPrivacyParams {
+    epsilon = source.epsilon
+    delta = source.delta
+  }
+}
+
+/**
+ * Converts an [InternalMetricSpec.FrequencyHistogramParams] to a
+ * [MeasurementSpec.ReachAndFrequency].
+ */
+private fun InternalMetricSpec.FrequencyHistogramParams.toReachAndFrequency():
+  MeasurementSpec.ReachAndFrequency {
+  val source = this
   return MeasurementSpecKt.reachAndFrequency {
-    reachPrivacyParams = differentialPrivacyParams {
-      epsilon = REACH_FREQUENCY_REACH_EPSILON
-      delta = DIFFERENTIAL_PRIVACY_DELTA
-    }
-    frequencyPrivacyParams = differentialPrivacyParams {
-      epsilon = REACH_FREQUENCY_FREQUENCY_EPSILON
-      delta = DIFFERENTIAL_PRIVACY_DELTA
-    }
-    this.maximumFrequencyPerUser = maximumFrequencyPerUser
+    reachPrivacyParams = source.reachPrivacyParams.toMeasurementPrivacyParams()
+    frequencyPrivacyParams = source.frequencyPrivacyParams.toMeasurementPrivacyParams()
+    maximumFrequencyPerUser = source.maximumFrequencyPerUser
   }
 }
 
 /** Builds a [MeasurementSpec.ReachAndFrequency] for impression count. */
-private fun buildImpressionMeasurementSpec(
-  maximumFrequencyPerUser: Int,
-): MeasurementSpec.Impression {
+private fun InternalMetricSpec.ImpressionCountParams.toImpression(): MeasurementSpec.Impression {
+  val source = this
   return MeasurementSpecKt.impression {
-    privacyParams = differentialPrivacyParams {
-      epsilon = IMPRESSION_EPSILON
-      delta = DIFFERENTIAL_PRIVACY_DELTA
-    }
-    this.maximumFrequencyPerUser = maximumFrequencyPerUser
+    privacyParams = source.privacyParams.toMeasurementPrivacyParams()
+    maximumFrequencyPerUser = source.maximumFrequencyPerUser
   }
 }
 
 /** Builds a [MeasurementSpec.ReachAndFrequency] for watch duration. */
-private fun buildDurationMeasurementSpec(
-  maximumWatchDurationPerUser: Int,
-): MeasurementSpec.Duration {
+private fun InternalMetricSpec.WatchDurationParams.toDuration(): MeasurementSpec.Duration {
+  val source = this
   return MeasurementSpecKt.duration {
-    privacyParams = differentialPrivacyParams {
-      epsilon = WATCH_DURATION_EPSILON
-      delta = DIFFERENTIAL_PRIVACY_DELTA
-    }
-    this.maximumWatchDurationPerUser = maximumWatchDurationPerUser
+    privacyParams = source.privacyParams.toMeasurementPrivacyParams()
+    maximumWatchDurationPerUser = source.maximumWatchDurationPerUser
   }
 }
