@@ -100,7 +100,8 @@ class InProcessEdpSimulator(
           100.0f
         ),
       trustedCertificates = trustedCertificates,
-      random
+      random,
+      NOISE_MECHANISM
     )
 
   private lateinit var edpJob: Job
@@ -128,5 +129,6 @@ class InProcessEdpSimulator(
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val RANDOM_SEED: Long = 1
     private val random = Random(RANDOM_SEED)
+    private const val NOISE_MECHANISM = "LAPLACE"
   }
 }

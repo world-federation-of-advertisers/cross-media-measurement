@@ -16,6 +16,7 @@ package org.wfanet.measurement.loadtest.dataprovider
 
 import com.google.common.truth.Truth.assertThat
 import java.util.Random
+import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.math.sqrt
 import org.junit.Test
@@ -37,14 +38,14 @@ class GaussianNoiserTest {
     val gaussianNoiser = GaussianNoiser(MEASUREMENT_SPEC.reachAndFrequency, random)
 
     val (noisedReachValue, noisedFrequencyMap) =
-      gaussianNoiser.addPublisherNoise(
+      gaussianNoiser.addReachAndFrequencyPublisherNoise(
         reachValue,
         frequencyMap,
       )
 
-    val expectedNoisedReachValue = 512
+    val expectedNoisedReachValue = 510
     val expectedNoisedFrequencyMap =
-      mapOf(1L to 0.590035536760728, 2L to 0.18212132343148613, 3L to 0.18976753501501636)
+      mapOf(1L to 0.592023309152474, 2L to 0.1856878717573189, 3L to 0.19180877004275923)
 
     assertThat(noisedReachValue).isEqualTo(expectedNoisedReachValue)
     noisedFrequencyMap.forEach { (frequency, percentage) ->
@@ -66,15 +67,15 @@ class GaussianNoiserTest {
     val gaussianNoiser = GaussianNoiser(measurementSpec.reachAndFrequency, random)
 
     val (noisedReachValue, noisedFrequencyMap) =
-      gaussianNoiser.addPublisherNoise(
+      gaussianNoiser.addReachAndFrequencyPublisherNoise(
         reachValue,
         frequencyMap,
       )
 
-    val expectedNoisedReachValue = 52897
+    val expectedNoisedReachValue = 78766
     // Frequency values can be negative due to large variance
     val expectedNoisedFrequencyMap =
-      mapOf(1L to -40.21444386138276, 2L to -73.03106359061003, 3L to -41.71217907726343)
+      mapOf(1L to -60.364636044457335, 2L to -109.18542135016607, 3L to -62.40432585957863)
 
     assertThat(noisedReachValue).isEqualTo(expectedNoisedReachValue)
     noisedFrequencyMap.forEach { (frequency, percentage) ->
@@ -88,7 +89,7 @@ class GaussianNoiserTest {
     val noisedReachValues =
       List(1000) {
         gaussianNoiser
-          .addPublisherNoise(
+          .addReachAndFrequencyPublisherNoise(
             reachValue,
             frequencyMap,
           )
@@ -98,7 +99,7 @@ class GaussianNoiserTest {
     val sigma = calculateStandardDeviation(noisedReachValues)
     // Sigma value with pre-set epsilon and delta
     val expectedSigma = 6.557822067460045
-    val diffRatio = (expectedSigma - sigma) / expectedSigma
+    val diffRatio = abs((expectedSigma - sigma) / expectedSigma)
 
     assertThat(diffRatio).isLessThan(0.2)
   }

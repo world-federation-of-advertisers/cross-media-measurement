@@ -23,18 +23,21 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 
 class GaussianNoiser(reachAndFrequency: MeasurementSpec.ReachAndFrequency, random: Random) :
   AbstractNoiser() {
-  override val distributionForReach: NormalDistribution =
+  override val distributionForReach: NormalDistribution by lazy {
     getNormalDistribution(
       reachAndFrequency.reachPrivacyParams.epsilon,
       reachAndFrequency.reachPrivacyParams.delta,
       random
     )
-  override val distributionForFrequency: NormalDistribution =
+  }
+
+  override val distributionForFrequency: NormalDistribution by lazy {
     getNormalDistribution(
       reachAndFrequency.frequencyPrivacyParams.epsilon,
       reachAndFrequency.frequencyPrivacyParams.delta,
       random
     )
+  }
 
   /**
    * Assuming sensitivity = 1, solve delta given epsilon and std.
@@ -70,7 +73,7 @@ class GaussianNoiser(reachAndFrequency: MeasurementSpec.ReachAndFrequency, rando
     }
 
     return BisectionSolver()
-      .solve(10000, { x: Double -> solveDelta(x, sigma) - delta }, sigma / 2, sigma)
+      .solve(10000, { x: Double -> solveDelta(epsilon, x) - delta }, sigma / 2, sigma)
   }
   private fun getNormalDistribution(
     epsilon: Double,
