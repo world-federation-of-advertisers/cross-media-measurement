@@ -729,7 +729,7 @@ class EdpSimulator(
           vidSampler.vidIsInSamplingBucket(vid, vidSamplingIntervalStart, vidSamplingIntervalWidth)
         }
 
-    val measurementResult = buildMeasurementResult(measurementSpec, vidList)
+    val measurementResult = buildDirectMeasurementResult(measurementSpec, vidList)
 
     fulfillDirectMeasurement(requisition, requisitionSpec, measurementSpec, measurementResult)
   }
@@ -741,7 +741,7 @@ class EdpSimulator(
    * @param vidList List of VIDs.
    * @return [Measurement.Result].
    */
-  private fun buildMeasurementResult(
+  private fun buildDirectMeasurementResult(
     measurementSpec: MeasurementSpec,
     vidList: List<Long>,
   ): Measurement.Result {
