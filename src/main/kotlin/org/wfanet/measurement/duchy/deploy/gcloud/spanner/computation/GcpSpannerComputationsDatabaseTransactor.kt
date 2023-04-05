@@ -81,7 +81,7 @@ class GcpSpannerComputationsDatabaseTransactor<
         updateTime = writeTimestamp,
         globalId = globalId,
         lockOwner = WRITE_NULL_STRING,
-        lockExpirationTime = writeTimestamp,
+        lockExpirationTime = WRITE_NULL_TIMESTAMP,
         details = computationDetails,
         protocol = protocol,
         stage = initialStage
@@ -116,14 +116,14 @@ class GcpSpannerComputationsDatabaseTransactor<
         computationMutations.updateComputation(
           localId = token.localId,
           updateTime = clock.gcloudTimestamp(),
-          // Release any lock on this computation. The owner says who has the current
-          // lock on the computation, and the expiration time stages both if and when the
-          // computation can be worked on. When LockOwner is null the computation is not being
-          // worked on, but that is not enough to say a mill should pick up the computation
-          // as its quest as there are stages which waiting for inputs from other nodes.
-          // A non-null LockExpirationTime stages when a computation can be be taken up
-          // by a mill, and by using the commit timestamp we pretty much get the behaviour
-          // of a FIFO queue by querying the ComputationsByLockExpirationTime secondary index.
+          // Set a lock expiration time to be the current time + a delay with no owner. This will
+          // prevent anyone from claiming it until the delay has passed.
+          //
+          // TODO(@renjiezh): Determine if we even need this delay behavior now that the FIFO queue
+          // is based on creation time and not lock expiration time.
+          //
+          // TODO(@renjiezh): Check to make sure the lock isn't actively held by someone other than
+          // the caller.
           lockOwner = WRITE_NULL_STRING,
           lockExpirationTime = clock.instant().plusSeconds(delaySecond.toLong()).toGcloudTimestamp()
         )

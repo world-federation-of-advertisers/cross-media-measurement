@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.duchy;
 
+import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/duchy/computation_blob_dependency.proto";
 import "wfa/measurement/internal/duchy/computation_details.proto";
 import "wfa/measurement/internal/duchy/computation_protocols.proto";
@@ -59,6 +60,12 @@ message ComputationToken {
   ComputationStageDetails stage_specific_details = 8;
 
   repeated RequisitionMetadata requisitions = 9;
+
+  // Owner of work lock.
+  string lock_owner = 10;
+
+  // Time when the work lock for this Computation expires.
+  google.protobuf.Timestamp lock_expiration_time = 11;
 }
 
 // Metadata about a blob for a particular stage of the computation.

@@ -24,3 +24,6 @@ databaseChangeLog:
 - include:
     file: add-computation-creation-time.sql
     relativeToChangeLogFile: true
+- include:
+    file: replace-computations-indexes.sql
+    relativeToChangeLogFile: true

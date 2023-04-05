@@ -34,16 +34,10 @@ class UnclaimedTasksQuery<StageT>(
       SELECT c.ComputationId,  c.GlobalComputationId,
              c.Protocol, c.ComputationStage, c.UpdateTime,
              c.CreationTime, cs.NextAttempt
-      FROM Computations@
-        {
-          FORCE_INDEX=ComputationsByLockExpirationTime,
-          spanner_emulator.disable_query_null_filtered_index_check=true
-        } AS c
+      FROM Computations AS c
       JOIN ComputationStages AS cs USING(ComputationId, ComputationStage)
       WHERE c.Protocol = @protocol
-        AND c.LockExpirationTime IS NOT NULL
-        AND c.UpdateTime IS NOT NULL
-        AND c.LockExpirationTime <= @current_time
+        AND (c.LockExpirationTime IS NULL OR c.LockExpirationTime <= @current_time)
       ORDER BY c.CreationTime ASC, c.LockExpirationTime ASC, c.UpdateTime ASC
       LIMIT 50
       """

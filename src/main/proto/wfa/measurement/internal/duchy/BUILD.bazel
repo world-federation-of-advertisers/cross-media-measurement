@@ -95,6 +95,7 @@ proto_library(
         ":computation_details_proto",
         ":computation_protocols_proto",
         ":requisition_details_proto",
+        "@com_google_protobuf//:timestamp_proto",
     ],
 )
 
