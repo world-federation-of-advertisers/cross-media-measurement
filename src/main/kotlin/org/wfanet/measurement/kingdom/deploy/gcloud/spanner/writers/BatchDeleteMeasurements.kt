@@ -31,7 +31,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementR
  * found.
  *
  * Throws the following [KingdomInternalException] type on [execute]:
- * * [MeasurementNotFoundException] when the Measurement is not found
+ * * [MeasurementNotFoundByMeasurementConsumerException] when the Measurement is not found
  */
 class BatchDeleteMeasurements(
   private val requests: BatchDeleteMeasurementsRequest,
