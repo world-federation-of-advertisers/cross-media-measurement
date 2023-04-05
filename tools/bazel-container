@@ -17,7 +17,7 @@
 set -eEu -o pipefail
 
 readonly HOST_BAZEL="${BAZEL:-bazel}"
-readonly IMAGE="${IMAGE:-docker.io/wfameasurement/bazel@sha256:0568ae6e1fbc9e23822a649f6fe43618ad04371d76fb3bb47e63c54b8609f6eb}"
+readonly IMAGE="${IMAGE:-ghcr.io/world-federation-of-advertisers/bazel:0.1.0}"
 readonly DOCKER="${DOCKER:-docker}"
 readonly DOCKER_HOST="${DOCKER_HOST:-unix:///var/run/docker.sock}"
 readonly CONTAINER_USER='builder'
