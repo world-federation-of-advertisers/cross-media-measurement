@@ -29,9 +29,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-      - id: generate-tag
+      - name: Generate image tag
         run: ./.github/workflows/export-image-tag.sh
-      - id: get-image-tag-step
+      - name: Output image tag
         run: echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
   build-kingdom-image:
