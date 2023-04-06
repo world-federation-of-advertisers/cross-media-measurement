@@ -104,7 +104,7 @@ class ContinuationTokenManager(
     try {
       continuationTokenClient.setContinuationToken(setRequest)
     } catch (e: StatusException) {
-      if (e.status.code == Status.FAILED_PRECONDITION.code) {
+      if (e.status.code == Status.Code.FAILED_PRECONDITION) {
         logger.log(Level.WARNING, e) { "Failure happened during setContinuationToken" }
       } else {
         throw SetContinuationTokenException(e.message ?: "Exception during setContinuationToken")

@@ -150,8 +150,7 @@ gcloud container clusters create worker1-duchy \
   --service-account="gke-cluster@halo-worker1-demo.iam.gserviceaccount.com" \
   --database-encryption-key=projects/halo-worker1-demo/locations/us-central1/keyRings/test-key-ring/cryptoKeys/k8s-secret \
   --num-nodes=2 --enable-autoscaling --min-nodes=2 --max-nodes=4 \
-  --machine-type=e2-standard-2 --release-channel=regular \
-  --cluster-version='1.24.5-gke.600'
+  --machine-type=e2-standard-2
 ```
 
 Adjust the node pools based on your expected usage. You may wish to use GKE
@@ -161,12 +160,7 @@ toleration for running on
 [Spot VMs](https://cloud.google.com/kubernetes-engine/docs/how-to/spot-vms#use_taints_and_tolerations_for).
 
 The cluster version should be no older than `1.24.0` in order to support
-built-in gRPC health probe. You can use the following command to determine what
-versions are supported for each release channel:
-
-```shell
-gcloud container get-server-config
-```
+built-in gRPC health probe.
 
 To configure `kubectl` to access this cluster, run
 
@@ -340,7 +334,8 @@ bazel build //src/main/k8s/dev:worker1_duchy_gke \
   --define k8s_duchy_secret_name=certs-and-configs-abcdedg \
   --define duchy_cert_id=SVVse4xWHL0 \
   --define duchy_storage_bucket=worker1-duchy \
-  --define image_tag=build-0001
+  --define container_registry=gcr.io \
+  --define image_repo_prefix=halo-worker1-demo --define image_tag=build-0001
 ```
 
 You can also do your customization to the generated YAML file rather than to the

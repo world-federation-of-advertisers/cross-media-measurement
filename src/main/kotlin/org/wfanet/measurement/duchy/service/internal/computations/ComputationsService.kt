@@ -16,13 +16,16 @@ package org.wfanet.measurement.duchy.service.internal.computations
 
 import com.google.protobuf.Empty
 import io.grpc.Status
+import io.grpc.StatusException
 import java.time.Clock
 import java.time.Duration
+import java.util.logging.Level
 import java.util.logging.Logger
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.common.toDuration
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.duchy.db.computation.AfterTransition
 import org.wfanet.measurement.duchy.db.computation.BlobRef
 import org.wfanet.measurement.duchy.db.computation.ComputationsDatabase
@@ -32,6 +35,7 @@ import org.wfanet.measurement.duchy.name
 import org.wfanet.measurement.duchy.number
 import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.duchy.storage.RequisitionStore
+import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageRequest
 import org.wfanet.measurement.internal.duchy.AdvanceComputationStageResponse
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
@@ -53,12 +57,16 @@ import org.wfanet.measurement.internal.duchy.GetComputationIdsResponse
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest.KeyCase
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
+import org.wfanet.measurement.internal.duchy.PurgeComputationsRequest
+import org.wfanet.measurement.internal.duchy.PurgeComputationsResponse
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathRequest
 import org.wfanet.measurement.internal.duchy.RecordOutputBlobPathResponse
 import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathRequest
 import org.wfanet.measurement.internal.duchy.RecordRequisitionBlobPathResponse
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsResponse
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
+import org.wfanet.measurement.internal.duchy.purgeComputationsResponse
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
@@ -71,10 +79,11 @@ class ComputationsService(
   private val requisitionStorageClient: RequisitionStore,
   private val duchyName: String,
   private val clock: Clock = Clock.systemUTC(),
-  private val defaultLockDuration: Duration = Duration.ofMinutes(5)
+  private val defaultLockDuration: Duration = Duration.ofMinutes(5),
 ) : ComputationsCoroutineImplBase() {
 
   override suspend fun claimWork(request: ClaimWorkRequest): ClaimWorkResponse {
+    grpcRequire(request.owner.isNotEmpty()) { "owner is not specified" }
     val lockDuration =
       if (request.hasLockDuration()) request.lockDuration.toDuration() else defaultLockDuration
     val claimed =
@@ -122,21 +131,74 @@ class ComputationsService(
       .toCreateComputationResponse()
   }
 
-  override suspend fun deleteComputation(request: DeleteComputationRequest): Empty {
-    val computationBlobKeys =
-      computationsDatabase.readComputationBlobKeys(request.localComputationId)
+  private suspend fun deleteComputation(localId: Long) {
+    val computationBlobKeys = computationsDatabase.readComputationBlobKeys(localId)
     for (blobKey in computationBlobKeys) {
-      computationStorageClient.get(blobKey)?.delete()
+      try {
+        computationStorageClient.get(blobKey)?.delete()
+      } catch (e: StatusException) {
+        if (e.status.code != Status.Code.NOT_FOUND) {
+          throw e
+        }
+      }
     }
-
-    val requisitionBlobKeys =
-      computationsDatabase.readRequisitionBlobKeys(request.localComputationId)
+    val requisitionBlobKeys = computationsDatabase.readRequisitionBlobKeys(localId)
     for (blobKey in requisitionBlobKeys) {
-      requisitionStorageClient.get(blobKey)?.delete()
+      try {
+        requisitionStorageClient.get(blobKey)?.delete()
+      } catch (e: StatusException) {
+        if (e.status.code != Status.NOT_FOUND.code) {
+          throw e
+        }
+      }
     }
-    computationsDatabase.deleteComputation(request.localComputationId)
+    computationsDatabase.deleteComputation(localId)
+  }
 
+  override suspend fun deleteComputation(request: DeleteComputationRequest): Empty {
+    deleteComputation(request.localComputationId)
     return Empty.getDefaultInstance()
+  }
+
+  override suspend fun purgeComputations(
+    request: PurgeComputationsRequest
+  ): PurgeComputationsResponse {
+    var deleted = 0
+    try {
+      val globalIds =
+        computationsDatabase.readGlobalComputationIds(
+          request.stagesList.toSet(),
+          request.updatedBefore.toInstant()
+        )
+      if (!request.force) {
+        return purgeComputationsResponse {
+          purgeCount = globalIds.size
+          purgeSample += globalIds
+        }
+      }
+      for (globalId in globalIds) {
+        val token = computationsDatabase.readComputationToken(globalId) ?: continue
+        if (!isTerminated(token)) {
+          computationsDatabase.endComputation(
+            token.toDatabaseEditToken(),
+            getEndingComputationStage(token),
+            EndComputationReason.FAILED,
+            token.computationDetails
+          )
+          sendStatusUpdateToKingdom(
+            newCreateComputationLogEntryRequest(
+              token.globalComputationId,
+              getEndingComputationStage(token),
+            )
+          )
+        }
+        deleteComputation(token.localComputationId)
+        deleted += 1
+      }
+    } catch (e: Exception) {
+      logger.log(Level.WARNING, "Exception during Computations cleaning. $e")
+    }
+    return purgeComputationsResponse { this.purgeCount = deleted }
   }
 
   override suspend fun finishComputation(
@@ -302,7 +364,26 @@ class ComputationsService(
     try {
       computationLogEntriesClient.createComputationLogEntry(request)
     } catch (ignored: Exception) {
-      logger.warning("Failed to update status change to the kingdom. $ignored")
+      logger.log(Level.WARNING, "Failed to update status change to the kingdom. $ignored")
+    }
+  }
+
+  private fun isTerminated(token: ComputationToken): Boolean {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    return when (token.computationStage.stageCase) {
+      ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+        token.computationStage.liquidLegionsSketchAggregationV2 ==
+          LiquidLegionsSketchAggregationV2.Stage.COMPLETE
+      ComputationStage.StageCase.STAGE_NOT_SET -> false
+    }
+  }
+
+  private fun getEndingComputationStage(token: ComputationToken): ComputationStage {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    return when (token.computationStage.stageCase) {
+      ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 ->
+        LiquidLegionsSketchAggregationV2.Stage.COMPLETE.toProtocolStage()
+      ComputationStage.StageCase.STAGE_NOT_SET -> error("protocol not set")
     }
   }
 

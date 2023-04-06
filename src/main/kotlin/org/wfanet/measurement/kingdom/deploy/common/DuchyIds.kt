@@ -15,7 +15,9 @@
 package org.wfanet.measurement.kingdom.deploy.common
 
 import java.io.File
+import java.time.Instant
 import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.internal.kingdom.DuchyIdConfig
 import picocli.CommandLine
 
@@ -51,11 +53,19 @@ object DuchyIds {
     return entries.firstOrNull { it.internalDuchyId == internalDuchyId }?.externalDuchyId
   }
 
-  fun setForTest(duchyIds: List<String>) {
-    entries = duchyIds.mapIndexed { idx, value -> Entry((idx + 1).toLong(), value) }
+  fun setForTest(duchyIds: List<Entry>) {
+    entries = duchyIds
   }
 
-  data class Entry(val internalDuchyId: Long, val externalDuchyId: String)
+  class Entry(
+    val internalDuchyId: Long,
+    val externalDuchyId: String,
+    val activeRange: ClosedRange<Instant>
+  ) {
+    fun isActive(instant: Instant): Boolean {
+      return instant in activeRange
+    }
+  }
 }
 
 class DuchyIdsFlags {
@@ -69,5 +79,15 @@ class DuchyIdsFlags {
 }
 
 private fun DuchyIdConfig.Duchy.toDuchyIdsEntry(): DuchyIds.Entry {
-  return DuchyIds.Entry(internalDuchyId, externalDuchyId)
+  val activeEndTime =
+    if (hasActiveEndTime()) {
+      activeEndTime.toInstant()
+    } else {
+      Instant.MAX
+    }
+  return DuchyIds.Entry(
+    internalDuchyId,
+    externalDuchyId,
+    activeStartTime.toInstant()..activeEndTime
+  )
 }

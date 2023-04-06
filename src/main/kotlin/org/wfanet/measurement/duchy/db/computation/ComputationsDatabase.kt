@@ -15,6 +15,7 @@
 package org.wfanet.measurement.duchy.db.computation
 
 import java.time.Duration
+import java.time.Instant
 import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationStageDetails
@@ -50,9 +51,12 @@ interface ComputationsDatabaseReader {
 
   /**
    * Gets a collection of all the global computation ids for a computation in the database which are
-   * in a one of the provided stages.
+   * in a one of the provided stages and before the updated time if specified.
    */
-  suspend fun readGlobalComputationIds(stages: Set<ComputationStage>): Set<String>
+  suspend fun readGlobalComputationIds(
+    stages: Set<ComputationStage>,
+    updatedBefore: Instant? = null
+  ): Set<String>
 
   /** Gets all blobKeys of a Computation's data */
   suspend fun readComputationBlobKeys(localId: Long): List<String>

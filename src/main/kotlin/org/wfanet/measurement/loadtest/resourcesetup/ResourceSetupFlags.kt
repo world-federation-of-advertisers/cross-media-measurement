@@ -132,6 +132,6 @@ class ResourceSetupFlags {
       ],
     required = false
   )
-  lateinit var requiredDuchies: List<String>
+  var requiredDuchies: List<String> = emptyList()
     private set
 }

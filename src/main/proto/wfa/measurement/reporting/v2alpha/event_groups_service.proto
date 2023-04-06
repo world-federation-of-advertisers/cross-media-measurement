@@ -1,0 +1,75 @@
+// Copyright 2023 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.reporting.v2alpha;
+
+import "google/api/client.proto";
+import "google/api/field_behavior.proto";
+import "google/api/annotations.proto";
+import "google/api/resource.proto";
+import "wfa/measurement/reporting/v2alpha/event_group.proto";
+
+option java_package = "org.wfanet.measurement.reporting.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "EventGroupsServiceProto";
+
+// Service for interacting with `EventGroup` resources.
+service EventGroups {
+  // Lists `EventGroup`s. Results in a `PERMISSION_DENIED` error if attempting
+  // to list `EventGroup`s that the authenticated user does not have access to.
+  rpc ListEventGroups(ListEventGroupsRequest)
+      returns (ListEventGroupsResponse) {
+    option (google.api.http) = {
+      get: "/v2alpha/{parent=measurementConsumers/*/dataProviders/*}/eventGroups"
+    };
+    option (google.api.method_signature) = "parent";
+  }
+}
+
+// Request message for `ListEventGroups` method.
+message ListEventGroupsRequest {
+  // Resource name of the parent `DataProvider` under a given
+  // `MeasurementConsumer`, in the form
+  // `measurementConsumers/{measurement_consumer}/dataProviders/{data_provider}`.
+  // The wildcard ID (`-`) may be used in place of the `DataProvider` ID to list
+  // across `DataProvider`s, in which case a filter should be specified.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "reporting.halo-cmm.org/EventGroup"
+    }
+  ];
+
+  // The maximum number of resources to return. See https://aip.dev/158.
+  int32 page_size = 2;
+  // A token from a previous call, specified to retrieve the next page. See
+  // https://aip.dev/158.
+  string page_token = 3;
+
+  // Result filter. Raw CEL expression that is applied to a message which has a
+  // field for each event group template.
+  string filter = 4;
+}
+
+// Response message for `ListEventGroups` method.
+message ListEventGroupsResponse {
+  // The `EventGroup` resources.
+  repeated EventGroup event_groups = 1;
+
+  // A token that can be specified in a subsequent call to retrieve the next
+  // page. See https://aip.dev/158.
+  string next_page_token = 2;
+}

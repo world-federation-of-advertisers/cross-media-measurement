@@ -1,0 +1,31 @@
+load("@rules_java//java:defs.bzl", "java_binary")
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+load("@io_bazel_rules_docker//java:image.bzl", "java_image")
+
+kt_jvm_library(
+    name = "computations_cleaner_job",
+    srcs = ["ComputationsCleanerJob.kt"],
+    runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common:flags",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computations",
+        "//src/main/proto/wfa/measurement/internal/duchy:computations_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_certs",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)
+
+java_binary(
+    name = "ComputationsCleanerJob",
+    main_class = "org.wfanet.measurement.duchy.deploy.common.job.ComputationsCleanerJobKt",
+    runtime_deps = [":computations_cleaner_job"],
+)
+
+java_image(
+    name = "computations_cleaner_image",
+    main_class = "org.wfanet.measurement.duchy.deploy.common.job.ComputationsCleanerJobKt",
+    visibility = ["//src:docker_image_deployment"],
+    runtime_deps = [":computations_cleaner_job"],
+)

@@ -24,6 +24,7 @@ import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
+import org.junit.BeforeClass
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -33,27 +34,30 @@ import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntryKt
+import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.StateTransitionMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.createDuchyMeasurementLogEntryRequest
 import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.measurementLogEntry
 import org.wfanet.measurement.internal.kingdom.streamStateTransitionMeasurementLogEntriesRequest
+import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
-import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.EXTERNAL_DUCHY_IDS
+import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.DUCHIES
 
 private const val RANDOM_SEED = 1
 
 @RunWith(JUnit4::class)
 abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCoroutineImplBase> {
 
-  @get:Rule val duchyIdSetter = DuchyIdSetter(EXTERNAL_DUCHY_IDS)
+  @get:Rule val duchyIdSetter = DuchyIdSetter(DUCHIES)
 
   protected data class Services<T>(
     val measurementLogEntriesService: T,
@@ -99,7 +103,7 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
         measurementLogEntriesService.createDuchyMeasurementLogEntry(
           createDuchyMeasurementLogEntryRequest {
             externalComputationId = 1234L // WrongID
-            externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+            externalDuchyId = DUCHIES[0].externalDuchyId
             measurementLogEntryDetails =
               MeasurementLogEntryKt.details {
                 error =
@@ -157,7 +161,7 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
         measurementLogEntriesService.createDuchyMeasurementLogEntry(
           createDuchyMeasurementLogEntryRequest {
             externalComputationId = 1L
-            externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+            externalDuchyId = DUCHIES[0].externalDuchyId
             measurementLogEntryDetails =
               MeasurementLogEntryKt.details {
                 error =
@@ -205,14 +209,14 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
       measurementLogEntriesService.createDuchyMeasurementLogEntry(
         createDuchyMeasurementLogEntryRequest {
           externalComputationId = measurement.externalComputationId
-          externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+          externalDuchyId = DUCHIES[0].externalDuchyId
           this.measurementLogEntryDetails = measurementLogEntryDetails
           details = duchyMeasurementLogEntryDetails
         }
       )
 
     val expectedDuchyMeasurementLogEntry = duchyMeasurementLogEntry {
-      externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+      externalDuchyId = DUCHIES[0].externalDuchyId
       externalComputationLogEntryId = createdDuchyMeasurementLogEntry.externalComputationLogEntryId
       logEntry = measurementLogEntry {
         this.externalMeasurementId = measurement.externalMeasurementId
@@ -254,14 +258,14 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
       measurementLogEntriesService.createDuchyMeasurementLogEntry(
         createDuchyMeasurementLogEntryRequest {
           externalComputationId = measurement.externalComputationId
-          externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+          externalDuchyId = DUCHIES[0].externalDuchyId
           this.measurementLogEntryDetails = measurementLogEntryDetails
           details = duchyMeasurementLogEntryDetails
         }
       )
 
     val expectedDuchyMeasurementLogEntry = duchyMeasurementLogEntry {
-      externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+      externalDuchyId = DUCHIES[0].externalDuchyId
       externalComputationLogEntryId = createdDuchyMeasurementLogEntry.externalComputationLogEntryId
       logEntry = measurementLogEntry {
         this.externalMeasurementId = measurement.externalMeasurementId
@@ -315,7 +319,7 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
         measurementLogEntriesService.createDuchyMeasurementLogEntry(
           createDuchyMeasurementLogEntryRequest {
             externalComputationId = measurement.externalComputationId
-            externalDuchyId = EXTERNAL_DUCHY_IDS[0]
+            externalDuchyId = DUCHIES[0].externalDuchyId
             this.measurementLogEntryDetails = measurementLogEntryDetails
             details = duchyMeasurementLogEntryDetails
           }
@@ -364,4 +368,17 @@ abstract class MeasurementLogEntriesServiceTest<T : MeasurementLogEntriesCorouti
       assertThat(measurementStateTransitionLogEntry.previousState)
         .isEqualTo(Measurement.State.PENDING_REQUISITION_PARAMS)
     }
+
+  companion object {
+    @BeforeClass
+    @JvmStatic
+    fun initConfig() {
+      Llv2ProtocolConfig.setForTest(
+        ProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
+        DuchyProtocolConfig.LiquidLegionsV2.getDefaultInstance(),
+        setOf(Population.AGGREGATOR_DUCHY.externalDuchyId),
+        2
+      )
+    }
+  }
 }

@@ -63,16 +63,19 @@ import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.measurementConsumer
 import org.wfanet.measurement.internal.kingdom.modelProvider
 import org.wfanet.measurement.internal.kingdom.protocolConfig
+import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 
 private const val API_VERSION = "v2alpha"
 
 class Population(val clock: Clock, val idGenerator: IdGenerator) {
   companion object {
-    const val WORKER1_DUCHY_EXTERNAL_ID = "worker1"
-    const val WORKER2_DUCHY_EXTERNAL_ID = "worker2"
-    const val AGGREGATOR_DUCHY_EXTERNAL_ID = "aggregator"
-    val EXTERNAL_DUCHY_IDS =
-      listOf(AGGREGATOR_DUCHY_EXTERNAL_ID, WORKER1_DUCHY_EXTERNAL_ID, WORKER2_DUCHY_EXTERNAL_ID)
+    private val VALID_ACTIVE_START_TIME = Instant.now().minusSeconds(100L)
+    private val VALID_ACTIVE_END_TIME = Instant.now().plusSeconds(2000L)
+    val AGGREGATOR_DUCHY =
+      DuchyIds.Entry(1, "aggregator", VALID_ACTIVE_START_TIME..VALID_ACTIVE_END_TIME)
+    val WORKER1_DUCHY = DuchyIds.Entry(2, "worker1", VALID_ACTIVE_START_TIME..VALID_ACTIVE_END_TIME)
+    val WORKER2_DUCHY = DuchyIds.Entry(3, "worker2", VALID_ACTIVE_START_TIME..VALID_ACTIVE_END_TIME)
+    val DUCHIES = listOf(AGGREGATOR_DUCHY, WORKER1_DUCHY, WORKER2_DUCHY)
   }
   private fun buildRequestCertificate(
     derUtf8: String,
@@ -129,7 +132,8 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
   suspend fun createDataProvider(
     dataProvidersService: DataProvidersCoroutineImplBase,
     notValidBefore: Instant = clock.instant(),
-    notValidAfter: Instant = notValidBefore.plus(365L, ChronoUnit.DAYS)
+    notValidAfter: Instant = notValidBefore.plus(365L, ChronoUnit.DAYS),
+    customize: (DataProviderKt.Dsl.() -> Unit)? = null
   ): DataProvider {
     return dataProvidersService.createDataProvider(
       dataProvider {
@@ -146,8 +150,9 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
             publicKey = "EDP public key".toByteStringUtf8()
             publicKeySignature = "EDP public key signature".toByteStringUtf8()
           }
-        requiredExternalDuchyIds += WORKER1_DUCHY_EXTERNAL_ID
-        requiredExternalDuchyIds += WORKER2_DUCHY_EXTERNAL_ID
+        requiredExternalDuchyIds += WORKER1_DUCHY.externalDuchyId
+        requiredExternalDuchyIds += WORKER2_DUCHY.externalDuchyId
+        customize?.invoke(this)
       }
     )
   }

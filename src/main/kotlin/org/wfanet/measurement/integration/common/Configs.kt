@@ -19,6 +19,7 @@ import com.google.protobuf.Message
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
+import java.time.Instant
 import org.jetbrains.annotations.Blocking
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificateCollection
@@ -30,10 +31,12 @@ import org.wfanet.measurement.common.crypto.tink.loadPublicKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.internal.kingdom.DuchyIdConfig
 import org.wfanet.measurement.internal.kingdom.Llv2ProtocolConfigConfig
+import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 
 private val SECRET_FILES_PATH: Path =
@@ -66,6 +69,20 @@ val LLV2_AGGREGATOR_NAME =
   AGGREGATOR_PROTOCOLS_SETUP_CONFIG.liquidLegionsV2.externalAggregatorDuchyId!!
 
 val ALL_DUCHY_NAMES = DUCHY_ID_CONFIG.duchiesList.map { it.externalDuchyId }
+val ALL_DUCHIES =
+  DUCHY_ID_CONFIG.duchiesList.map { duchy ->
+    val activeEndTime =
+      if (duchy.hasActiveEndTime()) {
+        duchy.activeEndTime.toInstant()
+      } else {
+        Instant.MAX
+      }
+    DuchyIds.Entry(
+      duchy.internalDuchyId,
+      duchy.externalDuchyId,
+      duchy.activeStartTime.toInstant()..activeEndTime
+    )
+  }
 val ALL_EDP_DISPLAY_NAMES = listOf("edp1", "edp2", "edp3")
 
 /**

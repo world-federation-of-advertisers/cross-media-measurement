@@ -1,0 +1,59 @@
+# Copyright 2021 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: 'Terraform Init'
+description: 'Prepare Terraform environment'
+inputs:
+  working_directory:
+    description: 'The directory where the Terraform configuration is located.'
+    required: true
+    default: .
+  terraform_version:
+    description: 'The Terraform version to use'
+    required: false
+    default: '1.3.6'
+  service-account:
+    description: 'GCP Service Account email for federation'
+    required: true
+  workload-identity-provider:
+    description: 'GCP Workload Identity Provider'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    # Setup Gcloud identity federation
+    - name: "Authenticate to Google Cloud"
+      uses: "google-github-actions/auth@v1"
+      with:
+        workload_identity_provider: ${{ inputs.workload-identity-provider }}
+        service_account: ${{ inputs.service-account }}
+        token_format: 'access_token'
+
+    # Install gcloud, `setup-gcloud` automatically picks up authentication from `auth`.
+    - name: 'Set up Cloud SDK'
+      uses: 'google-github-actions/setup-gcloud@v1'
+
+    # Install the latest version of Terraform CLI and configure the Terraform CLI configuration file with a Terraform Cloud user API token
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: ${{ inputs.terraform_version }}
+        terraform_wrapper: false
+
+    # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
+    - name: Terraform Init
+      run: terraform init -reconfigure
+      working-directory: ${{ inputs.working-directory }}
+      shell: bash

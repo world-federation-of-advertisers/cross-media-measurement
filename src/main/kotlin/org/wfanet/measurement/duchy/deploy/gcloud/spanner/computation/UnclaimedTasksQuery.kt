@@ -27,11 +27,13 @@ class UnclaimedTasksQuery<StageT>(
   timestamp: Timestamp
 ) : SqlBasedQuery<UnclaimedTaskQueryResult<StageT>> {
   companion object {
+    // The column CreationTime is nullable due to later change to the schema. The timestamp of null
+    // is regarded as the oldest one (the smallest value).
     private const val parameterizedQueryString =
       """
       SELECT c.ComputationId,  c.GlobalComputationId,
              c.Protocol, c.ComputationStage, c.UpdateTime,
-             cs.NextAttempt
+             c.CreationTime, cs.NextAttempt
       FROM Computations@
         {
           FORCE_INDEX=ComputationsByLockExpirationTime,
@@ -42,7 +44,7 @@ class UnclaimedTasksQuery<StageT>(
         AND c.LockExpirationTime IS NOT NULL
         AND c.UpdateTime IS NOT NULL
         AND c.LockExpirationTime <= @current_time
-      ORDER BY c.LockExpirationTime ASC, c.UpdateTime ASC
+      ORDER BY c.CreationTime ASC, c.LockExpirationTime ASC, c.UpdateTime ASC
       LIMIT 50
       """
   }
@@ -61,6 +63,7 @@ class UnclaimedTasksQuery<StageT>(
         parseStageEnum(
           ComputationStageLongValues(struct.getLong("Protocol"), struct.getLong("ComputationStage"))
         ),
+      creationTime = struct.getTimestamp("CreationTime"),
       updateTime = struct.getTimestamp("UpdateTime"),
       nextAttempt = struct.getLong("NextAttempt")
     )
@@ -71,6 +74,7 @@ data class UnclaimedTaskQueryResult<StageT>(
   val computationId: Long,
   val globalId: String,
   val computationStage: StageT,
+  val creationTime: Timestamp,
   val updateTime: Timestamp,
   val nextAttempt: Long
 )

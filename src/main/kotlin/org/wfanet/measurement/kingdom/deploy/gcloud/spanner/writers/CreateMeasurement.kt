@@ -16,8 +16,12 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Value
+import java.time.Clock
+import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.flattenConcat
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
+import kotlinx.coroutines.flow.toSet
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.appendClause
@@ -33,12 +37,15 @@ import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
+import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotActiveException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamDataProviders
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.readDataProviderId
@@ -54,11 +61,14 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWrite
  * @throws [MeasurementConsumerCertificateNotFoundException] MeasurementConsumer's Certificate not
  *   found
  * @throws [CertificateIsInvalidException] Certificate is invalid
+ * @throws [DuchyNotActiveException] One or more required duchies were inactive at measurement
+ *   creation time
  */
 class CreateMeasurement(private val measurement: Measurement) :
   SpannerWriter<Measurement, Measurement>() {
 
   override suspend fun TransactionScope.runTransaction(): Measurement {
+
     val measurementConsumerId: InternalId =
       readMeasurementConsumerId(ExternalId(measurement.externalMeasurementConsumerId))
 
@@ -69,14 +79,12 @@ class CreateMeasurement(private val measurement: Measurement) :
       }
     }
 
-    // protocol has to be set for the measurement to require computation
-    return if (
-      measurement.details.protocolConfig.protocolCase !=
-        ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET
-    ) {
-      createComputedMeasurement(measurement, measurementConsumerId)
-    } else {
-      createDirectMeasurement(measurement, measurementConsumerId)
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields are never null.
+    return when (measurement.details.protocolConfig.protocolCase) {
+      ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2 ->
+        createComputedMeasurement(measurement, measurementConsumerId)
+      ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET ->
+        createDirectMeasurement(measurement, measurementConsumerId)
     }
   }
 
@@ -85,6 +93,36 @@ class CreateMeasurement(private val measurement: Measurement) :
     measurementConsumerId: InternalId
   ): Measurement {
     val initialMeasurementState = Measurement.State.PENDING_REQUISITION_PARAMS
+
+    val requiredDuchyIds: Set<String> =
+      Llv2ProtocolConfig.requiredExternalDuchyIds +
+        readDataProviderRequiredDuchies(
+          measurement.dataProvidersMap.keys.map { ExternalId(it) }.toSet()
+        )
+
+    val now = Clock.systemUTC().instant()
+    val requiredDuchyEntries = DuchyIds.entries.filter { it.externalDuchyId in requiredDuchyIds }
+    requiredDuchyEntries.forEach {
+      if (!it.isActive(now)) {
+        throw DuchyNotActiveException(it.externalDuchyId)
+      }
+    }
+
+    val includedDuchyEntries =
+      if (requiredDuchyEntries.size < Llv2ProtocolConfig.minimumNumberOfRequiredDuchies) {
+        val additionalActiveDuchies =
+          DuchyIds.entries.filter { it !in requiredDuchyEntries && it.isActive(now) }
+        requiredDuchyEntries +
+          additionalActiveDuchies.take(
+            Llv2ProtocolConfig.minimumNumberOfRequiredDuchies - requiredDuchyEntries.size
+          )
+      } else {
+        requiredDuchyEntries
+      }
+
+    if (includedDuchyEntries.size < Llv2ProtocolConfig.minimumNumberOfRequiredDuchies) {
+      throw IllegalStateException("Not enough active duchies to run the computation")
+    }
 
     val measurementId: InternalId = idGenerator.generateInternalId()
     val externalMeasurementId: ExternalId = idGenerator.generateExternalId()
@@ -105,7 +143,7 @@ class CreateMeasurement(private val measurement: Measurement) :
       Requisition.State.PENDING_PARAMS
     )
 
-    DuchyIds.entries.forEach { entry ->
+    includedDuchyEntries.forEach { entry ->
       insertComputationParticipant(
         measurementConsumerId,
         measurementId,
@@ -322,6 +360,16 @@ private suspend fun TransactionScope.readMeasurementConsumerId(
     ?: throw MeasurementConsumerNotFoundException(externalMeasurementConsumerId) {
       "MeasurementConsumer with external ID $externalMeasurementConsumerId not found"
     }
+}
+
+private suspend fun TransactionScope.readDataProviderRequiredDuchies(
+  externalDataProviderIds: Set<ExternalId>
+): Set<String> {
+  return StreamDataProviders(externalDataProviderIds)
+    .execute(transactionContext)
+    .map { it.dataProvider.requiredExternalDuchyIdsList.asFlow() }
+    .flattenConcat()
+    .toSet()
 }
 
 /**
