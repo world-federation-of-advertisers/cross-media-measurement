@@ -226,7 +226,7 @@ abstract class MillBase(
         failComputation(token, "PERMANENT error: ${e.localizedMessage}")
       }
       else -> {
-        if (token.attempt >= maximumAttempts) {
+        if (token.attempt > maximumAttempts) {
           failComputation(token, "Failing computation due to too many failed attempts.")
         } else {
           // Treat all other errors as transient.
