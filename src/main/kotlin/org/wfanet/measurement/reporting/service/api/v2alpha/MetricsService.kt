@@ -832,6 +832,16 @@ private fun InternalMetricSpec.VidSamplingInterval.toCmmsVidSamplingInterval():
   }
 }
 
+/** Converts an [InternalMetricSpec.VidSamplingInterval] to a [MetricSpec.VidSamplingInterval]. */
+private fun InternalMetricSpec.VidSamplingInterval.toVidSamplingInterval():
+  MetricSpec.VidSamplingInterval {
+  val source = this
+  return MetricSpecKt.vidSamplingInterval {
+    start = source.start
+    width = source.width
+  }
+}
+
 /** Converts an [InternalTimeInterval] to a [CmmsTimeInterval]. */
 private fun InternalTimeInterval.toCmmsTimeInterval(): CmmsTimeInterval {
   val source = this
@@ -1158,6 +1168,7 @@ private fun InternalMetricSpec.toMetricSpec(): MetricSpec {
       InternalMetricSpec.TypeCase.TYPE_NOT_SET ->
         failGrpc(Status.INVALID_ARGUMENT) { "The metric type in Metric is not specified." }
     }
+    vidSamplingInterval = source.vidSamplingInterval.toVidSamplingInterval()
   }
 }
 
