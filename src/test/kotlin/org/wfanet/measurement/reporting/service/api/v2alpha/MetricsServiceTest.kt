@@ -150,6 +150,7 @@ import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairSto
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
+import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt.frequencyHistogramParams
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt.impressionCountParams
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt.reachParams
@@ -187,6 +188,7 @@ private val REACH_FREQUENCY_VID_SAMPLING_START_LIST =
   }
 private const val REACH_FREQUENCY_REACH_EPSILON = 0.0033
 private const val REACH_FREQUENCY_FREQUENCY_EPSILON = 0.115
+private const val REACH_FREQUENCY_MAXIMUM_FREQUENCY_PER_USER = 10
 
 private const val IMPRESSION_VID_SAMPLING_WIDTH = 62.0f / NUMBER_VID_BUCKETS
 private const val NUMBER_IMPRESSION_BUCKETS = 1
@@ -197,6 +199,7 @@ private val IMPRESSION_VID_SAMPLING_START_LIST =
       it * IMPRESSION_VID_SAMPLING_WIDTH
   }
 private const val IMPRESSION_EPSILON = 0.0011
+private const val IMPRESSION_MAXIMUM_FREQUENCY_PER_USER = 60
 
 private const val WATCH_DURATION_VID_SAMPLING_WIDTH = 95.0f / NUMBER_VID_BUCKETS
 private const val NUMBER_WATCH_DURATION_BUCKETS = 1
@@ -207,6 +210,7 @@ private val WATCH_DURATION_VID_SAMPLING_START_LIST =
       it * WATCH_DURATION_VID_SAMPLING_WIDTH
   }
 private const val WATCH_DURATION_EPSILON = 0.001
+private const val MAXIMUM_WATCH_DURATION_PER_USER = 4000
 
 private const val DIFFERENTIAL_PRIVACY_DELTA = 1e-12
 
@@ -790,7 +794,7 @@ private val SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_SPEC = measurementSpec {
         epsilon = IMPRESSION_EPSILON
         delta = DIFFERENTIAL_PRIVACY_DELTA
       }
-      maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
+      maximumFrequencyPerUser = IMPRESSION_MAXIMUM_FREQUENCY_PER_USER
     }
   vidSamplingInterval =
     MeasurementSpecKt.vidSamplingInterval {
@@ -867,21 +871,23 @@ private val SUCCEEDED_CMMS_MEASUREMENTS =
 
 // Metric Specs
 
-private const val MAXIMUM_FREQUENCY_PER_USER = 10
-private const val MAXIMUM_WATCH_DURATION_PER_USER = 300
-
-private val REACH_METRIC_SPEC: MetricSpec = metricSpec { reach = reachParams {} }
+private val REACH_METRIC_SPEC: MetricSpec = metricSpec {
+  reach = reachParams { privacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance() }
+}
 private val FREQUENCY_HISTOGRAM_METRIC_SPEC: MetricSpec = metricSpec {
   frequencyHistogram = frequencyHistogramParams {
-    maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
+    reachPrivacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
+    frequencyPrivacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
   }
 }
 private val IMPRESSION_COUNT_METRIC_SPEC: MetricSpec = metricSpec {
-  impressionCount = impressionCountParams { maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER }
+  impressionCount = impressionCountParams {
+    privacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
+  }
 }
 private val WATCH_DURATION_METRIC_SPEC: MetricSpec = metricSpec {
   watchDuration = watchDurationParams {
-    maximumWatchDurationPerUser = MAXIMUM_WATCH_DURATION_PER_USER
+    privacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
   }
 }
 
@@ -903,7 +909,21 @@ private val INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC = internalMetric {
   cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
   externalReportingSetId = INTERNAL_INCREMENTAL_REPORTING_SET.externalReportingSetId
   timeInterval = INTERNAL_TIME_INTERVAL
-  metricSpec = internalMetricSpec { reach = InternalMetricSpecKt.reachParams {} }
+  metricSpec = internalMetricSpec {
+    reach =
+      InternalMetricSpecKt.reachParams {
+        privacyParams =
+          InternalMetricSpecKt.differentialPrivacyParams {
+            epsilon = REACH_ONLY_REACH_EPSILON
+            delta = DIFFERENTIAL_PRIVACY_DELTA
+          }
+      }
+    vidSamplingInterval =
+      InternalMetricSpecKt.vidSamplingInterval {
+        start = REACH_ONLY_VID_SAMPLING_START_LIST[SECURE_RANDOM_OUTPUT_INT]
+        width = REACH_ONLY_VID_SAMPLING_WIDTH
+      }
+  }
   weightedMeasurements += weightedMeasurement {
     weight = 1
     measurement = INTERNAL_REQUESTING_UNION_ALL_REACH_MEASUREMENT
@@ -964,7 +984,17 @@ private val INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC = internalMet
   metricSpec = internalMetricSpec {
     impressionCount =
       InternalMetricSpecKt.impressionCountParams {
-        maximumFrequencyPerUser = MAXIMUM_FREQUENCY_PER_USER
+        privacyParams =
+          InternalMetricSpecKt.differentialPrivacyParams {
+            epsilon = IMPRESSION_EPSILON
+            delta = DIFFERENTIAL_PRIVACY_DELTA
+          }
+        maximumFrequencyPerUser = IMPRESSION_MAXIMUM_FREQUENCY_PER_USER
+      }
+    vidSamplingInterval =
+      InternalMetricSpecKt.vidSamplingInterval {
+        start = IMPRESSION_VID_SAMPLING_START_LIST[SECURE_RANDOM_OUTPUT_INT]
+        width = IMPRESSION_VID_SAMPLING_WIDTH
       }
   }
   weightedMeasurements += weightedMeasurement {
@@ -1016,6 +1046,20 @@ private val PENDING_INCREMENTAL_REACH_METRIC =
         )
         .toName()
     state = Metric.State.RUNNING
+    metricSpec = metricSpec {
+      reach = reachParams {
+        privacyParams =
+          MetricSpecKt.differentialPrivacyParams {
+            epsilon = REACH_ONLY_REACH_EPSILON
+            delta = DIFFERENTIAL_PRIVACY_DELTA
+          }
+      }
+      vidSamplingInterval =
+        MetricSpecKt.vidSamplingInterval {
+          start = REACH_ONLY_VID_SAMPLING_START_LIST[SECURE_RANDOM_OUTPUT_INT]
+          width = REACH_ONLY_VID_SAMPLING_WIDTH
+        }
+    }
     createTime = INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.createTime
   }
 
@@ -1046,6 +1090,21 @@ private val PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC =
           externalIdToApiId(INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId)
         )
         .toName()
+    metricSpec = metricSpec {
+      impressionCount = impressionCountParams {
+        privacyParams =
+          MetricSpecKt.differentialPrivacyParams {
+            epsilon = IMPRESSION_EPSILON
+            delta = DIFFERENTIAL_PRIVACY_DELTA
+          }
+        maximumFrequencyPerUser = IMPRESSION_MAXIMUM_FREQUENCY_PER_USER
+      }
+      vidSamplingInterval =
+        MetricSpecKt.vidSamplingInterval {
+          start = IMPRESSION_VID_SAMPLING_START_LIST[SECURE_RANDOM_OUTPUT_INT]
+          width = IMPRESSION_VID_SAMPLING_WIDTH
+        }
+    }
     state = Metric.State.RUNNING
     createTime = INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.createTime
   }
@@ -1088,6 +1147,7 @@ class MetricsServiceTest {
     mockService {
       onBlocking { batchGetReportingSets(any()) }
         .thenReturn(
+          batchGetReportingSetsResponse { reportingSets += INTERNAL_INCREMENTAL_REPORTING_SET },
           batchGetReportingSetsResponse {
             reportingSets += INTERNAL_UNION_ALL_REPORTING_SET
             reportingSets += INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET
@@ -1211,15 +1271,25 @@ class MetricsServiceTest {
 
     val expected = PENDING_INCREMENTAL_REACH_METRIC
 
-    // Verify proto argument of the internal ReportingSetsCoroutineImplBase::getReportingSet
-    verifyProtoArgument(
-        internalReportingSetsMock,
-        InternalReportingSetsGrpcKt.ReportingSetsCoroutineImplBase::batchGetReportingSets
-      )
-      .isEqualTo(
+    // Verify proto argument of the internal ReportingSetsCoroutineImplBase::batchGetReportingSets
+    val batchGetReportingSetsCaptor: KArgumentCaptor<BatchGetReportingSetsRequest> =
+      argumentCaptor()
+    verifyBlocking(internalReportingSetsMock, times(2)) {
+      batchGetReportingSets(batchGetReportingSetsCaptor.capture())
+    }
+
+    val capturedBatchGetReportingSetsRequests = batchGetReportingSetsCaptor.allValues
+    assertThat(capturedBatchGetReportingSetsRequests)
+      .containsExactly(
         batchGetReportingSetsRequest {
           cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
           externalReportingSetIds += INTERNAL_INCREMENTAL_REPORTING_SET.externalReportingSetId
+        },
+        batchGetReportingSetsRequest {
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          externalReportingSetIds += INTERNAL_UNION_ALL_REPORTING_SET.externalReportingSetId
+          externalReportingSetIds +=
+            INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET.externalReportingSetId
         }
       )
 
@@ -1236,20 +1306,6 @@ class MetricsServiceTest {
         MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
       )
       .isEqualTo(getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMERS.values.first().name })
-
-    // Verify proto argument of the internal ReportingSetsCoroutineImplBase::batchGetReportingSets
-    verifyProtoArgument(
-        internalReportingSetsMock,
-        InternalReportingSetsGrpcKt.ReportingSetsCoroutineImplBase::batchGetReportingSets
-      )
-      .isEqualTo(
-        batchGetReportingSetsRequest {
-          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-          externalReportingSetIds += INTERNAL_UNION_ALL_REPORTING_SET.externalReportingSetId
-          externalReportingSetIds +=
-            INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET.externalReportingSetId
-        }
-      )
 
     // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
     val dataProvidersCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
@@ -1542,7 +1598,10 @@ class MetricsServiceTest {
     verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::createMetric)
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
-        internalCreateMetricRequest { metric = INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC }
+        internalCreateMetricRequest {
+          metric = INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC
+          requestId = INCREMENTAL_REACH_METRIC_IDEMPOTENCY_KEY
+        }
       )
 
     // Verify proto argument of MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
@@ -1767,7 +1826,10 @@ class MetricsServiceTest {
     verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::createMetric)
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
-        internalCreateMetricRequest { metric = INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC }
+        internalCreateMetricRequest {
+          metric = INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC
+          requestId = INCREMENTAL_REACH_METRIC_IDEMPOTENCY_KEY
+        }
       )
 
     // Verify proto argument of MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
@@ -1833,7 +1895,10 @@ class MetricsServiceTest {
     verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::createMetric)
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
-        internalCreateMetricRequest { metric = INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC }
+        internalCreateMetricRequest {
+          metric = INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC
+          requestId = INCREMENTAL_REACH_METRIC_IDEMPOTENCY_KEY
+        }
       )
 
     // Verify proto argument of MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
@@ -2220,7 +2285,7 @@ class MetricsServiceTest {
             runBlocking { service.createMetric(request) }
           }
         }
-      val expectedExceptionDescription = "Unable to create a CMMs measurement."
+      val expectedExceptionDescription = "Unable to create a CMMS measurement."
       assertThat(exception.message).isEqualTo(expectedExceptionDescription)
     }
 
@@ -2242,7 +2307,7 @@ class MetricsServiceTest {
           }
         }
       val expectedExceptionDescription =
-        "Unable to set the CMMs measurement IDs for the measurements in the reporting database."
+        "Unable to set the CMMS measurement IDs for the measurements in the reporting database."
       assertThat(exception.message).isEqualTo(expectedExceptionDescription)
     }
 
@@ -2308,10 +2373,8 @@ class MetricsServiceTest {
   fun `batchCreateMetrics returns metrics with RUNNING state`() = runBlocking {
     whenever(internalReportingSetsMock.batchGetReportingSets(any()))
       .thenReturn(
-        batchGetReportingSetsResponse {
-          reportingSets += INTERNAL_INCREMENTAL_REPORTING_SET
-          reportingSets += INTERNAL_SINGLE_PUBLISHER_REPORTING_SET
-        },
+        batchGetReportingSetsResponse { reportingSets += INTERNAL_INCREMENTAL_REPORTING_SET },
+        batchGetReportingSetsResponse { reportingSets += INTERNAL_SINGLE_PUBLISHER_REPORTING_SET },
         batchGetReportingSetsResponse {
           reportingSets += INTERNAL_UNION_ALL_REPORTING_SET
           reportingSets += INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET
