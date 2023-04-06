@@ -159,7 +159,7 @@ class SetParticipantRequisitionParams(private val request: SetParticipantRequisi
         measurementId = InternalId(measurementId),
         nextState = Measurement.State.PENDING_REQUISITION_FULFILLMENT,
         previousState = computationParticipantResult.measurementState,
-        logDetails = measurementLogEntryDetails
+        measurementLogEntryDetails = measurementLogEntryDetails
       )
       StreamRequisitions(
           StreamRequisitionsRequestKt.filter {

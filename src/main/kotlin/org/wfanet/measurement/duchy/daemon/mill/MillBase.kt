@@ -226,12 +226,14 @@ abstract class MillBase(
         failComputation(token, "PERMANENT error: ${e.localizedMessage}")
       }
       else -> {
-        // Treat all other errors as transient.
-        logger.log(Level.WARNING, "$globalId@$millId: TRANSIENT error", e)
-        sendStatusUpdateToKingdom(newErrorUpdateRequest(token, e.localizedMessage, Type.TRANSIENT))
         if (token.attempt > maximumAttempts) {
           failComputation(token, "Failing computation due to too many failed attempts.")
         } else {
+          // Treat all other errors as transient.
+          logger.log(Level.WARNING, "$globalId@$millId: TRANSIENT error", e)
+          sendStatusUpdateToKingdom(
+            newErrorUpdateRequest(token, e.localizedMessage, Type.TRANSIENT)
+          )
           // Enqueue the computation again for future retry
           enqueueComputation(token)
         }
@@ -243,6 +245,7 @@ abstract class MillBase(
    * Sends request to the kingdom's system ComputationParticipantsService to fail the computation..
    */
   private suspend fun failComputationAtKingdom(token: ComputationToken, errorMessage: String) {
+    val timestamp = clock.protoTimestamp()
     val request =
       FailComputationParticipantRequest.newBuilder()
         .apply {
@@ -254,6 +257,7 @@ abstract class MillBase(
             it.stageAttemptBuilder.apply {
               stage = token.computationStage.number
               stageName = token.computationStage.name
+              stageStartTime = timestamp
               attemptNumber = token.attempt.toLong()
             }
           }

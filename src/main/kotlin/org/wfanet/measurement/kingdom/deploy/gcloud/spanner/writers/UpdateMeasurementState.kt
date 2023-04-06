@@ -28,7 +28,7 @@ internal fun SpannerWriter.TransactionScope.updateMeasurementState(
   measurementId: InternalId,
   nextState: Measurement.State,
   previousState: Measurement.State,
-  logDetails: MeasurementLogEntry.Details,
+  measurementLogEntryDetails: MeasurementLogEntry.Details,
   details: Measurement.Details? = null
 ) {
 
@@ -45,10 +45,12 @@ internal fun SpannerWriter.TransactionScope.updateMeasurementState(
     .bufferTo(transactionContext)
 
   if (nextState == Measurement.State.FAILED) {
-    require(logDetails.hasError()) { "$logDetails must have an error when state is FAILED." }
+    require(measurementLogEntryDetails.hasError()) {
+      "$measurementLogEntryDetails must have an error when state is FAILED."
+    }
   }
 
-  insertMeasurementLogEntry(measurementId, measurementConsumerId, logDetails)
+  insertMeasurementLogEntry(measurementId, measurementConsumerId, measurementLogEntryDetails)
 
   insertStateTransitionMeasurementLogEntry(
     measurementId = measurementId,
