@@ -16,18 +16,10 @@ package org.wfanet.measurement.loadtest.dataprovider
 
 import java.io.File
 import java.time.Duration
-import kotlin.properties.Delegates
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.loadtest.KingdomPublicApiFlags
 import org.wfanet.measurement.loadtest.RequisitionFulfillmentServiceFlags
 import picocli.CommandLine
-
-// TODO(@iverson52000): Move this to public API if EDP needs to report back which noiser is used for
-// PBM tracking.
-enum class NoiseMechanism {
-  LAPLACE,
-  GAUSSIAN,
-}
 
 class EdpSimulatorFlags {
 
@@ -113,6 +105,5 @@ class EdpSimulatorFlags {
     description = ["Differential privacy noise mechanism for direct measurements"],
     defaultValue = "LAPLACE",
   )
-  var noiseMechanism by Delegates.notNull<NoiseMechanism>()
-    private set
+  lateinit var noiseMechanism: NoiseMechanism
 }
