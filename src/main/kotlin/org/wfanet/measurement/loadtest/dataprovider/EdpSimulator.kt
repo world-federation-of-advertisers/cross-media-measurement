@@ -137,6 +137,17 @@ data class EdpData(
   val signingKey: SigningKeyHandle
 )
 
+/**
+ * Mechanism for generating noise for direct measurements.
+ *
+ * TODO(@iverson52000): Move this to public API if EDP needs to report back the noise mechanism for
+ *   PBM tracking.
+ */
+enum class NoiseMechanism {
+  LAPLACE,
+  GAUSSIAN,
+}
+
 /** The reach and frequency estimation of a computation. */
 data class ReachAndFrequencyPair(val reach: Long, val frequency: Map<Long, Double>)
 
