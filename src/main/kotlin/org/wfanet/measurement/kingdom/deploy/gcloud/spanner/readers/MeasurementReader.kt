@@ -25,6 +25,7 @@ import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
 import org.wfanet.measurement.gcloud.spanner.getInternalId
 import org.wfanet.measurement.gcloud.spanner.getProtoEnum
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
+import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
@@ -32,6 +33,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByMeasurementConsumerException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundException
 
 class MeasurementReader(private val view: Measurement.View) :
@@ -122,6 +124,58 @@ class MeasurementReader(private val view: Measurement.View) :
         )
         ?.getProtoEnum(column, Measurement.State::forNumber)
         ?: throw MeasurementNotFoundException() { "Measurement not found $measurementId" }
+    }
+
+    /**
+     * Returns a [Key] for the specified external Measurement ID and external Measurement consumer
+     * ID pair.
+     *
+     * @throws [MeasurementNotFoundByMeasurementConsumerException] when the Measurement is not found
+     */
+    suspend fun readKeyByExternalIds(
+      readContext: AsyncDatabaseClient.ReadContext,
+      externalMeasurementConsumerId: ExternalId,
+      externalMeasurementId: ExternalId,
+    ): Key {
+      val sql =
+        """
+        SELECT
+          Measurements.MeasurementId AS measurementId,
+          Measurements.MeasurementConsumerId AS measurementConsumerId
+        FROM
+          Measurements
+          JOIN MeasurementConsumers USING (MeasurementConsumerId)
+        """
+          .trimIndent()
+      val statement =
+        statement(sql) {
+          appendClause(
+            """
+            WHERE
+              ExternalMeasurementConsumerId = @externalMeasurementConsumerId
+              AND ExternalMeasurementId = @externalMeasurementId
+            """
+              .trimIndent()
+          )
+          bind("externalMeasurementConsumerId").to(externalMeasurementConsumerId.value)
+          bind("externalMeasurementId").to(externalMeasurementId.value)
+          appendClause("LIMIT 1")
+        }
+
+      val row: Struct =
+        readContext.executeQuery(statement).singleOrNull()
+          ?: throw MeasurementNotFoundByMeasurementConsumerException(
+            externalMeasurementConsumerId,
+            externalMeasurementId
+          ) {
+            "Measurement with external MeasurementConsumer ID $externalMeasurementConsumerId and " +
+              "external Measurement ID $externalMeasurementId not found"
+          }
+
+      return Key.of(
+        row.getInternalId("measurementConsumerId").value,
+        row.getInternalId("measurementId").value
+      )
     }
 
     private val defaultViewBaseSql =
