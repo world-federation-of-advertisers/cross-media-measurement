@@ -137,6 +137,9 @@ data class EdpData(
   val signingKey: SigningKeyHandle
 )
 
+/** The reach and frequency estimation of a computation. */
+data class ReachAndFrequencyPair(val reach: Long, val frequency: Map<Long, Double>)
+
 /** A simulator handling EDP businesses. */
 class EdpSimulator(
   private val edpData: EdpData,
@@ -731,21 +734,31 @@ class EdpSimulator(
 
     logger.info("Adding $noiseMechanism publisher noise to direct reach and frequency...")
 
-    val noiser: AbstractNoiser =
+    val reachNoiser: AbstractNoiser =
       when (noiseMechanism) {
-        NoiseMechanism.LAPLACE -> LaplaceNoiser(measurementSpec.reachAndFrequency, random)
-        NoiseMechanism.GAUSSIAN -> GaussianNoiser(measurementSpec.reachAndFrequency, random)
+        NoiseMechanism.LAPLACE ->
+          LaplaceNoiser(measurementSpec.reachAndFrequency.reachPrivacyParams, random)
+        NoiseMechanism.GAUSSIAN ->
+          GaussianNoiser(measurementSpec.reachAndFrequency.reachPrivacyParams, random)
+      }
+    val frequencyNoiser: AbstractNoiser =
+      when (noiseMechanism) {
+        NoiseMechanism.LAPLACE ->
+          LaplaceNoiser(measurementSpec.reachAndFrequency.frequencyPrivacyParams, random)
+        NoiseMechanism.GAUSSIAN ->
+          GaussianNoiser(measurementSpec.reachAndFrequency.frequencyPrivacyParams, random)
       }
 
-    val (sampledNoisedReachValue, noisedFrequencyMap) =
-      noiser.addReachAndFrequencyPublisherNoise(
-        sampledReachValue,
-        frequencyMap,
-      )
-
+    val sampledNoisedReachValue = sampledReachValue + reachNoiser.sample().toInt()
+    val noisedFrequencyMap =
+      frequencyMap.mapValues {
+        (it.value * sampledReachValue.toDouble() + frequencyNoiser.sample()) /
+          sampledReachValue.toDouble()
+      }
     // Differentially private reach value is calculated by reach_dp = (reach + noise) /
     // sampling_rate.
     val scaledNoisedReachValue = (sampledNoisedReachValue / vidSamplingIntervalWidth).toLong()
+
     val requisitionData =
       MeasurementKt.result {
         reach = reach { value = scaledNoisedReachValue }

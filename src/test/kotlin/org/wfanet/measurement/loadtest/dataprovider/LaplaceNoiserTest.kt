@@ -22,33 +22,26 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.measurementSpec
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyLandscape
 
 private const val RANDOM_SEED: Long = 1
 
 @RunWith(JUnit4::class)
 class LaplaceNoiserTest {
   @Test
-  fun `calculate Laplace noised direct reach and frequency correctly`() {
-    val reachValue = 500L
-    val frequencyMap = mapOf(1L to 0.6, 2L to 0.2, 3L to 0.2)
-
+  fun `Laplace noiser with random seed returns expected samples`() {
     val random = Random(RANDOM_SEED)
-    val laplaceNoiser = LaplaceNoiser(MEASUREMENT_SPEC.reachAndFrequency, random)
-    val (noisedReachValue, noisedFrequencyMap) =
-      laplaceNoiser.addReachAndFrequencyPublisherNoise(
-        reachValue,
-        frequencyMap,
+    val laplaceNoiser = LaplaceNoiser(MEASUREMENT_SPEC.reachAndFrequency.reachPrivacyParams, random)
+    val samples = List(5) { laplaceNoiser.sample() }
+    val expectedSamples =
+      listOf(
+        0.6194439986492494,
+        -0.198253856945236,
+        -0.878441914581552,
+        -0.40731565142921,
+        2.741273309927767
       )
 
-    val expectedNoisedReachValue = 500
-    val expectedNoisedFrequencyMap =
-      mapOf(1L to 0.5996034922861095, 2L to 0.1982431161708369, 3L to 0.19918536869714157)
-
-    assertThat(noisedReachValue).isEqualTo(expectedNoisedReachValue)
-    noisedFrequencyMap.forEach { (frequency, percentage) ->
-      assertThat(percentage).isEqualTo(expectedNoisedFrequencyMap[frequency])
-    }
+    assertThat(expectedSamples).isEqualTo(samples)
   }
   companion object {
     private val MEASUREMENT_SPEC = measurementSpec {
@@ -56,17 +49,8 @@ class LaplaceNoiserTest {
         MeasurementSpecKt.reachAndFrequency {
           reachPrivacyParams = differentialPrivacyParams {
             epsilon = 1.0
-            delta = 1.0
+            delta = 1E-12
           }
-          frequencyPrivacyParams = differentialPrivacyParams {
-            epsilon = 1.0
-            delta = 1.0
-          }
-        }
-      vidSamplingInterval =
-        MeasurementSpecKt.vidSamplingInterval {
-          start = 0.0f
-          width = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
         }
     }
   }

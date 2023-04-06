@@ -19,25 +19,11 @@ import kotlin.math.exp
 import org.apache.commons.math3.analysis.solvers.BisectionSolver
 import org.apache.commons.math3.distribution.NormalDistribution
 import org.apache.commons.math3.random.RandomGeneratorFactory
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 
-class GaussianNoiser(reachAndFrequency: MeasurementSpec.ReachAndFrequency, random: Random) :
-  AbstractNoiser() {
-  override val distributionForReach: NormalDistribution by lazy {
-    getNormalDistribution(
-      reachAndFrequency.reachPrivacyParams.epsilon,
-      reachAndFrequency.reachPrivacyParams.delta,
-      random
-    )
-  }
-
-  override val distributionForFrequency: NormalDistribution by lazy {
-    getNormalDistribution(
-      reachAndFrequency.frequencyPrivacyParams.epsilon,
-      reachAndFrequency.frequencyPrivacyParams.delta,
-      random
-    )
-  }
+class GaussianNoiser(privacyParams: DifferentialPrivacyParams, random: Random) : AbstractNoiser() {
+  override val distribution: NormalDistribution =
+    getNormalDistribution(privacyParams.epsilon, privacyParams.delta, random)
 
   /**
    * Assuming sensitivity = 1, solve delta given epsilon and std.

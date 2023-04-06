@@ -17,23 +17,13 @@ package org.wfanet.measurement.loadtest.dataprovider
 import java.util.Random
 import org.apache.commons.math3.distribution.LaplaceDistribution
 import org.apache.commons.math3.random.RandomGeneratorFactory
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 
-class LaplaceNoiser(reachAndFrequency: MeasurementSpec.ReachAndFrequency, random: Random) :
-  AbstractNoiser() {
-  override val distributionForReach: LaplaceDistribution by lazy {
+class LaplaceNoiser(privacyParams: DifferentialPrivacyParams, random: Random) : AbstractNoiser() {
+  override val distribution: LaplaceDistribution =
     LaplaceDistribution(
       RandomGeneratorFactory.createRandomGenerator(random),
       0.0,
-      1 / reachAndFrequency.reachPrivacyParams.epsilon
+      1 / privacyParams.epsilon
     )
-  }
-
-  override val distributionForFrequency: LaplaceDistribution by lazy {
-    LaplaceDistribution(
-      RandomGeneratorFactory.createRandomGenerator(random),
-      0.0,
-      1 / reachAndFrequency.frequencyPrivacyParams.epsilon
-    )
-  }
 }

@@ -23,80 +23,38 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
-import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.measurementSpec
-import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyLandscape
 
 private const val RANDOM_SEED: Long = 1
 
 @RunWith(JUnit4::class)
 class GaussianNoiserTest {
   @Test
-  fun `calculate Gaussian noised direct reach and frequency correctly with seeded random number generator and epsilon equals to 1`() {
+  fun `Gaussian noiser with random seed returns expected samples`() {
     val random = Random(RANDOM_SEED)
-    val gaussianNoiser = GaussianNoiser(MEASUREMENT_SPEC.reachAndFrequency, random)
-
-    val (noisedReachValue, noisedFrequencyMap) =
-      gaussianNoiser.addReachAndFrequencyPublisherNoise(
-        reachValue,
-        frequencyMap,
+    val gaussianNoiser =
+      GaussianNoiser(MEASUREMENT_SPEC.reachAndFrequency.reachPrivacyParams, random)
+    val samples = List(5) { gaussianNoiser.sample() }
+    val expectedSamples =
+      listOf(
+        10.240550327678935,
+        -3.9883454237630307,
+        -7.156064121340545,
+        -4.0956149786203895,
+        -7.333487792497553
       )
 
-    val expectedNoisedReachValue = 510
-    val expectedNoisedFrequencyMap =
-      mapOf(1L to 0.592023309152474, 2L to 0.1856878717573189, 3L to 0.19180877004275923)
-
-    assertThat(noisedReachValue).isEqualTo(expectedNoisedReachValue)
-    noisedFrequencyMap.forEach { (frequency, percentage) ->
-      assertThat(percentage).isEqualTo(expectedNoisedFrequencyMap[frequency])
-    }
+    assertThat(expectedSamples).isEqualTo(samples)
   }
   @Test
-  fun `calculate Gaussian noised direct reach and frequency correctly with seeded random number generator and epsilon equals to 1E-4`() {
-    val measurementSpec =
-      MEASUREMENT_SPEC.copy {
-        reachAndFrequency =
-          reachAndFrequency.copy {
-            reachPrivacyParams = reachPrivacyParams.copy { epsilon = 1E-4 }
-            frequencyPrivacyParams = frequencyPrivacyParams.copy { epsilon = 1E-4 }
-          }
-      }
-
+  fun `standard deviation from samples is close to the theoretical sigma`() {
     val random = Random(RANDOM_SEED)
-    val gaussianNoiser = GaussianNoiser(measurementSpec.reachAndFrequency, random)
+    val gaussianNoiser =
+      GaussianNoiser(MEASUREMENT_SPEC.reachAndFrequency.reachPrivacyParams, random)
+    val samples = List(1000) { gaussianNoiser.sample() }
 
-    val (noisedReachValue, noisedFrequencyMap) =
-      gaussianNoiser.addReachAndFrequencyPublisherNoise(
-        reachValue,
-        frequencyMap,
-      )
-
-    val expectedNoisedReachValue = 78766
-    // Frequency values can be negative due to large variance
-    val expectedNoisedFrequencyMap =
-      mapOf(1L to -60.364636044457335, 2L to -109.18542135016607, 3L to -62.40432585957863)
-
-    assertThat(noisedReachValue).isEqualTo(expectedNoisedReachValue)
-    noisedFrequencyMap.forEach { (frequency, percentage) ->
-      assertThat(percentage).isEqualTo(expectedNoisedFrequencyMap[frequency])
-    }
-  }
-  @Test
-  fun `standard deviation from noisedReachValues is close to the theoretical sigma`() {
-    val random = Random(RANDOM_SEED)
-    val gaussianNoiser = GaussianNoiser(MEASUREMENT_SPEC.reachAndFrequency, random)
-    val noisedReachValues =
-      List(1000) {
-        gaussianNoiser
-          .addReachAndFrequencyPublisherNoise(
-            reachValue,
-            frequencyMap,
-          )
-          .reach
-      }
-
-    val sigma = calculateStandardDeviation(noisedReachValues)
+    val sigma = calculateStandardDeviation(samples)
     // Sigma value with pre-set epsilon and delta
     val expectedSigma = 6.557822067460045
     val diffRatio = abs((expectedSigma - sigma) / expectedSigma)
@@ -111,20 +69,9 @@ class GaussianNoiserTest {
             epsilon = 1.0
             delta = 1E-12
           }
-          frequencyPrivacyParams = differentialPrivacyParams {
-            epsilon = 1.0
-            delta = 1E-12
-          }
-        }
-      vidSamplingInterval =
-        MeasurementSpecKt.vidSamplingInterval {
-          start = 0.0f
-          width = PrivacyLandscape.PRIVACY_BUCKET_VID_SAMPLE_WIDTH
         }
     }
-    private const val reachValue = 500L
-    private val frequencyMap = mapOf(1L to 0.6, 2L to 0.2, 3L to 0.2)
-    private fun calculateStandardDeviation(nums: List<Long>): Double {
+    private fun calculateStandardDeviation(nums: List<Double>): Double {
       val mean = nums.average()
       val standardDeviation = nums.fold(0.0) { acc, num -> acc + (num - mean).pow(2.0) }
 
