@@ -809,9 +809,7 @@ private val REQUESTING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
 
     measurementSpec =
       signMeasurementSpec(
-        SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_SPEC.copy {
-          nonceHashes += hashSha256(SECURE_RANDOM_OUTPUT_LONG)
-        },
+        SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_SPEC,
         MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
       )
 
@@ -1416,10 +1414,6 @@ class MetricsServiceTest {
         )
       whenever(internalMetricsMock.createMetric(any()))
         .thenReturn(INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_IMPRESSION_METRIC)
-      whenever(internalReportingSetsMock.batchGetReportingSets(any()))
-        .thenReturn(
-          batchGetReportingSetsResponse { reportingSets += INTERNAL_SINGLE_PUBLISHER_REPORTING_SET }
-        )
       whenever(measurementsMock.createMeasurement(any()))
         .thenReturn(PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT)
 
@@ -1517,6 +1511,242 @@ class MetricsServiceTest {
         val measurementSpec =
           MeasurementSpec.parseFrom(capturedMeasurementRequest.measurement.measurementSpec.data)
         assertThat(measurementSpec).isEqualTo(SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_SPEC)
+
+        dataProvidersList.map { dataProviderEntry ->
+          val signedRequisitionSpec =
+            decryptRequisitionSpec(
+              dataProviderEntry.value.encryptedRequisitionSpec,
+              DATA_PROVIDER_PRIVATE_KEY_HANDLE
+            )
+          val requisitionSpec = RequisitionSpec.parseFrom(signedRequisitionSpec.data)
+          verifyRequisitionSpec(
+            signedRequisitionSpec,
+            requisitionSpec,
+            measurementSpec,
+            MEASUREMENT_CONSUMER_CERTIFICATE,
+            TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+          )
+        }
+      }
+
+      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds
+      verifyProtoArgument(
+          internalMeasurementsMock,
+          InternalMeasurementsGrpcKt.MeasurementsCoroutineImplBase::batchSetCmmsMeasurementIds
+        )
+        .ignoringRepeatedFieldOrder()
+        .isEqualTo(
+          batchSetCmmsMeasurementIdsRequest {
+            cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+            this.measurementIds += measurementIds {
+              cmmsCreateMeasurementRequestId =
+                INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+                  .cmmsCreateMeasurementRequestId
+              cmmsMeasurementId =
+                INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementId
+            }
+          }
+        )
+
+      assertThat(result).isEqualTo(expected)
+    }
+
+  @Test
+  fun `createMetric with custom measurement params returns metric with RUNNING state`() =
+    runBlocking {
+      val epsilon = IMPRESSION_EPSILON * 2
+      val delta = DIFFERENTIAL_PRIVACY_DELTA * 2
+      val maximumFrequencyPerUser = IMPRESSION_MAXIMUM_FREQUENCY_PER_USER + 1
+      val vidSamplingIntervalStart = IMPRESSION_VID_SAMPLING_START_LIST[SECURE_RANDOM_OUTPUT_INT]
+      val vidSamplingIntervalWidth = IMPRESSION_VID_SAMPLING_WIDTH / 2
+
+      val internalMetricSpec = internalMetricSpec {
+        impressionCount =
+          InternalMetricSpecKt.impressionCountParams {
+            privacyParams =
+              InternalMetricSpecKt.differentialPrivacyParams {
+                this.epsilon = epsilon
+                this.delta = delta
+              }
+            this.maximumFrequencyPerUser = maximumFrequencyPerUser
+          }
+        vidSamplingInterval =
+          InternalMetricSpecKt.vidSamplingInterval {
+            start = vidSamplingIntervalStart
+            width = vidSamplingIntervalWidth
+          }
+      }
+      val internalRequestingSinglePublisherImpressionMetric =
+        INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+          this.metricSpec = internalMetricSpec
+        }
+
+      val internalPendingInitialSinglePublisherImpressionMetric =
+        INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+          this.metricSpec = internalMetricSpec
+        }
+
+      val cmmsMeasurementSpec =
+        SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_SPEC.copy {
+          impression =
+            MeasurementSpecKt.impression {
+              privacyParams = differentialPrivacyParams {
+                this.epsilon = epsilon
+                this.delta = delta
+              }
+              this.maximumFrequencyPerUser = maximumFrequencyPerUser
+            }
+          vidSamplingInterval =
+            MeasurementSpecKt.vidSamplingInterval {
+              start = vidSamplingIntervalStart
+              width = vidSamplingIntervalWidth
+            }
+        }
+
+      val requestingSinglePublisherImpressionMeasurement =
+        REQUESTING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
+          measurementSpec =
+            signMeasurementSpec(cmmsMeasurementSpec, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
+        }
+      val pendingSinglePublisherImpressionMeasurement =
+        PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
+          measurementSpec =
+            signMeasurementSpec(cmmsMeasurementSpec, MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE)
+        }
+
+      whenever(internalReportingSetsMock.batchGetReportingSets(any()))
+        .thenReturn(
+          batchGetReportingSetsResponse { reportingSets += INTERNAL_SINGLE_PUBLISHER_REPORTING_SET }
+        )
+      whenever(internalMetricsMock.createMetric(any()))
+        .thenReturn(internalPendingInitialSinglePublisherImpressionMetric)
+      whenever(measurementsMock.createMeasurement(any()))
+        .thenReturn(pendingSinglePublisherImpressionMeasurement)
+
+      val request = createMetricRequest {
+        parent = MEASUREMENT_CONSUMERS.values.first().name
+        metric =
+          REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+            this.metricSpec = metricSpec {
+              impressionCount = impressionCountParams {
+                privacyParams =
+                  MetricSpecKt.differentialPrivacyParams {
+                    this.epsilon = epsilon
+                    this.delta = delta
+                  }
+                this.maximumFrequencyPerUser = maximumFrequencyPerUser
+              }
+              vidSamplingInterval =
+                MetricSpecKt.vidSamplingInterval {
+                  start = vidSamplingIntervalStart
+                  width = vidSamplingIntervalWidth
+                }
+            }
+          }
+      }
+
+      val result =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.createMetric(request) }
+        }
+
+      val expected =
+        PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+          metricSpec = metricSpec {
+            impressionCount = impressionCountParams {
+              privacyParams =
+                MetricSpecKt.differentialPrivacyParams {
+                  this.epsilon = epsilon
+                  this.delta = delta
+                }
+              this.maximumFrequencyPerUser = maximumFrequencyPerUser
+            }
+            vidSamplingInterval =
+              MetricSpecKt.vidSamplingInterval {
+                start = vidSamplingIntervalStart
+                width = vidSamplingIntervalWidth
+              }
+          }
+        }
+
+      // Verify proto argument of the internal ReportingSetsCoroutineImplBase::batchGetReportingSets
+      val batchGetReportingSetsCaptor: KArgumentCaptor<BatchGetReportingSetsRequest> =
+        argumentCaptor()
+      verifyBlocking(internalReportingSetsMock, times(2)) {
+        batchGetReportingSets(batchGetReportingSetsCaptor.capture())
+      }
+
+      val capturedBatchGetReportingSetsRequests = batchGetReportingSetsCaptor.allValues
+      assertThat(capturedBatchGetReportingSetsRequests)
+        .containsExactly(
+          batchGetReportingSetsRequest {
+            cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+            externalReportingSetIds +=
+              INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.externalReportingSetId
+          },
+          batchGetReportingSetsRequest {
+            cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+            externalReportingSetIds +=
+              internalRequestingSinglePublisherImpressionMetric.externalReportingSetId
+          }
+        )
+
+      // Verify proto argument of the internal MetricsCoroutineImplBase::createMetric
+      verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::createMetric)
+        .ignoringRepeatedFieldOrder()
+        .isEqualTo(
+          internalCreateMetricRequest { metric = internalRequestingSinglePublisherImpressionMetric }
+        )
+
+      // Verify proto argument of MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
+      verifyProtoArgument(
+          measurementConsumersMock,
+          MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
+        )
+        .isEqualTo(
+          getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMERS.values.first().name }
+        )
+
+      // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
+      val dataProvidersCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
+      verifyBlocking(dataProvidersMock, times(1)) { getDataProvider(dataProvidersCaptor.capture()) }
+
+      val capturedDataProviderRequests = dataProvidersCaptor.allValues
+      assertThat(capturedDataProviderRequests)
+        .containsExactly(
+          getDataProviderRequest { name = DATA_PROVIDERS_LIST[0].name },
+        )
+
+      // Verify proto argument of MeasurementsCoroutineImplBase::createMeasurement
+      val measurementsCaptor: KArgumentCaptor<CreateMeasurementRequest> = argumentCaptor()
+      verifyBlocking(measurementsMock, times(1)) { createMeasurement(measurementsCaptor.capture()) }
+      val capturedMeasurementRequests = measurementsCaptor.allValues
+      assertThat(capturedMeasurementRequests)
+        .ignoringRepeatedFieldOrder()
+        .ignoringFieldDescriptors(
+          Measurement.getDescriptor().findFieldByNumber(Measurement.MEASUREMENT_SPEC_FIELD_NUMBER),
+          Measurement.DataProviderEntry.Value.getDescriptor()
+            .findFieldByNumber(
+              Measurement.DataProviderEntry.Value.ENCRYPTED_REQUISITION_SPEC_FIELD_NUMBER
+            ),
+        )
+        .containsExactly(
+          createMeasurementRequest { measurement = requestingSinglePublisherImpressionMeasurement },
+        )
+
+      capturedMeasurementRequests.forEach { capturedMeasurementRequest ->
+        verifyMeasurementSpec(
+          capturedMeasurementRequest.measurement.measurementSpec,
+          MEASUREMENT_CONSUMER_CERTIFICATE,
+          TRUSTED_MEASUREMENT_CONSUMER_ISSUER
+        )
+
+        val dataProvidersList =
+          capturedMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }
+
+        val measurementSpec =
+          MeasurementSpec.parseFrom(capturedMeasurementRequest.measurement.measurementSpec.data)
+        assertThat(measurementSpec).isEqualTo(cmmsMeasurementSpec)
 
         dataProvidersList.map { dataProviderEntry ->
           val signedRequisitionSpec =
@@ -2116,6 +2346,26 @@ class MetricsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description).isEqualTo("Metric spec in metric is not specified.")
+  }
+
+  @Test
+  fun `createMetric throws INVALID_ARGUMENT when privacy params is unspecified`() {
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric =
+        REQUESTING_INCREMENTAL_REACH_METRIC.copy {
+          metricSpec = metricSpec.copy { reach = reach.copy { clearPrivacyParams() } }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.createMetric(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("privacyParams in reach is not set.")
   }
 
   @Test
