@@ -16,22 +16,11 @@ package org.wfanet.measurement.loadtest.dataprovider
 
 import org.apache.commons.math3.distribution.RealDistribution
 
-/** A base noiser class for direct measurement */
+/** A base noiser class for direct measurements */
 abstract class AbstractNoiser : Noiser {
-  protected abstract val distributionForReach: RealDistribution
-  protected abstract val distributionForFrequency: RealDistribution
+  protected abstract val distribution: RealDistribution
 
-  override fun addReachAndFrequencyPublisherNoise(
-    reachValue: Long,
-    frequencyMap: Map<Long, Double>,
-  ): ReachAndFrequencyPair {
-    val noisedReachValue = reachValue + distributionForReach.sample().toInt()
-    val noisedFrequencyMap =
-      frequencyMap.mapValues {
-        (it.value * reachValue.toDouble() + distributionForFrequency.sample()) /
-          reachValue.toDouble()
-      }
-
-    return ReachAndFrequencyPair(noisedReachValue, noisedFrequencyMap)
+  override fun sample(): Double {
+    return distribution.sample()
   }
 }
