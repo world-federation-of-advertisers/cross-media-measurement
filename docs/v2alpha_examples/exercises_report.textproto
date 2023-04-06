@@ -5,7 +5,7 @@ measurement_consumer: "measurementConsumers/VCTqwV_vFXw"
 
 # Slide p6 - incremental reach for A
 reporting_metric_entries {
-  key: "measurementConsumers/VCTqwV_vFXw/reportingSets/G7OUlGMoAe8"
+  key: "measurementConsumers/VCTqwV_vFXw/reportingSets/incremental_for_A"
   value {
     metric_calculation_specs {
       display_name: "incremental_reach_for_A"
@@ -33,59 +33,16 @@ reporting_metric_entries {
       }
       metric_spec {
         type {
-          impression_count {
-            maximum_frequency_per_user: 4000
-          }
+          impression_count {}
         }
       }
       cumulative: true
     }
   }
 }
-# Slide p11, p12 - reach and impression count for pub B.
-reporting_metric_entries {
-  key: "measurementConsumers/VCTqwV_vFXw/reportingSets/publisher_B"
-  value {
-    metric_calculation_specs {
-      display_name: "cumulative_reach_impression_for_pub_B_age_18+"
-      metric_spec {
-        type {
-          reach {}
-        }
-      }
-      metric_spec {
-        type {
-          impression_count {
-            maximum_frequency_per_user: 4000
-          }
-        }
-      }
-      cumulative: true
-    }
-  }
-}
-# Slide p11, p12 - reach and impression count for pub C
-reporting_metric_entries {
-  key: "measurementConsumers/VCTqwV_vFXw/reportingSets/publisher_C"
-  value {
-    metric_calculation_specs {
-      display_name: "cumulative_reach_impression_for_pub_C_age_18+"
-      metric_spec {
-        type {
-          reach {}
-        }
-      }
-      metric_spec {
-        type {
-          impression_count {
-            maximum_frequency_per_user: 4000
-          }
-        }
-      }
-      cumulative: true
-    }
-  }
-}
+
+# Slide p6 - Skip reach and impression count for B and C. It's similar to above.
+
 # Slide p30 - reach efficiency by frequency bands for A
 reporting_metric_entries {
   key: "measurementConsumers/VCTqwV_vFXw/reportingSets/publisher_A"
@@ -100,16 +57,16 @@ reporting_metric_entries {
         }
       }
       groupings {
-        predicates: "person.gender == M"
-        predicates: "person.gender == F"
+        predicates: "person.gender == MALE"
+        predicates: "person.gender == FEMALE"
       }
       groupings {
         # age 18-34
-        predicates: "person.age == 18_34"
+        predicates: "person.age == YEARS_18_TO_34"
         # age 35-54
-        predicates: "person.age == 35_54"
+        predicates: "person.age == YEARS_35_TO_54"
         # age 55+
-        predicates: "person.age == 55+"
+        predicates: "person.age == YEARS_55_PLUS"
       }
       cumulative: true
     }

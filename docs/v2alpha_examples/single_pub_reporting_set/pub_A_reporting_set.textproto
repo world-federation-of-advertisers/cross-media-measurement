@@ -6,7 +6,7 @@
 display_name: "pub_A_age_18+"
 
 # For age 18-34, 35-54, 55+
-filter: "person.age==18_34 || person.age==35_54 || person.age==55+"
+filter: "person.age==YEARS_18_TO_34 || person.age==YEARS_35_TO_54 || person.age==YEARS_55_PLUS"
 
 value {
   primitive {
