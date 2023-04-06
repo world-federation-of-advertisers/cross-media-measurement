@@ -41,14 +41,11 @@ class BatchDeleteMeasurements(
     val keySet = KeySet.newBuilder()
 
     for (request in requests.requestsList) {
-      val externalMeasurementConsumerId = ExternalId(request.externalMeasurementConsumerId)
-      val externalMeasurementId = ExternalId(request.externalMeasurementId)
-
       val result: Key =
         MeasurementReader.readKeyByExternalIds(
           transactionContext,
-          externalMeasurementConsumerId,
-          externalMeasurementId
+          ExternalId(request.externalMeasurementConsumerId),
+          ExternalId(request.externalMeasurementId)
         )
 
       keySet.addKey(result)
