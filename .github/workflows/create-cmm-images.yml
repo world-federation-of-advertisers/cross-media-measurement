@@ -15,8 +15,6 @@
 name: Build and Push CMM Images
 
 on:
-  push:
-    branches: [main, bugfix/image-tag-propogation ]
   workflow_dispatch:
   workflow_call:
 
@@ -103,4 +101,3 @@ jobs:
           bazelisk query 'filter("push_duchy", kind("container_push", //src/main/docker:all))' |
             xargs -n 1 bazelisk run -c opt --define container_registry=ghcr.io \
             --define image_repo_prefix=world-federation-of-advertisers/packages --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=${{ needs.create-image-tag.outputs.image_tag }}
-
