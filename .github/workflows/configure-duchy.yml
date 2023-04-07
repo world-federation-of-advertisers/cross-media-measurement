@@ -40,7 +40,7 @@ jobs:
       # Checkout the repository to the GitHub Actions runner
       - name: Checkout code
         uses: actions/checkout@v2
-        
+
       # Install gcloud, `setup-gcloud` automatically picks up authentication from `auth`.
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
@@ -64,7 +64,7 @@ jobs:
           tar -xf "$(bazelisk info bazel-bin)/src/main/k8s/testing/secretfiles/kustomization.tar" -C secretfiles
           resource_name="$(kubectl apply -k secretfiles/src/main/k8s/testing/secretfiles/kustomization -o name)"
           echo "SECRET_NAME=$(basename $resource_name)" >> "$GITHUB_ENV"
-          
+
       # Create k8s manifest
       - name: Build K8s manifest
         run: |
