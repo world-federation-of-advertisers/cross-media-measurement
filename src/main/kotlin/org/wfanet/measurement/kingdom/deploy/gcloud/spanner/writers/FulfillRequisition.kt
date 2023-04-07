@@ -100,7 +100,7 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
             measurementId = measurementId,
             nextState = it,
             previousState = measurementState,
-            logDetails = measurementLogEntryDetails
+            measurementLogEntryDetails = measurementLogEntryDetails
           )
         }
       } else {

@@ -40,6 +40,7 @@ import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.DeleteMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
@@ -54,9 +55,11 @@ import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
+import org.wfanet.measurement.internal.kingdom.batchDeleteMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.cancelMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.computationParticipant
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.deleteMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
@@ -76,6 +79,7 @@ import org.wfanet.measurement.kingdom.service.internal.testing.Population.Compan
 private const val RANDOM_SEED = 1
 private const val API_VERSION = "v2alpha"
 private const val PROVIDED_MEASUREMENT_ID = "ProvidedMeasurementId"
+private const val MAX_BATCH_DELETE = 1000
 
 private val MEASUREMENT = measurement {
   providedMeasurementId = PROVIDED_MEASUREMENT_ID
@@ -1303,6 +1307,170 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         .toList()
 
     assertThat(measurements).containsExactly(succeededMeasurement)
+  }
+
+  @Test
+  fun `batchDeleteMeasurements deletes all requested Measurements`(): Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val measurement1 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+    val measurement2 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+    val measurement3 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 4
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+
+    val deleteMeasurementRequest1 = deleteMeasurementRequest {
+      externalMeasurementId = measurement1.externalMeasurementId
+      externalMeasurementConsumerId = measurement1.externalMeasurementConsumerId
+    }
+
+    val deleteMeasurementRequest2 = deleteMeasurementRequest {
+      externalMeasurementId = measurement2.externalMeasurementId
+      externalMeasurementConsumerId = measurement2.externalMeasurementConsumerId
+    }
+
+    measurementsService.batchDeleteMeasurements(
+      batchDeleteMeasurementsRequest {
+        requests += listOf(deleteMeasurementRequest1, deleteMeasurementRequest2)
+      }
+    )
+
+    val measurements: List<Measurement> =
+      measurementsService
+        .streamMeasurements(
+          streamMeasurementsRequest {
+            filter = filter {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            }
+          }
+        )
+        .toList()
+
+    assertThat(measurements).containsExactly(measurement3)
+  }
+
+  @Test
+  fun `batchDeleteMeasurements does not delete any Measurements when any are missing`(): Unit =
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val measurement =
+        measurementsService.createMeasurement(
+          MEASUREMENT.copy {
+            externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            providedMeasurementId = PROVIDED_MEASUREMENT_ID
+            externalMeasurementConsumerCertificateId =
+              measurementConsumer.certificate.externalCertificateId
+          }
+        )
+      val validMeasurementRequest = deleteMeasurementRequest {
+        externalMeasurementId = measurement.externalMeasurementId
+        externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+      }
+
+      val missingMeasurementRequest = deleteMeasurementRequest {
+        externalMeasurementId = 123L
+        externalMeasurementConsumerId = 123L
+      }
+
+      assertFailsWith<StatusRuntimeException> {
+        measurementsService.batchDeleteMeasurements(
+          batchDeleteMeasurementsRequest {
+            requests += listOf(validMeasurementRequest, missingMeasurementRequest)
+          }
+        )
+      }
+
+      val measurements: List<Measurement> =
+        measurementsService
+          .streamMeasurements(
+            streamMeasurementsRequest {
+              filter = filter {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              }
+            }
+          )
+          .toList()
+
+      assertThat(measurements).containsExactly(measurement)
+    }
+
+  @Test
+  fun `batchDeleteMeasurements throws NOT_FOUND when Measurement is missing`(): Unit = runBlocking {
+    val missingMeasurementRequest = deleteMeasurementRequest {
+      externalMeasurementId = 123L
+      externalMeasurementConsumerId = 123L
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        measurementsService.batchDeleteMeasurements(
+          batchDeleteMeasurementsRequest { requests += missingMeasurementRequest }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception).hasMessageThat().contains("Measurement not found")
+  }
+
+  @Test
+  fun `batchDeleteMeasurements throws INVALID_ARGUMENT when Measurement ids are not specified`():
+    Unit = runBlocking {
+    val invalidMeasurementRequest = deleteMeasurementRequest {}
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        measurementsService.batchDeleteMeasurements(
+          batchDeleteMeasurementsRequest { requests += invalidMeasurementRequest }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("not specified")
+  }
+
+  @Test
+  fun `batchDeleteMeasurements throws INVALID_ARGUMENT when Measurements requested exceed limit`():
+    Unit = runBlocking {
+    val deletionRequests = mutableListOf<DeleteMeasurementRequest>()
+    for (i in 1..MAX_BATCH_DELETE + 1) {
+      deletionRequests.add(
+        deleteMeasurementRequest {
+          externalMeasurementId = (123L + 2 * i)
+          externalMeasurementConsumerId = (123L + 2 * i)
+        }
+      )
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        measurementsService.batchDeleteMeasurements(
+          batchDeleteMeasurementsRequest { requests += deletionRequests }
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("exceeds limit")
   }
 
   companion object {

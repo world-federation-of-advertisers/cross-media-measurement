@@ -20,11 +20,13 @@ import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
+import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.FailComputationParticipantRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntry
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ComputationParticipantNotFoundByComputationException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
@@ -72,8 +74,8 @@ class FailComputationParticipant(private val request: FailComputationParticipant
       measurementId,
       measurementConsumerId,
       measurementState,
-      measurementDetails,
-    ) = computationParticipantResult
+      measurementDetails) =
+      computationParticipantResult
 
     when (measurementState) {
       Measurement.State.PENDING_REQUISITION_PARAMS,
@@ -118,15 +120,35 @@ class FailComputationParticipant(private val request: FailComputationParticipant
         this.error = request.errorDetails
       }
 
-    // TODO(@marcopremier): FailComputationParticipant should insert a single MeasurementLogEntry
-    // with two children: a StateTransitionMeasurementLogEntries and a DuchyMeasurementLogEntries
+    val duchyMeasurementLogEntry = duchyMeasurementLogEntry {
+      externalDuchyId = request.externalDuchyId
+      details =
+        DuchyMeasurementLogEntryKt.details {
+          duchyChildReferenceId = request.duchyChildReferenceId
+          stageAttempt =
+            DuchyMeasurementLogEntryKt.stageAttempt {
+              stage = request.stageAttempt.stage
+              stageName = request.stageAttempt.stageName
+              stageStartTime = request.stageAttempt.stageStartTime
+              attemptNumber = request.stageAttempt.attemptNumber
+            }
+        }
+    }
+
     updateMeasurementState(
       measurementConsumerId = InternalId(measurementConsumerId),
       measurementId = InternalId(measurementId),
       nextState = Measurement.State.FAILED,
       previousState = measurementState,
-      logDetails = measurementLogEntryDetails,
+      measurementLogEntryDetails = measurementLogEntryDetails,
       details = updatedMeasurementDetails
+    )
+
+    insertDuchyMeasurementLogEntry(
+      InternalId(measurementId),
+      InternalId(measurementConsumerId),
+      InternalId(duchyId),
+      duchyMeasurementLogEntry.details
     )
 
     return computationParticipant.copy { state = NEXT_COMPUTATION_PARTICIPANT_STATE }
