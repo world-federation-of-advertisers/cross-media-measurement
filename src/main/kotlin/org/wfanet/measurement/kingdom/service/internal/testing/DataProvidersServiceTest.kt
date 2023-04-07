@@ -232,7 +232,6 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
           .addAllRequiredExternalDuchyIds(desiredDuchyList)
           .build()
       )
-    // read from database to make sure elements were written to table
     // Ensure DataProvider with updated duchy list is returned from function
     assertThat(updatedDataProvider.requiredExternalDuchyIdsList).isEqualTo(desiredDuchyList)
 
@@ -242,6 +241,7 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
           .setExternalDataProviderId(createdDataProvider.externalDataProviderId)
           .build()
       )
+    // Ensure changes were written to DataProviderRequiredDuchies table
     assertThat(dataProviderRead.requiredExternalDuchyIdsList).isEqualTo(desiredDuchyList)
   }
 }
