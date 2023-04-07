@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: Push Docker Image to Github Artifacts
 name: Build and Push CMM Images
 
 on:
+  push:
+    branches: [main, bugfix/image-tag-propogation ]
   workflow_dispatch:
-  #TODO:(@wfa-siyengar): introduce workflow_call/workflow_run as appropriate.
   workflow_call:
 
 env:
