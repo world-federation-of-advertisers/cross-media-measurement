@@ -45,7 +45,8 @@ _edpConfigs: [
 edpSimulators: {
 	for edpConfig in _edpConfigs {
 		"\(edpConfig.displayName)": #EdpSimulator & {
-			_edpConfig:                 edpConfig
+			_edpConfig: edpConfig
+			_imageConfig: repoSuffix: "simulator/local-edp"
 			_edp_secret_name:           _secret_name
 			_mc_resource_name:          _mc_name
 			_duchy_public_api_target:   #Worker1PublicApiTarget
@@ -54,8 +55,6 @@ edpSimulators: {
 				"--forwarded-storage-service-target=" + (#Target & {name: "fake-storage-server"}).target,
 				"--forwarded-storage-cert-host=localhost",
 			]
-			_edp_simulator_image:         "bazel/src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:forwarded_storage_edp_simulator_runner_image"
-			_simulator_image_pull_policy: "Never"
 
 			deployment: spec: template: spec: {
 				_dependencies: [

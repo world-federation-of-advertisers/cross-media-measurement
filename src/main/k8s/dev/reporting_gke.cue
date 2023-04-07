@@ -38,19 +38,6 @@ objectSets: [
 	reporting.networkPolicies,
 ]
 
-_imageSuffixes: [_=string]: string
-_imageSuffixes: {
-	"update-reporting-schema":        "reporting/postgres-update-schema"
-	"postgres-reporting-data-server": "reporting/postgres-data-server"
-	"v1alpha-public-api-server":      "reporting/v1alpha-public-api"
-}
-_imageConfigs: [_=string]: #ImageConfig
-_imageConfigs: {
-	for name, suffix in _imageSuffixes {
-		"\(name)": {repoSuffix: suffix}
-	}
-}
-
 reporting: #Reporting & {
 	_secretName:         _reportingSecretName
 	_mcConfigSecretName: _reportingMcConfigSecretName
@@ -62,13 +49,6 @@ reporting: #Reporting & {
 		database:     "reporting"
 	}
 
-	_images: {
-		for name, config in _imageConfigs {
-			"\(name)": config.image
-		}
-	}
-
-	_imagePullPolicy:          "Always"
 	_verboseGrpcServerLogging: true
 
 	deployments: {

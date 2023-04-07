@@ -6,6 +6,12 @@ package(
 )
 
 kt_jvm_library(
+    name = "processes",
+    srcs = ["Processes.kt"],
+    deps = ["@wfa_common_jvm//imports/java/org/jetbrains/annotations"],
+)
+
+kt_jvm_library(
     name = "port_forwarder",
     srcs = ["PortForwarder.kt"],
     deps = [
@@ -13,16 +19,5 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/org/jetbrains/annotations",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-    ],
-)
-
-kt_jvm_library(
-    name = "kind_cluster",
-    srcs = ["KindCluster.kt"],
-    deps = [
-        "//imports/java/io/kubernetes/client",
-        "//src/main/kotlin/org/wfanet/measurement/common/k8s",
-        "@wfa_common_jvm//imports/java/org/jetbrains/annotations",
-        "@wfa_common_jvm//imports/java/org/junit",
     ],
 )

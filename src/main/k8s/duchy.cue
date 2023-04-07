@@ -39,12 +39,32 @@ import ("strings")
 	_protocols_setup_config: _duchy.protocols_setup_config
 	_cs_cert_resource_name:  _duchy.cs_cert_resource_name
 
-	_image_prefix:  "\(_name)_"
 	_object_prefix: "\(_name)-"
 
-	_images: [Name=_]: string
-	_duchy_image_pull_policy: string
-	_millPollingInterval?:    string
+	_imageSuffixes: [string]: string
+	_imageSuffixes: {
+		"async-computation-control-server": string | *"duchy/async-computation-control"
+		"computation-control-server":       string | *"duchy/computation-control"
+		"herald-daemon":                    string | *"duchy/herald"
+		"liquid-legions-v2-mill-daemon":    string | *"duchy/liquid-legions-v2-mill"
+		"requisition-fulfillment-server":   string | *"duchy/requisition-fulfillment"
+		"spanner-computations-server":      string | *"duchy/spanner-computations"
+		"update-duchy-schema":              string | *"duchy/spanner-update-schema"
+		"computations-cleaner":             string | *"duchy/computations-cleaner"
+	}
+	_imageConfigs: [string]: #ImageConfig
+	_imageConfigs: {
+		for name, suffix in _imageSuffixes {
+			"\(name)": {repoSuffix: suffix}
+		}
+	}
+	_images: {
+		for name, config in _imageConfigs {
+			"\(name)": config.image
+		}
+	}
+
+	_millPollingInterval?: string
 
 	_akid_to_principal_map_file_flag:                   "--authority-key-identifier-to-principal-map-file=/etc/\(#AppName)/config-files/authority_key_identifier_to_principal_map.textproto"
 	_async_computations_control_service_target_flag:    "--async-computation-control-service-target=" + (#Target & {name: "\(_name)-async-computation-control-server"}).target
@@ -87,8 +107,7 @@ import ("strings")
 		_secretName:      _duchy_secret_name
 		_system:          "duchy"
 		_container: {
-			image:           _images[_unprefixed_name]
-			imagePullPolicy: _duchy_image_pull_policy
+			image: _images[_unprefixed_name]
 		}
 	}
 
@@ -175,9 +194,9 @@ import ("strings")
 						"--health-port=8080",
 			] + _spannerConfig.flags + _blob_storage_flags
 			_updateSchemaContainer: #Container & {
-				image:           _images["update-duchy-schema"]
-				imagePullPolicy: _container.imagePullPolicy
-				args:            _spannerConfig.flags
+				image:            _images["update-duchy-schema"]
+				imagePullPolicy?: _container.imagePullPolicy
+				args:             _spannerConfig.flags
 			}
 			spec: template: spec: {
 				_initContainers: {
@@ -213,8 +232,7 @@ import ("strings")
 		_secretName:      _duchy_secret_name
 		_system:          "duchy"
 		_container: {
-			image:           _images[_unprefixed_name]
-			imagePullPolicy: _duchy_image_pull_policy
+			image: _images[_unprefixed_name]
 		}
 	}
 

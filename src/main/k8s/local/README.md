@@ -1,100 +1,267 @@
 # Local Kubernetes Configuration
 
-Configuration used to deploy a local version of the CMMS to a local cluster in
-[KinD](https://kind.sigs.k8s.io/) and run the correctness test in that cluster.
-
-Tested on minimum versions:
-
--   KinD: v0.17.0
--   Kubernetes: v1.24
+Configuration used to deploy a testing version of the CMMS to a single local
+cluster, for example using [KinD](https://kind.sigs.k8s.io/),
+[K3s](https://k3s.io/), or [minikube](https://minikube.sigs.k8s.io/docs/).
 
 Note: As of this writing, KinD
 [does not support resource limits](https://github.com/kubernetes-sigs/kind/issues/2514#issuecomment-951265965).
 Therefore, this configuration does not set any.
 
-## Automated Run
+## Requirements
 
-If you just want to run the correctness test and not leave the cluster running,
-you can use the
-`//src/test/kotlin/org/wfanet/measurement/integration/k8s:CorrectnessTest` Bazel
-test target.
+You will need:
 
-## Manual Run
+*   A container registry that you can push images to.
+*   A running Kubernetes 1.24+ cluster.
+    *   Your container registry must be accessible from this cluster.
 
-This assumes that you have `kubectl` installed and configured to point to a
-local KiND cluster. You should have some familiarity with Kubernetes and
-`kubectl`.
+See [Local Cluster Creation](#local-cluster-creation) in the Appendix for how to
+create a local cluster with access to a local private registry.
 
-Use the default `kind` as the KiND cluster name. The corresponding K8s cluster
-name is `kind-kind`.
+This guide assumes that you have `kubectl` installed and configured to point to
+the cluster you want to use for testing. You should have some familiarity with
+Kubernetes and `kubectl`.
 
 Note that some of the targets listed below -- namely, the Duchies and
-simulators -- have requirements regarding the version of glibc in the build
-environment. See [Building](../../../../docs/building.md).
+simulators -- have additional requirements regarding the version of glibc in the
+build environment. See [Building](../../../../docs/building.md).
+
+The example commands below assume that your container registry is hosted at
+`registry.dev.svc.cluster.local:5000`.
+
+Tip: Add the `--define` options in your `.bazelrc` under the `halo-local` build
+configuration so that you can just pass `--config=halo-local`.
+
+## Automated Test Run
+
+If you just want to run the correctness test, you can use the
+`//src/test/kotlin/org/wfanet/measurement/integration/k8s:EmptyClusterCorrectnessTest`
+Bazel test target and skip the rest of this document.
+
+```shell
+bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:EmptyClusterCorrectnessTest \
+  --define container_registry=registry.dev.svc.cluster.local:5000 \
+  --define image_repo_prefix=halo --define image_tag=latest
+```
+
+Note that the test assumes that the default namespace of the cluster is empty.
+You can clear it out between runs:
+
+```shell
+kubectl delete all --namespace=default --all
+```
+
+## Building and Pushing Container Images
+
+```shell
+bazel run //src/main/docker:push_all_local_images \
+  --define container_registry=registry.dev.svc.cluster.local:5000 \
+  --define image_repo_prefix=halo --define image_tag=latest
+```
+
+## Cluster Population
+
+Population of the test cluster is done in two stages: the first is setting up a
+Kingdom with an empty configuration in order to create API resources. The second
+is restarting the Kingdom with the resulting configuration and the rest of the
+components.
 
 ### Initial Setup
 
-### Create Empty `config-files` ConfigMap
-
-The `config-files` ConfigMap contains configuration files that depend on API
-resource names. These cannot be properly filled in until after
-resource-setup-job has completed, but the files are required to start some of
-the Kingdom and Duchy services. Therefore, we initially create the ConfigMap
-with empty files.
+Build a tar archive containing the Kustomization directory for Kingdom setup:
 
 ```shell
-touch /tmp/authority_key_identifier_to_principal_map.textproto
-kubectl create configmap config-files \
-  --from-file=/tmp/authority_key_identifier_to_principal_map.textproto
+bazel build //src/main/k8s/local:kingdom_setup.tar \
+  --define container_registry=registry.dev.svc.cluster.local:5000 \
+  --define image_repo_prefix=halo --define image_tag=latest
 ```
 
-### Deploy Emulators
-
-The local test environment uses emulators for Google Cloud infrastructure. This
-includes an in-memory Spanner emulator as well as ephemeral blob storage.
+Extract this archive to some directory (e.g. `/tmp/cmms`). You can then apply it
+using `kubectl` from this directory:
 
 ```shell
-bazel run //src/main/k8s/local:emulators_kind
+kubectl apply -k src/main/k8s/local/kingdom_setup/
 ```
 
-### Metrics Setup
+This will create the emulators and the Kingdom with an empty configuration.
 
-The Open Telemetry Operator adds the creation and management of new Open
-Telemetry specific resources. It depends on Cert Manager to run.
+#### Run ResourceSetup
 
-#### Deploy Cert Manager
+The `ResourceSetup` tool will create API resources for testing. First, build the
+tool:
 
 ```shell
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.9.1/cert-manager.yaml
+bazel build //src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:ResourceSetup
 ```
 
-#### Deploy Open Telemetry Operator
+We'll then need to be able to access the public and internal APIs from the host
+machine. This can be done by forwarding the service ports to the host machine:
 
 ```shell
-kubectl apply -f https://github.com/open-telemetry/opentelemetry-operator/releases/download/v0.60.0/opentelemetry-operator.yaml
+kubectl port-forward --address=localhost services/v2alpha-public-api-server 8443:8443
 ```
-
-#### Deploy Open Telemetry Resources
-
-Create an operator instrumentation resource fpr instrumenting the application
-code and an operator collector sidecar resource for collecting the metrics.
 
 ```shell
-bazel run //src/main/k8s/local:open_telemetry_kind
+kubectl port-forward --address=localhost services/gcp-kingdom-data-server 9443:8443
 ```
 
-#### Deploy Prometheus Server
+Then run the tool, outputting to some directory (e.g. `/tmp/resource-setup`):
 
 ```shell
-bazel run //src/main/k8s/local:prometheus_kind
+src/main/k8s/local/resource_setup.sh \
+  --kingdom-public-api-target=localhost:8443 \
+  --kingdom-internal-api-target=localhost:9443 \
+  --output-dir=/tmp/resource-setup
 ```
 
-To be able to visit Prometheus in the browser at http://localhost:31111/, start
-port-forwarding.
+Tip: The job will output a `resource-setup.bazelrc` file with `--define` options
+that you can include in your `.bazelrc` file. You can then specify
+`--config=halo-local` to Bazel commands instead of those individual options.
+
+### Deploy the CMMS
+
+Once resource setup is complete, we can build and apply our final Kustomization.
+
+Note: If you plan on deploying the Reporting system as well, you can skip this
+step and follow the one in the Reporting section instead.
+
+Build a tar archive containing the Kustomization directory for the CMMS,
+substituting the values from the `ResourceSetup` tool:
+
+```shell
+bazel build //src/main/k8s/local:cmms.tar \
+  --define container_registry=registry.dev.svc.cluster.local:5000 \
+  --define image_repo_prefix=halo --define image_tag=latest \
+  --define mc_name=measurementConsumers/ZP5ZJ9sZVXE \
+  --define mc_api_key=OzWUxyTmqwg \
+  --define mc_cert_name=measurementConsumers/ZP5ZJ9sZVXE/certificates/YCIa5l_vFdo \
+  --define edp1_name=dataProviders/UjUpwCTmq0o \
+  --define edp2_name=dataProviders/cV4YC9sZVKQ \
+  --define edp3_name=dataProviders/DJweaNsZVJY \
+  --define edp4_name=dataProviders/JxgZTyTmq3k \
+  --define edp5_name=dataProviders/f8NzvNsZVHk \
+  --define edp6_name=dataProviders/QOgxPtsZVGk \
+  --define aggregator_cert_name=duchies/aggregator/certificates/clMWAdsZVFM \
+  --define worker1_cert_name=duchies/worker1/certificates/Lm30i9sZVDo \
+  --define worker2_cert_name=duchies/worker2/certificates/BXNL1CTmq9M
+```
+
+Extract this archive to some directory (e.g. `/tmp/cmms`).
+
+Copy the `authority_key_identifier_to_principal_map.textproto` output from the
+`ResourceSetup` tool to the `src/main/k8s/local/config_files` path within this
+directory. This uses the AKIDs from the test certificates in
+[secretfiles](../testing/secretfiles). For more information on the file format,
+see [Creating Resources](../../../../docs/operations/creating-resources.md).
+
+You can then apply the Kustomization from the directory where you extracted the
+archive:
+
+```shell
+kubectl apply -k src/main/k8s/local/cmms/
+```
+
+This will restart the Kingdom with the updated configuration. It will also
+create the Duchies and EDP simulators.
+
+### Deploy the CMMS and Reporting System
+
+This is an alternate version of the section above. This assumes you've already
+done the Initial Setup and have the output from the `ResourceSetup` tool.
+
+Use the command in the above section to build the tar archive, swapping the
+target with `//src/main/k8s/local:cmms_with_reporting.tar`. Extract this archive
+to some directory (e.g. `/tmp/cmms`).
+
+Copy the `authority_key_identifier_to_principal_map.textproto` output from the
+`ResourceSetup` tool to the `src/main/k8s/local/config_files` path within this
+directory.
+
+You can then apply the Kustomization from the directory where you extracted the
+archive:
+
+```shell
+kubectl apply -k src/main/k8s/local/cmms_with_reporting/
+```
+
+## Enabling Metrics Collection
+
+### Install OpenTelemetry Operator
+
+The code is instrumented with OpenTelemetry. To enable metrics collection in the
+cluster, we use the
+[OpenTelemetry Operator for Kubernetes](https://github.com/open-telemetry/opentelemetry-operator).
+This depends on [cert-manager](https://github.com/cert-manager/cert-manager) so
+we install that first:
+
+```shell
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.11.0/cert-manager.yaml
+```
+
+Once that is installed, then install the Operator:
+
+```shell
+kubectl apply -f https://github.com/open-telemetry/opentelemetry-operator/releases/latest/download/opentelemetry-operator.yaml
+```
+
+### Deploy OpenTelemetry Resources
+
+Generate the K8s object configuration:
+
+```shell
+bazel build //src/main/k8s/local:open_telemetry
+```
+
+Apply the generated configuration:
+
+```shell
+kubectl apply -f bazel-bin/src/main/k8s/local/open_telemetry.yaml
+```
+
+This will create an `opentelemetrycollector` named `default` and enable
+automatic instrumentation via the Java agent.
+
+### Restart Deployments
+
+If you enabled metrics collection after you have already populated the cluster,
+you will need to restart all of the Deployments to pick up the Java agent
+integration.
+
+```shell
+for deployment in $(kubectl get deployments -o name); do kubectl rollout restart $deployment; done
+```
+
+### Deploy Prometheus Server
+
+If you want to be able to visualize the collected metrics, you can deploy a
+Prometheus server to the cluster.
+
+Generate the K8s object configuration:
+
+```shell
+bazel build //src/main/k8s/local:prometheus
+```
+
+Apply the generated configuration:
+
+```shell
+kubectl apply -f bazel-bin/src/main/k8s/local/prometheus.yaml
+```
+
+You can forward the Prometheus HTTP port (9090) to your host machine in order to
+access it from your browser. For example, to be able to visit Prometheus in the
+browser at http://localhost:31111/:
 
 ```shell
 kubectl port-forward prometheus-pod 31111:9090
 ```
+
+## Old Guide
+
+This has instructions that may be outdated.
+
+### Metrics Setup
 
 ### Deploy Grafana
 
@@ -133,229 +300,60 @@ port-forwarding.
 kubectl port-forward service/grafana 31112:3000
 ```
 
-### Resource Setup
+## Appendix
 
-There is a chicken-and-egg problem with setting up initial resources, in that
-resource setup is done by calling Kingdom services but some Kingdom services
-depend on resource configuration. Therefore, we have to deploy the Kingdom for
-resource setup and then update configurations and restart some Kingdom services.
+### Local Cluster Creation
 
-```shell
-bazel run //src/main/k8s/local:kingdom_kind
-bazel run //src/main/k8s/local:resource_setup_kind
-```
+#### KinD
 
-By default, the resource setup job writes all outputs to STDOUT. When the job
-has completed, you can read this by viewing the pod logs:
+Simply follow the
+[Local Registry](https://kind.sigs.k8s.io/docs/user/local-registry/) guide. The
+example there should result in a registry running at `localhost:5001` with the
+default kubeconfig pointing at the local cluster.
 
-```shell
-kubectl logs jobs/resource-setup-job
-```
+#### Minikube
 
-Tip: The job will output a `resource-setup.bazelrc` file with `--define` options
-that you can include in your `.bazelrc` file. You can then specify
-`--config=halo-kind` to Bazel commands instead of those individual options.
-
-#### Update `config-files` ConfigMap
-
-After the resource setup job has completed, we can fill in the config files and
-update the `config-files` ConfigMap.
-
-The resource setup job will output an
-`authority_key_identifier_to_principal_map.textproto` file with entries for each
-of the test EDPs, using the AKIDs from the test certificates in
-[secretfiles](../testing/secretfiles). You can copy this file and use it to
-replace the ConfigMap:
+To use a local private registry with Minikube, you'll need to have an additional
+IP address so that you can distinguish it from `localhost`. Here we'll use
+`192.168.50.1`, but you can use any private address. Add this IP as an alias to
+the loopback interface using `iproute2`:
 
 ```shell
-kubectl create configmap config-files --output=yaml --dry-run=client \
-  --from-file=authority_key_identifier_to_principal_map.textproto \
-  | kubectl replace -f -
+sudo ip addr add 192.168.50.1/32 dev lo
 ```
 
-For more information on the file format, see
-[Creating Resources](../../../../docs/operations/creating-resources.md).
+Note: This will only last until the next system restart. To make it persistent,
+add a virtual interface to `/etc/network/interfaces` instead. For example:
 
-Note: If also want to deploy the Reporting Server in the same cluster, you will
-need more entries in this ConfigMap. See the
-[Reporting Server](#reporting-server) section below.
+```
+auto lo lo:0
+iface lo inet loopback
 
-You can then restart the Kingdom deployments that depend on `config-files`. At
-the moment, this is just the public API server.
+iface lo:0 inet static
+  address 192.168.50.1
+  netmask 255.255.255.255
+```
+
+Start the local registry using Docker, binding it to this new address:
 
 ```shell
-kubectl rollout restart deployments/v2alpha-public-api-server-deployment
+docker run --detach --publish '192.168.50.1:5000:5000' --restart always --name local-registry registry:2
 ```
 
-### Deploy Duchies
+Next, we need a hostname. Here we'll use `registry.dev.svc.cluster.local`. Add
+an entry to `/etc/hosts`:
 
-The testing environment uses three Duchies: an aggregator and two workers, named
-`aggregator`, `worker1`, and `worker2` respectively. Substitute the appropriate
-secret name and Certificate resource names in the command below.
+```
+192.168.50.1    registry.dev.svc.cluster.local
+```
+
+Since our local registry is insecure (using http as opposed to https), we'll
+need to specify that when starting Minikube:
 
 ```shell
-bazel run //src/main/k8s/local:duchies_kind \
-  --define=aggregator_cert_name=duchies/aggregator/certificates/f3yI3aoXukM \
-  --define=worker1_cert_name=duchies/worker1/certificates/QtffTVXoRno \
-  --define=worker2_cert_name=duchies/worker2/certificates/eIYIf6oXuSM
+minikube start --insecure-registry='registry.dev.svc.cluster.local:5000'
 ```
 
-### Deploy EDP Simulators
-
-The testing environment simulates six DataProviders, named `edp1` through
-`edp6`. Substitute the appropriate secret name and resource names in the command
-below. These should match the resource names specified in
-`authority_key_identifier_to_principal_map.textproto` above.
-
-```shell
-bazel run //src/main/k8s/local:edp_simulators_kind \
-  --define=mc_name=measurementConsumers/FS1n8aTrck0 \
-  --define=edp1_name=dataProviders/OljiQHRz-E4 \
-  --define=edp2_name=dataProviders/Fegw_3Rz-2Y \
-  --define=edp3_name=dataProviders/aeULv4uMBDg \
-  --define=edp4_name=dataProviders/d2QIG4uMA8s \
-  --define=edp5_name=dataProviders/IjDOL3Rz_PY \
-  --define=edp6_name=dataProviders/U8rTiHRz_b4
-```
-
-The target `edp_simulators_kind` uses `RandomEventQuery` which will generate
-random VIDs for each edp. You can also use target `edp_simulators_csv_kind`
-which will use `CsvEventQuery` to query VIDs from a CSV file for each edp.
-
-To use `CsvEventQuery`, you need to copy the CSV files you want to use from your
-local machine to the edp containers. After running the `bazel run` command with
-the target `edp_simulators_csv_kind`, and each edp deployment is in the status
-`1/1 Running`, run the following command for each edp to copy the CSV file from
-you local machine to the edp container:
-
-```shell
-kubectl cp </path/to/your/file.csv> <edp-podname>:/data/csvfiles/synthetic-labelled-events.csv
-```
-
-You can get `<edp-podname>` by running `kubectl get pods`. The default volume
-mountPath in the container is `/data/csvfiles`.
-
-### Deploy MC Frontend Simulator
-
-This is a job that tests correctness by creating a Measurement and validating
-the result.
-
-```shell
-bazel run //src/main/k8s/local:mc_frontend_simulator_kind \
-  --define=mc_name=measurementConsumers/FS1n8aTrck0 \
-  --define=mc_api_key=He941S1h2XI
-```
-
-### Reporting Server
-
-#### Additional Configuration in `config-files`
-
-This is a modification to the [above section](#update-config-files-configmap) on
-updating `config-files`.
-
-The `authority_key_identifier_to_principal_map.textproto` needs an additional
-entry for the `MeasurementConsumer` (substitute your own resource name):
-
-```prototext
-entries {
-  authority_key_identifier: "\x7C\xE6\x3F\xEA\x65\xED\x71\x3D\x9E\x59\x79\xA0\xC8\x08\xC9\x57\xAA\xC6\xB1\x6A"
-  principal_resource_name: "measurementConsumers/G7laM7LMIAA"
-}
-```
-
-The ConfigMap also needs an additional file named
-`encryption_key_pair_config.textproto` listing key pairs by
-`MeasurementConsumer`:
-
-```prototext
-# proto-file: wfa/measurement/config/reporting/encryption_key_pair_config.proto
-# proto-message: EncryptionKeyPairConfig
-principal_key_pairs {
-  principal: "measurementConsumers/G7laM7LMIAA"
-  key_pairs {
-    public_key_file: "mc_enc_public.tink"
-    private_key_file: "mc_enc_private.tink"
-  }
-  key_pairs {
-    public_key_file: "mc_enc_public_2.tink"
-    private_key_file: "mc_enc_private_2.tink"
-  }
-}
-principal_key_pairs {
-  principal: "measurementConsumers/FS1n8aTrck0"
-  key_pairs {
-    public_key_file: "mc2_enc_public.tink"
-    private_key_file: "mc2_enc_private.tink"
-  }
-}
-```
-
-The command to update the ConfigMap then becomes:
-
-```shell
-kubectl create configmap config-files --output=yaml --dry-run=client \
-  --from-file=authority_key_identifier_to_principal_map.textproto \
-  --from_file=encryption_key_pair_config.textproto \
-  | kubectl replace -f -
-```
-
-#### Create Secret for Reporting Server Postgres Database
-
-You can use `kubectl` to create the `db-auth` secret. To reduce the likelihood
-of leaking your password, we read it in from STDIN.
-
-Tip: Ctrl+D is the usual key combination for closing the input stream.
-
-Assuming the database username is `db-user`, run:
-
-```shell
-kubectl create secret generic db-auth --type='kubernetes.io/basic/auth' \
-  --append-hash --from-file=password=/dev/stdin --from-literal=username=db-user
-```
-
-Record the secret name for later steps.
-
-#### Deploy Reporting Server Postgres Database
-
-```shell
-bazel run //src/main/k8s/local:reporting_database_kind \
-  --define=k8s_secret_name=certs-and-configs-k8888kc6gg \
-  --define=k8s_db_secret_name=db-auth-b286t5fcmt
-```
-
-### Create Secret for Reporting API Server
-
-Create the file `/tmp/measurement_consumer_config.textproto` with the content
-below, substituting the appropriate MC and certificate resource names, and the
-API key.
-
-```prototext
-# proto-file: wfa/measurement/config/reporting/measurement_consumer_config.proto
-# proto-message: MeasurementConsumerConfigs
-configs {
-  key: "measurementConsumers/VCTqwV_vFXw"
-  value: {
-    api_key: "OljiQHRz-E4"
-    signing_certificate_name: "measurementConsumers/VCTqwV_vFXw/certificates/YCIa5l_vFdo"
-    signing_private_key_path: "mc_cs_private.der"
-  }
-}
-```
-
-Use this file to create a secret:
-
-```shell
-kubectl create secret generic mc-config --append-hash \
-  --from-file=/tmp/measurement_consumer_config.textproto
-```
-
-Record the secret name for later steps.
-
-#### Deploy Reporting Server
-
-```shell
-bazel run //src/main/k8s/local:reporting_kind \
-  --define=k8s_secret_name=certs-and-configs-k8888kc6gg \
-  --define=k8s_db_secret_name=db-auth-b286t5fcmt \
-  --define=k8s_mc_config_secret_name=mc-config-975k88gktk
-```
+Finally, add the same entry in the `/etc/hosts` file *within* Minikube. You can
+do this using `minikube ssh` or using the
+[file sync](https://minikube.sigs.k8s.io/docs/handbook/filesync/) feature.

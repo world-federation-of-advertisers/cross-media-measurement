@@ -18,9 +18,11 @@ package k8s
 	_edp_display_names: [...string]
 	_duchy_ids: [...string]
 	_resource_setup_secret_name: string
-	_job_image:                  string
-	_job_image_pull_policy:      string | *"Always"
+	_imageConfig:                #ImageConfig & {
+		repoSuffix: "loadtest/resource-setup"
+	}
 	_dependencies: [...string]
+	_bazelConfigName?: string
 	_edp_cert_key_files_flags:
 		[
 			for d in _edp_display_names {
@@ -63,15 +65,18 @@ package k8s
 		_name:       "resource-setup"
 		_secretName: _resource_setup_secret_name
 		_container: {
-			image:           _job_image
-			imagePullPolicy: _job_image_pull_policy
+			image: _imageConfig.image
 			args:
 				_edp_cert_key_files_flags +
 				_mc_cert_key_files_flags +
 				_tls_cert_key_files_flags +
 				_duchy_cs_cert_files_flags +
 				_kingdom_public_api_flags +
-				_kingdom_internal_api_flags
+				_kingdom_internal_api_flags + [
+					if _bazelConfigName != _|_ {
+						"--bazel-config-name=\(_bazelConfigName)"
+					},
+				]
 		}
 
 		spec: {
