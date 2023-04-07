@@ -115,7 +115,7 @@ message CompleteSetupPhaseRequest {
   // If set to 1, then no frequency histogram is returned.
   int32 maximum_frequency = 3;
   // The mechanism used to generate noise.
-  LiquidLegionsV2NoiseConfig.NoiseMechanism noise_mechanise = 4;
+  LiquidLegionsV2NoiseConfig.NoiseMechanism noise_mechanism = 4;
 }
 
 // Response of the CompleteSetupPhase method.
@@ -178,7 +178,7 @@ message CompleteExecutionPhaseOneAtAggregatorRequest {
   // The total number of sketches across all workers for this computation.
   int32 total_sketches_count = 6;
   // The mechanism used to generate noise.
-  LiquidLegionsV2NoiseConfig.NoiseMechanism noise_mechanise = 7;
+  LiquidLegionsV2NoiseConfig.NoiseMechanism noise_mechanism = 7;
 }
 
 // The response of the CompleteExecutionPhaseOneAtAggregator method.
@@ -212,7 +212,7 @@ message CompleteExecutionPhaseTwoRequest {
   // if unset, no noise would be added.
   FlagCountTupleNoiseGenerationParameters noise_parameters = 6;
   // The mechanism used to generate noise.
-  LiquidLegionsV2NoiseConfig.NoiseMechanism noise_mechanise = 7;
+  LiquidLegionsV2NoiseConfig.NoiseMechanism noise_mechanism = 7;
 }
 
 // The response of the CompleteExecutionPhaseTwo method.
@@ -257,7 +257,7 @@ message CompleteExecutionPhaseTwoAtAggregatorRequest {
   // MeasurementSpec.
   float vid_sampling_interval_width = 9;
   // The mechanism used to generate noise in previous phases.
-  LiquidLegionsV2NoiseConfig.NoiseMechanism noise_mechanise = 10;
+  LiquidLegionsV2NoiseConfig.NoiseMechanism noise_mechanism = 10;
 }
 
 // The response of the CompleteExecutionPhaseTwoAtAggregator method.
@@ -316,7 +316,7 @@ message CompleteExecutionPhaseThreeAtAggregatorRequest {
   // added. The baseline is subtracted before frequency is estimated.
   PerBucketFrequencyDpNoiseBaseline global_frequency_dp_noise_per_bucket = 5;
   // The mechanism used to generate noise in previous phases.
-  LiquidLegionsV2NoiseConfig.NoiseMechanism noise_mechanise = 6;
+  LiquidLegionsV2NoiseConfig.NoiseMechanism noise_mechanism = 6;
 }
 
 // The response of the CompleteExecutionPhaseThreeAtAggregator method.

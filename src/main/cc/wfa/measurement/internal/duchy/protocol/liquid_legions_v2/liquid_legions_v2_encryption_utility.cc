@@ -544,13 +544,11 @@ absl::Status AddAllFrequencyNoise(
     std::string& data) {
   RETURN_IF_ERROR(ValidateFrequencyNoiseParameters(noise_parameters));
 
-  auto noiser_and_options = GetFrequencyNoiserAndOptions(
-      noise_parameters.dp_params(), noise_parameters.contributors_count(),
-      noise_mechanism);
-  auto noiser = std::move(noiser_and_options.noiser);
-  auto noise_options = std::move(noiser_and_options.options);
+  auto noiser = GetFrequencyNoiser(noise_parameters.dp_params(),
+                                   noise_parameters.contributors_count(),
+                                   noise_mechanism);
 
-  int64_t total_noise_tuples_count = noise_options->shift_offset * 2 *
+  int64_t total_noise_tuples_count = noiser->options().shift_offset * 2 *
                                      (noise_parameters.maximum_frequency() + 1);
   // Reserve extra space for noise tuples in data.
   data.reserve(data.size() +
@@ -687,34 +685,23 @@ absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
     const RegisterNoiseGenerationParameters& noise_parameters =
         request.noise_parameters();
 
-    auto blind_histogram_noiser_and_options = GetBlindHistogramNoiserAndOptions(
+    auto blind_histogram_noiser = GetBlindHistogramNoiser(
         noise_parameters.dp_params().blind_histogram(),
-        noise_parameters.contributors_count(), request.noise_mechanise());
-    auto blind_histogram_noise_options =
-        std::move(blind_histogram_noiser_and_options.options);
-    auto blind_histogram_noiser =
-        std::move(blind_histogram_noiser_and_options.noiser);
+        noise_parameters.contributors_count(), request.noise_mechanism());
 
-    auto publisher_noiser_and_options = GetPublisherNoiserAndOptions(
+    auto publisher_noiser = GetPublisherNoiser(
         noise_parameters.dp_params().noise_for_publisher_noise(),
         noise_parameters.total_sketches_count(),
-        noise_parameters.contributors_count(), request.noise_mechanise());
-    auto publisher_noise_options =
-        std::move(publisher_noiser_and_options.options);
-    auto publisher_noiser = std::move(publisher_noiser_and_options.noiser);
+        noise_parameters.contributors_count(), request.noise_mechanism());
 
-    auto global_reach_dp_noiser_and_options = GetGlobalReachDpNoiserAndOptions(
+    auto global_reach_dp_noiser = GetGlobalReachDpNoiser(
         noise_parameters.dp_params().global_reach_dp_noise(),
-        noise_parameters.contributors_count(), request.noise_mechanise());
-    auto global_reach_dp_noise_options =
-        std::move(global_reach_dp_noiser_and_options.options);
-    auto global_reach_dp_noiser =
-        std::move(global_reach_dp_noiser_and_options.noiser);
+        noise_parameters.contributors_count(), request.noise_mechanism());
 
     int64_t total_noise_registers_count =
-        publisher_noise_options->shift_offset * 2 +
-        global_reach_dp_noise_options->shift_offset * 2 +
-        blind_histogram_noise_options->shift_offset *
+        publisher_noiser->options().shift_offset * 2 +
+        global_reach_dp_noiser->options().shift_offset * 2 +
+        blind_histogram_noiser->options().shift_offset *
             noise_parameters.total_sketches_count() *
             (noise_parameters.total_sketches_count() + 1);
 
@@ -854,7 +841,7 @@ CompleteExecutionPhaseOneAtAggregator(
   if (request.has_noise_parameters()) {
     RETURN_IF_ERROR(AddAllFrequencyNoise(
         *protocol_cryptor, request.curve_id(), request.noise_parameters(),
-        request.noise_mechanise(), *response_data));
+        request.noise_mechanism(), *response_data));
   }
 
   RETURN_IF_ERROR(SortStringByBlock<kBytesPerFlagsCountTuple>(*response_data));
@@ -907,7 +894,7 @@ absl::StatusOr<CompleteExecutionPhaseTwoResponse> CompleteExecutionPhaseTwo(
   if (request.has_noise_parameters()) {
     RETURN_IF_ERROR(AddAllFrequencyNoise(
         *protocol_cryptor, request.curve_id(), request.noise_parameters(),
-        request.noise_mechanise(), *response_data));
+        request.noise_mechanism(), *response_data));
   }
 
   RETURN_IF_ERROR(SortStringByBlock<kBytesPerFlagsCountTuple>(*response_data));
@@ -988,26 +975,24 @@ CompleteExecutionPhaseTwoAtAggregator(
   int64_t non_empty_register_count =
       tuple_counts - blinded_histogram_noise_count;
   if (request.has_reach_dp_noise_baseline()) {
-    auto options =
-        GetGlobalReachDpNoiserAndOptions(
-            request.reach_dp_noise_baseline().global_reach_dp_noise(),
-            request.reach_dp_noise_baseline().contributors_count(),
-            request.noise_mechanise())
-            .options;
+    auto noiser = GetGlobalReachDpNoiser(
+        request.reach_dp_noise_baseline().global_reach_dp_noise(),
+        request.reach_dp_noise_baseline().contributors_count(),
+        request.noise_mechanism());
+    const auto& noise_options = noiser->options();
     int64_t global_reach_dp_noise_baseline =
-        options->shift_offset * options->contributor_count;
+        noise_options.shift_offset * noise_options.contributor_count;
     non_empty_register_count -= global_reach_dp_noise_baseline;
   }
   if (request.has_frequency_noise_parameters()) {
     const FlagCountTupleNoiseGenerationParameters& noise_parameters =
         request.frequency_noise_parameters();
-    auto options =
-        GetFrequencyNoiserAndOptions(noise_parameters.dp_params(),
+    auto noiser = GetFrequencyNoiser(noise_parameters.dp_params(),
                                      noise_parameters.contributors_count(),
-                                     request.noise_mechanise())
-            .options;
+                                     request.noise_mechanism());
+    const auto& noise_options = noiser->options();
     int64_t total_noise_tuples_count =
-        options->contributor_count * options->shift_offset * 2 *
+        noise_options.contributor_count * noise_options.shift_offset * 2 *
         (noise_parameters.maximum_frequency() + 1);
     // Subtract all frequency noises before estimating reach.
     non_empty_register_count -= total_noise_tuples_count;
@@ -1131,14 +1116,13 @@ CompleteExecutionPhaseThreeAtAggregator(
   int actual_total = column_size;
   // Adjusts the histogram according the noise baseline.
   if (request.has_global_frequency_dp_noise_per_bucket()) {
-    auto options =
-        GetFrequencyNoiserAndOptions(
-            request.global_frequency_dp_noise_per_bucket().dp_params(),
-            request.global_frequency_dp_noise_per_bucket().contributors_count(),
-            request.noise_mechanise())
-            .options;
+    auto noiser = GetFrequencyNoiser(
+        request.global_frequency_dp_noise_per_bucket().dp_params(),
+        request.global_frequency_dp_noise_per_bucket().contributors_count(),
+        request.noise_mechanism());
+    const auto& noise_options = noiser->options();
     int64_t noise_baseline_per_bucket =
-        options->shift_offset * options->contributor_count;
+        noise_options.shift_offset * noise_options.contributor_count;
     actual_total = 0;
     for (int i = 0; i < maximum_frequency; ++i) {
       histogram[i] = std::max(0L, histogram[i] - noise_baseline_per_bucket);

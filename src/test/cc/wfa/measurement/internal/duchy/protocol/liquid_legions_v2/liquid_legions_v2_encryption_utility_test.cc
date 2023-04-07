@@ -336,7 +336,7 @@ class TestData {
       *complete_setup_phase_request_1.mutable_noise_parameters() =
           *reach_noise_parameters;
     }
-    complete_setup_phase_request_1.set_noise_mechanise(noise_mechanism);
+    complete_setup_phase_request_1.set_noise_mechanism(noise_mechanism);
 
     ASSIGN_OR_RETURN(CompleteSetupPhaseResponse complete_setup_phase_response_1,
                      CompleteSetupPhase(complete_setup_phase_request_1));
@@ -351,7 +351,7 @@ class TestData {
       *complete_setup_phase_request_2.mutable_noise_parameters() =
           *reach_noise_parameters;
     }
-    complete_setup_phase_request_2.set_noise_mechanise(noise_mechanism);
+    complete_setup_phase_request_2.set_noise_mechanism(noise_mechanism);
 
     ASSIGN_OR_RETURN(CompleteSetupPhaseResponse complete_setup_phase_response_2,
                      CompleteSetupPhase(complete_setup_phase_request_2));
@@ -366,7 +366,7 @@ class TestData {
       *complete_setup_phase_request_3.mutable_noise_parameters() =
           *reach_noise_parameters;
     }
-    complete_setup_phase_request_3.set_noise_mechanise(noise_mechanism);
+    complete_setup_phase_request_3.set_noise_mechanism(noise_mechanism);
 
     ASSIGN_OR_RETURN(CompleteSetupPhaseResponse complete_setup_phase_response_3,
                      CompleteSetupPhase(complete_setup_phase_request_3));
@@ -431,7 +431,7 @@ class TestData {
       *complete_execution_phase_one_at_aggregator_request
            .mutable_noise_parameters() = *frequency_noise_parameters;
     }
-    complete_execution_phase_one_at_aggregator_request.set_noise_mechanise(
+    complete_execution_phase_one_at_aggregator_request.set_noise_mechanism(
         noise_mechanism);
 
     ASSIGN_OR_RETURN(CompleteExecutionPhaseOneAtAggregatorResponse
@@ -459,7 +459,7 @@ class TestData {
       *complete_execution_phase_two_request_1.mutable_noise_parameters() =
           *frequency_noise_parameters;
     }
-    complete_execution_phase_two_request_1.set_noise_mechanise(noise_mechanism);
+    complete_execution_phase_two_request_1.set_noise_mechanism(noise_mechanism);
 
     ASSIGN_OR_RETURN(
         CompleteExecutionPhaseTwoResponse
@@ -484,7 +484,7 @@ class TestData {
       *complete_execution_phase_two_request_2.mutable_noise_parameters() =
           *frequency_noise_parameters;
     }
-    complete_execution_phase_two_request_2.set_noise_mechanise(noise_mechanism);
+    complete_execution_phase_two_request_2.set_noise_mechanism(noise_mechanism);
 
     ASSIGN_OR_RETURN(
         CompleteExecutionPhaseTwoResponse
@@ -527,7 +527,7 @@ class TestData {
         complete_execution_phase_two_response_2.flag_count_tuples());
     complete_execution_phase_two_at_aggregator_request
         .set_vid_sampling_interval_width(kVidSamplingIntervalWidth);
-    complete_execution_phase_two_at_aggregator_request.set_noise_mechanise(
+    complete_execution_phase_two_at_aggregator_request.set_noise_mechanism(
         noise_mechanism);
 
     ASSIGN_OR_RETURN(CompleteExecutionPhaseTwoAtAggregatorResponse
@@ -583,7 +583,7 @@ class TestData {
           .mutable_global_frequency_dp_noise_per_bucket()
           ->set_contributors_count(3);
     }
-    complete_execution_phase_three_at_aggregator_request.set_noise_mechanise(
+    complete_execution_phase_three_at_aggregator_request.set_noise_mechanism(
         noise_mechanism);
 
     ASSIGN_OR_RETURN(CompleteExecutionPhaseThreeAtAggregatorResponse
@@ -636,7 +636,7 @@ TEST(CompleteSetupPhase, GeometricNoiseSumAndMeanShouldBeCorrect) {
   // resulted p ~= 0 , offset = 4
   *noise_parameters->mutable_dp_params()->mutable_global_reach_dp_noise() =
       MakeDifferentialPrivacyParams(40, std::exp(-80));
-  request.set_noise_mechanise(LiquidLegionsV2NoiseConfig::GEOMETRIC);
+  request.set_noise_mechanism(LiquidLegionsV2NoiseConfig::GEOMETRIC);
 
   ASSERT_OK_AND_ASSIGN(CompleteSetupPhaseResponse response,
                        CompleteSetupPhase(request));
@@ -727,7 +727,7 @@ TEST(CompleteSetupPhase, GaussianNoiseSumAndMeanShouldBeCorrect) {
   // resulted sigma_distributed ~= 0.18, offset = 3
   *noise_parameters->mutable_dp_params()->mutable_global_reach_dp_noise() =
       MakeDifferentialPrivacyParams(40, std::exp(-80));
-  request.set_noise_mechanise(LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN);
+  request.set_noise_mechanism(LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN);
 
   ASSERT_OK_AND_ASSIGN(CompleteSetupPhaseResponse response,
                        CompleteSetupPhase(request));
@@ -837,7 +837,7 @@ TEST(CompleteSetupPhase, FrequencyOneWorksAsExpectedWithGeometricNoise) {
 
   *request.mutable_noise_parameters() = reach_noise_parameters;
 
-  request.set_noise_mechanise(LiquidLegionsV2NoiseConfig::GEOMETRIC);
+  request.set_noise_mechanism(LiquidLegionsV2NoiseConfig::GEOMETRIC);
 
   std::string register1 = "abc";
   std::string register2 = "def";
@@ -875,7 +875,7 @@ TEST(CompleteSetupPhase, FrequencyOneWorksAsExpectedWithGaussianNoise) {
 
   *request.mutable_noise_parameters() = reach_noise_parameters;
 
-  request.set_noise_mechanise(LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN);
+  request.set_noise_mechanism(LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN);
 
   std::string register1 = "abc";
   std::string register2 = "def";
@@ -1153,7 +1153,7 @@ TEST(FrequencyGeometricNoise, TotalNoiseBytesShouldBeCorrect) {
   *request.mutable_composite_el_gamal_public_key() = public_key;
   *request.mutable_partial_composite_el_gamal_public_key() = public_key;
   *request.mutable_noise_parameters() = frequency_noise_params;
-  request.set_noise_mechanise(LiquidLegionsV2NoiseConfig::GEOMETRIC);
+  request.set_noise_mechanism(LiquidLegionsV2NoiseConfig::GEOMETRIC);
 
   ASSERT_OK_AND_ASSIGN(CompleteExecutionPhaseTwoResponse Response,
                        CompleteExecutionPhaseTwo(request));
@@ -1233,7 +1233,7 @@ TEST(FrequencyGaussianNoise, TotalNoiseBytesShouldBeCorrect) {
   *request.mutable_composite_el_gamal_public_key() = public_key;
   *request.mutable_partial_composite_el_gamal_public_key() = public_key;
   *request.mutable_noise_parameters() = frequency_noise_params;
-  request.set_noise_mechanise(LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN);
+  request.set_noise_mechanism(LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN);
 
   ASSERT_OK_AND_ASSIGN(CompleteExecutionPhaseTwoResponse Response,
                        CompleteExecutionPhaseTwo(request));
@@ -1313,7 +1313,7 @@ TEST(FrequencyGeomatricNoise, AllFrequencyBucketsShouldHaveNoise) {
   *request.mutable_composite_el_gamal_public_key() = public_key;
   *request.mutable_partial_composite_el_gamal_public_key() = public_key;
   *request.mutable_noise_parameters() = frequency_noise_params;
-  request.set_noise_mechanise(LiquidLegionsV2NoiseConfig::GEOMETRIC);
+  request.set_noise_mechanism(LiquidLegionsV2NoiseConfig::GEOMETRIC);
 
   ASSERT_OK_AND_ASSIGN(CompleteExecutionPhaseTwoResponse Response,
                        CompleteExecutionPhaseTwo(request));
@@ -1387,7 +1387,7 @@ TEST(FrequencyGaussianNoise, AllFrequencyBucketsShouldHaveNoise) {
   *request.mutable_composite_el_gamal_public_key() = public_key;
   *request.mutable_partial_composite_el_gamal_public_key() = public_key;
   *request.mutable_noise_parameters() = frequency_noise_params;
-  request.set_noise_mechanise(LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN);
+  request.set_noise_mechanism(LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN);
 
   ASSERT_OK_AND_ASSIGN(CompleteExecutionPhaseTwoResponse Response,
                        CompleteExecutionPhaseTwo(request));
@@ -1514,8 +1514,7 @@ TEST(FrequencyNoise, NonDeterministicNoiseShouldRandomizeTheResult) {
       MpcResult gaussian_noise_result,
       test_data.GoThroughEntireMpcProtocol(
           encrypted_sketch, /*reach_noise=*/nullptr, &frequency_noise_params,
-          LiquidLegionsV2NoiseConfig::GEOMETRIC));
-
+          LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN));
   // Since there are noise, there should be other entries in the histogram.
   ASSERT_THAT(gaussian_noise_result.frequency_distribution,
               testing::Not(SizeIs(2)));
@@ -1607,7 +1606,7 @@ TEST(EndToEnd, CombinedCasesWithDeterministicReachAndFrequencyDpNoises) {
       MpcResult gaussian_noise_result,
       test_data.GoThroughEntireMpcProtocol(
           encrypted_sketch, &reach_noise_parameters, &frequency_noise_params,
-          LiquidLegionsV2NoiseConfig::GEOMETRIC));
+          LiquidLegionsV2NoiseConfig::DISCRETE_GAUSSIAN));
 
   EXPECT_EQ(gaussian_noise_result.reach, expected_reach);
   EXPECT_THAT(
