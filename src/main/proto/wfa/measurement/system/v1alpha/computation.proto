@@ -96,7 +96,6 @@ message Computation {
     // The mechanism used to generate noise in computations.
     enum NoiseMechanism {
       NOISE_MECHANISM_UNSPECIFIED = 0;
-
       GEOMETRIC = 1;
       DISCRETE_GAUSSIAN = 2;
     }

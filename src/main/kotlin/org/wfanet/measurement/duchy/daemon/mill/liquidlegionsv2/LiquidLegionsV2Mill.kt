@@ -560,7 +560,7 @@ class LiquidLegionsV2Mill(
           curveId = llv2Details.parameters.ellipticCurveId.toLong()
           combinedRegisterVector = readAndCombineAllInputBlobs(token, 1)
           totalSketchesCount = token.requisitionsCount
-          noiseMechanise = llv2Details.parameters.noise.noiseMechanism
+          noiseMechanism = llv2Details.parameters.noise.noiseMechanism
           if (
             llv2Parameters.noise.hasFrequencyNoiseConfig() &&
               (getMaximumRequestedFrequency(token) > 1)
@@ -684,7 +684,7 @@ class LiquidLegionsV2Mill(
               dpParams = llv2Parameters.noise.frequencyNoiseConfig
             }
           }
-          noiseMechanise = llv2Details.parameters.noise.noiseMechanism
+          noiseMechanism = llv2Details.parameters.noise.noiseMechanism
         }
 
         val cryptoResult: CompleteExecutionPhaseTwoAtAggregatorResponse =
@@ -765,7 +765,7 @@ class LiquidLegionsV2Mill(
               noiseParameters = getFrequencyNoiseParams(token, llv2Parameters)
             }
           }
-          noiseMechanise = llv2Details.parameters.noise.noiseMechanism
+          noiseMechanism = llv2Details.parameters.noise.noiseMechanism
         }
 
         val cryptoResult: CompleteExecutionPhaseTwoResponse =
@@ -822,7 +822,7 @@ class LiquidLegionsV2Mill(
               dpParams = llv2Parameters.noise.frequencyNoiseConfig
             }
           }
-          noiseMechanise = llv2Details.parameters.noise.noiseMechanism
+          noiseMechanism = llv2Details.parameters.noise.noiseMechanism
         }
 
         val cryptoResult: CompleteExecutionPhaseThreeAtAggregatorResponse =
@@ -954,7 +954,7 @@ class LiquidLegionsV2Mill(
             globalReachDpNoise = noiseConfig.reachNoiseConfig.globalReachDpNoise
           }
         }
-        noiseMechanise = llv2Details.parameters.noise.noiseMechanism
+        noiseMechanism = llv2Details.parameters.noise.noiseMechanism
       }
     }
   }

@@ -49,11 +49,12 @@ def wfa_measurement_system_repositories():
         sha256 = "34c15134d7293fc38df6ed254b55ee912c7479c396178b7f6499b7e5351aeeec",
     )
 
+    # DO_NOT_SUBMIT(renjiez): use release version before submit.
     wfa_repo_archive(
         name = "any_sketch",
         repo = "any-sketch",
-        sha256 = "0e52937e3f782e5089fd483ff4f7252da498af82e0d02d273cad63e37f486bdd",
-        version = "0.4.1",
+        sha256 = "7e163846125d20ea097c0b0d1f3bf1f07a498b42a2baa6b8b465e2046bf12119",
+        commit = "56fed68a5a3f48f29880b5fb3fa99d4da879b392",
     )
 
     wfa_repo_archive(
