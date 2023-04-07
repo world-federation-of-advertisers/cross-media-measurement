@@ -111,4 +111,3 @@ jobs:
             xargs -n 1 bazelisk run -c opt --define container_registry=ghcr.io \
             --define image_repo_prefix=world-federation-of-advertisers/packages --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=$IMAGE_TAG
             --define image_repo_prefix=world-federation-of-advertisers/packages --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=${{ needs.create-image-tag.outputs.image_tag }}
-
