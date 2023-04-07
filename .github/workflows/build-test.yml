@@ -26,9 +26,21 @@ jobs:
   build-test:
     name: Build and test
     runs-on: ubuntu-20.04
+    env:
+      CONTAINER_REGISTRY: "localhost:5001"
+      IMAGE_REPO_PREFIX: halo
+      CLUSTER_LOGS_PATH: cluster-logs
     steps:
       - name: Check out revision
         uses: actions/checkout@v3
+
+      - name: Create cluster
+        id: create-cluster
+        run: |
+          echo "KUBECONFIG=$HOME/.kube/config" >> "$GITHUB_ENV"
+          curl -LOJ https://kind.sigs.k8s.io/examples/kind-with-registry.sh
+          chmod +x kind-with-registry.sh
+          ./kind-with-registry.sh
 
       - name: Bazel build and test
         uses: world-federation-of-advertisers/actions/bazel-build-test@v1
@@ -37,7 +49,24 @@ jobs:
           workspace-path: .
           target-patterns: |
             //...
-            //src/test/kotlin/org/wfanet/measurement/integration/k8s:CorrectnessTest
+            //src/test/kotlin/org/wfanet/measurement/integration/k8s:EmptyClusterCorrectnessTest
           build-options: |
             --compilation_mode=opt
             --host_platform=//build/platforms:ubuntu_20_04
+            --define=container_registry=${{ env.CONTAINER_REGISTRY }}
+            --define=image_repo_prefix=${{ env.IMAGE_REPO_PREFIX }}
+            --define=image_tag=latest
+
+      - name: Export cluster logs
+        id: export-cluster-logs
+        if: failure() && steps.create-cluster.outcome == 'success'
+        run: |
+          mkdir -p "$CLUSTER_LOGS_PATH"
+          kind export logs "$CLUSTER_LOGS_PATH"
+
+      - name: Upload cluster logs artifact
+        if: failure() && steps.export-cluster-logs.outcome == 'success'
+        uses: actions/upload-artifact@v3
+        with:
+          name: cluster-logs
+          path: ${{ env.CLUSTER_LOGS_PATH }}
