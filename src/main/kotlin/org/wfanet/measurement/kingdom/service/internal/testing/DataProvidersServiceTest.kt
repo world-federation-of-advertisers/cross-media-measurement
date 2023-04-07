@@ -33,6 +33,7 @@ import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetDataProviderRequest
+import org.wfanet.measurement.internal.kingdom.ReplaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.DUCHIES
 
@@ -203,5 +204,44 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
       )
 
     assertThat(dataProviderRead).isEqualTo(createdDataProvider)
+  }
+  @Test
+  fun `replaceDataProviderRequiredDuchies succeeds`() = runBlocking {
+    val dataProvider =
+      DataProvider.newBuilder()
+        .apply {
+          certificateBuilder.apply {
+            notValidBeforeBuilder.seconds = 12345
+            notValidAfterBuilder.seconds = 23456
+            detailsBuilder.x509Der = CERTIFICATE_DER
+          }
+          detailsBuilder.apply {
+            apiVersion = "v2alpha"
+            publicKey = PUBLIC_KEY
+            publicKeySignature = PUBLIC_KEY_SIGNATURE
+          }
+          addAllRequiredExternalDuchyIds(DUCHIES.map { it.externalDuchyId })
+        }
+        .build()
+    val createdDataProvider = dataProvidersService.createDataProvider(dataProvider)
+    val desiredDuchyList = listOf("aggregator")
+    val updatedDataProvider =
+      dataProvidersService.replaceDataProviderRequiredDuchies(
+        ReplaceDataProviderRequiredDuchiesRequest.newBuilder()
+          .setExternalDataProviderId(createdDataProvider.externalDataProviderId)
+          .addAllRequiredExternalDuchyIds(desiredDuchyList)
+          .build()
+      )
+    // read from database to make sure elements were written to table
+    // Ensure DataProvider with updated duchy list is returned from function
+    assertThat(updatedDataProvider.requiredExternalDuchyIdsList).isEqualTo(desiredDuchyList)
+
+    val dataProviderRead =
+      dataProvidersService.getDataProvider(
+        GetDataProviderRequest.newBuilder()
+          .setExternalDataProviderId(createdDataProvider.externalDataProviderId)
+          .build()
+      )
+    assertThat(dataProviderRead.requiredExternalDuchyIdsList).isEqualTo(desiredDuchyList)
   }
 }
