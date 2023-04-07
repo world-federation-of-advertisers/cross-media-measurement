@@ -24,6 +24,8 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.internal.kingdom.BatchDeleteMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementEtagMismatchException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByMeasurementConsumerException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 
 /**
@@ -32,6 +34,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementR
  *
  * Throws the following [KingdomInternalException] type on [execute]:
  * * [MeasurementNotFoundByMeasurementConsumerException] when the Measurement is not found
+ * * [MeasurementEtagMismatchException] when provided etag does not match internal etag
  */
 class BatchDeleteMeasurements(
   private val requests: BatchDeleteMeasurementsRequest,
@@ -47,6 +50,18 @@ class BatchDeleteMeasurements(
           ExternalId(request.externalMeasurementConsumerId),
           ExternalId(request.externalMeasurementId)
         )
+      if (request.etag.isNotEmpty()) {
+        val internalEtag =
+          MeasurementReader.generateEtagByUpdateTime(
+            MeasurementReader.readUpdateTimeByKey(transactionContext, result)
+          )
+        if (internalEtag != request.etag) {
+          throw MeasurementEtagMismatchException(internalEtag, request.etag) {
+            "Provided Measurement etag ${request.etag} does not match internal measurement etag" +
+              "$internalEtag"
+          }
+        }
+      }
 
       keySet.addKey(result)
     }

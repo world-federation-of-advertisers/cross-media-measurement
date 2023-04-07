@@ -150,6 +150,11 @@ message Measurement {
   //
   // Only set for COMPUTATION view.
   repeated ComputationParticipant computation_participants = 13;
+
+  // Output only. A checksum computed on-demand from update time. This may be
+  // sent on cancel and delete requests to ensure the client has an up-to-date
+  // Measurement before proceeding.
+  string etag = 14;
 }
 
 message Requisition {
