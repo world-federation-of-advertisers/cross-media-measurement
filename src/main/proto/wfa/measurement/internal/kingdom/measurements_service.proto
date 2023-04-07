@@ -107,6 +107,11 @@ message SetMeasurementResultRequest {
 message CancelMeasurementRequest {
   fixed64 external_measurement_consumer_id = 1;
   fixed64 external_measurement_id = 2;
+
+  // Optional weakly validated etag computed from update time.
+  // If provided it must match the server's etag or cancellation will be
+  // aborted.
+  string etag = 3;
 }
 
 message BatchCancelMeasurementsRequest {
@@ -123,6 +128,10 @@ message BatchCancelMeasurementsResponse {
 message DeleteMeasurementRequest {
   fixed64 external_measurement_consumer_id = 1;
   fixed64 external_measurement_id = 2;
+
+  // Optional weakly validated etag computed from update time.
+  // If provided it must match the server's etag or deletion will be aborted.
+  string etag = 3;
 }
 
 message BatchDeleteMeasurementsRequest {

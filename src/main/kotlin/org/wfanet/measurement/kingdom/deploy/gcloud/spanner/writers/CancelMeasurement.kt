@@ -82,6 +82,9 @@ class CancelMeasurement(
   }
 
   override fun ResultScope<Measurement>.buildResult(): Measurement {
-    return checkNotNull(this.transactionResult).copy { updateTime = commitTimestamp.toProto() }
+    return checkNotNull(this.transactionResult).copy {
+      updateTime = commitTimestamp.toProto()
+      etag = MeasurementReader.generateEtagByUpdateTime(commitTimestamp)
+    }
   }
 }
