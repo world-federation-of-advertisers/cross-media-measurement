@@ -1,0 +1,94 @@
+// Copyright 2023 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.config;
+
+option java_package = "org.wfanet.measurement.config.reporting";
+option java_multiple_files = true;
+
+// The configuration for metric spec in Metric in the reporting server
+message MetricSpecConfig {
+  // Parameters for differential privacy (DP).
+  //
+  // For detail, refer to "Dwork, C. and Roth, A., 2014. The algorithmic
+  // foundations of differential privacy. Foundations and Trends in Theoretical
+  // Computer Science, 9(3-4), pp.211-407."
+  message DifferentialPrivacyParams {
+    double epsilon = 1;
+    double delta = 2;
+  }
+
+  // Parameters that are used to generate `Reach` metric.
+  message ReachParams {
+    // Differential privacy parameters for reach.
+    DifferentialPrivacyParams privacy_params = 1;
+  }
+  // Parameters that are used to generate `Frequency Histogram` metric.
+  message FrequencyHistogramParams {
+    // Differential privacy parameters for reach.
+    DifferentialPrivacyParams reach_privacy_params = 1;
+    // Differential privacy parameters for frequency.
+    DifferentialPrivacyParams frequency_privacy_params = 2;
+    // Maximum frequency cut-off value in the frequency histogram.
+    //
+    // Counts with frequency higher than `max_frequency` will be aggregated
+    // together.
+    int32 maximum_frequency_per_user = 3;
+  }
+  // Parameters that are used to generate `Impression Count` metric.
+  message ImpressionCountParams {
+    // Differential privacy parameters.
+    DifferentialPrivacyParams privacy_params = 1;
+    // Maximum frequency per user that will be included in this metric. Enforced
+    // on a per EDP basis.
+    //
+    // Setting the maximum frequency for each user is for noising the impression
+    // estimation with the noise proportional to maximum_frequency_per_user to
+    // guarantee epsilon-DP, i.e. the higher maximum_frequency_per_user, the
+    // larger the variance. On the other hand, if maximum_frequency_per_user is
+    // too small, there's a truncation bias.
+    int32 maximum_frequency_per_user = 2;
+  }
+  // Parameters that are used to generate `Watch Duration` metric.
+  message WatchDurationParams {
+    // Differential privacy parameters.
+    DifferentialPrivacyParams privacy_params = 1;
+    // Maximum watch duration per user in second that will be included in this
+    // metric. Enforced on a per EDP basis.
+    int32 maximum_watch_duration_per_user = 2;
+  }
+
+  // Parameters for generating the count of unique audiences reached given a set
+  // of event groups.
+  ReachParams reach_params = 1;
+  // Parameters for generating the reach frequency histogram given a set of
+  // event groups.
+  FrequencyHistogramParams frequency_histogram_params = 2;
+  // Parameters for generating the impression count given a set of event groups.
+  ImpressionCountParams impression_count_params = 3;
+  // Parameters for generating the watch duration given a set of event groups.
+  WatchDurationParams watch_duration_params = 4;
+
+  // Specifies a range of VIDs to be sampled.
+  message VidSamplingInterval {
+    // The start of the sampling interval in [0, 1)
+    float start = 1;
+    // The width of the sampling interval.
+    float width = 2;
+  }
+  // Range of VIDs that will be included in this measurement
+  VidSamplingInterval vid_sampling_interval = 5;
+}
