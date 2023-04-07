@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
+import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Struct
 import kotlinx.coroutines.flow.singleOrNull
@@ -176,6 +177,26 @@ class MeasurementReader(private val view: Measurement.View) :
         row.getInternalId("measurementConsumerId").value,
         row.getInternalId("measurementId").value
       )
+    }
+
+    /**
+     * Returns a [Timestamp] for the update time of a [Measurement] specified by Measurement Key
+     *
+     * @throws [MeasurementNotFoundException] when the Measurement is not found
+     */
+    suspend fun readUpdateTimeByKey(
+      readContext: AsyncDatabaseClient.ReadContext,
+      measurementKey: Key
+    ): Timestamp {
+      val column = "UpdateTime"
+      return readContext
+        .readRow("Measurements", measurementKey, listOf(column))
+        ?.getTimestamp(column)
+        ?: throw MeasurementNotFoundException() { "Measurement not found for $measurementKey" }
+    }
+
+    fun generateEtagByUpdateTime(updateTime: Timestamp): String {
+      return "W/\"${updateTime.toProto().hashCode()}\""
     }
 
     private val defaultViewBaseSql =
@@ -351,6 +372,7 @@ private fun MeasurementKt.Dsl.fillMeasurementCommon(struct: Struct) {
       }
     }
   }
+  etag = MeasurementReader.generateEtagByUpdateTime(struct.getTimestamp("UpdateTime"))
 }
 
 private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {

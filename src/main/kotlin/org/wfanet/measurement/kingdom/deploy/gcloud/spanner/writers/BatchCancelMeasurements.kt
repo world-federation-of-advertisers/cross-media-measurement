@@ -17,6 +17,7 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.internal.kingdom.BatchCancelMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.BatchCancelMeasurementsResponse
 import org.wfanet.measurement.internal.kingdom.Measurement
@@ -24,6 +25,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.batchCancelMeasurementsResponse
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementEtagMismatchException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByMeasurementConsumerException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
@@ -35,6 +37,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementR
  * Throws the following [KingdomInternalException] type on [execute]:
  * * [MeasurementNotFoundByMeasurementConsumerException] when a Measurement is not found
  * * [MeasurementStateIllegalException] when a Measurement state is not in pending
+ * * [MeasurementEtagMismatchException] when provided etag does not match internal etag
  */
 class BatchCancelMeasurements(
   private val requests: BatchCancelMeasurementsRequest,
@@ -79,6 +82,18 @@ class BatchCancelMeasurements(
           }
         }
       }
+      if (request.etag.isNotEmpty()) {
+        val internalEtag =
+          MeasurementReader.generateEtagByUpdateTime(
+            result.measurement.updateTime.toGcloudTimestamp()
+          )
+        if (internalEtag != request.etag) {
+          throw MeasurementEtagMismatchException(internalEtag, request.etag) {
+            "Provided Measurement etag ${request.etag} does not match internal measurement etag" +
+              "$internalEtag"
+          }
+        }
+      }
 
       resultsList.add(result)
     }
@@ -109,7 +124,10 @@ class BatchCancelMeasurements(
     return batchCancelMeasurementsResponse {
       measurements +=
         this@buildResult.transactionResult.measurementsList.map {
-          it.copy { updateTime = commitTimestamp.toProto() }
+          it.copy {
+            updateTime = commitTimestamp.toProto()
+            etag = MeasurementReader.generateEtagByUpdateTime(commitTimestamp)
+          }
         }
     }
   }

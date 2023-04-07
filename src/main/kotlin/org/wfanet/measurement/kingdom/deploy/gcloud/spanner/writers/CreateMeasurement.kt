@@ -341,6 +341,7 @@ class CreateMeasurement(private val measurement: Measurement) :
     return measurement.copy {
       createTime = commitTimestamp.toProto()
       updateTime = commitTimestamp.toProto()
+      etag = MeasurementReader.generateEtagByUpdateTime(commitTimestamp)
     }
   }
 }
