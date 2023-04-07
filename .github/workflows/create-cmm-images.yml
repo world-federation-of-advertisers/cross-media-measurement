@@ -24,18 +24,12 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-  push_docker_image:
   create-image-tag:
     runs-on: ubuntu-20.04
     outputs:
       image_tag: ${{ steps.get-image-tag-step.outputs.image_tag }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Export IMAGE_TAG
-        env:
-          DEFAULT_BRANCH: main
         uses: actions/checkout@v3
       - name: Generate image tag
         run: ./.github/workflows/export-image-tag.sh
@@ -50,8 +44,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: show-tag
-        id: show-tag
+      - name: Show Tag
         run: echo ${{ needs.create-image-tag.outputs.image_tag }}
 
       - name: Login to GitHub Packages
@@ -66,16 +59,9 @@ jobs:
         run: |
           bazelisk query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
           xargs bazelisk build -c opt --define container_registry=ghcr.io \
-          --define image_repo_prefix=world-federation-of-advertisers/packages --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=$IMAGE_TAG
-          --define image_repo_prefix=world-federation-of-advertisers/packages --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=${{ needs.create-image-tag.outputs.image_tag }}
-
-      # Push Kingdom Image to GitHub Artifacts.
-      - name: Push Kingdom Image
-        run: |
-          bazelisk query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
-            xargs -n 1 bazelisk run -c opt --define container_registry=ghcr.io \
-            --define image_repo_prefix=world-federation-of-advertisers/packages --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=$IMAGE_TAG
-            --define image_repo_prefix=world-federation-of-advertisers/packages --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=${{ needs.create-image-tag.outputs.image_tag }}
+          --define image_repo_prefix=world-federation-of-advertisers\packages \
+          --platforms=//build/platforms:ubuntu_20_04_rbe \
+          --define image_tag=${{ needs.create-image-tag.outputs.image_tag }}
   
 
   build-duchy-image:
@@ -85,8 +71,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: show-tag
-        id: show-tag
+      - name: Show Tag
         run: echo ${{ needs.create-image-tag.outputs.image_tag }}
 
       - name: Login to GitHub Packages
@@ -101,13 +86,7 @@ jobs:
         run: |
           bazelisk query 'filter("push_duchy", kind("container_push", //src/main/docker:all))' |
           xargs bazelisk build -c opt --define container_registry=ghcr.io \
-          --define image_repo_prefix=world-federation-of-advertisers/packages --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=$IMAGE_TAG
-          --define image_repo_prefix=world-federation-of-advertisers/packages --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=${{ needs.create-image-tag.outputs.image_tag }}
+          --define image_repo_prefix=world-federation-of-advertisers \
+          --platforms=//build/platforms:ubuntu_20_04_rbe \
+          --define image_tag=${{ needs.create-image-tag.outputs.image_tag }}
 
-      # Push Duchy Image to GitHub Artifacts.
-      - name: Push Duchy Image
-        run: |
-          bazelisk query 'filter("push_duchy", kind("container_push", //src/main/docker:all))' |
-            xargs -n 1 bazelisk run -c opt --define container_registry=ghcr.io \
-            --define image_repo_prefix=world-federation-of-advertisers/packages --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=$IMAGE_TAG
-            --define image_repo_prefix=world-federation-of-advertisers/packages --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=${{ needs.create-image-tag.outputs.image_tag }}
