@@ -29,32 +29,42 @@ option java_outer_classname = "MetricProto";
 message MetricSpec {
   // Parameters for differential privacy (DP).
   //
+  // If any of the fields are not specified in a request message, the service
+  // implementation will choose values.
+  //
   // For detail, refer to "Dwork, C. and Roth, A., 2014. The algorithmic
   // foundations of differential privacy. Foundations and Trends in Theoretical
   // Computer Science, 9(3-4), pp.211-407."
   message DifferentialPrivacyParams {
-    double epsilon = 1;
-    double delta = 2;
+    optional double epsilon = 1;
+    optional double delta = 2;
   }
 
   // Parameters that are used to generate `Reach` metric.
   message ReachParams {
-    // Differential privacy parameters.
-    DifferentialPrivacyParams privacy_params = 1;
+    // Differential privacy parameters for reach.
+    DifferentialPrivacyParams privacy_params = 1
+        [(google.api.field_behavior) = REQUIRED];
   }
   // Parameters that are used to generate `Frequency Histogram` metric.
   message FrequencyHistogramParams {
-    // Differential privacy parameters.
-    DifferentialPrivacyParams privacy_params = 1;
-    // Maximum frequency cut-off value in the frequency histogram. Counts with
-    // frequency higher than `max_frequency` will be aggregated together.
-    int32 maximum_frequency_per_user = 2
+    // Differential privacy parameters for reach.
+    DifferentialPrivacyParams reach_privacy_params = 1
         [(google.api.field_behavior) = REQUIRED];
+    // Differential privacy parameters for frequency distribution.
+    DifferentialPrivacyParams frequency_privacy_params = 2
+        [(google.api.field_behavior) = REQUIRED];
+    // Maximum frequency cut-off value in the frequency histogram.
+    //
+    // Counts with frequency higher than `max_frequency` will be aggregated
+    // together. If not set, the default value will be used and outputted here.
+    optional int32 maximum_frequency_per_user = 3;
   }
   // Parameters that are used to generate `Impression Count` metric.
   message ImpressionCountParams {
     // Differential privacy parameters.
-    DifferentialPrivacyParams privacy_params = 1;
+    DifferentialPrivacyParams privacy_params = 1
+        [(google.api.field_behavior) = REQUIRED];
     // Maximum frequency per user that will be included in this metric. Enforced
     // on a per EDP basis.
     //
@@ -65,21 +75,22 @@ message MetricSpec {
     // too small, there's a truncation bias. Through optimization, the
     // recommended value for maximum_frequency_per_user = 60 for the case with
     // over 1M audience size.
-    int32 maximum_frequency_per_user = 2
-        [(google.api.field_behavior) = REQUIRED];
+    // If not set, the default value will be used and outputted here.
+    optional int32 maximum_frequency_per_user = 2;
   }
   // Parameters that are used to generate `Watch Duration` metric.
   message WatchDurationParams {
     // Differential privacy parameters.
-    DifferentialPrivacyParams privacy_params = 1;
+    DifferentialPrivacyParams privacy_params = 1
+        [(google.api.field_behavior) = REQUIRED];
     // Maximum watch duration per user in second that will be included in this
     // metric.
     //
     // Recommended maximum_watch_duration_per_user = cap on the total watch
     // duration of all the impressions of a user = 4000 sec for the case with
     // over 1M audience size. Enforced on a per EDP basis.
-    int32 maximum_watch_duration_per_user = 2
-        [(google.api.field_behavior) = REQUIRED];
+    // If not set, the default value will be used and outputted here.
+    optional int32 maximum_watch_duration_per_user = 2;
   }
 
   // Types of metric with parameters.
@@ -104,13 +115,16 @@ message MetricSpec {
   // Specifies a range of VIDs to be sampled.
   message VidSamplingInterval {
     // The start of the sampling interval in [0, 1)
-    float start = 1;
+    float start = 1 [(google.api.field_behavior) = REQUIRED];
     // The width of the sampling interval.
     //
     // start + width cannot be larger than 1
-    float width = 2;
+    float width = 2 [(google.api.field_behavior) = REQUIRED];
   }
   // Range of VIDs that will be included in this measurement
+  //
+  // If this field is unspecified in a request message, the service
+  // implementation will use the value specified in the system defaults.
   VidSamplingInterval vid_sampling_interval = 5;
 }
 
