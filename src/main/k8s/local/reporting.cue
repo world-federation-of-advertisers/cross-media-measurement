@@ -23,6 +23,10 @@ objectSets: [ for objectSet in reporting {objectSet}]
 reporting: #Reporting & {
 	_secretName:         _reportingSecretName
 	_mcConfigSecretName: _reportingMcConfigSecretName
+	_imageSuffixes: {
+		"update-reporting-schema":        "reporting/local-postgres-update-schema"
+		"postgres-reporting-data-server": "reporting/local-postgres-internal"
+	}
 
 	_postgresConfig: {
 		serviceName: "postgres"
@@ -36,12 +40,6 @@ reporting: #Reporting & {
 	_internalApiTarget: {
 		certificateHost: "localhost"
 	}
-	_images: {
-		"update-reporting-schema":        "bazel/src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/tools:update_schema_image"
-		"postgres-reporting-data-server": "bazel/src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/server:postgres_reporting_data_server_image"
-		"v1alpha-public-api-server":      "bazel/src/main/kotlin/org/wfanet/measurement/reporting/deploy/common/server:v1alpha_public_api_server_image"
-	}
-	_imagePullPolicy:          "Never"
 	_verboseGrpcServerLogging: true
 	_verboseGrpcClientLogging: true
 
@@ -66,6 +64,14 @@ reporting: #Reporting & {
 		"postgres-reporting-data-server": {
 			_container: _envVars:             EnvVars
 			_updateSchemaContainer: _envVars: EnvVars
+		}
+		"reporting-public-api-v1alpha-server": {
+			spec: template: spec: {
+				_dependencies: [
+					"postgres-reporting-data-server",
+					"v2alpha-public-api-server", // Kingdom public API server.
+				]
+			}
 		}
 	}
 }

@@ -23,12 +23,11 @@ _secret_name: string @tag("secret_name")
 objectSets: [frontendSimulator]
 
 frontendSimulator: #FrontendSimulator & {
-	_mc_resource_name:            _mc_name
-	_mc_secret_name:              _secret_name
-	_mc_api_authentication_key:   _mc_api_key
-	_kingdom_public_api_target:   #KingdomPublicApiTarget
-	_simulator_image:             "bazel/src/main/kotlin/org/wfanet/measurement/loadtest/frontend:forwarded_storage_frontend_simulator_runner_image"
-	_simulator_image_pull_policy: "Never"
+	_imageConfig: repoSuffix: "simulator/local-mc"
+	_mc_resource_name:          _mc_name
+	_mc_secret_name:            _secret_name
+	_mc_api_authentication_key: _mc_api_key
+	_kingdom_public_api_target: #KingdomPublicApiTarget
 	_blob_storage_flags: [
 		"--forwarded-storage-service-target=" + (#Target & {name: "fake-storage-server"}).target,
 		"--forwarded-storage-cert-host=localhost",

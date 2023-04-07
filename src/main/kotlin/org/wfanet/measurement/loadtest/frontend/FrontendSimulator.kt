@@ -107,7 +107,7 @@ data class MeasurementConsumerData(
   val name: String,
   /** The MC's consent signaling signing key. */
   val signingKey: SigningKeyHandle,
-  /** The MC's encryption public key. */
+  /** The MC's encryption private key. */
   val encryptionKey: PrivateKeyHandle,
   /** An API key for the MC. */
   val apiAuthenticationKey: String
