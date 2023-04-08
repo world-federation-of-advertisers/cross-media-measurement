@@ -75,7 +75,7 @@ class CancelMeasurement(
       measurementId = measurementId,
       nextState = Measurement.State.CANCELLED,
       previousState = measurement.state,
-      logDetails = measurementLogEntryDetails
+      measurementLogEntryDetails = measurementLogEntryDetails
     )
 
     return measurement.copy { this.state = Measurement.State.CANCELLED }
