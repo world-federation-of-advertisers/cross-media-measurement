@@ -65,15 +65,6 @@ class RefuseRequisition(private val request: RefuseRequisitionRequest) :
     }
 
     val updatedDetails = requisition.details.copy { refusal = request.refusal }
-    val updatedMeasurementDetails =
-      measurementDetails.copy {
-        failure =
-          MeasurementKt.failure {
-            reason = Measurement.Failure.Reason.REQUISITION_REFUSED
-            message =
-              "ID of refused Requisition: " + externalIdToApiId(request.externalRequisitionId)
-          }
-      }
     updateRequisition(readResult, Requisition.State.REFUSED, updatedDetails)
     val measurementLogEntryDetails =
       MeasurementLogEntryKt.details {
@@ -87,12 +78,22 @@ class RefuseRequisition(private val request: RefuseRequisitionRequest) :
           }
       }
 
+    val updatedMeasurementDetails =
+      measurementDetails.copy {
+        failure =
+          MeasurementKt.failure {
+            reason = Measurement.Failure.Reason.REQUISITION_REFUSED
+            message =
+              "ID of refused Requisition: " + externalIdToApiId(request.externalRequisitionId)
+          }
+      }
+
     updateMeasurementState(
       measurementConsumerId = measurementConsumerId,
       measurementId = measurementId,
       nextState = Measurement.State.FAILED,
       previousState = measurementState,
-      logDetails = measurementLogEntryDetails,
+      measurementLogEntryDetails = measurementLogEntryDetails,
       details = updatedMeasurementDetails
     )
 
