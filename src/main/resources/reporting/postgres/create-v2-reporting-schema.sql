@@ -60,9 +60,9 @@ CREATE TABLE EventGroups (
 );
 
 -- changeset riemanli:create-reporting-sets-table dbms:postgresql
--- * ReportingSets rows which have NULL SetExpressionId are referred to as
---   "primitive", and those that have a non-NULL SetExpressionId are referred to
---   as "complex".
+-- * ReportingSets rows which have corresponding rows in ReportingSetEventGroups
+--   are "primitive", and those that have corresponding rows in SetExpressions
+--   are referred to as "complex".
 -- * Each row in the ReportingSets table is a vertex of a directed graph, where
 --   the SetExpressions table describes the edges.
 -- * Primitive ReportingSets rows are leaf vertices, i.e. they have no outgoing
@@ -84,18 +84,11 @@ CREATE TABLE ReportingSets (
   DisplayName text,
   Filter text,
 
-  -- If not NULL then the ReportingSet is a composite one, and will therefore
-  -- have no corresponding rows in ReportingSetEventGroups.
-  SetExpressionId bigint,
-
   PRIMARY KEY(MeasurementConsumerId, ReportingSetId),
   UNIQUE (MeasurementConsumerId, ExternalReportingSetId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId)
-    ON DELETE CASCADE,
-  FOREIGN KEY(MeasurementConsumerId, SetExpressionId)
-    REFERENCES SetExpressions(MeasurementConsumerId, SetExpressionId)
-    ON DELETE CASCADE,
+    ON DELETE CASCADE
 );
 
 -- changeset riemanli:create-reporting-set-event-groups-table dbms:postgresql
@@ -110,7 +103,7 @@ CREATE TABLE ReportingSetEventGroups(
     ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, EventGroupId)
     REFERENCES EventGroups(MeasurementConsumerId, EventGroupId)
-    ON DELETE CASCADE,
+    ON DELETE CASCADE
 );
 
 -- changeset riemanli:create-weighted-subset-unions-table dbms:postgresql
@@ -129,7 +122,7 @@ CREATE TABLE WeightedSubsetUnions (
   PRIMARY KEY(MeasurementConsumerId, ReportingSetId, WeightedSubsetUnionId),
   FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
     REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
-    ON DELETE CASCADE,
+    ON DELETE CASCADE
 );
 
 -- changeset riemanli:create-primitive-reporting-set-bases-table dbms:postgresql
@@ -141,7 +134,7 @@ CREATE TABLE PrimitiveReportingSetBases (
   PRIMARY KEY(MeasurementConsumerId, PrimitiveReportingSetBasisId),
   FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetId)
     REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
-    ON DELETE CASCADE,
+    ON DELETE CASCADE
 );
 
 -- changeset riemanli:create-weighted-subset-union-primitive-reporting-set-bases-table dbms:postgresql
@@ -157,7 +150,7 @@ CREATE TABLE WeightedSubsetUnionPrimitiveReportingSetBases (
     ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetBasisId)
     REFERENCES PrimitiveReportingSetBases(MeasurementConsumerId, PrimitiveReportingSetBasisId)
-    ON DELETE CASCADE,
+    ON DELETE CASCADE
 );
 
 -- changeset riemanli:create-primitive-reporting-set-basis-filters-table dbms:postgresql
@@ -168,23 +161,26 @@ CREATE TABLE PrimitiveReportingSetBasisFilters (
 
   Filter text NOT NULL,
 
-  PRIMARY KEY(MeasurementConsumerId, PrimitiveReportingSetBasisId, PrimitiveReportingSetBasisFilter),
+  PRIMARY KEY(MeasurementConsumerId, PrimitiveReportingSetBasisId, PrimitiveReportingSetBasisFilterId),
   FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetBasisId)
     REFERENCES PrimitiveReportingSetBases(MeasurementConsumerId, PrimitiveReportingSetBasisId)
-    ON DELETE CASCADE,
+    ON DELETE CASCADE
 );
 
 -- changeset riemanli:create-set-expressions-table dbms:postgresql
 CREATE TABLE SetExpressions (
   MeasurementConsumerId bigint NOT NULL,
+  ReportingSetId bigint NOT NULL,
   SetExpressionId bigint NOT NULL,
+
+  Root boolean NOT NULL,
 
   -- org.wfanet.measurement.internal.reporting.SetExpression.Operation
   -- protobuf enum encoded as an integer.
   Operation integer NOT NULL,
 
   -- The left-hand-side (lhs) operand in a binary set expression. Exactly
-  -- one lhs field has to be non-NULL.
+  -- one lhs field   1has to be non-NULL.
   LeftHandSetExpressionId bigint,
   LeftHandReportingSetId bigint,
   -- The right-hand-side (rhs) operand in a binary set expression. At most
@@ -192,22 +188,22 @@ CREATE TABLE SetExpressions (
   RightHandSetExpressionId bigint,
   RightHandReportingSetId bigint,
 
-  PRIMARY KEY(MeasurementConsumerId, SetExpressionId),
-  FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+  PRIMARY KEY(MeasurementConsumerId, ReportingSetId, SetExpressionId),
+  FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
+    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
     ON DELETE CASCADE,
-  FOREIGN KEY(MeasurementConsumerId, LeftHandSetExpressionId)
-    REFERENCES SetExpressions(MeasurementConsumerId, SetExpressionId)
+  FOREIGN KEY(MeasurementConsumerId, ReportingSetId, LeftHandSetExpressionId)
+    REFERENCES SetExpressions(MeasurementConsumerId, ReportingSetId, SetExpressionId)
     ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, LeftHandReportingSetId)
     REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
     ON DELETE CASCADE,
-  FOREIGN KEY(MeasurementConsumerId, RightHandSetExpressionId)
-    REFERENCES SetExpressions(MeasurementConsumerId, SetExpressionId)
+  FOREIGN KEY(MeasurementConsumerId, ReportingSetId, RightHandSetExpressionId)
+    REFERENCES SetExpressions(MeasurementConsumerId, ReportingSetId, SetExpressionId)
     ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, RightHandReportingSetId)
     REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
-    ON DELETE CASCADE,
+    ON DELETE CASCADE
 );
 
 -- changeset riemanli:create-metrics-table dbms:postgresql
@@ -259,7 +255,7 @@ CREATE TABLE Metrics (
   UNIQUE (MeasurementConsumerId, ExternalMetricId),
   FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
     REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
-    ON DELETE CASCADE,
+    ON DELETE CASCADE
 );
 
 -- changeset riemanli:create-measurements-table dbms:postgresql
@@ -289,7 +285,7 @@ CREATE TABLE Measurements (
 
   PRIMARY KEY(MeasurementConsumerId, MeasurementId),
   UNIQUE (MeasurementConsumerId, CmmsCreateMeasurementRequestId),
-  UNIQUE (MeasurementConsumerId, CmmsMeasurementId),
+  UNIQUE (MeasurementConsumerId, CmmsMeasurementId)
 );
 
 -- changeset riemanli:create-measurement-primitive-reporting-set-bases-table dbms:postgresql
@@ -304,7 +300,7 @@ CREATE TABLE MeasurementPrimitiveReportingSetBases (
     ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, PrimitiveReportingSetBasisId)
     REFERENCES PrimitiveReportingSetBases(MeasurementConsumerId, PrimitiveReportingSetBasisId)
-    ON DELETE CASCADE,
+    ON DELETE CASCADE
 );
 
 -- changeset riemanli:create-metric-measurements-table dbms:postgresql
@@ -320,7 +316,7 @@ CREATE TABLE MetricMeasurements (
     ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, MeasurementId)
     REFERENCES Measurements(MeasurementConsumerId, MeasurementId)
-    ON DELETE CASCADE,
+    ON DELETE CASCADE
 );
 
 -- changeset riemanli:create-reports-table dbms:postgresql
@@ -342,7 +338,7 @@ CREATE TABLE Reports (
   UNIQUE (MeasurementConsumerId, ExternalReportId),
   FOREIGN KEY(MeasurementConsumerId)
     REFERENCES MeasurementConsumers(MeasurementConsumerId)
-    ON DELETE CASCADE,
+    ON DELETE CASCADE
 );
 
 -- changeset riemanli:create-report-time-intervals-table dbms:postgresql
@@ -355,7 +351,7 @@ CREATE TABLE ReportTimeIntervals (
   PRIMARY KEY(MeasurementConsumerId, ReportId, TimeIntervalStart, TimeIntervalEndExclusive),
   FOREIGN KEY(MeasurementConsumerId, ReportId)
     REFERENCES Reports(MeasurementConsumerId, ReportId)
-    ON DELETE CASCADE,
+    ON DELETE CASCADE
 );
 
 -- changeset riemanli:create-metric-calculations-table dbms:postgresql
@@ -382,7 +378,7 @@ CREATE TABLE MetricCalculationSpecs (
     ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
     REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
-    ON DELETE CASCADE,
+    ON DELETE CASCADE
 );
 
 -- changeset riemanli:create-metric-calculation-metrics-table dbms:postgresql
@@ -398,5 +394,5 @@ CREATE TABLE MetricCalculationSpecMetrics (
     ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, MetricId)
     REFERENCES Metrics(MeasurementConsumerId, MetricId)
-    ON DELETE CASCADE,
+    ON DELETE CASCADE
 );

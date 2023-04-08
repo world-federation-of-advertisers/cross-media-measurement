@@ -43,4 +43,7 @@ enum ErrorCode {
 
   /** Measurement state is not the right state for the operation. */
   MEASUREMENT_STATE_INVALID = 7;
+
+  /** Measurement Consumer with the provided reference ID does not exist. */
+  MEASUREMENT_CONSUMER_NOT_FOUND = 8;
 }

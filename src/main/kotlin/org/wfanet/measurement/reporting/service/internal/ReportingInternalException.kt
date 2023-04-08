@@ -111,3 +111,10 @@ class MeasurementStateInvalidException(
   override val context
     get() = emptyMap<String, String>()
 }
+
+class MeasurementConsumerNotFoundException(provideDescription: () -> String = { "Measurement Consumer not found" }) :
+  ReportingInternalException(ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND, provideDescription) {
+  override val context
+    get() = emptyMap<String, String>()
+}
+
