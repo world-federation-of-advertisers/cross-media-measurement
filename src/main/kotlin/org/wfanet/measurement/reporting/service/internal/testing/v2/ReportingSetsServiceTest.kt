@@ -76,6 +76,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
     Truth.assertThat(createdReportingSet.externalReportingSetId).isNotEqualTo(0L)
   }
 
+  @Test
   fun `createReportingSet succeeds when reporting set is composite`() = runBlocking {
     measurementConsumersService.createMeasurementConsumer(measurementConsumer {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID

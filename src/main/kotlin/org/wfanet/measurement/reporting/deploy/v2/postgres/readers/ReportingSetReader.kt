@@ -44,7 +44,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
     }
 
     return readContext.executeQuery(statement).consume { row: ResultRow ->
-      IdResult(row["MeasurementConsumerId"], row["ExternalReportingSetId"])
+      IdResult(row["MeasurementConsumerId"], row["ReportingSetId"])
     }.singleOrNull()
   }
 }
