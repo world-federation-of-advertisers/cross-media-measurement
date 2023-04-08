@@ -38,7 +38,7 @@ module "worker-1" {
   component = "worker1"
 }
 
-module "worker-3" {
+module "worker-2" {
   source = "./duchy"
   env = var.env
   project = var.project
