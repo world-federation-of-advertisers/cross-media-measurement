@@ -747,7 +747,7 @@ class EdpSimulator(
   }
 
   /**
-   * Add Laplace publisher noise to calculated direct reach.
+   * Add publisher noise to calculated direct reach.
    *
    * @param reachValue Direct reach value.
    * @param privacyParams Differential privacy params for reach.
@@ -767,7 +767,7 @@ class EdpSimulator(
   }
 
   /**
-   * Add Laplace publisher noise to calculated direct reach and frequency.
+   * Add publisher noise to calculated direct frequency.
    *
    * @param reachValue Direct reach value.
    * @param frequencyMap Direct frequency.
