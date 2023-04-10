@@ -25,7 +25,7 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.Reportin
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequest
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateReportingSet
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
-import org.wfanet.measurement.reporting.service.internal.ReportingSetAlreadyExistsException
+import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 
 class PostgresReportingSetsService(
   private val idGenerator: IdGenerator,
@@ -34,9 +34,9 @@ class PostgresReportingSetsService(
   override suspend fun createReportingSet(request: ReportingSet): ReportingSet {
     return try {
       CreateReportingSet(request).execute(client, idGenerator)
-    } catch (e: ReportingSetAlreadyExistsException) {
-      e.throwStatusRuntimeException(Status.ALREADY_EXISTS) {
-        "IDs generated for Reporting Set already exist"
+    } catch (e: ReportingSetNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) {
+        "Reporting Set not found"
       }
     } catch (e: MeasurementConsumerNotFoundException) {
       e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
