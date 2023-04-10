@@ -47,3 +47,28 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
     ],
 )
+
+kt_jvm_test(
+    name = "LaplaceNoiserTest",
+    srcs = ["LaplaceNoiserTest.kt"],
+    test_class = "org.wfanet.measurement.loadtest.dataprovider.LaplaceNoiserTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:edp_simulator",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_test(
+    name = "GaussianNoiserTest",
+    srcs = ["GaussianNoiserTest.kt"],
+    test_class = "org.wfanet.measurement.loadtest.dataprovider.GaussianNoiserTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:edp_simulator",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)

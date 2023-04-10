@@ -16,13 +16,17 @@ package(
 kt_jvm_library(
     name = "edp_simulator",
     srcs = [
+        "AbstractNoiser.kt",
         "BigQueryEventQuery.kt",
         "CsvEventQuery.kt",
         "EdpSimulator.kt",
         "EdpSimulatorFlags.kt",
         "EdpSimulatorRunner.kt",
         "EventQuery.kt",
+        "GaussianNoiser.kt",
         "InMemoryEventQuery.kt",
+        "LaplaceNoiser.kt",
+        "Noiser.kt",
         "RandomEventQuery.kt",
     ],
     deps = [
