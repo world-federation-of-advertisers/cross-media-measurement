@@ -625,6 +625,7 @@ class EdpSimulatorTest {
   fun `fulfill direct reach-only requisition correctly with sampling rate equal to 1`() {
     val throttlerMock = mock<Throttler>()
     val eventQuery = RandomEventQuery(SketchGenerationParams(reach = 1000, universeSize = 10000))
+    val random = java.util.Random(RANDOM_SEED)
     val simulator =
       EdpSimulator(
         EDP_DATA,
@@ -640,7 +641,9 @@ class EdpSimulatorTest {
         throttlerMock,
         listOf(),
         privacyBudgetManager,
-        TRUSTED_CERTIFICATES
+        TRUSTED_CERTIFICATES,
+        random,
+        NOISE_MECHANISM
       )
 
     val vidSamplingIntervalWidth = 1f
@@ -676,7 +679,7 @@ class EdpSimulatorTest {
     val signedResult = decryptResult(fulfillDirectRequisitionRequest.encryptedData, MC_PRIVATE_KEY)
     val reachAndFrequencyResult = Measurement.Result.parseFrom(signedResult.data)
 
-    val expectedReachValue = 948L
+    val expectedReachValue = 949L
     val expectedFrequencyMap = mapOf<Long, Double>()
 
     assertThat(reachAndFrequencyResult.reach.value).isEqualTo(expectedReachValue)
@@ -766,6 +769,7 @@ class EdpSimulatorTest {
   fun `fulfill direct reach-only requisition correctly with sampling rate smaller than 1`() {
     val throttlerMock = mock<Throttler>()
     val eventQuery = RandomEventQuery(SketchGenerationParams(reach = 1000, universeSize = 10000))
+    val random = java.util.Random(RANDOM_SEED)
     val simulator =
       EdpSimulator(
         EDP_DATA,
@@ -781,7 +785,9 @@ class EdpSimulatorTest {
         throttlerMock,
         listOf(),
         privacyBudgetManager,
-        TRUSTED_CERTIFICATES
+        TRUSTED_CERTIFICATES,
+        random,
+        NOISE_MECHANISM
       )
 
     val vidSamplingIntervalWidth = 0.1f
@@ -818,7 +824,7 @@ class EdpSimulatorTest {
 
     // vidList is first filtered by vidSampler and noised reach is scaled by sampling rate which is
     // vidSamplingInterval.
-    val expectedReachValue = 1010L
+    val expectedReachValue = 1020L
     val expectedFrequencyMap = mapOf<Long, Double>()
 
     assertThat(reachAndFrequencyResult.reach.value).isEqualTo(expectedReachValue)
