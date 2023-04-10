@@ -808,6 +808,11 @@ class EdpSimulator(
         val frequencyMap = calculateDirectFrequency(vidList, sampledReachValue)
 
         logger.info("Adding $noiseMechanism publisher noise to direct reach and frequency...")
+        val sampledNoisedReachValue =
+          addReachPublisherNoise(
+            sampledReachValue,
+            measurementSpec.reachAndFrequency.reachPrivacyParams
+          )
         val noisedFrequencyMap =
           addFrequencyPublisherNoise(
             sampledReachValue,
@@ -815,11 +820,6 @@ class EdpSimulator(
             measurementSpec.reachAndFrequency.frequencyPrivacyParams,
           )
 
-        val sampledNoisedReachValue =
-          addReachPublisherNoise(
-            sampledReachValue,
-            measurementSpec.reachAndFrequency.reachPrivacyParams
-          )
         val scaledNoisedReachValue =
           (sampledNoisedReachValue / measurementSpec.vidSamplingInterval.width).toLong()
 
