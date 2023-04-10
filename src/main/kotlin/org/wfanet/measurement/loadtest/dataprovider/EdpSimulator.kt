@@ -53,6 +53,7 @@ import org.wfanet.estimation.VidSampler
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
@@ -136,6 +137,17 @@ data class EdpData(
   /** The EDP's consent signaling signing key. */
   val signingKey: SigningKeyHandle
 )
+
+/**
+ * Mechanism for generating noise for direct measurements.
+ *
+ * TODO(@iverson52000): Move this to public API if EDP needs to report back the noise mechanism for
+ *   PBM tracking.
+ */
+enum class NoiseMechanism {
+  LAPLACE,
+  GAUSSIAN,
+}
 
 /** A simulator handling EDP businesses. */
 class EdpSimulator(
@@ -735,6 +747,50 @@ class EdpSimulator(
   }
 
   /**
+   * Add Laplace publisher noise to calculated direct reach.
+   *
+   * @param reachValue Direct reach value.
+   * @param privacyParams Differential privacy params for reach.
+   * @return Noised reach value.
+   */
+  private fun addReachPublisherNoise(
+    reachValue: Long,
+    privacyParams: DifferentialPrivacyParams
+  ): Long {
+    val reachNoiser: AbstractNoiser =
+      when (noiseMechanism) {
+        NoiseMechanism.LAPLACE -> LaplaceNoiser(privacyParams, random)
+        NoiseMechanism.GAUSSIAN -> GaussianNoiser(privacyParams, random)
+      }
+
+    return reachValue + reachNoiser.sample().toInt()
+  }
+
+  /**
+   * Add Laplace publisher noise to calculated direct reach and frequency.
+   *
+   * @param reachValue Direct reach value.
+   * @param frequencyMap Direct frequency.
+   * @param privacyParams Differential privacy params for frequency map.
+   * @return Noised frequency map.
+   */
+  private fun addFrequencyPublisherNoise(
+    reachValue: Long,
+    frequencyMap: Map<Long, Double>,
+    privacyParams: DifferentialPrivacyParams,
+  ): Map<Long, Double> {
+    val frequencyNoiser: AbstractNoiser =
+      when (noiseMechanism) {
+        NoiseMechanism.LAPLACE -> LaplaceNoiser(privacyParams, random)
+        NoiseMechanism.GAUSSIAN -> GaussianNoiser(privacyParams, random)
+      }
+
+    return frequencyMap.mapValues { (_, percentage) ->
+      (percentage * reachValue.toDouble() + frequencyNoiser.sample()) / reachValue.toDouble()
+    }
+  }
+
+  /**
    * Build [Measurement.Result] of the measurement type specified in [MeasurementSpec].
    *
    * @param measurementSpec Measurement spec.
@@ -751,18 +807,18 @@ class EdpSimulator(
         val sampledReachValue = calculateDirectReach(vidList)
         val frequencyMap = calculateDirectFrequency(vidList, sampledReachValue)
 
-        logger.info("Adding publisher noise to direct reach and frequency...")
+        logger.info("Adding $noiseMechanism publisher noise to direct reach and frequency...")
         val noisedFrequencyMap =
           addFrequencyPublisherNoise(
             sampledReachValue,
             frequencyMap,
-            measurementSpec.reachAndFrequency.frequencyPrivacyParams.epsilon,
+            measurementSpec.reachAndFrequency.frequencyPrivacyParams,
           )
 
         val sampledNoisedReachValue =
           addReachPublisherNoise(
             sampledReachValue,
-            measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon
+            measurementSpec.reachAndFrequency.reachPrivacyParams
           )
         val scaledNoisedReachValue =
           (sampledNoisedReachValue / measurementSpec.vidSamplingInterval.width).toLong()
@@ -778,9 +834,9 @@ class EdpSimulator(
       }
       MeasurementSpec.MeasurementTypeCase.REACH -> {
         val sampledReachValue = calculateDirectReach(vidList)
-        logger.info("Adding publisher noise to direct reach...")
+        logger.info("Adding $noiseMechanism publisher noise to direct reach...")
         val sampledNoisedReachValue =
-          addReachPublisherNoise(sampledReachValue, measurementSpec.reach.privacyParams.epsilon)
+          addReachPublisherNoise(sampledReachValue, measurementSpec.reach.privacyParams)
         val scaledNoisedReachValue =
           (sampledNoisedReachValue / measurementSpec.vidSamplingInterval.width).toLong()
 
@@ -923,49 +979,6 @@ class EdpSimulator(
       }
 
       return frequencyMap
-    }
-
-    /**
-     * Add Laplace publisher noise to calculated direct reach.
-     *
-     * @param reachValue Direct reach value.
-     * @param reachEpsilon Differential privacy epsilon for reach.
-     * @return Noised reach value.
-     *
-     * TODO(@iverson52000): Create a noiser class for this function when we need to add Gaussian
-     *   noise.
-     */
-    private fun addReachPublisherNoise(reachValue: Long, reachEpsilon: Double): Long {
-      val laplaceForReach = LaplaceDistribution(0.0, 1 / reachEpsilon)
-      // Reseed random number generator so the results can be verified in tests.
-      // TODO(@iverson52000): make randomSeed an input once create noiser class.
-      laplaceForReach.reseedRandomGenerator(1)
-
-      return reachValue + laplaceForReach.sample().toInt()
-    }
-
-    /**
-     * Add Laplace publisher noise to calculated direct reach and frequency.
-     *
-     * @param reachValue Direct reach value.
-     * @param frequencyMap Direct frequency.
-     * @param frequencyEpsilon Differential privacy epsilon for frequency map.
-     * @return Noised frequency map.
-     *
-     * TODO(@iverson52000): Create a noiser class for this function when we need to add Gaussian
-     *   noise.
-     */
-    private fun addFrequencyPublisherNoise(
-      reachValue: Long,
-      frequencyMap: Map<Long, Double>,
-      frequencyEpsilon: Double,
-    ): Map<Long, Double> {
-      val laplaceForFrequency = LaplaceDistribution(0.0, 1 / frequencyEpsilon)
-      laplaceForFrequency.reseedRandomGenerator(1)
-
-      return frequencyMap.mapValues { (_, percentage) ->
-        (percentage * reachValue.toDouble() + laplaceForFrequency.sample()) / reachValue.toDouble()
-      }
     }
   }
 }
