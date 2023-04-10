@@ -50,7 +50,6 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_TOKEN }}
 
       # Build Kingdom Image
       - name: Build kingdom image
@@ -66,7 +65,7 @@ jobs:
         run: |
           bazelisk query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
             xargs -n 1 bazelisk run -c opt --define container_registry=ghcr.io \
-            --define image_repo_prefix=world-federation-of-advertisers/packages --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=${{ needs.create-image-tag.outputs.image_tag }}
+            --define image_repo_prefix=world-federation-of-advertisers --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=${{ needs.create-image-tag.outputs.image_tag }}
 
 
   build-duchy-image:
@@ -84,7 +83,6 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_TOKEN }}
 
       # Build Duchy Image
       - name: Build Duchy image
@@ -100,4 +98,4 @@ jobs:
         run: |
           bazelisk query 'filter("push_duchy", kind("container_push", //src/main/docker:all))' |
             xargs -n 1 bazelisk run -c opt --define container_registry=ghcr.io \
-            --define image_repo_prefix=world-federation-of-advertisers/packages --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=${{ needs.create-image-tag.outputs.image_tag }}
+            --define image_repo_prefix=world-federation-of-advertisers --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=${{ needs.create-image-tag.outputs.image_tag }}
