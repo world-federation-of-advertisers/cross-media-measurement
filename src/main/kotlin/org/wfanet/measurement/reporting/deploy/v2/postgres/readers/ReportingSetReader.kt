@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.reporting.deploy.v2.postgres.readers;
+package org.wfanet.measurement.reporting.deploy.v2.postgres.readers
 
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
@@ -21,15 +21,16 @@ import org.wfanet.measurement.common.db.r2dbc.boundStatement
 
 class ReportingSetReader(private val readContext: ReadContext) {
   data class IdResult(
-      val measurementConsumerId: Long,
-      val reportingSetId: Long,
+    val measurementConsumerId: Long,
+    val reportingSetId: Long,
   )
 
   suspend fun readId(
     measurementConsumerId: Long,
     externalReportingSetId: Long,
   ): IdResult? {
-    val statement = boundStatement(
+    val statement =
+      boundStatement(
         """
         SELECT
           MeasurementConsumerId,
@@ -38,13 +39,14 @@ class ReportingSetReader(private val readContext: ReadContext) {
         WHERE MeasurementConsumerId = $1
           AND ExternalReportingSetId = $2
         """
-    ) {
-      bind("$1", measurementConsumerId)
-      bind("$2", externalReportingSetId)
-    }
+      ) {
+        bind("$1", measurementConsumerId)
+        bind("$2", externalReportingSetId)
+      }
 
-    return readContext.executeQuery(statement).consume { row: ResultRow ->
-      IdResult(row["MeasurementConsumerId"], row["ReportingSetId"])
-    }.singleOrNull()
+    return readContext
+      .executeQuery(statement)
+      .consume { row: ResultRow -> IdResult(row["MeasurementConsumerId"], row["ReportingSetId"]) }
+      .singleOrNull()
   }
 }

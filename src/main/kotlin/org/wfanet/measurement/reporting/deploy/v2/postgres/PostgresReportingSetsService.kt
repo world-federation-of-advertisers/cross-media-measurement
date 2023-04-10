@@ -35,17 +35,15 @@ class PostgresReportingSetsService(
     return try {
       CreateReportingSet(request).execute(client, idGenerator)
     } catch (e: ReportingSetNotFoundException) {
-      e.throwStatusRuntimeException(Status.NOT_FOUND) {
-        "Reporting Set not found"
-      }
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "Reporting Set not found" }
     } catch (e: MeasurementConsumerNotFoundException) {
-      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) {
-        "Measurement Consumer not found"
-      }
+      e.throwStatusRuntimeException(Status.FAILED_PRECONDITION) { "Measurement Consumer not found" }
     }
   }
 
-  override suspend fun batchGetReportingSets(request: BatchGetReportingSetsRequest): BatchGetReportingSetsResponse {
+  override suspend fun batchGetReportingSets(
+    request: BatchGetReportingSetsRequest
+  ): BatchGetReportingSetsResponse {
     return super.batchGetReportingSets(request)
   }
 

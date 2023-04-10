@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.reporting.deploy.v2.postgres.readers;
+package org.wfanet.measurement.reporting.deploy.v2.postgres.readers
 
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
@@ -21,8 +21,8 @@ import org.wfanet.measurement.common.db.r2dbc.boundStatement
 
 class MeasurementConsumerReader(private val readContext: ReadContext) {
   data class Result(
-      val measurementConsumerId: Long,
-      val cmmsMeasurementConsumerId: String,
+    val measurementConsumerId: Long,
+    val cmmsMeasurementConsumerId: String,
   )
 
   private val baseSql: String =
@@ -31,24 +31,23 @@ class MeasurementConsumerReader(private val readContext: ReadContext) {
       MeasurementConsumerId,
       CmmsMeasurementConsumerId
     FROM MeasurementConsumers
-    """.trimIndent()
+    """
+      .trimIndent()
 
   private fun translate(row: ResultRow): Result {
-    return Result(measurementConsumerId = row["MeasurementConsumerId"],
-                  cmmsMeasurementConsumerId = row["CmmsMeasurementConsumerId"])
+    return Result(
+      measurementConsumerId = row["MeasurementConsumerId"],
+      cmmsMeasurementConsumerId = row["CmmsMeasurementConsumerId"]
+    )
   }
 
-  suspend fun getByCmmsId(
-    cmmsMeasurementConsumerId: String
-  ): Result? {
-    val statement = boundStatement(
-      baseSql +
-        """
+  suspend fun getByCmmsId(cmmsMeasurementConsumerId: String): Result? {
+    val statement =
+      boundStatement(baseSql + """
         WHERE CmmsMeasurementConsumerId = $1
-        """
-    ) {
+        """) {
         bind("$1", cmmsMeasurementConsumerId)
-    }
+      }
 
     return readContext.executeQuery(statement).consume(::translate).singleOrNull()
   }

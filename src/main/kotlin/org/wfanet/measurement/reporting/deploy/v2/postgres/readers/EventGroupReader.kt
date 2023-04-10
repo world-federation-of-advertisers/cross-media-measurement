@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.reporting.deploy.v2.postgres.readers;
+package org.wfanet.measurement.reporting.deploy.v2.postgres.readers
 
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
@@ -21,10 +21,10 @@ import org.wfanet.measurement.common.db.r2dbc.boundStatement
 
 class EventGroupReader(private val readContext: ReadContext) {
   data class Result(
-      val cmmsDataProviderId: String,
-      val cmmsEventGroupId: String,
-      val measurementConsumerId: Long,
-      val eventGroupId: Long,
+    val cmmsDataProviderId: String,
+    val cmmsEventGroupId: String,
+    val measurementConsumerId: Long,
+    val eventGroupId: Long,
   )
 
   private val baseSql: String =
@@ -35,29 +35,33 @@ class EventGroupReader(private val readContext: ReadContext) {
       CmmsDataProviderId,
       CmmsEventGroupId
     FROM EventGroups
-    """.trimIndent()
+    """
+      .trimIndent()
 
   private fun translate(row: ResultRow): Result {
-    return Result(cmmsDataProviderId = row["CmmsDataProviderId"],
-                  cmmsEventGroupId = row["CmmsEventGroupId"],
-                  measurementConsumerId = row["MeasurementConsumerId"],
-                  eventGroupId = row["EventGroupId"])
+    return Result(
+      cmmsDataProviderId = row["CmmsDataProviderId"],
+      cmmsEventGroupId = row["CmmsEventGroupId"],
+      measurementConsumerId = row["MeasurementConsumerId"],
+      eventGroupId = row["EventGroupId"]
+    )
   }
 
   suspend fun getByCmmsIds(
     cmmsDataProviderId: String,
     cmmsEventGroupId: String,
   ): Result? {
-    val statement = boundStatement(
-      baseSql +
-        """
+    val statement =
+      boundStatement(
+        baseSql +
+          """
         WHERE CmmsDataProviderId = $1
           AND CmmsEventGroupId = $2
         """
-    ) {
+      ) {
         bind("$1", cmmsDataProviderId)
         bind("$2", cmmsEventGroupId)
-    }
+      }
 
     return readContext.executeQuery(statement).consume(::translate).singleOrNull()
   }

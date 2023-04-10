@@ -14,22 +14,13 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.postgres.writers
 
-import io.r2dbc.spi.R2dbcDataIntegrityViolationException
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumer
-import org.wfanet.measurement.internal.reporting.v2.ReportingSet
-import org.wfanet.measurement.internal.reporting.v2.ReportingSet.SetExpression
-import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.reporting.deploy.postgres.writers.PostgresWriter
-import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.EventGroupReader
-import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MeasurementConsumerReader
-import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
-import org.wfanet.measurement.reporting.service.internal.ReportingSetAlreadyExistsException
 
-/**
- * Inserts a Measurement Consumer into the database.
- */
-class CreateMeasurementConsumer(private val measurementConsumer: MeasurementConsumer) : PostgresWriter<MeasurementConsumer>() {
+/** Inserts a Measurement Consumer into the database. */
+class CreateMeasurementConsumer(private val measurementConsumer: MeasurementConsumer) :
+  PostgresWriter<MeasurementConsumer>() {
   override suspend fun TransactionScope.runTransaction(): MeasurementConsumer {
     val internalMeasurementConsumerId = idGenerator.generateInternalId().value
 

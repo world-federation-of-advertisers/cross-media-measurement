@@ -24,7 +24,9 @@ class PostgresMeasurementConsumersService(
   private val idGenerator: IdGenerator,
   private val client: DatabaseClient,
 ) : MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase() {
-  override suspend fun createMeasurementConsumer(request: MeasurementConsumer): MeasurementConsumer {
+  override suspend fun createMeasurementConsumer(
+    request: MeasurementConsumer
+  ): MeasurementConsumer {
     return CreateMeasurementConsumer(request).execute(client, idGenerator)
   }
 }
