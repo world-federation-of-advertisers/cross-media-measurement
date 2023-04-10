@@ -91,4 +91,20 @@ class EdpSimulatorFlags {
   @CommandLine.Mixin
   lateinit var requisitionFulfillmentServiceFlags: RequisitionFulfillmentServiceFlags
     private set
+
+  @CommandLine.Option(
+    names = ["--random-seed"],
+    description = ["Random seed of differential privacy noisers for direct measurements"],
+    required = false,
+  )
+  var randomSeed: Long? = null
+    private set
+
+  @CommandLine.Option(
+    names = ["--noise-mechanism"],
+    description = ["Differential privacy noise mechanism for direct measurements"],
+    defaultValue = "LAPLACE",
+  )
+  lateinit var noiseMechanism: NoiseMechanism
+    private set
 }
