@@ -65,6 +65,8 @@ jobs:
           resource_name="$(kubectl apply -k secretfiles/src/main/k8s/testing/secretfiles/kustomization -o name)"
           echo "SECRET_NAME=$(basename $resource_name)" >> "$GITHUB_ENV"
 
+      # TODO(wfa-siyengar): add duchy as an input at high-level(QA deploy)
+
       # Create k8s manifest
       - name: Build K8s manifest
         run: |
