@@ -50,6 +50,7 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       # Build Kingdom Image
       - name: Build kingdom image
@@ -83,6 +84,7 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       # Build Duchy Image
       - name: Build Duchy image
