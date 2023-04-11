@@ -51,7 +51,7 @@ resource "google_container_cluster" "primary" {
 resource "google_container_node_pool" "kingdom_node_pool"{
 
   # the name will look like dev-halo-duchy-data-server
-  name       = "${local.prefix}-data-server"
+  name       = "${local.prefix}-node-pool"
   cluster    = google_container_cluster.primary.id
   location = "us-central1-a" # TODO(wfa-dharmalingam): change it to local.zone
 

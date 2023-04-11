@@ -35,7 +35,7 @@ resource "google_container_cluster" "worker" {
 resource "google_container_node_pool" "duchy_node_pool"{
 
   # The name will look like dev-halo-duchy-data-server
-  name       = "${local.prefix}-data-server"
+  name       = "${local.prefix}-node-pool"
   cluster    = google_container_cluster.worker.id
 
   autoscaling {
@@ -46,7 +46,7 @@ resource "google_container_node_pool" "duchy_node_pool"{
   node_config {
     preemptible  = true
     machine_type = local.duchy.machine_type
-    service_account = google_service_account.gke_sa.email
+    service_account = data.google_service_account.gke_sa.email
     oauth_scopes = [
       "https://www.googleapis.com/auth/cloud-platform"
     ]
