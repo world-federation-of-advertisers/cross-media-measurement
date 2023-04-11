@@ -51,6 +51,7 @@ import org.mockito.kotlin.whenever
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey as V2AlphaElGamalPublicKey
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.measurementSpec
@@ -82,14 +83,15 @@ import org.wfanet.measurement.duchy.storage.RequisitionBlobContext
 import org.wfanet.measurement.duchy.storage.RequisitionStore
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationBlobDependency
-import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationDetails.CompletedReason
+import org.wfanet.measurement.internal.duchy.ComputationDetailsKt.kingdomComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ElGamalKeyPair
 import org.wfanet.measurement.internal.duchy.ElGamalPublicKey
+import org.wfanet.measurement.internal.duchy.computationDetails
 import org.wfanet.measurement.internal.duchy.computationStageBlobMetadata
 import org.wfanet.measurement.internal.duchy.computationToken
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation
@@ -125,7 +127,17 @@ import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggrega
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_REQUISITIONS_AND_KEY_SET
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_SETUP_PHASE_INPUTS
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfig
+import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseOneAtAggregatorRequest
+import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseOneAtAggregatorResponse
+import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseTwoAtAggregatorRequest
+import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseTwoAtAggregatorResponse
+import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseTwoRequest
+import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseTwoResponse
+import org.wfanet.measurement.internal.duchy.protocol.copy
+import org.wfanet.measurement.internal.duchy.protocol.globalReachDpNoiseBaseline
+import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsSketchParameters
 import org.wfanet.measurement.storage.Store.Blob
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.system.v1alpha.AdvanceComputationRequest
@@ -336,6 +348,14 @@ private val MEASUREMENT_SPEC_FREQUENCY_ONE = measurementSpec {
 private val SERIALIZED_MEASUREMENT_SPEC_FREQUENCY_ONE: ByteString =
   MEASUREMENT_SPEC_FREQUENCY_ONE.toByteString()
 
+private val REACH_MEASUREMENT_SPEC = measurementSpec {
+  nonceHashes += TEST_REQUISITION_1.nonceHash
+  nonceHashes += TEST_REQUISITION_2.nonceHash
+  nonceHashes += TEST_REQUISITION_3.nonceHash
+  reach = reach {}
+}
+private val SERIALIZED_REACH_MEASUREMENT_SPEC: ByteString = REACH_MEASUREMENT_SPEC.toByteString()
+
 private val SERIALIZED_MEASUREMENT_SPEC_WITH_VID_SAMPLING_WIDTH =
   MEASUREMENT_SPEC_WITH_VID_SAMPLING_WIDTH.toByteString()
 
@@ -349,91 +369,116 @@ private val REQUISITION_3 =
   TEST_REQUISITION_3.toRequisitionMetadata(Requisition.State.FULFILLED, DUCHY_THREE_NAME)
 private val REQUISITIONS = listOf(REQUISITION_1, REQUISITION_2, REQUISITION_3)
 
-private val AGGREGATOR_COMPUTATION_DETAILS =
-  ComputationDetails.newBuilder()
-    .apply {
-      kingdomComputationBuilder.apply {
-        publicApiVersion = PUBLIC_API_VERSION
-        measurementPublicKey = ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
-        measurementSpec = SERIALIZED_MEASUREMENT_SPEC
-      }
-      liquidLegionsV2Builder.apply {
-        role = RoleInComputation.AGGREGATOR
-        parameters = LLV2_PARAMETERS
-        addAllParticipant(
-          listOf(COMPUTATION_PARTICIPANT_2, COMPUTATION_PARTICIPANT_3, COMPUTATION_PARTICIPANT_1)
-        )
-        combinedPublicKey = COMBINED_PUBLIC_KEY
-        // partiallyCombinedPublicKey and combinedPublicKey are the same at the aggregator.
-        partiallyCombinedPublicKey = COMBINED_PUBLIC_KEY
-        localElgamalKey = DUCHY_ONE_KEY_PAIR
-      }
+private val AGGREGATOR_COMPUTATION_DETAILS = computationDetails {
+  kingdomComputation = kingdomComputationDetails {
+    publicApiVersion = PUBLIC_API_VERSION
+    measurementPublicKey = ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
+    measurementSpec = SERIALIZED_MEASUREMENT_SPEC
+  }
+  liquidLegionsV2 =
+    LiquidLegionsSketchAggregationV2Kt.computationDetails {
+      role = RoleInComputation.AGGREGATOR
+      parameters = LLV2_PARAMETERS
+      participant +=
+        listOf(COMPUTATION_PARTICIPANT_2, COMPUTATION_PARTICIPANT_3, COMPUTATION_PARTICIPANT_1)
+      combinedPublicKey = COMBINED_PUBLIC_KEY
+      // partiallyCombinedPublicKey and combinedPublicKey are the same at the aggregator.
+      partiallyCombinedPublicKey = COMBINED_PUBLIC_KEY
+      localElgamalKey = DUCHY_ONE_KEY_PAIR
     }
-    .build()
+}
 
-private val AGGREGATOR_COMPUTATION_DETAILS_FREQUENCY_ONE =
-  ComputationDetails.newBuilder()
-    .apply {
-      kingdomComputationBuilder.apply {
-        publicApiVersion = PUBLIC_API_VERSION
-        measurementPublicKey = ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
-        measurementSpec = SERIALIZED_MEASUREMENT_SPEC_FREQUENCY_ONE
-      }
-      liquidLegionsV2Builder.apply {
-        role = RoleInComputation.AGGREGATOR
-        parameters = LLV2_PARAMETERS
-        addAllParticipant(
-          listOf(COMPUTATION_PARTICIPANT_2, COMPUTATION_PARTICIPANT_3, COMPUTATION_PARTICIPANT_1)
-        )
-        combinedPublicKey = COMBINED_PUBLIC_KEY
-        // partiallyCombinedPublicKey and combinedPublicKey are the same at the aggregator.
-        partiallyCombinedPublicKey = COMBINED_PUBLIC_KEY
-        localElgamalKey = DUCHY_ONE_KEY_PAIR
-      }
+private val AGGREGATOR_COMPUTATION_DETAILS_FREQUENCY_ONE = computationDetails {
+  kingdomComputation = kingdomComputationDetails {
+    publicApiVersion = PUBLIC_API_VERSION
+    measurementPublicKey = ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
+    measurementSpec = SERIALIZED_MEASUREMENT_SPEC_FREQUENCY_ONE
+  }
+  liquidLegionsV2 =
+    LiquidLegionsSketchAggregationV2Kt.computationDetails {
+      role = RoleInComputation.AGGREGATOR
+      parameters = LLV2_PARAMETERS
+      participant +=
+        listOf(COMPUTATION_PARTICIPANT_2, COMPUTATION_PARTICIPANT_3, COMPUTATION_PARTICIPANT_1)
+      combinedPublicKey = COMBINED_PUBLIC_KEY
+      // partiallyCombinedPublicKey and combinedPublicKey are the same at the aggregator.
+      partiallyCombinedPublicKey = COMBINED_PUBLIC_KEY
+      localElgamalKey = DUCHY_ONE_KEY_PAIR
     }
-    .build()
+}
 
-private val NON_AGGREGATOR_COMPUTATION_DETAILS =
-  ComputationDetails.newBuilder()
-    .apply {
-      kingdomComputationBuilder.apply {
-        publicApiVersion = PUBLIC_API_VERSION
-        measurementPublicKey = ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
-        measurementSpec = SERIALIZED_MEASUREMENT_SPEC
-      }
-      liquidLegionsV2Builder.apply {
-        role = RoleInComputation.NON_AGGREGATOR
-        parameters = LLV2_PARAMETERS
-        addAllParticipant(
-          listOf(COMPUTATION_PARTICIPANT_1, COMPUTATION_PARTICIPANT_2, COMPUTATION_PARTICIPANT_3)
-        )
-        combinedPublicKey = COMBINED_PUBLIC_KEY
-        partiallyCombinedPublicKey = PARTIALLY_COMBINED_PUBLIC_KEY
-        localElgamalKey = DUCHY_ONE_KEY_PAIR
-      }
+private val AGGREGATOR_REACH_COMPUTATION_DETAILS = computationDetails {
+  kingdomComputation = kingdomComputationDetails {
+    publicApiVersion = PUBLIC_API_VERSION
+    measurementPublicKey = ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
+    measurementSpec = SERIALIZED_REACH_MEASUREMENT_SPEC
+  }
+  liquidLegionsV2 =
+    LiquidLegionsSketchAggregationV2Kt.computationDetails {
+      role = RoleInComputation.AGGREGATOR
+      parameters = LLV2_PARAMETERS
+      participant +=
+        listOf(COMPUTATION_PARTICIPANT_2, COMPUTATION_PARTICIPANT_3, COMPUTATION_PARTICIPANT_1)
+      combinedPublicKey = COMBINED_PUBLIC_KEY
+      // partiallyCombinedPublicKey and combinedPublicKey are the same at the aggregator.
+      partiallyCombinedPublicKey = COMBINED_PUBLIC_KEY
+      localElgamalKey = DUCHY_ONE_KEY_PAIR
     }
-    .build()
+}
 
-private val NON_AGGREGATOR_COMPUTATION_DETAILS_FREQUENCY_ONE =
-  ComputationDetails.newBuilder()
-    .apply {
-      kingdomComputationBuilder.apply {
-        publicApiVersion = PUBLIC_API_VERSION
-        measurementPublicKey = ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
-        measurementSpec = SERIALIZED_MEASUREMENT_SPEC_FREQUENCY_ONE
-      }
-      liquidLegionsV2Builder.apply {
-        role = RoleInComputation.NON_AGGREGATOR
-        parameters = LLV2_PARAMETERS
-        addAllParticipant(
-          listOf(COMPUTATION_PARTICIPANT_1, COMPUTATION_PARTICIPANT_2, COMPUTATION_PARTICIPANT_3)
-        )
-        combinedPublicKey = COMBINED_PUBLIC_KEY
-        partiallyCombinedPublicKey = PARTIALLY_COMBINED_PUBLIC_KEY
-        localElgamalKey = DUCHY_ONE_KEY_PAIR
-      }
+private val NON_AGGREGATOR_COMPUTATION_DETAILS = computationDetails {
+  kingdomComputation = kingdomComputationDetails {
+    publicApiVersion = PUBLIC_API_VERSION
+    measurementPublicKey = ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
+    measurementSpec = SERIALIZED_MEASUREMENT_SPEC
+  }
+  liquidLegionsV2 =
+    LiquidLegionsSketchAggregationV2Kt.computationDetails {
+      role = RoleInComputation.NON_AGGREGATOR
+      parameters = LLV2_PARAMETERS
+      participant +=
+        listOf(COMPUTATION_PARTICIPANT_1, COMPUTATION_PARTICIPANT_2, COMPUTATION_PARTICIPANT_3)
+      combinedPublicKey = COMBINED_PUBLIC_KEY
+      partiallyCombinedPublicKey = PARTIALLY_COMBINED_PUBLIC_KEY
+      localElgamalKey = DUCHY_ONE_KEY_PAIR
     }
-    .build()
+}
+
+private val NON_AGGREGATOR_COMPUTATION_DETAILS_FREQUENCY_ONE = computationDetails {
+  kingdomComputation = kingdomComputationDetails {
+    publicApiVersion = PUBLIC_API_VERSION
+    measurementPublicKey = ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
+    measurementSpec = SERIALIZED_MEASUREMENT_SPEC_FREQUENCY_ONE
+  }
+  liquidLegionsV2 =
+    LiquidLegionsSketchAggregationV2Kt.computationDetails {
+      role = RoleInComputation.NON_AGGREGATOR
+      parameters = LLV2_PARAMETERS
+      participant +=
+        listOf(COMPUTATION_PARTICIPANT_1, COMPUTATION_PARTICIPANT_2, COMPUTATION_PARTICIPANT_3)
+      combinedPublicKey = COMBINED_PUBLIC_KEY
+      partiallyCombinedPublicKey = PARTIALLY_COMBINED_PUBLIC_KEY
+      localElgamalKey = DUCHY_ONE_KEY_PAIR
+    }
+}
+
+private val NON_AGGREGATOR_REACH_COMPUTATION_DETAILS = computationDetails {
+  kingdomComputation = kingdomComputationDetails {
+    publicApiVersion = PUBLIC_API_VERSION
+    measurementPublicKey = ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
+    measurementSpec = SERIALIZED_REACH_MEASUREMENT_SPEC
+  }
+  liquidLegionsV2 =
+    LiquidLegionsSketchAggregationV2Kt.computationDetails {
+      role = RoleInComputation.NON_AGGREGATOR
+      parameters = LLV2_PARAMETERS
+      participant +=
+        listOf(COMPUTATION_PARTICIPANT_1, COMPUTATION_PARTICIPANT_2, COMPUTATION_PARTICIPANT_3)
+      combinedPublicKey = COMBINED_PUBLIC_KEY
+      partiallyCombinedPublicKey = PARTIALLY_COMBINED_PUBLIC_KEY
+      localElgamalKey = DUCHY_ONE_KEY_PAIR
+    }
+}
 
 @RunWith(JUnit4::class)
 class LiquidLegionsV2MillTest {
@@ -1631,6 +1676,58 @@ class LiquidLegionsV2MillTest {
   }
 
   @Test
+  fun `execution phase one at aggregator with reach measurement`() = runBlocking {
+    // Stage 0. preparing the storage and set up mock
+    val partialToken =
+      FakeComputationsDatabase.newPartialToken(
+          localId = LOCAL_ID,
+          stage = EXECUTION_PHASE_ONE.toProtocolStage()
+        )
+        .build()
+    val inputBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_ONE.toProtocolStage(), 0L)
+    val calculatedBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_ONE.toProtocolStage(), 1L)
+    computationStore.writeString(inputBlobContext, "data")
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
+      computationDetails = AGGREGATOR_REACH_COMPUTATION_DETAILS,
+      blobs =
+        listOf(
+          inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
+          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)
+        ),
+      requisitions = REQUISITIONS
+    )
+
+    var cryptoRequest = CompleteExecutionPhaseOneAtAggregatorRequest.getDefaultInstance()
+
+    whenever(mockCryptoWorker.completeExecutionPhaseOneAtAggregator(any())).thenAnswer {
+      cryptoRequest = it.getArgument(0)
+      val postFix = ByteString.copyFromUtf8("-completeExecutionPhaseOneAtAggregator-done")
+      completeExecutionPhaseOneAtAggregatorResponse {
+        flagCountTuples = cryptoRequest.combinedRegisterVector.concat(postFix)
+      }
+    }
+
+    // Process the above computation
+    aggregatorMill.pollAndProcessNextComputation()
+
+    // Check that the request sent to the crypto worker was correct.
+    assertThat(cryptoRequest)
+      .isEqualTo(
+        completeExecutionPhaseOneAtAggregatorRequest {
+          combinedRegisterVector = ByteString.copyFromUtf8("data")
+          localElGamalKeyPair = DUCHY_ONE_KEY_PAIR
+          compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
+          curveId = CURVE_ID
+          totalSketchesCount = REQUISITIONS.size
+        }
+      )
+  }
+
+  @Test
   fun `execution phase two at non-aggregator using calculated result`() = runBlocking {
     // Stage 0. preparing the storage and set up mock
     val partialToken =
@@ -1776,6 +1873,57 @@ class LiquidLegionsV2MillTest {
             curveId = CURVE_ID
           }
           .build()
+      )
+  }
+
+  @Test
+  fun `execution phase two at non-aggregator with reach measurement`() = runBlocking {
+    // Stage 0. preparing the storage and set up mock
+    val partialToken =
+      FakeComputationsDatabase.newPartialToken(
+          localId = LOCAL_ID,
+          stage = EXECUTION_PHASE_TWO.toProtocolStage()
+        )
+        .build()
+    val inputBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_TWO.toProtocolStage(), 0L)
+    val calculatedBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_TWO.toProtocolStage(), 1L)
+    computationStore.writeString(inputBlobContext, "data")
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
+      computationDetails = NON_AGGREGATOR_REACH_COMPUTATION_DETAILS,
+      blobs =
+        listOf(
+          inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
+          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)
+        ),
+      requisitions = REQUISITIONS
+    )
+
+    var cryptoRequest = CompleteExecutionPhaseTwoRequest.getDefaultInstance()
+    whenever(mockCryptoWorker.completeExecutionPhaseTwo(any())).thenAnswer {
+      cryptoRequest = it.getArgument(0)
+      val postFix = ByteString.copyFromUtf8("-completeExecutionPhaseTwo-done")
+      completeExecutionPhaseTwoResponse {
+        flagCountTuples = cryptoRequest.flagCountTuples.concat(postFix)
+      }
+    }
+
+    // Process the above computation
+    nonAggregatorMill.pollAndProcessNextComputation()
+
+    // Check that the request sent to the crypto worker was correct.
+    assertThat(cryptoRequest)
+      .isEqualTo(
+        completeExecutionPhaseTwoRequest {
+          flagCountTuples = ByteString.copyFromUtf8("data")
+          localElGamalKeyPair = DUCHY_ONE_KEY_PAIR
+          compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
+          partialCompositeElGamalPublicKey = PARTIALLY_COMBINED_PUBLIC_KEY
+          curveId = CURVE_ID
+        }
       )
   }
 
@@ -1926,6 +2074,116 @@ class LiquidLegionsV2MillTest {
       AGGREGATOR_COMPUTATION_DETAILS.copy {
         kingdomComputation =
           kingdomComputation.copy { measurementSpec = SERIALIZED_MEASUREMENT_SPEC_FREQUENCY_ONE }
+      }
+    fakeComputationDb.addComputation(
+      partialToken.localComputationId,
+      partialToken.computationStage,
+      computationDetails = computationDetailsWithVidSamplingWidth,
+      blobs =
+        listOf(
+          inputBlobContext.toMetadata(ComputationBlobDependency.INPUT),
+          newEmptyOutputBlobMetadata(calculatedBlobContext.blobId)
+        ),
+      requisitions = REQUISITIONS
+    )
+
+    val testReach = 123L
+    var cryptoRequest = CompleteExecutionPhaseTwoAtAggregatorRequest.getDefaultInstance()
+    whenever(mockCryptoWorker.completeExecutionPhaseTwoAtAggregator(any())).thenAnswer {
+      cryptoRequest = it.getArgument(0)
+      val postFix = ByteString.copyFromUtf8("-completeExecutionPhaseTwoAtAggregator-done")
+      completeExecutionPhaseTwoAtAggregatorResponse {
+        sameKeyAggregatorMatrix = cryptoRequest.flagCountTuples.concat(postFix)
+        reach = testReach
+      }
+    }
+
+    var systemComputationResult = SetComputationResultRequest.getDefaultInstance()
+    whenever(mockSystemComputations.setComputationResult(any())).thenAnswer {
+      systemComputationResult = it.getArgument(0)
+      Computation.getDefaultInstance()
+    }
+
+    // Process the above computation
+    aggregatorMill.pollAndProcessNextComputation()
+
+    // Check the status of the computation
+    val blobKey = calculatedBlobContext.blobKey
+    assertThat(fakeComputationDb[LOCAL_ID])
+      .isEqualTo(
+        computationToken {
+          globalComputationId = GLOBAL_ID
+          localComputationId = LOCAL_ID
+          attempt = 1
+          computationStage = COMPLETE.toProtocolStage()
+          version = 4 // claimTask + writeOutputBlob + transitionStage
+          computationDetails =
+            computationDetailsWithReach.copy { endingState = CompletedReason.SUCCEEDED }
+          requisitions += REQUISITIONS
+        }
+      )
+    assertThat(computationStore.get(blobKey)?.readToString()).isNotEmpty()
+
+    assertThat(systemComputationResult.name).isEqualTo("computations/$GLOBAL_ID")
+    // The signature is non-deterministic, so we only verity the encryption is not empty.
+    assertThat(systemComputationResult.encryptedResult).isNotEmpty()
+    assertThat(systemComputationResult)
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        setComputationResultRequest {
+          name = "computations/$GLOBAL_ID"
+          aggregatorCertificate = CONSENT_SIGNALING_CERT_NAME
+          resultPublicKey = ENCRYPTION_PUBLIC_KEY.toByteString()
+        }
+      )
+
+    // Check that the cryptoRequest is correct
+    assertThat(cryptoRequest)
+      .isEqualTo(
+        completeExecutionPhaseTwoAtAggregatorRequest {
+          flagCountTuples = ByteString.copyFromUtf8("data")
+          localElGamalKeyPair = DUCHY_ONE_KEY_PAIR
+          compositeElGamalPublicKey = COMBINED_PUBLIC_KEY
+          curveId = CURVE_ID
+          maximumFrequency = 1
+          vidSamplingIntervalWidth = 0.0f
+          liquidLegionsParameters = liquidLegionsSketchParameters {
+            decayRate = DECAY_RATE
+            size = SKETCH_SIZE
+          }
+          reachDpNoiseBaseline = globalReachDpNoiseBaseline {
+            contributorsCount = WORKER_COUNT
+            globalReachDpNoise = TEST_NOISE_CONFIG.reachNoiseConfig.globalReachDpNoise
+          }
+        }
+      )
+  }
+
+  @Test
+  fun `execution phase two at aggregator using reach measurement`() = runBlocking {
+    // Stage 0. preparing the storage and set up mock
+    val partialToken =
+      FakeComputationsDatabase.newPartialToken(
+          localId = LOCAL_ID,
+          stage = EXECUTION_PHASE_TWO.toProtocolStage()
+        )
+        .build()
+    val computationDetailsWithReach =
+      AGGREGATOR_COMPUTATION_DETAILS.copy {
+        liquidLegionsV2 =
+          liquidLegionsV2.copy { reachEstimate = reachEstimate.copy { reach = 123 } }
+        kingdomComputation =
+          kingdomComputation.copy { measurementSpec = SERIALIZED_REACH_MEASUREMENT_SPEC }
+      }
+    val inputBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_TWO.toProtocolStage(), 0L)
+    val calculatedBlobContext =
+      ComputationBlobContext(GLOBAL_ID, EXECUTION_PHASE_TWO.toProtocolStage(), 1L)
+    computationStore.writeString(inputBlobContext, "data")
+    val computationDetailsWithVidSamplingWidth =
+      AGGREGATOR_COMPUTATION_DETAILS.copy {
+        kingdomComputation =
+          kingdomComputation.copy { measurementSpec = SERIALIZED_REACH_MEASUREMENT_SPEC }
       }
     fakeComputationDb.addComputation(
       partialToken.localComputationId,

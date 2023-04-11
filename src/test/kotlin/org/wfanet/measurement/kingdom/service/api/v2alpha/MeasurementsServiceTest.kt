@@ -55,6 +55,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
@@ -296,6 +297,86 @@ class MeasurementsServiceTest {
           clearUpdateTime()
           clearExternalMeasurementId()
           details = details.copy { clearFailure() }
+          results.clear()
+        }
+      )
+
+    assertThat(result)
+      .ignoringRepeatedFieldOrder()
+      .ignoringFieldDescriptors(
+        ProtocolConfig.getDescriptor().findFieldByNumber(ProtocolConfig.NAME_FIELD_NUMBER)
+      )
+      .isEqualTo(measurement)
+  }
+
+  @Test
+  fun `createMeasurement with reach-only and single EDP returns result with direct protocol`() {
+    val measurement =
+      MEASUREMENT.copy {
+        val firstDataProvider = dataProviders.first()
+        dataProviders.clear()
+        dataProviders += firstDataProvider
+
+        this.measurementSpec =
+          measurementSpec.copy {
+            data =
+              MEASUREMENT_SPEC.copy {
+                  clearReachAndFrequency()
+                  reach = reach {
+                    privacyParams = differentialPrivacyParams {
+                      epsilon = 1.0
+                      delta = 1.0
+                    }
+                  }
+                  val firstNonceHash = nonceHashes.first()
+                  nonceHashes.clear()
+                  nonceHashes += firstNonceHash
+                }
+                .toByteString()
+          }
+
+        this.protocolConfig =
+          protocolConfig.copy {
+            measurementType = ProtocolConfig.MeasurementType.REACH
+            protocols.clear()
+            protocols += protocol { direct = ProtocolConfig.Direct.getDefaultInstance() }
+          }
+      }
+    val internalMeasurement =
+      INTERNAL_MEASUREMENT.copy {
+        dataProviders.remove(EXTERNAL_DATA_PROVIDER_IDS.last().value)
+        details =
+          details.copy {
+            measurementSpec = measurement.measurementSpec.data
+            clearProtocolConfig()
+            clearDuchyProtocolConfig()
+          }
+      }
+    internalMeasurementsMock.stub {
+      onBlocking { createMeasurement(any()) }.thenReturn(internalMeasurement)
+    }
+
+    val request = createMeasurementRequest {
+      this.measurement =
+        measurement.copy {
+          clearName()
+          clearProtocolConfig()
+        }
+    }
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.createMeasurement(request) }
+      }
+
+    verifyProtoArgument(
+        internalMeasurementsMock,
+        MeasurementsGrpcKt.MeasurementsCoroutineImplBase::createMeasurement
+      )
+      .isEqualTo(
+        internalMeasurement.copy {
+          clearUpdateTime()
+          clearExternalMeasurementId()
+          this.details = details.copy { clearFailure() }
           results.clear()
         }
       )
@@ -723,6 +804,104 @@ class MeasurementsServiceTest {
                                 delta = 0.0
                               }
                               frequencyPrivacyParams = differentialPrivacyParams {
+                                epsilon = 0.0
+                                delta = 0.0
+                              }
+                            }
+                            vidSamplingInterval = vidSamplingInterval { width = 1.0F }
+                          }
+                          .toByteString()
+                      signature = UPDATE_TIME.toByteString()
+                    }
+                  }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createMeasurement throws INVALID_ARGUMENT when Reach-only privacy params are missing`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest {
+                measurement =
+                  MEASUREMENT.copy {
+                    measurementSpec = signedData {
+                      data =
+                        MEASUREMENT_SPEC.copy {
+                            clearReachAndFrequency()
+                            reach = reach {}
+                            vidSamplingInterval = vidSamplingInterval { width = 1.0F }
+                          }
+                          .toByteString()
+                      signature = UPDATE_TIME.toByteString()
+                    }
+                  }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createMeasurement throws INVALID_ARGUMENT when Reach-only vid sampling interval is missing`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest {
+                measurement =
+                  MEASUREMENT.copy {
+                    measurementSpec = signedData {
+                      data =
+                        MEASUREMENT_SPEC.copy {
+                            clearReachAndFrequency()
+                            clearVidSamplingInterval()
+                            reach = reach {
+                              privacyParams = differentialPrivacyParams {
+                                epsilon = 1.0
+                                delta = 1.0
+                              }
+                            }
+                          }
+                          .toByteString()
+                      signature = UPDATE_TIME.toByteString()
+                    }
+                  }
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createMeasurement throws INVALID_ARGUMENT when Reach-only epsilon privacy param is 0`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.createMeasurement(
+              createMeasurementRequest {
+                measurement =
+                  MEASUREMENT.copy {
+                    measurementSpec = signedData {
+                      data =
+                        MEASUREMENT_SPEC.copy {
+                            clearReachAndFrequency()
+                            clearVidSamplingInterval()
+                            reach = reach {
+                              privacyParams = differentialPrivacyParams {
                                 epsilon = 0.0
                                 delta = 0.0
                               }
