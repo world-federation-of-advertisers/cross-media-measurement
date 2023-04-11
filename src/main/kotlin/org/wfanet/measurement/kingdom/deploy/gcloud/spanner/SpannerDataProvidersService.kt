@@ -24,6 +24,7 @@ import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetDataProviderRequest
 import org.wfanet.measurement.internal.kingdom.ReplaceDataProviderRequiredDuchiesRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateDataProvider
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ReplaceDataProviderRequiredDuchies
@@ -55,6 +56,10 @@ class SpannerDataProvidersService(
     grpcRequire(request.externalDataProviderId != null) {
       "externalDataProviderId field is missing."
     }
-    return ReplaceDataProviderRequiredDuchies(request).execute(client, idGenerator)
+    try {
+      return ReplaceDataProviderRequiredDuchies(request).execute(client, idGenerator)
+    } catch (e: DataProviderNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "DataProvider not found." }
+    }
   }
 }
