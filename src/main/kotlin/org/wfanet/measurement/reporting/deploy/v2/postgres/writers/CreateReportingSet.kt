@@ -78,12 +78,13 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
       }
       ReportingSet.ValueCase.COMPOSITE -> {
         val reportingSetReader = ReportingSetReader(transactionContext)
-        val insertSetExpressionBuilder = newBoundStatementBuilder(
-          """
+        val insertSetExpressionBuilder =
+          newBoundStatementBuilder(
+            """
           INSERT INTO SetExpressions (MeasurementConsumerId, ReportingSetId, SetExpressionId, Root, Operation, LeftHandSetExpressionId, LeftHandReportingSetId, RightHandSetExpressionId, RightHandReportingSetId)
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
           """
-        )
+          )
         insertSetExpressions(
           insertSetExpressionBuilder,
           reportingSetReader,
@@ -111,18 +112,20 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
     reportingSetId: InternalId,
     eventGroups: List<ReportingSet.Primitive.EventGroupKey>
   ) {
-    val insertEventGroupBuilder = newBoundStatementBuilder(
-      """
+    val insertEventGroupBuilder =
+      newBoundStatementBuilder(
+        """
       INSERT INTO EventGroups (MeasurementConsumerId, EventGroupId, CmmsDataProviderId, CmmsEventGroupId)
       VALUES ($1, $2, $3, $4)
       """
-    )
-    val insertReportingSetEventGroupBuilder = newBoundStatementBuilder(
-      """
+      )
+    val insertReportingSetEventGroupBuilder =
+      newBoundStatementBuilder(
+        """
       INSERT INTO ReportingSetEventGroups (MeasurementConsumerId, ReportingSetId, EventGroupId)
       VALUES ($1, $2, $3)
       """
-    )
+      )
 
     eventGroups.forEach {
       val eventGroupResult: EventGroupReader.Result? =
@@ -257,30 +260,34 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
     reportingSetId: InternalId,
     weightedSubsetUnions: List<WeightedSubsetUnion>
   ) {
-    val insertWeightedSubsetUnionBuilder = newBoundStatementBuilder(
-      """
+    val insertWeightedSubsetUnionBuilder =
+      newBoundStatementBuilder(
+        """
         INSERT INTO WeightedSubsetUnions (MeasurementConsumerId, ReportingSetId, WeightedSubsetUnionId, Weight)
         VALUES ($1, $2, $3, $4)
         """
-    )
-    val insertPrimitiveReportingSetBasisBuilder = newBoundStatementBuilder(
-      """
+      )
+    val insertPrimitiveReportingSetBasisBuilder =
+      newBoundStatementBuilder(
+        """
         INSERT INTO PrimitiveReportingSetBases (MeasurementConsumerId, PrimitiveReportingSetBasisId, PrimitiveReportingSetId)
         VALUES ($1, $2, $3)
         """
-    )
-    val insertWeightedSubsetUnionPrimitiveReportingSetBasisBuilder = newBoundStatementBuilder(
-      """
+      )
+    val insertWeightedSubsetUnionPrimitiveReportingSetBasisBuilder =
+      newBoundStatementBuilder(
+        """
         INSERT INTO WeightedSubsetUnionPrimitiveReportingSetBases (MeasurementConsumerId, ReportingSetId, WeightedSubsetUnionId, PrimitiveReportingSetBasisId)
         VALUES ($1, $2, $3, $4)
         """
-    )
-    val insertPrimitiveReportingSetBasisFilterBuilder = newBoundStatementBuilder(
-      """
+      )
+    val insertPrimitiveReportingSetBasisFilterBuilder =
+      newBoundStatementBuilder(
+        """
         INSERT INTO PrimitiveReportingSetBasisFilters (MeasurementConsumerId, PrimitiveReportingSetBasisId, PrimitiveReportingSetBasisFilterId, Filter)
         VALUES ($1, $2, $3, $4)
         """
-    )
+      )
 
     weightedSubsetUnions.forEach { weightedSubsetUnion ->
       val weightedSubsetUnionId = idGenerator.generateInternalId()
