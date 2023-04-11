@@ -14,8 +14,6 @@
 
 package k8s
 
-import "strings"
-
 #GCloudProject:   "halo-cmm-dev"
 #SpannerInstance: "dev-instance"
 
@@ -56,12 +54,8 @@ import "strings"
 	repoPrefix: string @tag("image_repo_prefix")
 }
 
-#ImageConfig: Config={
-	#ContainerRegistryConfig
-
-	repoSuffix: string
-	tag:        string @tag("image_tag")
-	image:      strings.Join([Config.registry, Config.repoPrefix, repoSuffix], "/") + ":\(tag)"
+#ImageConfig: {
+	tag: string @tag("image_tag")
 }
 
 #PostgresConfig: {

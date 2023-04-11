@@ -28,6 +28,7 @@ message Resources {
     message MeasurementConsumer {
       bytes authority_key_identifier = 1;
       string api_key = 2;
+      string certificate = 3;
     }
     message DataProvider {
       bytes authority_key_identifier = 1;
