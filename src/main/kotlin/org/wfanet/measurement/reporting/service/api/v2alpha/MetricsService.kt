@@ -200,6 +200,8 @@ class MetricsService(
 
       for (internalMetric in internalMetricsList) {
         for (weightedMeasurement in internalMetric.weightedMeasurementsList) {
+          // If the internal measurement has a CMMS measurement ID, the CMMS measurement has been
+          // created already.
           if (weightedMeasurement.measurement.cmmsMeasurementId.isNotBlank()) {
             continue
           }
