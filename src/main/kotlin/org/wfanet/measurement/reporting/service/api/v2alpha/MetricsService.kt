@@ -71,6 +71,7 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
@@ -127,64 +128,6 @@ private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 
-private const val DIFFERENTIAL_PRIVACY_DELTA = 1e-12
-
-private const val NUMBER_VID_BUCKETS = 300
-private const val REACH_ONLY_VID_SAMPLING_WIDTH = 3.0f / NUMBER_VID_BUCKETS
-private const val NUMBER_REACH_ONLY_BUCKETS = 16
-private val REACH_ONLY_VID_SAMPLING_START_LIST =
-  (0 until NUMBER_REACH_ONLY_BUCKETS).map { it * REACH_ONLY_VID_SAMPLING_WIDTH }
-private const val REACH_ONLY_REACH_EPSILON = 0.0041
-private const val REACH_ONLY_FREQUENCY_EPSILON = 0.0001
-private const val REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER = 1
-
-private const val REACH_FREQUENCY_VID_SAMPLING_WIDTH = 5.0f / NUMBER_VID_BUCKETS
-private const val NUMBER_REACH_FREQUENCY_BUCKETS = 19
-private val REACH_FREQUENCY_VID_SAMPLING_START_LIST =
-  (0 until NUMBER_REACH_FREQUENCY_BUCKETS).map {
-    REACH_ONLY_VID_SAMPLING_START_LIST.last() +
-      REACH_ONLY_VID_SAMPLING_WIDTH +
-      it * REACH_FREQUENCY_VID_SAMPLING_WIDTH
-  }
-private const val REACH_FREQUENCY_REACH_EPSILON = 0.0033
-private const val REACH_FREQUENCY_FREQUENCY_EPSILON = 0.115
-private const val REACH_FREQUENCY_MAXIMUM_FREQUENCY_PER_USER = 10
-
-private const val IMPRESSION_VID_SAMPLING_WIDTH = 62.0f / NUMBER_VID_BUCKETS
-private const val NUMBER_IMPRESSION_BUCKETS = 1
-private val IMPRESSION_VID_SAMPLING_START_LIST =
-  (0 until NUMBER_IMPRESSION_BUCKETS).map {
-    REACH_FREQUENCY_VID_SAMPLING_START_LIST.last() +
-      REACH_FREQUENCY_VID_SAMPLING_WIDTH +
-      it * IMPRESSION_VID_SAMPLING_WIDTH
-  }
-private const val IMPRESSION_EPSILON = 0.0011
-private const val IMPRESSION_MAXIMUM_FREQUENCY_PER_USER = 60
-
-private const val WATCH_DURATION_VID_SAMPLING_WIDTH = 95.0f / NUMBER_VID_BUCKETS
-private const val NUMBER_WATCH_DURATION_BUCKETS = 1
-private val WATCH_DURATION_VID_SAMPLING_START_LIST =
-  (0 until NUMBER_WATCH_DURATION_BUCKETS).map {
-    IMPRESSION_VID_SAMPLING_START_LIST.last() +
-      IMPRESSION_VID_SAMPLING_WIDTH +
-      it * WATCH_DURATION_VID_SAMPLING_WIDTH
-  }
-private const val WATCH_DURATION_EPSILON = 0.001
-private const val MAXIMUM_WATCH_DURATION_PER_USER = 4000
-
-private val REACH_ONLY_MEASUREMENT_SPEC =
-  MeasurementSpecKt.reachAndFrequency {
-    reachPrivacyParams = differentialPrivacyParams {
-      epsilon = REACH_ONLY_REACH_EPSILON
-      delta = DIFFERENTIAL_PRIVACY_DELTA
-    }
-    frequencyPrivacyParams = differentialPrivacyParams {
-      epsilon = REACH_ONLY_FREQUENCY_EPSILON
-      delta = DIFFERENTIAL_PRIVACY_DELTA
-    }
-    maximumFrequencyPerUser = REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER
-  }
-
 class MetricsService(
   private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
   private val internalMeasurementsStub: InternalMeasurementsCoroutineStub,
@@ -197,6 +140,7 @@ class MetricsService(
   private val secureRandom: SecureRandom,
   private val signingPrivateKeyDir: File,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
+  private val metricSpecConfig: MetricSpecConfig,
 ) : MetricsCoroutineImplBase() {
 
   private val measurementSupplier =
@@ -396,9 +340,7 @@ class MetricsService(
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
         when (metricSpec.typeCase) {
           InternalMetricSpec.TypeCase.REACH -> {
-            // TODO(@riemanli): convert the reach params in metricSpec after the kingdom API is
-            // updated.
-            reachAndFrequency = REACH_ONLY_MEASUREMENT_SPEC
+            reach = metricSpec.reach.toReach()
           }
           InternalMetricSpec.TypeCase.FREQUENCY_HISTOGRAM -> {
             reachAndFrequency = metricSpec.frequencyHistogram.toReachAndFrequency()
@@ -756,7 +698,7 @@ class MetricsService(
       this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
       externalReportingSetId = internalReportingSet.externalReportingSetId
       timeInterval = request.metric.timeInterval.toInternal()
-      metricSpec = buildInternalMetricSpec(request.metric.metricSpec, secureRandom)
+      metricSpec = buildInternalMetricSpec(request.metric.metricSpec)
       weightedMeasurements +=
         buildInitialInternalMeasurements(
           cmmsMeasurementConsumerId,
@@ -764,6 +706,153 @@ class MetricsService(
           internalReportingSet
         )
       details = InternalMetricKt.details { filters += request.metric.filtersList }
+    }
+  }
+
+  /** Builds an [InternalMetricSpec] given a [MetricSpec]. */
+  private fun buildInternalMetricSpec(
+    metricSpec: MetricSpec,
+  ): InternalMetricSpec {
+    return internalMetricSpec {
+      val defaultVidSamplingInterval: InternalMetricSpec.VidSamplingInterval =
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+        when (metricSpec.typeCase) {
+          MetricSpec.TypeCase.REACH -> {
+            reach = buildInternalReachParams(metricSpec.reach)
+            metricSpecConfig.reachVidSamplingInterval.toInternal()
+          }
+          MetricSpec.TypeCase.FREQUENCY_HISTOGRAM -> {
+            frequencyHistogram =
+              buildInternalFrequencyHistogramParams(metricSpec.frequencyHistogram)
+            metricSpecConfig.frequencyHistogramVidSamplingInterval.toInternal()
+          }
+          MetricSpec.TypeCase.IMPRESSION_COUNT -> {
+            impressionCount = buildInternalImpressionCountParams(metricSpec.impressionCount)
+            metricSpecConfig.impressionCountVidSamplingInterval.toInternal()
+          }
+          MetricSpec.TypeCase.WATCH_DURATION -> {
+            watchDuration = buildInternalWatchDurationParams(metricSpec.watchDuration)
+            metricSpecConfig.watchDurationVidSamplingInterval.toInternal()
+          }
+          MetricSpec.TypeCase.TYPE_NOT_SET ->
+            failGrpc(Status.INVALID_ARGUMENT) { "The metric type in Metric is not specified." }
+        }
+
+      vidSamplingInterval =
+        if (metricSpec.hasVidSamplingInterval()) {
+          grpcRequireNotNull(metricSpec.vidSamplingInterval.start) {
+            "vidSamplingInterval.start is not set"
+          }
+          grpcRequireNotNull(metricSpec.vidSamplingInterval.width) {
+            "vidSamplingInterval.width is not set"
+          }
+          metricSpec.vidSamplingInterval.toInternal()
+        } else defaultVidSamplingInterval
+    }
+  }
+
+  /** Builds an [InternalMetricSpec.ReachParams] given a [MetricSpec.ReachParams]. */
+  private fun buildInternalReachParams(
+    reachParams: MetricSpec.ReachParams,
+  ): InternalMetricSpec.ReachParams {
+    grpcRequire(reachParams.hasPrivacyParams()) { "privacyParams in reach is not set." }
+
+    return InternalMetricSpecKt.reachParams {
+      privacyParams =
+        buildInternalDifferentialPrivacyParams(
+          reachParams.privacyParams,
+          metricSpecConfig.reachParams.privacyParams.epsilon,
+          metricSpecConfig.reachParams.privacyParams.delta
+        )
+    }
+  }
+
+  /**
+   * Builds an [InternalMetricSpec.FrequencyHistogramParams] given a
+   * [MetricSpec.FrequencyHistogramParams].
+   */
+  private fun buildInternalFrequencyHistogramParams(
+    frequencyHistogramParams: MetricSpec.FrequencyHistogramParams
+  ): InternalMetricSpec.FrequencyHistogramParams {
+    grpcRequire(frequencyHistogramParams.hasReachPrivacyParams()) {
+      "reachPrivacyParams in frequency histogram is not set."
+    }
+    grpcRequire(frequencyHistogramParams.hasFrequencyPrivacyParams()) {
+      "frequencyPrivacyParams in frequency histogram is not set."
+    }
+
+    return InternalMetricSpecKt.frequencyHistogramParams {
+      reachPrivacyParams =
+        buildInternalDifferentialPrivacyParams(
+          frequencyHistogramParams.reachPrivacyParams,
+          metricSpecConfig.frequencyHistogramParams.reachPrivacyParams.epsilon,
+          metricSpecConfig.frequencyHistogramParams.reachPrivacyParams.delta
+        )
+      frequencyPrivacyParams =
+        buildInternalDifferentialPrivacyParams(
+          frequencyHistogramParams.frequencyPrivacyParams,
+          metricSpecConfig.frequencyHistogramParams.frequencyPrivacyParams.epsilon,
+          metricSpecConfig.frequencyHistogramParams.frequencyPrivacyParams.delta
+        )
+      maximumFrequencyPerUser =
+        if (frequencyHistogramParams.hasMaximumFrequencyPerUser()) {
+          frequencyHistogramParams.maximumFrequencyPerUser
+        } else {
+          metricSpecConfig.frequencyHistogramParams.maximumFrequencyPerUser
+        }
+    }
+  }
+
+  /**
+   * Builds an [InternalMetricSpec.WatchDurationParams] given a [MetricSpec.WatchDurationParams].
+   */
+  private fun buildInternalWatchDurationParams(
+    watchDurationParams: MetricSpec.WatchDurationParams
+  ): InternalMetricSpec.WatchDurationParams {
+    grpcRequire(watchDurationParams.hasPrivacyParams()) {
+      "privacyParams in watch duration is not set."
+    }
+
+    return InternalMetricSpecKt.watchDurationParams {
+      privacyParams =
+        buildInternalDifferentialPrivacyParams(
+          watchDurationParams.privacyParams,
+          metricSpecConfig.watchDurationParams.privacyParams.epsilon,
+          metricSpecConfig.watchDurationParams.privacyParams.delta
+        )
+      maximumWatchDurationPerUser =
+        if (watchDurationParams.hasMaximumWatchDurationPerUser()) {
+          watchDurationParams.maximumWatchDurationPerUser
+        } else {
+          metricSpecConfig.watchDurationParams.maximumWatchDurationPerUser
+        }
+    }
+  }
+
+  /**
+   * Builds an [InternalMetricSpec.ImpressionCountParams] given a
+   * [MetricSpec.ImpressionCountParams].
+   */
+  private fun buildInternalImpressionCountParams(
+    impressionCountParams: MetricSpec.ImpressionCountParams
+  ): InternalMetricSpec.ImpressionCountParams {
+    grpcRequire(impressionCountParams.hasPrivacyParams()) {
+      "privacyParams in impression count is not set."
+    }
+
+    return InternalMetricSpecKt.impressionCountParams {
+      privacyParams =
+        buildInternalDifferentialPrivacyParams(
+          impressionCountParams.privacyParams,
+          metricSpecConfig.impressionCountParams.privacyParams.epsilon,
+          metricSpecConfig.impressionCountParams.privacyParams.delta
+        )
+      maximumFrequencyPerUser =
+        if (impressionCountParams.hasMaximumFrequencyPerUser()) {
+          impressionCountParams.maximumFrequencyPerUser
+        } else {
+          metricSpecConfig.impressionCountParams.maximumFrequencyPerUser
+        }
     }
   }
 
@@ -822,6 +911,19 @@ class MetricsService(
   }
 }
 
+/**
+ * Converts an [MetricSpecConfig.VidSamplingInterval] to an
+ * [InternalMetricSpec.VidSamplingInterval].
+ */
+private fun MetricSpecConfig.VidSamplingInterval.toInternal():
+  InternalMetricSpec.VidSamplingInterval {
+  val source = this
+  return InternalMetricSpecKt.vidSamplingInterval {
+    start = source.start
+    width = source.width
+  }
+}
+
 /** Converts an [InternalMetricSpec.VidSamplingInterval] to a CMMS [VidSamplingInterval]. */
 private fun InternalMetricSpec.VidSamplingInterval.toCmmsVidSamplingInterval():
   VidSamplingInterval {
@@ -851,159 +953,12 @@ private fun InternalTimeInterval.toCmmsTimeInterval(): CmmsTimeInterval {
   }
 }
 
-/** Converts a [MetricSpec] to an [InternalMetricSpec]. */
-private fun buildInternalMetricSpec(
-  metricSpec: MetricSpec,
-  secureRandom: SecureRandom
-): InternalMetricSpec {
-  return internalMetricSpec {
-    val defaultVidSamplingInterval: InternalMetricSpec.VidSamplingInterval =
-      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-      when (metricSpec.typeCase) {
-        MetricSpec.TypeCase.REACH -> {
-          reach = metricSpec.reach.toInternal()
-          InternalMetricSpecKt.vidSamplingInterval {
-            val index = secureRandom.nextInt(NUMBER_REACH_ONLY_BUCKETS)
-            start = REACH_ONLY_VID_SAMPLING_START_LIST[index]
-            width = REACH_ONLY_VID_SAMPLING_WIDTH
-          }
-        }
-        MetricSpec.TypeCase.FREQUENCY_HISTOGRAM -> {
-          frequencyHistogram = metricSpec.frequencyHistogram.toInternal()
-          InternalMetricSpecKt.vidSamplingInterval {
-            val index = secureRandom.nextInt(NUMBER_REACH_FREQUENCY_BUCKETS)
-            start = REACH_FREQUENCY_VID_SAMPLING_START_LIST[index]
-            width = REACH_FREQUENCY_VID_SAMPLING_WIDTH
-          }
-        }
-        MetricSpec.TypeCase.IMPRESSION_COUNT -> {
-          impressionCount = metricSpec.impressionCount.toInternal()
-          InternalMetricSpecKt.vidSamplingInterval {
-            val index = secureRandom.nextInt(NUMBER_IMPRESSION_BUCKETS)
-            start = IMPRESSION_VID_SAMPLING_START_LIST[index]
-            width = IMPRESSION_VID_SAMPLING_WIDTH
-          }
-        }
-        MetricSpec.TypeCase.WATCH_DURATION -> {
-          watchDuration = metricSpec.watchDuration.toInternal()
-          InternalMetricSpecKt.vidSamplingInterval {
-            val index = secureRandom.nextInt(NUMBER_WATCH_DURATION_BUCKETS)
-            start = WATCH_DURATION_VID_SAMPLING_START_LIST[index]
-            width = WATCH_DURATION_VID_SAMPLING_WIDTH
-          }
-        }
-        MetricSpec.TypeCase.TYPE_NOT_SET ->
-          failGrpc(Status.INVALID_ARGUMENT) { "The metric type in Metric is not specified." }
-      }
-
-    vidSamplingInterval =
-      if (metricSpec.hasVidSamplingInterval()) metricSpec.vidSamplingInterval.toInternal()
-      else defaultVidSamplingInterval
-  }
-}
-
 /** Converts a [MetricSpec.VidSamplingInterval] to an [InternalMetricSpec.VidSamplingInterval]. */
 private fun MetricSpec.VidSamplingInterval.toInternal(): InternalMetricSpec.VidSamplingInterval {
   val source = this
   return InternalMetricSpecKt.vidSamplingInterval {
     start = source.start
     width = source.width
-  }
-}
-
-/** Converts a [MetricSpec.WatchDurationParams] to an [InternalMetricSpec.WatchDurationParams]. */
-private fun MetricSpec.WatchDurationParams.toInternal(): InternalMetricSpec.WatchDurationParams {
-  val source = this
-  grpcRequire(source.hasPrivacyParams()) { "privacyParams in watch duration is not set." }
-
-  return InternalMetricSpecKt.watchDurationParams {
-    privacyParams =
-      buildInternalDifferentialPrivacyParams(
-        source.privacyParams,
-        WATCH_DURATION_EPSILON,
-        DIFFERENTIAL_PRIVACY_DELTA
-      )
-    maximumWatchDurationPerUser =
-      if (source.hasMaximumWatchDurationPerUser()) {
-        source.maximumWatchDurationPerUser
-      } else {
-        MAXIMUM_WATCH_DURATION_PER_USER
-      }
-  }
-}
-
-/**
- * Converts a [MetricSpec.ImpressionCountParams] to an [InternalMetricSpec.ImpressionCountParams].
- */
-private fun MetricSpec.ImpressionCountParams.toInternal():
-  InternalMetricSpec.ImpressionCountParams {
-  val source = this
-  grpcRequire(source.hasPrivacyParams()) { "privacyParams in impression count is not set." }
-
-  return InternalMetricSpecKt.impressionCountParams {
-    privacyParams =
-      buildInternalDifferentialPrivacyParams(
-        source.privacyParams,
-        IMPRESSION_EPSILON,
-        DIFFERENTIAL_PRIVACY_DELTA
-      )
-    maximumFrequencyPerUser =
-      if (source.hasMaximumFrequencyPerUser()) {
-        source.maximumFrequencyPerUser
-      } else {
-        IMPRESSION_MAXIMUM_FREQUENCY_PER_USER
-      }
-  }
-}
-
-/**
- * Converts a [MetricSpec.FrequencyHistogramParams] to an
- * [InternalMetricSpec.FrequencyHistogramParams].
- */
-private fun MetricSpec.FrequencyHistogramParams.toInternal():
-  InternalMetricSpec.FrequencyHistogramParams {
-  val source = this
-  grpcRequire(source.hasReachPrivacyParams()) {
-    "reachPrivacyParams in frequency histogram is not set."
-  }
-  grpcRequire(source.hasFrequencyPrivacyParams()) {
-    "frequencyPrivacyParams in frequency histogram is not set."
-  }
-
-  return InternalMetricSpecKt.frequencyHistogramParams {
-    reachPrivacyParams =
-      buildInternalDifferentialPrivacyParams(
-        source.reachPrivacyParams,
-        REACH_FREQUENCY_REACH_EPSILON,
-        DIFFERENTIAL_PRIVACY_DELTA
-      )
-    frequencyPrivacyParams =
-      buildInternalDifferentialPrivacyParams(
-        source.frequencyPrivacyParams,
-        REACH_FREQUENCY_FREQUENCY_EPSILON,
-        DIFFERENTIAL_PRIVACY_DELTA
-      )
-    maximumFrequencyPerUser =
-      if (source.hasMaximumFrequencyPerUser()) {
-        source.maximumFrequencyPerUser
-      } else {
-        REACH_FREQUENCY_MAXIMUM_FREQUENCY_PER_USER
-      }
-  }
-}
-
-/** Converts a [MetricSpec.ReachParams] to an [InternalMetricSpec.ReachParams]. */
-private fun MetricSpec.ReachParams.toInternal(): InternalMetricSpec.ReachParams {
-  val source = this
-  grpcRequire(source.hasPrivacyParams()) { "privacyParams in reach is not set." }
-
-  return InternalMetricSpecKt.reachParams {
-    privacyParams =
-      buildInternalDifferentialPrivacyParams(
-        source.privacyParams,
-        REACH_ONLY_REACH_EPSILON,
-        DIFFERENTIAL_PRIVACY_DELTA
-      )
   }
 }
 
@@ -1202,6 +1157,12 @@ private fun InternalMetricSpec.DifferentialPrivacyParams.toCmmsPrivacyParams():
     epsilon = source.epsilon
     delta = source.delta
   }
+}
+
+/** Converts an [InternalMetricSpec.ReachParams] to a [MeasurementSpec.Reach]. */
+private fun InternalMetricSpec.ReachParams.toReach(): MeasurementSpec.Reach {
+  val source = this
+  return MeasurementSpecKt.reach { privacyParams = source.privacyParams.toCmmsPrivacyParams() }
 }
 
 /**
