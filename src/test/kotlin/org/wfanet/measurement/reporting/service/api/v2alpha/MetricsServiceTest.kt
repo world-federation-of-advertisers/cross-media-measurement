@@ -128,10 +128,7 @@ import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCorouti
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet.SetExpression as InternalSetExpression
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt as InternalReportingSetKt
-import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt.SetExpressionKt.operand as internalOperand
-import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt.primitive as internalPrimitive
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt.primitiveReportingSetBasis
-import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt.setExpression as internalSetExpression
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt.weightedSubsetUnion
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt as InternalReportingSetsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.batchCreateMetricsRequest as internalBatchCreateMetricsRequest
@@ -437,7 +434,8 @@ private val INTERNAL_SINGLE_PUBLISHER_REPORTING_SETS =
     internalReportingSet {
       cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
       externalReportingSetId = index + 220L
-      this.primitive = internalPrimitive { eventGroupKeys += eventGroupKey.toInternal() }
+      this.primitive =
+        InternalReportingSetKt.primitive { eventGroupKeys += eventGroupKey.toInternal() }
       displayName = "$cmmsMeasurementConsumerId-$externalReportingSetId-$filter"
       weightedSubsetUnions += weightedSubsetUnion {
         primitiveReportingSetBases += primitiveReportingSetBasis {
@@ -451,7 +449,8 @@ private val INTERNAL_UNION_ALL_REPORTING_SET = internalReportingSet {
   cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
   externalReportingSetId =
     INTERNAL_SINGLE_PUBLISHER_REPORTING_SETS.last().externalReportingSetId + 1
-  this.primitive = internalPrimitive { eventGroupKeys += EVENT_GROUP_KEYS.map { it.toInternal() } }
+  this.primitive =
+    InternalReportingSetKt.primitive { eventGroupKeys += EVENT_GROUP_KEYS.map { it.toInternal() } }
   filter = PRIMITIVE_REPORTING_SET_FILTER
   displayName = "$cmmsMeasurementConsumerId-$externalReportingSetId-$filter"
   weightedSubsetUnions += weightedSubsetUnion {
@@ -465,11 +464,12 @@ private val INTERNAL_UNION_ALL_REPORTING_SET = internalReportingSet {
 private val INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET = internalReportingSet {
   cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
   externalReportingSetId = INTERNAL_UNION_ALL_REPORTING_SET.externalReportingSetId + 1
-  this.primitive = internalPrimitive {
-    (0 until EVENT_GROUP_KEYS.size - 1).map { i ->
-      eventGroupKeys += EVENT_GROUP_KEYS[i].toInternal()
+  this.primitive =
+    InternalReportingSetKt.primitive {
+      (0 until EVENT_GROUP_KEYS.size - 1).map { i ->
+        eventGroupKeys += EVENT_GROUP_KEYS[i].toInternal()
+      }
     }
-  }
   filter = PRIMITIVE_REPORTING_SET_FILTER
   displayName = "$cmmsMeasurementConsumerId-$externalReportingSetId-$filter"
   weightedSubsetUnions += weightedSubsetUnion {
@@ -484,9 +484,10 @@ private val INTERNAL_SINGLE_PUBLISHER_REPORTING_SET = internalReportingSet {
   cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
   externalReportingSetId =
     INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET.externalReportingSetId + 1
-  this.primitive = internalPrimitive {
-    eventGroupKeys += EVENT_GROUP_KEYS_OF_FIRST_PUBLISHER.map { it.toInternal() }
-  }
+  this.primitive =
+    InternalReportingSetKt.primitive {
+      eventGroupKeys += EVENT_GROUP_KEYS_OF_FIRST_PUBLISHER.map { it.toInternal() }
+    }
   filter = PRIMITIVE_REPORTING_SET_FILTER
   displayName = "$cmmsMeasurementConsumerId-$externalReportingSetId-$filter"
   weightedSubsetUnions += weightedSubsetUnion {
@@ -502,16 +503,19 @@ private val INTERNAL_INCREMENTAL_REPORTING_SET = internalReportingSet {
   cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
   externalReportingSetId =
     INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET.externalReportingSetId + 1
-  this.composite = internalSetExpression {
-    operation = InternalSetExpression.Operation.DIFFERENCE
-    lhs = internalOperand {
-      externalReportingSetId = INTERNAL_UNION_ALL_REPORTING_SET.externalReportingSetId
+  this.composite =
+    InternalReportingSetKt.setExpression {
+      operation = InternalSetExpression.Operation.DIFFERENCE
+      lhs =
+        InternalReportingSetKt.SetExpressionKt.operand {
+          externalReportingSetId = INTERNAL_UNION_ALL_REPORTING_SET.externalReportingSetId
+        }
+      rhs =
+        InternalReportingSetKt.SetExpressionKt.operand {
+          externalReportingSetId =
+            INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET.externalReportingSetId
+        }
     }
-    rhs = internalOperand {
-      externalReportingSetId =
-        INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET.externalReportingSetId
-    }
-  }
   filter = INCREMENTAL_REPORTING_SET_FILTER
   displayName = "$cmmsMeasurementConsumerId-$externalReportingSetId-$filter"
   weightedSubsetUnions += weightedSubsetUnion {
