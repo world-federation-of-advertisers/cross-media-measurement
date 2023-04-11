@@ -27,6 +27,7 @@ common_cpp_deps()
 # Maven
 load(
     "@wfa_common_jvm//build:common_jvm_maven.bzl",
+    "COMMON_JVM_EXCLUDED_ARTIFACTS",
     "COMMON_JVM_MAVEN_OVERRIDE_TARGETS",
     "common_jvm_maven_artifacts_dict",
 )
@@ -46,6 +47,7 @@ MAVEN_ARTIFACTS_DICT = dict(common_jvm_maven_artifacts_dict().items() + {
 
 maven_install(
     artifacts = artifacts.dict_to_list(MAVEN_ARTIFACTS_DICT),
+    excluded_artifacts = COMMON_JVM_EXCLUDED_ARTIFACTS,
     fetch_sources = True,
     generate_compat_repositories = True,
     override_targets = COMMON_JVM_MAVEN_OVERRIDE_TARGETS,
