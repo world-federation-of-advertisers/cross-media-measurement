@@ -19,6 +19,7 @@ import io.grpc.Channel
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
+import java.util.Random
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.coroutines.CoroutineContext
@@ -43,6 +44,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing.TestPrivacyBucketMapper
 import org.wfanet.measurement.loadtest.dataprovider.EdpData
 import org.wfanet.measurement.loadtest.dataprovider.EdpSimulator
+import org.wfanet.measurement.loadtest.dataprovider.NoiseMechanism
 import org.wfanet.measurement.loadtest.dataprovider.RandomEventQuery
 import org.wfanet.measurement.loadtest.dataprovider.SketchGenerationParams
 import org.wfanet.measurement.loadtest.storage.SketchStore
@@ -98,7 +100,9 @@ class InProcessEdpSimulator(
           100.0f,
           100.0f
         ),
-      trustedCertificates = trustedCertificates
+      trustedCertificates = trustedCertificates,
+      random,
+      NOISE_MECHANISM
     )
 
   private lateinit var edpJob: Job
@@ -124,5 +128,8 @@ class InProcessEdpSimulator(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private const val RANDOM_SEED: Long = 1
+    private val random = Random(RANDOM_SEED)
+    private val NOISE_MECHANISM = NoiseMechanism.LAPLACE
   }
 }
