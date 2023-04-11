@@ -18,21 +18,21 @@
 # Create service account for accessing Cloud Spanner
 # Grant Cloud Spanner database access to the service account for the considered Project ID
 # Bind service-account <------> project_id <----------> spanner_db
-resource "google_service_account" "spanner_service_account" {
+resource "google_service_account" "kingdom-internal" {
   account_id   = "spanner-access-sa"
   display_name = "Spanner Access Service Account"
 }
 resource "google_project_iam_member" "spanner_access" {
   project = local.project
   role    = "roles/spanner.databaseUser"
-  member  = "serviceAccount:${google_service_account.spanner_service_account.email}"
+  member  = "serviceAccount:${google_service_account.kingdom-internal.email}"
 }
 resource "google_spanner_database_iam_binding" "database_iam_binding" {
   project    = local.project
   instance   = google_spanner_instance.halo_spanner_db.name
   database   = google_spanner_database.database.name
   role       = "roles/spanner.databaseUser"
-  members    = [ "serviceAccount:${google_service_account.spanner_service_account.email}" ]
+  members    = [ "serviceAccount:${google_service_account.kingdom-internal.email}" ]
 }
 
 

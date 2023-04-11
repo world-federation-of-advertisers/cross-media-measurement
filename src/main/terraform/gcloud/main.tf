@@ -45,7 +45,7 @@ module "worker-2" {
   component = "worker2"
 }
 
-module "worker-3" {
+module "aggregator" {
   source = "./duchy"
   env = var.env
   project = var.project

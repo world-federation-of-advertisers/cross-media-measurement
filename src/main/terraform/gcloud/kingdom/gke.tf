@@ -48,7 +48,7 @@ resource "google_container_cluster" "primary" {
   }
 }
 
-resource "google_container_node_pool" "data_server"{
+resource "google_container_node_pool" "kingdom_node_pool"{
 
   # the name will look like dev-halo-duchy-data-server
   name       = "${local.prefix}-data-server"
