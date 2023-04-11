@@ -2417,6 +2417,100 @@ class MetricsServiceTest {
   }
 
   @Test
+  fun `createMetric throws INVALID_ARGUMENT when vid sampling interval start is negative`() {
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric =
+        REQUESTING_INCREMENTAL_REACH_METRIC.copy {
+          metricSpec =
+            metricSpec.copy { vidSamplingInterval = vidSamplingInterval.copy { start = -1.0f } }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.createMetric(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("vidSamplingInterval.start cannot be negative.")
+  }
+
+  @Test
+  fun `createMetric throws INVALID_ARGUMENT when vid sampling interval start is 1`() {
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric =
+        REQUESTING_INCREMENTAL_REACH_METRIC.copy {
+          metricSpec =
+            metricSpec.copy { vidSamplingInterval = vidSamplingInterval.copy { start = 1.0f } }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.createMetric(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("vidSamplingInterval.start must be smaller than 1.")
+  }
+
+  @Test
+  fun `createMetric throws INVALID_ARGUMENT when vid sampling interval width is 0`() {
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric =
+        REQUESTING_INCREMENTAL_REACH_METRIC.copy {
+          metricSpec =
+            metricSpec.copy { vidSamplingInterval = vidSamplingInterval.copy { width = 0f } }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.createMetric(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("vidSamplingInterval.width must be greater than 0.")
+  }
+
+  @Test
+  fun `createMetric throws INVALID_ARGUMENT when vid sampling interval end is larger than 1`() {
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric =
+        REQUESTING_INCREMENTAL_REACH_METRIC.copy {
+          metricSpec =
+            metricSpec.copy {
+              vidSamplingInterval =
+                MetricSpecKt.vidSamplingInterval {
+                  start = 0.7f
+                  width = 0.5f
+                }
+            }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.createMetric(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("vidSamplingInterval start + width cannot be greater than 1.")
+  }
+
+  @Test
   fun `createMetric throws INVALID_ARGUMENT when reporting set is unspecified`() {
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
