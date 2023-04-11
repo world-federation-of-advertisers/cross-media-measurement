@@ -35,7 +35,11 @@ import org.wfanet.measurement.internal.duchy.createComputationRequest
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.Parameters
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.parameters
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfig.NoiseMechanism
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfigKt.reachNoiseConfig
+import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsSketchParameters
+import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsV2NoiseConfig
 import org.wfanet.measurement.internal.duchy.updateComputationDetailsRequest
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.Computation.MpcProtocolConfig.NoiseMechanism as SystemNoiseMechanism
@@ -292,52 +296,71 @@ object LiquidLegionsV2Starter {
     }
     val llv2Config = mpcProtocolConfig.liquidLegionsV2
 
-    return Parameters.newBuilder()
-      .also {
-        it.maximumFrequency = llv2Config.maximumFrequency
-        it.liquidLegionsSketchBuilder.apply {
-          decayRate = llv2Config.sketchParams.decayRate
-          size = llv2Config.sketchParams.maxSize
-        }
-        it.noiseBuilder.apply {
-          reachNoiseConfigBuilder.apply {
-            val mpcNoise = llv2Config.mpcNoise
-            blindHistogramNoise = mpcNoise.blindedHistogramNoise.toDuchyDifferentialPrivacyParams()
-            noiseForPublisherNoise =
-              mpcNoise.noiseForPublisherNoise.toDuchyDifferentialPrivacyParams()
-          }
+    return parameters {
+      maximumFrequency = llv2Config.maximumFrequency
+      liquidLegionsSketch = liquidLegionsSketchParameters {
+        decayRate = llv2Config.sketchParams.decayRate
+        size = llv2Config.sketchParams.maxSize
+      }
+      ellipticCurveId = llv2Config.ellipticCurveId
+      noise = liquidLegionsV2NoiseConfig {
+        noiseMechanism = mpcProtocolConfig.liquidLegionsV2.noiseMechanism.toInternalNoiseMechanism()
+        reachNoiseConfig = reachNoiseConfig {
+          val mpcNoise = llv2Config.mpcNoise
+          blindHistogramNoise = mpcNoise.blindedHistogramNoise.toDuchyDifferentialPrivacyParams()
+          noiseForPublisherNoise =
+            mpcNoise.noiseForPublisherNoise.toDuchyDifferentialPrivacyParams()
+
           when (Version.fromString(publicApiVersion)) {
             Version.V2_ALPHA -> {
               val measurementSpec = MeasurementSpec.parseFrom(measurementSpec)
-              require(measurementSpec.hasReachAndFrequency()) {
-                "Missing ReachAndFrequency in the measurementSpec."
+              @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+              when (measurementSpec.measurementTypeCase) {
+                MeasurementSpec.MeasurementTypeCase.REACH -> {
+                  val reach = measurementSpec.reach
+                  require(reach.privacyParams.delta > 0) {
+                    "LLv2 requires that privacy_params.delta be greater than 0"
+                  }
+                  require(reach.privacyParams.epsilon > MIN_REACH_EPSILON) {
+                    "LLv2 requires that privacy_params.epsilon be greater than $MIN_REACH_EPSILON"
+                  }
+                  globalReachDpNoise = reach.privacyParams.toDuchyDifferentialPrivacyParams()
+                }
+                MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
+                  val reachAndFrequency = measurementSpec.reachAndFrequency
+                  require(reachAndFrequency.reachPrivacyParams.delta > 0) {
+                    "LLv2 requires that reach_privacy_params.delta be greater than 0"
+                  }
+                  require(reachAndFrequency.reachPrivacyParams.epsilon > MIN_REACH_EPSILON) {
+                    "LLv2 requires that reach_privacy_params.epsilon be greater than $MIN_REACH_EPSILON"
+                  }
+                  require(reachAndFrequency.frequencyPrivacyParams.delta > 0) {
+                    "LLv2 requires that frequency_privacy_params.delta be greater than 0"
+                  }
+                  require(
+                    reachAndFrequency.frequencyPrivacyParams.epsilon > MIN_FREQUENCY_EPSILON
+                  ) {
+                    "LLv2 requires that frequency_privacy_params.epsilon be greater than " +
+                      "$MIN_FREQUENCY_EPSILON"
+                  }
+                  globalReachDpNoise =
+                    reachAndFrequency.reachPrivacyParams.toDuchyDifferentialPrivacyParams()
+                  this@liquidLegionsV2NoiseConfig.frequencyNoiseConfig =
+                    reachAndFrequency.frequencyPrivacyParams.toDuchyDifferentialPrivacyParams()
+                }
+                MeasurementSpec.MeasurementTypeCase.IMPRESSION,
+                MeasurementSpec.MeasurementTypeCase.DURATION,
+                MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> {
+                  throw IllegalArgumentException(
+                    "Missing Reach and ReachAndFrequency in the measurementSpec."
+                  )
+                }
               }
-              val reachAndFrequency = measurementSpec.reachAndFrequency
-              require(reachAndFrequency.reachPrivacyParams.delta > 0) {
-                "LLv2 requires that reach_privacy_params.delta be greater than 0"
-              }
-              require(reachAndFrequency.reachPrivacyParams.epsilon > MIN_REACH_EPSILON) {
-                "LLv2 requires that reach_privacy_params.epsilon be greater than $MIN_REACH_EPSILON"
-              }
-              require(reachAndFrequency.frequencyPrivacyParams.delta > 0) {
-                "LLv2 requires that frequency_privacy_params.delta be greater than 0"
-              }
-              require(reachAndFrequency.frequencyPrivacyParams.epsilon > MIN_FREQUENCY_EPSILON) {
-                "LLv2 requires that frequency_privacy_params.epsilon be greater than " +
-                  "$MIN_FREQUENCY_EPSILON"
-              }
-              reachNoiseConfigBuilder.globalReachDpNoise =
-                reachAndFrequency.reachPrivacyParams.toDuchyDifferentialPrivacyParams()
-              frequencyNoiseConfig =
-                reachAndFrequency.frequencyPrivacyParams.toDuchyDifferentialPrivacyParams()
-              noiseMechanism =
-                mpcProtocolConfig.liquidLegionsV2.noiseMechanism.toInternalNoiseMechanism()
             }
             Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
           }
         }
-        it.ellipticCurveId = llv2Config.ellipticCurveId
       }
-      .build()
+    }
   }
 }

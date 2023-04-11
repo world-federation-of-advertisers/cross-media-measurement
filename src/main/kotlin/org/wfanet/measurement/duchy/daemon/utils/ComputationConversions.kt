@@ -57,6 +57,7 @@ import org.wfanet.measurement.system.v1alpha.RequisitionKey
 
 /** Supported measurement types in the duchy. */
 enum class MeasurementType {
+  REACH,
   REACH_AND_FREQUENCY
 }
 
@@ -67,7 +68,7 @@ fun SystemComputation.toMeasurementType(): MeasurementType {
       val v2AlphaMeasurementSpec = MeasurementSpec.parseFrom(measurementSpec)
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (v2AlphaMeasurementSpec.measurementTypeCase) {
-        MeasurementTypeCase.REACH,
+        MeasurementTypeCase.REACH -> MeasurementType.REACH
         MeasurementTypeCase.REACH_AND_FREQUENCY -> MeasurementType.REACH_AND_FREQUENCY
         MeasurementTypeCase.DURATION,
         MeasurementTypeCase.IMPRESSION ->
@@ -254,15 +255,29 @@ fun V2AlphaElGamalPublicKey.toDuchyElGamalPublicKey(): ElGamalPublicKey {
   }
 }
 
-/** The result and frequency estimation of a computation. */
-data class ReachAndFrequency(val reach: Long, val frequency: Map<Long, Double>)
+interface ComputationResult {
+  fun toV2AlphaMeasurementResult(): Measurement.Result
+}
 
-/** Converts a ReachAndFrequency object to the v2Alpha measurement result. */
-fun ReachAndFrequency.toV2AlphaMeasurementResult(): Measurement.Result {
-  val source = this
-  return MeasurementKt.result {
-    reach = reach { value = source.reach }
-    frequency = frequency { relativeFrequencyDistribution.putAll(source.frequency) }
+/** The result and frequency estimation of a computation. */
+data class ReachAndFrequencyResult(val reach: Long, val frequency: Map<Long, Double>) :
+  ComputationResult {
+  /** Converts a ReachAndFrequencyResult object to the v2Alpha measurement result. */
+  override fun toV2AlphaMeasurementResult(): Measurement.Result {
+    val source = this
+    return MeasurementKt.result {
+      reach = reach { value = source.reach }
+      frequency = frequency { relativeFrequencyDistribution.putAll(source.frequency) }
+    }
+  }
+}
+
+data class ReachResult(val reach: Long) : ComputationResult {
+
+  /** Converts a ReachResult object to the v2Alpha measurement result. */
+  override fun toV2AlphaMeasurementResult(): Measurement.Result {
+    val source = this
+    return MeasurementKt.result { reach = reach { value = source.reach } }
   }
 }
 

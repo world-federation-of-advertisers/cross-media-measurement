@@ -129,7 +129,7 @@ class ConfirmComputationParticipant(private val request: ConfirmComputationParti
         measurementId = InternalId(measurementId),
         nextState = Measurement.State.PENDING_COMPUTATION,
         previousState = measurementState,
-        logDetails = measurementLogEntryDetails
+        measurementLogEntryDetails = measurementLogEntryDetails
       )
     }
 

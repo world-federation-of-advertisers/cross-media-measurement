@@ -31,6 +31,7 @@ import org.wfanet.measurement.internal.duchy.ComputationStageDetails
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ExternalRequisitionKey
 import org.wfanet.measurement.internal.duchy.RequisitionDetails
+import org.wfanet.measurement.internal.duchy.computationToken
 import org.wfanet.measurement.internal.duchy.externalRequisitionKey
 import org.wfanet.measurement.internal.duchy.requisitionMetadata
 
@@ -46,6 +47,7 @@ class ComputationTokenProtoQuery(
       SELECT c.ComputationId,
              c.GlobalComputationId,
              c.LockOwner,
+             c.LockExpirationTime,
              c.ComputationStage,
              c.ComputationDetails,
              c.Protocol,
@@ -70,7 +72,6 @@ class ComputationTokenProtoQuery(
       FROM Computations AS c
       JOIN ComputationStages AS cs USING (ComputationId, ComputationStage)
       WHERE c.GlobalComputationId = @global_id
-      GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9
       """
         .trimIndent()
 
@@ -79,6 +80,7 @@ class ComputationTokenProtoQuery(
       SELECT c.ComputationId,
              c.GlobalComputationId,
              c.LockOwner,
+             c.LockExpirationTime,
              c.ComputationStage,
              c.ComputationDetails,
              c.Protocol,
@@ -105,7 +107,6 @@ class ComputationTokenProtoQuery(
       JOIN Requisitions AS r USING (ComputationId)
       WHERE r.ExternalRequisitionId = @external_requisition_id
         AND r.RequisitionFingerprint = @requisition_fingerprint
-      GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9
       """
         .trimIndent()
   }
@@ -164,30 +165,32 @@ class ComputationTokenProtoQuery(
     val computationDetailsProto =
       struct.getProtoMessage("ComputationDetails", ComputationDetails.parser())
     val stageDetails = struct.getProtoMessage("StageDetails", ComputationStageDetails.parser())
-    return ComputationToken.newBuilder()
-      .apply {
-        globalComputationId = struct.getString("GlobalComputationId")
-        localComputationId = struct.getLong("ComputationId")
-        computationStage =
-          parseStageEnum(
-            ComputationStageLongValues(
-              struct.getLong("Protocol"),
-              struct.getLong("ComputationStage")
-            )
-          )
-        attempt = struct.getLong("NextAttempt").toInt() - 1
-        computationDetails = computationDetailsProto
-        version = struct.getTimestamp("UpdateTime").toEpochMilli()
-        stageSpecificDetails = stageDetails
+    return computationToken {
+      globalComputationId = struct.getString("GlobalComputationId")
+      localComputationId = struct.getLong("ComputationId")
+      computationStage =
+        parseStageEnum(
+          ComputationStageLongValues(struct.getLong("Protocol"), struct.getLong("ComputationStage"))
+        )
+      attempt = struct.getLong("NextAttempt").toInt() - 1
+      computationDetails = computationDetailsProto
+      version = struct.getTimestamp("UpdateTime").toEpochMilli()
+      stageSpecificDetails = stageDetails
 
-        if (blobs.isNotEmpty()) {
-          addAllBlobs(blobs)
-        }
-
-        if (requisitions.isNotEmpty()) {
-          addAllRequisitions(requisitions)
-        }
+      if (!struct.isNull("LockOwner")) {
+        lockOwner = struct.getString("LockOwner")
       }
-      .build()
+      if (!struct.isNull("LockExpirationTime")) {
+        lockExpirationTime = struct.getTimestamp("LockExpirationTime").toProto()
+      }
+
+      if (blobs.isNotEmpty()) {
+        this.blobs += blobs
+      }
+
+      if (requisitions.isNotEmpty()) {
+        this.requisitions += requisitions
+      }
+    }
   }
 }

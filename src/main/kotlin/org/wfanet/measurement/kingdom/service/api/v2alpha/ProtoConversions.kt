@@ -162,14 +162,15 @@ fun InternalProtocolConfig.toProtocolConfig(
       when (measurementTypeCase) {
         MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
           throw IllegalArgumentException("Measurement type not specified")
-        MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY,
-        MeasurementSpec.MeasurementTypeCase.REACH ->
+        MeasurementSpec.MeasurementTypeCase.REACH -> ProtocolConfig.MeasurementType.REACH
+        MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
           ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY
         MeasurementSpec.MeasurementTypeCase.IMPRESSION -> ProtocolConfig.MeasurementType.IMPRESSION
         MeasurementSpec.MeasurementTypeCase.DURATION -> ProtocolConfig.MeasurementType.DURATION
       }
 
     when (measurementType) {
+      ProtocolConfig.MeasurementType.REACH,
       ProtocolConfig.MeasurementType.REACH_AND_FREQUENCY -> {
         if (dataProviderCount == 1) {
           protocols += protocol { direct = direct {} }
@@ -327,6 +328,7 @@ fun Measurement.toInternal(
 
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (measurementSpecProto.measurementTypeCase) {
+        MeasurementSpec.MeasurementTypeCase.REACH,
         MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
           if (dataProvidersCount > 1) {
             protocolConfig = internalProtocolConfig {
