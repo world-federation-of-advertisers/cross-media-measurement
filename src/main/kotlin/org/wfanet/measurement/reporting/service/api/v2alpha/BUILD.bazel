@@ -28,6 +28,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:page_token_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/reporting:metric_spec_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:measurements_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:metrics_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_sets_service_kt_jvm_grpc_proto",
