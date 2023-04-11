@@ -740,12 +740,6 @@ class MetricsService(
 
       vidSamplingInterval =
         if (metricSpec.hasVidSamplingInterval()) {
-          grpcRequireNotNull(metricSpec.vidSamplingInterval.start) {
-            "vidSamplingInterval.start is not set"
-          }
-          grpcRequireNotNull(metricSpec.vidSamplingInterval.width) {
-            "vidSamplingInterval.width is not set"
-          }
           metricSpec.vidSamplingInterval.toInternal()
         } else defaultVidSamplingInterval
     }
@@ -956,6 +950,13 @@ private fun InternalTimeInterval.toCmmsTimeInterval(): CmmsTimeInterval {
 /** Converts a [MetricSpec.VidSamplingInterval] to an [InternalMetricSpec.VidSamplingInterval]. */
 private fun MetricSpec.VidSamplingInterval.toInternal(): InternalMetricSpec.VidSamplingInterval {
   val source = this
+  grpcRequire(source.start >= 0) { "vidSamplingInterval.start cannot be negative." }
+  grpcRequire(source.start < 1) { "vidSamplingInterval.start must be smaller than 1." }
+  grpcRequire(source.width > 0) { "vidSamplingInterval.width must be greater than 0." }
+  grpcRequire(source.start + source.width <= 1) {
+    "vidSamplingInterval start + width cannot be greater than 1."
+  }
+
   return InternalMetricSpecKt.vidSamplingInterval {
     start = source.start
     width = source.width
