@@ -12,10 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: "Configure Kingdom"
+name: "Configure Duchy"
 
 on:
-  # TODO(wfa-siyengar): to detail the workflow_call.
   workflow_call:
   workflow_dispatch:
     inputs:
@@ -23,23 +22,22 @@ on:
         description: "Image tag needed for configuration"
         type: string
         required: true
+      duchy_name:
+        description: "The name of the Duchy to build"
+        required: true
       kubectl_apply:
         description: "Apply the manifest to the cluster"
         required: false
         type: boolean
 
-permissions:
-  contents: read
-  id-token: writ
-
 env:
   REGISTRY: ghcr.io
   REPO_PREFIX: world-federation-of-advertisers/packages
-
 jobs:
   create_k8s_manifest:
     runs-on: ubuntu-20.04
     steps:
+      # Checkout the repository to the GitHub Actions runner
       - name: Checkout code
         uses: actions/checkout@v2
 
@@ -55,8 +53,9 @@ jobs:
           service_account: ${{ secrets.WFI_SA }}
           token_format: 'access_token'
 
-      - name: Connect to the cluster
-        run: gcloud container clusters get-credentials dev-halo-kingdom-gke-cluster --zone us-central
+      # Update KUBECONFIG
+      - name: Update KUBECONFIG
+        run: gcloud container clusters get-credentials dev-halo-duchy-worker --zone us-central1
 
       - name: Apply secrets
         run: |
@@ -66,11 +65,15 @@ jobs:
           resource_name="$(kubectl apply -k secretfiles/src/main/k8s/testing/secretfiles/kustomization -o name)"
           echo "SECRET_NAME=$(basename $resource_name)" >> "$GITHUB_ENV"
 
+      # TODO(wfa-siyengar): add duchy as an input at high-level(QA deploy)
+
       # Create k8s manifest
       - name: Build K8s manifest
         run: |
-          bazelisk build //src/main/k8s/dev:kingdom_gke \
-          --define=k8s_kingdom_secret_name=$SECRET_NAME \
+          bazelisk build //src/main/k8s/dev:${{ inputs.duchy_name }}_duchy_gke \
+          --define k8s_duchy_secret_name=$SECRET_NAME \
+          --define duchy_cert_id=SVVse4xWHL0 \
+          --define duchy_storage_bucket=${{ inputs.duchy_name }}-duchy \
           --define container_registry=${{ env.REGISTRY }} \
           --define image_repo_prefix=${{ env.REPO_PREFIX }} \
           --define image_tag=${{ inputs.image_tag }}
@@ -78,4 +81,4 @@ jobs:
       # Apply manifest
       - name: apply k8s manifest
         if: inputs.kubectl_apply == true
-        run: kubectl apply -f bazel-bin/src/main/k8s/dev/kingdom_gke.yaml
+        run: kubectl apply -f bazel-bin/src/main/k8s/dev/${{ inputs.duchy_name }}.yaml
