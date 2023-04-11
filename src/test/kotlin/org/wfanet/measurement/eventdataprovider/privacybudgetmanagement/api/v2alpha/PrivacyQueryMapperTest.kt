@@ -17,6 +17,7 @@ import com.google.common.truth.Truth.assertThat
 import java.time.LocalDate
 import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
@@ -92,6 +93,19 @@ private val IMPRESSION_MEASUREMENT_SPEC = measurementSpec {
   }
 }
 
+private val REACH_MEASUREMENT_SPEC = measurementSpec {
+  reach = reach {
+    privacyParams = differentialPrivacyParams {
+      epsilon = 0.3
+      delta = 0.01
+    }
+  }
+  vidSamplingInterval = vidSamplingInterval {
+    start = 0.01f
+    width = 0.02f
+  }
+}
+
 class PrivacyQueryMapperTest {
   @Test
   fun `converts reach and Frequency measurement to privacy query`() {
@@ -149,6 +163,33 @@ class PrivacyQueryMapperTest {
           Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
           LandscapeMask(listOf(EventGroupSpec(FILTER_EXPRESSION, TIME_RANGE)), 0.0f, 0.0f),
           Charge(0.4f, 0.02f)
+        )
+      )
+  }
+
+  @Test
+  fun `converts reach measurement to privacy query`() {
+    val referenceId = "RequisitioId1"
+
+    assertThat(
+        PrivacyQueryMapper.getPrivacyQuery(
+          Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
+          REQUISITION_SPEC,
+          REACH_MEASUREMENT_SPEC
+        )
+      )
+      .isEqualTo(
+        Query(
+          Reference(MEASUREMENT_CONSUMER_ID, referenceId, false),
+          LandscapeMask(
+            listOf(EventGroupSpec(FILTER_EXPRESSION, TIME_RANGE)),
+            REACH_MEASUREMENT_SPEC.vidSamplingInterval.start,
+            REACH_MEASUREMENT_SPEC.vidSamplingInterval.width
+          ),
+          Charge(
+            REACH_MEASUREMENT_SPEC.reach.privacyParams.epsilon.toFloat(),
+            REACH_MEASUREMENT_SPEC.reach.privacyParams.delta.toFloat()
+          )
         )
       )
   }

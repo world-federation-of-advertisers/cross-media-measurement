@@ -53,6 +53,7 @@ import org.wfanet.estimation.VidSampler
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroup
@@ -147,9 +148,6 @@ enum class NoiseMechanism {
   LAPLACE,
   GAUSSIAN,
 }
-
-/** The reach and frequency estimation of a computation. */
-data class ReachAndFrequencyPair(val reach: Long, val frequency: Map<Long, Double>)
 
 /** A simulator handling EDP businesses. */
 class EdpSimulator(
@@ -410,6 +408,7 @@ class EdpSimulator(
       val protocols: List<ProtocolConfig.Protocol> = requisition.protocolConfig.protocolsList
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
       when (measurementSpec.measurementTypeCase) {
+        MeasurementSpec.MeasurementTypeCase.REACH,
         MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
           if (protocols.any { it.hasDirect() }) {
             fulfillDirectReachAndFrequencyMeasurement(requisition, requisitionSpec, measurementSpec)
@@ -741,42 +740,112 @@ class EdpSimulator(
         .filter { vid ->
           vidSampler.vidIsInSamplingBucket(vid, vidSamplingIntervalStart, vidSamplingIntervalWidth)
         }
-    val (sampledReachValue, frequencyMap) = calculateDirectReachAndFrequency(vidList)
 
-    logger.info("Adding $noiseMechanism publisher noise to direct reach and frequency...")
+    val measurementResult = buildDirectMeasurementResult(measurementSpec, vidList)
 
+    fulfillDirectMeasurement(requisition, requisitionSpec, measurementSpec, measurementResult)
+  }
+
+  /**
+   * Add publisher noise to calculated direct reach.
+   *
+   * @param reachValue Direct reach value.
+   * @param privacyParams Differential privacy params for reach.
+   * @return Noised reach value.
+   */
+  private fun addReachPublisherNoise(
+    reachValue: Long,
+    privacyParams: DifferentialPrivacyParams
+  ): Long {
     val reachNoiser: AbstractNoiser =
       when (noiseMechanism) {
-        NoiseMechanism.LAPLACE ->
-          LaplaceNoiser(measurementSpec.reachAndFrequency.reachPrivacyParams, random)
-        NoiseMechanism.GAUSSIAN ->
-          GaussianNoiser(measurementSpec.reachAndFrequency.reachPrivacyParams, random)
+        NoiseMechanism.LAPLACE -> LaplaceNoiser(privacyParams, random)
+        NoiseMechanism.GAUSSIAN -> GaussianNoiser(privacyParams, random)
       }
+
+    return reachValue + reachNoiser.sample().toInt()
+  }
+
+  /**
+   * Add publisher noise to calculated direct frequency.
+   *
+   * @param reachValue Direct reach value.
+   * @param frequencyMap Direct frequency.
+   * @param privacyParams Differential privacy params for frequency map.
+   * @return Noised frequency map.
+   */
+  private fun addFrequencyPublisherNoise(
+    reachValue: Long,
+    frequencyMap: Map<Long, Double>,
+    privacyParams: DifferentialPrivacyParams,
+  ): Map<Long, Double> {
     val frequencyNoiser: AbstractNoiser =
       when (noiseMechanism) {
-        NoiseMechanism.LAPLACE ->
-          LaplaceNoiser(measurementSpec.reachAndFrequency.frequencyPrivacyParams, random)
-        NoiseMechanism.GAUSSIAN ->
-          GaussianNoiser(measurementSpec.reachAndFrequency.frequencyPrivacyParams, random)
+        NoiseMechanism.LAPLACE -> LaplaceNoiser(privacyParams, random)
+        NoiseMechanism.GAUSSIAN -> GaussianNoiser(privacyParams, random)
       }
 
-    val sampledNoisedReachValue = sampledReachValue + reachNoiser.sample().toInt()
-    val noisedFrequencyMap =
-      frequencyMap.mapValues {
-        (it.value * sampledReachValue.toDouble() + frequencyNoiser.sample()) /
-          sampledReachValue.toDouble()
-      }
-    // Differentially private reach value is calculated by reach_dp = (reach + noise) /
-    // sampling_rate.
-    val scaledNoisedReachValue = (sampledNoisedReachValue / vidSamplingIntervalWidth).toLong()
+    return frequencyMap.mapValues { (_, percentage) ->
+      (percentage * reachValue.toDouble() + frequencyNoiser.sample()) / reachValue.toDouble()
+    }
+  }
 
-    val requisitionData =
-      MeasurementKt.result {
-        reach = reach { value = scaledNoisedReachValue }
-        frequency = frequency { relativeFrequencyDistribution.putAll(noisedFrequencyMap) }
-      }
+  /**
+   * Build [Measurement.Result] of the measurement type specified in [MeasurementSpec].
+   *
+   * @param measurementSpec Measurement spec.
+   * @param vidList List of VIDs.
+   * @return [Measurement.Result].
+   */
+  private fun buildDirectMeasurementResult(
+    measurementSpec: MeasurementSpec,
+    vidList: List<Long>,
+  ): Measurement.Result {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
+    return when (measurementSpec.measurementTypeCase) {
+      MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY -> {
+        val sampledReachValue = calculateDirectReach(vidList)
+        val frequencyMap = calculateDirectFrequency(vidList, sampledReachValue)
 
-    fulfillDirectMeasurement(requisition, requisitionSpec, measurementSpec, requisitionData)
+        logger.info("Adding $noiseMechanism publisher noise to direct reach and frequency...")
+        val sampledNoisedReachValue =
+          addReachPublisherNoise(
+            sampledReachValue,
+            measurementSpec.reachAndFrequency.reachPrivacyParams
+          )
+        val noisedFrequencyMap =
+          addFrequencyPublisherNoise(
+            sampledReachValue,
+            frequencyMap,
+            measurementSpec.reachAndFrequency.frequencyPrivacyParams,
+          )
+
+        val scaledNoisedReachValue =
+          (sampledNoisedReachValue / measurementSpec.vidSamplingInterval.width).toLong()
+
+        MeasurementKt.result {
+          reach = reach { value = scaledNoisedReachValue }
+          frequency = frequency { relativeFrequencyDistribution.putAll(noisedFrequencyMap) }
+        }
+      }
+      MeasurementSpec.MeasurementTypeCase.IMPRESSION,
+      MeasurementSpec.MeasurementTypeCase.DURATION -> {
+        error("Measurement type not supported.")
+      }
+      MeasurementSpec.MeasurementTypeCase.REACH -> {
+        val sampledReachValue = calculateDirectReach(vidList)
+        logger.info("Adding $noiseMechanism publisher noise to direct reach...")
+        val sampledNoisedReachValue =
+          addReachPublisherNoise(sampledReachValue, measurementSpec.reach.privacyParams)
+        val scaledNoisedReachValue =
+          (sampledNoisedReachValue / measurementSpec.vidSamplingInterval.width).toLong()
+
+        MeasurementKt.result { reach = reach { value = scaledNoisedReachValue } }
+      }
+      MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> {
+        error("Measurement type not set.")
+      }
+    }
   }
 
   private suspend fun fulfillImpressionMeasurement(
@@ -784,7 +853,7 @@ class EdpSimulator(
     requisitionSpec: RequisitionSpec,
     measurementSpec: MeasurementSpec
   ) {
-    val requisitionData =
+    val measurementResult =
       MeasurementKt.result {
         impression = impression {
           // Use externalDataProviderId since it's a known value the FrontendSimulator can verify.
@@ -793,7 +862,7 @@ class EdpSimulator(
         }
       }
 
-    fulfillDirectMeasurement(requisition, requisitionSpec, measurementSpec, requisitionData)
+    fulfillDirectMeasurement(requisition, requisitionSpec, measurementSpec, measurementResult)
   }
 
   private suspend fun fulfillDurationMeasurement(
@@ -801,7 +870,7 @@ class EdpSimulator(
     requisitionSpec: RequisitionSpec,
     measurementSpec: MeasurementSpec
   ) {
-    val requisitionData =
+    val measurementResult =
       MeasurementKt.result {
         watchDuration = watchDuration {
           value = duration {
@@ -811,21 +880,21 @@ class EdpSimulator(
         }
       }
 
-    fulfillDirectMeasurement(requisition, requisitionSpec, measurementSpec, requisitionData)
+    fulfillDirectMeasurement(requisition, requisitionSpec, measurementSpec, measurementResult)
   }
 
   private suspend fun fulfillDirectMeasurement(
     requisition: Requisition,
     requisitionSpec: RequisitionSpec,
     measurementSpec: MeasurementSpec,
-    requisitionData: Measurement.Result
+    measurementResult: Measurement.Result
   ) {
     val measurementEncryptionPublicKey =
       EncryptionPublicKey.parseFrom(measurementSpec.measurementPublicKey)
 
     // TODO(world-federation-of-advertisers/consent-signaling-client#41): Use method from
     // DataProviders client instead of Duchies client.
-    val signedData = signResult(requisitionData, edpData.signingKey)
+    val signedData = signResult(measurementResult, edpData.signingKey)
 
     val encryptedData =
       measurementEncryptionPublicKey.toPublicKeyHandle().hybridEncrypt(signedData.toByteString())
@@ -866,23 +935,36 @@ class EdpSimulator(
     }
 
     /**
-     * Calculate direct reach and frequency from VIDs in
-     * fulfillDirectReachAndFrequencyMeasurement().
+     * Calculate direct reach from VIDs.
      *
      * @param vidList List of VIDs.
-     * @return Pair of reach value and frequency map.
+     * @return Reach value.
      */
-    private fun calculateDirectReachAndFrequency(
+    private fun calculateDirectReach(
       vidList: List<Long>,
-    ): ReachAndFrequencyPair {
+    ): Long {
       // Example: vidList: [1L, 1L, 1L, 2L, 2L, 3L, 4L, 5L]
       // 5 unique people(1, 2, 3, 4, 5) being reached
       // reach = 5
+      return vidList.toSet().size.toLong()
+    }
+
+    /**
+     * Calculate direct frequency from VIDs.
+     *
+     * @param vidList List of VIDs.
+     * @param directReachValue Direct reach value.
+     * @return Frequency map.
+     */
+    private fun calculateDirectFrequency(
+      vidList: List<Long>,
+      directReachValue: Long
+    ): Map<Long, Double> {
+      // Example: vidList: [1L, 1L, 1L, 2L, 2L, 3L, 4L, 5L]
       // 1 reach -> 0.6(3/5)(VID 3L, 4L, 5L)
       // 2 reach -> 0.2(1/5)(VID 2L)
       // 3 reach -> 0.2(1/5)(VID 1L)
       // frequencyMap = {1L: 0.6, 2L to 0.2, 3L: 0.2}
-      val reachValue = vidList.toSet().size.toLong()
       val frequencyMap = mutableMapOf<Long, Double>().withDefault { 0.0 }
 
       vidList
@@ -893,10 +975,10 @@ class EdpSimulator(
         }
 
       frequencyMap.forEach { (frequency, _) ->
-        frequencyMap[frequency] = frequencyMap.getValue(frequency) / reachValue.toDouble()
+        frequencyMap[frequency] = frequencyMap.getValue(frequency) / directReachValue.toDouble()
       }
 
-      return ReachAndFrequencyPair(reachValue, frequencyMap)
+      return frequencyMap
     }
   }
 }
