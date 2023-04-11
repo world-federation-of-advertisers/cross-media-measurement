@@ -47,24 +47,24 @@ GetGeometricNoiseOptions(
 
 int ComputeMuDiscreteGaussian(double epsilon, double delta,
                               double sigma_distributed,
-                              int64_t contributor_count) {
+                              int64_t uncorrupted_party_count) {
   ABSL_ASSERT(epsilon > 0);
   ABSL_ASSERT(delta > 0);
-  ABSL_ASSERT(contributor_count > 0);
+  ABSL_ASSERT(uncorrupted_party_count > 0);
 
   // The sum of delta1 and delta2 should be delta.
   // In practice, set delta1 = delta2 = 0.5 * delta for simplicity.
   double delta2 = 0.5 * delta;
 
   return std::ceil(sigma_distributed *
-                   std::sqrt(2 * std::log(contributor_count *
+                   std::sqrt(2 * std::log(uncorrupted_party_count *
                                           (1 + std::exp(epsilon)) / delta2)));
 }
 
 std::unique_ptr<math::DistributedDiscreteGaussianNoiseComponentOptions>
 GetDiscreteGaussianNoiseOptions(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
-    int64_t contributor_count) {
+    int64_t uncorrupted_party_count) {
   double epsilon = params.epsilon();
   double delta = params.delta();
 
@@ -77,13 +77,14 @@ GetDiscreteGaussianNoiseOptions(
   double sigma = std::sqrt(2 * std::log(1.25 / delta1)) / epsilon;
   // This simple formula to derive sigma_distributed is valid only for
   // continuous Gaussian and is used as an approximation here.
-  double sigma_distributed = sigma / sqrt(contributor_count);
-  int offset = ComputeMuDiscreteGaussian(params.epsilon(), params.delta(),
-                                         sigma_distributed, contributor_count);
+  double sigma_distributed = sigma / sqrt(uncorrupted_party_count);
+  int offset =
+      ComputeMuDiscreteGaussian(params.epsilon(), params.delta(),
+                                sigma_distributed, uncorrupted_party_count);
 
   return std::make_unique<
       math::DistributedDiscreteGaussianNoiseComponentOptions>(
-      contributor_count, sigma_distributed, offset, offset);
+      uncorrupted_party_count, sigma_distributed, offset, offset);
 }
 
 }  // namespace
