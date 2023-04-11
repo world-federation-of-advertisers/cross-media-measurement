@@ -180,7 +180,7 @@ CREATE TABLE SetExpressions (
   Operation integer NOT NULL,
 
   -- The left-hand-side (lhs) operand in a binary set expression. Exactly
-  -- one lhs field   1has to be non-NULL.
+  -- one lhs field has to be non-NULL.
   LeftHandSetExpressionId bigint,
   LeftHandReportingSetId bigint,
   -- The right-hand-side (rhs) operand in a binary set expression. At most
