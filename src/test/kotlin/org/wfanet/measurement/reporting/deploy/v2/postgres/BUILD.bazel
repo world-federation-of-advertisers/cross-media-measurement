@@ -16,3 +16,20 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:embedded_postgres",
     ],
 )
+
+kt_jvm_test(
+    name = "PostgresReportingSetsServiceTest",
+    srcs = ["PostgresReportingSetsServiceTest.kt"],
+    flaky = True,
+    test_class = "org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportingSetsServiceTest",
+    runtime_deps = [
+        "@wfa_common_jvm//imports/java/org/yaml:snakeyaml",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres:services",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal/testing/v2:testing",
+        "@wfa_common_jvm//imports/java/com/opentable/db/postgres:pg_embedded",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:embedded_postgres",
+    ],
+)
