@@ -24,13 +24,13 @@ import java.security.GeneralSecurityException
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
+import java.util.Random
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
-import org.apache.commons.math3.distribution.LaplaceDistribution
 import org.wfanet.anysketch.AnySketch
 import org.wfanet.anysketch.Sketch
 import org.wfanet.anysketch.SketchConfig
@@ -137,6 +137,20 @@ data class EdpData(
   val signingKey: SigningKeyHandle
 )
 
+/**
+ * Mechanism for generating noise for direct measurements.
+ *
+ * TODO(@iverson52000): Move this to public API if EDP needs to report back the noise mechanism for
+ *   PBM tracking.
+ */
+enum class NoiseMechanism {
+  LAPLACE,
+  GAUSSIAN,
+}
+
+/** The reach and frequency estimation of a computation. */
+data class ReachAndFrequencyPair(val reach: Long, val frequency: Map<Long, Double>)
+
 /** A simulator handling EDP businesses. */
 class EdpSimulator(
   private val edpData: EdpData,
@@ -152,7 +166,9 @@ class EdpSimulator(
   private val throttler: Throttler,
   private val eventTemplateNames: List<String>,
   private val privacyBudgetManager: PrivacyBudgetManager,
-  private val trustedCertificates: Map<ByteString, X509Certificate>
+  private val trustedCertificates: Map<ByteString, X509Certificate>,
+  private val random: Random,
+  private val noiseMechanism: NoiseMechanism
 ) {
 
   /** A sequence of operations done in the simulator. */
@@ -727,13 +743,33 @@ class EdpSimulator(
         }
     val (sampledReachValue, frequencyMap) = calculateDirectReachAndFrequency(vidList)
 
-    logger.info("Adding publisher noise to direct reach and frequency...")
-    val (sampledNoisedReachValue, noisedFrequencyMap) =
-      addPublisherNoise(sampledReachValue, frequencyMap, measurementSpec.reachAndFrequency)
+    logger.info("Adding $noiseMechanism publisher noise to direct reach and frequency...")
 
+    val reachNoiser: AbstractNoiser =
+      when (noiseMechanism) {
+        NoiseMechanism.LAPLACE ->
+          LaplaceNoiser(measurementSpec.reachAndFrequency.reachPrivacyParams, random)
+        NoiseMechanism.GAUSSIAN ->
+          GaussianNoiser(measurementSpec.reachAndFrequency.reachPrivacyParams, random)
+      }
+    val frequencyNoiser: AbstractNoiser =
+      when (noiseMechanism) {
+        NoiseMechanism.LAPLACE ->
+          LaplaceNoiser(measurementSpec.reachAndFrequency.frequencyPrivacyParams, random)
+        NoiseMechanism.GAUSSIAN ->
+          GaussianNoiser(measurementSpec.reachAndFrequency.frequencyPrivacyParams, random)
+      }
+
+    val sampledNoisedReachValue = sampledReachValue + reachNoiser.sample().toInt()
+    val noisedFrequencyMap =
+      frequencyMap.mapValues {
+        (it.value * sampledReachValue.toDouble() + frequencyNoiser.sample()) /
+          sampledReachValue.toDouble()
+      }
     // Differentially private reach value is calculated by reach_dp = (reach + noise) /
     // sampling_rate.
     val scaledNoisedReachValue = (sampledNoisedReachValue / vidSamplingIntervalWidth).toLong()
+
     val requisitionData =
       MeasurementKt.result {
         reach = reach { value = scaledNoisedReachValue }
@@ -838,7 +874,7 @@ class EdpSimulator(
      */
     private fun calculateDirectReachAndFrequency(
       vidList: List<Long>,
-    ): Pair<Long, Map<Long, Double>> {
+    ): ReachAndFrequencyPair {
       // Example: vidList: [1L, 1L, 1L, 2L, 2L, 3L, 4L, 5L]
       // 5 unique people(1, 2, 3, 4, 5) being reached
       // reach = 5
@@ -860,44 +896,7 @@ class EdpSimulator(
         frequencyMap[frequency] = frequencyMap.getValue(frequency) / reachValue.toDouble()
       }
 
-      return Pair(reachValue, frequencyMap)
-    }
-
-    //
-    /**
-     * Add Laplace publisher noise to calculated direct reach and frequency. TODO(@iverson52000):
-     * Create a noiser class for this function when we need to add Gaussian noise.
-     *
-     * @param reachValue Direct reach value.
-     * @param frequencyMap Direct frequency.
-     * @param reachAndFrequency ReachAndFrequency from MeasurementSpec.
-     * @return Pair of noised reach value and frequency map.
-     */
-    private fun addPublisherNoise(
-      reachValue: Long,
-      frequencyMap: Map<Long, Double>,
-      reachAndFrequency: MeasurementSpec.ReachAndFrequency
-    ): Pair<Long, Map<Long, Double>> {
-      val laplaceForReach =
-        LaplaceDistribution(0.0, 1 / reachAndFrequency.reachPrivacyParams.epsilon)
-      // Reseed random number generator so the results can be verified in tests.
-      // TODO(@iverson52000): make randomSeed an input once create noiser class.
-      laplaceForReach.reseedRandomGenerator(1)
-
-      val noisedReachValue = (reachValue + laplaceForReach.sample().toInt())
-
-      val laplaceForFrequency =
-        LaplaceDistribution(0.0, 1 / reachAndFrequency.frequencyPrivacyParams.epsilon)
-      laplaceForFrequency.reseedRandomGenerator(1)
-
-      val noisedFrequencyMap = mutableMapOf<Long, Double>()
-      frequencyMap.forEach { (frequency, percentage) ->
-        noisedFrequencyMap[frequency] =
-          (percentage * reachValue.toDouble() + laplaceForFrequency.sample()) /
-            reachValue.toDouble()
-      }
-
-      return Pair(noisedReachValue, noisedFrequencyMap)
+      return ReachAndFrequencyPair(reachValue, frequencyMap)
     }
   }
 }
