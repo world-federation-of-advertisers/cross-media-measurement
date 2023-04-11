@@ -76,6 +76,7 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
 
     transactionContext.executeStatement(statement)
 
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
     when (reportingSet.valueCase) {
       ReportingSet.ValueCase.PRIMITIVE -> {
         insertReportingSetEventGroups(
@@ -84,7 +85,6 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
           reportingSet.primitive.eventGroupKeysList
         )
       }
-
       ReportingSet.ValueCase.COMPOSITE -> {
         val reportingSetReader = ReportingSetReader(transactionContext)
         insertSetExpressions(
@@ -100,7 +100,6 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
           reportingSet.weightedSubsetUnionsList
         )
       }
-
       ReportingSet.ValueCase.VALUE_NOT_SET -> {
         throw ReportingSetInvalidException()
       }
@@ -205,7 +204,10 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
       SetExpression.Operand.OperandCase.EXTERNAL_REPORTING_SET_ID -> {
         leftHandSetExpressionId = null
         val idResult =
-          reportingSetReader.readPrimaryKey(measurementConsumerId, ExternalId(setExpression.lhs.externalReportingSetId))
+          reportingSetReader.readPrimaryKey(
+            measurementConsumerId,
+            ExternalId(setExpression.lhs.externalReportingSetId)
+          )
             ?: throw ReportingSetNotFoundException()
         leftHandReportingSetId = idResult.reportingSetId
       }
@@ -233,7 +235,10 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
       SetExpression.Operand.OperandCase.EXTERNAL_REPORTING_SET_ID -> {
         rightHandSetExpressionId = null
         val idResult =
-          reportingSetReader.readPrimaryKey(measurementConsumerId, ExternalId(setExpression.rhs.externalReportingSetId))
+          reportingSetReader.readPrimaryKey(
+            measurementConsumerId,
+            ExternalId(setExpression.rhs.externalReportingSetId)
+          )
             ?: throw ReportingSetNotFoundException()
         rightHandReportingSetId = idResult.reportingSetId
       }
@@ -367,7 +372,10 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
 
     val primitiveReportingSetIdResult =
       ReportingSetReader(transactionContext)
-        .readPrimaryKey(measurementConsumerId, ExternalId(primitiveReportingSetBasis.externalReportingSetId))
+        .readPrimaryKey(
+          measurementConsumerId,
+          ExternalId(primitiveReportingSetBasis.externalReportingSetId)
+        )
         ?: throw ReportingSetNotFoundException()
 
     val primitiveReportingSetBasesBinder: BoundStatement.Binder.() -> Unit = {

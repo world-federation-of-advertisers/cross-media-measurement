@@ -49,9 +49,7 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
       service.createMeasurementConsumer(request)
 
       val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.createMeasurementConsumer(request)
-        }
+        assertFailsWith<StatusRuntimeException> { service.createMeasurementConsumer(request) }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
     }

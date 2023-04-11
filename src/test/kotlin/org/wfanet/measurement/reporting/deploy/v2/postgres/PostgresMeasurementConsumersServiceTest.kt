@@ -22,7 +22,8 @@ import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata.REPO
 import org.wfanet.measurement.reporting.service.internal.testing.v2.MeasurementConsumersServiceTest
 
 @RunWith(JUnit4::class)
-class PostgresMeasurementConsumersServiceTest : MeasurementConsumersServiceTest<PostgresMeasurementConsumersService>() {
+class PostgresMeasurementConsumersServiceTest :
+  MeasurementConsumersServiceTest<PostgresMeasurementConsumersService>() {
   override fun newService(
     idGenerator: IdGenerator,
   ): PostgresMeasurementConsumersService {
