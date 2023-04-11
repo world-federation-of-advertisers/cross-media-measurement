@@ -20,6 +20,7 @@ import org.wfanet.measurement.common.db.r2dbc.newBoundStatementBuilder
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet.PrimitiveReportingSetBasis
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet.SetExpression
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet.WeightedSubsetUnion
@@ -74,6 +75,17 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
           measurementConsumerId,
           reportingSetId,
           reportingSet.primitive.eventGroupKeysList
+        )
+        insertWeightedSubsetUnions(
+          measurementConsumerId,
+          reportingSetId,
+          listOf(ReportingSetKt.weightedSubsetUnion {
+            weight = 1
+            primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
+              this.externalReportingSetId = externalReportingSetId.value
+              filters += reportingSet.filter
+            }
+          })
         )
       }
       ReportingSet.ValueCase.COMPOSITE -> {
