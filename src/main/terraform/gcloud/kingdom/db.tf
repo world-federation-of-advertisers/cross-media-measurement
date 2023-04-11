@@ -14,6 +14,7 @@
 
 # This is step 1 as per the document
 # https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/kingdom-deployment.md
+#TODO(wfa-siyengar): To move the instance to module called shared.
 
 resource "google_spanner_instance" "halo_spanner_db" {
   config       = "regional-${local.zone}"

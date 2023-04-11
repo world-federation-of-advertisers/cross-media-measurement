@@ -38,6 +38,7 @@ resource "google_spanner_database_iam_binding" "database_iam_binding" {
 
 # Create GKE service account for workload identity
 # Bind IAM role to GKE service account
+#TODO(wfa-siyengar): To move the cluster service account to a module called shared.
 resource "google_service_account" "gke_sa" {
   account_id   = "gke-cluster-sa"
   display_name = "GKE Service Account"
