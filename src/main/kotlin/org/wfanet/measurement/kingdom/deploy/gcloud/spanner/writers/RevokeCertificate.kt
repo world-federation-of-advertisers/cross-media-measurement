@@ -14,8 +14,6 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
-import com.google.api.gax.rpc.ErrorDetails
-import com.google.protobuf.type
 import java.lang.IllegalStateException
 import java.time.Clock
 import kotlinx.coroutines.flow.singleOrNull
@@ -251,7 +249,7 @@ class RevokeCertificate(private val request: RevokeCertificateRequest) :
       measurementId = measurementId,
       nextState = Measurement.State.FAILED,
       previousState = measurementState,
-      logDetails = measurementLogEntryDetails,
+      measurementLogEntryDetails = measurementLogEntryDetails,
       details = details
     )
   }

@@ -26,6 +26,14 @@ service DataProviders {
   rpc CreateDataProvider(DataProvider) returns (DataProvider);
 
   rpc GetDataProvider(GetDataProviderRequest) returns (DataProvider);
+
+  rpc ReplaceDataProviderRequiredDuchies(
+      ReplaceDataProviderRequiredDuchiesRequest) returns (DataProvider);
+}
+
+message ReplaceDataProviderRequiredDuchiesRequest {
+  fixed64 external_data_provider_id = 1;
+  repeated string required_external_duchy_ids = 2;
 }
 
 message GetDataProviderRequest {
