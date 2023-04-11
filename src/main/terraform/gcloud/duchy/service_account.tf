@@ -26,14 +26,15 @@ data "google_service_account" "spanner_service_account"{
 
 # Create GKE service account for workload identity
 # Bind IAM role to GKE service account
-resource "google_service_account" "gke_sa" {
-  account_id   = "${local.prefix}-gke-cluster-sa"
-  display_name = "GKE Service Account"
+
+data "google_service_account" "gke_sa" {
+  account_id = "gke-cluster-sa"
 }
+
 resource "google_project_iam_binding" "gke_sa_iam_binding" {
   project = local.project
   role    = "roles/iam.workloadIdentityUser"
   members = [
-    "serviceAccount:${google_service_account.gke_sa.email}"
+    "serviceAccount:${data.google_service_account.gke_sa.email}"
   ]
 }

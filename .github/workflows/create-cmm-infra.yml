@@ -39,7 +39,6 @@ permissions:
 
 env:
   ROOT_PATH: '${{ github.workspace }}/src/main/terraform/gcloud'
-  ENVIRONMENT: 'qa'
   PROJECT: "halo-cmm"
 
 jobs:
