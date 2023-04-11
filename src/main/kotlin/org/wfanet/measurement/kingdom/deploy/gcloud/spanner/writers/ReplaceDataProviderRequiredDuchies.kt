@@ -23,6 +23,7 @@ import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.ReplaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 
@@ -36,19 +37,17 @@ class ReplaceDataProviderRequiredDuchies(
           transactionContext,
           ExternalId(replaceDataProviderRequiredDuchiesRequest.externalDataProviderId)
         )
-    require(dataProviderResult != null)
+        ?: throw DataProviderNotFoundException(
+          ExternalId(replaceDataProviderRequiredDuchiesRequest.externalDataProviderId)
+        )
+
     val dataProvider = dataProviderResult.dataProvider
     val dataProviderId = dataProviderResult.dataProviderId
     val currentRequiredDuchyList = dataProvider.requiredExternalDuchyIdsList
     val desiredRequiredDuchyList =
       replaceDataProviderRequiredDuchiesRequest.requiredExternalDuchyIdsList
 
-    require(
-      !(currentRequiredDuchyList.size == desiredRequiredDuchyList.size &&
-        currentRequiredDuchyList.toSet() == desiredRequiredDuchyList.toSet())
-    )
-
-    // delete old duchy list
+    // Delete old duchy list.
     for (externalDuchyId in currentRequiredDuchyList) {
       val duchyId =
         InternalId(
@@ -63,7 +62,7 @@ class ReplaceDataProviderRequiredDuchies(
       )
     }
 
-    // write new duchy list
+    // Write new duchy list.
     for (externalDuchyId in desiredRequiredDuchyList) {
       val duchyId =
         InternalId(
