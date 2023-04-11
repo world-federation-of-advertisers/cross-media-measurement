@@ -18,17 +18,19 @@ import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
+import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.InternalId
 
 class ReportingSetReader(private val readContext: ReadContext) {
-  data class IdResult(
-    val measurementConsumerId: Long,
-    val reportingSetId: Long,
+  data class PrimaryKey(
+    val measurementConsumerId: InternalId,
+    val reportingSetId: InternalId,
   )
 
-  suspend fun readId(
-    measurementConsumerId: Long,
-    externalReportingSetId: Long,
-  ): IdResult? {
+  suspend fun readPrimaryKey(
+    measurementConsumerId: InternalId,
+    externalReportingSetId: ExternalId,
+  ): PrimaryKey? {
     val statement =
       boundStatement(
         """
@@ -46,7 +48,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
 
     return readContext
       .executeQuery(statement)
-      .consume { row: ResultRow -> IdResult(row["MeasurementConsumerId"], row["ReportingSetId"]) }
+      .consume { row: ResultRow -> PrimaryKey(row["MeasurementConsumerId"], row["ReportingSetId"]) }
       .singleOrNull()
   }
 }

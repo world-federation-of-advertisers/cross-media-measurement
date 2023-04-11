@@ -18,10 +18,11 @@ import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
+import org.wfanet.measurement.common.identity.InternalId
 
 class MeasurementConsumerReader(private val readContext: ReadContext) {
   data class Result(
-    val measurementConsumerId: Long,
+    val measurementConsumerId: InternalId,
     val cmmsMeasurementConsumerId: String,
   )
 
@@ -43,9 +44,7 @@ class MeasurementConsumerReader(private val readContext: ReadContext) {
 
   suspend fun getByCmmsId(cmmsMeasurementConsumerId: String): Result? {
     val statement =
-      boundStatement(baseSql + """
-        WHERE CmmsMeasurementConsumerId = $1
-        """) {
+      boundStatement("$baseSql WHERE CmmsMeasurementConsumerId = $1") {
         bind("$1", cmmsMeasurementConsumerId)
       }
 

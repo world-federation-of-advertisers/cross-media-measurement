@@ -118,3 +118,17 @@ class MeasurementConsumerNotFoundException(
   override val context
     get() = emptyMap<String, String>()
 }
+
+class MeasurementConsumerAlreadyExistsException(
+  provideDescription: () -> String = { "Measurement Consumer already exists" }
+) : ReportingInternalException(ErrorCode.MEASUREMENT_CONSUMER_ALREADY_EXISTS, provideDescription) {
+  override val context
+    get() = emptyMap<String, String>()
+}
+
+class ReportingSetInvalidException(
+  provideDescription: () -> String = { "Reporting Set is invalid" }
+) : ReportingInternalException(ErrorCode.REPORTING_SET_INVALID, provideDescription) {
+  override val context
+    get() = emptyMap<String, String>()
+}

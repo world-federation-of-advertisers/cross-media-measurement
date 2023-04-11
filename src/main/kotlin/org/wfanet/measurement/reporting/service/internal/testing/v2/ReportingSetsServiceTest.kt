@@ -192,6 +192,35 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
   }
 
   @Test
+  fun `CreateReportingSet throws INVALID_ARGUMENT when ReportingSet missing value`() = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+
+    val reportingSet = reportingSet {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      displayName = "displayName2"
+      filter = "filter2"
+
+      weightedSubsetUnions +=
+        ReportingSetKt.weightedSubsetUnion {
+          primitiveReportingSetBases +=
+            ReportingSetKt.primitiveReportingSetBasis {
+              externalReportingSetId = 123
+              filters += "filter1"
+              filters += "filter2"
+            }
+          weight = 5
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.createReportingSet(reportingSet) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
   fun `CreateReportingSet throws NOT_FOUND when ReportingSet in basis not found`() = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }

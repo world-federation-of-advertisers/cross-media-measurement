@@ -14,11 +14,18 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.postgres.writers
 
+import io.r2dbc.spi.R2dbcDataIntegrityViolationException
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumer
 import org.wfanet.measurement.reporting.deploy.postgres.writers.PostgresWriter
+import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerAlreadyExistsException
 
-/** Inserts a Measurement Consumer into the database. */
+/**
+ * Inserts a Measurement Consumer into the database.
+ *
+ * Throws the following on [execute]:
+ * * [MeasurementConsumerAlreadyExistsException] MeasurementConsumer already exists
+ */
 class CreateMeasurementConsumer(private val measurementConsumer: MeasurementConsumer) :
   PostgresWriter<MeasurementConsumer>() {
   override suspend fun TransactionScope.runTransaction(): MeasurementConsumer {
@@ -29,14 +36,17 @@ class CreateMeasurementConsumer(private val measurementConsumer: MeasurementCons
         """
       INSERT INTO MeasurementConsumers (MeasurementConsumerId, CmmsMeasurementConsumerId)
         VALUES ($1, $2)
-        ON CONFLICT DO NOTHING
       """
       ) {
         bind("$1", internalMeasurementConsumerId)
         bind("$2", measurementConsumer.cmmsMeasurementConsumerId)
       }
 
-    transactionContext.executeStatement(statement)
+    try {
+      transactionContext.executeStatement(statement)
+    } catch (e: R2dbcDataIntegrityViolationException) {
+      throw MeasurementConsumerAlreadyExistsException()
+    }
 
     return measurementConsumer
   }

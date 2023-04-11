@@ -25,6 +25,7 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.Reportin
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequest
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateReportingSet
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.reporting.service.internal.ReportingSetInvalidException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 
 class PostgresReportingSetsService(
@@ -34,6 +35,8 @@ class PostgresReportingSetsService(
   override suspend fun createReportingSet(request: ReportingSet): ReportingSet {
     return try {
       CreateReportingSet(request).execute(client, idGenerator)
+    } catch (e: ReportingSetInvalidException) {
+      e.throwStatusRuntimeException(Status.INVALID_ARGUMENT) { "Reporting Set is invalid" }
     } catch (e: ReportingSetNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "Reporting Set not found" }
     } catch (e: MeasurementConsumerNotFoundException) {

@@ -16,6 +16,8 @@ package org.wfanet.measurement.reporting.deploy.v2.postgres.writers
 
 import org.wfanet.measurement.common.db.r2dbc.BoundStatement
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
+import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet.PrimitiveReportingSetBasis
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet.SetExpression
@@ -26,19 +28,21 @@ import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.EventGroupRea
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MeasurementConsumerReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.reporting.service.internal.ReportingSetInvalidException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 
 /**
  * Inserts a Reporting Set into the database.
  *
  * Throws the following on [execute]:
+ * * [ReportingSetInvalidException] ReportingSet is invalid
  * * [ReportingSetNotFoundException] ReportingSet not found
  * * [MeasurementConsumerNotFoundException] MeasurementConsumer not found
  */
 class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWriter<ReportingSet>() {
   private data class SetExpressionsBindersAndId(
     val setExpressionsBinders: List<BoundStatement.Binder.() -> Unit>,
-    val setExpressionId: Long,
+    val setExpressionId: InternalId,
   )
   private data class PrimitiveReportingSetBasesBinders(
     val primitiveReportingSetBasesBinders: List<BoundStatement.Binder.() -> Unit>,
@@ -53,8 +57,8 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
           ?: throw MeasurementConsumerNotFoundException())
         .measurementConsumerId
 
-    val reportingSetId = idGenerator.generateInternalId().value
-    val externalReportingSetId = idGenerator.generateExternalId().value
+    val reportingSetId = idGenerator.generateInternalId()
+    val externalReportingSetId = idGenerator.generateExternalId()
 
     val statement =
       boundStatement(
@@ -72,34 +76,42 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
 
     transactionContext.executeStatement(statement)
 
-    if (reportingSet.valueCase.equals(ReportingSet.ValueCase.PRIMITIVE)) {
-      insertReportingSetEventGroups(
-        measurementConsumerId,
-        reportingSetId,
-        reportingSet.primitive.eventGroupKeysList
-      )
-    } else if (reportingSet.valueCase.equals(ReportingSet.ValueCase.COMPOSITE)) {
-      val reportingSetReader = ReportingSetReader(transactionContext)
-      insertSetExpressions(
-        reportingSetReader,
-        measurementConsumerId,
-        reportingSetId,
-        reportingSet.composite,
-        true
-      )
-      insertWeightedSubsetUnions(
-        measurementConsumerId,
-        reportingSetId,
-        reportingSet.weightedSubsetUnionsList
-      )
+    when (reportingSet.valueCase) {
+      ReportingSet.ValueCase.PRIMITIVE -> {
+        insertReportingSetEventGroups(
+          measurementConsumerId,
+          reportingSetId,
+          reportingSet.primitive.eventGroupKeysList
+        )
+      }
+
+      ReportingSet.ValueCase.COMPOSITE -> {
+        val reportingSetReader = ReportingSetReader(transactionContext)
+        insertSetExpressions(
+          reportingSetReader,
+          measurementConsumerId,
+          reportingSetId,
+          reportingSet.composite,
+          true
+        )
+        insertWeightedSubsetUnions(
+          measurementConsumerId,
+          reportingSetId,
+          reportingSet.weightedSubsetUnionsList
+        )
+      }
+
+      ReportingSet.ValueCase.VALUE_NOT_SET -> {
+        throw ReportingSetInvalidException()
+      }
     }
 
-    return reportingSet.copy { this.externalReportingSetId = externalReportingSetId }
+    return reportingSet.copy { this.externalReportingSetId = externalReportingSetId.value }
   }
 
   private suspend fun TransactionScope.insertReportingSetEventGroups(
-    measurementConsumerId: Long,
-    reportingSetId: Long,
+    measurementConsumerId: InternalId,
+    reportingSetId: InternalId,
     eventGroups: List<ReportingSet.Primitive.EventGroupKey>
   ) {
     val eventGroupBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
@@ -113,9 +125,9 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
             cmmsEventGroupId = it.cmmsEventGroupId
           )
 
-      val eventGroupId: Long
+      val eventGroupId: InternalId
       if (eventGroupResult == null) {
-        eventGroupId = idGenerator.generateInternalId().value
+        eventGroupId = idGenerator.generateInternalId()
         eventGroupBinders.add {
           bind("$1", measurementConsumerId)
           bind("$2", eventGroupId)
@@ -161,17 +173,17 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
 
   private suspend fun TransactionScope.insertSetExpressions(
     reportingSetReader: ReportingSetReader,
-    measurementConsumerId: Long,
-    reportingSetId: Long,
+    measurementConsumerId: InternalId,
+    reportingSetId: InternalId,
     setExpression: SetExpression,
     root: Boolean
   ): SetExpressionsBindersAndId {
-    val setExpressionId = idGenerator.generateInternalId().value
+    val setExpressionId = idGenerator.generateInternalId()
 
-    val leftHandSetExpressionId: Long?
-    val leftHandReportingSetId: Long?
-    val rightHandSetExpressionId: Long?
-    val rightHandReportingSetId: Long?
+    val leftHandSetExpressionId: InternalId?
+    val leftHandReportingSetId: InternalId?
+    val rightHandSetExpressionId: InternalId?
+    val rightHandReportingSetId: InternalId?
 
     val setExpressionsBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
 
@@ -193,7 +205,7 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
       SetExpression.Operand.OperandCase.EXTERNAL_REPORTING_SET_ID -> {
         leftHandSetExpressionId = null
         val idResult =
-          reportingSetReader.readId(measurementConsumerId, setExpression.lhs.externalReportingSetId)
+          reportingSetReader.readPrimaryKey(measurementConsumerId, ExternalId(setExpression.lhs.externalReportingSetId))
             ?: throw ReportingSetNotFoundException()
         leftHandReportingSetId = idResult.reportingSetId
       }
@@ -221,7 +233,7 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
       SetExpression.Operand.OperandCase.EXTERNAL_REPORTING_SET_ID -> {
         rightHandSetExpressionId = null
         val idResult =
-          reportingSetReader.readId(measurementConsumerId, setExpression.rhs.externalReportingSetId)
+          reportingSetReader.readPrimaryKey(measurementConsumerId, ExternalId(setExpression.rhs.externalReportingSetId))
             ?: throw ReportingSetNotFoundException()
         rightHandReportingSetId = idResult.reportingSetId
       }
@@ -260,8 +272,8 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
   }
 
   private suspend fun TransactionScope.insertWeightedSubsetUnions(
-    measurementConsumerId: Long,
-    reportingSetId: Long,
+    measurementConsumerId: InternalId,
+    reportingSetId: InternalId,
     weightedSubsetUnions: List<WeightedSubsetUnion>
   ) {
     val weightedSubsetUnionsBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
@@ -271,7 +283,7 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
     val primitiveReportingSetBasisFiltersBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
 
     weightedSubsetUnions.forEach { weightedSubsetUnion ->
-      val weightedSubsetUnionId = idGenerator.generateInternalId().value
+      val weightedSubsetUnionId = idGenerator.generateInternalId()
       weightedSubsetUnionsBinders.add {
         bind("$1", measurementConsumerId)
         bind("$2", reportingSetId)
@@ -346,16 +358,16 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
   }
 
   private suspend fun TransactionScope.createPrimitiveReportingSetBasisBindings(
-    measurementConsumerId: Long,
-    reportingSetId: Long,
-    weightedSubsetUnionId: Long,
+    measurementConsumerId: InternalId,
+    reportingSetId: InternalId,
+    weightedSubsetUnionId: InternalId,
     primitiveReportingSetBasis: PrimitiveReportingSetBasis
   ): PrimitiveReportingSetBasesBinders {
-    val primitiveReportingSetBasisId = idGenerator.generateInternalId().value
+    val primitiveReportingSetBasisId = idGenerator.generateInternalId()
 
     val primitiveReportingSetIdResult =
       ReportingSetReader(transactionContext)
-        .readId(measurementConsumerId, primitiveReportingSetBasis.externalReportingSetId)
+        .readPrimaryKey(measurementConsumerId, ExternalId(primitiveReportingSetBasis.externalReportingSetId))
         ?: throw ReportingSetNotFoundException()
 
     val primitiveReportingSetBasesBinder: BoundStatement.Binder.() -> Unit = {
@@ -391,11 +403,11 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
   }
 
   private fun TransactionScope.insertPrimitiveReportingSetBasisFilter(
-    measurementConsumerId: Long,
-    primitiveReportingSetBasisId: Long,
+    measurementConsumerId: InternalId,
+    primitiveReportingSetBasisId: InternalId,
     filter: String
   ): BoundStatement.Binder.() -> Unit {
-    val primitiveReportingSetBasisFilterId = idGenerator.generateInternalId().value
+    val primitiveReportingSetBasisFilterId = idGenerator.generateInternalId()
 
     return {
       bind("$1", measurementConsumerId)

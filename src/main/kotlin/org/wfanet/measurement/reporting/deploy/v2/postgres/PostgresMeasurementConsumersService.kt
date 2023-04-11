@@ -14,11 +14,13 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.postgres
 
+import io.grpc.Status
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumer
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateMeasurementConsumer
+import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerAlreadyExistsException
 
 class PostgresMeasurementConsumersService(
   private val idGenerator: IdGenerator,
@@ -27,6 +29,10 @@ class PostgresMeasurementConsumersService(
   override suspend fun createMeasurementConsumer(
     request: MeasurementConsumer
   ): MeasurementConsumer {
-    return CreateMeasurementConsumer(request).execute(client, idGenerator)
+    try {
+      return CreateMeasurementConsumer(request).execute(client, idGenerator)
+    } catch (e: MeasurementConsumerAlreadyExistsException) {
+      e.throwStatusRuntimeException(Status.ALREADY_EXISTS) { "Measurement Consumer already exists" }
+    }
   }
 }

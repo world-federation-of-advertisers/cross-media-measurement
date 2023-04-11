@@ -18,13 +18,14 @@ import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
+import org.wfanet.measurement.common.identity.InternalId
 
 class EventGroupReader(private val readContext: ReadContext) {
   data class Result(
     val cmmsDataProviderId: String,
     val cmmsEventGroupId: String,
-    val measurementConsumerId: Long,
-    val eventGroupId: Long,
+    val measurementConsumerId: InternalId,
+    val eventGroupId: InternalId,
   )
 
   private val baseSql: String =
