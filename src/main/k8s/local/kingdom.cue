@@ -30,15 +30,8 @@ objectSets: [ for objectSet in kingdom {objectSet}]
 kingdom: #Kingdom & {
 	_kingdom_secret_name: _secret_name
 	_spannerConfig: database: "kingdom"
-	_images: {
-		"update-kingdom-schema":     "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/tools:update_schema_image"
-		"gcp-kingdom-data-server":   "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/server:gcp_kingdom_data_server_image"
-		"system-api-server":         "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:system_api_server_image"
-		"v2alpha-public-api-server": "bazel/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:v2alpha_public_api_server_image"
-	}
-	_kingdom_image_pull_policy: "Never"
-	_verboseGrpcServerLogging:  true
-	_verboseGrpcClientLogging:  true
+	_verboseGrpcServerLogging: true
+	_verboseGrpcClientLogging: true
 
 	deployments: {
 		"gcp-kingdom-data-server": {

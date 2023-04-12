@@ -113,30 +113,37 @@ LOCAL_IMAGES = [
     struct(
         name = "forwarded_storage_liquid_legions_v2_mill_daemon_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/mill/liquidlegionsv2:forwarded_storage_liquid_legions_v2_mill_daemon_image",
+        repository = _PREFIX + "/duchy/local-liquid-legions-v2-mill",
     ),
     struct(
         name = "forwarded_storage_computation_control_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:forwarded_storage_computation_control_server_image",
+        repository = _PREFIX + "/duchy/local-computation-control",
     ),
     struct(
         name = "forwarded_storage_spanner_computations_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/server:forwarded_storage_spanner_computations_server_image",
+        repository = _PREFIX + "/duchy/local-spanner-computations",
     ),
     struct(
         name = "forwarded_storage_requisition_fulfillment_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/server:forwarded_storage_requisition_fulfillment_server_image",
+        repository = _PREFIX + "/duchy/local-requisition-fulfillment",
     ),
     struct(
         name = "forwarded_storage_frontend_simulator_runner_image",
         image = "//src/main/kotlin/org/wfanet/measurement/loadtest/frontend:forwarded_storage_frontend_simulator_runner_image",
+        repository = _PREFIX + "/simulator/local-mc",
     ),
     struct(
         name = "forwarded_storage_edp_simulator_runner_image",
         image = "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:forwarded_storage_edp_simulator_runner_image",
+        repository = _PREFIX + "/simulator/local-edp",
     ),
     struct(
         name = "fake_storage_server_image",
         image = "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:server_image",
+        repository = _PREFIX + "/emulator/local-storage",
     ),
 ]
 
@@ -152,10 +159,12 @@ REPORTING_LOCAL_IMAGES = [
     struct(
         name = "reporting_data_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/server:postgres_reporting_data_server_image",
+        repository = _PREFIX + "/reporting/local-postgres-internal",
     ),
     struct(
         name = "reporting_postgres_update_schema_image",
         image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/tools:update_schema_image",
+        repository = _PREFIX + "/reporting/local-postgres-update-schema",
     ),
 ]
 
@@ -175,3 +184,5 @@ REPORTING_GKE_IMAGES = [
 ALL_GKE_IMAGES = COMMON_IMAGES + GKE_IMAGES + REPORTING_COMMON_IMAGES + REPORTING_GKE_IMAGES
 
 ALL_LOCAL_IMAGES = COMMON_IMAGES + LOCAL_IMAGES + REPORTING_COMMON_IMAGES + REPORTING_LOCAL_IMAGES
+
+ALL_IMAGES = COMMON_IMAGES + LOCAL_IMAGES + GKE_IMAGES + REPORTING_COMMON_IMAGES + REPORTING_LOCAL_IMAGES + REPORTING_GKE_IMAGES

@@ -43,6 +43,11 @@ object PrivacyQueryMapper {
   ): Query {
     val charge =
       when (measurementSpec.measurementTypeCase) {
+        MeasurementTypeCase.REACH ->
+          Charge(
+            measurementSpec.reach.privacyParams.epsilon.toFloat(),
+            measurementSpec.reach.privacyParams.delta.toFloat()
+          )
         MeasurementTypeCase.REACH_AND_FREQUENCY ->
           Charge(
             measurementSpec.reachAndFrequency.reachPrivacyParams.epsilon.toFloat() +

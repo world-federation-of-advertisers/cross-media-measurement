@@ -16,3 +16,4 @@ configMapGenerator:
 - name: config-files
   files:
   - authority_key_identifier_to_principal_map.textproto
+  - encryption_key_pair_config.textproto
