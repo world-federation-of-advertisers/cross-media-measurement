@@ -14,7 +14,6 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
-import io.grpc.Status
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec.VidSamplingInterval
@@ -22,8 +21,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.TimeInterval as CmmsTimeInterval
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.timeInterval as cmmsTimeInterval
-import org.wfanet.measurement.common.grpc.failGrpc
-import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.Metric as InternalMetric
@@ -90,13 +87,6 @@ fun InternalTimeInterval.toCmmsTimeInterval(): CmmsTimeInterval {
 /** Converts a [MetricSpec.VidSamplingInterval] to an [InternalMetricSpec.VidSamplingInterval]. */
 fun MetricSpec.VidSamplingInterval.toInternal(): InternalMetricSpec.VidSamplingInterval {
   val source = this
-  grpcRequire(source.start >= 0) { "vidSamplingInterval.start cannot be negative." }
-  grpcRequire(source.start < 1) { "vidSamplingInterval.start must be smaller than 1." }
-  grpcRequire(source.width > 0) { "vidSamplingInterval.width must be greater than 0." }
-  grpcRequire(source.start + source.width <= 1) {
-    "vidSamplingInterval start + width cannot be greater than 1."
-  }
-
   return InternalMetricSpecKt.vidSamplingInterval {
     start = source.start
     width = source.width
@@ -246,7 +236,7 @@ fun InternalMetricSpec.toMetricSpec(): MetricSpec {
             privacyParams = source.watchDuration.privacyParams.toPrivacyParams()
           }
       InternalMetricSpec.TypeCase.TYPE_NOT_SET ->
-        failGrpc(Status.INVALID_ARGUMENT) { "The metric type in Metric is not specified." }
+        throw IllegalArgumentException("The metric type in Metric is not specified.")
     }
     vidSamplingInterval = source.vidSamplingInterval.toVidSamplingInterval()
   }

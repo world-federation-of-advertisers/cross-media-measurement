@@ -75,8 +75,6 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/reporting/v2alpha:metrics_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf/util",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:security_provider",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
     ],
