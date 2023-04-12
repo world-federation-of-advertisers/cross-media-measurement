@@ -28,5 +28,5 @@ object Schemata {
     }
   }
 
-  val REPORTING_CHANGELOG_PATH: Path = getResourcePath("changelog_v2.yaml")
+  val REPORTING_CHANGELOG_PATH: Path = getResourcePath("changelog-v2.yaml")
 }
