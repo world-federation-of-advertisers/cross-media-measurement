@@ -51,24 +51,6 @@ _cloudStorageConfig: #CloudStorageConfig & {
 	bucket: _cloudStorageBucket
 }
 
-_imageSuffixes: [_=string]: string
-_imageSuffixes: {
-	"async-computation-control-server": "duchy/async-computation-control"
-	"computation-control-server":       "duchy/computation-control"
-	"herald-daemon":                    "duchy/herald"
-	"liquid-legions-v2-mill-daemon":    "duchy/liquid-legions-v2-mill"
-	"requisition-fulfillment-server":   "duchy/requisition-fulfillment"
-	"spanner-computations-server":      "duchy/spanner-computations"
-	"update-duchy-schema":              "duchy/spanner-update-schema"
-	"computations-cleaner":             "duchy/computations-cleaner"
-}
-_imageConfigs: [_=string]: #ImageConfig
-_imageConfigs: {
-	for name, suffix in _imageSuffixes {
-		"\(name)": {repoSuffix: suffix}
-	}
-}
-
 duchy: #Duchy & {
 	_duchy: {
 		name:                   _duchy_name
@@ -83,13 +65,7 @@ duchy: #Duchy & {
 	}
 	_kingdom_system_api_target: #KingdomSystemApiTarget
 	_blob_storage_flags:        _cloudStorageConfig.flags
-	_images: {
-		for name, config in _imageConfigs {
-			"\(name)": config.image
-		}
-	}
-	_duchy_image_pull_policy: "Always"
-	_verbose_grpc_logging:    "false"
+	_verbose_grpc_logging:      "false"
 
 	deployments: {
 		"spanner-computations-server-deployment": {

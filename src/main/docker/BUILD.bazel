@@ -1,8 +1,18 @@
-load("@io_bazel_rules_docker//container:container.bzl", "container_push")
+load(
+    "@io_bazel_rules_docker//container:container.bzl",
+    "container_bundle",
+    "container_push",
+)
+load("@io_bazel_rules_docker//contrib:push-all.bzl", "docker_push")
 load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
-load(":images.bzl", "ALL_GKE_IMAGES")
+load(":images.bzl", "ALL_IMAGES", "ALL_LOCAL_IMAGES")
 
-package(default_testonly = True)  #TODO: delete when InMemoryKeyStore and FakeHybridCipher are not used.
+package(
+    default_testonly = True,  #TODO: delete when InMemoryKeyStore and FakeHybridCipher are not used.
+    default_visibility = [
+        "//src/test/kotlin/org/wfanet/measurement/integration/k8s:__pkg__",
+    ],
+)
 
 # These rules push Docker images to the container registry.
 # 'bazel build' builds the image, 'bazel run' will actually push it.
@@ -16,5 +26,22 @@ package(default_testonly = True)  #TODO: delete when InMemoryKeyStore and FakeHy
         tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
         tags = ["manual"],
     )
-    for image_spec in ALL_GKE_IMAGES
+    for image_spec in ALL_IMAGES
 ]
+
+container_bundle(
+    name = "all_local_images",
+    images = {"{registry}/{name}:{tag}".format(
+        name = image_spec.repository,
+        registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
+        tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
+    ): image_spec.image for image_spec in ALL_LOCAL_IMAGES},
+    tags = ["manual"],
+    visibility = ["//visibility:private"],
+)
+
+docker_push(
+    name = "push_all_local_images",
+    bundle = ":all_local_images",
+    tags = ["manual"],
+)

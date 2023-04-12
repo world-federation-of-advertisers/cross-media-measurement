@@ -128,6 +128,7 @@ class ResourceSetup(
         this.measurementConsumer =
           ResourcesKt.ResourceKt.measurementConsumer {
             apiKey = apiAuthenticationKey
+            certificate = measurementConsumer.certificate
 
             // Assume signing cert uses same issuer as TLS client cert.
             authorityKeyIdentifier =
@@ -212,9 +213,15 @@ class ResourceSetup(
             writer.appendLine("build:$configName --define=${displayName}_name=${resource.name}")
           }
           Resources.Resource.ResourceCase.MEASUREMENT_CONSUMER -> {
-            val apiKey = resource.measurementConsumer.apiKey
-            writer.appendLine("build:$configName --define=mc_name=${resource.name}")
-            writer.appendLine("build:$configName --define=mc_api_key=$apiKey")
+            with(resource) {
+              writer.appendLine("build:$configName --define=mc_name=$name")
+              writer.appendLine(
+                "build:$configName --define=mc_api_key=${measurementConsumer.apiKey}"
+              )
+              writer.appendLine(
+                "build:$configName --define=mc_cert_name=${measurementConsumer.certificate}"
+              )
+            }
           }
           Resources.Resource.ResourceCase.DUCHY_CERTIFICATE -> {
             val duchyId = resource.duchyCertificate.duchyId
@@ -391,7 +398,7 @@ class ResourceSetup(
   }
 
   companion object {
-    const val DEFAULT_BAZEL_CONFIG_NAME = "halo-kind"
+    const val DEFAULT_BAZEL_CONFIG_NAME = "halo"
     const val RESOURCES_OUTPUT_FILE = "resources.textproto"
     const val AKID_PRINCIPAL_MAP_FILE = "authority_key_identifier_to_principal_map.textproto"
     const val BAZEL_RC_FILE = "resource-setup.bazelrc"
