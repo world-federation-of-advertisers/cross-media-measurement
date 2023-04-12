@@ -13,7 +13,7 @@ protocol_config {
   elliptic_curve_id: 415
   maximum_frequency: 10
   # DO_NOT_SUBMIT(@renjiez): Revert to GEOMETRIC as the default value.
-  noise_mechanism: DISCRETE_GAUSSIAN
+  noise_mechanism: GEOMETRIC
 }
 duchy_protocol_config {
   mpc_noise {
