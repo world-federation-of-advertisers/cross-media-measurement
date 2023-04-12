@@ -58,6 +58,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.result
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
@@ -107,7 +108,7 @@ data class MeasurementConsumerData(
   val name: String,
   /** The MC's consent signaling signing key. */
   val signingKey: SigningKeyHandle,
-  /** The MC's encryption public key. */
+  /** The MC's encryption private key. */
   val encryptionKey: PrivateKeyHandle,
   /** An API key for the MC. */
   val apiAuthenticationKey: String
@@ -240,13 +241,13 @@ class FrontendSimulator(
     logger.info("Created reach-only measurement ${createdReachOnlyMeasurement.name}.")
 
     // Get the CMMS computed result and compare it with the expected result.
-    var reachOnlyResult = getReachAndFrequencyResult(createdReachOnlyMeasurement.name)
+    var reachOnlyResult = getReachResult(createdReachOnlyMeasurement.name)
     var nAttempts = 0
     while (reachOnlyResult == null && (nAttempts < 4)) {
       nAttempts++
       logger.info("Computation not done yet, wait for another 30 seconds.  Attempt $nAttempts")
       delay(Duration.ofSeconds(30))
-      reachOnlyResult = getReachAndFrequencyResult(createdReachOnlyMeasurement.name)
+      reachOnlyResult = getReachResult(createdReachOnlyMeasurement.name)
     }
     checkNotNull(reachOnlyResult) { "Timed out waiting for response to reach-only request" }
     logger.info("Actual result: $reachOnlyResult")
@@ -259,16 +260,11 @@ class FrontendSimulator(
       getExpectedResult(createdReachOnlyMeasurement.name, liquidLegionV2Protocol)
     val expectedResult = result {
       reach = reach { value = expectedResultWithFrequencies.reach.value }
-      frequency = frequency { relativeFrequencyDistribution.putAll(mapOf(1L to 1.0)) }
     }
 
     logger.info("Expected result: $expectedResult")
 
-    assertDpResultsEqual(
-      expectedResult,
-      reachOnlyResult,
-      liquidLegionV2Protocol.maximumFrequency.toLong()
-    )
+    assertDpResultsEqual(expectedResult, reachOnlyResult, 0L)
     logger.info("Reach-only result is equal to the expected result. Correctness Test passes.")
   }
 
@@ -384,34 +380,17 @@ class FrontendSimulator(
 
   /** Gets the result of a [Measurement] if it is succeeded. */
   private suspend fun getImpressionResults(measurementName: String): List<Measurement.ResultPair> {
-    val measurement = getMeasurement(measurementName)
-    logger.info("Current Measurement state is: " + measurement.state)
-    if (measurement.state == Measurement.State.FAILED) {
-      val failure: Failure = measurement.failure
-      throw Exception("Measurement failed with reason ${failure.reason}: ${failure.message}")
-    }
-    return measurement.resultsList.toList()
+    return checkNotFailed(getMeasurement(measurementName)).resultsList.toList()
   }
 
   /** Gets the result of a [Measurement] if it is succeeded. */
   private suspend fun getDurationResults(measurementName: String): List<Measurement.ResultPair> {
-    val measurement = getMeasurement(measurementName)
-    logger.info("Current Measurement state is: " + measurement.state)
-    if (measurement.state == Measurement.State.FAILED) {
-      val failure: Failure = measurement.failure
-      throw Exception("Measurement failed with reason ${failure.reason}: ${failure.message}")
-    }
-    return measurement.resultsList.toList()
+    return checkNotFailed(getMeasurement(measurementName)).resultsList.toList()
   }
 
   /** Gets the result of a [Measurement] if it is succeeded. */
   private suspend fun getReachAndFrequencyResult(measurementName: String): Result? {
-    val measurement = getMeasurement(measurementName)
-    logger.info("Current Measurement state is: " + measurement.state)
-    if (measurement.state == Measurement.State.FAILED) {
-      val failure: Failure = measurement.failure
-      throw Exception("Measurement failed with reason ${failure.reason}: ${failure.message}")
-    }
+    val measurement = checkNotFailed(getMeasurement(measurementName))
     if (measurement.state != Measurement.State.SUCCEEDED) {
       return null
     }
@@ -424,19 +403,49 @@ class FrontendSimulator(
     return result
   }
 
-  private suspend fun getMeasurement(measurementName: String) =
-    try {
-      measurementsClient
-        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-        .getMeasurement(getMeasurementRequest { name = measurementName })
-    } catch (e: StatusException) {
-      throw Exception("Error fetching measurement $measurementName", e)
+  /** Gets the result of a [Measurement] if it is succeeded. */
+  private suspend fun getReachResult(measurementName: String): Result? {
+    val measurement = checkNotFailed(getMeasurement(measurementName))
+    if (measurement.state != Measurement.State.SUCCEEDED) {
+      return null
     }
+
+    val resultPair = measurement.resultsList[0]
+    val result = parseAndVerifyResult(resultPair)
+    assertThat(result.hasReach()).isTrue()
+    assertThat(result.hasFrequency()).isFalse()
+
+    return result
+  }
+
+  /** Gets [Measurement] with logging state. */
+  private suspend fun getMeasurement(measurementName: String): Measurement {
+    val measurement: Measurement =
+      try {
+        measurementsClient
+          .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+          .getMeasurement(getMeasurementRequest { name = measurementName })
+      } catch (e: StatusException) {
+        throw Exception("Error fetching measurement $measurementName", e)
+      }
+
+    logger.info("Current Measurement state is: " + measurement.state)
+
+    return measurement
+  }
+
+  /** Checks if the given [Measurement] is failed. */
+  private fun checkNotFailed(measurement: Measurement): Measurement {
+    check(measurement.state != Measurement.State.FAILED) {
+      val failure: Failure = measurement.failure
+      "Measurement failed with reason ${failure.reason}: ${failure.message}"
+    }
+    return measurement
+  }
 
   /** Gets the failure of an invalid [Measurement] if it is failed */
   private suspend fun getFailure(measurementName: String): Failure? {
     val measurement = getMeasurement(measurementName)
-    logger.info("Current Measurement state is: " + measurement.state)
     if (measurement.state != Measurement.State.FAILED) {
       return null
     }
@@ -560,11 +569,7 @@ class FrontendSimulator(
   ): MeasurementSpec {
     return measurementSpec {
       measurementPublicKey = serializedMeasurementPublicKey
-      reachAndFrequency = reachAndFrequency {
-        reachPrivacyParams = outputDpParams
-        frequencyPrivacyParams = outputDpParams
-        maximumFrequencyPerUser = 1
-      }
+      reach = MeasurementSpecKt.reach { privacyParams = outputDpParams }
       vidSamplingInterval = vidSamplingInterval {
         start = 0.0f
         width = 1.0f

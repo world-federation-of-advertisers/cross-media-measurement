@@ -28,10 +28,6 @@ on:
         required: false
         type: boolean
 
-permissions:
-  contents: read
-  id-token: write
-
 env:
   REGISTRY: ghcr.io
   REPO_PREFIX: world-federation-of-advertisers/packages

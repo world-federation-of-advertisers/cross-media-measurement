@@ -27,10 +27,6 @@ objectSets: [frontend_simulator]
 _cloudStorageConfig: #CloudStorageConfig & {
 	bucket: _cloudStorageBucket
 }
-_imageConfig: #ImageConfig & {
-	repoSuffix: "loadtest/frontend-simulator"
-}
-
 frontend_simulator: #FrontendSimulator & {
 	_mc_resource_name:          _mc_name
 	_mc_api_authentication_key: _mc_api_key

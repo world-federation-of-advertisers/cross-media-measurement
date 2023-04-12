@@ -45,12 +45,13 @@ import org.wfanet.measurement.duchy.daemon.mill.Certificate
 import org.wfanet.measurement.duchy.daemon.mill.MillBase
 import org.wfanet.measurement.duchy.daemon.mill.PermanentComputationError
 import org.wfanet.measurement.duchy.daemon.mill.liquidlegionsv2.crypto.LiquidLegionsV2Encryption
-import org.wfanet.measurement.duchy.daemon.utils.ReachAndFrequency
+import org.wfanet.measurement.duchy.daemon.utils.ComputationResult
+import org.wfanet.measurement.duchy.daemon.utils.ReachAndFrequencyResult
+import org.wfanet.measurement.duchy.daemon.utils.ReachResult
 import org.wfanet.measurement.duchy.daemon.utils.toAnySketchElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toCmmsElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaElGamalPublicKey
 import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaEncryptionPublicKey
-import org.wfanet.measurement.duchy.daemon.utils.toV2AlphaMeasurementResult
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.service.internal.computations.outputPathList
 import org.wfanet.measurement.duchy.service.system.v1alpha.advanceComputationHeader
@@ -645,14 +646,15 @@ class LiquidLegionsV2Mill(
     }
     var reach = 0L
     val maximumRequestedFrequency = getMaximumRequestedFrequency(token)
+    val measurementSpec =
+      MeasurementSpec.parseFrom(token.computationDetails.kingdomComputation.measurementSpec)
+
     val (bytes, tempToken) =
       existingOutputOr(token) {
         when (Version.fromString(token.computationDetails.kingdomComputation.publicApiVersion)) {
           Version.V2_ALPHA -> {}
           Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
         }
-        val measurementSpec =
-          MeasurementSpec.parseFrom(token.computationDetails.kingdomComputation.measurementSpec)
         val requestBuilder =
           CompleteExecutionPhaseTwoAtAggregatorRequest.newBuilder().apply {
             localElGamalKeyPair = llv2Details.localElgamalKey
@@ -716,8 +718,8 @@ class LiquidLegionsV2Mill(
       }
 
     // If this is a reach-only computation, then our job is done.
-    if (maximumRequestedFrequency == 1) {
-      sendResultToKingdom(token, reach, mapOf(1L to 1.0))
+    if (measurementSpec.hasReach() || maximumRequestedFrequency == 1) {
+      sendResultToKingdom(token, ReachResult(reach))
       return completeComputation(nextToken, CompletedReason.SUCCEEDED)
     }
 
@@ -786,7 +788,10 @@ class LiquidLegionsV2Mill(
       stub = nextDuchyStub(llv2Details.participantList)
     )
 
-    return if (maximumRequestedFrequency == 1) {
+    val measurementSpec =
+      MeasurementSpec.parseFrom(token.computationDetails.kingdomComputation.measurementSpec)
+
+    return if (measurementSpec.hasReach() || maximumRequestedFrequency == 1) {
       // If this is a reach-only computation, then our job is done.
       completeComputation(nextToken, CompletedReason.SUCCEEDED)
     } else {
@@ -835,7 +840,10 @@ class LiquidLegionsV2Mill(
       CompleteExecutionPhaseThreeAtAggregatorResponse.parseFrom(bytes.flatten())
         .frequencyDistributionMap
 
-    sendResultToKingdom(token, llv2Details.reachEstimate.reach, frequencyDistributionMap)
+    sendResultToKingdom(
+      token,
+      ReachAndFrequencyResult(llv2Details.reachEstimate.reach, frequencyDistributionMap)
+    )
     return completeComputation(nextToken, CompletedReason.SUCCEEDED)
   }
 
@@ -883,16 +891,14 @@ class LiquidLegionsV2Mill(
 
   private suspend fun sendResultToKingdom(
     token: ComputationToken,
-    reach: Long,
-    frequency: Map<Long, Double>
+    computationResult: ComputationResult
   ) {
-    val reachAndFrequency = ReachAndFrequency(reach, frequency)
     val kingdomComputation = token.computationDetails.kingdomComputation
     val serializedPublicApiEncryptionPublicKey: ByteString
     val encryptedResult =
       when (Version.fromString(kingdomComputation.publicApiVersion)) {
         Version.V2_ALPHA -> {
-          val signedResult = signResult(reachAndFrequency.toV2AlphaMeasurementResult(), signingKey)
+          val signedResult = signResult(computationResult.toV2AlphaMeasurementResult(), signingKey)
           val publicApiEncryptionPublicKey =
             kingdomComputation.measurementPublicKey.toV2AlphaEncryptionPublicKey()
           serializedPublicApiEncryptionPublicKey = publicApiEncryptionPublicKey.toByteString()
@@ -970,7 +976,9 @@ class LiquidLegionsV2Mill(
       token.computationDetails.liquidLegionsV2.parameters.maximumFrequency
     val measurementSpec =
       MeasurementSpec.parseFrom(token.computationDetails.kingdomComputation.measurementSpec)
-    val measurementSpecMaximumFrequency = measurementSpec.reachAndFrequency.maximumFrequencyPerUser
+    val measurementSpecMaximumFrequency =
+      if (measurementSpec.hasReach()) 1
+      else measurementSpec.reachAndFrequency.maximumFrequencyPerUser
     if (measurementSpecMaximumFrequency > 0) {
       maximumRequestedFrequency = min(maximumRequestedFrequency, measurementSpecMaximumFrequency)
     }
