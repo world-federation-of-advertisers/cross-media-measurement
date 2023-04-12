@@ -75,7 +75,7 @@ kt_jvm_library(
 )
 
 java_binary(
-    name = "ResourceSetupRunner",
+    name = "ResourceSetup",
     main_class = "org.wfanet.measurement.loadtest.resourcesetup.ResourceSetupRunnerKt",
     runtime_deps = [":resource_setup_runner"],
 )

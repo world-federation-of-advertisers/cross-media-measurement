@@ -30,8 +30,23 @@ package k8s
 		certificateHostOption: "--kingdom-api-cert-host"
 	}
 
-	_images: [Name=_]: string
-	_imagePullPolicy:    string
+	_imageSuffixes: [_=string]: string
+	_imageSuffixes: {
+		"update-reporting-schema":             string | *"reporting/postgres-update-schema"
+		"postgres-reporting-data-server":      string | *"reporting/postgres-data-server"
+		"reporting-public-api-v1alpha-server": string | *"reporting/v1alpha-public-api"
+	}
+	_imageConfigs: [_=string]: #ImageConfig
+	_imageConfigs: {
+		for name, suffix in _imageSuffixes {
+			"\(name)": {repoSuffix: suffix}
+		}
+	}
+	_images: {
+		for name, config in _imageConfigs {
+			"\(name)": config.image
+		}
+	}
 	_secretName:         string
 	_mcConfigSecretName: string
 
@@ -54,7 +69,7 @@ package k8s
 	}
 	services: {
 		"postgres-reporting-data-server": {}
-		"v1alpha-public-api-server": _type: "LoadBalancer"
+		"reporting-public-api-v1alpha-server": _type: "LoadBalancer"
 	}
 
 	jobs: [Name=_]: #Job & {
@@ -66,8 +81,7 @@ package k8s
 		_secretName: Reporting._secretName
 		_system:     "reporting"
 		_container: {
-			image:           _images[_name]
-			imagePullPolicy: Reporting._imagePullPolicy
+			image: _images[_name]
 		}
 	}
 	deployments: {
@@ -80,9 +94,9 @@ package k8s
 			] + _postgresConfig.flags + _tlsArgs
 
 			_updateSchemaContainer: Container=#Container & {
-				image:           _images[Container.name]
-				args:            _postgresConfig.flags
-				imagePullPolicy: _container.imagePullPolicy
+				image:            _images[Container.name]
+				args:             _postgresConfig.flags
+				imagePullPolicy?: _container.imagePullPolicy
 			}
 
 			spec: template: spec: _initContainers: {
@@ -90,7 +104,7 @@ package k8s
 			}
 		}
 
-		"v1alpha-public-api-server": {
+		"reporting-public-api-v1alpha-server": {
 			_container: args: [
 						_debugVerboseGrpcClientLoggingFlag,
 						_debugVerboseGrpcServerLoggingFlag,
@@ -112,7 +126,7 @@ package k8s
 					}
 					"config-files": #ConfigMapMount
 				}
-				_dependencies: ["postgres-reporting-data-server"]
+				_dependencies: _ | *["postgres-reporting-data-server"]
 			}
 		}
 	}
@@ -125,7 +139,7 @@ package k8s
 		"internal-reporting-data-server": {
 			_app_label: "postgres-reporting-data-server-app"
 			_sourceMatchLabels: [
-				"v1alpha-public-api-server-app",
+				"reporting-public-api-v1alpha-server-app",
 			]
 			_egresses: {
 				// Needs to call out to Postgres server.
@@ -133,7 +147,7 @@ package k8s
 			}
 		}
 		"public-reporting-api-server": {
-			_app_label: "v1alpha-public-api-server-app"
+			_app_label: "reporting-public-api-v1alpha-server-app"
 			_destinationMatchLabels: ["postgres-reporting-data-server-app"]
 			_ingresses: {
 				gRpc: {

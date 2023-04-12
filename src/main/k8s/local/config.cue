@@ -27,3 +27,12 @@ package k8s
 	initialHeapSize: _ | *"32M"
 	maxHeapSize:     _ | *"96M"
 }
+
+#ContainerRegistryConfig: {
+	registry:   string @tag("container_registry")
+	repoPrefix: string @tag("image_repo_prefix")
+}
+
+#ImageConfig: {
+	tag: string @tag("image_tag")
+}
