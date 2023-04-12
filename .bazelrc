@@ -13,6 +13,10 @@ build --java_language_version=8
 # Pass environment variables.
 test --test_env=TESTCONTAINERS_RYUK_DISABLED
 
+# Disable rules_docker transitions, as it breaks our usage of glibc target
+# constraints for on images based on Distroless Java.
+build --@io_bazel_rules_docker//transitions:enable=false
+
 # Convenience platform configurations.
 build:debian-bullseye --platforms=//build/platforms:debian_bullseye
 build:ubuntu-bionic --platforms=//build/platforms:ubuntu_bionic

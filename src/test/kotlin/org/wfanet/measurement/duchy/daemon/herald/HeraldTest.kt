@@ -46,8 +46,11 @@ import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
+import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams as cmmsDifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
+import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.captureFirst
@@ -65,6 +68,7 @@ import org.wfanet.measurement.duchy.storage.ComputationStore
 import org.wfanet.measurement.duchy.storage.RequisitionStore
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ComputationDetails
+import org.wfanet.measurement.internal.duchy.ComputationDetailsKt.kingdomComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineImplBase as InternalComputationsCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub as InternalComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineImplBase
@@ -72,10 +76,12 @@ import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.Continuati
 import org.wfanet.measurement.internal.duchy.DeleteComputationRequest
 import org.wfanet.measurement.internal.duchy.FinishComputationResponse
 import org.wfanet.measurement.internal.duchy.GetComputationTokenRequest
+import org.wfanet.measurement.internal.duchy.computationDetails
 import org.wfanet.measurement.internal.duchy.computationToken
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation
 import org.wfanet.measurement.internal.duchy.config.ProtocolsSetupConfig
 import org.wfanet.measurement.internal.duchy.deleteComputationRequest
+import org.wfanet.measurement.internal.duchy.differentialPrivacyParams as duchyDifferentialPrivacyParams
 import org.wfanet.measurement.internal.duchy.getComputationTokenResponse
 import org.wfanet.measurement.internal.duchy.getContinuationTokenResponse
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant
@@ -84,6 +90,11 @@ import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggrega
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_REQUISITIONS_AND_KEY_SET
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.parameters
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfigKt.reachNoiseConfig
+import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsSketchParameters
+import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsV2NoiseConfig
 import org.wfanet.measurement.internal.duchy.setContinuationTokenRequest
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
@@ -106,9 +117,10 @@ import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoro
 import org.wfanet.measurement.system.v1alpha.FailComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.Requisition
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
+import org.wfanet.measurement.system.v1alpha.computation
 import org.wfanet.measurement.system.v1alpha.computationParticipant
 import org.wfanet.measurement.system.v1alpha.copy
-import org.wfanet.measurement.system.v1alpha.differentialPrivacyParams
+import org.wfanet.measurement.system.v1alpha.differentialPrivacyParams as systemDifferentialPrivacyParams
 import org.wfanet.measurement.system.v1alpha.failComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.streamActiveComputationsResponse
 
@@ -120,30 +132,47 @@ private const val DUCHY_THREE = "AUSTRIA"
 private val REQUISITION_1 = TestRequisition("1") { SERIALIZED_MEASUREMENT_SPEC }
 private val REQUISITION_2 = TestRequisition("2") { SERIALIZED_MEASUREMENT_SPEC }
 
+private val REACH_ONLY_REQUISITION_1 =
+  TestRequisition("1") { SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC }
+private val REACH_ONLY_REQUISITION_2 =
+  TestRequisition("2") { SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC }
+
 private val PUBLIC_API_ENCRYPTION_PUBLIC_KEY = encryptionPublicKey {
   format = EncryptionPublicKey.Format.TINK_KEYSET
   data = ByteString.copyFromUtf8("A nice encryption public key.")
 }
 
-private val PUBLIC_API_MEASUREMENT_SPEC =
-  MeasurementSpec.newBuilder()
-    .apply {
-      measurementPublicKey = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.toByteString()
-      reachAndFrequencyBuilder.apply {
-        reachPrivacyParamsBuilder.apply {
-          epsilon = 1.1
-          delta = 1.2
-        }
-        frequencyPrivacyParamsBuilder.apply {
-          epsilon = 2.1
-          delta = 2.2
-        }
-      }
-      addNonceHashes(REQUISITION_1.nonceHash)
-      addNonceHashes(REQUISITION_2.nonceHash)
+private val PUBLIC_API_MEASUREMENT_SPEC = measurementSpec {
+  measurementPublicKey = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.toByteString()
+  reachAndFrequency = reachAndFrequency {
+    reachPrivacyParams = cmmsDifferentialPrivacyParams {
+      epsilon = 1.1
+      delta = 1.2
     }
-    .build()
+    frequencyPrivacyParams = cmmsDifferentialPrivacyParams {
+      epsilon = 2.1
+      delta = 2.2
+    }
+  }
+  nonceHashes += REACH_ONLY_REQUISITION_1.nonceHash
+  nonceHashes += REACH_ONLY_REQUISITION_2.nonceHash
+}
 private val SERIALIZED_MEASUREMENT_SPEC: ByteString = PUBLIC_API_MEASUREMENT_SPEC.toByteString()
+
+private val PUBLIC_API_REACH_ONLY_MEASUREMENT_SPEC = measurementSpec {
+  measurementPublicKey = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.toByteString()
+  reach = reach {
+    privacyParams = cmmsDifferentialPrivacyParams {
+      epsilon = 1.1
+      delta = 1.2
+    }
+  }
+  nonceHashes += REACH_ONLY_REQUISITION_1.nonceHash
+  nonceHashes += REACH_ONLY_REQUISITION_2.nonceHash
+}
+
+private val SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC: ByteString =
+  PUBLIC_API_REACH_ONLY_MEASUREMENT_SPEC.toByteString()
 
 private val MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
   liquidLegionsV2 = liquidLegionsV2 {
@@ -152,11 +181,11 @@ private val MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
       maxSize = 100_000
     }
     mpcNoise = mpcNoise {
-      blindedHistogramNoise = differentialPrivacyParams {
+      blindedHistogramNoise = systemDifferentialPrivacyParams {
         epsilon = 3.1
         delta = 3.2
       }
-      noiseForPublisherNoise = differentialPrivacyParams {
+      noiseForPublisherNoise = systemDifferentialPrivacyParams {
         epsilon = 4.1
         delta = 4.2
       }
@@ -377,38 +406,38 @@ class HeraldTest {
         fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.computationDetails
       )
       .isEqualTo(
-        ComputationDetails.newBuilder()
-          .apply {
-            blobsStoragePrefix = "computation-blob-storage/2"
-            kingdomComputationBuilder.apply {
-              publicApiVersion = PUBLIC_API_VERSION
-              measurementSpec = SERIALIZED_MEASUREMENT_SPEC
-              measurementPublicKey = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
-            }
-            liquidLegionsV2Builder.apply {
+        computationDetails {
+          blobsStoragePrefix = "computation-blob-storage/2"
+          kingdomComputation = kingdomComputationDetails {
+            publicApiVersion = PUBLIC_API_VERSION
+            measurementSpec = SERIALIZED_MEASUREMENT_SPEC
+            measurementPublicKey = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
+          }
+          liquidLegionsV2 =
+            LiquidLegionsSketchAggregationV2Kt.computationDetails {
               role = RoleInComputation.AGGREGATOR
-              parametersBuilder.apply {
+              parameters = parameters {
                 maximumFrequency = 10
-                liquidLegionsSketchBuilder.apply {
+                liquidLegionsSketch = liquidLegionsSketchParameters {
                   decayRate = 12.0
                   size = 100_000L
                 }
-                noiseBuilder.apply {
-                  reachNoiseConfigBuilder.apply {
-                    blindHistogramNoiseBuilder.apply {
+                noise = liquidLegionsV2NoiseConfig {
+                  reachNoiseConfig = reachNoiseConfig {
+                    blindHistogramNoise = duchyDifferentialPrivacyParams {
                       epsilon = 3.1
                       delta = 3.2
                     }
-                    noiseForPublisherNoiseBuilder.apply {
+                    noiseForPublisherNoise = duchyDifferentialPrivacyParams {
                       epsilon = 4.1
                       delta = 4.2
                     }
-                    globalReachDpNoiseBuilder.apply {
+                    globalReachDpNoise = duchyDifferentialPrivacyParams {
                       epsilon = 1.1
                       delta = 1.2
                     }
                   }
-                  frequencyNoiseConfigBuilder.apply {
+                  frequencyNoiseConfig = duchyDifferentialPrivacyParams {
                     epsilon = 2.1
                     delta = 2.2
                   }
@@ -416,8 +445,103 @@ class HeraldTest {
                 ellipticCurveId = 415
               }
             }
+        }
+      )
+  }
+
+  @Test
+  fun `syncStatuses creates new computations for reach-only`() = runTest {
+    val confirmingKnown =
+      buildComputationAtKingdom(
+        "1",
+        Computation.State.PENDING_REQUISITION_PARAMS,
+        serializedMeasurementSpec = SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC
+      )
+
+    val systemApiRequisitions1 =
+      REACH_ONLY_REQUISITION_1.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+    val systemApiRequisitions2 =
+      REACH_ONLY_REQUISITION_2.toSystemRequisition("2", Requisition.State.UNFULFILLED)
+    val confirmingUnknown =
+      buildComputationAtKingdom(
+        "2",
+        Computation.State.PENDING_REQUISITION_PARAMS,
+        listOf(systemApiRequisitions1, systemApiRequisitions2),
+        serializedMeasurementSpec = SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC
+      )
+    mockStreamActiveComputationsToReturn(confirmingKnown, confirmingUnknown)
+
+    fakeComputationDatabase.addComputation(
+      globalId = confirmingKnown.key.computationId,
+      stage = INITIALIZATION_PHASE.toProtocolStage(),
+      computationDetails = AGGREGATOR_COMPUTATION_DETAILS,
+      blobs = listOf(newInputBlobMetadata(0L, "input-blob"), newEmptyOutputBlobMetadata(1L))
+    )
+
+    aggregatorHerald.syncStatuses()
+
+    verifyBlocking(continuationTokensService, atLeastOnce()) {
+      setContinuationToken(eq(setContinuationTokenRequest { this.token = "2" }))
+    }
+    assertThat(
+        fakeComputationDatabase.mapValues { (_, fakeComputation) ->
+          fakeComputation.computationStage
+        }
+      )
+      .containsExactly(
+        confirmingKnown.key.computationId.toLong(),
+        INITIALIZATION_PHASE.toProtocolStage(),
+        confirmingUnknown.key.computationId.toLong(),
+        INITIALIZATION_PHASE.toProtocolStage()
+      )
+
+    assertThat(
+        fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.requisitionsList
+      )
+      .containsExactly(
+        REACH_ONLY_REQUISITION_1.toRequisitionMetadata(Requisition.State.UNFULFILLED),
+        REACH_ONLY_REQUISITION_2.toRequisitionMetadata(Requisition.State.UNFULFILLED)
+      )
+    assertThat(
+        fakeComputationDatabase[confirmingUnknown.key.computationId.toLong()]?.computationDetails
+      )
+      .isEqualTo(
+        computationDetails {
+          blobsStoragePrefix = "computation-blob-storage/2"
+          kingdomComputation = kingdomComputationDetails {
+            publicApiVersion = PUBLIC_API_VERSION
+            measurementSpec = SERIALIZED_REACH_ONLY_MEASUREMENT_SPEC
+            measurementPublicKey = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
           }
-          .build()
+          liquidLegionsV2 =
+            LiquidLegionsSketchAggregationV2Kt.computationDetails {
+              role = RoleInComputation.AGGREGATOR
+              parameters = parameters {
+                maximumFrequency = 10
+                liquidLegionsSketch = liquidLegionsSketchParameters {
+                  decayRate = 12.0
+                  size = 100_000L
+                }
+                noise = liquidLegionsV2NoiseConfig {
+                  reachNoiseConfig = reachNoiseConfig {
+                    blindHistogramNoise = duchyDifferentialPrivacyParams {
+                      epsilon = 3.1
+                      delta = 3.2
+                    }
+                    noiseForPublisherNoise = duchyDifferentialPrivacyParams {
+                      epsilon = 4.1
+                      delta = 4.2
+                    }
+                    globalReachDpNoise = duchyDifferentialPrivacyParams {
+                      epsilon = 1.1
+                      delta = 1.2
+                    }
+                  }
+                }
+                ellipticCurveId = 415
+              }
+            }
+        }
       )
   }
 
@@ -884,19 +1008,18 @@ class HeraldTest {
     globalId: String,
     stateAtKingdom: Computation.State,
     systemApiRequisitions: List<Requisition> = listOf(),
-    systemComputationParticipant: List<SystemComputationParticipant> = listOf()
+    systemComputationParticipant: List<SystemComputationParticipant> = listOf(),
+    serializedMeasurementSpec: ByteString = SERIALIZED_MEASUREMENT_SPEC,
   ): Computation {
-    return Computation.newBuilder()
-      .also {
-        it.name = ComputationKey(globalId).toName()
-        it.publicApiVersion = PUBLIC_API_VERSION
-        it.measurementSpec = SERIALIZED_MEASUREMENT_SPEC
-        it.state = stateAtKingdom
-        it.addAllRequisitions(systemApiRequisitions)
-        it.addAllComputationParticipants(systemComputationParticipant)
-        it.mpcProtocolConfig = MPC_PROTOCOL_CONFIG
-      }
-      .build()
+    return computation {
+      name = ComputationKey(globalId).toName()
+      publicApiVersion = PUBLIC_API_VERSION
+      measurementSpec = serializedMeasurementSpec
+      state = stateAtKingdom
+      requisitions += systemApiRequisitions
+      computationParticipants += systemComputationParticipant
+      mpcProtocolConfig = MPC_PROTOCOL_CONFIG
+    }
   }
 
   private var continuationTokenTimeSeq = 0L

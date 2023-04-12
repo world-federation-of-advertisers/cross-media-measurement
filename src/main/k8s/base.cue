@@ -434,7 +434,6 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			heapDumpOnOutOfMemory: true
 			heapDumpPath:          "/run/heap-dumps"
 		}
-		imagePullPolicy: _ | *"Never"
 	}
 
 	apiVersion: "apps/v1"

@@ -20,9 +20,27 @@ package k8s
 
 	_spannerConfig: #SpannerConfig
 
-	_images: [Name=_]: string
-	_kingdom_image_pull_policy: string
-	_kingdom_secret_name:       string
+	_kingdom_secret_name: string
+
+	_imageSuffixes: [string]: string
+	_imageSuffixes: {
+		"gcp-kingdom-data-server":   string | *"kingdom/data-server"
+		"system-api-server":         string | *"kingdom/system-api"
+		"v2alpha-public-api-server": string | *"kingdom/v2alpha-public-api"
+		"update-kingdom-schema":     string | *"kingdom/spanner-update-schema"
+	}
+	_imageConfigs: [string]: #ImageConfig
+	_imageConfigs: {
+		for name, suffix in _imageSuffixes {
+			"\(name)": {repoSuffix: suffix}
+		}
+	}
+	_images: [string]: string
+	_images: {
+		for name, config in _imageConfigs {
+			"\(name)": config.image
+		}
+	}
 
 	_duchy_info_config_flag:                 "--duchy-info-config=/var/run/secrets/files/duchy_cert_config.textproto"
 	_duchy_id_config_flag:                   "--duchy-id-config=/var/run/secrets/files/duchy_id_config.textproto"
@@ -68,8 +86,7 @@ package k8s
 				},
 			]
 
-			image:           _images[_name]
-			imagePullPolicy: _kingdom_image_pull_policy
+			image: _images[_name]
 		}
 	}
 	deployments: {
@@ -87,9 +104,9 @@ package k8s
 				] + Container._commonServerFlags + _spannerConfig.flags
 			}
 			_updateSchemaContainer: Container=#Container & {
-				image:           _images[Container.name]
-				imagePullPolicy: _container.imagePullPolicy
-				args:            _spannerConfig.flags
+				image:            _images[Container.name]
+				imagePullPolicy?: _container.imagePullPolicy
+				args:             _spannerConfig.flags
 			}
 			spec: template: spec: {
 				_initContainers: {

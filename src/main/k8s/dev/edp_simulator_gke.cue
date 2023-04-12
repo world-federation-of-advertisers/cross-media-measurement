@@ -40,9 +40,6 @@ _bigQueryConfig: #BigQueryConfig & {
 	dataset: #BigQueryDataSet
 	table:   #BigQueryTable
 }
-_imageConfig: #ImageConfig & {
-	repoSuffix: "loadtest/edp-simulator"
-}
 
 #EdpConfig: {
 	publisherId: int
@@ -59,15 +56,13 @@ _edpConfigs: [
 edp_simulators: {
 	for edp in _edpConfigs {
 		"\(edp.displayName)": #EdpSimulator & {
-			_edpConfig:                   edp
-			_edp_secret_name:             _secret_name
-			_duchy_public_api_target:     #DuchyPublicApiTarget
-			_kingdom_public_api_target:   #KingdomPublicApiTarget
-			_blob_storage_flags:          _cloudStorageConfig.flags
-			_mc_resource_name:            _mc_name
-			_edp_simulator_image:         _imageConfig.image
-			_simulator_image_pull_policy: "Always"
-			_additional_args:             ["--publisher-id=\(edp.publisherId)"] + _bigQueryConfig.flags
+			_edpConfig:                 edp
+			_edp_secret_name:           _secret_name
+			_duchy_public_api_target:   #DuchyPublicApiTarget
+			_kingdom_public_api_target: #KingdomPublicApiTarget
+			_blob_storage_flags:        _cloudStorageConfig.flags
+			_mc_resource_name:          _mc_name
+			_additional_args:           ["--publisher-id=\(edp.publisherId)"] + _bigQueryConfig.flags
 			deployment: spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #ServiceAccount
 			}
