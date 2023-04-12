@@ -54,7 +54,7 @@ message ListEventGroupsRequest {
   ];
 
   // The maximum number of `EventGroup`s to return. The service may return fewer
-  // than this value. If unspecified, at most 200 `EventGroup`s will be
+  // than this value. If unspecified, at most 50 `EventGroup`s will be
   // returned. The maximum value is 1000; values above 1000 will be coerced to
   // 1000.
   int32 page_size = 2;

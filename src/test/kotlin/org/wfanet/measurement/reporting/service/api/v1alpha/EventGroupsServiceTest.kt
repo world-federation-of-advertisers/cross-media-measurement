@@ -70,7 +70,7 @@ import org.wfanet.measurement.reporting.v1alpha.eventGroup
 import org.wfanet.measurement.reporting.v1alpha.listEventGroupsRequest
 import org.wfanet.measurement.reporting.v1alpha.listEventGroupsResponse
 
-private const val DEFAULT_PAGE_SIZE = 200
+private const val DEFAULT_PAGE_SIZE = 50
 
 private const val API_AUTHENTICATION_KEY = "nR5QPN7ptx"
 private val CONFIG = measurementConsumerConfig { apiKey = API_AUTHENTICATION_KEY }

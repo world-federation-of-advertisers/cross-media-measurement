@@ -56,7 +56,7 @@ import org.wfanet.measurement.reporting.v1alpha.listEventGroupsResponse
 private const val METADATA_FIELD = "metadata.metadata"
 
 private const val MIN_PAGE_SIZE = 1
-private const val DEFAULT_PAGE_SIZE = 200
+private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
 
 class EventGroupsService(
