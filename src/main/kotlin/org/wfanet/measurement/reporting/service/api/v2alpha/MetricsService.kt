@@ -699,25 +699,25 @@ class MetricsService(
     metricSpec: MetricSpec,
   ): InternalMetricSpec {
     return internalMetricSpec {
-      val defaultVidSamplingInterval: InternalMetricSpec.VidSamplingInterval =
+      val defaultVidSamplingInterval: MetricSpecConfig.VidSamplingInterval =
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
         when (metricSpec.typeCase) {
           MetricSpec.TypeCase.REACH -> {
             reach = buildInternalReachParams(metricSpec.reach)
-            metricSpecConfig.reachVidSamplingInterval.toInternal()
+            metricSpecConfig.reachVidSamplingInterval
           }
           MetricSpec.TypeCase.FREQUENCY_HISTOGRAM -> {
             frequencyHistogram =
               buildInternalFrequencyHistogramParams(metricSpec.frequencyHistogram)
-            metricSpecConfig.frequencyHistogramVidSamplingInterval.toInternal()
+            metricSpecConfig.frequencyHistogramVidSamplingInterval
           }
           MetricSpec.TypeCase.IMPRESSION_COUNT -> {
             impressionCount = buildInternalImpressionCountParams(metricSpec.impressionCount)
-            metricSpecConfig.impressionCountVidSamplingInterval.toInternal()
+            metricSpecConfig.impressionCountVidSamplingInterval
           }
           MetricSpec.TypeCase.WATCH_DURATION -> {
             watchDuration = buildInternalWatchDurationParams(metricSpec.watchDuration)
-            metricSpecConfig.watchDurationVidSamplingInterval.toInternal()
+            metricSpecConfig.watchDurationVidSamplingInterval
           }
           MetricSpec.TypeCase.TYPE_NOT_SET ->
             failGrpc(Status.INVALID_ARGUMENT) { "The metric type in Metric is not specified." }
@@ -726,7 +726,20 @@ class MetricsService(
       vidSamplingInterval =
         if (metricSpec.hasVidSamplingInterval()) {
           metricSpec.vidSamplingInterval.toInternal()
-        } else defaultVidSamplingInterval
+        } else defaultVidSamplingInterval.toInternal()
+
+      grpcRequire(vidSamplingInterval.start >= 0) {
+        "vidSamplingInterval.start cannot be negative."
+      }
+      grpcRequire(vidSamplingInterval.start < 1) {
+        "vidSamplingInterval.start must be smaller than 1."
+      }
+      grpcRequire(vidSamplingInterval.width > 0) {
+        "vidSamplingInterval.width must be greater than 0."
+      }
+      grpcRequire(vidSamplingInterval.start + vidSamplingInterval.width <= 1) {
+        "vidSamplingInterval start + width cannot be greater than 1."
+      }
     }
   }
 
