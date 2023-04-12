@@ -25,6 +25,10 @@ objectSets: [
 	deployments,
 ]
 
+_localStorageImageConfig: #ImageConfig & {
+	repoSuffix: "emulator/local-storage"
+}
+
 services: [Name=string]: #Service & {
 	metadata: {
 		_component: #ComponentName
@@ -72,7 +76,7 @@ deployments: [Name=string]: #Deployment & {
 deployments: {
 	"fake-storage-server": #ServerDeployment & {
 		_container: {
-			image: "bazel/src/main/kotlin/org/wfanet/measurement/storage/filesystem:server_image"
+			image: _localStorageImageConfig.image
 			args: [
 				"--debug-verbose-grpc-server-logging=false",
 				"--port=8443",

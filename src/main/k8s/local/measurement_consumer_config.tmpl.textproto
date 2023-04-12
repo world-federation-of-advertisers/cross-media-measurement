@@ -1,0 +1,10 @@
+# proto-file: wfa/measurement/config/reporting/measurement_consumer_config.proto
+# proto-message: MeasurementConsumerConfigs
+configs {
+  key: "{key}"
+  value: {
+    api_key: "{api_key}"
+    signing_certificate_name: "{signing_certificate_name}"
+    signing_private_key_path: "mc_cs_private.der"
+  }
+}

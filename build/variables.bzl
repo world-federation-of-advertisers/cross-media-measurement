@@ -41,6 +41,7 @@ TEST_K8S_SETTINGS = struct(
     worker2_cert_name = "$(worker2_cert_name)",
     mc_name = "$(mc_name)",
     mc_api_key = "$(mc_api_key)",
+    mc_cert_name = "$(mc_cert_name)",
     edp1_name = "$(edp1_name)",
     edp2_name = "$(edp2_name)",
     edp3_name = "$(edp3_name)",
