@@ -24,11 +24,6 @@ load(
 )
 load("@wfa_common_jvm//build:defs.bzl", "to_label")
 
-ImageImportInfo = provider(
-    doc = "Information about importing container images.",
-    fields = ["image_ref"],
-)
-
 KustomizationDirInfo = provider(
     doc = "Information about a Kustomization dir.",
     fields = {
@@ -37,102 +32,12 @@ KustomizationDirInfo = provider(
     },
 )
 
-def _get_image_name(image_archive_label):
-    """Returns the image ref from the Bazel label.
-
-    Note that this assumes the image is using the default repo and tag name.
-    """
-    return "{repo}:{tag_name}".format(
-        repo = image_archive_label.package,
-        tag_name = image_archive_label.name.rsplit(".", 1)[0],
-    )
-
-def _kind_load_image_impl(ctx):
-    image_archive = ctx.file.image_archive
-    runfiles = [image_archive]
-    image_name = _get_image_name(ctx.attr.image_archive.label)
-
-    command = "kind load image-archive {archive_path}".format(
-        archive_path = image_archive.short_path,
-    )
-    if ctx.attr.cluster_name:
-        command += " --name=" + ctx.attr.cluster_name
-
-    output = ctx.actions.declare_file(ctx.label.name)
-    ctx.actions.write(output, command, is_executable = True)
-
-    return [
-        DefaultInfo(
-            executable = output,
-            runfiles = ctx.runfiles(files = runfiles),
-        ),
-        ImageImportInfo(
-            image_ref = "docker.io/" + image_name,
-        ),
-    ]
-
-kind_load_image = rule(
-    doc = "Executable that loads an image archive into KiND.",
-    implementation = _kind_load_image_impl,
-    attrs = {
-        "image_archive": attr.label(
-            doc = "Container image archive.",
-            mandatory = True,
-            allow_single_file = True,
-        ),
-        "cluster_name": attr.string(
-            doc = "Cluster context name",
-            mandatory = False,
-        ),
-    },
-    executable = True,
-    provides = [DefaultInfo, ImageImportInfo],
-)
-
-def _get_import_commands(import_targets):
-    commands = []
-    runfiles_list = []
-    for import_target in import_targets:
-        default_info = import_target[DefaultInfo]
-        runfiles_list.append(default_info.default_runfiles)
-        commands.append(default_info.files_to_run.executable.short_path)
-    return commands, runfiles_list
-
-def _kind_load_images_impl(ctx):
-    commands, runfiles_list = _get_import_commands(ctx.attr.deps)
-
-    output = ctx.actions.declare_file(ctx.label.name)
-    ctx.actions.write(output, " && ".join(commands), is_executable = True)
-
-    runfiles = ctx.runfiles().merge_all(runfiles_list)
-    return DefaultInfo(executable = output, runfiles = runfiles)
-
-kind_load_images = rule(
-    doc = "Executable that loads multiple image archives into KiND.",
-    attrs = {
-        "deps": attr.label_list(
-            doc = "kind_load_image targets",
-            providers = [ImageImportInfo, DefaultInfo],
-            cfg = "target",
-            mandatory = True,
-            allow_empty = False,
-        ),
-    },
-    implementation = _kind_load_images_impl,
-    executable = True,
-)
-
 def _k8s_apply_impl(ctx):
     if len(ctx.attr.srcs) != 1:
         fail("Exactly one item expected in `srcs`")
     src = ctx.attr.srcs[0]
     runfiles = []
-
-    commands, runfiles_list = _get_import_commands(ctx.attr.imports)
-    if ctx.attr.delete_selector:
-        commands.append("kubectl delete pods,jobs,services,deployments,networkpolicies,ingresses --selector={selector}".format(
-            selector = shell.quote(ctx.attr.delete_selector),
-        ))
+    commands = []
 
     if KustomizationDirInfo in src:
         dir_info = src[KustomizationDirInfo]
@@ -157,7 +62,7 @@ def _k8s_apply_impl(ctx):
 
     return DefaultInfo(
         executable = output,
-        runfiles = ctx.runfiles(files = runfiles).merge_all(runfiles_list),
+        runfiles = ctx.runfiles(files = runfiles),
     )
 
 k8s_apply = rule(
@@ -171,17 +76,6 @@ k8s_apply = rule(
                 [KustomizationDirInfo],
             ],
             allow_files = [".yaml", ".json"],
-        ),
-        "imports": attr.label_list(
-            doc = "kind_load targets of images to import",
-            providers = [DefaultInfo, ImageImportInfo],
-            cfg = "target",
-            allow_empty = True,
-        ),
-        # TODO(b/168034831): Consider splitting out separate k8s_delete rule
-        # with attribute to specify resources.
-        "delete_selector": attr.string(
-            doc = "Kubernetes label selector to pass to kubectl delete command",
         ),
     },
     executable = True,
@@ -282,17 +176,21 @@ def kustomization_dir(
 
         srcs.append(kustomization_name)
 
-    pkg_files(
-        name = files_name,
-        srcs = srcs,
-        prefix = path,
-        renames = renames,
-        visibility = ["//visibility:private"],
-        **kwargs
-    )
+    pkg_srcs = (deps or [])
+    if srcs:
+        pkg_files(
+            name = files_name,
+            srcs = srcs,
+            prefix = path,
+            renames = renames,
+            visibility = ["//visibility:private"],
+            **kwargs
+        )
+        pkg_srcs.append(files_name)
+
     pkg_filegroup(
         name = group_name,
-        srcs = [files_name] + (deps or []),
+        srcs = pkg_srcs,
         visibility = ["//visibility:private"],
         **kwargs
     )
@@ -300,7 +198,7 @@ def kustomization_dir(
         name = archive_name,
         out = name + ".tar",
         srcs = [group_name],
-        visibility = ["//visibility:private"],
+        visibility = visibility,
         **kwargs
     )
 

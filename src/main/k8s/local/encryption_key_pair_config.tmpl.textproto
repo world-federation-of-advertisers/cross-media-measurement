@@ -1,0 +1,9 @@
+# proto-file: wfa/measurement/config/reporting/encryption_key_pair_config.proto
+# proto-message: EncryptionKeyPairConfig
+principal_key_pairs {
+  principal: "{principal}"
+  key_pairs {
+    public_key_file: "mc_enc_public.tink"
+    private_key_file: "mc_enc_private.tink"
+  }
+}

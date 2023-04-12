@@ -8,6 +8,11 @@ cue_library(
 )
 
 cue_library(
+    name = "config",
+    srcs = ["config.cue"],
+)
+
+cue_library(
     name = "open_telemetry",
     srcs = ["open_telemetry.cue"],
     deps = [":base"],
@@ -27,7 +32,10 @@ cue_library(
 cue_library(
     name = "resource_setup",
     srcs = ["resource_setup.cue"],
-    deps = [":base"],
+    deps = [
+        ":base",
+        ":config",
+    ],
 )
 
 cue_library(
@@ -41,6 +49,7 @@ cue_library(
     srcs = ["kingdom.cue"],
     deps = [
         ":base",
+        ":config",
         ":spanner",
     ],
 )
@@ -48,19 +57,28 @@ cue_library(
 cue_library(
     name = "duchy",
     srcs = ["duchy.cue"],
-    deps = [":base"],
+    deps = [
+        ":base",
+        ":config",
+    ],
 )
 
 cue_library(
     name = "frontend_simulator",
     srcs = ["frontend_simulator.cue"],
-    deps = [":base"],
+    deps = [
+        ":base",
+        ":config",
+    ],
 )
 
 cue_library(
     name = "edp_simulator",
     srcs = ["edp_simulator.cue"],
-    deps = [":base"],
+    deps = [
+        ":base",
+        ":config",
+    ],
 )
 
 cue_library(
@@ -73,6 +91,7 @@ cue_library(
     srcs = ["reporting.cue"],
     deps = [
         ":base",
+        ":config",
         ":postgres",
     ],
 )
