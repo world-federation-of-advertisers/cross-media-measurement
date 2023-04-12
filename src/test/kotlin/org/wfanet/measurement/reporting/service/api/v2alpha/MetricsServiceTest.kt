@@ -2562,7 +2562,7 @@ class MetricsServiceTest {
           runBlocking { service.createMetric(request) }
         }
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
     assertThat(exception.status.description)
       .isEqualTo("No access to the reporting set [$REPORTING_SET_NAME_FOR_MC_2].")
   }
