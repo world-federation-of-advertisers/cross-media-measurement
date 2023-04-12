@@ -89,6 +89,12 @@ message MetricSpecConfig {
     // The width of the sampling interval.
     float width = 2;
   }
-  // Range of VIDs that will be included in this measurement
-  VidSamplingInterval vid_sampling_interval = 5;
+  // Range of VIDs that will be included for reach measurements.
+  VidSamplingInterval reach_vid_sampling_interval = 5;
+  // Range of VIDs that will be included for frequency histogram measurements.
+  VidSamplingInterval frequency_histogram_vid_sampling_interval = 6;
+  // Range of VIDs that will be included for impression count measurements.
+  VidSamplingInterval impression_count_vid_sampling_interval = 7;
+  // Range of VIDs that will be included for watch duration measurements.
+  VidSamplingInterval watch_duration_vid_sampling_interval = 8;
 }
