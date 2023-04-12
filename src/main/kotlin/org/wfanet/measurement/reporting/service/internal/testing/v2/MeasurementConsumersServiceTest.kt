@@ -57,7 +57,7 @@ abstract class MeasurementConsumersServiceTest<T : MeasurementConsumersCoroutine
   }
 
   @Test
-  fun `CreateMeasurementConsumer throws ALREADY_EXISTS when MeasurementConsumer already exists`() {
+  fun `createMeasurementConsumer throws ALREADY_EXISTS when MeasurementConsumer already exists`() {
     runBlocking {
       val request = measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
       service.createMeasurementConsumer(request)
