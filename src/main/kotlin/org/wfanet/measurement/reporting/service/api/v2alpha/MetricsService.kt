@@ -25,12 +25,15 @@ import java.security.SecureRandom
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
+import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope.coroutineContext
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import org.jetbrains.annotations.BlockingExecutor
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
@@ -122,6 +125,7 @@ class MetricsService(
   private val signingPrivateKeyDir: File,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   private val metricSpecConfig: MetricSpecConfig,
+  private val coroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
 ) : MetricsCoroutineImplBase() {
 
   private val measurementSupplier =
@@ -136,6 +140,7 @@ class MetricsService(
       secureRandom,
       signingPrivateKeyDir,
       trustedCertificates,
+      coroutineContext
     )
 
   private class MeasurementSupplier(
@@ -149,6 +154,7 @@ class MetricsService(
     private val secureRandom: SecureRandom,
     private val signingPrivateKeyDir: File,
     private val trustedCertificates: Map<ByteString, X509Certificate>,
+    private val coroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
   ) {
     /**
      * Creates CMM public [Measurement]s and [InternalMeasurement]s from a list of [InternalMetric].
@@ -301,7 +307,7 @@ class MetricsService(
     ): SigningKeyHandle {
       // TODO: Factor this out to a separate class similar to EncryptionKeyPairStore.
       val signingPrivateKeyDer: ByteString =
-        withContext(Dispatchers.IO) {
+        withContext(coroutineContext) {
           signingPrivateKeyDir.resolve(principal.config.signingPrivateKeyPath).readByteString()
         }
       val measurementConsumerCertificate: X509Certificate =
