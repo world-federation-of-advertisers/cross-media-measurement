@@ -33,13 +33,11 @@ on:
 jobs:
   create-cmm-images:
     steps:
-      - runs-on: ubuntu-20.04
-        uses: ./.github/workflows/create-cmm-images.yml
+      - uses: ./.github/workflows/create-cmm-images.yml
 
   create-cmm-infra:
     steps:
-    - runs-on: ubuntu-20.04
-      uses: ./.github/workflows/create-cmm-infra.yml
+    - uses: ./.github/workflows/create-cmm-infra.yml
       with:
         environment: qa
         apply: false
