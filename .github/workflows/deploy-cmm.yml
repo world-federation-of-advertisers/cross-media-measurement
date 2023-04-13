@@ -37,7 +37,7 @@ jobs:
   create-cmm-infra:
     needs: create-cmm-images
     uses: ./.github/workflows/create-cmm-infra.yml
-    credentials:
+    secrets:
       username: ${{ github.actor }}
       password: ${{ secrets.github_token }}
 
