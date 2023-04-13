@@ -43,4 +43,3 @@ resource "google_project_iam_binding" "gke_sa_iam_binding" {
     "serviceAccount:${google_service_account.gke_sa.email}"
   ]
 }
-# TODO(wfa-mdharmalingam): create K8s service account and use it to bind Kingdom-internal and gke-service account.
