@@ -1343,20 +1343,6 @@ class MetricsServiceTest {
       )
       .isEqualTo(getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMERS.values.first().name })
 
-    // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
-    val dataProvidersCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
-    verifyBlocking(dataProvidersMock, times(5)) { getDataProvider(dataProvidersCaptor.capture()) }
-
-    val capturedDataProviderRequests = dataProvidersCaptor.allValues
-    assertThat(capturedDataProviderRequests)
-      .containsExactly(
-        getDataProviderRequest { name = DATA_PROVIDERS_LIST[0].name },
-        getDataProviderRequest { name = DATA_PROVIDERS_LIST[1].name },
-        getDataProviderRequest { name = DATA_PROVIDERS_LIST[0].name },
-        getDataProviderRequest { name = DATA_PROVIDERS_LIST[1].name },
-        getDataProviderRequest { name = DATA_PROVIDERS_LIST[2].name },
-      )
-
     // Verify proto argument of MeasurementsCoroutineImplBase::createMeasurement
     val measurementsCaptor: KArgumentCaptor<CreateMeasurementRequest> = argumentCaptor()
     verifyBlocking(measurementsMock, times(2)) { createMeasurement(measurementsCaptor.capture()) }
@@ -1502,16 +1488,6 @@ class MetricsServiceTest {
         MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
       )
       .isEqualTo(getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMERS.values.first().name })
-
-    // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
-    val dataProvidersCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
-    verifyBlocking(dataProvidersMock, times(1)) { getDataProvider(dataProvidersCaptor.capture()) }
-
-    val capturedDataProviderRequests = dataProvidersCaptor.allValues
-    assertThat(capturedDataProviderRequests)
-      .containsExactly(
-        getDataProviderRequest { name = DATA_PROVIDERS_LIST[0].name },
-      )
 
     // Verify proto argument of MeasurementsCoroutineImplBase::createMeasurement
     val measurementsCaptor: KArgumentCaptor<CreateMeasurementRequest> = argumentCaptor()
@@ -1737,16 +1713,6 @@ class MetricsServiceTest {
       )
       .isEqualTo(getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMERS.values.first().name })
 
-    // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
-    val dataProvidersCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
-    verifyBlocking(dataProvidersMock, times(1)) { getDataProvider(dataProvidersCaptor.capture()) }
-
-    val capturedDataProviderRequests = dataProvidersCaptor.allValues
-    assertThat(capturedDataProviderRequests)
-      .containsExactly(
-        getDataProviderRequest { name = DATA_PROVIDERS_LIST[0].name },
-      )
-
     // Verify proto argument of MeasurementsCoroutineImplBase::createMeasurement
     val measurementsCaptor: KArgumentCaptor<CreateMeasurementRequest> = argumentCaptor()
     verifyBlocking(measurementsMock, times(1)) { createMeasurement(measurementsCaptor.capture()) }
@@ -1870,20 +1836,6 @@ class MetricsServiceTest {
         MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
       )
       .isEqualTo(getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMERS.values.first().name })
-
-    // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
-    val dataProvidersCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
-    verifyBlocking(dataProvidersMock, times(5)) { getDataProvider(dataProvidersCaptor.capture()) }
-
-    val capturedDataProviderRequests = dataProvidersCaptor.allValues
-    assertThat(capturedDataProviderRequests)
-      .containsExactly(
-        getDataProviderRequest { name = DATA_PROVIDERS_LIST[0].name },
-        getDataProviderRequest { name = DATA_PROVIDERS_LIST[1].name },
-        getDataProviderRequest { name = DATA_PROVIDERS_LIST[0].name },
-        getDataProviderRequest { name = DATA_PROVIDERS_LIST[1].name },
-        getDataProviderRequest { name = DATA_PROVIDERS_LIST[2].name },
-      )
 
     // Verify proto argument of MeasurementsCoroutineImplBase::createMeasurement
     val measurementsCaptor: KArgumentCaptor<CreateMeasurementRequest> = argumentCaptor()
@@ -2827,21 +2779,6 @@ class MetricsServiceTest {
         MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase::getMeasurementConsumer
       )
       .isEqualTo(getMeasurementConsumerRequest { name = MEASUREMENT_CONSUMERS.values.first().name })
-
-    // Verify proto argument of DataProvidersCoroutineImplBase::getDataProvider
-    val dataProvidersCaptor: KArgumentCaptor<GetDataProviderRequest> = argumentCaptor()
-    verifyBlocking(dataProvidersMock, times(6)) { getDataProvider(dataProvidersCaptor.capture()) }
-
-    val capturedDataProviderRequests = dataProvidersCaptor.allValues
-    assertThat(capturedDataProviderRequests)
-      .containsExactly(
-        getDataProviderRequest { name = DATA_PROVIDERS_LIST[0].name },
-        getDataProviderRequest { name = DATA_PROVIDERS_LIST[1].name },
-        getDataProviderRequest { name = DATA_PROVIDERS_LIST[0].name },
-        getDataProviderRequest { name = DATA_PROVIDERS_LIST[1].name },
-        getDataProviderRequest { name = DATA_PROVIDERS_LIST[2].name },
-        getDataProviderRequest { name = DATA_PROVIDERS_LIST[0].name },
-      )
 
     // Verify proto argument of MeasurementsCoroutineImplBase::createMeasurement
     val measurementsCaptor: KArgumentCaptor<CreateMeasurementRequest> = argumentCaptor()
