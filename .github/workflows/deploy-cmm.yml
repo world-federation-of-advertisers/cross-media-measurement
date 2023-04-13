@@ -37,17 +37,7 @@ jobs:
   create-cmm-infra:
     needs: create-cmm-images
     uses: ./.github/workflows/create-cmm-infra.yml
-
-  #  runs-on: ubuntu-20.04
-  #  needs: create-cmm-images
-  #  steps:
-  #    - name: Checkout code
-  #      uses: google-github-actions/setup-gcloud@v0
-
-      #-
-      #  with:
-      #    environment: qa
-      #    apply: false
+    secrets: inherit
 
 #  configure-kingdom:
 #    runs-on: ubuntu-20.04
