@@ -1,16 +1,18 @@
-// Copyright 2023 The Cross-Media Measurement Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Copyright 2023 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
@@ -587,7 +589,7 @@ private val EVENT_GROUP_ENTRIES =
       }
     }
   )
-//
+
 // Requisition specs
 private val REQUISITION_SPECS: Map<DataProviderKey, RequisitionSpec> =
   EVENT_GROUP_ENTRIES.mapValues {
@@ -946,9 +948,9 @@ private val WATCH_DURATION_METRIC_SPEC: MetricSpec = metricSpec {
 private const val INCREMENTAL_REACH_METRIC_IDEMPOTENCY_KEY = "TEST_INCREMENTAL_REACH_METRIC"
 private const val SINGLE_PUBLISHER_IMPRESSION_METRIC_IDEMPOTENCY_KEY =
   "TEST_SINGLE_PUBLISHER_IMPRESSION_METRIC"
-// private const val IMPRESSION_METRIC_IDEMPOTENCY_KEY = "TEST_IMPRESSION_METRIC"
-// private const val WATCH_DURATION_METRIC_IDEMPOTENCY_KEY = "TEST_WATCH_DURATION_METRIC"
-// private const val FREQUENCY_HISTOGRAM_METRIC_IDEMPOTENCY_KEY = "TEST_FREQUENCY_HISTOGRAM_METRIC"
+private const val IMPRESSION_METRIC_IDEMPOTENCY_KEY = "TEST_IMPRESSION_METRIC"
+private const val WATCH_DURATION_METRIC_IDEMPOTENCY_KEY = "TEST_WATCH_DURATION_METRIC"
+private const val FREQUENCY_HISTOGRAM_METRIC_IDEMPOTENCY_KEY = "TEST_FREQUENCY_HISTOGRAM_METRIC"
 
 // Typo causes invalid name
 private const val INVALID_METRIC_NAME = "measurementConsumer/AAAAAAAAAG8/metric/AAAAAAAAAU0"
@@ -1173,22 +1175,6 @@ class MetricsServiceTest {
           metrics += INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_IMPRESSION_METRIC
         }
       )
-    // onBlocking { streamMetrics(any()) }
-    //   .thenReturn(
-    //     flowOf(
-    //       INTERNAL_PENDING_REACH_METRIC,
-    //       INTERNAL_PENDING_IMPRESSION_METRIC,
-    //       INTERNAL_PENDING_WATCH_DURATION_METRIC,
-    //       INTERNAL_PENDING_FREQUENCY_HISTOGRAM_METRIC,
-    //     )
-    //   )
-    // onBlocking { getMetric(any()) }
-    //   .thenReturn(
-    //     INTERNAL_SUCCEEDED_REACH_METRIC,
-    //     INTERNAL_SUCCEEDED_IMPRESSION_METRIC,
-    //     INTERNAL_SUCCEEDED_WATCH_DURATION_METRIC,
-    //     INTERNAL_SUCCEEDED_FREQUENCY_HISTOGRAM_METRIC,
-    //   )
   }
 
   private val internalReportingSetsMock:
