@@ -37,7 +37,6 @@ jobs:
   create-cmm-infra:
     uses: ./.github/workflows/create-cmm-infra.yml
     with:
-      environment: qa
       terraform_apply: false
 
   #  runs-on: ubuntu-20.04
