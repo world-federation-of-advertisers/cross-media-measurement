@@ -38,10 +38,48 @@ jobs:
 
   create-cmm-infra:
     runs-on: ubuntu-20.04
+    needs: create-cmm-images
     steps:
     - uses: ./.github/workflows/create-cmm-infra.yml
       with:
         environment: qa
         apply: false
-  #configure-kingdom:
-  #configure-duchy:
+
+#  configure-kingdom:
+#    runs-on: ubuntu-20.04
+#    needs: create-cmm-infra
+#    steps:
+#      - uses: ./.github/workflows/configure-kingdom.yml
+#        with:
+#          environment: qa
+#          apply: false
+
+#  configure-duchy:
+#    runs-on: ubuntu-20.04
+#    needs: [create-cmm-infra, configure-kingdom]
+#    steps:
+#      - uses: ./.github/workflows/configure-duchy.yml
+#        with:
+#          image_tag:
+#          duchy_name:
+#          kubectl_apply:
+
+#  configure-duchy:
+#    runs-on: ubuntu-20.04
+#    needs: [create-cmm-infra, configure-kingdom]
+#    steps:
+#      - uses: ./.github/workflows/configure-duchy.yml
+#        with:
+#          image_tag:
+#          duchy_name:
+#          kubectl_apply:
+
+#  configure-duchy:
+#    runs-on: ubuntu-20.04
+#    needs: [create-cmm-infra, configure-kingdom]
+#    steps:
+#      - uses: ./.github/workflows/configure-duchy.yml
+#        with:
+#          image_tag:
+#          duchy_name:
+#          kubectl_apply:
