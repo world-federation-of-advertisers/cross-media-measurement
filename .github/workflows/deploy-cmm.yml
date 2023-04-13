@@ -37,7 +37,9 @@ jobs:
   create-cmm-infra:
     needs: create-cmm-images
     uses: ./.github/workflows/create-cmm-infra.yml
-    secrets: inherit
+    credentials:
+      username: ${{ github.actor }}
+      password: ${{ secrets.github_token }}
 
 #  configure-kingdom:
 #    runs-on: ubuntu-20.04
