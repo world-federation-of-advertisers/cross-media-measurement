@@ -174,6 +174,7 @@ CREATE TABLE PrimitiveReportingSetBasisFilters (
 -- changeset riemanli:create-set-expressions-table dbms:postgresql
 CREATE TABLE SetExpressions (
   MeasurementConsumerId bigint NOT NULL,
+  ReportingSetId bigint NOT NULL,
   SetExpressionId bigint NOT NULL,
 
   -- org.wfanet.measurement.internal.reporting.SetExpression.Operation
@@ -189,18 +190,18 @@ CREATE TABLE SetExpressions (
   RightHandSetExpressionId bigint,
   RightHandReportingSetId bigint,
 
-  PRIMARY KEY(MeasurementConsumerId, SetExpressionId),
-  FOREIGN KEY(MeasurementConsumerId)
-    REFERENCES MeasurementConsumers(MeasurementConsumerId)
+  PRIMARY KEY(MeasurementConsumerId, ReportingSetId, SetExpressionId),
+  FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
+    REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
     ON DELETE CASCADE,
-  FOREIGN KEY(MeasurementConsumerId, LeftHandSetExpressionId)
-    REFERENCES SetExpressions(MeasurementConsumerId, SetExpressionId)
+  FOREIGN KEY(MeasurementConsumerId, ReportingSetId, LeftHandSetExpressionId)
+    REFERENCES SetExpressions(MeasurementConsumerId, ReportingSetId, SetExpressionId)
     ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, LeftHandReportingSetId)
     REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
     ON DELETE CASCADE,
-  FOREIGN KEY(MeasurementConsumerId, RightHandSetExpressionId)
-    REFERENCES SetExpressions(MeasurementConsumerId, SetExpressionId)
+  FOREIGN KEY(MeasurementConsumerId, ReportingSetId, RightHandSetExpressionId)
+    REFERENCES SetExpressions(MeasurementConsumerId, ReportingSetId, SetExpressionId)
     ON DELETE CASCADE,
   FOREIGN KEY(MeasurementConsumerId, RightHandReportingSetId)
     REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
@@ -210,8 +211,8 @@ CREATE TABLE SetExpressions (
 -- changeset tristanvuong2021:add-foreign-key-constraint-reporting-sets dbms:postgresql
 ALTER TABLE ReportingSets
   ADD CONSTRAINT fk_reporting_sets_set_expressions
-    FOREIGN KEY(MeasurementConsumerId, SetExpressionId)
-    REFERENCES SetExpressions(MeasurementConsumerId, SetExpressionId)
+    FOREIGN KEY(MeasurementConsumerId, ReportingSetId, SetExpressionId)
+    REFERENCES SetExpressions(MeasurementConsumerId, ReportingSetId, SetExpressionId)
     ON DELETE CASCADE;
 
 -- changeset riemanli:create-metrics-table dbms:postgresql
