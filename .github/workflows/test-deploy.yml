@@ -38,6 +38,9 @@ jobs:
   call-workflows:
     runs-on: 20.04
     steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
       - name: Call Workflow
         uses: actions/workflow-dispatch@v2
         with:
