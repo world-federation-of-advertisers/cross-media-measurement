@@ -38,7 +38,8 @@ jobs:
     uses: ./.github/workflows/create-cmm-infra.yml
     with:
       environment: qa
-      apply: false
+      terraform_apply: false
+
   #  runs-on: ubuntu-20.04
   #  needs: create-cmm-images
   #  steps:
