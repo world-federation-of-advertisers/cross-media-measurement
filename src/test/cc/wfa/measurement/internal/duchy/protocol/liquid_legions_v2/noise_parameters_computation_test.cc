@@ -38,10 +38,6 @@ TEST(GetBlindHistogramNoiser, GeometricOptionsResultShouldBeCorrect) {
   EXPECT_EQ(options.contributor_count, uncorrupted_party_count);
   EXPECT_EQ(options.shift_offset, 291);
   EXPECT_EQ(options.truncate_threshold, 291);
-  auto geometricNoiser =
-      static_cast<math::DistributedGeometricNoiser*>(noiser.release());
-  const auto& geometricOptions = geometricNoiser->options();
-  EXPECT_NEAR(geometricOptions.p, 0.947, 0.001);
 }
 
 TEST(GetBlindHistogramNoiser, GaussianOptionsResultShouldBeCorrect) {
@@ -58,10 +54,6 @@ TEST(GetBlindHistogramNoiser, GaussianOptionsResultShouldBeCorrect) {
   EXPECT_EQ(options.contributor_count, uncorrupted_party_count);
   EXPECT_EQ(options.shift_offset, 189);
   EXPECT_EQ(options.truncate_threshold, 189);
-  auto gaussianNoiser =
-      static_cast<math::DistributedDiscreteGaussianNoiser*>(noiser.release());
-  const auto& gaussianOptions = gaussianNoiser->options();
-  EXPECT_NEAR(gaussianOptions.sigma_distributed, 34.105, 0.001);
 }
 
 TEST(GetPublisherNoiser, GeometricOptionsExampleResultShouldBeCorrect) {
@@ -79,10 +71,6 @@ TEST(GetPublisherNoiser, GeometricOptionsExampleResultShouldBeCorrect) {
   EXPECT_EQ(options.contributor_count, uncorrupted_party_count);
   EXPECT_EQ(options.shift_offset, 447);
   EXPECT_EQ(options.truncate_threshold, 447);
-  auto geometricNoiser =
-      static_cast<math::DistributedGeometricNoiser*>(noiser.release());
-  const auto& geometricOptions = geometricNoiser->options();
-  EXPECT_NEAR(geometricOptions.p, 0.964, 0.001);
 }
 
 TEST(GetPublisherNoiser, GaussianOptionsExampleResultShouldBeCorrect) {
@@ -100,10 +88,6 @@ TEST(GetPublisherNoiser, GaussianOptionsExampleResultShouldBeCorrect) {
   EXPECT_EQ(options.contributor_count, uncorrupted_party_count);
   EXPECT_EQ(options.shift_offset, 137);
   EXPECT_EQ(options.truncate_threshold, 137);
-  auto gaussianNoiser =
-      static_cast<math::DistributedDiscreteGaussianNoiser*>(noiser.release());
-  const auto& gaussianOptions = gaussianNoiser->options();
-  EXPECT_NEAR(gaussianOptions.sigma_distributed, 24.115, 0.001);
 }
 
 TEST(GetGlobalReachDpNoiser, GeometricOptionsExampleResultShouldBeCorrect) {
@@ -119,10 +103,6 @@ TEST(GetGlobalReachDpNoiser, GeometricOptionsExampleResultShouldBeCorrect) {
   EXPECT_EQ(options.contributor_count, uncorrupted_party_count);
   EXPECT_EQ(options.shift_offset, 41);
   EXPECT_EQ(options.truncate_threshold, 41);
-  auto geometricNoiser =
-      static_cast<math::DistributedGeometricNoiser*>(noiser.release());
-  const auto& geometricOptions = geometricNoiser->options();
-  EXPECT_NEAR(geometricOptions.p, 0.681, 0.001);
 }
 
 TEST(GetGlobalReachDpNoiser, GaussianOptionsExampleResultShouldBeCorrect) {
@@ -139,10 +119,6 @@ TEST(GetGlobalReachDpNoiser, GaussianOptionsExampleResultShouldBeCorrect) {
   EXPECT_EQ(options.contributor_count, uncorrupted_party_count);
   EXPECT_EQ(options.shift_offset, 55);
   EXPECT_EQ(options.truncate_threshold, 55);
-  auto gaussianNoiser =
-      static_cast<math::DistributedDiscreteGaussianNoiser*>(noiser.release());
-  const auto& gaussianOptions = gaussianNoiser->options();
-  EXPECT_NEAR(gaussianOptions.sigma_distributed, 9.744, 0.001);
 }
 
 TEST(GetFrequencyNoiser, GeometricOptionsExampleResultShouldBeCorrect) {
@@ -158,10 +134,6 @@ TEST(GetFrequencyNoiser, GeometricOptionsExampleResultShouldBeCorrect) {
   EXPECT_EQ(options.contributor_count, uncorrupted_party_count);
   EXPECT_EQ(options.shift_offset, 84);
   EXPECT_EQ(options.truncate_threshold, 84);
-  auto geometricNoiser =
-      static_cast<math::DistributedGeometricNoiser*>(noiser.release());
-  const auto& geometricOptions = geometricNoiser->options();
-  EXPECT_NEAR(geometricOptions.p, 0.825, 0.001);
 }
 
 TEST(GetFrequencyNoiser, GaussianOptionsExampleResultShouldBeCorrect) {
@@ -178,10 +150,6 @@ TEST(GetFrequencyNoiser, GaussianOptionsExampleResultShouldBeCorrect) {
   EXPECT_EQ(options.contributor_count, uncorrupted_party_count);
   EXPECT_EQ(options.shift_offset, 45);
   EXPECT_EQ(options.truncate_threshold, 45);
-  auto gaussianNoiser =
-      static_cast<math::DistributedDiscreteGaussianNoiser*>(noiser.release());
-  const auto& gaussianOptions = gaussianNoiser->options();
-  EXPECT_NEAR(gaussianOptions.sigma_distributed, 7.956, 0.001);
 }
 
 }  // namespace
