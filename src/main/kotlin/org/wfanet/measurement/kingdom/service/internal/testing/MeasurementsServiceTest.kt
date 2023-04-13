@@ -1647,6 +1647,76 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     assertThat(exception).hasMessageThat().contains("exceeds limit")
   }
 
+  @Test
+  fun `streamMeasurements respects updated before time`(): Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+
+    val measurement1 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+
+    val measurement2 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+
+    val measurements: List<Measurement> =
+      measurementsService
+        .streamMeasurements(
+          streamMeasurementsRequest { filter = filter { updatedBefore = measurement2.updateTime } }
+        )
+        .toList()
+
+    assertThat(measurements).containsExactly(measurement1)
+  }
+
+  @Test
+  fun `streamMeasurements respects created before time`(): Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+
+    val measurement1 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+
+    val measurement2 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+
+    val measurements: List<Measurement> =
+      measurementsService
+        .streamMeasurements(
+          streamMeasurementsRequest { filter = filter { createdBefore = measurement2.createTime } }
+        )
+        .toList()
+
+    assertThat(measurements).containsExactly(measurement1)
+  }
+
   companion object {
     @BeforeClass
     @JvmStatic
