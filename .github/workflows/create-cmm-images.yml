@@ -49,6 +49,7 @@ jobs:
         uses: docker/login-action@v2
         with:
           registry: ${{ env.REGISTRY }}
+        credentials:
           username: ${{ github.actor }}
           password: ${{ env.GITHUB_TOKEN }}
 
@@ -83,6 +84,7 @@ jobs:
         uses: docker/login-action@v2
         with:
           registry: ${{ env.REGISTRY }}
+        credentials:
           username: ${{ github.actor }}
           password: ${{ env.GITHUB_TOKEN }}
 
