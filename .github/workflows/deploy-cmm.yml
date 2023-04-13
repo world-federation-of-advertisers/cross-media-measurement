@@ -34,7 +34,6 @@ jobs:
   create-cmm-images:
     uses: ./.github/workflows/create-cmm-images.yml
 
-
   #create-cmm-infra:
   #  runs-on: ubuntu-20.04
   #  needs: create-cmm-images
