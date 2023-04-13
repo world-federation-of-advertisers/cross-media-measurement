@@ -60,9 +60,9 @@ CREATE TABLE EventGroups (
 );
 
 -- changeset riemanli:create-reporting-sets-table dbms:postgresql
--- * ReportingSets rows which have corresponding rows in ReportingSetEventGroups
---   are "primitive", and those that have corresponding rows in SetExpressions
---   are referred to as "complex".
+-- * ReportingSets rows which have NULL SetExpressionId are referred to as
+--   "primitive", and those that have a non-NULL SetExpressionId are referred to
+--   as "complex".
 -- * Each row in the ReportingSets table is a vertex of a directed graph, where
 --   the SetExpressions table describes the edges.
 -- * Primitive ReportingSets rows are leaf vertices, i.e. they have no outgoing
@@ -83,6 +83,10 @@ CREATE TABLE ReportingSets (
 
   DisplayName text,
   Filter text,
+
+  -- If not NULL then the ReportingSet is a composite one, and will therefore
+  -- have no corresponding rows in ReportingSetEventGroups.
+  SetExpressionId bigint,
 
   PRIMARY KEY(MeasurementConsumerId, ReportingSetId),
   UNIQUE (MeasurementConsumerId, ExternalReportingSetId),
@@ -173,8 +177,6 @@ CREATE TABLE SetExpressions (
   ReportingSetId bigint NOT NULL,
   SetExpressionId bigint NOT NULL,
 
-  Root boolean NOT NULL,
-
   -- org.wfanet.measurement.internal.reporting.SetExpression.Operation
   -- protobuf enum encoded as an integer.
   Operation integer NOT NULL,
@@ -205,6 +207,13 @@ CREATE TABLE SetExpressions (
     REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId)
     ON DELETE CASCADE
 );
+
+-- changeset tristanvuong2021:add-foreign-key-constraint-reporting-sets dbms:postgresql
+ALTER TABLE ReportingSets
+  ADD CONSTRAINT fk_reporting_sets_set_expressions
+    FOREIGN KEY(MeasurementConsumerId, ReportingSetId, SetExpressionId)
+    REFERENCES SetExpressions(MeasurementConsumerId, ReportingSetId, SetExpressionId)
+    ON DELETE CASCADE;
 
 -- changeset riemanli:create-metrics-table dbms:postgresql
 CREATE TABLE Metrics (
