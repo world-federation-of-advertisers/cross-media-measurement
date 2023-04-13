@@ -110,6 +110,7 @@ abstract class MillBase(
   private val workLockDuration: Duration,
   private val requestChunkSizeBytes: Int,
   private val maximumAttempts: Int,
+  private val retryBackoffDelayBaseSeconds: Int,
   private val clock: Clock,
   openTelemetry: OpenTelemetry,
 ) {
@@ -482,7 +483,7 @@ abstract class MillBase(
   /** Enqueue a computation with a delay. */
   private suspend fun enqueueComputation(token: ComputationToken) {
     // Exponential backoff
-    val baseDelay = minOf(600.0, (2.0.pow(token.attempt))).toInt()
+    val baseDelay = minOf(retryBackoffDelayBaseSeconds.toDouble(), (2.0.pow(token.attempt))).toInt()
     // A random delay in the range of [baseDelay, 2*baseDelay]
     val delaySecond = baseDelay + Random.nextInt(baseDelay + 1)
     dataClients.computationsClient.enqueueComputation(

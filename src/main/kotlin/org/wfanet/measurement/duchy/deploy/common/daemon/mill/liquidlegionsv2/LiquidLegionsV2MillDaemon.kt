@@ -193,6 +193,7 @@ abstract class LiquidLegionsV2MillDaemon : Runnable {
         workerStubs = computationControlClientMap,
         cryptoWorker = JniLiquidLegionsV2Encryption(),
         workLockDuration = flags.workLockDuration,
+        retryBackoffDelayBaseSeconds = flags.retryBackoffDelayBase,
         openTelemetry = openTelemetry,
         requestChunkSizeBytes = flags.requestChunkSizeBytes
       )

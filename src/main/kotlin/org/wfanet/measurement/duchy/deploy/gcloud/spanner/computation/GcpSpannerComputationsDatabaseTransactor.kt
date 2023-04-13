@@ -118,12 +118,6 @@ class GcpSpannerComputationsDatabaseTransactor<
           updateTime = clock.gcloudTimestamp(),
           // Set a lock expiration time to be the current time + a delay with no owner. This will
           // prevent anyone from claiming it until the delay has passed.
-          //
-          // TODO(@renjiezh): Determine if we even need this delay behavior now that the FIFO queue
-          // is based on creation time and not lock expiration time.
-          //
-          // TODO(@renjiezh): Check to make sure the lock isn't actively held by someone other than
-          // the caller.
           lockOwner = WRITE_NULL_STRING,
           lockExpirationTime = clock.instant().plusSeconds(delaySecond.toLong()).toGcloudTimestamp()
         )

@@ -69,6 +69,14 @@ class LiquidLegionsV2MillFlags {
   lateinit var workLockDuration: Duration
     private set
 
+  @set:CommandLine.Option(
+    names = ["--retry-backoff-delay-base"],
+    description = ["The base in seconds used in exponential backoff for retry of failed attempts"],
+    defaultValue = "600"
+  )
+  var retryBackoffDelayBase by Delegates.notNull<Int>()
+    private set
+
   @CommandLine.Mixin
   lateinit var systemApiFlags: SystemApiFlags
     private set
