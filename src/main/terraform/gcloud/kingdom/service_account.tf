@@ -45,14 +45,9 @@ resource "google_project_iam_binding" "gke_sa_iam_binding" {
 }
 
 # Create K8s service account
-resource "google_service_account" "internal_server" {
-  account_id   = "internal-server"
-  display_name = "K8s-service-account"
-}
-resource "google_project_iam_binding" "internal_server_iam_binding" {
-  project = local.project
-  role    = "roles/iam.workloadIdentityUser"
-  members = [
-    "serviceAccount:${google_service_account.internal_server.email}"
-  ]
+# Create Kubernetes service account
+resource "kubernetes_service_account" "internal_server" {
+  metadata {
+    name = "internal-server"
+  }
 }
