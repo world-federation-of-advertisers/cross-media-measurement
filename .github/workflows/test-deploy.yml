@@ -35,5 +35,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-      - name: Build and Push CMM Images
-        uses: ./.github/workflows/create-cmm-images.yml
+
+      - name: Call Workflow
+        uses: actions/workflow-dispatch@v2
+        with:
+          workflow: Build and Push CMM Images
