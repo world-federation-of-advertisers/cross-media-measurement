@@ -36,7 +36,5 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Call Workflow
-        uses: actions/workflow-dispatch@v2
-        with:
-          workflow: Build and Push CMM Images
+      - name: Trigger Create CMM Images workflow
+        uses: ./.github/workflows/create-cmm-images
