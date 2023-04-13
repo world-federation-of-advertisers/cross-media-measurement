@@ -148,15 +148,15 @@ class MeasurementStateIllegalException(
 }
 
 class MeasurementEtagMismatchException(
-  val internalMeasurementEtag: String,
-  val providedMeasurementEtag: String,
+  val requestedMeasurementEtag: String,
+  val actualMeasurementEtag: String,
   provideDescription: () -> String = { "Measurement etag mismatch" }
 ) : KingdomInternalException(ErrorCode.MEASUREMENT_ETAG_MISMATCH, provideDescription) {
   override val context
     get() =
       mapOf(
-        "internal_measurement_etag" to internalMeasurementEtag,
-        "provided_measurement_etag" to providedMeasurementEtag
+        "actual_measurement_etag" to actualMeasurementEtag,
+        "requested_measurement_etag" to requestedMeasurementEtag
       )
 }
 
