@@ -16,7 +16,7 @@ name: Deploy CMM
 
 on:
   push:
-    branches: [ main ]
+    branches: [ feature/cmm-orchestrator ]
   workflow_dispatch:
     inputs:
       environment:
