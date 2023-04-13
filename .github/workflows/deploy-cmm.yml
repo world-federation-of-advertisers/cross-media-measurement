@@ -32,10 +32,12 @@ on:
 
 jobs:
   create-cmm-images:
-    - uses: ./.github/workflows/create-cmm-images.yml
+    - runs-on: ubuntu-20.04
+      uses: ./.github/workflows/create-cmm-images.yml
 
   create-cmm-infra:
-    - uses: ./.github/workflows/create-cmm-infra.yml
+    - runs-on: ubuntu-20.04
+      uses: ./.github/workflows/create-cmm-infra.yml
       with:
         environment: qa
         apply: false
