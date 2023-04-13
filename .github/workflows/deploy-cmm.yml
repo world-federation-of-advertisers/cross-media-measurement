@@ -32,19 +32,15 @@ on:
 
 jobs:
   create-cmm-images:
-    runs-on: ubuntu-20.04
-    steps:
-      - name: Checkout code
-        uses: google-github-actions/setup-gcloud@v0
+    uses: ./.github/workflows/create-cmm-images.yml
 
-      - uses: ./.github/workflows/create-cmm-images.yml
 
-  create-cmm-infra:
-    runs-on: ubuntu-20.04
-    needs: create-cmm-images
-    steps:
-      - name: Checkout code
-        uses: google-github-actions/setup-gcloud@v0
+  #create-cmm-infra:
+  #  runs-on: ubuntu-20.04
+  #  needs: create-cmm-images
+  #  steps:
+  #    - name: Checkout code
+  #      uses: google-github-actions/setup-gcloud@v0
 
       #- uses: ./.github/workflows/create-cmm-infra.yml
       #  with:
