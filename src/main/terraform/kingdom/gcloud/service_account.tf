@@ -18,26 +18,20 @@
 # Create service account for accessing Cloud Spanner
 # Grant Cloud Spanner database access to the service account for the considered Project ID
 # Bind service-account <------> project_id <----------> spanner_db
-resource "google_service_account" "spanner_service_account" {
-  account_id   = "spanner-access-sa"
+resource "google_service_account" "kingdom_internal" {
+  account_id   = "kingdom-internal"
   display_name = "Spanner Access Service Account"
 }
-resource "google_project_iam_member" "spanner_access" {
-  project = local.project
-  role    = "roles/spanner.databaseUser"
-  member  = "serviceAccount:${google_service_account.spanner_service_account.email}"
-}
-resource "google_spanner_database_iam_binding" "database_iam_binding" {
-  project    = local.project
+resource "google_spanner_database_iam_member" "database_iam_member" {
   instance   = google_spanner_instance.halo_spanner_db.name
   database   = google_spanner_database.database.name
   role       = "roles/spanner.databaseUser"
-  members    = [ "serviceAccount:${google_service_account.spanner_service_account.email}" ]
+  member     = "serviceAccount:${google_service_account.kingdom_internal.email}"
 }
-
 
 # Create GKE service account for workload identity
 # Bind IAM role to GKE service account
+#TODO(wfa-siyengar): To move the cluster service account to a module called shared.
 resource "google_service_account" "gke_sa" {
   account_id   = "gke-cluster-sa"
   display_name = "GKE Service Account"
@@ -50,10 +44,15 @@ resource "google_project_iam_binding" "gke_sa_iam_binding" {
   ]
 }
 
-
-# Create Kubernetes service account
-resource "kubernetes_service_account" "internal_server" {
-  metadata {
-    name = "internal-server"
-  }
+# Create K8s service account
+resource "google_service_account" "internal_server" {
+  account_id   = "internal-server"
+  display_name = "K8s-service-account"
+}
+resource "google_project_iam_binding" "internal_server_iam_binding" {
+  project = local.project
+  role    = "roles/iam.workloadIdentityUser"
+  members = [
+    "serviceAccount:${google_service_account.internal_server.email}"
+  ]
 }
