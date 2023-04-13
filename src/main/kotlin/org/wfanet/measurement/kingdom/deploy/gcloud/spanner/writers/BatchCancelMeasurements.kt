@@ -37,7 +37,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementR
  * Throws the following [KingdomInternalException] type on [execute]:
  * * [MeasurementNotFoundByMeasurementConsumerException] when a Measurement is not found
  * * [MeasurementStateIllegalException] when a Measurement state is not in pending
- * * [MeasurementEtagMismatchException] when provided etag does not match internal etag
+ * * [MeasurementEtagMismatchException] when requested etag does not match actual etag
  */
 class BatchCancelMeasurements(
   private val requests: BatchCancelMeasurementsRequest,
@@ -83,14 +83,14 @@ class BatchCancelMeasurements(
         }
       }
       if (request.etag.isNotEmpty()) {
-        val internalEtag =
+        val actualEtag =
           MeasurementReader.generateEtagByUpdateTime(
             result.measurement.updateTime.toGcloudTimestamp()
           )
-        if (internalEtag != request.etag) {
-          throw MeasurementEtagMismatchException(internalEtag, request.etag) {
-            "Provided Measurement etag ${request.etag} does not match internal measurement etag" +
-              "$internalEtag"
+        if (actualEtag != request.etag) {
+          throw MeasurementEtagMismatchException(actualEtag, request.etag) {
+            "Requested Measurement etag ${request.etag} does not match actual measurement etag" +
+              "$actualEtag"
           }
         }
       }
