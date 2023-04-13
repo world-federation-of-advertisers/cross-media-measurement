@@ -34,14 +34,18 @@ jobs:
   create-cmm-images:
     uses: ./.github/workflows/create-cmm-images.yml
 
-  #create-cmm-infra:
+  create-cmm-infra:
+    uses: ./.github/workflows/create-cmm-infra.yml
+    with:
+      environment: qa
+      apply: false
   #  runs-on: ubuntu-20.04
   #  needs: create-cmm-images
   #  steps:
   #    - name: Checkout code
   #      uses: google-github-actions/setup-gcloud@v0
 
-      #- uses: ./.github/workflows/create-cmm-infra.yml
+      #-
       #  with:
       #    environment: qa
       #    apply: false
