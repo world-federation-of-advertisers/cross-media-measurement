@@ -18,24 +18,23 @@
 # Create service account for accessing Cloud Spanner
 # Grant Cloud Spanner database access to the service account for the considered Project ID
 # Bind service-account <------> project_id <----------> spanner_db
-resource "google_service_account" "kingdom-internal" {
-  account_id   = "spanner-access-sa"
+resource "google_service_account" "kingdom_internal" {
+  account_id   = "kingdom-internal"
   display_name = "Spanner Access Service Account"
 }
 resource "google_spanner_database_iam_member" "database_iam_member" {
   instance   = google_spanner_instance.halo_spanner_db.name
   database   = google_spanner_database.database.name
   role       = "roles/spanner.databaseUser"
-  member     = "serviceAccount:${google_service_account.kingdom-internal.email}"
+  member     = "serviceAccount:${google_service_account.kingdom_internal.email}"
 }
 resource "google_spanner_database_iam_binding" "database_iam_binding" {
   project    = local.project
   instance   = google_spanner_instance.halo_spanner_db.name
   database   = google_spanner_database.database.name
   role       = "roles/spanner.databaseUser"
-  members    = [ "serviceAccount:${google_service_account.kingdom-internal.email}" ]
+  members    = [ "serviceAccount:${google_service_account.kingdom_internal.email}" ]
 }
-
 
 # Create GKE service account for workload identity
 # Bind IAM role to GKE service account
