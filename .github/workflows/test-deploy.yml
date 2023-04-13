@@ -30,6 +30,10 @@ on:
         required: false
         type: boolean
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   call-workflows:
     runs-on: 20.04
