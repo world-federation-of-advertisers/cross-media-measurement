@@ -1,20 +1,23 @@
-// Copyright 2023 The Cross-Media Measurement Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Copyright 2023 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 package org.wfanet.measurement.reporting.deploy.v2.postgres.readers
 
-import kotlinx.coroutines.flow.singleOrNull
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
@@ -26,6 +29,11 @@ class EventGroupReader(private val readContext: ReadContext) {
     val cmmsEventGroupId: String,
     val measurementConsumerId: InternalId,
     val eventGroupId: InternalId,
+  )
+
+  data class CmmsIds(
+    val cmmsDataProviderId: String,
+    val cmmsEventGroupId: String,
   )
 
   private val baseSql: String =
@@ -48,22 +56,33 @@ class EventGroupReader(private val readContext: ReadContext) {
     )
   }
 
-  suspend fun getByCmmsIds(
-    cmmsDataProviderId: String,
-    cmmsEventGroupId: String,
-  ): Result? {
+  suspend fun getByCmmsIds(cmmsIdsList: List<CmmsIds>): Flow<Result> {
+    if (cmmsIdsList.isEmpty()) {
+      return emptyFlow()
+    }
+
+    val sql = StringBuilder("$baseSql WHERE (CmmsDataProviderId, CmmsEventGroupId) IN ")
+
+    var i = 1
+    val bindingMap = mutableMapOf<CmmsIds, Int>()
+    val inList =
+      cmmsIdsList.joinToString(separator = ",", prefix = "(", postfix = ")") {
+        val index = i
+        bindingMap[it] = i
+        i += 2
+        "($$index, $${index + 1})"
+      }
+    sql.append(inList)
+
     val statement =
-      boundStatement(
-        baseSql +
-          """
-        WHERE CmmsDataProviderId = $1
-          AND CmmsEventGroupId = $2
-        """
-      ) {
-        bind("$1", cmmsDataProviderId)
-        bind("$2", cmmsEventGroupId)
+      boundStatement(sql.toString()) {
+        cmmsIdsList.forEach {
+          val parameter: Int = bindingMap.getValue(it)
+          bind("$$parameter", it.cmmsDataProviderId)
+          bind("$${parameter + 1}", it.cmmsEventGroupId)
+        }
       }
 
-    return readContext.executeQuery(statement).consume(::translate).singleOrNull()
+    return readContext.executeQuery(statement).consume(::translate)
   }
 }
