@@ -58,7 +58,7 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.username }}
-          password: ${{ secrets.password }}
+          password: "some_pass"
 
       # Build Kingdom Image
       - name: Build kingdom image
