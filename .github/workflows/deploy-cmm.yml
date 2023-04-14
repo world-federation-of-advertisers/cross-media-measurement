@@ -167,7 +167,6 @@ jobs:
         if: inputs.terraform_apply == true
         working-directory: ${{ env.ROOT_PATH }}
         run: terraform apply ${{ inputs.environment }}_tfplan
-
 #  configure-kingdom:
 #    needs: create-cmm-infra
 #    runs-on: ubuntu-20.04
