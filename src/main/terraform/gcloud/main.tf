@@ -30,3 +30,24 @@ module "kingdom" {
   project = var.project
   service_account = var.service_account
 }
+
+module "worker-1" {
+  source = "./duchy"
+  env = var.env
+  project = var.project
+  component = "worker1"
+}
+
+module "worker-2" {
+  source = "./duchy"
+  env = var.env
+  project = var.project
+  component = "worker2"
+}
+
+module "aggregator" {
+  source = "./duchy"
+  env = var.env
+  project = var.project
+  component = "aggregator"
+}

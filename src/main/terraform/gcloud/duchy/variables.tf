@@ -19,7 +19,7 @@ locals {
   zone      = "us-central1"
 
   # e.g. Prefix will look like dev-halo-kingdom
-  prefix = "${var.env}-${var.component}"
+  prefix = "${local.env}-${local.component}"
 
   spanner = {
     deletion_protection      = true
