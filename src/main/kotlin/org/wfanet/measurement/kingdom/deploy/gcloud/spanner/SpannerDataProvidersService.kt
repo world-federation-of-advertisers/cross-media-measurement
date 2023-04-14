@@ -50,6 +50,7 @@ class SpannerDataProvidersService(
       ?.dataProvider
       ?: failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
   }
+
   override suspend fun replaceDataProviderRequiredDuchies(
     request: ReplaceDataProviderRequiredDuchiesRequest
   ): DataProvider {

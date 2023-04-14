@@ -55,10 +55,7 @@ class ReplaceDataProviderRequiredDuchies(
             ?: throw DuchyNotFoundException(externalDuchyId.toString())
         )
       transactionContext.buffer(
-        Mutation.delete(
-          "DataProviderRequiredDuchies",
-          KeySet.singleKey(Key.of(dataProviderId, duchyId.value))
-        )
+        Mutation.delete("DataProviderRequiredDuchies", KeySet.prefixRange(Key.of(dataProviderId)))
       )
     }
 
