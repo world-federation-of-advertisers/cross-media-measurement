@@ -33,13 +33,14 @@ on:
 jobs:
   create-cmm-images:
     uses: ./.github/workflows/create-cmm-images.yml
+    with:
+      username: ${{ github.actor }}
+      password: ${{ env.GITHUB_TOKEN }}
 
   create-cmm-infra:
     needs: create-cmm-images
     uses: ./.github/workflows/create-cmm-infra.yml
-    secrets:
-      username: ${{ github.actor }}
-      password: ${{ secrets.github_token }}
+    secrets: inherit
 
 #  configure-kingdom:
 #    runs-on: ubuntu-20.04
