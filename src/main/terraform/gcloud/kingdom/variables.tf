@@ -15,7 +15,7 @@
 locals {
   env = var.env
   project = var.project
-  component = "kingdom"
+  component = var.component
   zone = "us-central1"
 
   # e.g. Prefix will look like dev-halo-kingdom
