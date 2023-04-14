@@ -56,3 +56,15 @@ resource "google_spanner_database_iam_binding" "database_iam_binding" {
   role       = "roles/spanner.databaseUser"
   members    = [ "serviceAccount:${google_service_account.kingdom_internal.email}" ]
 }
+
+resource "kubernetes_service_account" "internal-server" {
+  metadata {
+    name = "internal-server"
+  }
+}
+
+resource "google_project_iam_member" "internal-server" {
+  project = "local.project"
+  role    = "roles/iam.workloadIdentityUser"
+  member  = "serviceAccount:${google_service_account.kingdom_internal.email}"
+}
