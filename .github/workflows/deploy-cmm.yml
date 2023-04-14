@@ -57,7 +57,7 @@ jobs:
     secrets: inherit
     with:
       environment: ${{ inputs.environment }}
-      terraform_apply: ${{ inputs.terraform_apply }}
+      terraform_apply: false
 #  create-image-tag:
 #    runs-on: ubuntu-20.04
 #    outputs:
