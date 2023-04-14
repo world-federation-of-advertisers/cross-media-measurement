@@ -123,6 +123,8 @@ jobs:
           --platforms=//build/platforms:ubuntu_20_04_rbe \
           --define image_tag=${{ needs.create-image-tag.outputs.image_tag }}
 
+      # TODO(wfa-siyengar): Testing of 'Push image' incomplete due to insufficient GitHub permission.
+
       # Push Duchy Image to GitHub Artifacts.
       - name: Push Duchy Image
         run: |
@@ -134,8 +136,8 @@ jobs:
     uses: ./.github/workflows/create-cmm-infra.yml
     secrets: inherit
     with:
-      environment: qa           # TODO(@mdharmalingam): ${{ inputs.environment }}
-      terraform_apply: false    # TODO(@hkawalkar): ${{ inputs.terraform_apply }}
+      environment: ${{ inputs.environment }}
+      terraform_apply: ${{ inputs.terraform_apply }}
   configure-kingdom:
     needs: [build-kingdom-image , create-cmm-infra]
     runs-on: ubuntu-20.04
@@ -210,8 +212,6 @@ jobs:
           tar -xf "$(bazelisk info bazel-bin)/src/main/k8s/testing/secretfiles/kustomization.tar" -C secretfiles
           resource_name="$(kubectl apply -k secretfiles/src/main/k8s/testing/secretfiles/kustomization -o name)"
           echo "SECRET_NAME=$(basename $resource_name)" >> "$GITHUB_ENV"
-
-      # TODO(wfa-siyengar): add duchy as an input at high-level(QA deploy)
 
       # Create k8s manifest
       - name: Build K8s manifest
