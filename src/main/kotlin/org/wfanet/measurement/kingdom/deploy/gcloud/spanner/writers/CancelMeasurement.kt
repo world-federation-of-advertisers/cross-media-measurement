@@ -22,6 +22,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomIntern
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByMeasurementConsumerException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader.Companion.getEtag
 
 /**
  * Cancels a [Measurement], transitioning its state to [Measurement.State.CANCELLED].
@@ -84,7 +85,7 @@ class CancelMeasurement(
   override fun ResultScope<Measurement>.buildResult(): Measurement {
     return checkNotNull(this.transactionResult).copy {
       updateTime = commitTimestamp.toProto()
-      etag = MeasurementReader.generateEtagByUpdateTime(commitTimestamp)
+      etag = getEtag(commitTimestamp)
     }
   }
 }
