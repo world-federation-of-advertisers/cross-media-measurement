@@ -16,7 +16,7 @@
 # https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/kingdom-deployment.md
 
 resource "google_container_cluster" "primary" {
-  name     = "kingdom"
+  name     = local.kingdom.name
   location = "us-central1-a" # TODO(wfa-dharmalingam): change it to local.zone
   initial_node_count = local.kingdom.cluster_node_count
   database_encryption {
