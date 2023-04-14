@@ -56,7 +56,7 @@ jobs:
     uses: ./.github/workflows/create-cmm-infra.yml
     secrets: inherit
     with:
-      environment: ${{ inputs.environment }}
+      environment: qa
       terraform_apply: false
 #  create-image-tag:
 #    runs-on: ubuntu-20.04
