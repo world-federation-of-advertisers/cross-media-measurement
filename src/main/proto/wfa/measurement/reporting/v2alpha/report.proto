@@ -147,11 +147,6 @@ message Report {
     // Only supported when using `PeriodicTimeInterval`.
     bool cumulative = 3;
 
-    // Whether the results for a given time interval is cumulative with those of
-    // previous time intervals.
-    // Only supported when using `PeriodicTimeInterval`.
-    bool cumulative = 3;
-
     // Contains the attributes of the result, including the group of predicates,
     // time interval, and metric result.
     message ResultAttribute {
