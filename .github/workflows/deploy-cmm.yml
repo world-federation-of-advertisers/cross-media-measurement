@@ -134,8 +134,8 @@ jobs:
     uses: ./.github/workflows/create-cmm-infra.yml
     secrets: inherit
     with:
-      environment: qa
-      terraform_apply: false
+      environment: qa           # TODO(@mdharmalingam): ${{ inputs.environment }}
+      terraform_apply: false    # TODO(@hkawalkar): ${{ inputs.terraform_apply }}
   configure-kingdom:
     needs: [build-kingdom-image , create-cmm-infra]
     runs-on: ubuntu-20.04
