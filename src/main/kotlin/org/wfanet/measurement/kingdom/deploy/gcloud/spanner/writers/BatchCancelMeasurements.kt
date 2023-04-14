@@ -16,8 +16,8 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.Key
 import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.internal.kingdom.BatchCancelMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.BatchCancelMeasurementsResponse
 import org.wfanet.measurement.internal.kingdom.Measurement
@@ -29,6 +29,8 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementEt
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByMeasurementConsumerException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader.Companion.getEtag
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader.Companion.readEtag
 
 /**
  * Cancels [Measurement]s, transitioning their states to [Measurement.State.CANCELLED]. Operation
@@ -84,8 +86,9 @@ class BatchCancelMeasurements(
       }
       if (request.etag.isNotEmpty()) {
         val actualEtag =
-          MeasurementReader.generateEtagByUpdateTime(
-            result.measurement.updateTime.toGcloudTimestamp()
+          readEtag(
+            transactionContext,
+            Key.of(result.measurementConsumerId.value, result.measurementId.value)
           )
         if (actualEtag != request.etag) {
           throw MeasurementEtagMismatchException(actualEtag, request.etag) {
@@ -126,7 +129,7 @@ class BatchCancelMeasurements(
         this@buildResult.transactionResult.measurementsList.map {
           it.copy {
             updateTime = commitTimestamp.toProto()
-            etag = MeasurementReader.generateEtagByUpdateTime(commitTimestamp)
+            etag = getEtag(commitTimestamp)
           }
         }
     }

@@ -17,7 +17,12 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Struct
+import com.google.protobuf.kotlin.toByteString
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.security.MessageDigest
 import kotlinx.coroutines.flow.singleOrNull
+import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -36,6 +41,7 @@ import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByMeasurementConsumerException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader.Companion.getEtag
 
 class MeasurementReader(private val view: Measurement.View) :
   SpannerReader<MeasurementReader.Result>() {
@@ -180,23 +186,34 @@ class MeasurementReader(private val view: Measurement.View) :
     }
 
     /**
-     * Returns a [Timestamp] for the update time of a [Measurement] specified by Measurement Key
+     * Returns an Etag [String] for the update time of a [Measurement] specified by Measurement Key
      *
      * @throws [MeasurementNotFoundException] when the Measurement is not found
      */
-    suspend fun readUpdateTimeByKey(
+    suspend fun readEtag(
       readContext: AsyncDatabaseClient.ReadContext,
       measurementKey: Key
-    ): Timestamp {
+    ): String {
       val column = "UpdateTime"
-      return readContext
-        .readRow("Measurements", measurementKey, listOf(column))
-        ?.getTimestamp(column)
-        ?: throw MeasurementNotFoundException() { "Measurement not found for $measurementKey" }
+      val updateTime =
+        readContext.readRow("Measurements", measurementKey, listOf(column))?.getTimestamp(column)
+          ?: throw MeasurementNotFoundException() { "Measurement not found for $measurementKey" }
+      return getEtag(updateTime)
     }
 
-    fun generateEtagByUpdateTime(updateTime: Timestamp): String {
-      return "W/\"${updateTime.toProto().hashCode()}\""
+    fun getEtag(updateTime: Timestamp): String {
+      val buffer =
+        ByteBuffer.allocate(8 + 4)
+          .order(ByteOrder.BIG_ENDIAN)
+          .putLong(updateTime.seconds)
+          .putInt(updateTime.nanos)
+          .asReadOnlyBuffer()
+          .flip()
+      val hash =
+        HexString(
+          MessageDigest.getInstance("SHA-256").apply { update(buffer) }.digest().toByteString()
+        )
+      return "W/\"${hash}\""
     }
 
     private val defaultViewBaseSql =
@@ -372,7 +389,7 @@ private fun MeasurementKt.Dsl.fillMeasurementCommon(struct: Struct) {
       }
     }
   }
-  etag = MeasurementReader.generateEtagByUpdateTime(struct.getTimestamp("UpdateTime"))
+  etag = getEtag(struct.getTimestamp("UpdateTime"))
 }
 
 private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {
