@@ -19,9 +19,25 @@ on:
     branches: [ feature/cmm-orchestrator ]
   workflow_dispatch:
   workflow_call:
+    terraform_version:
+      description: 'The Terraform version to use'
+      required: false
+      default: '1.3.6'
+    environment:
+      type: choice
+      description: 'Environment to run the flow for.'
+      default: qa
+      options:
+        - qa
+        - nightly
+    terraform_apply:
+      required: false
+      type: boolean
 
 env:
   REGISTRY: ghcr.io
+  ROOT_PATH: '${{ github.workspace }}/src/main/terraform/gcloud'
+  PROJECT: "halo-cmm"
 
 jobs:
   create-image-tag:
@@ -36,7 +52,6 @@ jobs:
       - name: Output image tag
         id: get-image-tag-step
         run: echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
-
   build-kingdom-image:
     runs-on: ubuntu-20.04
     needs: create-image-tag
@@ -104,40 +119,54 @@ jobs:
             xargs -n 1 bazelisk run -c opt --define container_registry=ghcr.io \
             --define image_repo_prefix=world-federation-of-advertisers --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=${{ needs.create-image-tag.outputs.image_tag }}
 
-#  create-cmm-infra:
-#    name: CMM Infrastructure
-#    needs: [ build-duchy-image, build-kingdom-image ]
-#    runs-on: ubuntu-20.04
-#    steps:
-#      # Checkout the repository to the GitHub Actions runner
-#      - name: Checkout Code
-#        uses: actions/checkout@v3
-#
-#      # Install gcloud, `setup-gcloud` automatically picks up authentication from `auth`.
-#      - name: Set up Cloud SDK
-#        uses: google-github-actions/setup-gcloud@v1
-#
-#      # Setup Gcloud identity federation
-#      - name: "Authenticate to Google Cloud"
-#        uses: "google-github-actions/auth@v1"
-#        with:
-#          workload_identity_provider: ${{ secrets.WFI_PROVIDER }}
-#          service_account: ${{ secrets.WFI_SA }}
-#          token_format: 'access_token'
-#
-#      # Install the latest version of Terraform CLI and configure the Terraform CLI
-#      # configuration file with a Terraform Cloud user API token
-#      - name: Setup Terraform
-#        uses: hashicorp/setup-terraform@v2
-#        with:
-#          terraform_version: ${{ inputs.terraform_version }}
-#          terraform_wrapper: false
-#
-#      # Initialize a new or existing Terraform working directory by creating initial files,
-#      # loading any remote state, downloading modules, etc.
-#      - name: Terraform Init
-#        run: terraform init -reconfigure
-#        working-directory: ${{env.ROOT_PATH}}
+  create-cmm-infra:
+    name: CMM Infrastructure
+    runs-on: ubuntu-20.04
+    steps:
+      # Checkout the repository to the GitHub Actions runner
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # Install gcloud, `setup-gcloud` automatically picks up authentication from `auth`.
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      # Setup Gcloud identity federation
+      - name: "Authenticate to Google Cloud"
+        uses: "google-github-actions/auth@v1"
+        with:
+          workload_identity_provider: ${{ secrets.WFI_PROVIDER }}
+          service_account: ${{ secrets.WFI_SA }}
+          token_format: 'access_token'
+
+      # Install the latest version of Terraform CLI and configure the Terraform CLI
+      # configuration file with a Terraform Cloud user API token
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ inputs.terraform_version }}
+          terraform_wrapper: false
+
+      # Initialize a new or existing Terraform working directory by creating initial files,
+      # loading any remote state, downloading modules, etc.
+      - name: Terraform Init
+        run: terraform init -reconfigure
+        working-directory: ${{env.ROOT_PATH}}
+
+      # Generate a plan
+      - name: Terraform Plan
+        working-directory: ${{ env.ROOT_PATH }}
+        run: |
+          terraform plan '-out=${{ inputs.environment }}_tfplan' \
+            -var env=${{ inputs.environment }} \
+            -var project=${{ inputs.project }}
+
+      # Apply the plan Generated.
+      - name: Terraform Apply
+        if: inputs.terraform_apply == true
+        working-directory: ${{ env.ROOT_PATH }}
+        run: terraform apply ${{ inputs.environment }}_tfplan
+
 #  configure-kingdom:
 #    needs: create-cmm-infra
 #    runs-on: ubuntu-20.04
