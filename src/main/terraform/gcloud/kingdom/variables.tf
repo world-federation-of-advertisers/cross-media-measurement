@@ -59,7 +59,7 @@ variable "project" {
   description = "Project name used"
 }
 
-variable environment {
+variable env {
   type = string
   default = "dev"
   description = "Represents the environment used."
