@@ -90,6 +90,8 @@ jobs:
           --platforms=//build/platforms:ubuntu_20_04_rbe \
           --define image_tag=${{ needs.create-image-tag.outputs.image_tag }}
 
+      # TODO(wfa-siyengar): Testing of 'Push image' incomplete due to insufficient GitHub permission.
+
       # Push Kingdom Image to GitHub Artifacts.
       - name: Push Kingdom Image
         run: |
