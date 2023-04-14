@@ -19,11 +19,9 @@ on:
   workflow_call:
     secrets:
       username:
-        default: ${{ github.actor }}
-        required: false
+        required: true
       password:
-        default: ${{ github.token }}
-        required: false
+        required: true
 
 env:
   REGISTRY: ghcr.io
