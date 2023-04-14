@@ -18,79 +18,141 @@ on:
   push:
     branches: [ feature/cmm-orchestrator ]
   workflow_dispatch:
-    inputs:
-      environment:
-        type: choice
-        description: 'Environment to run the flow for.'
-        default: qa
-        options:
-          - qa
-          - nightly
-      terraform_apply:
-        required: false
-        type: boolean
+  workflow_call:
 
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  REGISTRY: ghcr.io
+  ROOT_PATH: '${{ github.workspace }}/src/main/terraform/gcloud'
+  PROJECT: "halo-cmm"
 
 jobs:
-  context:
+  create-image-tag:
     runs-on: ubuntu-20.04
+    outputs:
+      image_tag: ${{ steps.get-image-tag-step.outputs.image_tag }}
     steps:
-      - name: Check Username
-        run: echo ${{ github.actor }}
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Generate image tag
+        run: ./.github/workflows/export-image-tag.sh
+      - name: Output image tag
+        id: get-image-tag-step
+        run: echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+  build-kingdom-image:
+    runs-on: ubuntu-20.04
+    needs: create-image-tag
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - name: Check Password
-        run: echo ${{ github.token }}
+      - name: Show Tag
+        run: echo ${{ needs.create-image-tag.outputs.image_tag }}
 
-      - if: ${{ github.token != null && github.token != '' }}
-        run: echo "Password is not null"
+      - name: Login to GitHub Packages
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
 
-  create-cmm-images:
-    uses: ./.github/workflows/create-cmm-images.yml
-    secrets: inherit
-    with:
-      username: ${{ github.actor }}
-      password: ${{ github.token }}
+      # Build Kingdom Image
+      - name: Build kingdom image
+        run: |
+          bazelisk query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
+          xargs bazelisk build -c opt --define container_registry=ghcr.io \
+          --define image_repo_prefix=world-federation-of-advertisers \
+          --platforms=//build/platforms:ubuntu_20_04_rbe \
+          --define image_tag=${{ needs.create-image-tag.outputs.image_tag }}
+
+      # Push Kingdom Image to GitHub Artifacts.
+      - name: Push Kingdom Image
+        run: |
+          bazelisk query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
+            xargs -n 1 bazelisk run -c opt --define container_registry=ghcr.io \
+            --define image_repo_prefix=world-federation-of-advertisers --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=${{ needs.create-image-tag.outputs.image_tag }}
+
+
+  build-duchy-image:
+    runs-on: ubuntu-20.04
+    needs: create-image-tag
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Show Tag
+        run: echo ${{ needs.create-image-tag.outputs.image_tag }}
+
+      - name: Login to GitHub Packages
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      # Build Duchy Image
+      - name: Build Duchy image
+        run: |
+          bazelisk query 'filter("push_duchy", kind("container_push", //src/main/docker:all))' |
+          xargs bazelisk build -c opt --define container_registry=ghcr.io \
+          --define image_repo_prefix=world-federation-of-advertisers \
+          --platforms=//build/platforms:ubuntu_20_04_rbe \
+          --define image_tag=${{ needs.create-image-tag.outputs.image_tag }}
+
+      # Push Duchy Image to GitHub Artifacts.
+      - name: Push Duchy Image
+        run: |
+          bazelisk query 'filter("push_duchy", kind("container_push", //src/main/docker:all))' |
+            xargs -n 1 bazelisk run -c opt --define container_registry=ghcr.io \
+            --define image_repo_prefix=world-federation-of-advertisers --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=${{ needs.create-image-tag.outputs.image_tag }}
 
   create-cmm-infra:
-    needs: create-cmm-images
-    uses: ./.github/workflows/create-cmm-infra.yml
-    secrets: inherit
+    name: CMM Infrastructure
+    runs-on: ubuntu-20.04
+    steps:
+      # Checkout the repository to the GitHub Actions runner
+      - name: Checkout Code
+        uses: actions/checkout@v3
 
-#  configure-kingdom:
-#    runs-on: ubuntu-20.04
-#    needs: create-cmm-infra
-#    steps:
-#      - uses: ./.github/workflows/configure-kingdom.yml
-#        with:
-#          environment: qa
-#          apply: false
+      # Install gcloud, `setup-gcloud` automatically picks up authentication from `auth`.
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
 
-#  configure-duchy:
-#    runs-on: ubuntu-20.04
-#    needs: [create-cmm-infra, configure-kingdom]
-#    steps:
-#      - uses: ./.github/workflows/configure-duchy.yml
-#        with:
-#          image_tag:
-#          duchy_name:
-#          kubectl_apply:
+      # Setup Gcloud identity federation
+      - name: "Authenticate to Google Cloud"
+        uses: "google-github-actions/auth@v1"
+        with:
+          workload_identity_provider: ${{ secrets.WFI_PROVIDER }}
+          service_account: ${{ secrets.WFI_SA }}
+          token_format: 'access_token'
 
-#  configure-duchy:
-#    runs-on: ubuntu-20.04
-#    needs: [create-cmm-infra, configure-kingdom]
-#    steps:
-#      - uses: ./.github/workflows/configure-duchy.yml
-#        with:
-#          image_tag:
-#          duchy_name:
-#          kubectl_apply:
+      # Install the latest version of Terraform CLI and configure the Terraform CLI
+      # configuration file with a Terraform Cloud user API token
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ inputs.terraform_version }}
+          terraform_wrapper: false
 
-#  configure-duchy:
-#    runs-on: ubuntu-20.04
-#    needs: [create-cmm-infra, configure-kingdom]
-#    steps:
-#      - uses: ./.github/workflows/configure-duchy.yml
-#        with:
-#          image_tag:
-#          duchy_name:
-#          kubectl_apply:
+      # Initialize a new or existing Terraform working directory by creating initial files,
+      # loading any remote state, downloading modules, etc.
+      - name: Terraform Init
+        run: terraform init -reconfigure
+        working-directory: ${{env.ROOT_PATH}}
+
+      # Generate a plan
+      - name: Terraform Plan
+        working-directory: ${{ env.ROOT_PATH }}
+        run: |
+          terraform plan '-out=${{ inputs.environment }}_tfplan' \
+            -var env=${{ inputs.environment }} \
+            -var project=${{ inputs.project }}
+
+      # Apply the plan Generated.
+      - name: Terraform Apply
+        if: inputs.terraform_apply == true
+        working-directory: ${{ env.ROOT_PATH }}
+        run: terraform apply ${{ inputs.environment }}_tfplan
