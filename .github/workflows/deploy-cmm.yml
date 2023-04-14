@@ -35,7 +35,7 @@ jobs:
     uses: ./.github/workflows/create-cmm-images.yml
     with:
       username: ${{ github.actor }}
-      password: ${{ env.GITHUB_TOKEN }}
+      password: ${{ github.token }}
 
   create-cmm-infra:
     needs: create-cmm-images
