@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import org.wfanet.measurement.common.ResourceNameParser
