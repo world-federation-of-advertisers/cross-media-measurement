@@ -30,12 +30,13 @@ on:
         required: false
         type: boolean
 
+
 jobs:
   create-cmm-images:
     uses: ./.github/workflows/create-cmm-images.yml
     with:
       username: ${{ github.actor }}
-      password: ${{ secrets.GITHUB_TOKEN }}
+      password: ${{ github.token }}
 
   create-cmm-infra:
     needs: create-cmm-images
