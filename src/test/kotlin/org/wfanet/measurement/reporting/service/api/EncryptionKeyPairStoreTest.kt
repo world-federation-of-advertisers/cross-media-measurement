@@ -1,4 +1,4 @@
-// Copyright 2023 The Cross-Media Measurement Authors
+// Copyright 2022 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 
 package org.wfanet.measurement.reporting.service.api
 
-import com.google.common.truth.Truth
+import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import java.nio.file.Path
@@ -68,9 +68,9 @@ class EncryptionKeyPairStoreTest {
   fun `InMemoryEncryptionKeyPairStore returns null for non-existing public key`() {
     val keyPairStore = InMemoryEncryptionKeyPairStore(getKeyPairs())
 
-    Truth.assertThat(
-      runBlocking { keyPairStore.getPrivateKeyHandle(PRINCIPAL_NAME, NON_EXISTENT_PUBLIC_KEY) }
-    )
+    assertThat(
+        runBlocking { keyPairStore.getPrivateKeyHandle(PRINCIPAL_NAME, NON_EXISTENT_PUBLIC_KEY) }
+      )
       .isNull()
   }
 
@@ -78,9 +78,9 @@ class EncryptionKeyPairStoreTest {
   fun `InMemoryEncryptionKeyPairStore returns null for non-existing principal`() {
     val keyPairStore = InMemoryEncryptionKeyPairStore(getKeyPairs())
 
-    Truth.assertThat(
-      runBlocking { keyPairStore.getPrivateKeyHandle(NON_EXISTENT_PRINCIPAL_NAME, PUBLIC_KEY_1) }
-    )
+    assertThat(
+        runBlocking { keyPairStore.getPrivateKeyHandle(NON_EXISTENT_PRINCIPAL_NAME, PUBLIC_KEY_1) }
+      )
       .isNull()
   }
 
@@ -105,6 +105,6 @@ class EncryptionKeyPairStoreTest {
     val publicKeyHandle = TinkPublicKeyHandle(publicKey)
     val encryptedText = publicKeyHandle.hybridEncrypt(PLAIN_TEXT)
     val decryptedText = privateKeyHandle.hybridDecrypt(encryptedText)
-    Truth.assertThat(decryptedText).isEqualTo(PLAIN_TEXT)
+    assertThat(decryptedText).isEqualTo(PLAIN_TEXT)
   }
 }
