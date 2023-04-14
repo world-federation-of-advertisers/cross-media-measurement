@@ -13,7 +13,7 @@
 # limitations under the License.
 
 locals {
-  env = "qa"
+  env = var.env
   project = var.project
   component = var.component
   zone = "us-central1"
