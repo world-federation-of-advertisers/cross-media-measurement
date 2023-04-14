@@ -13,9 +13,9 @@
 # limitations under the License.
 
 locals {
-  env = var.environment
+  env = "qa"
   project = var.project
-  component = "kingdom"
+  component = var.component
   zone = "us-central1"
 
   # e.g. Prefix will look like dev-halo-kingdom

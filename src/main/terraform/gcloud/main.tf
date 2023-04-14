@@ -26,7 +26,7 @@ terraform {
 
 module "kingdom" {
   source = "./kingdom"
-  environment = var.env
+  env = var.env
   project = var.project
   service_account = var.service_account
 }
