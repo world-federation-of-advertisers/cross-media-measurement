@@ -132,6 +132,9 @@ jobs:
   create-cmm-infra:
     uses: ./.github/workflows/create-cmm-infra.yml
     secrets: inherit
+    with:
+      environment: ${{ inputs.environment }}
+      terraform_apply: ${{ inputs.terraform_apply }}
   configure-kingdom:
     needs: [build-kingdom-image , create-cmm-infra]
     runs-on: ubuntu-20.04
