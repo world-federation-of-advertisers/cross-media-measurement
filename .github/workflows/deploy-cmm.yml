@@ -51,6 +51,12 @@ permissions:
   id-token: 'write'
 
 jobs:
+  create-cmm-infra:
+    uses: ./.github/workflows/create-cmm-infra.yml
+    secrets: inherit
+    with:
+      environment: ${{ inputs.environment }}
+      terraform_apply: ${{ inputs.terraform_apply }}
 #  create-image-tag:
 #    runs-on: ubuntu-20.04
 #    outputs:
@@ -129,12 +135,6 @@ jobs:
 #            xargs -n 1 bazelisk run -c opt --define container_registry=ghcr.io \
 #            --define image_repo_prefix=world-federation-of-advertisers --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=${{ needs.create-image-tag.outputs.image_tag }}
 
-  create-cmm-infra:
-    uses: ./.github/workflows/create-cmm-infra.yml
-    secrets: inherit
-    with:
-      environment: ${{ inputs.environment }}
-      terraform_apply: ${{ inputs.terraform_apply }}
 #  configure-kingdom:
 #    needs: [build-kingdom-image , create-cmm-infra]
 #    runs-on: ubuntu-20.04
