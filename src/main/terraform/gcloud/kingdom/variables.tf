@@ -15,11 +15,11 @@
 locals {
   env = var.env
   project = var.project
-  component = var.component
+  component = "kingdom"
   zone = "us-central1"
 
   # e.g. Prefix will look like dev-halo-kingdom
-  prefix = "${var.env}-${var.component}"
+  prefix = "${local.env}-${local.component}"
 
   spanner_db = {
     deletion_protection = false
