@@ -32,6 +32,15 @@ on:
 
 
 jobs:
+  context:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Check Username
+        run: echo ${{ github.actor }}
+
+      - name: Check Password
+        run: echo ${{ github.token }}
+
   create-cmm-images:
     uses: ./.github/workflows/create-cmm-images.yml
     with:
