@@ -31,11 +31,17 @@ on:
         type: boolean
 
 jobs:
+  set-env:
+    runs-on: ubuntu-latest
+    steps:
+      - name: set-github-token
+        run: echo "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
+
   create-cmm-images:
     uses: ./.github/workflows/create-cmm-images.yml
     secrets:
       username: ${{ github.actor }}
-      password: ${{ github.token }}
+      password: ${{ env.GITHUB_TOKEN }}
 
   create-cmm-infra:
     needs: create-cmm-images
