@@ -171,7 +171,7 @@ jobs:
         working-directory: ${{ env.ROOT_PATH }}
         run: terraform apply ${{ inputs.environment }}_tfplan
   configure-kingdom:
-    needs: [create-image-tag, create-cmm-infra]
+    needs: [build-kingdom-image , create-cmm-infra]
     runs-on: ubuntu-20.04
     steps:
       - name: Checkout code
@@ -214,7 +214,7 @@ jobs:
         if: inputs.kubectl_apply == true
         run: kubectl apply -f bazel-bin/src/main/k8s/dev/kingdom_gke.yaml
   configure-duchy:
-    needs: [create-image-tag, create-cmm-infra]
+    needs: [build-kingdom-image, create-cmm-infra]
     runs-on: ubuntu-20.04
     steps:
       # Checkout the repository to the GitHub Actions runner
