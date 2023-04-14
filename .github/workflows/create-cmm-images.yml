@@ -15,8 +15,6 @@
 name: Build and Push CMM Images
 
 on:
-  push:
-    branches: [ feature/cmm-orchestrator ]
   workflow_dispatch:
   workflow_call:
 
