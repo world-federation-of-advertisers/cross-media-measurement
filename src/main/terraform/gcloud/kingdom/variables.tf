@@ -13,7 +13,7 @@
 # limitations under the License.
 
 locals {
-  env = "qa"
+  env = var.environment
   project = var.project
   component = "kingdom"
   zone = "us-central1"
@@ -59,7 +59,7 @@ variable "project" {
   description = "Project name used"
 }
 
-variable env {
+variable environment {
   type = string
   default = "dev"
   description = "Represents the environment used."
