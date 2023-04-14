@@ -56,8 +56,13 @@ jobs:
       - name: Show Tag
         run: echo ${{ needs.create-image-tag.outputs.image_tag }}
 
-      - name: Username
+      - if: ${{ inputs.username != null && inputs.username != '' }}
+        name: Check Username
         run: echo ${{ inputs.username }}
+
+      - if: ${{ inputs.password != null && inputs.password != '' }}
+        name: Check Password
+        run: echo ${{ inputs.password }}
 
       - name: Login to GitHub Packages
         uses: docker/login-action@v2
@@ -90,8 +95,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Show Tag
-        run: echo ${{ needs.create-image-tag.outputs.image_tag }}
+      - if: ${{ inputs.username != null && inputs.username != '' }}
+        name: Check Username
+        run: echo ${{ inputs.username }}
+
+      - if: ${{ inputs.password != null && inputs.password != '' }}
+        name: Check Password
+        run: echo ${{ inputs.password }}
 
       - name: Login to GitHub Packages
         uses: docker/login-action@v2
