@@ -17,16 +17,17 @@ name: Build and Push CMM Images
 on:
   workflow_dispatch:
   workflow_call:
-    username:
-      type: string
-      description: 'User who triggered the flow:'
-      default: ${{ github.actor }}
-      required: false
-    password:
-      type: string
-      description: 'User who triggered the flow:'
-      default: ${{ github.token }}
-      required: false
+    inputs:
+      username:
+        type: string
+        description: 'User who triggered the flow:'
+        default: ${{ github.actor }}
+        required: false
+      password:
+        type: string
+        description: 'User who triggered the flow:'
+        default: ${{ github.token }}
+        required: false
 
 env:
   REGISTRY: ghcr.io
