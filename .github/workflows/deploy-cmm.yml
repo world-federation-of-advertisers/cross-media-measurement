@@ -31,6 +31,7 @@ on:
           - qa
           - nightly
       terraform_apply:
+        default: false
         required: false
         type: boolean
       kubectl_apply:
