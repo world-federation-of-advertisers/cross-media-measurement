@@ -15,19 +15,10 @@
 name: Build and Push CMM Images
 
 on:
+  push:
+    branches: [ feature/cmm-orchestrator ]
   workflow_dispatch:
   workflow_call:
-    inputs:
-      username:
-        type: string
-        description: 'User who triggered the flow:'
-        default: ${{ github.actor }}
-        required: false
-      password:
-        type: string
-        description: 'User who triggered the flow:'
-        default: ${{ github.token }}
-        required: false
 
 env:
   REGISTRY: ghcr.io
@@ -56,20 +47,12 @@ jobs:
       - name: Show Tag
         run: echo ${{ needs.create-image-tag.outputs.image_tag }}
 
-      - if: ${{ inputs.username != null && inputs.username != '' }}
-        name: Check Username
-        run: echo ${{ inputs.username }}
-
-      - if: ${{ inputs.password != null && inputs.password != '' }}
-        name: Check Password
-        run: echo ${{ inputs.password }}
-
       - name: Login to GitHub Packages
         uses: docker/login-action@v2
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ inputs.username }}
-          password: ${{ inputs.password }}
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
 
       # Build Kingdom Image
       - name: Build kingdom image
@@ -95,20 +78,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - if: ${{ inputs.username != null && inputs.username != '' }}
-        name: Check Username
-        run: echo ${{ inputs.username }}
-
-      - if: ${{ inputs.password != null && inputs.password != '' }}
-        name: Check Password
-        run: echo ${{ inputs.password }}
+      - name: Show Tag
+        run: echo ${{ needs.create-image-tag.outputs.image_tag }}
 
       - name: Login to GitHub Packages
         uses: docker/login-action@v2
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ inputs.username }}
-          password: ${{ inputs.password }}
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
 
       # Build Duchy Image
       - name: Build Duchy image
