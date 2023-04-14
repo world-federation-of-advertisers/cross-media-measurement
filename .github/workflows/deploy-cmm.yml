@@ -39,7 +39,7 @@ jobs:
 
   create-cmm-images:
     uses: ./.github/workflows/create-cmm-images.yml
-    secrets:
+    with:
       username: ${{ github.actor }}
       password: ${{ env.GITHUB_TOKEN }}
 

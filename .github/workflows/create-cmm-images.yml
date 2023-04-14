@@ -17,11 +17,17 @@ name: Build and Push CMM Images
 on:
   workflow_dispatch:
   workflow_call:
-    secrets:
+    inputs:
       username:
-        required: true
+        type: string
+        description: 'User who triggered the flow:'
+        default: ${{ github.actor }}
+        required: false
       password:
-        required: true
+        type: string
+        description: 'User who triggered the flow:'
+        default: ${{ github.token }}
+        required: false
 
 env:
   REGISTRY: ghcr.io
@@ -51,14 +57,14 @@ jobs:
         run: echo ${{ needs.create-image-tag.outputs.image_tag }}
 
       - name: Username
-        run: echo ${{ secrets.username }}
+        run: echo ${{ inputs.username }}
 
       - name: Login to GitHub Packages
         uses: docker/login-action@v2
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.username }}
-          password: "some_pass"
+          username: ${{ inputs.username }}
+          password: ${{ inputs.password }}
 
       # Build Kingdom Image
       - name: Build kingdom image
@@ -87,15 +93,12 @@ jobs:
       - name: Show Tag
         run: echo ${{ needs.create-image-tag.outputs.image_tag }}
 
-      - name: Username
-        run: echo ${{ secrets.username }}
-
       - name: Login to GitHub Packages
         uses: docker/login-action@v2
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.username }}
-          password: ${{ secrets.password }}
+          username: ${{ inputs.username }}
+          password: ${{ inputs.password }}
 
       # Build Duchy Image
       - name: Build Duchy image
@@ -112,4 +115,3 @@ jobs:
           bazelisk query 'filter("push_duchy", kind("container_push", //src/main/docker:all))' |
             xargs -n 1 bazelisk run -c opt --define container_registry=ghcr.io \
             --define image_repo_prefix=world-federation-of-advertisers --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=${{ needs.create-image-tag.outputs.image_tag }}
-
