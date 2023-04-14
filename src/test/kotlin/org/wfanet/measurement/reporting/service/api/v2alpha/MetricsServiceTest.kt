@@ -117,7 +117,6 @@ import org.wfanet.measurement.internal.reporting.v2.BatchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequestKt.measurementIds
 import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
-import org.wfanet.measurement.internal.reporting.v2.MeasurementKt as InternalMeasurementKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt as InternalMeasurementsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as InternalMeasurementsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.Metric as InternalMetric
@@ -172,44 +171,22 @@ private const val PAGE_SIZE = 3
 
 private const val NUMBER_VID_BUCKETS = 300
 private const val REACH_ONLY_VID_SAMPLING_WIDTH = 3.0f / NUMBER_VID_BUCKETS
-private const val NUMBER_REACH_ONLY_BUCKETS = 16
-private val REACH_ONLY_VID_SAMPLING_START_LIST =
-  (0 until NUMBER_REACH_ONLY_BUCKETS).map { it * REACH_ONLY_VID_SAMPLING_WIDTH }
+private const val REACH_ONLY_VID_SAMPLING_START = 0.0f
 private const val REACH_ONLY_REACH_EPSILON = 0.0041
-private const val REACH_ONLY_FREQUENCY_EPSILON = 0.0001
-private const val REACH_ONLY_MAXIMUM_FREQUENCY_PER_USER = 1
 
 private const val REACH_FREQUENCY_VID_SAMPLING_WIDTH = 5.0f / NUMBER_VID_BUCKETS
-private const val NUMBER_REACH_FREQUENCY_BUCKETS = 19
-private val REACH_FREQUENCY_VID_SAMPLING_START_LIST =
-  (0 until NUMBER_REACH_FREQUENCY_BUCKETS).map {
-    REACH_ONLY_VID_SAMPLING_START_LIST.last() +
-      REACH_ONLY_VID_SAMPLING_WIDTH +
-      it * REACH_FREQUENCY_VID_SAMPLING_WIDTH
-  }
+private const val REACH_FREQUENCY_VID_SAMPLING_START = 48.0f / NUMBER_VID_BUCKETS
 private const val REACH_FREQUENCY_REACH_EPSILON = 0.0033
 private const val REACH_FREQUENCY_FREQUENCY_EPSILON = 0.115
 private const val REACH_FREQUENCY_MAXIMUM_FREQUENCY_PER_USER = 10
 
 private const val IMPRESSION_VID_SAMPLING_WIDTH = 62.0f / NUMBER_VID_BUCKETS
-private const val NUMBER_IMPRESSION_BUCKETS = 1
-private val IMPRESSION_VID_SAMPLING_START_LIST =
-  (0 until NUMBER_IMPRESSION_BUCKETS).map {
-    REACH_FREQUENCY_VID_SAMPLING_START_LIST.last() +
-      REACH_FREQUENCY_VID_SAMPLING_WIDTH +
-      it * IMPRESSION_VID_SAMPLING_WIDTH
-  }
+private const val IMPRESSION_VID_SAMPLING_START = 143.0f / NUMBER_VID_BUCKETS
 private const val IMPRESSION_EPSILON = 0.0011
 private const val IMPRESSION_MAXIMUM_FREQUENCY_PER_USER = 60
 
 private const val WATCH_DURATION_VID_SAMPLING_WIDTH = 95.0f / NUMBER_VID_BUCKETS
-private const val NUMBER_WATCH_DURATION_BUCKETS = 1
-private val WATCH_DURATION_VID_SAMPLING_START_LIST =
-  (0 until NUMBER_WATCH_DURATION_BUCKETS).map {
-    IMPRESSION_VID_SAMPLING_START_LIST.last() +
-      IMPRESSION_VID_SAMPLING_WIDTH +
-      it * WATCH_DURATION_VID_SAMPLING_WIDTH
-  }
+private const val WATCH_DURATION_VID_SAMPLING_START = 205.0f / NUMBER_VID_BUCKETS
 private const val WATCH_DURATION_EPSILON = 0.001
 private const val MAXIMUM_WATCH_DURATION_PER_USER = 4000
 
@@ -229,7 +206,7 @@ private val METRIC_SPEC_CONFIG = metricSpecConfig {
     }
   reachVidSamplingInterval =
     MetricSpecConfigKt.vidSamplingInterval {
-      start = REACH_ONLY_VID_SAMPLING_START_LIST.first()
+      start = REACH_ONLY_VID_SAMPLING_START
       width = REACH_ONLY_VID_SAMPLING_WIDTH
     }
 
@@ -249,7 +226,7 @@ private val METRIC_SPEC_CONFIG = metricSpecConfig {
     }
   frequencyHistogramVidSamplingInterval =
     MetricSpecConfigKt.vidSamplingInterval {
-      start = REACH_FREQUENCY_VID_SAMPLING_START_LIST.first()
+      start = REACH_FREQUENCY_VID_SAMPLING_START
       width = REACH_FREQUENCY_VID_SAMPLING_WIDTH
     }
 
@@ -264,7 +241,7 @@ private val METRIC_SPEC_CONFIG = metricSpecConfig {
     }
   impressionCountVidSamplingInterval =
     MetricSpecConfigKt.vidSamplingInterval {
-      start = IMPRESSION_VID_SAMPLING_START_LIST.first()
+      start = IMPRESSION_VID_SAMPLING_START
       width = IMPRESSION_VID_SAMPLING_WIDTH
     }
 
@@ -279,7 +256,7 @@ private val METRIC_SPEC_CONFIG = metricSpecConfig {
     }
   watchDurationVidSamplingInterval =
     MetricSpecConfigKt.vidSamplingInterval {
-      start = WATCH_DURATION_VID_SAMPLING_START_LIST.first()
+      start = WATCH_DURATION_VID_SAMPLING_START
       width = WATCH_DURATION_VID_SAMPLING_WIDTH
     }
 }
@@ -409,15 +386,6 @@ private val EVENT_GROUP_KEYS =
     EventGroupKey(
       measurementConsumerKey.measurementConsumerId,
       dataProviderKey.dataProviderId,
-      ExternalId(index * 10 + 660L).apiId.value
-    )
-  }
-private val EVENT_GROUP_KEYS_OF_FIRST_PUBLISHER =
-  (0L until 3L).map { index ->
-    val measurementConsumerKey = MEASUREMENT_CONSUMERS.keys.first()
-    EventGroupKey(
-      measurementConsumerKey.measurementConsumerId,
-      DATA_PROVIDERS.keys.first().dataProviderId,
       ExternalId(index + 660L).apiId.value
     )
   }
@@ -431,26 +399,9 @@ private val ALL_FILTERS =
 
 // Internal reporting sets
 
-private val INTERNAL_SINGLE_PUBLISHER_REPORTING_SETS =
-  EVENT_GROUP_KEYS.mapIndexed { index, eventGroupKey ->
-    internalReportingSet {
-      cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-      externalReportingSetId = index + 220L
-      this.primitive =
-        InternalReportingSetKt.primitive { eventGroupKeys += eventGroupKey.toInternal() }
-      displayName = "$cmmsMeasurementConsumerId-$externalReportingSetId-$filter"
-      weightedSubsetUnions += weightedSubsetUnion {
-        primitiveReportingSetBases += primitiveReportingSetBasis {
-          externalReportingSetId = this@internalReportingSet.externalReportingSetId
-        }
-        weight = 1
-      }
-    }
-  }
 private val INTERNAL_UNION_ALL_REPORTING_SET = internalReportingSet {
   cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-  externalReportingSetId =
-    INTERNAL_SINGLE_PUBLISHER_REPORTING_SETS.last().externalReportingSetId + 1
+  externalReportingSetId = 220L
   this.primitive =
     InternalReportingSetKt.primitive { eventGroupKeys += EVENT_GROUP_KEYS.map { it.toInternal() } }
   filter = PRIMITIVE_REPORTING_SET_FILTER
@@ -488,7 +439,17 @@ private val INTERNAL_SINGLE_PUBLISHER_REPORTING_SET = internalReportingSet {
     INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET.externalReportingSetId + 1
   this.primitive =
     InternalReportingSetKt.primitive {
-      eventGroupKeys += EVENT_GROUP_KEYS_OF_FIRST_PUBLISHER.map { it.toInternal() }
+      eventGroupKeys +=
+        (0L until 3L)
+          .map { index ->
+            val measurementConsumerKey = MEASUREMENT_CONSUMERS.keys.first()
+            EventGroupKey(
+              measurementConsumerKey.measurementConsumerId,
+              DATA_PROVIDERS.keys.first().dataProviderId,
+              ExternalId(index + 670L).apiId.value
+            )
+          }
+          .map { it.toInternal() }
     }
   filter = PRIMITIVE_REPORTING_SET_FILTER
   displayName = "$cmmsMeasurementConsumerId-$externalReportingSetId-$filter"
@@ -503,8 +464,7 @@ private val INTERNAL_SINGLE_PUBLISHER_REPORTING_SET = internalReportingSet {
 
 private val INTERNAL_INCREMENTAL_REPORTING_SET = internalReportingSet {
   cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-  externalReportingSetId =
-    INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET.externalReportingSetId + 1
+  externalReportingSetId = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.externalReportingSetId + 1
   this.composite =
     InternalReportingSetKt.setExpression {
       operation = InternalSetExpression.Operation.DIFFERENCE
@@ -539,17 +499,6 @@ private val INTERNAL_INCREMENTAL_REPORTING_SET = internalReportingSet {
   }
 }
 
-// Reporting set IDs and names
-
-private const val REPORTING_SET_EXTERNAL_ID_FOR_MC_2 = 241L
-private val REPORTING_SET_NAME_FOR_MC_2 =
-  ReportingSetKey(
-      MEASUREMENT_CONSUMERS.keys.last().measurementConsumerId,
-      externalIdToApiId(REPORTING_SET_EXTERNAL_ID_FOR_MC_2)
-    )
-    .toName()
-private const val INVALID_REPORTING_SET_NAME = "INVALID_REPORTING_SET_NAME"
-
 // Time intervals
 
 private val START_INSTANT = Instant.now()
@@ -570,35 +519,32 @@ private val TIME_INTERVAL = timeInterval {
   endTime = END_TIME
 }
 
-// Event group entries for CMMs measurements
-private val EVENT_GROUP_ENTRIES =
-  EVENT_GROUP_KEYS.groupBy(
-    { DataProviderKey(it.cmmsDataProviderId) },
-    {
-      RequisitionSpecKt.eventGroupEntry {
-        key = it.toName()
-        value =
-          RequisitionSpecKt.EventGroupEntryKt.value {
-            collectionInterval = MEASUREMENT_TIME_INTERVAL
-            filter =
-              RequisitionSpecKt.eventFilter {
-                expression =
-                  "($INCREMENTAL_REPORTING_SET_FILTER) AND ($METRIC_FILTER) AND ($PRIMITIVE_REPORTING_SET_FILTER)"
-              }
-          }
-      }
-    }
-  )
-
 // Requisition specs
 private val REQUISITION_SPECS: Map<DataProviderKey, RequisitionSpec> =
-  EVENT_GROUP_ENTRIES.mapValues {
-    requisitionSpec {
-      eventGroups += it.value
-      measurementPublicKey = MEASUREMENT_CONSUMERS.values.first().publicKey.data
-      nonce = SECURE_RANDOM_OUTPUT_LONG
+  EVENT_GROUP_KEYS.groupBy(
+      { DataProviderKey(it.cmmsDataProviderId) },
+      {
+        RequisitionSpecKt.eventGroupEntry {
+          key = it.toName()
+          value =
+            RequisitionSpecKt.EventGroupEntryKt.value {
+              collectionInterval = MEASUREMENT_TIME_INTERVAL
+              filter =
+                RequisitionSpecKt.eventFilter {
+                  expression =
+                    "($INCREMENTAL_REPORTING_SET_FILTER) AND ($METRIC_FILTER) AND ($PRIMITIVE_REPORTING_SET_FILTER)"
+                }
+            }
+        }
+      }
+    )
+    .mapValues {
+      requisitionSpec {
+        eventGroups += it.value
+        measurementPublicKey = MEASUREMENT_CONSUMERS.values.first().publicKey.data
+        nonce = SECURE_RANDOM_OUTPUT_LONG
+      }
     }
-  }
 
 // Data provider entries
 private val DATA_PROVIDER_ENTRIES =
@@ -640,92 +586,46 @@ private val WATCH_DURATION_LIST = WATCH_DURATION_SECOND_LIST.map { duration { se
 private val TOTAL_WATCH_DURATION = duration { seconds = WATCH_DURATION_SECOND_LIST.sum() }
 
 // Internal incremental reach measurements
-private val INTERNAL_REQUESTING_UNION_ALL_REACH_MEASUREMENT = internalMeasurement {
+
+private val INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT = internalMeasurement {
   cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+  cmmsCreateMeasurementRequestId = "UNION_ALL_REACH_MEASUREMENT"
+  cmmsMeasurementId = externalIdToApiId(401L)
   timeInterval = INTERNAL_TIME_INTERVAL
   primitiveReportingSetBases += primitiveReportingSetBasis {
     externalReportingSetId = INTERNAL_UNION_ALL_REPORTING_SET.externalReportingSetId
     filters += ALL_FILTERS
   }
+  state = InternalMeasurement.State.PENDING
 }
-private val INTERNAL_REQUESTING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
-  internalMeasurement {
-    cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-    timeInterval = INTERNAL_TIME_INTERVAL
-    primitiveReportingSetBases += primitiveReportingSetBasis {
-      externalReportingSetId =
-        INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET.externalReportingSetId
-      filters += ALL_FILTERS
-    }
-  }
 
-private val INTERNAL_PENDING_NOT_CREATED_UNION_ALL_REACH_MEASUREMENT =
-  INTERNAL_REQUESTING_UNION_ALL_REACH_MEASUREMENT.copy {
-    cmmsCreateMeasurementRequestId = "UNION_ALL_REACH_MEASUREMENT"
-    state = InternalMeasurement.State.PENDING
+private val INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT = internalMeasurement {
+  cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+  cmmsCreateMeasurementRequestId = "UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT"
+  cmmsMeasurementId = externalIdToApiId(402L)
+  timeInterval = INTERNAL_TIME_INTERVAL
+  primitiveReportingSetBases += primitiveReportingSetBasis {
+    externalReportingSetId =
+      INTERNAL_UNION_ALL_BUT_LAST_PUBLISHER_REPORTING_SET.externalReportingSetId
+    filters += ALL_FILTERS
   }
-private val INTERNAL_PENDING_NOT_CREATED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
-  INTERNAL_REQUESTING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.copy {
-    cmmsCreateMeasurementRequestId = "UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT"
-    state = InternalMeasurement.State.PENDING
-  }
-
-private val INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT =
-  INTERNAL_PENDING_NOT_CREATED_UNION_ALL_REACH_MEASUREMENT.copy {
-    cmmsMeasurementId = externalIdToApiId(401L)
-  }
-private val INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
-  INTERNAL_PENDING_NOT_CREATED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.copy {
-    cmmsMeasurementId = externalIdToApiId(402L)
-  }
-
-private val INTERNAL_SUCCEEDED_UNION_ALL_REACH_MEASUREMENT =
-  INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.copy {
-    state = InternalMeasurement.State.SUCCEEDED
-    details =
-      InternalMeasurementKt.details {
-        result =
-          InternalMeasurementKt.result {
-            reach = InternalMeasurementKt.ResultKt.reach { value = UNION_ALL_REACH_VALUE }
-          }
-      }
-  }
-private val INTERNAL_SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
-  INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.copy {
-    state = InternalMeasurement.State.SUCCEEDED
-    details =
-      InternalMeasurementKt.details {
-        result =
-          InternalMeasurementKt.result {
-            reach =
-              InternalMeasurementKt.ResultKt.reach {
-                value = UNION_ALL_BUT_LAST_PUBLISHER_REACH_VALUE
-              }
-          }
-      }
-  }
+  state = InternalMeasurement.State.PENDING
+}
 
 // Internal single publisher impression measurements
-private val INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT = internalMeasurement {
+
+private val INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT = internalMeasurement {
   cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+  cmmsCreateMeasurementRequestId = "SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT"
+  cmmsMeasurementId = externalIdToApiId(403L)
   timeInterval = INTERNAL_TIME_INTERVAL
   primitiveReportingSetBases += primitiveReportingSetBasis {
     externalReportingSetId = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.externalReportingSetId
     filters += METRIC_FILTER
     filters += PRIMITIVE_REPORTING_SET_FILTER
   }
+  state = InternalMeasurement.State.PENDING
 }
-
-private val INTERNAL_PENDING_NOT_CREATED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
-  INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
-    cmmsCreateMeasurementRequestId = "SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT"
-    state = InternalMeasurement.State.PENDING
-  }
-
-private val INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
-  INTERNAL_PENDING_NOT_CREATED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
-    cmmsMeasurementId = externalIdToApiId(403L)
-  }
 
 // CMMs incremental reach measurements
 private val UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC = measurementSpec {
@@ -748,7 +648,7 @@ private val UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC = measurementSpe
     }
   vidSamplingInterval =
     MeasurementSpecKt.vidSamplingInterval {
-      start = REACH_ONLY_VID_SAMPLING_START_LIST.first()
+      start = REACH_ONLY_VID_SAMPLING_START
       width = REACH_ONLY_VID_SAMPLING_WIDTH
     }
 }
@@ -851,7 +751,7 @@ private val SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT_SPEC = measurementSpec {
     }
   vidSamplingInterval =
     MeasurementSpecKt.vidSamplingInterval {
-      start = IMPRESSION_VID_SAMPLING_START_LIST.first()
+      start = IMPRESSION_VID_SAMPLING_START
       width = IMPRESSION_VID_SAMPLING_WIDTH
     }
 }
@@ -881,55 +781,10 @@ private val PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
     state = Measurement.State.COMPUTING
   }
 
-private val SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
-  PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
-    state = Measurement.State.SUCCEEDED
-
-    results +=
-      MeasurementKt.resultPair {
-        val result =
-          MeasurementKt.result {
-            impression =
-              MeasurementKt.ResultKt.impression { value = FIRST_PUBLISHER_IMPRESSION_VALUE }
-          }
-        encryptedResult =
-          encryptResult(
-            signResult(result, DATA_PROVIDER_SIGNING_KEY),
-            MEASUREMENT_CONSUMER_PUBLIC_KEY
-          )
-        certificate = DATA_PROVIDERS_LIST.first().certificate
-      }
-  }
-
-private val PENDING_CMMS_MEASUREMENTS =
-  mapOf(
-    PENDING_UNION_ALL_REACH_MEASUREMENT.measurementReferenceId to
-      PENDING_UNION_ALL_REACH_MEASUREMENT,
-    PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.measurementReferenceId to
-      PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT,
-    PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.measurementReferenceId to
-      PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT,
-  )
-private val SUCCEEDED_CMMS_MEASUREMENTS =
-  mapOf(
-    SUCCEEDED_UNION_ALL_REACH_MEASUREMENT.measurementReferenceId to
-      SUCCEEDED_UNION_ALL_REACH_MEASUREMENT,
-    SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.measurementReferenceId to
-      SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT,
-    SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.measurementReferenceId to
-      SUCCEEDED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT,
-  )
-
 // Metric Specs
 
 private val REACH_METRIC_SPEC: MetricSpec = metricSpec {
   reach = reachParams { privacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance() }
-}
-private val FREQUENCY_HISTOGRAM_METRIC_SPEC: MetricSpec = metricSpec {
-  frequencyHistogram = frequencyHistogramParams {
-    reachPrivacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
-    frequencyPrivacyParams = MetricSpec.DifferentialPrivacyParams.getDefaultInstance()
-  }
 }
 private val IMPRESSION_COUNT_METRIC_SPEC: MetricSpec = metricSpec {
   impressionCount = impressionCountParams {
@@ -950,10 +805,6 @@ private const val SINGLE_PUBLISHER_IMPRESSION_METRIC_IDEMPOTENCY_KEY =
   "TEST_SINGLE_PUBLISHER_IMPRESSION_METRIC"
 private const val IMPRESSION_METRIC_IDEMPOTENCY_KEY = "TEST_IMPRESSION_METRIC"
 private const val WATCH_DURATION_METRIC_IDEMPOTENCY_KEY = "TEST_WATCH_DURATION_METRIC"
-private const val FREQUENCY_HISTOGRAM_METRIC_IDEMPOTENCY_KEY = "TEST_FREQUENCY_HISTOGRAM_METRIC"
-
-// Typo causes invalid name
-private const val INVALID_METRIC_NAME = "measurementConsumer/AAAAAAAAAG8/metric/AAAAAAAAAU0"
 
 // Internal Incremental Metrics
 private val INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC = internalMetric {
@@ -971,17 +822,27 @@ private val INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC = internalMetric {
       }
     vidSamplingInterval =
       InternalMetricSpecKt.vidSamplingInterval {
-        start = REACH_ONLY_VID_SAMPLING_START_LIST.first()
+        start = REACH_ONLY_VID_SAMPLING_START
         width = REACH_ONLY_VID_SAMPLING_WIDTH
       }
   }
   weightedMeasurements += weightedMeasurement {
     weight = 1
-    measurement = INTERNAL_REQUESTING_UNION_ALL_REACH_MEASUREMENT
+    measurement =
+      INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.copy {
+        clearCmmsCreateMeasurementRequestId()
+        clearCmmsMeasurementId()
+        clearState()
+      }
   }
   weightedMeasurements += weightedMeasurement {
     weight = -1
-    measurement = INTERNAL_REQUESTING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
+    measurement =
+      INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.copy {
+        clearCmmsCreateMeasurementRequestId()
+        clearCmmsMeasurementId()
+        clearState()
+      }
   }
   details = InternalMetricKt.details { filters += listOf(METRIC_FILTER) }
 }
@@ -993,11 +854,14 @@ private val INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC =
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
-      measurement = INTERNAL_PENDING_NOT_CREATED_UNION_ALL_REACH_MEASUREMENT
+      measurement = INTERNAL_PENDING_UNION_ALL_REACH_MEASUREMENT.copy { clearCmmsMeasurementId() }
     }
     weightedMeasurements += weightedMeasurement {
       weight = -1
-      measurement = INTERNAL_PENDING_NOT_CREATED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT
+      measurement =
+        INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.copy {
+          clearCmmsMeasurementId()
+        }
     }
     state = InternalMetric.State.RUNNING
   }
@@ -1044,13 +908,18 @@ private val INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC = internalMet
       }
     vidSamplingInterval =
       InternalMetricSpecKt.vidSamplingInterval {
-        start = IMPRESSION_VID_SAMPLING_START_LIST.first()
+        start = IMPRESSION_VID_SAMPLING_START
         width = IMPRESSION_VID_SAMPLING_WIDTH
       }
   }
   weightedMeasurements += weightedMeasurement {
     weight = 1
-    measurement = INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+    measurement =
+      INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
+        clearCmmsCreateMeasurementRequestId()
+        clearCmmsMeasurementId()
+        clearState()
+      }
   }
   details = InternalMetricKt.details { filters += listOf(METRIC_FILTER) }
 }
@@ -1062,7 +931,8 @@ private val INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_IMPRESSION_METRIC =
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
-      measurement = INTERNAL_PENDING_NOT_CREATED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+      measurement =
+        INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy { clearCmmsMeasurementId() }
     }
     state = InternalMetric.State.RUNNING
   }
@@ -1085,9 +955,6 @@ private val REQUESTING_INCREMENTAL_REACH_METRIC = metric {
   filters += INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.details.filtersList
 }
 
-private val METRIC_WITH_INVALID_REPORTING_SET =
-  REQUESTING_INCREMENTAL_REACH_METRIC.copy { reportingSet = INVALID_REPORTING_SET_NAME }
-
 private val PENDING_INCREMENTAL_REACH_METRIC =
   REQUESTING_INCREMENTAL_REACH_METRIC.copy {
     name =
@@ -1107,7 +974,7 @@ private val PENDING_INCREMENTAL_REACH_METRIC =
       }
       vidSamplingInterval =
         MetricSpecKt.vidSamplingInterval {
-          start = REACH_ONLY_VID_SAMPLING_START_LIST.first()
+          start = REACH_ONLY_VID_SAMPLING_START
           width = REACH_ONLY_VID_SAMPLING_WIDTH
         }
     }
@@ -1117,12 +984,7 @@ private val PENDING_INCREMENTAL_REACH_METRIC =
 private val SUCCEEDED_INCREMENTAL_REACH_METRIC =
   PENDING_INCREMENTAL_REACH_METRIC.copy {
     state = Metric.State.SUCCEEDED
-    result = metricResult {
-      reach =
-        MetricResultKt.reachResult {
-          value = INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.details.result.reach.value
-        }
-    }
+    result = metricResult { reach = MetricResultKt.reachResult { value = INCREMENTAL_REACH_VALUE } }
   }
 
 // Single publisher impression metrics
@@ -1130,7 +992,7 @@ private val REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC = metric {
   reportingSet = INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.resourceName
   timeInterval = TIME_INTERVAL
   metricSpec = IMPRESSION_COUNT_METRIC_SPEC
-  filters += INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.details.filtersList
+  filters += INTERNAL_REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.details.filtersList
 }
 
 private val PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC =
@@ -1152,7 +1014,7 @@ private val PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC =
       }
       vidSamplingInterval =
         MetricSpecKt.vidSamplingInterval {
-          start = IMPRESSION_VID_SAMPLING_START_LIST.first()
+          start = IMPRESSION_VID_SAMPLING_START
           width = IMPRESSION_VID_SAMPLING_WIDTH
         }
     }
@@ -1210,7 +1072,15 @@ class MetricsServiceTest {
     onBlocking { createMeasurement(any()) }
       .thenAnswer {
         val request = it.arguments[0] as CreateMeasurementRequest
-        PENDING_CMMS_MEASUREMENTS.getValue(request.measurement.measurementReferenceId)
+        mapOf(
+            PENDING_UNION_ALL_REACH_MEASUREMENT.measurementReferenceId to
+              PENDING_UNION_ALL_REACH_MEASUREMENT,
+            PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.measurementReferenceId to
+              PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT,
+            PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.measurementReferenceId to
+              PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT,
+          )
+          .getValue(request.measurement.measurementReferenceId)
       }
   }
 
@@ -1566,7 +1436,7 @@ class MetricsServiceTest {
     val epsilon = IMPRESSION_EPSILON * 2
     val delta = DIFFERENTIAL_PRIVACY_DELTA * 2
     val maximumFrequencyPerUser = IMPRESSION_MAXIMUM_FREQUENCY_PER_USER + 1
-    val vidSamplingIntervalStart = IMPRESSION_VID_SAMPLING_START_LIST.first()
+    val vidSamplingIntervalStart = IMPRESSION_VID_SAMPLING_START
     val vidSamplingIntervalWidth = IMPRESSION_VID_SAMPLING_WIDTH / 2
 
     val internalMetricSpec = internalMetricSpec {
@@ -2462,9 +2332,11 @@ class MetricsServiceTest {
 
   @Test
   fun `createMetric throws INVALID_ARGUMENT when provided reporting set name is invalid`() {
+    val metricWithInvalidReportingSet =
+      REQUESTING_INCREMENTAL_REACH_METRIC.copy { reportingSet = "INVALID_REPORTING_SET_NAME" }
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
-      metric = METRIC_WITH_INVALID_REPORTING_SET
+      metric = metricWithInvalidReportingSet
     }
 
     val exception =
@@ -2475,15 +2347,22 @@ class MetricsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.status.description)
-      .isEqualTo("Invalid reporting set name $INVALID_REPORTING_SET_NAME.")
+      .isEqualTo("Invalid reporting set name ${metricWithInvalidReportingSet.reportingSet}.")
   }
 
   @Test
   fun `createMetric throws INVALID_ARGUMENT when reporting set is not accessible to caller`() {
+    val inaccessibleReportingSetName =
+      ReportingSetKey(
+          MEASUREMENT_CONSUMERS.keys.last().measurementConsumerId,
+          externalIdToApiId(241L)
+        )
+        .toName()
+
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       metric =
-        REQUESTING_INCREMENTAL_REACH_METRIC.copy { reportingSet = REPORTING_SET_NAME_FOR_MC_2 }
+        REQUESTING_INCREMENTAL_REACH_METRIC.copy { reportingSet = inaccessibleReportingSetName }
     }
 
     val exception =
@@ -2494,7 +2373,7 @@ class MetricsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
     assertThat(exception.status.description)
-      .isEqualTo("No access to the reporting set [$REPORTING_SET_NAME_FOR_MC_2].")
+      .isEqualTo("No access to the reporting set [$inaccessibleReportingSetName].")
   }
 
   @Test
