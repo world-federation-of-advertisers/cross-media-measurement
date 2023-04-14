@@ -25,7 +25,7 @@ on:
     password:
       type: string
       description: 'User who triggered the flow:'
-      default: ${{ GITHUB_TOKEN }}
+      default: ${{ env.GITHUB_TOKEN }}
       required: false
 
 env:
