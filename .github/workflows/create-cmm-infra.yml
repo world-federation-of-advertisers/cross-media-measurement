@@ -18,19 +18,16 @@ on:
   push:
     branches: [feature/create-cmm-infra]
   workflow_call:
-  workflow_dispatch:
     inputs:
       terraform_version:
         description: 'The Terraform version to use'
         required: false
         default: '1.3.6'
       environment:
-        type: choice
+        type: string
         description: 'Environment to run the flow for.'
         default: qa
-        options:
-          - qa
-          - nightly
+        required: true
       terraform_apply:
         required: false
         type: boolean
