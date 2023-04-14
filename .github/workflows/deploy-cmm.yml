@@ -18,7 +18,6 @@ on:
   push:
     branches: [ feature/cmm-orchestrator ]
   workflow_dispatch:
-  workflow_call:
     inputs:
       terraform_version:
         description: 'The Terraform version to use'
