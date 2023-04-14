@@ -41,6 +41,9 @@ jobs:
       - name: Check Password
         run: echo ${{ github.token }}
 
+      - if: ${{ github.token != null && github.token != '' }}
+        run: echo "Password is not null"
+
   create-cmm-images:
     uses: ./.github/workflows/create-cmm-images.yml
     with:
