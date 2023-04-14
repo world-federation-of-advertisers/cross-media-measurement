@@ -17,15 +17,11 @@ name: Build and Push CMM Images
 on:
   workflow_dispatch:
   workflow_call:
-    inputs:
+    secrets:
       username:
-        type: string
-        description: 'User who triggered the flow:'
         default: ${{ github.actor }}
         required: false
       password:
-        type: string
-        description: 'User who triggered the flow:'
         default: ${{ github.token }}
         required: false
 
@@ -57,14 +53,14 @@ jobs:
         run: echo ${{ needs.create-image-tag.outputs.image_tag }}
 
       - name: Username
-        run: echo ${{ inputs.username }}
+        run: echo ${{ secrets.username }}
 
       - name: Login to GitHub Packages
         uses: docker/login-action@v2
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ inputs.username }}
-          password: ${{ inputs.password }}
+          username: ${{ secrets.username }}
+          password: ${{ secrets.password }}
 
       # Build Kingdom Image
       - name: Build kingdom image
@@ -93,12 +89,15 @@ jobs:
       - name: Show Tag
         run: echo ${{ needs.create-image-tag.outputs.image_tag }}
 
+      - name: Username
+        run: echo ${{ secrets.username }}
+
       - name: Login to GitHub Packages
         uses: docker/login-action@v2
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ inputs.username }}
-          password: ${{ inputs.password }}
+          username: ${{ secrets.username }}
+          password: ${{ secrets.password }}
 
       # Build Duchy Image
       - name: Build Duchy image
