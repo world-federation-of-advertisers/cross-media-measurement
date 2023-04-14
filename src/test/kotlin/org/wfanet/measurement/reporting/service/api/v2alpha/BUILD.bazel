@@ -37,18 +37,3 @@ kt_jvm_test(
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/duchy",
     ],
 )
-
-kt_jvm_test(
-    name = "EncryptionKeyPairStoreTest",
-    srcs = ["EncryptionKeyPairStoreTest.kt"],
-    associates = [
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:encryption_key_pair_store",
-    ],
-    data = [
-        "//src/main/k8s/testing/secretfiles:secret_files",
-    ],
-    deps = [
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
-    ],
-)
