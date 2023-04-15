@@ -18,19 +18,24 @@ on:
   push:
     branches: [ feature/cmm-orchestrator ]
   workflow_dispatch:
-  workflow_call:
+    inputs:
+      terraform_version:
+        description: 'The Terraform version to use'
+        required: false
+        default: '1.3.6'
+      environment:
+        type: choice
+        description: 'Environment to run the flow for.'
+        default: qa
+        options:
+          - qa
+          - nightly
 
 env:
   REGISTRY: ghcr.io
   REPO_PREFIX: 'world-federation-of-advertisers/packages'
   ROOT_PATH: '${{ github.workspace }}/src/main/terraform/gcloud'
   PROJECT: 'halo-cmm'
-
-# needed to inject $ACTIONS_ID_TOKEN_REQUEST_TOKEN
-# which is inturn used to log into google cloud.
-permissions:
-  contents: 'read'
-  id-token: 'write'
 
 jobs:
   create-image-tag:
