@@ -36,7 +36,6 @@ jobs:
       - name: Output image tag
         id: get-image-tag-step
         run: echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
-
   build-kingdom-image:
     runs-on: ubuntu-20.04
     needs: create-image-tag
@@ -102,3 +101,10 @@ jobs:
           bazelisk query 'filter("push_duchy", kind("container_push", //src/main/docker:all))' |
             xargs -n 1 bazelisk run -c opt --define container_registry=ghcr.io \
             --define image_repo_prefix=world-federation-of-advertisers --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=${{ needs.create-image-tag.outputs.image_tag }}
+
+  create-cmm-infra:
+    uses: ./.github/workflows/create-cmm-infra.yml
+    secrets: inherit
+    with:
+      environment: qa           # TODO(@mdharmalingam): ${{ inputs.environment }}
+      terraform_apply: false    # TODO(@hkawalkar): ${{ inputs.terraform_apply }}
