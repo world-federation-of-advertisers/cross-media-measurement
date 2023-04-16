@@ -160,8 +160,6 @@ class MetricsService(
       coroutineContext
     )
 
-  data class MeasurementInfo(val cmmsMeasurementId: String, val measurement: Measurement)
-
   private class MeasurementSupplier(
     private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
     private val internalMeasurementsStub: InternalMeasurementsCoroutineStub,
@@ -582,51 +580,51 @@ class MetricsService(
       }
     }
 
-    /** Syncs [InternalMeasurement]s with the CMMs [Measurement]s. */
+    /** Syncs [InternalMeasurement]s with the CMMS [Measurement]s. */
     suspend fun syncInternalMeasurements(
       internalMeasurements: List<InternalMeasurement>,
       apiAuthenticationKey: String,
       principal: MeasurementConsumerPrincipal,
     ) {
-      val stateToMeasurementInfoMap: Map<Measurement.State, List<MeasurementInfo>> =
-        buildMeasurementInfoMap(internalMeasurements, apiAuthenticationKey, principal)
+      val newStateToCmmsMeasurements: Map<Measurement.State, List<Measurement>> =
+        getCmmsMeasurementsByState(internalMeasurements, apiAuthenticationKey, principal)
 
-      for ((state, measurementInfoList) in stateToMeasurementInfoMap) {
+      for ((newState, measurementsList) in newStateToCmmsMeasurements) {
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-        when (state) {
+        when (newState) {
           Measurement.State.SUCCEEDED -> {
-            if (measurementInfoList.isEmpty()) continue
-            syncSuccessfulInternalMeasurements(measurementInfoList, apiAuthenticationKey, principal)
+            if (measurementsList.isEmpty()) continue
+            syncSucceededInternalMeasurements(measurementsList, apiAuthenticationKey, principal)
           }
           Measurement.State.AWAITING_REQUISITION_FULFILLMENT,
           Measurement.State.COMPUTING -> {} // Do nothing.
           Measurement.State.FAILED,
           Measurement.State.CANCELLED -> {
-            if (measurementInfoList.isEmpty()) continue
-            syncFailedInternalMeasurements(measurementInfoList, principal)
+            if (measurementsList.isEmpty()) continue
+            syncFailedInternalMeasurements(measurementsList, principal)
           }
           Measurement.State.STATE_UNSPECIFIED ->
-            error("The CMMs measurement state should've been set.")
-          Measurement.State.UNRECOGNIZED -> error("Unrecognized CMMs measurement state.")
+            error("The CMMS measurement state should've been set.")
+          Measurement.State.UNRECOGNIZED -> error("Unrecognized CMMS measurement state.")
         }
       }
     }
 
     /**
-     * Syncs [InternalMeasurement]s by storing the failure states of the given successful CMMs
-     * [Measurement]s.
+     * Syncs [InternalMeasurement]s by storing the failure states of the given failed or canceled
+     * CMMS [Measurement]s.
      */
     private suspend fun syncFailedInternalMeasurements(
-      unsuccessfulMeasurementInfoList: List<MeasurementInfo>,
+      failedMeasurementsList: List<Measurement>,
       principal: MeasurementConsumerPrincipal,
     ) {
       val batchSetInternalMeasurementFailuresRequest = batchSetMeasurementFailuresRequest {
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
         measurementFailures +=
-          unsuccessfulMeasurementInfoList.map { measurementInfo ->
+          failedMeasurementsList.map { measurement ->
             measurementFailure {
-              cmmsMeasurementId = measurementInfo.cmmsMeasurementId
-              failure = measurementInfo.measurement.failure.toInternal()
+              cmmsMeasurementId = MeasurementKey.fromName(measurement.name)!!.measurementId
+              failure = measurement.failure.toInternal()
             }
           }
       }
@@ -636,9 +634,8 @@ class MetricsService(
           .batchSetMeasurementFailures(batchSetInternalMeasurementFailuresRequest)
           .measurementsList
 
-      if (internalMeasurementsList.size < unsuccessfulMeasurementInfoList.size) {
-        val missingMeasurementNames =
-          unsuccessfulMeasurementInfoList.map { it.measurement.name }.toMutableSet()
+      if (internalMeasurementsList.size < failedMeasurementsList.size) {
+        val missingMeasurementNames = failedMeasurementsList.map { it.name }.toMutableSet()
         val errorMessage =
           StringBuilder(
             "The measurement state of the following measurement names were not set " +
@@ -659,23 +656,23 @@ class MetricsService(
     }
 
     /**
-     * Syncs [InternalMeasurement]s by storing the measurement results of the given successful CMMs
+     * Syncs [InternalMeasurement]s by storing the measurement results of the given succeeded CMMS
      * [Measurement]s.
      */
-    private suspend fun syncSuccessfulInternalMeasurements(
-      successfulMeasurementInfoList: List<MeasurementInfo>,
+    private suspend fun syncSucceededInternalMeasurements(
+      succeededMeasurementsList: List<Measurement>,
       apiAuthenticationKey: String,
       principal: MeasurementConsumerPrincipal,
     ) {
       val batchSetMeasurementResultsRequest = batchSetMeasurementResultsRequest {
         cmmsMeasurementConsumerId = principal.resourceKey.measurementConsumerId
         measurementResults +=
-          successfulMeasurementInfoList.map { measurementInfo ->
+          succeededMeasurementsList.map { measurement ->
             measurementResult {
-              cmmsMeasurementId = measurementInfo.cmmsMeasurementId
+              cmmsMeasurementId = MeasurementKey.fromName(measurement.name)!!.measurementId
               result =
                 buildInternalMeasurementResult(
-                  measurementInfo.measurement,
+                  measurement,
                   apiAuthenticationKey,
                   principal.resourceKey.toName()
                 )
@@ -688,9 +685,8 @@ class MetricsService(
           .batchSetMeasurementResults(batchSetMeasurementResultsRequest)
           .measurementsList
 
-      if (internalMeasurementsList.size < successfulMeasurementInfoList.size) {
-        val missingMeasurementNames =
-          successfulMeasurementInfoList.map { it.measurement.name }.toMutableSet()
+      if (internalMeasurementsList.size < succeededMeasurementsList.size) {
+        val missingMeasurementNames = succeededMeasurementsList.map { it.name }.toMutableSet()
         val errorMessage =
           StringBuilder(
             "The measurement results of the following measurement names were not set " +
@@ -710,18 +706,15 @@ class MetricsService(
       }
     }
 
-    /** Gets a map of [Measurement.State] to a list of [MeasurementInfo]. */
-    private suspend fun buildMeasurementInfoMap(
+    /** Gets a map of [Measurement.State] to a list of [Measurement]s. */
+    private suspend fun getCmmsMeasurementsByState(
       internalMeasurements: List<InternalMeasurement>,
       apiAuthenticationKey: String,
       principal: MeasurementConsumerPrincipal,
-    ): Map<Measurement.State, List<MeasurementInfo>> = coroutineScope {
-      val deferred = mutableListOf<Deferred<MeasurementInfo>>()
+    ): Map<Measurement.State, List<Measurement>> = coroutineScope {
+      val deferred = mutableListOf<Deferred<Measurement>>()
 
       for (internalMeasurement in internalMeasurements) {
-        // Measurement with a terminal state is already synced
-        if (internalMeasurement.state != InternalMeasurement.State.PENDING) continue
-
         val measurementResourceName =
           MeasurementKey(
               principal.resourceKey.measurementConsumerId,
@@ -732,12 +725,9 @@ class MetricsService(
         deferred.add(
           async {
             try {
-              MeasurementInfo(
-                internalMeasurement.cmmsMeasurementId,
-                measurementsStub
-                  .withAuthenticationKey(apiAuthenticationKey)
-                  .getMeasurement(getMeasurementRequest { name = measurementResourceName })
-              )
+              measurementsStub
+                .withAuthenticationKey(apiAuthenticationKey)
+                .getMeasurement(getMeasurementRequest { name = measurementResourceName })
             } catch (e: StatusException) {
               throw Exception("Unable to retrieve the measurement [$measurementResourceName].", e)
             }
@@ -745,7 +735,7 @@ class MetricsService(
         )
       }
 
-      deferred.awaitAll().groupBy { measurementInfo -> measurementInfo.measurement.state }
+      deferred.awaitAll().groupBy { measurement -> measurement.state }
     }
 
     /** Builds an [InternalMeasurement.Result]. */
@@ -910,13 +900,16 @@ class MetricsService(
         }
       } else null
 
-    // Only syncs measurements in the metrics that are not at terminal states.
+    // Only syncs pending measurements which can only be in metrics that are still running.
     val toBeSyncedInternalMeasurements: List<InternalMeasurement> =
       results
         .subList(0, min(results.size, listMetricsPageToken.pageSize))
         .filter { internalMetric -> internalMetric.state == InternalMetric.State.RUNNING }
         .flatMap { internalMetric -> internalMetric.weightedMeasurementsList }
         .map { weightedMeasurement -> weightedMeasurement.measurement }
+        .filter { internalMeasurement ->
+          internalMeasurement.state == InternalMeasurement.State.PENDING
+        }
 
     measurementSupplier.syncInternalMeasurements(
       toBeSyncedInternalMeasurements,
