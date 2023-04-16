@@ -17,9 +17,7 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.protobuf.ByteString
-import com.google.protobuf.Duration
 import com.google.protobuf.duration
-import com.google.protobuf.util.Durations
 import io.grpc.Status
 import io.grpc.StatusException
 import java.io.File
@@ -29,14 +27,18 @@ import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import kotlin.coroutines.CoroutineContext
+import kotlin.math.min
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope.coroutineContext
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
 import org.jetbrains.annotations.BlockingExecutor
+import org.wfanet.measurement.api.v2.alpha.ListMetricsPageToken
+import org.wfanet.measurement.api.v2.alpha.ListMetricsPageTokenKt.previousPageEnd
+import org.wfanet.measurement.api.v2.alpha.copy
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
@@ -64,7 +66,6 @@ import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.withAuthenticationKey
-import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -79,14 +80,19 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
+import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptionPublicKey
+import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequest.MeasurementIds
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequestKt.measurementIds
+import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequestKt.measurementFailure
+import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequestKt.measurementResult
 import org.wfanet.measurement.internal.reporting.v2.CreateMetricRequest as InternalCreateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
+import org.wfanet.measurement.internal.reporting.v2.MeasurementKt as InternalMeasurementKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.Metric as InternalMetric
 import org.wfanet.measurement.internal.reporting.v2.Metric.WeightedMeasurement
@@ -97,9 +103,13 @@ import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt as InternalMetr
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineStub as InternalMetricsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchCreateMetricsRequest as internalBatchCreateMetricsRequest
+import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsRequest
+import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresRequest
+import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest as internalCreateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.measurement as internalMeasurement
@@ -115,11 +125,9 @@ import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.batchCreateMetricsResponse
+import org.wfanet.measurement.reporting.v2alpha.listMetricsResponse
 
 private const val MAX_BATCH_SIZE = 1000
-private const val MIN_PAGE_SIZE = 1
-private const val DEFAULT_PAGE_SIZE = 50
-private const val MAX_PAGE_SIZE = 1000
 
 class MetricsService(
   private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
@@ -152,7 +160,7 @@ class MetricsService(
       coroutineContext
     )
 
-  data class MeasurementInfo(val externalMeasurementId: Long, val measurement: Measurement)
+  data class MeasurementInfo(val cmmsMeasurementId: String, val measurement: Measurement)
 
   private class MeasurementSupplier(
     private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
@@ -581,7 +589,7 @@ class MetricsService(
       principal: MeasurementConsumerPrincipal,
     ) {
       val stateToMeasurementInfoMap: Map<Measurement.State, List<MeasurementInfo>> =
-        getMeasurementInfoMap(internalMeasurements, apiAuthenticationKey, principal)
+        buildMeasurementInfoMap(internalMeasurements, apiAuthenticationKey, principal)
 
       for ((state, measurementInfoList) in stateToMeasurementInfoMap) {
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
@@ -617,16 +625,16 @@ class MetricsService(
         measurementFailures +=
           unsuccessfulMeasurementInfoList.map { measurementInfo ->
             measurementFailure {
-              externalMeasurementId = measurementInfo.externalMeasurementId
+              cmmsMeasurementId = measurementInfo.cmmsMeasurementId
               failure = measurementInfo.measurement.failure.toInternal()
             }
           }
       }
 
-      val internalMeasurementsList =
+      val internalMeasurementsList: List<InternalMeasurement> =
         internalMeasurementsStub
           .batchSetMeasurementFailures(batchSetInternalMeasurementFailuresRequest)
-          .toList()
+          .measurementsList
 
       if (internalMeasurementsList.size < unsuccessfulMeasurementInfoList.size) {
         val missingMeasurementNames =
@@ -664,7 +672,7 @@ class MetricsService(
         measurementResults +=
           successfulMeasurementInfoList.map { measurementInfo ->
             measurementResult {
-              externalMeasurementId = measurementInfo.externalMeasurementId
+              cmmsMeasurementId = measurementInfo.cmmsMeasurementId
               result =
                 buildInternalMeasurementResult(
                   measurementInfo.measurement,
@@ -675,10 +683,10 @@ class MetricsService(
           }
       }
 
-      val internalMeasurementsList =
+      val internalMeasurementsList: List<InternalMeasurement> =
         internalMeasurementsStub
           .batchSetMeasurementResults(batchSetMeasurementResultsRequest)
-          .toList()
+          .measurementsList
 
       if (internalMeasurementsList.size < successfulMeasurementInfoList.size) {
         val missingMeasurementNames =
@@ -703,7 +711,7 @@ class MetricsService(
     }
 
     /** Gets a map of [Measurement.State] to a list of [MeasurementInfo]. */
-    private suspend fun getMeasurementInfoMap(
+    private suspend fun buildMeasurementInfoMap(
       internalMeasurements: List<InternalMeasurement>,
       apiAuthenticationKey: String,
       principal: MeasurementConsumerPrincipal,
@@ -725,7 +733,7 @@ class MetricsService(
           async {
             try {
               MeasurementInfo(
-                internalMeasurement.externalMeasurementId,
+                internalMeasurement.cmmsMeasurementId,
                 measurementsStub
                   .withAuthenticationKey(apiAuthenticationKey)
                   .getMeasurement(getMeasurementRequest { name = measurementResourceName })
@@ -943,7 +951,8 @@ class MetricsService(
       this.externalMetricIds += externalMetricIds
     }
 
-    val internalMetricsList = internalMetricsStub.batchGetMetrics(batchGetMetricsRequest).toList()
+    val internalMetricsList: List<InternalMetric> =
+      internalMetricsStub.batchGetMetrics(batchGetMetricsRequest).metricsList
 
     if (internalMetricsList.size < externalMetricIds.size) {
       val missingInternalMetricIds = externalMetricIds.toMutableSet()
@@ -1305,81 +1314,6 @@ class MetricsService(
       )
     }
   }
-
-  /** Gets an [InternalMetric]. */
-  private suspend fun getInternalReportingSet(
-    cmmsMeasurementConsumerId: String,
-    reportingSetName: String,
-  ): InternalReportingSet {
-    val reportingSetKey =
-      grpcRequireNotNull(ReportingSetKey.fromName(reportingSetName)) {
-        "Invalid reporting set name $reportingSetName."
-      }
-
-    grpcRequire(reportingSetKey.cmmsMeasurementConsumerId == cmmsMeasurementConsumerId) {
-      "No access to the reporting set [$reportingSetName]."
-    }
-
-    return try {
-      internalReportingSetsStub.getReportingSet(
-        getInternalReportingSetRequest {
-          this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-          this.externalReportingSetId = apiIdToExternalId(reportingSetKey.reportingSetId)
-        }
-      )
-    } catch (e: StatusException) {
-      throw Exception(
-        "Unable to retrieve a reporting set from the reporting database using the provided " +
-          "reportingSet [$reportingSetName].",
-        e
-      )
-    }
-  }
-}
-
-private fun InternalTimeInterval.toCmmsTimeInterval(): CmmsTimeInterval {
-  val source = this
-  return cmmsTimeInterval {
-    startTime = source.startTime
-    endTime = source.endTime
-  }
-}
-
-private fun MetricSpec.toInternal(): InternalMetricSpec {
-  val source = this
-  return internalMetricSpec {
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-    when (source.typeCase) {
-      MetricSpec.TypeCase.REACH -> reach = MetricSpecKt.reachParams {}
-      MetricSpec.TypeCase.FREQUENCY_HISTOGRAM ->
-        MetricSpecKt.frequencyHistogramParams {
-          maximumFrequencyPerUser = source.frequencyHistogram.maximumFrequencyPerUser
-        }
-      MetricSpec.TypeCase.IMPRESSION_COUNT ->
-        MetricSpecKt.impressionCountParams {
-          maximumFrequencyPerUser = source.impressionCount.maximumFrequencyPerUser
-        }
-      MetricSpec.TypeCase.WATCH_DURATION ->
-        MetricSpecKt.watchDurationParams {
-          maximumWatchDurationPerUser = source.watchDuration.maximumWatchDurationPerUser
-        }
-      MetricSpec.TypeCase.TYPE_NOT_SET ->
-        failGrpc(Status.INVALID_ARGUMENT) { "The metric type in Metric is not specified." }
-    }
-  }
-}
-
-/** Converts a public [TimeInterval] to an [InternalTimeInterval]. */
-private fun TimeInterval.toInternal(): InternalTimeInterval {
-  val source = this
-  return internalTimeInterval {
-    startTime = source.startTime
-    endTime = source.endTime
-  }
-}
-
-private fun InternalSetExpression.toSetExpression(): SetExpression {
-  TODO("Not yet implemented")
 }
 
 /**
