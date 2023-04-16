@@ -16,21 +16,38 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import com.google.protobuf.Duration
+import com.google.protobuf.duration
+import com.google.protobuf.util.Durations
+import org.wfanet.measurement.api.v2.alpha.ListMetricsPageToken
+import org.wfanet.measurement.api.v2.alpha.copy
+import org.wfanet.measurement.api.v2.alpha.listMetricsPageToken
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.Measurement
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec.VidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.TimeInterval as CmmsTimeInterval
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.timeInterval as cmmsTimeInterval
+import org.wfanet.measurement.common.base64UrlDecode
+import org.wfanet.measurement.common.grpc.grpcRequire
+import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
+import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
+import org.wfanet.measurement.internal.reporting.v2.MeasurementKt as InternalMeasurementKt
 import org.wfanet.measurement.internal.reporting.v2.Metric as InternalMetric
 import org.wfanet.measurement.internal.reporting.v2.MetricResult as InternalMetricResult
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec as InternalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt as InternalMetricSpecKt
+import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequest
+import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.TimeInterval as InternalTimeInterval
+import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeInterval as internalTimeInterval
+import org.wfanet.measurement.reporting.v2alpha.ListMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.HistogramResultKt.bin
@@ -46,6 +63,11 @@ import org.wfanet.measurement.reporting.v2alpha.metric
 import org.wfanet.measurement.reporting.v2alpha.metricResult
 import org.wfanet.measurement.reporting.v2alpha.metricSpec
 import org.wfanet.measurement.reporting.v2alpha.timeInterval
+import sun.jvm.hotspot.oops.CellTypeState.value
+
+private const val MIN_PAGE_SIZE = 1
+private const val DEFAULT_PAGE_SIZE = 50
+private const val MAX_PAGE_SIZE = 1000
 
 /**
  * Converts an [MetricSpecConfig.VidSamplingInterval] to an
@@ -310,5 +332,108 @@ fun InternalMetricSpec.WatchDurationParams.toDuration(): MeasurementSpec.Duratio
   return MeasurementSpecKt.duration {
     privacyParams = source.privacyParams.toCmmsPrivacyParams()
     maximumWatchDurationPerUser = source.maximumWatchDurationPerUser
+  }
+}
+
+/** Converts a CMM [Measurement.Failure] to an [InternalMeasurement.Failure]. */
+fun Measurement.Failure.toInternal(): InternalMeasurement.Failure {
+  val source = this
+
+  return InternalMeasurementKt.failure {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    reason =
+      when (source.reason) {
+        Measurement.Failure.Reason.REASON_UNSPECIFIED ->
+          InternalMeasurement.Failure.Reason.REASON_UNSPECIFIED
+        Measurement.Failure.Reason.CERTIFICATE_REVOKED ->
+          InternalMeasurement.Failure.Reason.CERTIFICATE_REVOKED
+        Measurement.Failure.Reason.REQUISITION_REFUSED ->
+          InternalMeasurement.Failure.Reason.REQUISITION_REFUSED
+        Measurement.Failure.Reason.COMPUTATION_PARTICIPANT_FAILED ->
+          InternalMeasurement.Failure.Reason.COMPUTATION_PARTICIPANT_FAILED
+        Measurement.Failure.Reason.UNRECOGNIZED -> InternalMeasurement.Failure.Reason.UNRECOGNIZED
+      }
+    message = source.message
+  }
+}
+
+operator fun Duration.plus(other: Duration): Duration {
+  return Durations.add(this, other)
+}
+
+/** Converts a CMM [Measurement.Result] to an [InternalMeasurement.Result]. */
+fun Measurement.Result.toInternal(): InternalMeasurement.Result {
+  val source = this
+
+  return InternalMeasurementKt.result {
+    if (source.hasReach()) {
+      this.reach = InternalMeasurementKt.ResultKt.reach { value = source.reach.value }
+    }
+    if (source.hasFrequency()) {
+      this.frequency =
+        InternalMeasurementKt.ResultKt.frequency {
+          relativeFrequencyDistribution.putAll(source.frequency.relativeFrequencyDistributionMap)
+        }
+    }
+    if (source.hasImpression()) {
+      this.impression =
+        InternalMeasurementKt.ResultKt.impression { value = source.impression.value }
+    }
+    if (source.hasWatchDuration()) {
+      this.watchDuration =
+        InternalMeasurementKt.ResultKt.watchDuration { value = source.watchDuration.value }
+    }
+  }
+}
+
+/** Converts a [ListMetricsPageToken] to an internal [StreamMetricsRequest]. */
+fun ListMetricsPageToken.toStreamMetricsRequest(): StreamMetricsRequest {
+  val source = this
+  return streamMetricsRequest {
+    // get 1 more than the actual page size for deciding whether to set page token
+    limit = source.pageSize + 1
+    filter =
+      StreamMetricsRequestKt.filter {
+        cmmsMeasurementConsumerId = source.externalMeasurementConsumerId
+        externalMetricIdAfter = source.lastMetric.externalMetricId
+      }
+  }
+}
+
+/** Converts a public [ListMetricsRequest] to a [ListMetricsPageToken]. */
+fun ListMetricsRequest.toListMetricsPageToken(): ListMetricsPageToken {
+  val source = this
+
+  grpcRequire(source.pageSize >= 0) { "Page size cannot be less than 0." }
+
+  val parentKey: MeasurementConsumerKey =
+    grpcRequireNotNull(MeasurementConsumerKey.fromName(source.parent)) {
+      "Parent is either unspecified or invalid."
+    }
+  val cmmsMeasurementConsumerId = parentKey.measurementConsumerId
+
+  val isValidPageSize =
+    source.pageSize != 0 && source.pageSize >= MIN_PAGE_SIZE && source.pageSize <= MAX_PAGE_SIZE
+
+  return if (pageToken.isNotBlank()) {
+    ListMetricsPageToken.parseFrom(source.pageToken.base64UrlDecode()).copy {
+      grpcRequire(this.externalMeasurementConsumerId == cmmsMeasurementConsumerId) {
+        "Arguments must be kept the same when using a page token."
+      }
+
+      if (isValidPageSize) {
+        pageSize = source.pageSize
+      }
+    }
+  } else {
+    listMetricsPageToken {
+      pageSize =
+        when {
+          source.pageSize < MIN_PAGE_SIZE -> DEFAULT_PAGE_SIZE
+          source.pageSize > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
+          else -> source.pageSize
+        }
+      this.externalMeasurementConsumerId = cmmsMeasurementConsumerId
+    }
   }
 }
