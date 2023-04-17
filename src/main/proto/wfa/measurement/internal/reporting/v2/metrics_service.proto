@@ -32,7 +32,11 @@ service Metrics {
 
   rpc StreamMetrics(StreamMetricsRequest) returns (stream Metric);
 
-  rpc SetMetricResult(SetMetricResultRequest) returns (Metric);
+  rpc BatchSetMetricResults(BatchSetMetricResultsRequest)
+      returns (BatchSetMetricResultsResponse);
+
+  rpc BatchSetMetricFailures(BatchSetMetricFailuresRequest)
+      returns (BatchSetMetricFailuresResponse);
 }
 
 message CreateMetricRequest {
@@ -76,9 +80,30 @@ message StreamMetricsRequest {
   int32 limit = 2;
 }
 
-message SetMetricResultRequest {
+message BatchSetMetricResultsRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
   string cmms_measurement_consumer_id = 1;
-  fixed64 external_metric_id = 2;
-  MetricResult result = 3;
+
+  message SetMetricResultRequest {
+    fixed64 external_metric_id = 1;
+    MetricResult result = 2;
+  }
+  // Maximum is 1000.
+  repeated SetMetricResultRequest requests = 2;
+}
+
+message BatchSetMetricResultsResponse {
+  repeated Metric metrics = 1;
+}
+
+message BatchSetMetricFailuresRequest {
+  // `MeasurementConsumer` ID from the CMMS public API.
+  string cmms_measurement_consumer_id = 1;
+
+  // Maximum is 1000.
+  repeated fixed64 external_metric_ids = 2;
+}
+
+message BatchSetMetricFailuresResponse {
+  repeated Metric metrics = 1;
 }
