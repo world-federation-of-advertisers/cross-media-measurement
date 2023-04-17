@@ -93,6 +93,10 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
       ReportingSet.ValueCase.COMPOSITE -> {
         val externalReportingSetIds: Set<Long> = createExternalReportingSetIdsSet(reportingSet)
 
+        if (reportingSet.composite.lhs.operandCase == SetExpression.Operand.OperandCase.OPERAND_NOT_SET) {
+          throw ReportingSetInvalidException()
+        }
+
         // Map of external ReportingSet ID to internal ReportingSet ID.
         val reportingSetMap = mutableMapOf<ExternalId, InternalId>()
 
@@ -121,7 +125,18 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
       }
     }
 
-    return reportingSet.copy { this.externalReportingSetId = externalReportingSetId.value }
+    return reportingSet.copy {
+      this.externalReportingSetId = externalReportingSetId.value
+      if (this.valueCase == ReportingSet.ValueCase.PRIMITIVE && weightedSubsetUnions.isEmpty()) {
+        weightedSubsetUnions += ReportingSetKt.weightedSubsetUnion {
+          weight = 1
+          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
+            this.externalReportingSetId = externalReportingSetId.value
+            filters += reportingSet.filter
+          }
+        }
+      }
+    }
   }
 
   private suspend fun TransactionScope.insertReportingSetEventGroups(
@@ -179,15 +194,17 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
       }
     }
 
-    val eventGroupsStatement =
-      boundStatement(
-        """
+    val eventGroupsStatement: BoundStatement? =
+      if (eventGroupBinders.size > 0) {
+        boundStatement(
+          """
               INSERT INTO EventGroups (MeasurementConsumerId, EventGroupId, CmmsDataProviderId, CmmsEventGroupId)
               VALUES ($1, $2, $3, $4)
               """
-      ) {
-        eventGroupBinders.forEach { addBinding(it) }
-      }
+        ) {
+          eventGroupBinders.forEach { addBinding(it) }
+        }
+      } else null
 
     val reportingSetEventGroupsStatement =
       boundStatement(
@@ -200,14 +217,16 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
       }
 
     transactionContext.run {
-      executeStatement(eventGroupsStatement)
+      if (eventGroupsStatement != null) {
+        executeStatement(eventGroupsStatement)
+      }
       executeStatement(reportingSetEventGroupsStatement)
     }
   }
 
   private fun createExternalReportingSetIdsSet(reportingSet: ReportingSet): Set<Long> {
     val externalReportingIds = mutableSetOf<Long>()
-    reportingSet.composite.getExternalReportingSetIds()
+    externalReportingIds.addAll(reportingSet.composite.getExternalReportingSetIds())
     reportingSet.weightedSubsetUnionsList.forEach {
       externalReportingIds.addAll(it.getExternalReportingSetIds())
     }

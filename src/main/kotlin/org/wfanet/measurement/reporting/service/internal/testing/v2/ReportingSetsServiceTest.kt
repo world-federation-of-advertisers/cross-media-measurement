@@ -85,6 +85,49 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
           eventGroupKeys +=
             ReportingSetKt.PrimitiveKt.eventGroupKey {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              cmmsDataProviderId = "2235"
+              cmmsEventGroupId = "2236"
+            }
+        }
+    }
+
+    val createdReportingSet = service.createReportingSet(reportingSet)
+
+    assertThat(createdReportingSet.weightedSubsetUnionsList).containsExactly(
+      ReportingSetKt.weightedSubsetUnion {
+        weight = 1
+        primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
+          this.externalReportingSetId = createdReportingSet.externalReportingSetId
+          filters += reportingSet.filter
+        }
+      }
+    )
+    assertThat(createdReportingSet.externalReportingSetId).isNotEqualTo(0L)
+  }
+
+  @Test
+  fun `createReportingSet succeeds when event groups are repeated`() = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+
+    val reportingSet = reportingSet {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      displayName = "displayName"
+      filter = "filter"
+
+      primitive =
+        ReportingSetKt.primitive {
+          eventGroupKeys +=
+            ReportingSetKt.PrimitiveKt.eventGroupKey {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              cmmsDataProviderId = "1235"
+              cmmsEventGroupId = "1236"
+            }
+
+          eventGroupKeys +=
+            ReportingSetKt.PrimitiveKt.eventGroupKey {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               cmmsDataProviderId = "1235"
               cmmsEventGroupId = "1236"
             }
@@ -100,7 +143,60 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
 
     val createdReportingSet = service.createReportingSet(reportingSet)
 
+    assertThat(createdReportingSet.weightedSubsetUnionsList).containsExactly(
+      ReportingSetKt.weightedSubsetUnion {
+        weight = 1
+        primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
+          this.externalReportingSetId = createdReportingSet.externalReportingSetId
+          filters += reportingSet.filter
+        }
+      }
+    )
     assertThat(createdReportingSet.externalReportingSetId).isNotEqualTo(0L)
+  }
+
+  @Test
+  fun `createReportingSet succeeds when no new Event Groups are created`() = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+
+    val reportingSet = reportingSet {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      displayName = "displayName"
+      filter = "filter"
+
+      primitive =
+        ReportingSetKt.primitive {
+          eventGroupKeys +=
+            ReportingSetKt.PrimitiveKt.eventGroupKey {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              cmmsDataProviderId = "1235"
+              cmmsEventGroupId = "1236"
+            }
+        }
+    }
+
+    val reportingSet2 = reportingSet {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      displayName = "displayName"
+      filter = "filter"
+
+      primitive =
+        ReportingSetKt.primitive {
+          eventGroupKeys +=
+            ReportingSetKt.PrimitiveKt.eventGroupKey {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              cmmsDataProviderId = "1235"
+              cmmsEventGroupId = "1236"
+            }
+        }
+    }
+
+    service.createReportingSet(reportingSet)
+    val createdReportingSet2 = service.createReportingSet(reportingSet2)
+
+    assertThat(createdReportingSet2.externalReportingSetId).isNotEqualTo(0L)
   }
 
   @Test
@@ -225,6 +321,68 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
 
     val exception =
       assertFailsWith<StatusRuntimeException> { service.createReportingSet(reportingSet) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `CreateReportingSet throws INVALID_ARGUMENT when set expression missing lhs`() = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+
+    val primitiveReportingSet = reportingSet {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      displayName = "displayName"
+      filter = "filter"
+
+      primitive =
+        ReportingSetKt.primitive {
+          eventGroupKeys +=
+            ReportingSetKt.PrimitiveKt.eventGroupKey {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              cmmsDataProviderId = "1235"
+              cmmsEventGroupId = "1236"
+            }
+        }
+    }
+
+    val createdPrimitiveReportingSet = service.createReportingSet(primitiveReportingSet)
+
+    val compositeReportingSet = reportingSet {
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+      displayName = "displayName2"
+      filter = "filter2"
+
+      composite =
+        ReportingSetKt.setExpression {
+          operation = ReportingSet.SetExpression.Operation.UNION
+          rhs =
+            ReportingSetKt.SetExpressionKt.operand {
+              expression =
+                ReportingSetKt.setExpression {
+                  operation = ReportingSet.SetExpression.Operation.DIFFERENCE
+                  lhs =
+                    ReportingSetKt.SetExpressionKt.operand {
+                      externalReportingSetId = createdPrimitiveReportingSet.externalReportingSetId
+                    }
+                }
+            }
+        }
+
+      weightedSubsetUnions +=
+        ReportingSetKt.weightedSubsetUnion {
+          primitiveReportingSetBases +=
+            ReportingSetKt.primitiveReportingSetBasis {
+              externalReportingSetId = createdPrimitiveReportingSet.externalReportingSetId
+              filters += "filter1"
+              filters += "filter2"
+            }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.createReportingSet(compositeReportingSet) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
