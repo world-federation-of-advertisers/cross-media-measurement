@@ -46,6 +46,7 @@ import org.wfanet.measurement.internal.kingdom.MeasurementKt.details
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as InternalMeasurementsCoroutineService
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig.NoiseMechanism as InternalNoiseMechanism
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.internal.kingdom.SetMeasurementResultRequest
@@ -58,6 +59,7 @@ import org.wfanet.measurement.internal.kingdom.measurement as internalMeasuremen
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.system.v1alpha.Computation
+import org.wfanet.measurement.system.v1alpha.Computation.MpcProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
 import org.wfanet.measurement.system.v1alpha.GetComputationRequest
@@ -196,6 +198,7 @@ private val INTERNAL_MEASUREMENT = internalMeasurement {
           }
           ellipticCurveId = 123
           maximumFrequency = 12
+          noiseMechanism = InternalNoiseMechanism.GEOMETRIC
         }
     }
   }
@@ -263,6 +266,7 @@ class ComputationsServiceTest {
               }
               ellipticCurveId = 123
               maximumFrequency = 12
+              noiseMechanism = NoiseMechanism.GEOMETRIC
             }
             addRequisitions(
               Requisition.newBuilder().apply {

@@ -69,17 +69,13 @@ import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.R
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation.NON_AGGREGATOR
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation.UNKNOWN
 import org.wfanet.measurement.internal.duchy.config.LiquidLegionsV2SetupConfig.RoleInComputation.UNRECOGNIZED
-import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneAtAggregatorResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseOneResponse
-import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseThreeAtAggregatorRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseThreeAtAggregatorResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseThreeRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseThreeResponse
-import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoAtAggregatorRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoAtAggregatorResponse
-import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteExecutionPhaseTwoResponse
 import org.wfanet.measurement.internal.duchy.protocol.CompleteInitializationPhaseRequest
 import org.wfanet.measurement.internal.duchy.protocol.CompleteSetupPhaseRequest
@@ -89,6 +85,17 @@ import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggrega
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.ComputationParticipant
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.Parameters
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
+import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseOneAtAggregatorRequest
+import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseThreeAtAggregatorRequest
+import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseTwoAtAggregatorRequest
+import org.wfanet.measurement.internal.duchy.protocol.completeExecutionPhaseTwoRequest
+import org.wfanet.measurement.internal.duchy.protocol.completeSetupPhaseRequest
+import org.wfanet.measurement.internal.duchy.protocol.flagCountTupleNoiseGenerationParameters
+import org.wfanet.measurement.internal.duchy.protocol.globalReachDpNoiseBaseline
+import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsSketchParameters
+import org.wfanet.measurement.internal.duchy.protocol.perBucketFrequencyDpNoiseBaseline
+import org.wfanet.measurement.internal.duchy.protocol.reachNoiseDifferentialPrivacyParams
+import org.wfanet.measurement.internal.duchy.protocol.registerNoiseGenerationParameters
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
@@ -548,22 +555,22 @@ class LiquidLegionsV2Mill(
     require(AGGREGATOR == llv2Details.role) { "invalid role for this function." }
     val (bytes, nextToken) =
       existingOutputOr(token) {
-        val requestBuilder =
-          CompleteExecutionPhaseOneAtAggregatorRequest.newBuilder().apply {
-            localElGamalKeyPair = llv2Details.localElgamalKey
-            compositeElGamalPublicKey = llv2Details.combinedPublicKey
-            curveId = llv2Details.parameters.ellipticCurveId.toLong()
-            combinedRegisterVector = readAndCombineAllInputBlobs(token, 1)
-            totalSketchesCount = token.requisitionsCount
+        val request = completeExecutionPhaseOneAtAggregatorRequest {
+          localElGamalKeyPair = llv2Details.localElgamalKey
+          compositeElGamalPublicKey = llv2Details.combinedPublicKey
+          curveId = llv2Details.parameters.ellipticCurveId.toLong()
+          combinedRegisterVector = readAndCombineAllInputBlobs(token, 1)
+          totalSketchesCount = token.requisitionsCount
+          noiseMechanism = llv2Details.parameters.noise.noiseMechanism
+          if (
+            llv2Parameters.noise.hasFrequencyNoiseConfig() &&
+              (getMaximumRequestedFrequency(token) > 1)
+          ) {
+            noiseParameters = getFrequencyNoiseParams(token, llv2Parameters)
           }
-        if (
-          llv2Parameters.noise.hasFrequencyNoiseConfig() &&
-            (getMaximumRequestedFrequency(token) > 1)
-        ) {
-          requestBuilder.noiseParameters = getFrequencyNoiseParams(token, llv2Parameters)
         }
         val cryptoResult: CompleteExecutionPhaseOneAtAggregatorResponse =
-          cryptoWorker.completeExecutionPhaseOneAtAggregator(requestBuilder.build())
+          cryptoWorker.completeExecutionPhaseOneAtAggregator(request)
         logStageDurationMetric(
           token,
           CRYPTO_LIB_CPU_DURATION,
@@ -655,36 +662,35 @@ class LiquidLegionsV2Mill(
           Version.V2_ALPHA -> {}
           Version.VERSION_UNSPECIFIED -> error("Public api version is invalid or unspecified.")
         }
-        val requestBuilder =
-          CompleteExecutionPhaseTwoAtAggregatorRequest.newBuilder().apply {
-            localElGamalKeyPair = llv2Details.localElgamalKey
-            compositeElGamalPublicKey = llv2Details.combinedPublicKey
-            curveId = llv2Parameters.ellipticCurveId.toLong()
-            flagCountTuples = readAndCombineAllInputBlobs(token, 1)
-            maximumFrequency = maximumRequestedFrequency
-            liquidLegionsParametersBuilder.apply {
-              decayRate = llv2Parameters.liquidLegionsSketch.decayRate
-              size = llv2Parameters.liquidLegionsSketch.size
+        val request = completeExecutionPhaseTwoAtAggregatorRequest {
+          localElGamalKeyPair = llv2Details.localElgamalKey
+          compositeElGamalPublicKey = llv2Details.combinedPublicKey
+          curveId = llv2Parameters.ellipticCurveId.toLong()
+          flagCountTuples = readAndCombineAllInputBlobs(token, 1)
+          maximumFrequency = maximumRequestedFrequency
+          liquidLegionsParameters = liquidLegionsSketchParameters {
+            decayRate = llv2Parameters.liquidLegionsSketch.decayRate
+            size = llv2Parameters.liquidLegionsSketch.size
+          }
+          vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width
+          if (llv2Parameters.noise.hasReachNoiseConfig()) {
+            reachDpNoiseBaseline = globalReachDpNoiseBaseline {
+              contributorsCount = workerStubs.size + 1
+              globalReachDpNoise = llv2Parameters.noise.reachNoiseConfig.globalReachDpNoise
             }
-            vidSamplingIntervalWidth = measurementSpec.vidSamplingInterval.width
           }
-        val noiseConfig = llv2Parameters.noise
-        if (noiseConfig.hasReachNoiseConfig()) {
-          requestBuilder.reachDpNoiseBaselineBuilder.apply {
-            contributorsCount = workerStubs.size + 1
-            globalReachDpNoise = noiseConfig.reachNoiseConfig.globalReachDpNoise
+          if (llv2Parameters.noise.hasFrequencyNoiseConfig() && (maximumRequestedFrequency > 1)) {
+            frequencyNoiseParameters = flagCountTupleNoiseGenerationParameters {
+              contributorsCount = workerStubs.size + 1
+              maximumFrequency = maximumRequestedFrequency
+              dpParams = llv2Parameters.noise.frequencyNoiseConfig
+            }
           }
-        }
-        if (noiseConfig.hasFrequencyNoiseConfig() && (maximumRequestedFrequency > 1)) {
-          requestBuilder.frequencyNoiseParametersBuilder.apply {
-            contributorsCount = workerStubs.size + 1
-            maximumFrequency = maximumRequestedFrequency
-            dpParams = noiseConfig.frequencyNoiseConfig
-          }
+          noiseMechanism = llv2Details.parameters.noise.noiseMechanism
         }
 
         val cryptoResult: CompleteExecutionPhaseTwoAtAggregatorResponse =
-          cryptoWorker.completeExecutionPhaseTwoAtAggregator(requestBuilder.build())
+          cryptoWorker.completeExecutionPhaseTwoAtAggregator(request)
         logStageDurationMetric(
           token,
           CRYPTO_LIB_CPU_DURATION,
@@ -750,24 +756,22 @@ class LiquidLegionsV2Mill(
     val maximumRequestedFrequency = getMaximumRequestedFrequency(token)
     val (bytes, nextToken) =
       existingOutputOr(token) {
-        val requestBuilder =
-          CompleteExecutionPhaseTwoRequest.newBuilder().apply {
-            localElGamalKeyPair = llv2Details.localElgamalKey
-            compositeElGamalPublicKey = llv2Details.combinedPublicKey
-            curveId = llv2Parameters.ellipticCurveId.toLong()
-            flagCountTuples = readAndCombineAllInputBlobs(token, 1)
-          }
-        if (llv2Parameters.noise.hasFrequencyNoiseConfig()) {
-          requestBuilder.apply {
+        val request = completeExecutionPhaseTwoRequest {
+          localElGamalKeyPair = llv2Details.localElgamalKey
+          compositeElGamalPublicKey = llv2Details.combinedPublicKey
+          curveId = llv2Parameters.ellipticCurveId.toLong()
+          flagCountTuples = readAndCombineAllInputBlobs(token, 1)
+          if (llv2Parameters.noise.hasFrequencyNoiseConfig()) {
             partialCompositeElGamalPublicKey = llv2Details.partiallyCombinedPublicKey
             if (maximumRequestedFrequency > 1) {
               noiseParameters = getFrequencyNoiseParams(token, llv2Parameters)
             }
           }
+          noiseMechanism = llv2Details.parameters.noise.noiseMechanism
         }
 
         val cryptoResult: CompleteExecutionPhaseTwoResponse =
-          cryptoWorker.completeExecutionPhaseTwo(requestBuilder.build())
+          cryptoWorker.completeExecutionPhaseTwo(request)
         logStageDurationMetric(
           token,
           CRYPTO_LIB_CPU_DURATION,
@@ -812,21 +816,22 @@ class LiquidLegionsV2Mill(
     require(llv2Details.hasReachEstimate()) { "Reach estimate is missing." }
     val (bytes, nextToken) =
       existingOutputOr(token) {
-        val requestBuilder =
-          CompleteExecutionPhaseThreeAtAggregatorRequest.newBuilder().apply {
-            localElGamalKeyPair = llv2Details.localElgamalKey
-            curveId = llv2Parameters.ellipticCurveId.toLong()
-            sameKeyAggregatorMatrix = readAndCombineAllInputBlobs(token, 1)
-            maximumFrequency = getMaximumRequestedFrequency(token)
+        val request = completeExecutionPhaseThreeAtAggregatorRequest {
+          localElGamalKeyPair = llv2Details.localElgamalKey
+          curveId = llv2Parameters.ellipticCurveId.toLong()
+          sameKeyAggregatorMatrix = readAndCombineAllInputBlobs(token, 1)
+          maximumFrequency = getMaximumRequestedFrequency(token)
+          if (llv2Parameters.noise.hasFrequencyNoiseConfig()) {
+            globalFrequencyDpNoisePerBucket = perBucketFrequencyDpNoiseBaseline {
+              contributorsCount = workerStubs.size + 1
+              dpParams = llv2Parameters.noise.frequencyNoiseConfig
+            }
           }
-        if (llv2Parameters.noise.hasFrequencyNoiseConfig()) {
-          requestBuilder.globalFrequencyDpNoisePerBucketBuilder.apply {
-            contributorsCount = workerStubs.size + 1
-            dpParams = llv2Parameters.noise.frequencyNoiseConfig
-          }
+          noiseMechanism = llv2Details.parameters.noise.noiseMechanism
         }
+
         val cryptoResult: CompleteExecutionPhaseThreeAtAggregatorResponse =
-          cryptoWorker.completeExecutionPhaseThreeAtAggregator(requestBuilder.build())
+          cryptoWorker.completeExecutionPhaseThreeAtAggregator(request)
         logStageDurationMetric(
           token,
           CRYPTO_LIB_CPU_DURATION,
@@ -940,22 +945,24 @@ class LiquidLegionsV2Mill(
     totalRequisitionsCount: Int
   ): CompleteSetupPhaseRequest {
     val noiseConfig = llv2Details.parameters.noise
-    val requestBuilder = CompleteSetupPhaseRequest.newBuilder().setCombinedRegisterVector(this)
-    requestBuilder.maximumFrequency = getMaximumRequestedFrequency(token)
-    if (noiseConfig.hasReachNoiseConfig()) {
-      requestBuilder.noiseParametersBuilder.apply {
-        compositeElGamalPublicKey = llv2Details.combinedPublicKey
-        curveId = llv2Details.parameters.ellipticCurveId.toLong()
-        contributorsCount = workerStubs.size + 1
-        totalSketchesCount = totalRequisitionsCount
-        dpParamsBuilder.apply {
-          blindHistogram = noiseConfig.reachNoiseConfig.blindHistogramNoise
-          noiseForPublisherNoise = noiseConfig.reachNoiseConfig.noiseForPublisherNoise
-          globalReachDpNoise = noiseConfig.reachNoiseConfig.globalReachDpNoise
+    return completeSetupPhaseRequest {
+      combinedRegisterVector = this@toCompleteSetupPhaseRequest
+      maximumFrequency = getMaximumRequestedFrequency(token)
+      if (noiseConfig.hasReachNoiseConfig()) {
+        noiseParameters = registerNoiseGenerationParameters {
+          compositeElGamalPublicKey = llv2Details.combinedPublicKey
+          curveId = llv2Details.parameters.ellipticCurveId.toLong()
+          contributorsCount = workerStubs.size + 1
+          totalSketchesCount = totalRequisitionsCount
+          dpParams = reachNoiseDifferentialPrivacyParams {
+            blindHistogram = noiseConfig.reachNoiseConfig.blindHistogramNoise
+            noiseForPublisherNoise = noiseConfig.reachNoiseConfig.noiseForPublisherNoise
+            globalReachDpNoise = noiseConfig.reachNoiseConfig.globalReachDpNoise
+          }
         }
+        noiseMechanism = llv2Details.parameters.noise.noiseMechanism
       }
     }
-    return requestBuilder.build()
   }
 
   private fun getFrequencyNoiseParams(
