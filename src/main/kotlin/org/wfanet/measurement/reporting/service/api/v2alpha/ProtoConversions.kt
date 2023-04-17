@@ -20,20 +20,14 @@ import com.google.protobuf.Duration
 import com.google.protobuf.duration
 import com.google.protobuf.util.Durations
 import org.wfanet.measurement.api.v2.alpha.ListMetricsPageToken
-import org.wfanet.measurement.api.v2.alpha.copy
-import org.wfanet.measurement.api.v2.alpha.listMetricsPageToken
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.Measurement
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec.VidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.TimeInterval as CmmsTimeInterval
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.timeInterval as cmmsTimeInterval
-import org.wfanet.measurement.common.base64UrlDecode
-import org.wfanet.measurement.common.grpc.grpcRequire
-import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
@@ -47,7 +41,6 @@ import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.TimeInterval as InternalTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeInterval as internalTimeInterval
-import org.wfanet.measurement.reporting.v2alpha.ListMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricResult
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.HistogramResultKt.bin
@@ -63,11 +56,6 @@ import org.wfanet.measurement.reporting.v2alpha.metric
 import org.wfanet.measurement.reporting.v2alpha.metricResult
 import org.wfanet.measurement.reporting.v2alpha.metricSpec
 import org.wfanet.measurement.reporting.v2alpha.timeInterval
-import sun.jvm.hotspot.oops.CellTypeState.value
-
-private const val MIN_PAGE_SIZE = 1
-private const val DEFAULT_PAGE_SIZE = 50
-private const val MAX_PAGE_SIZE = 1000
 
 /**
  * Converts an [MetricSpecConfig.VidSamplingInterval] to an
@@ -397,43 +385,5 @@ fun ListMetricsPageToken.toStreamMetricsRequest(): StreamMetricsRequest {
         cmmsMeasurementConsumerId = source.externalMeasurementConsumerId
         externalMetricIdAfter = source.lastMetric.externalMetricId
       }
-  }
-}
-
-/** Converts a public [ListMetricsRequest] to a [ListMetricsPageToken]. */
-fun ListMetricsRequest.toListMetricsPageToken(): ListMetricsPageToken {
-  val source = this
-
-  grpcRequire(source.pageSize >= 0) { "Page size cannot be less than 0." }
-
-  val parentKey: MeasurementConsumerKey =
-    grpcRequireNotNull(MeasurementConsumerKey.fromName(source.parent)) {
-      "Parent is either unspecified or invalid."
-    }
-  val cmmsMeasurementConsumerId = parentKey.measurementConsumerId
-
-  val isValidPageSize =
-    source.pageSize != 0 && source.pageSize >= MIN_PAGE_SIZE && source.pageSize <= MAX_PAGE_SIZE
-
-  return if (pageToken.isNotBlank()) {
-    ListMetricsPageToken.parseFrom(source.pageToken.base64UrlDecode()).copy {
-      grpcRequire(this.externalMeasurementConsumerId == cmmsMeasurementConsumerId) {
-        "Arguments must be kept the same when using a page token."
-      }
-
-      if (isValidPageSize) {
-        pageSize = source.pageSize
-      }
-    }
-  } else {
-    listMetricsPageToken {
-      pageSize =
-        when {
-          source.pageSize < MIN_PAGE_SIZE -> DEFAULT_PAGE_SIZE
-          source.pageSize > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
-          else -> source.pageSize
-        }
-      this.externalMeasurementConsumerId = cmmsMeasurementConsumerId
-    }
   }
 }
