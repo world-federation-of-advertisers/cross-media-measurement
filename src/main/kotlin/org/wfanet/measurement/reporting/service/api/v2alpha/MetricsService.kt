@@ -883,16 +883,6 @@ class MetricsService(
         }
       } else null
 
-    // val internalMetricsMap = mutableMapOf<Long, InternalMetric>()
-    // results.subList(0, min(results.size, listMetricsPageToken.pageSize)).associateByTo(
-    //   internalMetricsMap
-    // ) {
-    //   it.externalMetricId
-    // }
-    //
-    // val toBeSyncedInternalMetrics: List<InternalMetric> =
-    //   internalMetricsMap.values.filter { metric -> metric.state == InternalMetric.State.RUNNING }
-
     // Only syncs pending measurements which can only be in metrics that are still running.
     val toBeSyncedInternalMeasurements: List<InternalMeasurement> =
       results
