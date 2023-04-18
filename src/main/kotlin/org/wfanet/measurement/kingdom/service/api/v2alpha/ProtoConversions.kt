@@ -41,6 +41,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultPair
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.Direct
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKey
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
@@ -69,6 +70,7 @@ import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasuremen
 import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.details
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig.NoiseMechanism as InternalNoiseMechanism
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.exchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
@@ -133,6 +135,16 @@ fun InternalDifferentialPrivacyParams.toDifferentialPrivacyParams(): Differentia
   }
 }
 
+/** Converts an internal [InternalNoiseMechanism] to a public [NoiseMechanism]. */
+fun InternalNoiseMechanism.toNoiseMechanism(): NoiseMechanism {
+  return when (this) {
+    InternalNoiseMechanism.GEOMETRIC -> NoiseMechanism.GEOMETRIC
+    InternalNoiseMechanism.DISCRETE_GAUSSIAN -> NoiseMechanism.DISCRETE_GAUSSIAN
+    InternalNoiseMechanism.UNRECOGNIZED,
+    InternalNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED -> error("Noise mechanism not specified")
+  }
+}
+
 fun InternalProtocolConfig.toProtocolConfig(
   measurementTypeCase: MeasurementSpec.MeasurementTypeCase,
   dataProviderCount: Int,
@@ -182,6 +194,7 @@ fun InternalProtocolConfig.toProtocolConfig(
                   }
                   ellipticCurveId = source.liquidLegionsV2.ellipticCurveId
                   maximumFrequency = source.liquidLegionsV2.maximumFrequency
+                  noiseMechanism = source.liquidLegionsV2.noiseMechanism.toNoiseMechanism()
                 }
               }
             }
