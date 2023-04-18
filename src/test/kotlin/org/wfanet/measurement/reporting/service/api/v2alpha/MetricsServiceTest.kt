@@ -3580,6 +3580,98 @@ class MetricsServiceTest {
   }
 
   @Test
+  fun `listMetrics returns succeeded metrics when the metrics are SUCCEEDED`() = runBlocking {
+    whenever(internalMetricsMock.streamMetrics(any()))
+      .thenReturn(
+        flowOf(
+          INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC,
+          INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
+        )
+      )
+    whenever(measurementsMock.getMeasurement(any()))
+      .thenReturn(PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT)
+    whenever(internalMetricsMock.batchGetMetrics(any()))
+      .thenReturn(
+        internalBatchGetMetricsResponse {
+          metrics += INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC
+          metrics += INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
+        }
+      )
+
+    val request = listMetricsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+        runBlocking { service.listMetrics(request) }
+      }
+
+    val expected = listMetricsResponse {
+      metrics += SUCCEEDED_INCREMENTAL_REACH_METRIC
+      metrics += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
+    }
+
+    // Verify proto argument of internal MetricsCoroutineImplBase::streamMetrics
+    verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::streamMetrics)
+      .isEqualTo(
+        streamMetricsRequest {
+          limit = DEFAULT_PAGE_SIZE + 1
+          this.filter = filter {
+            cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          }
+        }
+      )
+
+    // Verify proto argument of MeasurementsCoroutineImplBase::getMeasurement
+    val getMeasurementCaptor: KArgumentCaptor<GetMeasurementRequest> = argumentCaptor()
+    verifyBlocking(measurementsMock, times(1)) { getMeasurement(getMeasurementCaptor.capture()) }
+    val capturedGetMeasurementRequests = getMeasurementCaptor.allValues
+    assertThat(capturedGetMeasurementRequests)
+      .containsExactly(
+        getMeasurementRequest { name = PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name },
+      )
+
+    // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+    val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
+      argumentCaptor()
+    verifyBlocking(internalMeasurementsMock, never()) {
+      batchSetMeasurementResults(batchSetMeasurementResultsCaptor.capture())
+    }
+
+    // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementFailures
+    val batchSetMeasurementFailuresCaptor: KArgumentCaptor<BatchSetMeasurementFailuresRequest> =
+      argumentCaptor()
+    verifyBlocking(internalMeasurementsMock, never()) {
+      batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
+    }
+
+    // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
+    verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::batchGetMetrics)
+      .isEqualTo(
+        internalBatchGetMetricsRequest {
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          externalMetricIds += INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId
+          externalMetricIds += INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
+        }
+      )
+
+    // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricResults
+    val batchSetMetricResultsCaptor: KArgumentCaptor<BatchSetMetricResultsRequest> =
+      argumentCaptor()
+    verifyBlocking(internalMetricsMock, never()) {
+      batchSetMetricResults(batchSetMetricResultsCaptor.capture())
+    }
+
+    // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricFailures
+    val batchSetMetricFailuresCaptor: KArgumentCaptor<BatchSetMetricFailuresRequest> =
+      argumentCaptor()
+    verifyBlocking(internalMetricsMock, never()) {
+      batchSetMetricFailures(batchSetMetricFailuresCaptor.capture())
+    }
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
   fun `listMetrics returns failed metrics when the measurement is FAILED`() = runBlocking {
     whenever(measurementsMock.getMeasurement(any()))
       .thenReturn(
