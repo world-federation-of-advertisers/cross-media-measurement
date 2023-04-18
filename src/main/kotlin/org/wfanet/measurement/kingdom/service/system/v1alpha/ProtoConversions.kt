@@ -26,8 +26,10 @@ import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig as InternalDu
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig.NoiseMechanism as InternalNoiseMechanism
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
 import org.wfanet.measurement.system.v1alpha.Computation
+import org.wfanet.measurement.system.v1alpha.Computation.MpcProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.liquidLegionsSketchParams
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.mpcNoise
@@ -228,6 +230,7 @@ fun buildMpcProtocolConfig(
           }
           ellipticCurveId = protocolConfig.liquidLegionsV2.ellipticCurveId
           maximumFrequency = protocolConfig.liquidLegionsV2.maximumFrequency
+          noiseMechanism = protocolConfig.liquidLegionsV2.noiseMechanism.toSystemNoiseMechanism()
         }
       }
     }
@@ -331,4 +334,14 @@ fun DuchyMeasurementLogEntry.toSystemComputationLogEntry(
       }
     }
     .build()
+}
+
+/** Converts an internal NoiseMechanism to a system NoiseMechanism */
+fun InternalNoiseMechanism.toSystemNoiseMechanism(): NoiseMechanism {
+  return when (this) {
+    InternalNoiseMechanism.GEOMETRIC -> NoiseMechanism.GEOMETRIC
+    InternalNoiseMechanism.DISCRETE_GAUSSIAN -> NoiseMechanism.DISCRETE_GAUSSIAN
+    InternalNoiseMechanism.UNRECOGNIZED,
+    InternalNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED -> error("Invalid internal NoiseMechanism.")
+  }
 }

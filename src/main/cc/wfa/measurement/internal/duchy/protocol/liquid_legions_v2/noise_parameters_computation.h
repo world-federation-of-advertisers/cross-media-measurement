@@ -15,31 +15,35 @@
 #ifndef SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_LIQUID_LEGIONS_V2_NOISE_PARAMETERS_COMPUTATION_H_
 #define SRC_MAIN_CC_WFA_MEASUREMENT_INTERNAL_DUCHY_PROTOCOL_LIQUID_LEGIONS_V2_NOISE_PARAMETERS_COMPUTATION_H_
 
-#include "math/distributed_geometric_noiser.h"
+#include <memory>
+
 #include "math/distributed_noiser.h"
 #include "wfa/measurement/internal/duchy/differential_privacy.pb.h"
+#include "wfa/measurement/internal/duchy/protocol/liquid_legions_v2_noise_config.pb.h"
 
 namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2 {
 
-math::DistributedGeometricNoiseComponentOptions
-GetBlindHistogramGeometricNoiseOptions(
-    const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
-    int uncorrupted_party_count);
+using ::wfa::measurement::internal::duchy::protocol::LiquidLegionsV2NoiseConfig;
 
-math::DistributedGeometricNoiseComponentOptions
-GetNoiseForPublisherGeometricNoiseOptions(
+std::unique_ptr<math::DistributedNoiser> GetBlindHistogramNoiser(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
-    int publisher_count, int uncorrupted_party_count);
+    int uncorrupted_party_count,
+    LiquidLegionsV2NoiseConfig::NoiseMechanism noise_mechanism);
 
-math::DistributedGeometricNoiseComponentOptions
-GetGlobalReachDpGeometricNoiseOptions(
+std::unique_ptr<math::DistributedNoiser> GetPublisherNoiser(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
-    int uncorrupted_party_count);
+    int publisher_count, int uncorrupted_party_count,
+    LiquidLegionsV2NoiseConfig::NoiseMechanism noise_mechanism);
 
-math::DistributedGeometricNoiseComponentOptions
-GetFrequencyGeometricNoiseOptions(
+std::unique_ptr<math::DistributedNoiser> GetGlobalReachDpNoiser(
     const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
-    int uncorrupted_party_count);
+    int uncorrupted_party_count,
+    LiquidLegionsV2NoiseConfig::NoiseMechanism noise_mechanism);
+
+std::unique_ptr<math::DistributedNoiser> GetFrequencyNoiser(
+    const wfa::measurement::internal::duchy::DifferentialPrivacyParams& params,
+    int uncorrupted_party_count,
+    LiquidLegionsV2NoiseConfig::NoiseMechanism noise_mechanism);
 
 }  // namespace wfa::measurement::internal::duchy::protocol::liquid_legions_v2
 
