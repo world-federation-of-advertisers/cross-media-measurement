@@ -124,6 +124,7 @@ import org.wfanet.measurement.internal.reporting.v2.BatchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequestKt.measurementIds
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequest
+import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequestKt.measurementFailure
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequestKt.measurementResult
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMetricFailuresRequest
@@ -157,7 +158,9 @@ import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementFailu
 import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsResponse
 import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementResultsResponse
+import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementResultsRequest
+import org.wfanet.measurement.internal.reporting.v2.batchSetMetricFailuresRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetMetricFailuresResponse
 import org.wfanet.measurement.internal.reporting.v2.batchSetMetricResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetMetricResultsResponse
@@ -3572,6 +3575,135 @@ class MetricsServiceTest {
     verifyBlocking(internalMetricsMock, never()) {
       batchSetMetricFailures(batchSetMetricFailuresCaptor.capture())
     }
+
+    assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `listMetrics returns failed metrics when the measurement is FAILED`() = runBlocking {
+    whenever(measurementsMock.getMeasurement(any()))
+      .thenReturn(
+        PENDING_UNION_ALL_REACH_MEASUREMENT,
+        PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT,
+        PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
+          state = Measurement.State.FAILED
+          failure = failure {
+            reason = Measurement.Failure.Reason.REQUISITION_REFUSED
+            message =
+              INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.details.failure.message
+          }
+        }
+      )
+    whenever(internalMetricsMock.batchGetMetrics(any()))
+      .thenReturn(
+        internalBatchGetMetricsResponse {
+          metrics += INTERNAL_PENDING_INCREMENTAL_REACH_METRIC
+          metrics +=
+            INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+              weightedMeasurements.clear()
+              weightedMeasurements += weightedMeasurement {
+                weight = 1
+                measurement = INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+              }
+            }
+        }
+      )
+
+    val request = listMetricsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+        runBlocking { service.listMetrics(request) }
+      }
+
+    val expected = listMetricsResponse {
+      metrics += PENDING_INCREMENTAL_REACH_METRIC
+      metrics += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy { state = Metric.State.FAILED }
+    }
+
+    // Verify proto argument of internal MetricsCoroutineImplBase::streamMetrics
+    verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::streamMetrics)
+      .isEqualTo(
+        streamMetricsRequest {
+          limit = DEFAULT_PAGE_SIZE + 1
+          this.filter = filter {
+            cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          }
+        }
+      )
+
+    // Verify proto argument of MeasurementsCoroutineImplBase::getMeasurement
+    val getMeasurementCaptor: KArgumentCaptor<GetMeasurementRequest> = argumentCaptor()
+    verifyBlocking(measurementsMock, times(3)) { getMeasurement(getMeasurementCaptor.capture()) }
+    val capturedGetMeasurementRequests = getMeasurementCaptor.allValues
+    assertThat(capturedGetMeasurementRequests)
+      .containsExactly(
+        getMeasurementRequest { name = PENDING_UNION_ALL_REACH_MEASUREMENT.name },
+        getMeasurementRequest {
+          name = PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.name
+        },
+        getMeasurementRequest { name = PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name },
+      )
+
+    // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+    val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
+      argumentCaptor()
+    verifyBlocking(internalMeasurementsMock, never()) {
+      batchSetMeasurementResults(batchSetMeasurementResultsCaptor.capture())
+    }
+
+    // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementFailures
+    val batchSetMeasurementFailuresCaptor: KArgumentCaptor<BatchSetMeasurementFailuresRequest> =
+      argumentCaptor()
+    verifyBlocking(internalMeasurementsMock, times(1)) {
+      batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
+    }
+    val capturedBatchSetMeasurementFailureRequests = batchSetMeasurementFailuresCaptor.allValues
+    assertThat(capturedBatchSetMeasurementFailureRequests)
+      .ignoringRepeatedFieldOrder()
+      .containsExactly(
+        batchSetMeasurementFailuresRequest {
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          measurementFailures += measurementFailure {
+            cmmsMeasurementId =
+              INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementId
+            this.failure = INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.details.failure
+          }
+        }
+      )
+
+    // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
+    verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::batchGetMetrics)
+      .isEqualTo(
+        internalBatchGetMetricsRequest {
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          externalMetricIds += INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId
+          externalMetricIds += INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
+        }
+      )
+
+    // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricResults
+    val batchSetMetricResultsCaptor: KArgumentCaptor<BatchSetMetricResultsRequest> =
+      argumentCaptor()
+    verifyBlocking(internalMetricsMock, never()) {
+      batchSetMetricResults(batchSetMetricResultsCaptor.capture())
+    }
+
+    // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricFailures
+    val batchSetMetricFailuresCaptor: KArgumentCaptor<BatchSetMetricFailuresRequest> =
+      argumentCaptor()
+    verifyBlocking(internalMetricsMock, times(1)) {
+      batchSetMetricFailures(batchSetMetricFailuresCaptor.capture())
+    }
+    val capturedBatchSetMetricFailureRequests = batchSetMetricFailuresCaptor.allValues
+    assertThat(capturedBatchSetMetricFailureRequests)
+      .ignoringRepeatedFieldOrder()
+      .containsExactly(
+        batchSetMetricFailuresRequest {
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+          externalMetricIds += INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
+        }
+      )
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
