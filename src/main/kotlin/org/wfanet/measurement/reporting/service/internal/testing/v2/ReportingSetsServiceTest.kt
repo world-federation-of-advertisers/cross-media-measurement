@@ -93,15 +93,17 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
 
     val createdReportingSet = service.createReportingSet(reportingSet)
 
-    assertThat(createdReportingSet.weightedSubsetUnionsList).containsExactly(
-      ReportingSetKt.weightedSubsetUnion {
-        weight = 1
-        primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-          this.externalReportingSetId = createdReportingSet.externalReportingSetId
-          filters += reportingSet.filter
+    assertThat(createdReportingSet.weightedSubsetUnionsList)
+      .containsExactly(
+        ReportingSetKt.weightedSubsetUnion {
+          weight = 1
+          primitiveReportingSetBases +=
+            ReportingSetKt.primitiveReportingSetBasis {
+              this.externalReportingSetId = createdReportingSet.externalReportingSetId
+              filters += reportingSet.filter
+            }
         }
-      }
-    )
+      )
     assertThat(createdReportingSet.externalReportingSetId).isNotEqualTo(0L)
   }
 
@@ -143,15 +145,17 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
 
     val createdReportingSet = service.createReportingSet(reportingSet)
 
-    assertThat(createdReportingSet.weightedSubsetUnionsList).containsExactly(
-      ReportingSetKt.weightedSubsetUnion {
-        weight = 1
-        primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-          this.externalReportingSetId = createdReportingSet.externalReportingSetId
-          filters += reportingSet.filter
+    assertThat(createdReportingSet.weightedSubsetUnionsList)
+      .containsExactly(
+        ReportingSetKt.weightedSubsetUnion {
+          weight = 1
+          primitiveReportingSetBases +=
+            ReportingSetKt.primitiveReportingSetBasis {
+              this.externalReportingSetId = createdReportingSet.externalReportingSetId
+              filters += reportingSet.filter
+            }
         }
-      }
-    )
+      )
     assertThat(createdReportingSet.externalReportingSetId).isNotEqualTo(0L)
   }
 

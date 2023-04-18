@@ -56,7 +56,9 @@ class EventGroupReader(private val readContext: ReadContext) {
     )
   }
 
-  suspend fun getByCmmsEventGroupKey(cmmsEventGroupKeys: Collection<CmmsEventGroupKey>): Flow<Result> {
+  suspend fun getByCmmsEventGroupKey(
+    cmmsEventGroupKeys: Collection<CmmsEventGroupKey>
+  ): Flow<Result> {
     if (cmmsEventGroupKeys.isEmpty()) {
       return emptyFlow()
     }

@@ -39,7 +39,10 @@ class PostgresReportingSetsService(
     when (request.valueCase) {
       ReportingSet.ValueCase.PRIMITIVE -> {}
       ReportingSet.ValueCase.COMPOSITE -> {
-        if (request.composite.lhs.operandCase == ReportingSet.SetExpression.Operand.OperandCase.OPERAND_NOT_SET) {
+        if (
+          request.composite.lhs.operandCase ==
+            ReportingSet.SetExpression.Operand.OperandCase.OPERAND_NOT_SET
+        ) {
           failGrpc(Status.INVALID_ARGUMENT) { "Reporting Set invalid" }
         }
       }

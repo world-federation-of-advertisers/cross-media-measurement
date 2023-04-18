@@ -89,16 +89,15 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
         )
       }
       ReportingSet.ValueCase.COMPOSITE -> {
-        val externalReportingSetIds: Set<ExternalId> = createExternalReportingSetIdsSet(reportingSet)
+        val externalReportingSetIds: Set<ExternalId> =
+          createExternalReportingSetIdsSet(reportingSet)
 
         // Map of external ReportingSet ID to internal ReportingSet ID.
         val reportingSetMap = mutableMapOf<ExternalId, InternalId>()
 
         ReportingSetReader(transactionContext)
           .readIds(measurementConsumerId, externalReportingSetIds.toList())
-          .collect {
-            reportingSetMap[it.externalReportingSetId] = it.reportingSetId
-          }
+          .collect { reportingSetMap[it.externalReportingSetId] = it.reportingSetId }
 
         insertSetExpressions(
           measurementConsumerId,
@@ -122,13 +121,15 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
     return reportingSet.copy {
       this.externalReportingSetId = externalReportingSetId.value
       if (this.valueCase == ReportingSet.ValueCase.PRIMITIVE && weightedSubsetUnions.isEmpty()) {
-        weightedSubsetUnions += ReportingSetKt.weightedSubsetUnion {
-          weight = 1
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            this.externalReportingSetId = externalReportingSetId.value
-            filters += reportingSet.filter
+        weightedSubsetUnions +=
+          ReportingSetKt.weightedSubsetUnion {
+            weight = 1
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                this.externalReportingSetId = externalReportingSetId.value
+                filters += reportingSet.filter
+              }
           }
-        }
       }
     }
   }
@@ -142,28 +143,32 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
     val eventGroupMap = mutableMapOf<ReportingSet.Primitive.EventGroupKey, InternalId>()
 
     val cmmsEventGroupKeys: Collection<EventGroupReader.CmmsEventGroupKey> =
-      eventGroups.distinct().map { EventGroupReader.CmmsEventGroupKey(
-        cmmsDataProviderId = it.cmmsDataProviderId,
-        cmmsEventGroupId = it.cmmsEventGroupId
-      ) }
+      eventGroups.distinct().map {
+        EventGroupReader.CmmsEventGroupKey(
+          cmmsDataProviderId = it.cmmsDataProviderId,
+          cmmsEventGroupId = it.cmmsEventGroupId
+        )
+      }
 
     EventGroupReader(transactionContext)
       .getByCmmsEventGroupKey(cmmsEventGroupKeys.toList())
       .collect {
-        eventGroupMap[ReportingSetKt.PrimitiveKt.eventGroupKey {
-          cmmsDataProviderId = it.cmmsDataProviderId
-          cmmsEventGroupId = it.cmmsEventGroupId
-        }] = it.eventGroupId
+        eventGroupMap[
+          ReportingSetKt.PrimitiveKt.eventGroupKey {
+            cmmsDataProviderId = it.cmmsDataProviderId
+            cmmsEventGroupId = it.cmmsEventGroupId
+          }] = it.eventGroupId
       }
 
     val eventGroupBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
     val reportingSetEventGroupsBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
 
     cmmsEventGroupKeys.forEach {
-      val primitiveReportingSetEventGroupKey = ReportingSetKt.PrimitiveKt.eventGroupKey {
-        cmmsDataProviderId = it.cmmsDataProviderId
-        cmmsEventGroupId = it.cmmsEventGroupId
-      }
+      val primitiveReportingSetEventGroupKey =
+        ReportingSetKt.PrimitiveKt.eventGroupKey {
+          cmmsDataProviderId = it.cmmsDataProviderId
+          cmmsEventGroupId = it.cmmsEventGroupId
+        }
       eventGroupMap.computeIfAbsent(primitiveReportingSetEventGroupKey) {
         val id = idGenerator.generateInternalId()
         eventGroupBinders.add {
@@ -177,10 +182,12 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
     }
 
     cmmsEventGroupKeys.forEach {
-      val eventGroupId: InternalId? = eventGroupMap[ReportingSetKt.PrimitiveKt.eventGroupKey {
-        cmmsDataProviderId = it.cmmsDataProviderId
-        cmmsEventGroupId = it.cmmsEventGroupId
-      }]
+      val eventGroupId: InternalId? =
+        eventGroupMap[
+          ReportingSetKt.PrimitiveKt.eventGroupKey {
+            cmmsDataProviderId = it.cmmsDataProviderId
+            cmmsEventGroupId = it.cmmsEventGroupId
+          }]
 
       reportingSetEventGroupsBinders.add {
         bind("$1", measurementConsumerId)
@@ -234,7 +241,7 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
     when (source.lhs.operandCase) {
       SetExpression.Operand.OperandCase.EXPRESSION -> {
-       source.lhs.expression.getExternalReportingSetIds()
+        source.lhs.expression.getExternalReportingSetIds()
       }
       SetExpression.Operand.OperandCase.EXTERNAL_REPORTING_SET_ID -> {
         externalReportingSetIds.add(ExternalId(source.lhs.externalReportingSetId))
@@ -297,8 +304,9 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
       }
       SetExpression.Operand.OperandCase.EXTERNAL_REPORTING_SET_ID -> {
         leftHandSetExpressionId = null
-        leftHandReportingSetId = reportingSetMap[ExternalId(setExpression.lhs.externalReportingSetId)]
-          ?: throw ReportingSetNotFoundException()
+        leftHandReportingSetId =
+          reportingSetMap[ExternalId(setExpression.lhs.externalReportingSetId)]
+            ?: throw ReportingSetNotFoundException()
       }
       SetExpression.Operand.OperandCase.OPERAND_NOT_SET -> {
         leftHandSetExpressionId = null
@@ -323,8 +331,9 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
       }
       SetExpression.Operand.OperandCase.EXTERNAL_REPORTING_SET_ID -> {
         rightHandSetExpressionId = null
-        rightHandReportingSetId = reportingSetMap[ExternalId(setExpression.rhs.externalReportingSetId)]
-          ?: throw ReportingSetNotFoundException()
+        rightHandReportingSetId =
+          reportingSetMap[ExternalId(setExpression.rhs.externalReportingSetId)]
+            ?: throw ReportingSetNotFoundException()
       }
       SetExpression.Operand.OperandCase.OPERAND_NOT_SET -> {
         rightHandSetExpressionId = null
