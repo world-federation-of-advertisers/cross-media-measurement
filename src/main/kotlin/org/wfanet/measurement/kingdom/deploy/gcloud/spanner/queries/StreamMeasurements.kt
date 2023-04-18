@@ -96,6 +96,16 @@ class StreamMeasurements(
       bind(UPDATED_AFTER to filter.updatedAfter.toGcloudTimestamp())
     }
 
+    if (filter.hasUpdatedBefore()) {
+      conjuncts.add("(UpdateTime < @$UPDATED_BEFORE)")
+      bind(UPDATED_BEFORE to filter.updatedBefore.toGcloudTimestamp())
+    }
+
+    if (filter.hasCreatedBefore()) {
+      conjuncts.add("(CreateTime < @$CREATED_BEFORE)")
+      bind(CREATED_BEFORE to filter.createdBefore.toGcloudTimestamp())
+    }
+
     if (conjuncts.isEmpty()) {
       return
     }
@@ -126,5 +136,7 @@ class StreamMeasurements(
     const val STATES_PARAM = "states"
     const val EXTERNAL_MEASUREMENT_ID_AFTER = "externalMeasurementIdAfter"
     const val EXTERNAL_COMPUTATION_ID_AFTER = "externalComputationIdAfter"
+    const val UPDATED_BEFORE = "updatedBefore"
+    const val CREATED_BEFORE = "createdBefore"
   }
 }
