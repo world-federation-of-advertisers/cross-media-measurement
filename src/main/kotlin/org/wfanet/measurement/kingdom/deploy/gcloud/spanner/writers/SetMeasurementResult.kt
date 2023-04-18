@@ -32,6 +32,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomIntern
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByComputationException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader.Companion.getEtag
 
 private val NEXT_MEASUREMENT_STATE = Measurement.State.SUCCEEDED
 
@@ -100,6 +101,9 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
     }
   }
   override fun ResultScope<Measurement>.buildResult(): Measurement {
-    return checkNotNull(transactionResult).copy { updateTime = commitTimestamp.toProto() }
+    return checkNotNull(transactionResult).copy {
+      updateTime = commitTimestamp.toProto()
+      etag = getEtag(commitTimestamp)
+    }
   }
 }

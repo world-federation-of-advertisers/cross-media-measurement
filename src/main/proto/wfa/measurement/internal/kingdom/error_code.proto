@@ -78,4 +78,6 @@ enum ErrorCode {
   EVENT_GROUP_STATE_ILLEGAL = 26;
   /** Required duchies are inactive */
   DUCHY_NOT_ACTIVE = 27;
+  /** Measurement etag requested does not match actual Measurement etag. */
+  MEASUREMENT_ETAG_MISMATCH = 28;
 }
