@@ -145,6 +145,8 @@ jobs:
       terraform_apply: ${{ inputs.terraform_apply }}
 
   configure-kingdom:
+    if: inputs.terraform_apply == true
+    needs: [ build-kingdom-image, create-cmm-infra ]
     uses: ./.github/workflows/configure-kingdom.yml
     secrets: inherit
   #  with:
