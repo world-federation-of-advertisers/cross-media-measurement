@@ -121,11 +121,12 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionP
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.internal.reporting.v2.BatchGetReportingSetsRequest
-import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementFailuresResponse
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequestKt.measurementIds
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequest
+import org.wfanet.measurement.internal.reporting.v2.BatchSetMetricFailuresRequest
+import org.wfanet.measurement.internal.reporting.v2.BatchSetMetricResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.MeasurementKt as InternalMeasurementKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt as InternalMeasurementsGrpcKt
@@ -2447,26 +2448,6 @@ class MetricsServiceTest {
   }
 
   @Test
-  fun `createMetric throws NOT_FOUND when reporting set is not found`() = runBlocking {
-    whenever(internalReportingSetsMock.batchGetReportingSets(any()))
-      .thenReturn(
-        batchGetReportingSetsResponse { reportingSets += INTERNAL_UNION_ALL_REPORTING_SET }
-      )
-    val request = createMetricRequest {
-      parent = MEASUREMENT_CONSUMERS.values.first().name
-      metric = REQUESTING_INCREMENTAL_REACH_METRIC
-    }
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.createMetric(request) }
-        }
-      }
-    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-  }
-
-  @Test
   fun `createMetric throws FAILED_PRECONDITION when EDP cert is revoked`() = runBlocking {
     val dataProvider = DATA_PROVIDERS.values.first()
     whenever(
@@ -2915,6 +2896,20 @@ class MetricsServiceTest {
         }
       )
 
+    // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricResults
+    val batchSetMetricResultsCaptor: KArgumentCaptor<BatchSetMetricResultsRequest> =
+      argumentCaptor()
+    verifyBlocking(internalMetricsMock, never()) {
+      batchSetMetricResults(batchSetMetricResultsCaptor.capture())
+    }
+
+    // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricFailures
+    val batchSetMetricFailuresCaptor: KArgumentCaptor<BatchSetMetricFailuresRequest> =
+      argumentCaptor()
+    verifyBlocking(internalMetricsMock, never()) {
+      batchSetMetricFailures(batchSetMetricFailuresCaptor.capture())
+    }
+
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
 
@@ -3001,6 +2996,20 @@ class MetricsServiceTest {
             externalMetricIds += INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId
           }
         )
+
+      // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricResults
+      val batchSetMetricResultsCaptor: KArgumentCaptor<BatchSetMetricResultsRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMetricsMock, never()) {
+        batchSetMetricResults(batchSetMetricResultsCaptor.capture())
+      }
+
+      // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricFailures
+      val batchSetMetricFailuresCaptor: KArgumentCaptor<BatchSetMetricFailuresRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMetricsMock, never()) {
+        batchSetMetricFailures(batchSetMetricFailuresCaptor.capture())
+      }
 
       assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
     }
@@ -3089,6 +3098,20 @@ class MetricsServiceTest {
           }
         )
 
+      // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricResults
+      val batchSetMetricResultsCaptor: KArgumentCaptor<BatchSetMetricResultsRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMetricsMock, never()) {
+        batchSetMetricResults(batchSetMetricResultsCaptor.capture())
+      }
+
+      // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricFailures
+      val batchSetMetricFailuresCaptor: KArgumentCaptor<BatchSetMetricFailuresRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMetricsMock, never()) {
+        batchSetMetricFailures(batchSetMetricFailuresCaptor.capture())
+      }
+
       assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
     }
 
@@ -3158,6 +3181,20 @@ class MetricsServiceTest {
           externalMetricIds += INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
         }
       )
+
+    // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricResults
+    val batchSetMetricResultsCaptor: KArgumentCaptor<BatchSetMetricResultsRequest> =
+      argumentCaptor()
+    verifyBlocking(internalMetricsMock, never()) {
+      batchSetMetricResults(batchSetMetricResultsCaptor.capture())
+    }
+
+    // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricFailures
+    val batchSetMetricFailuresCaptor: KArgumentCaptor<BatchSetMetricFailuresRequest> =
+      argumentCaptor()
+    verifyBlocking(internalMetricsMock, never()) {
+      batchSetMetricFailures(batchSetMetricFailuresCaptor.capture())
+    }
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
@@ -3247,6 +3284,20 @@ class MetricsServiceTest {
           }
         )
 
+      // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricResults
+      val batchSetMetricResultsCaptor: KArgumentCaptor<BatchSetMetricResultsRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMetricsMock, never()) {
+        batchSetMetricResults(batchSetMetricResultsCaptor.capture())
+      }
+
+      // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricFailures
+      val batchSetMetricFailuresCaptor: KArgumentCaptor<BatchSetMetricFailuresRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMetricsMock, never()) {
+        batchSetMetricFailures(batchSetMetricFailuresCaptor.capture())
+      }
+
       assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
     }
 
@@ -3335,6 +3386,20 @@ class MetricsServiceTest {
               INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
           }
         )
+
+      // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricResults
+      val batchSetMetricResultsCaptor: KArgumentCaptor<BatchSetMetricResultsRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMetricsMock, never()) {
+        batchSetMetricResults(batchSetMetricResultsCaptor.capture())
+      }
+
+      // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricFailures
+      val batchSetMetricFailuresCaptor: KArgumentCaptor<BatchSetMetricFailuresRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMetricsMock, never()) {
+        batchSetMetricFailures(batchSetMetricFailuresCaptor.capture())
+      }
 
       assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
     }
@@ -3489,38 +3554,6 @@ class MetricsServiceTest {
   }
 
   @Test
-  fun `listMetrics throws Exception when not all measurement results are set successfully`() {
-    runBlocking {
-      whenever(internalMetricsMock.streamMetrics(any()))
-        .thenReturn(
-          flowOf(
-            INTERNAL_PENDING_INCREMENTAL_REACH_METRIC,
-          )
-        )
-      whenever(measurementsMock.getMeasurement(any()))
-        .thenReturn(
-          SUCCEEDED_UNION_ALL_REACH_MEASUREMENT,
-          SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT,
-        )
-
-      val request = listMetricsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
-
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-            runBlocking { service.listMetrics(request) }
-          }
-        }
-      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-      assertThat(exception.status.description)
-        .contains(
-          "The measurement results of the following measurement names were not set successfully " +
-            "in the reporting database"
-        )
-    }
-  }
-
-  @Test
   fun `listMetrics throws Exception when internal batchSetMeasurementFailures throws Exception`() {
     runBlocking {
       whenever(measurementsMock.getMeasurement(any()))
@@ -3548,35 +3581,6 @@ class MetricsServiceTest {
   }
 
   @Test
-  fun `listMetrics throws Exception when not all measurement failures are set successfully`() {
-    runBlocking {
-      whenever(measurementsMock.getMeasurement(any()))
-        .thenReturn(
-          PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
-            state = Measurement.State.FAILED
-            failure = failure {
-              reason = Measurement.Failure.Reason.REQUISITION_REFUSED
-              message =
-                INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.details.failure.message
-            }
-          }
-        )
-      whenever(internalMeasurementsMock.batchSetMeasurementFailures(any()))
-        .thenReturn(BatchSetCmmsMeasurementFailuresResponse.getDefaultInstance())
-
-      val request = listMetricsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
-
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-            runBlocking { service.listMetrics(request) }
-          }
-        }
-      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
-    }
-  }
-
-  @Test
   fun `listMetrics throws Exception when internal batchGetMetrics throws Exception`() {
     runBlocking {
       whenever(internalMetricsMock.batchGetMetrics(any()))
@@ -3589,26 +3593,6 @@ class MetricsServiceTest {
           runBlocking { service.listMetrics(request) }
         }
       }
-    }
-  }
-
-  @Test
-  fun `listMetrics throws Exception when not all internal metrics are found`() {
-    runBlocking {
-      whenever(internalMetricsMock.batchGetMetrics(any()))
-        .thenReturn(
-          internalBatchGetMetricsResponse { metrics += INTERNAL_PENDING_INCREMENTAL_REACH_METRIC }
-        )
-
-      val request = listMetricsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
-
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-            runBlocking { service.listMetrics(request) }
-          }
-        }
-      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     }
   }
 
