@@ -3993,28 +3993,6 @@ class MetricsServiceTest {
   }
 
   @Test
-  fun `listMetrics throws Exception when the getCertificate throws Exception`() = runBlocking {
-    whenever(measurementsMock.getMeasurement(any()))
-      .thenReturn(
-        SUCCEEDED_UNION_ALL_REACH_MEASUREMENT,
-        SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT,
-      )
-    whenever(certificatesMock.getCertificate(any()))
-      .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
-
-    val request = listMetricsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
-
-    val exception =
-      assertFailsWith(Exception::class) {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
-          runBlocking { service.listMetrics(request) }
-        }
-      }
-
-    assertThat(exception).hasMessageThat().contains(AGGREGATOR_CERTIFICATE.name)
-  }
-
-  @Test
   fun `listMetrics throws FAILED_PRECONDITION when the measurement public key is not valid`() =
     runBlocking {
       whenever(measurementsMock.getMeasurement(any()))
@@ -4046,6 +4024,28 @@ class MetricsServiceTest {
         .hasMessageThat()
         .contains(SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.name)
     }
+
+  @Test
+  fun `listMetrics throws Exception when the getCertificate throws Exception`() = runBlocking {
+    whenever(measurementsMock.getMeasurement(any()))
+      .thenReturn(
+        SUCCEEDED_UNION_ALL_REACH_MEASUREMENT,
+        SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT,
+      )
+    whenever(certificatesMock.getCertificate(any()))
+      .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
+
+    val request = listMetricsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
+
+    val exception =
+      assertFailsWith(Exception::class) {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.listMetrics(request) }
+        }
+      }
+
+    assertThat(exception).hasMessageThat().contains(AGGREGATOR_CERTIFICATE.name)
+  }
 }
 
 private fun EventGroupKey.toInternal(): InternalReportingSet.Primitive.EventGroupKey {
