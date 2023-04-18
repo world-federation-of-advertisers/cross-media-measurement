@@ -15,8 +15,6 @@
 name: Deploy CMM
 
 on:
-  push:
-    branches: [ feature/cmm-orchestrator ]
   workflow_dispatch:
     inputs:
       terraform_version:
@@ -127,8 +125,8 @@ jobs:
     uses: ./.github/workflows/create-cmm-infra.yml
     secrets: inherit
     with:
-      environment: qa #${{ inputs.environment }}
-      terraform_apply: false #${{ inputs.terraform_apply }}
+      environment: ${{ inputs.environment }}
+      terraform_apply: ${{ inputs.terraform_apply }}
 
   configure-kingdom:
     if: inputs.terraform_apply == true
