@@ -3921,6 +3921,39 @@ class MetricsServiceTest {
 
     assertThat(exception).hasMessageThat().contains(AGGREGATOR_CERTIFICATE.name)
   }
+
+  @Test
+  fun `listMetrics throws FAILED_PRECONDITION when the measurement public key is not valid`() =
+    runBlocking {
+      whenever(measurementsMock.getMeasurement(any()))
+        .thenReturn(
+          SUCCEEDED_UNION_ALL_REACH_MEASUREMENT,
+          SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.copy {
+            measurementSpec =
+              signMeasurementSpec(
+                UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC.copy {
+                  measurementPublicKey =
+                    MEASUREMENT_CONSUMER_PUBLIC_KEY.copy { clearData() }.toByteString()
+                },
+                MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
+              )
+          },
+        )
+
+      val request = listMetricsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+            runBlocking { service.listMetrics(request) }
+          }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception)
+        .hasMessageThat()
+        .contains(SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.name)
+    }
 }
 
 private fun EventGroupKey.toInternal(): InternalReportingSet.Primitive.EventGroupKey {
