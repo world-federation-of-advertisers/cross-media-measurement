@@ -17,7 +17,9 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.Duration
 import com.google.protobuf.duration
+import com.google.protobuf.util.Durations
 import io.grpc.Status
 import io.grpc.StatusException
 import java.io.File
@@ -26,6 +28,7 @@ import java.security.SecureRandom
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
+import java.util.concurrent.TimeUnit
 import kotlin.coroutines.CoroutineContext
 import kotlin.math.min
 import kotlinx.coroutines.Deferred
@@ -79,7 +82,6 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
-import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
@@ -92,6 +94,8 @@ import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRe
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequestKt.measurementIds
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequestKt.measurementFailure
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequestKt.measurementResult
+import org.wfanet.measurement.internal.reporting.v2.BatchSetMetricResultsRequest
+import org.wfanet.measurement.internal.reporting.v2.BatchSetMetricResultsRequestKt.setMetricResultRequest
 import org.wfanet.measurement.internal.reporting.v2.CreateMetricRequest as InternalCreateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.MeasurementKt as InternalMeasurementKt
@@ -100,6 +104,8 @@ import org.wfanet.measurement.internal.reporting.v2.Metric as InternalMetric
 import org.wfanet.measurement.internal.reporting.v2.Metric.WeightedMeasurement
 import org.wfanet.measurement.internal.reporting.v2.MetricKt as InternalMetricKt
 import org.wfanet.measurement.internal.reporting.v2.MetricKt.weightedMeasurement
+import org.wfanet.measurement.internal.reporting.v2.MetricResult as InternalMetricResult
+import org.wfanet.measurement.internal.reporting.v2.MetricResultKt as InternalMetricResultKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec as InternalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt as InternalMetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineStub as InternalMetricsCoroutineStub
@@ -112,10 +118,13 @@ import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementResultsRequest
+import org.wfanet.measurement.internal.reporting.v2.batchSetMetricFailuresRequest
+import org.wfanet.measurement.internal.reporting.v2.batchSetMetricResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest as internalCreateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.measurement as internalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.metric as internalMetric
+import org.wfanet.measurement.internal.reporting.v2.metricResult as internalMetricResult
 import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetricSpec
 import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
@@ -133,6 +142,7 @@ private const val MAX_BATCH_SIZE = 1000
 private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
+private const val NANOS_PER_SECOND = 1_000_000_000
 
 class MetricsService(
   private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
@@ -511,7 +521,7 @@ class MetricsService(
       return filters.joinToString(separator = " AND ") { filter -> "($filter)" }
     }
 
-    /** Get a [MeasurementConsumer] based on a CMMS ID. */
+    /** Gets a [MeasurementConsumer] based on a CMMS ID. */
     private suspend fun getMeasurementConsumer(
       principal: MeasurementConsumerPrincipal,
     ): MeasurementConsumer {
@@ -544,23 +554,13 @@ class MetricsService(
       }
 
       val internalReportingSetsList =
-        internalReportingSetsStub
-          .batchGetReportingSets(batchGetReportingSetsRequest)
-          .reportingSetsList
-
-      if (internalReportingSetsList.size < externalReportingSetIds.size) {
-        val missingExternalReportingSetIds = externalReportingSetIds.toMutableSet()
-        val errorMessage = StringBuilder("The following reporting set names were not found:")
-        internalReportingSetsList.forEach {
-          missingExternalReportingSetIds.remove(it.externalReportingSetId)
+        try {
+          internalReportingSetsStub
+            .batchGetReportingSets(batchGetReportingSetsRequest)
+            .reportingSetsList
+        } catch (e: StatusException) {
+          throw Exception("Unable to get reporting sets from the reporting database.", e)
         }
-        missingExternalReportingSetIds.forEach {
-          errorMessage.append(
-            " ${ReportingSetKey(cmmsMeasurementConsumerId, externalIdToApiId(it)).toName()}"
-          )
-        }
-        failGrpc(Status.NOT_FOUND) { errorMessage.toString() }
-      }
 
       return internalReportingSetsList.associateBy { it.externalReportingSetId }
     }
@@ -606,7 +606,10 @@ class MetricsService(
           Measurement.State.FAILED,
           Measurement.State.CANCELLED -> {
             if (measurementsList.isEmpty()) continue
-            syncFailedInternalMeasurements(measurementsList, principal)
+            syncFailedInternalMeasurements(
+              measurementsList,
+              principal.resourceKey.measurementConsumerId
+            )
           }
           Measurement.State.STATE_UNSPECIFIED ->
             error("The CMMS measurement state should've been set.")
@@ -621,7 +624,7 @@ class MetricsService(
      */
     private suspend fun syncFailedInternalMeasurements(
       failedMeasurementsList: List<Measurement>,
-      principal: MeasurementConsumerPrincipal,
+      cmmsMeasurementConsumerId: String,
     ) {
       val batchSetInternalMeasurementFailuresRequest = batchSetMeasurementFailuresRequest {
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
@@ -634,29 +637,15 @@ class MetricsService(
           }
       }
 
-      val internalMeasurementsList: List<InternalMeasurement> =
+      try {
         internalMeasurementsStub
           .batchSetMeasurementFailures(batchSetInternalMeasurementFailuresRequest)
           .measurementsList
-
-      if (internalMeasurementsList.size < failedMeasurementsList.size) {
-        val missingMeasurementNames = failedMeasurementsList.map { it.name }.toMutableSet()
-        val errorMessage =
-          StringBuilder(
-            "The measurement state of the following measurement names were not set " +
-              "successfully in the reporting database:"
-          )
-        internalMeasurementsList.forEach { internalMeasurement ->
-          val measurementName =
-            MeasurementKey(
-                principal.resourceKey.measurementConsumerId,
-                internalMeasurement.cmmsMeasurementId
-              )
-              .toName()
-          missingMeasurementNames.remove(measurementName)
-        }
-        missingMeasurementNames.forEach { name -> errorMessage.append(name) }
-        failGrpc(Status.NOT_FOUND) { errorMessage.toString() }
+      } catch (e: StatusException) {
+        throw Exception(
+          "Unable to set measurement failures for the measurements in the reporting database.",
+          e
+        )
       }
     }
 
@@ -685,29 +674,15 @@ class MetricsService(
           }
       }
 
-      val internalMeasurementsList: List<InternalMeasurement> =
+      try {
         internalMeasurementsStub
           .batchSetMeasurementResults(batchSetMeasurementResultsRequest)
           .measurementsList
-
-      if (internalMeasurementsList.size < succeededMeasurementsList.size) {
-        val missingMeasurementNames = succeededMeasurementsList.map { it.name }.toMutableSet()
-        val errorMessage =
-          StringBuilder(
-            "The measurement results of the following measurement names were not set " +
-              "successfully in the reporting database:"
-          )
-        internalMeasurementsList.forEach { internalMeasurement ->
-          val measurementName =
-            MeasurementKey(
-                principal.resourceKey.measurementConsumerId,
-                internalMeasurement.cmmsMeasurementId
-              )
-              .toName()
-          missingMeasurementNames.remove(measurementName)
-        }
-        missingMeasurementNames.forEach { name -> errorMessage.append(name) }
-        failGrpc(Status.NOT_FOUND) { errorMessage.toString() }
+      } catch (e: StatusException) {
+        throw Exception(
+          "Unable to set measurement results for the measurements in the reporting database.",
+          e
+        )
       }
     }
 
@@ -805,7 +780,7 @@ class MetricsService(
       return Measurement.Result.parseFrom(signedResult.data)
     }
 
-    /** Aggregate a list of [InternalMeasurement.Result]s to a [InternalMeasurement.Result] */
+    /** Aggregates a list of [InternalMeasurement.Result]s to a [InternalMeasurement.Result] */
     private fun aggregateResults(
       internalMeasurementResults: List<InternalMeasurement.Result>
     ): InternalMeasurement.Result {
@@ -922,20 +897,203 @@ class MetricsService(
       principal,
     )
 
+    val internalMetrics: List<InternalMetric> =
+      batchGetInternalMetrics(
+        principal.resourceKey.measurementConsumerId,
+        results.subList(0, min(results.size, listMetricsPageToken.pageSize)).map { internalMetric ->
+          internalMetric.externalMetricId
+        }
+      )
+
     return listMetricsResponse {
       metrics +=
-        batchGetInternalMetrics(
-            principal.resourceKey.measurementConsumerId,
-            results.subList(0, min(results.size, listMetricsPageToken.pageSize)).map {
-              internalMetric ->
-              internalMetric.externalMetricId
-            }
-          )
+        syncInternalMetrics(principal.resourceKey.measurementConsumerId, internalMetrics)
           .map(InternalMetric::toMetric)
 
       if (nextPageToken != null) {
         this.nextPageToken = nextPageToken.toByteString().base64UrlEncode()
       }
+    }
+  }
+
+  /** Syncs a list of [InternalMetric]s. */
+  private suspend fun syncInternalMetrics(
+    cmmsMeasurementConsumerId: String,
+    metrics: List<InternalMetric>
+  ): List<InternalMetric> {
+    val setMetricResultRequests =
+      mutableListOf<BatchSetMetricResultsRequest.SetMetricResultRequest>()
+    val failedExternalMetricIds = mutableListOf<Long>()
+    val newMetrics = mutableListOf<InternalMetric>()
+
+    for (metric in metrics) {
+      val measurements = metric.weightedMeasurementsList.map { it.measurement }
+      if (measurements.all { it.state == InternalMeasurement.State.SUCCEEDED }) {
+        setMetricResultRequests += setMetricResultRequest {
+          externalMetricId = metric.externalMetricId
+          result = constructMetricResult(metric)
+        }
+      } else if (measurements.any { it.state == InternalMeasurement.State.FAILED }) {
+        failedExternalMetricIds += metric.externalMetricId
+      } else {
+        newMetrics.add(metric)
+      }
+    }
+    if (setMetricResultRequests.isNotEmpty()) {
+      newMetrics +=
+        try {
+          internalMetricsStub
+            .batchSetMetricResults(
+              batchSetMetricResultsRequest {
+                this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+                requests += setMetricResultRequests
+              }
+            )
+            .metricsList
+        } catch (e: StatusException) {
+          throw Exception("Unable to set metric results to the reporting database.", e)
+        }
+    }
+
+    if (failedExternalMetricIds.isNotEmpty()) {
+      newMetrics +=
+        try {
+          internalMetricsStub
+            .batchSetMetricFailures(
+              batchSetMetricFailuresRequest {
+                this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+                this.externalMetricIds += failedExternalMetricIds
+              }
+            )
+            .metricsList
+        } catch (e: StatusException) {
+          throw Exception("Unable to set metric failures to the reporting database.", e)
+        }
+    }
+
+    return newMetrics
+  }
+
+  /** Constructs an [InternalMetricResult] from the given [InternalMetric]. */
+  private fun constructMetricResult(metric: InternalMetric): InternalMetricResult {
+    return internalMetricResult {
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+      when (metric.metricSpec.typeCase) {
+        InternalMetricSpec.TypeCase.REACH -> {
+          reach = calculateReachResults(metric.weightedMeasurementsList)
+        }
+        InternalMetricSpec.TypeCase.FREQUENCY_HISTOGRAM -> {
+          frequencyHistogram =
+            calculateFrequencyHistogramResults(
+              metric.weightedMeasurementsList,
+              metric.metricSpec.frequencyHistogram.maximumFrequencyPerUser
+            )
+        }
+        InternalMetricSpec.TypeCase.IMPRESSION_COUNT -> {
+          impressionCount = calculateImpressionResults(metric.weightedMeasurementsList)
+        }
+        InternalMetricSpec.TypeCase.WATCH_DURATION -> {
+          watchDuration = calculateWatchDurationResults(metric.weightedMeasurementsList)
+        }
+        InternalMetricSpec.TypeCase.TYPE_NOT_SET -> {
+          error { "Metric Type should've been set." }
+        }
+      }
+    }
+  }
+
+  /** Calculates the watch duration result by summing up [WeightedMeasurement]s. */
+  private fun calculateWatchDurationResults(
+    weightedMeasurements: List<WeightedMeasurement>
+  ): InternalMetricResult.WatchDurationResult {
+    return InternalMetricResultKt.watchDurationResult {
+      val watchDuration: Duration =
+        weightedMeasurements
+          .map { weightedMeasurement ->
+            if (!weightedMeasurement.measurement.details.result.hasWatchDuration()) {
+              error("Watch duration measurement is missing.")
+            }
+            weightedMeasurement.measurement.details.result.watchDuration.value *
+              weightedMeasurement.weight
+          }
+          .reduce { sum, element -> sum + element }
+      value = watchDuration.seconds + (watchDuration.nanos.toDouble() / NANOS_PER_SECOND)
+    }
+  }
+
+  /** Calculates the impression result by summing up [WeightedMeasurement]s. */
+  private fun calculateImpressionResults(
+    weightedMeasurements: List<WeightedMeasurement>
+  ): InternalMetricResult.ImpressionCountResult {
+    return InternalMetricResultKt.impressionCountResult {
+      value =
+        weightedMeasurements.sumOf { weightedMeasurement ->
+          if (!weightedMeasurement.measurement.details.result.hasImpression()) {
+            error("Impression measurement is missing.")
+          }
+          weightedMeasurement.measurement.details.result.impression.value *
+            weightedMeasurement.weight
+        }
+    }
+  }
+
+  /** Calculates the frequency histogram result by summing up [WeightedMeasurement]s. */
+  private fun calculateFrequencyHistogramResults(
+    weightedMeasurements: List<WeightedMeasurement>,
+    maximumFrequency: Int
+  ): InternalMetricResult.HistogramResult {
+    val aggregatedFrequencyHistogramMap: MutableMap<Long, Double> =
+      weightedMeasurements
+        .map { weightedMeasurement ->
+          val result = weightedMeasurement.measurement.details.result
+          if (!result.hasFrequency() || !result.hasReach()) {
+            error("Reach-Frequency measurement is missing.")
+          }
+          val reach = result.reach.value
+          result.frequency.relativeFrequencyDistributionMap.mapValues { (_, rate) ->
+            rate * weightedMeasurement.weight * reach
+          }
+        }
+        .fold(mutableMapOf<Long, Double>().withDefault { 0.0 }) {
+          aggregatedFrequencyHistogramMap: MutableMap<Long, Double>,
+          weightedFrequencyHistogramMap ->
+          for ((frequency, count) in weightedFrequencyHistogramMap) {
+            aggregatedFrequencyHistogramMap[frequency] =
+              aggregatedFrequencyHistogramMap.getValue(frequency) + count
+          }
+          aggregatedFrequencyHistogramMap
+        }
+
+    // Fill the buckets that don't have any count with zeros.
+    for (frequency in (1L..maximumFrequency)) {
+      if (!aggregatedFrequencyHistogramMap.containsKey(frequency)) {
+        aggregatedFrequencyHistogramMap[frequency] = 0.0
+      }
+    }
+
+    return InternalMetricResultKt.histogramResult {
+      bins +=
+        aggregatedFrequencyHistogramMap.map { (frequency, count) ->
+          InternalMetricResultKt.HistogramResultKt.bin {
+            label = frequency.toString()
+            binResult = InternalMetricResultKt.HistogramResultKt.binResult { value = count }
+          }
+        }
+    }
+  }
+
+  /** Calculates the reach result by summing up [WeightedMeasurement]s. */
+  private fun calculateReachResults(
+    weightedMeasurements: List<WeightedMeasurement>
+  ): InternalMetricResult.ReachResult {
+    return InternalMetricResultKt.reachResult {
+      value =
+        weightedMeasurements.sumOf { weightedMeasurement ->
+          if (!weightedMeasurement.measurement.details.result.hasReach()) {
+            error("Reach measurement is missing.")
+          }
+          weightedMeasurement.measurement.details.result.reach.value * weightedMeasurement.weight
+        }
     }
   }
 
@@ -949,22 +1107,11 @@ class MetricsService(
       this.externalMetricIds += externalMetricIds
     }
 
-    val internalMetricsList: List<InternalMetric> =
+    return try {
       internalMetricsStub.batchGetMetrics(batchGetMetricsRequest).metricsList
-
-    if (internalMetricsList.size < externalMetricIds.size) {
-      val missingInternalMetricIds = externalMetricIds.toMutableSet()
-      val errorMessage = StringBuilder("The following metric names were not found:")
-      internalMetricsList.forEach { missingInternalMetricIds.remove(it.externalMetricId) }
-      missingInternalMetricIds.forEach {
-        errorMessage.append(
-          " ${MetricKey(cmmsMeasurementConsumerId, externalIdToApiId(it)).toName()}"
-        )
-      }
-      failGrpc(Status.NOT_FOUND) { errorMessage.toString() }
+    } catch (e: StatusException) {
+      throw Exception("Unable to get metrics from the reporting database.", e)
     }
-
-    return internalMetricsList
   }
 
   override suspend fun createMetric(request: CreateMetricRequest): Metric {
@@ -1366,4 +1513,18 @@ fun ListMetricsRequest.toListMetricsPageToken(): ListMetricsPageToken {
       this.externalMeasurementConsumerId = cmmsMeasurementConsumerId
     }
   }
+}
+
+private operator fun Duration.times(coefficient: Int): Duration {
+  val source = this
+  return duration {
+    val weightedTotalNanos: Long =
+      (TimeUnit.SECONDS.toNanos(source.seconds) + source.nanos) * coefficient
+    seconds = TimeUnit.NANOSECONDS.toSeconds(weightedTotalNanos)
+    nanos = (weightedTotalNanos % NANOS_PER_SECOND).toInt()
+  }
+}
+
+private operator fun Duration.plus(other: Duration): Duration {
+  return Durations.add(this, other)
 }

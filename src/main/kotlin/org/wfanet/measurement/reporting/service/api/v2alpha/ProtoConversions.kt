@@ -16,9 +16,6 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
-import com.google.protobuf.Duration
-import com.google.protobuf.duration
-import com.google.protobuf.util.Durations
 import org.wfanet.measurement.api.v2.alpha.ListMetricsPageToken
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.Measurement
@@ -343,10 +340,6 @@ fun Measurement.Failure.toInternal(): InternalMeasurement.Failure {
       }
     message = source.message
   }
-}
-
-operator fun Duration.plus(other: Duration): Duration {
-  return Durations.add(this, other)
 }
 
 /** Converts a CMM [Measurement.Result] to an [InternalMeasurement.Result]. */
