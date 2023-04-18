@@ -136,7 +136,7 @@ jobs:
     uses: ./.github/workflows/configure-kingdom.yml
     secrets: inherit
     with:
-      environment: "v1.0.0"  #${{ inputs.image_tag }}
+      image_tag: "v1.0.0"  #${{ inputs.image_tag }}
       kubectl_apply: true #${{ inputs.kubectl_apply }}
 
   configure-duchy:
@@ -145,6 +145,6 @@ jobs:
     uses: ./.github/workflows/configure-duchy.yml
     secrets: inherit
     with:
-    #  environment: ${{ inputs.image_tag }}
       duchy_name: duchy-1
-      kubectl_apply: false #${{ inputs.kubectl_apply }}
+      image_tag: "v1.0.0"
+      kubectl_apply: true #${{ inputs.kubectl_apply }}
