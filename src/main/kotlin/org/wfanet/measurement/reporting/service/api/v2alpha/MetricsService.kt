@@ -592,7 +592,10 @@ class MetricsService(
       principal: MeasurementConsumerPrincipal,
     ) {
       val newStateToCmmsMeasurements: Map<Measurement.State, List<Measurement>> =
-        getCmmsMeasurementsByState(internalMeasurements, apiAuthenticationKey, principal)
+        getCmmsMeasurements(internalMeasurements, apiAuthenticationKey, principal).groupBy {
+          measurement ->
+          measurement.state
+        }
 
       for ((newState, measurementsList) in newStateToCmmsMeasurements) {
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
@@ -687,11 +690,11 @@ class MetricsService(
     }
 
     /** Gets a map of [Measurement.State] to a list of [Measurement]s. */
-    private suspend fun getCmmsMeasurementsByState(
+    private suspend fun getCmmsMeasurements(
       internalMeasurements: List<InternalMeasurement>,
       apiAuthenticationKey: String,
       principal: MeasurementConsumerPrincipal,
-    ): Map<Measurement.State, List<Measurement>> = coroutineScope {
+    ): List<Measurement> = coroutineScope {
       val deferred = mutableListOf<Deferred<Measurement>>()
 
       for (internalMeasurement in internalMeasurements) {
@@ -715,7 +718,7 @@ class MetricsService(
         )
       }
 
-      deferred.awaitAll().groupBy { measurement -> measurement.state }
+      deferred.awaitAll()
     }
 
     /** Builds an [InternalMeasurement.Result]. */
