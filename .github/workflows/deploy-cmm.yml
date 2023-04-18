@@ -30,7 +30,14 @@ on:
         options:
           - qa
           - nightly
-
+      image_tag:
+        description: "Image tag needed for configuration"
+        type: string
+        required: true
+      kubectl_apply:
+        description: "Apply the manifest to the cluster"
+        required: false
+        type: boolean
 env:
   REGISTRY: ghcr.io
   REPO_PREFIX: 'world-federation-of-advertisers/packages'
@@ -136,10 +143,8 @@ jobs:
     uses: ./.github/workflows/configure-kingdom.yml
     secrets: inherit
     with:
-      my_string_input: "v1.0.0"
-      my_boolean_input: true
-    #  image_tag: "v1.0.0"  #${{ inputs.image_tag }}
-    #  kubectl_apply: true #${{ inputs.kubectl_apply }}
+      image_tag: "v1.0.0"  #${{ steps.get-image-tag-step.outputs.image_tag }}
+      kubectl_apply: true #${{ inputs.kubectl_apply }}
 
   configure-duchy:
     if: inputs.terraform_apply == true
@@ -148,5 +153,5 @@ jobs:
     secrets: inherit
     with:
       duchy_name: duchy-1
-    #  image_tag: "v1.0.0"
-    #  kubectl_apply: true #${{ inputs.kubectl_apply }}
+      image_tag: "v1.0.0"
+      kubectl_apply: true #${{ inputs.kubectl_apply }}
