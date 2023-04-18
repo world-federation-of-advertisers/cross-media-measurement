@@ -883,6 +883,16 @@ class MetricsService(
         }
       } else null
 
+    // val internalMetricsMap = mutableMapOf<Long, InternalMetric>()
+    // results.subList(0, min(results.size, listMetricsPageToken.pageSize)).associateByTo(
+    //   internalMetricsMap
+    // ) {
+    //   it.externalMetricId
+    // }
+    //
+    // val toBeSyncedInternalMetrics: List<InternalMetric> =
+    //   internalMetricsMap.values.filter { metric -> metric.state == InternalMetric.State.RUNNING }
+
     // Only syncs pending measurements which can only be in metrics that are still running.
     val toBeSyncedInternalMeasurements: List<InternalMeasurement> =
       results
@@ -927,23 +937,32 @@ class MetricsService(
     val setMetricResultRequests =
       mutableListOf<BatchSetMetricResultsRequest.SetMetricResultRequest>()
     val failedExternalMetricIds = mutableListOf<Long>()
-    val newMetrics = mutableListOf<InternalMetric>()
 
     for (metric in metrics) {
-      val measurements = metric.weightedMeasurementsList.map { it.measurement }
-      if (measurements.all { it.state == InternalMeasurement.State.SUCCEEDED }) {
-        setMetricResultRequests += setMetricResultRequest {
-          externalMetricId = metric.externalMetricId
-          result = constructMetricResult(metric)
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+      when (metric.state) {
+        InternalMetric.State.RUNNING -> {
+          val measurements = metric.weightedMeasurementsList.map { it.measurement }
+          if (measurements.all { it.state == InternalMeasurement.State.SUCCEEDED }) {
+            setMetricResultRequests += setMetricResultRequest {
+              externalMetricId = metric.externalMetricId
+              result = constructMetricResult(metric)
+            }
+          } else if (measurements.any { it.state == InternalMeasurement.State.FAILED }) {
+            failedExternalMetricIds += metric.externalMetricId
+          }
         }
-      } else if (measurements.any { it.state == InternalMeasurement.State.FAILED }) {
-        failedExternalMetricIds += metric.externalMetricId
-      } else {
-        newMetrics.add(metric)
+        InternalMetric.State.SUCCEEDED,
+        InternalMetric.State.FAILED -> {} // Do nothing
+        InternalMetric.State.STATE_UNSPECIFIED -> error("Metric state should've been set.")
+        InternalMetric.State.UNRECOGNIZED -> error("Unrecognized metric state.")
       }
     }
+
+    val latestMetricsMap = mutableMapOf<Long, InternalMetric>()
+
     if (setMetricResultRequests.isNotEmpty()) {
-      newMetrics +=
+      latestMetricsMap +=
         try {
           internalMetricsStub
             .batchSetMetricResults(
@@ -953,13 +972,14 @@ class MetricsService(
               }
             )
             .metricsList
+            .associateBy { it.externalMetricId }
         } catch (e: StatusException) {
           throw Exception("Unable to set metric results to the reporting database.", e)
         }
     }
 
     if (failedExternalMetricIds.isNotEmpty()) {
-      newMetrics +=
+      latestMetricsMap +=
         try {
           internalMetricsStub
             .batchSetMetricFailures(
@@ -969,12 +989,13 @@ class MetricsService(
               }
             )
             .metricsList
+            .associateBy { it.externalMetricId }
         } catch (e: StatusException) {
           throw Exception("Unable to set metric failures to the reporting database.", e)
         }
     }
 
-    return newMetrics
+    return metrics.map { metric -> latestMetricsMap.getOrDefault(metric.externalMetricId, metric) }
   }
 
   /** Constructs an [InternalMetricResult] from the given [InternalMetric]. */
