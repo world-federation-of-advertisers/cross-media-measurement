@@ -601,14 +601,12 @@ class MetricsService(
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
         when (newState) {
           Measurement.State.SUCCEEDED -> {
-            if (measurementsList.isEmpty()) continue
             syncSucceededInternalMeasurements(measurementsList, apiAuthenticationKey, principal)
           }
           Measurement.State.AWAITING_REQUISITION_FULFILLMENT,
           Measurement.State.COMPUTING -> {} // Do nothing.
           Measurement.State.FAILED,
           Measurement.State.CANCELLED -> {
-            if (measurementsList.isEmpty()) continue
             syncFailedInternalMeasurements(
               measurementsList,
               principal.resourceKey.measurementConsumerId
