@@ -135,12 +135,16 @@ jobs:
     needs: [ build-kingdom-image, create-cmm-infra ]
     uses: ./.github/workflows/configure-kingdom.yml
     secrets: inherit
-  #  with:
-  #    environment: ${{ inputs.image_tag }}
-  #    kubectl_apply: ${{ inputs.kubectl_apply }}
+    with:
+    #  environment: ${{ inputs.image_tag }}
+      kubectl_apply: false #${{ inputs.kubectl_apply }}
 
   configure-duchy:
     if: inputs.terraform_apply == true
     needs: [ build-kingdom-image, create-cmm-infra ]
     uses: ./.github/workflows/configure-duchy.yml
     secrets: inherit
+    with:
+    #  environment: ${{ inputs.image_tag }}
+      duchy_name: duchy-1
+      kubectl_apply: false #${{ inputs.kubectl_apply }}
