@@ -149,4 +149,4 @@ jobs:
     secrets: inherit
     with:
   #    environment: ${{ inputs.image_tag }}
-      terraform_apply: ${{ inputs.kubectl_apply }}
+      kubectl_apply: ${{ inputs.kubectl_apply }}
