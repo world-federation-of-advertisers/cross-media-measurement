@@ -136,8 +136,8 @@ jobs:
     uses: ./.github/workflows/configure-kingdom.yml
     secrets: inherit
     with:
-      environment: 1 #${{ inputs.image_tag }}
-      kubectl_apply: false #${{ inputs.kubectl_apply }}
+      environment: "v1.0.0"  #${{ inputs.image_tag }}
+      kubectl_apply: true #${{ inputs.kubectl_apply }}
 
   configure-duchy:
     if: inputs.terraform_apply == true
