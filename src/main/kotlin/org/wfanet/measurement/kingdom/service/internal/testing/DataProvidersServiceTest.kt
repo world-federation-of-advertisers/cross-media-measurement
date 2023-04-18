@@ -36,9 +36,10 @@ import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetDataProviderRequest
-import org.wfanet.measurement.internal.kingdom.ReplaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.dataProvider
+import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
+import org.wfanet.measurement.internal.kingdom.replaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.DUCHIES
 
@@ -231,10 +232,10 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
     val desiredDuchyList = listOf(Population.AGGREGATOR_DUCHY.externalDuchyId)
     val updatedDataProvider =
       dataProvidersService.replaceDataProviderRequiredDuchies(
-        ReplaceDataProviderRequiredDuchiesRequest.newBuilder()
-          .setExternalDataProviderId(createdDataProvider.externalDataProviderId)
-          .addAllRequiredExternalDuchyIds(desiredDuchyList)
-          .build()
+        replaceDataProviderRequiredDuchiesRequest {
+          externalDataProviderId = createdDataProvider.externalDataProviderId
+          requiredExternalDuchyIds += desiredDuchyList
+        }
       )
 
     // Ensure DataProvider with updated duchy list is returned from function
@@ -242,9 +243,9 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
 
     val dataProviderRead =
       dataProvidersService.getDataProvider(
-        GetDataProviderRequest.newBuilder()
-          .setExternalDataProviderId(createdDataProvider.externalDataProviderId)
-          .build()
+        getDataProviderRequest {
+          externalDataProviderId = createdDataProvider.externalDataProviderId
+        }
       )
 
     // Ensure changes were written to DataProviderRequiredDuchies table

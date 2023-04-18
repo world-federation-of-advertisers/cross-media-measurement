@@ -43,21 +43,13 @@ class ReplaceDataProviderRequiredDuchies(
 
     val dataProvider = dataProviderResult.dataProvider
     val dataProviderId = dataProviderResult.dataProviderId
-    val currentRequiredDuchyList = dataProvider.requiredExternalDuchyIdsList
     val desiredRequiredDuchyList =
       replaceDataProviderRequiredDuchiesRequest.requiredExternalDuchyIdsList
 
     // Delete old duchy list.
-    for (externalDuchyId in currentRequiredDuchyList) {
-      val duchyId =
-        InternalId(
-          DuchyIds.getInternalId(externalDuchyId.toString())
-            ?: throw DuchyNotFoundException(externalDuchyId.toString())
-        )
-      transactionContext.buffer(
-        Mutation.delete("DataProviderRequiredDuchies", KeySet.prefixRange(Key.of(dataProviderId)))
-      )
-    }
+    transactionContext.buffer(
+      Mutation.delete("DataProviderRequiredDuchies", KeySet.prefixRange(Key.of(dataProviderId)))
+    )
 
     // Write new duchy list.
     for (externalDuchyId in desiredRequiredDuchyList) {
