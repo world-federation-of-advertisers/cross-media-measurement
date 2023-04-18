@@ -76,6 +76,8 @@ message StreamMeasurementsRequest {
       fixed64 external_computation_id_after = 6;
     }
     string externalDuchyId = 7;
+    google.protobuf.Timestamp updated_before = 8;
+    google.protobuf.Timestamp created_before = 9;
   }
   Filter filter = 1;
 
