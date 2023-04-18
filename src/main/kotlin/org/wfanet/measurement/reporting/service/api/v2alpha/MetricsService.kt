@@ -733,7 +733,9 @@ class MetricsService(
           principalName,
           EncryptionPublicKey.parseFrom(measurementSpec.measurementPublicKey).data
         )
-          ?: failGrpc(Status.PERMISSION_DENIED) { "Encryption private key not found" }
+          ?: failGrpc(Status.FAILED_PRECONDITION) {
+            "Encryption private key not found for the measurement ${measurement.name}."
+          }
 
       return aggregateResults(
         measurement.resultsList
