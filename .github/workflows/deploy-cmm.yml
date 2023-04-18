@@ -139,7 +139,7 @@ jobs:
 
   configure-kingdom:
     if: inputs.terraform_apply == true
-    needs: [ build-kingdom-image, create-cmm-infra ]
+  #  needs: [ build-kingdom-image, create-cmm-infra ]
     uses: ./.github/workflows/configure-kingdom.yml
     secrets: inherit
   #  with:
@@ -148,7 +148,7 @@ jobs:
 
   configure-duchy:
     if: inputs.terraform_apply == true
-    needs: [ build-kingdom-image, create-cmm-infra ]
+  #  needs: [ build-kingdom-image, create-cmm-infra ]
     uses: ./.github/workflows/configure-duchy.yml
     secrets: inherit
   #  with:
