@@ -125,10 +125,3 @@ class MeasurementConsumerAlreadyExistsException(
   override val context
     get() = emptyMap<String, String>()
 }
-
-class ReportingSetInvalidException(
-  provideDescription: () -> String = { "Reporting Set is invalid" }
-) : ReportingInternalException(ErrorCode.REPORTING_SET_INVALID, provideDescription) {
-  override val context
-    get() = emptyMap<String, String>()
-}

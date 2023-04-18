@@ -49,7 +49,4 @@ enum ErrorCode {
 
   /** Measurement Consumer with the provided reference ID already exists. */
   MEASUREMENT_CONSUMER_ALREADY_EXISTS = 9;
-
-  /** Reporting Set is invalid. */
-  REPORTING_SET_INVALID = 10;
 }

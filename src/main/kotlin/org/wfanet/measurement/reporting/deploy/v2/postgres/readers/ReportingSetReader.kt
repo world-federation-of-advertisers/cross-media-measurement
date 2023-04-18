@@ -33,14 +33,15 @@ class ReportingSetReader(private val readContext: ReadContext) {
 
   suspend fun readIds(
     measurementConsumerId: InternalId,
-    externalReportingSetIds: List<Long>
+    externalReportingSetIds: Collection<ExternalId>
   ): Flow<ReportingSetIds> {
     if (externalReportingSetIds.isEmpty()) {
       return emptyFlow()
     }
 
     val sql =
-      StringBuilder("""
+      StringBuilder(
+        """
         SELECT
           MeasurementConsumerId,
           ReportingSetId,
@@ -48,10 +49,11 @@ class ReportingSetReader(private val readContext: ReadContext) {
         FROM ReportingSets
         WHERE MeasurementConsumerId = $1
           AND ExternalReportingSetId IN
-        """)
+        """
+      )
 
     var i = 2
-    val bindingMap = mutableMapOf<Long, String>()
+    val bindingMap = mutableMapOf<ExternalId, String>()
     val inList =
       externalReportingSetIds.joinToString(separator = ",", prefix = "(", postfix = ")") {
         val index = "$$i"
@@ -67,12 +69,12 @@ class ReportingSetReader(private val readContext: ReadContext) {
         externalReportingSetIds.forEach { bind(bindingMap.getValue(it), it) }
       }
 
-    return readContext
-      .executeQuery(statement)
-      .consume { row: ResultRow -> ReportingSetIds(
+    return readContext.executeQuery(statement).consume { row: ResultRow ->
+      ReportingSetIds(
         row["MeasurementConsumerId"],
         row["ReportingSetId"],
         row["ExternalReportingSetId"]
-      ) }
+      )
+    }
   }
 }

@@ -31,7 +31,7 @@ class EventGroupReader(private val readContext: ReadContext) {
     val eventGroupId: InternalId,
   )
 
-  data class CmmsIds(
+  data class CmmsEventGroupKey(
     val cmmsDataProviderId: String,
     val cmmsEventGroupId: String,
   )
@@ -56,17 +56,17 @@ class EventGroupReader(private val readContext: ReadContext) {
     )
   }
 
-  suspend fun getByCmmsIds(cmmsIdsList: List<CmmsIds>): Flow<Result> {
-    if (cmmsIdsList.isEmpty()) {
+  suspend fun getByCmmsEventGroupKey(cmmsEventGroupKeys: Collection<CmmsEventGroupKey>): Flow<Result> {
+    if (cmmsEventGroupKeys.isEmpty()) {
       return emptyFlow()
     }
 
     val sql = StringBuilder("$baseSql WHERE (CmmsDataProviderId, CmmsEventGroupId) IN ")
 
     var i = 1
-    val bindingMap = mutableMapOf<CmmsIds, Int>()
+    val bindingMap = mutableMapOf<CmmsEventGroupKey, Int>()
     val inList =
-      cmmsIdsList.joinToString(separator = ",", prefix = "(", postfix = ")") {
+      cmmsEventGroupKeys.joinToString(separator = ",", prefix = "(", postfix = ")") {
         val index = i
         bindingMap[it] = i
         i += 2
@@ -76,7 +76,7 @@ class EventGroupReader(private val readContext: ReadContext) {
 
     val statement =
       boundStatement(sql.toString()) {
-        cmmsIdsList.forEach {
+        cmmsEventGroupKeys.forEach {
           val parameter: Int = bindingMap.getValue(it)
           bind("$$parameter", it.cmmsDataProviderId)
           bind("$${parameter + 1}", it.cmmsEventGroupId)
