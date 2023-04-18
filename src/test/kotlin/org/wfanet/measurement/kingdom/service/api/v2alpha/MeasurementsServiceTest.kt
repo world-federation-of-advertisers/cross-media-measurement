@@ -93,6 +93,7 @@ import org.wfanet.measurement.internal.kingdom.Measurement.State as InternalStat
 import org.wfanet.measurement.internal.kingdom.MeasurementKt as InternalMeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt as InternalProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
@@ -1607,6 +1608,7 @@ class MeasurementsServiceTest {
             epsilon = 2.1
             delta = 3.3
           }
+          noiseMechanism = InternalProtocolConfig.NoiseMechanism.GEOMETRIC
         }
     }
 
@@ -1625,6 +1627,7 @@ class MeasurementsServiceTest {
               epsilon = 2.1
               delta = 3.3
             }
+            noiseMechanism = ProtocolConfig.NoiseMechanism.GEOMETRIC
           }
         }
     }

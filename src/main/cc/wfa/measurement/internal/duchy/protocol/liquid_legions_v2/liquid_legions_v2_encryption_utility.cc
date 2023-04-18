@@ -71,6 +71,7 @@ using ::wfa::measurement::common::crypto::kUnitECPointSeed;
 using ::wfa::measurement::common::crypto::MultiplyEcPointPairByScalar;
 using ::wfa::measurement::common::crypto::ProtocolCryptor;
 using ::wfa::measurement::internal::duchy::ElGamalPublicKey;
+using ::wfa::measurement::internal::duchy::protocol::LiquidLegionsV2NoiseConfig;
 
 // Merge all the counts in each group using the SameKeyAggregation algorithm.
 // The calculated (flag_1, flag_2, flag_3, count) tuple is appended to the
@@ -539,26 +540,25 @@ absl::Status ValidateFrequencyNoiseParameters(
 absl::Status AddAllFrequencyNoise(
     ProtocolCryptor& protocol_cryptor, int curve_id,
     const FlagCountTupleNoiseGenerationParameters& noise_parameters,
+    const LiquidLegionsV2NoiseConfig::NoiseMechanism& noise_mechanism,
     std::string& data) {
   RETURN_IF_ERROR(ValidateFrequencyNoiseParameters(noise_parameters));
 
-  auto geometric_options = GetFrequencyGeometricNoiseOptions(
-      noise_parameters.dp_params(), noise_parameters.contributors_count());
-  math::DistributedGeometricNoiser distributed_geometric_noiser =
-      math::DistributedGeometricNoiser(geometric_options);
+  auto noiser = GetFrequencyNoiser(noise_parameters.dp_params(),
+                                   noise_parameters.contributors_count(),
+                                   noise_mechanism);
 
-  int64_t total_noise_tuples_count = geometric_options.shift_offset * 2 *
+  int64_t total_noise_tuples_count = noiser->options().shift_offset * 2 *
                                      (noise_parameters.maximum_frequency() + 1);
   // Reserve extra space for noise tuples in data.
   data.reserve(data.size() +
                total_noise_tuples_count * kBytesPerFlagsCountTuple);
   ASSIGN_OR_RETURN(int frequency_dp_noise_tuples_count,
-                   AddFrequencyDpNoise(
-                       protocol_cryptor, noise_parameters.maximum_frequency(),
-                       curve_id, distributed_geometric_noiser, data));
+                   AddFrequencyDpNoise(protocol_cryptor,
+                                       noise_parameters.maximum_frequency(),
+                                       curve_id, *noiser, data));
   ASSIGN_OR_RETURN(int destroyed_noise_tuples_count,
-                   AddDestroyedFrequencyNoise(
-                       protocol_cryptor, distributed_geometric_noiser, data));
+                   AddDestroyedFrequencyNoise(protocol_cryptor, *noiser, data));
   int64_t padding_noise_tuples_count = total_noise_tuples_count -
                                        frequency_dp_noise_tuples_count -
                                        destroyed_noise_tuples_count;
@@ -685,38 +685,23 @@ absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
     const RegisterNoiseGenerationParameters& noise_parameters =
         request.noise_parameters();
 
-    auto blind_histogram_geometric_noise_options =
-        GetBlindHistogramGeometricNoiseOptions(
-            noise_parameters.dp_params().blind_histogram(),
-            noise_parameters.contributors_count());
-    math::DistributedGeometricNoiser
-        blind_histogram_distributed_geometric_noiser =
-            math::DistributedGeometricNoiser(
-                blind_histogram_geometric_noise_options);
+    auto blind_histogram_noiser = GetBlindHistogramNoiser(
+        noise_parameters.dp_params().blind_histogram(),
+        noise_parameters.contributors_count(), request.noise_mechanism());
 
-    auto noise_for_publisher_geometric_noise_options =
-        GetNoiseForPublisherGeometricNoiseOptions(
-            noise_parameters.dp_params().noise_for_publisher_noise(),
-            noise_parameters.total_sketches_count(),
-            noise_parameters.contributors_count());
-    math::DistributedGeometricNoiser
-        noise_for_publisher_distributed_geometric_noiser =
-            math::DistributedGeometricNoiser(
-                noise_for_publisher_geometric_noise_options);
+    auto publisher_noiser = GetPublisherNoiser(
+        noise_parameters.dp_params().noise_for_publisher_noise(),
+        noise_parameters.total_sketches_count(),
+        noise_parameters.contributors_count(), request.noise_mechanism());
 
-    auto global_reach_dp_geometric_noise_options =
-        GetGlobalReachDpGeometricNoiseOptions(
-            noise_parameters.dp_params().global_reach_dp_noise(),
-            noise_parameters.contributors_count());
-    math::DistributedGeometricNoiser
-        global_reach_dp_distributed_geometric_noiser =
-            math::DistributedGeometricNoiser(
-                global_reach_dp_geometric_noise_options);
+    auto global_reach_dp_noiser = GetGlobalReachDpNoiser(
+        noise_parameters.dp_params().global_reach_dp_noise(),
+        noise_parameters.contributors_count(), request.noise_mechanism());
 
     int64_t total_noise_registers_count =
-        noise_for_publisher_geometric_noise_options.shift_offset * 2 +
-        global_reach_dp_geometric_noise_options.shift_offset * 2 +
-        blind_histogram_geometric_noise_options.shift_offset *
+        publisher_noiser->options().shift_offset * 2 +
+        global_reach_dp_noiser->options().shift_offset * 2 +
+        blind_histogram_noiser->options().shift_offset *
             noise_parameters.total_sketches_count() *
             (noise_parameters.total_sketches_count() + 1);
 
@@ -740,20 +725,17 @@ absl::StatusOr<CompleteSetupPhaseResponse> CompleteSetupPhase(
     // 1. Add blinded histogram noise.
     ASSIGN_OR_RETURN(
         int64_t blinded_histogram_noise_count,
-        AddBlindedHistogramNoise(
-            *protocol_cryptor, noise_parameters.total_sketches_count(),
-            blind_histogram_distributed_geometric_noiser, *response_crv));
+        AddBlindedHistogramNoise(*protocol_cryptor,
+                                 noise_parameters.total_sketches_count(),
+                                 *blind_histogram_noiser, *response_crv));
     // 2. Add noise for publisher noise.
-    ASSIGN_OR_RETURN(
-        int64_t publisher_noise_count,
-        AddNoiseForPublisherNoise(
-            *protocol_cryptor, noise_for_publisher_distributed_geometric_noiser,
-            *response_crv));
+    ASSIGN_OR_RETURN(int64_t publisher_noise_count,
+                     AddNoiseForPublisherNoise(
+                         *protocol_cryptor, *publisher_noiser, *response_crv));
     // 3. Add reach DP noise.
     ASSIGN_OR_RETURN(
         int64_t reach_dp_noise_count,
-        AddGlobalReachDpNoise(*protocol_cryptor,
-                              global_reach_dp_distributed_geometric_noiser,
+        AddGlobalReachDpNoise(*protocol_cryptor, *global_reach_dp_noiser,
                               *response_crv));
     // 4. Add padding noise.
     int64_t padding_noise_count = total_noise_registers_count -
@@ -857,9 +839,9 @@ CompleteExecutionPhaseOneAtAggregator(
 
   // Add noise (flag_a, flag_b, flag_c, count) tuples if configured to.
   if (request.has_noise_parameters()) {
-    RETURN_IF_ERROR(AddAllFrequencyNoise(*protocol_cryptor, request.curve_id(),
-                                         request.noise_parameters(),
-                                         *response_data));
+    RETURN_IF_ERROR(AddAllFrequencyNoise(
+        *protocol_cryptor, request.curve_id(), request.noise_parameters(),
+        request.noise_mechanism(), *response_data));
   }
 
   RETURN_IF_ERROR(SortStringByBlock<kBytesPerFlagsCountTuple>(*response_data));
@@ -910,9 +892,9 @@ absl::StatusOr<CompleteExecutionPhaseTwoResponse> CompleteExecutionPhaseTwo(
 
   // Add noise (flag_a, flag_b, flag_c, count) tuples if configured to.
   if (request.has_noise_parameters()) {
-    RETURN_IF_ERROR(AddAllFrequencyNoise(*protocol_cryptor, request.curve_id(),
-                                         request.noise_parameters(),
-                                         *response_data));
+    RETURN_IF_ERROR(AddAllFrequencyNoise(
+        *protocol_cryptor, request.curve_id(), request.noise_parameters(),
+        request.noise_mechanism(), *response_data));
   }
 
   RETURN_IF_ERROR(SortStringByBlock<kBytesPerFlagsCountTuple>(*response_data));
@@ -993,20 +975,24 @@ CompleteExecutionPhaseTwoAtAggregator(
   int64_t non_empty_register_count =
       tuple_counts - blinded_histogram_noise_count;
   if (request.has_reach_dp_noise_baseline()) {
-    auto options = GetGlobalReachDpGeometricNoiseOptions(
+    auto noiser = GetGlobalReachDpNoiser(
         request.reach_dp_noise_baseline().global_reach_dp_noise(),
-        request.reach_dp_noise_baseline().contributors_count());
+        request.reach_dp_noise_baseline().contributors_count(),
+        request.noise_mechanism());
+    const auto& noise_options = noiser->options();
     int64_t global_reach_dp_noise_baseline =
-        options.shift_offset * options.contributor_count;
+        noise_options.shift_offset * noise_options.contributor_count;
     non_empty_register_count -= global_reach_dp_noise_baseline;
   }
   if (request.has_frequency_noise_parameters()) {
     const FlagCountTupleNoiseGenerationParameters& noise_parameters =
         request.frequency_noise_parameters();
-    auto options = GetFrequencyGeometricNoiseOptions(
-        noise_parameters.dp_params(), noise_parameters.contributors_count());
+    auto noiser = GetFrequencyNoiser(noise_parameters.dp_params(),
+                                     noise_parameters.contributors_count(),
+                                     request.noise_mechanism());
+    const auto& noise_options = noiser->options();
     int64_t total_noise_tuples_count =
-        options.contributor_count * options.shift_offset * 2 *
+        noise_options.contributor_count * noise_options.shift_offset * 2 *
         (noise_parameters.maximum_frequency() + 1);
     // Subtract all frequency noises before estimating reach.
     non_empty_register_count -= total_noise_tuples_count;
@@ -1130,11 +1116,13 @@ CompleteExecutionPhaseThreeAtAggregator(
   int actual_total = column_size;
   // Adjusts the histogram according the noise baseline.
   if (request.has_global_frequency_dp_noise_per_bucket()) {
-    auto options = GetFrequencyGeometricNoiseOptions(
+    auto noiser = GetFrequencyNoiser(
         request.global_frequency_dp_noise_per_bucket().dp_params(),
-        request.global_frequency_dp_noise_per_bucket().contributors_count());
+        request.global_frequency_dp_noise_per_bucket().contributors_count(),
+        request.noise_mechanism());
+    const auto& noise_options = noiser->options();
     int64_t noise_baseline_per_bucket =
-        options.shift_offset * options.contributor_count;
+        noise_options.shift_offset * noise_options.contributor_count;
     actual_total = 0;
     for (int i = 0; i < maximum_frequency; ++i) {
       histogram[i] = std::max(0L, histogram[i] - noise_baseline_per_bucket);
