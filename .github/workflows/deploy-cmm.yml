@@ -136,8 +136,10 @@ jobs:
     uses: ./.github/workflows/configure-kingdom.yml
     secrets: inherit
     with:
+      my_string_input: "v1.0.0"
+      my_boolean_input: true
     #  image_tag: "v1.0.0"  #${{ inputs.image_tag }}
-      kubectl_apply: true #${{ inputs.kubectl_apply }}
+    #  kubectl_apply: true #${{ inputs.kubectl_apply }}
 
   configure-duchy:
     if: inputs.terraform_apply == true
@@ -147,4 +149,4 @@ jobs:
     with:
       duchy_name: duchy-1
     #  image_tag: "v1.0.0"
-      kubectl_apply: true #${{ inputs.kubectl_apply }}
+    #  kubectl_apply: true #${{ inputs.kubectl_apply }}
