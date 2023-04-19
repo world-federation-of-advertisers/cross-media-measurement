@@ -62,7 +62,7 @@ jobs:
 
   configure-kingdom:
     if: inputs.terraform_apply == true
-    needs: [ build-kingdom-image, create-cmm-infra, create-image-tag ]
+    needs: [ create-cmm-infra, create-image-tag ]
     uses: ./.github/workflows/configure-kingdom.yml
     secrets: inherit
     with:
@@ -71,7 +71,7 @@ jobs:
 
   configure-duchy-1:
     if: inputs.terraform_apply == true
-    needs: [ build-kingdom-image, create-cmm-infra, create-image-tag ]
+    needs: [ create-cmm-infra, create-image-tag ]
     uses: ./.github/workflows/configure-duchy.yml
     secrets: inherit
     with:
@@ -81,7 +81,7 @@ jobs:
 
   configure-duchy-2:
     if: inputs.terraform_apply == true
-    needs: [ build-kingdom-image, create-cmm-infra, create-image-tag ]
+    needs: [ create-cmm-infra, create-image-tag ]
     uses: ./.github/workflows/configure-duchy.yml
     secrets: inherit
     with:
@@ -91,7 +91,7 @@ jobs:
 
   configure-aggregator:
     if: inputs.terraform_apply == true
-    needs: [ build-kingdom-image, create-cmm-infra, create-image-tag ]
+    needs: [ create-cmm-infra, create-image-tag ]
     uses: ./.github/workflows/configure-duchy.yml
     secrets: inherit
     with:
