@@ -54,7 +54,8 @@ message ProtocolConfig {
     // The maximum frequency to reveal in the histogram.
     int32 maximum_frequency = 4;
 
-    // The mechanism to generate noise during computation.
+    // The mechanism to generate noise during computation. Use GEOMETRIC as the
+    // default value if unspecified for old Measurements.
     NoiseMechanism noise_mechanism = 5;
   }
 
