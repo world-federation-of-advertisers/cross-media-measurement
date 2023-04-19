@@ -33,19 +33,12 @@ class ReplaceDataProviderRequiredDuchies(
   override suspend fun TransactionScope.runTransaction(): DataProvider {
     val externalDataProviderId = ExternalId(request.externalDataProviderId)
     val dataProviderResult =
-      DataProviderReader()
-        .readByExternalDataProviderId(
-          transactionContext,
-          externalDataProviderId
-        )
-        ?: throw DataProviderNotFoundException(
-          externalDataProviderId
-        )
+      DataProviderReader().readByExternalDataProviderId(transactionContext, externalDataProviderId)
+        ?: throw DataProviderNotFoundException(externalDataProviderId)
 
     val dataProvider = dataProviderResult.dataProvider
     val dataProviderId = dataProviderResult.dataProviderId
-    val desiredRequiredDuchyList =
-      request.requiredExternalDuchyIdsList
+    val desiredRequiredDuchyList = request.requiredExternalDuchyIdsList
 
     // Delete old duchy list.
     transactionContext.buffer(
