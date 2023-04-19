@@ -135,15 +135,18 @@ fun InternalDifferentialPrivacyParams.toDifferentialPrivacyParams(): Differentia
   }
 }
 
-/** Converts an internal [InternalNoiseMechanism] to a public [NoiseMechanism]. */
+/**
+ * Converts an internal [InternalNoiseMechanism] to a public [NoiseMechanism].
+ *
+ * Note: Due to proto update, NoiseMechanism was unspecified for old Measurements internally. Check
+ * whether they are NOISE_MECHANISM_UNSPECIFIED before calling the conversion.
+ */
 fun InternalNoiseMechanism.toNoiseMechanism(): NoiseMechanism {
   return when (this) {
-    // Due to proto update, NoiseMechanism was unspecified for old Measurements in database. Use
-    // GEOMETRIC as the default value.
-    InternalNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
     InternalNoiseMechanism.GEOMETRIC -> NoiseMechanism.GEOMETRIC
     InternalNoiseMechanism.DISCRETE_GAUSSIAN -> NoiseMechanism.DISCRETE_GAUSSIAN
-    InternalNoiseMechanism.UNRECOGNIZED -> error("Unrecognized noise mechanism.")
+    InternalNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
+    InternalNoiseMechanism.UNRECOGNIZED -> error("invalid internal noise mechanism.")
   }
 }
 
@@ -196,7 +199,16 @@ fun InternalProtocolConfig.toProtocolConfig(
                   }
                   ellipticCurveId = source.liquidLegionsV2.ellipticCurveId
                   maximumFrequency = source.liquidLegionsV2.maximumFrequency
-                  noiseMechanism = source.liquidLegionsV2.noiseMechanism.toNoiseMechanism()
+                  // Use `GEOMETRIC` for unspecified InternalNoiseMechanism for old Measurements.
+                  noiseMechanism =
+                    if (
+                      source.liquidLegionsV2.noiseMechanism ==
+                        InternalNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED
+                    ) {
+                      NoiseMechanism.GEOMETRIC
+                    } else {
+                      source.liquidLegionsV2.noiseMechanism.toNoiseMechanism()
+                    }
                 }
               }
             }

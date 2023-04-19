@@ -230,7 +230,16 @@ fun buildMpcProtocolConfig(
           }
           ellipticCurveId = protocolConfig.liquidLegionsV2.ellipticCurveId
           maximumFrequency = protocolConfig.liquidLegionsV2.maximumFrequency
-          noiseMechanism = protocolConfig.liquidLegionsV2.noiseMechanism.toSystemNoiseMechanism()
+          // Use `GEOMETRIC` for unspecified InternalNoiseMechanism for old Measurements.
+          noiseMechanism =
+            if (
+              protocolConfig.liquidLegionsV2.noiseMechanism ==
+                InternalProtocolConfig.NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED
+            ) {
+              NoiseMechanism.GEOMETRIC
+            } else {
+              protocolConfig.liquidLegionsV2.noiseMechanism.toSystemNoiseMechanism()
+            }
         }
       }
     }
@@ -336,14 +345,17 @@ fun DuchyMeasurementLogEntry.toSystemComputationLogEntry(
     .build()
 }
 
-/** Converts an internal NoiseMechanism to a system NoiseMechanism */
+/**
+ * Converts an internal NoiseMechanism to a system NoiseMechanism
+ *
+ * Note: Due to proto update, NoiseMechanism was unspecified for old Measurements internally. Check
+ * whether they are NOISE_MECHANISM_UNSPECIFIED before calling the conversion.
+ */
 fun InternalNoiseMechanism.toSystemNoiseMechanism(): NoiseMechanism {
   return when (this) {
-    // Due to proto update, NoiseMechanism was unspecified for old Measurements in database. Use
-    // GEOMETRIC as the default value.
-    InternalNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
     InternalNoiseMechanism.GEOMETRIC -> NoiseMechanism.GEOMETRIC
     InternalNoiseMechanism.DISCRETE_GAUSSIAN -> NoiseMechanism.DISCRETE_GAUSSIAN
-    InternalNoiseMechanism.UNRECOGNIZED -> error("Unrecognized noise mechanism.")
+    InternalNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
+    InternalNoiseMechanism.UNRECOGNIZED -> error("invalid internal noise mechanism.")
   }
 }
