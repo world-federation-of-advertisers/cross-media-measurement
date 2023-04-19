@@ -23,6 +23,7 @@ on:
         description: 'The Terraform version to use'
         required: false
         default: '1.3.6'
+        type: string
       environment:
         type: choice
         description: 'Environment to run the flow for.'
@@ -30,9 +31,6 @@ on:
         options:
           - qa
           - nightly
-      image_tag:
-        type: string
-        required: true
       kubectl_apply:
         description: "Apply the manifest to the cluster"
         required: false
