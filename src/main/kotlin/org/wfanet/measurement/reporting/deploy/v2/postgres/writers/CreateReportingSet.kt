@@ -99,13 +99,14 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
           .readIds(measurementConsumerId, externalReportingSetIds.toList())
           .collect { reportingSetMap[it.externalReportingSetId] = it.reportingSetId }
 
-        val setExpressionsBindersAndId = insertSetExpressions(
-          measurementConsumerId,
-          reportingSetId,
-          reportingSet.composite,
-          true,
-          reportingSetMap
-        )
+        val setExpressionsBindersAndId =
+          insertSetExpressions(
+            measurementConsumerId,
+            reportingSetId,
+            reportingSet.composite,
+            true,
+            reportingSetMap
+          )
 
         val updateReportingSetStatement =
           boundStatement(
