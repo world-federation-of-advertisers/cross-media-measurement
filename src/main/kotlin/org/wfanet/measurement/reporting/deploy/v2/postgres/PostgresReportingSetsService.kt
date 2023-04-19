@@ -43,7 +43,7 @@ class PostgresReportingSetsService(
           request.composite.lhs.operandCase ==
             ReportingSet.SetExpression.Operand.OperandCase.OPERAND_NOT_SET
         ) {
-          failGrpc(Status.INVALID_ARGUMENT) { "Reporting Set invalid" }
+          failGrpc(Status.INVALID_ARGUMENT) { "lhs operand not specified" }
         }
       }
       ReportingSet.ValueCase.VALUE_NOT_SET -> {

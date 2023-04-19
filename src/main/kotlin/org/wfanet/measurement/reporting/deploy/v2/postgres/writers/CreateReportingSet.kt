@@ -41,11 +41,6 @@ import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundExc
  * * [MeasurementConsumerNotFoundException] MeasurementConsumer not found
  */
 class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWriter<ReportingSet>() {
-  private data class SetExpressionsBindersAndId(
-    val setExpressionsBinders: List<BoundStatement.Binder.() -> Unit>,
-    val setExpressionId: InternalId,
-  )
-
   private data class PrimitiveReportingSetBasesBinders(
     val primitiveReportingSetBasesBinders: List<BoundStatement.Binder.() -> Unit>,
     val weightedSubsetUnionPrimitiveReportingSetBasesBinders:
@@ -96,17 +91,28 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
         val reportingSetMap = mutableMapOf<ExternalId, InternalId>()
 
         ReportingSetReader(transactionContext)
-          .readIds(measurementConsumerId, externalReportingSetIds.toList())
+          .readIds(measurementConsumerId, externalReportingSetIds)
           .collect { reportingSetMap[it.externalReportingSetId] = it.reportingSetId }
 
-        val setExpressionsBindersAndId =
-          insertSetExpressions(
-            measurementConsumerId,
-            reportingSetId,
-            reportingSet.composite,
-            true,
-            reportingSetMap
-          )
+        val setExpressionId = idGenerator.generateInternalId()
+
+        val setExpressionsStatement =
+          boundStatement(
+            """
+          INSERT INTO SetExpressions (MeasurementConsumerId, ReportingSetId, SetExpressionId, Operation, LeftHandSetExpressionId, LeftHandReportingSetId, RightHandSetExpressionId, RightHandReportingSetId)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          """
+          ) {
+            addSetExpressionsBindings(
+              this,
+              setExpressionId = setExpressionId,
+              measurementConsumerId = measurementConsumerId,
+              reportingSetId = reportingSetId,
+              reportingSet.composite,
+              reportingSetMap
+            )
+          }
+        transactionContext.executeStatement(setExpressionsStatement)
 
         val updateReportingSetStatement =
           boundStatement(
@@ -115,7 +121,7 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
               WHERE MeasurementConsumerId = $2 AND ReportingSetId = $3
             """
           ) {
-            bind("$1", setExpressionsBindersAndId.setExpressionId)
+            bind("$1", setExpressionId)
             bind("$2", measurementConsumerId)
             bind("$3", reportingSetId)
           }
@@ -130,7 +136,7 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
         )
       }
       ReportingSet.ValueCase.VALUE_NOT_SET -> {
-        // Already checked in the service that calls this.
+        throw IllegalArgumentException()
       }
     }
 
@@ -167,7 +173,7 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
       }
 
     EventGroupReader(transactionContext)
-      .getByCmmsEventGroupKey(cmmsEventGroupKeys.toList())
+      .getByCmmsEventGroupKey(cmmsEventGroupKeys)
       .collect {
         eventGroupMap[
           ReportingSetKt.PrimitiveKt.eventGroupKey {
@@ -177,7 +183,6 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
       }
 
     val eventGroupBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
-    val reportingSetEventGroupsBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
 
     cmmsEventGroupKeys.forEach {
       val primitiveReportingSetEventGroupKey =
@@ -197,21 +202,6 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
       }
     }
 
-    cmmsEventGroupKeys.forEach {
-      val eventGroupId: InternalId? =
-        eventGroupMap[
-          ReportingSetKt.PrimitiveKt.eventGroupKey {
-            cmmsDataProviderId = it.cmmsDataProviderId
-            cmmsEventGroupId = it.cmmsEventGroupId
-          }]
-
-      reportingSetEventGroupsBinders.add {
-        bind("$1", measurementConsumerId)
-        bind("$2", reportingSetId)
-        bind("$3", eventGroupId)
-      }
-    }
-
     val eventGroupsStatement: BoundStatement? =
       if (eventGroupBinders.size > 0) {
         boundStatement(
@@ -222,7 +212,9 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
         ) {
           eventGroupBinders.forEach { addBinding(it) }
         }
-      } else null
+      } else {
+        null
+      }
 
     val reportingSetEventGroupsStatement =
       boundStatement(
@@ -231,7 +223,20 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
             VALUES ($1, $2, $3)
             """
       ) {
-        reportingSetEventGroupsBinders.forEach { addBinding(it) }
+        cmmsEventGroupKeys.forEach {
+          val eventGroupId: InternalId? =
+            eventGroupMap[
+              ReportingSetKt.PrimitiveKt.eventGroupKey {
+                cmmsDataProviderId = it.cmmsDataProviderId
+                cmmsEventGroupId = it.cmmsEventGroupId
+              }]
+
+          addBinding {
+            bind("$1", measurementConsumerId)
+            bind("$2", reportingSetId)
+            bind("$3", eventGroupId)
+          }
+        }
       }
 
     transactionContext.run {
@@ -257,7 +262,7 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
     when (source.lhs.operandCase) {
       SetExpression.Operand.OperandCase.EXPRESSION -> {
-        source.lhs.expression.getExternalReportingSetIds()
+        externalReportingSetIds.addAll(source.lhs.expression.getExternalReportingSetIds())
       }
       SetExpression.Operand.OperandCase.EXTERNAL_REPORTING_SET_ID -> {
         externalReportingSetIds.add(ExternalId(source.lhs.externalReportingSetId))
@@ -268,7 +273,7 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
     when (this.rhs.operandCase) {
       SetExpression.Operand.OperandCase.EXPRESSION -> {
-        source.rhs.expression.getExternalReportingSetIds()
+        externalReportingSetIds.addAll(source.rhs.expression.getExternalReportingSetIds())
       }
       SetExpression.Operand.OperandCase.EXTERNAL_REPORTING_SET_ID -> {
         externalReportingSetIds.add(ExternalId(source.rhs.externalReportingSetId))
@@ -287,35 +292,31 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
     return externalReportingSetIds
   }
 
-  private suspend fun TransactionScope.insertSetExpressions(
+  private fun TransactionScope.addSetExpressionsBindings(
+    statementBuilder: BoundStatement.Builder,
+    setExpressionId: InternalId,
     measurementConsumerId: InternalId,
     reportingSetId: InternalId,
     setExpression: SetExpression,
-    root: Boolean,
     reportingSetMap: Map<ExternalId, InternalId> = mapOf()
-  ): SetExpressionsBindersAndId {
-    val setExpressionId = idGenerator.generateInternalId()
-
+  ) {
     val leftHandSetExpressionId: InternalId?
     val leftHandReportingSetId: InternalId?
     val rightHandSetExpressionId: InternalId?
     val rightHandReportingSetId: InternalId?
 
-    val setExpressionsBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
-
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
     when (setExpression.lhs.operandCase) {
       SetExpression.Operand.OperandCase.EXPRESSION -> {
-        val setExpressionsBindersAndId =
-          insertSetExpressions(
+        leftHandSetExpressionId = idGenerator.generateInternalId()
+          addSetExpressionsBindings(
+            statementBuilder,
+            leftHandSetExpressionId,
             measurementConsumerId,
             reportingSetId,
             setExpression.lhs.expression,
-            false,
             reportingSetMap
           )
-        setExpressionsBinders.addAll(setExpressionsBindersAndId.setExpressionsBinders)
-        leftHandSetExpressionId = setExpressionsBindersAndId.setExpressionId
         leftHandReportingSetId = null
       }
       SetExpression.Operand.OperandCase.EXTERNAL_REPORTING_SET_ID -> {
@@ -333,16 +334,15 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
     when (setExpression.rhs.operandCase) {
       SetExpression.Operand.OperandCase.EXPRESSION -> {
-        val setExpressionsBindersAndId =
-          insertSetExpressions(
+        rightHandSetExpressionId = idGenerator.generateInternalId()
+        addSetExpressionsBindings(
+            statementBuilder,
+            rightHandSetExpressionId,
             measurementConsumerId,
             reportingSetId,
             setExpression.rhs.expression,
-            false,
             reportingSetMap
           )
-        setExpressionsBinders.addAll(setExpressionsBindersAndId.setExpressionsBinders)
-        rightHandSetExpressionId = setExpressionsBindersAndId.setExpressionId
         rightHandReportingSetId = null
       }
       SetExpression.Operand.OperandCase.EXTERNAL_REPORTING_SET_ID -> {
@@ -357,7 +357,7 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
       }
     }
 
-    setExpressionsBinders.add {
+    statementBuilder.addBinding {
       bind("$1", measurementConsumerId)
       bind("$2", reportingSetId)
       bind("$3", setExpressionId)
@@ -367,21 +367,6 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
       bind("$7", rightHandSetExpressionId)
       bind("$8", rightHandReportingSetId)
     }
-
-    if (root) {
-      val setExpressionsStatement =
-        boundStatement(
-          """
-            INSERT INTO SetExpressions (MeasurementConsumerId, ReportingSetId, SetExpressionId, Operation, LeftHandSetExpressionId, LeftHandReportingSetId, RightHandSetExpressionId, RightHandReportingSetId)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            """
-        ) {
-          setExpressionsBinders.forEach { addBinding(it) }
-        }
-      transactionContext.executeStatement(setExpressionsStatement)
-    }
-
-    return SetExpressionsBindersAndId(setExpressionsBinders, setExpressionId)
   }
 
   private suspend fun TransactionScope.insertWeightedSubsetUnions(

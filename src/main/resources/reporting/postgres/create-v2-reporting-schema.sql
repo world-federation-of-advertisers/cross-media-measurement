@@ -121,7 +121,7 @@ CREATE TABLE WeightedSubsetUnions (
   ReportingSetId bigint NOT NULL,
   WeightedSubsetUnionId bigint NOT NULL,
 
-  Weight bigint NOT NULL,
+  Weight integer NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, ReportingSetId, WeightedSubsetUnionId),
   FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
