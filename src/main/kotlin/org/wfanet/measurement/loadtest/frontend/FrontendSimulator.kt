@@ -23,7 +23,6 @@ import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.time.Duration
 import java.time.LocalDate
-import java.time.ZoneOffset
 import java.util.logging.Logger
 import kotlin.random.Random
 import kotlinx.coroutines.time.delay
@@ -84,6 +83,7 @@ import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.timeInterval
 import org.wfanet.measurement.api.withAuthenticationKey
+import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
@@ -100,8 +100,6 @@ import org.wfanet.measurement.consent.client.measurementconsumer.signRequisition
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
 import org.wfanet.measurement.loadtest.config.TestIdentifiers
 import org.wfanet.measurement.loadtest.storage.SketchStore
-
-private const val DATA_PROVIDER_WILDCARD = "dataProviders/-"
 
 data class MeasurementConsumerData(
   // The MC's public API resource name
@@ -138,24 +136,19 @@ class FrontendSimulator(
     logger.info { "Creating reach and frequency Measurement..." }
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
-    val createdReachAndFrequencyMeasurement =
+    val measurement =
       createMeasurement(measurementConsumer, runId, ::newReachAndFrequencyMeasurementSpec)
-    logger.info {
-      "Created reach and frequency Measurement ${createdReachAndFrequencyMeasurement.name}"
-    }
+    logger.info { "Created reach and frequency Measurement ${measurement.name}" }
 
     // Get the CMMS computed result and compare it with the expected result.
     val reachAndFrequencyResult: Result = pollForResult {
-      getReachAndFrequencyResult(createdReachAndFrequencyMeasurement.name)
+      getReachAndFrequencyResult(measurement.name)
     }
     logger.info("Got reach and frequency result from Kingdom: $reachAndFrequencyResult")
 
     val liquidLegionV2Protocol =
-      createdReachAndFrequencyMeasurement.protocolConfig.protocolsList
-        .first { it.hasLiquidLegionsV2() }
-        .liquidLegionsV2
-    val expectedResult =
-      getExpectedResult(createdReachAndFrequencyMeasurement.name, liquidLegionV2Protocol)
+      measurement.protocolConfig.protocolsList.first { it.hasLiquidLegionsV2() }.liquidLegionsV2
+    val expectedResult = getExpectedResult(measurement.name, liquidLegionV2Protocol)
     logger.info("Expected result: $expectedResult")
 
     assertDpResultsEqual(
@@ -687,13 +680,8 @@ class FrontendSimulator(
           value =
             RequisitionSpecKt.EventGroupEntryKt.value {
               collectionInterval = timeInterval {
-                startTime =
-                  LocalDate.now()
-                    .minusDays(1)
-                    .atStartOfDay()
-                    .toInstant(ZoneOffset.UTC)
-                    .toProtoTime()
-                endTime = LocalDate.now().atStartOfDay().toInstant(ZoneOffset.UTC).toProtoTime()
+                startTime = EVENT_RANGE.start.toProtoTime()
+                endTime = EVENT_RANGE.endExclusive.toProtoTime()
               }
               filter = eventFilter { expression = eventFilterExpression }
             }
@@ -753,7 +741,18 @@ class FrontendSimulator(
   }
 
   companion object {
+    private const val DATA_PROVIDER_WILDCARD = "dataProviders/-"
+
+    /**
+     * Date range for events.
+     *
+     * TODO(@SanjayVas): Make this configurable.
+     */
+    private val EVENT_RANGE =
+      OpenEndTimeRange.fromClosedDateRange(LocalDate.of(2021, 3, 15)..LocalDate.of(2021, 3, 15))
+
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
     init {
       loadLibrary(
         name = "estimators",
