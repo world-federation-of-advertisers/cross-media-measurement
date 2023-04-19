@@ -37,8 +37,6 @@ on:
         type: boolean
 
 env:
-  REGISTRY: ghcr.io
-  REPO_PREFIX: 'world-federation-of-advertisers/packages'
   ROOT_PATH: '${{ github.workspace }}/src/main/terraform/gcloud'
   PROJECT: 'halo-cmm'
 
