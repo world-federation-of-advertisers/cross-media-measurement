@@ -99,13 +99,28 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
           .readIds(measurementConsumerId, externalReportingSetIds.toList())
           .collect { reportingSetMap[it.externalReportingSetId] = it.reportingSetId }
 
-        insertSetExpressions(
+        val setExpressionsBindersAndId = insertSetExpressions(
           measurementConsumerId,
           reportingSetId,
           reportingSet.composite,
           true,
           reportingSetMap
         )
+
+        val updateReportingSetStatement =
+          boundStatement(
+            """
+            UPDATE ReportingSets SET SetExpressionId = $1
+              WHERE MeasurementConsumerId = $2 AND ReportingSetId = $3
+            """
+          ) {
+            bind("$1", setExpressionsBindersAndId.setExpressionId)
+            bind("$2", measurementConsumerId)
+            bind("$3", reportingSetId)
+          }
+
+        transactionContext.executeStatement(updateReportingSetStatement)
+
         insertWeightedSubsetUnions(
           measurementConsumerId,
           reportingSetId,
