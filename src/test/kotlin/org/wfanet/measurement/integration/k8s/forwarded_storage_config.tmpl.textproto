@@ -1,0 +1,4 @@
+# proto-file: src/main/proto/wfa/measurement/integration/k8s/testing/forwarded_storage_config.proto
+# proto-message: ForwardedStorageConfig
+forwarded_storage_api_target: "{forwarded_storage_api_target}"
+forwarded_storage_api_cert_host: "{forwarded_storage_api_cert_host}"
