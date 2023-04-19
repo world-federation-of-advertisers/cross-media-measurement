@@ -24,6 +24,7 @@ on:
       duchy_name:
         description: "The name of the Duchy to build"
         required: true
+        type: string
       kubectl_apply:
         description: "Apply the manifest to the cluster"
         required: false
