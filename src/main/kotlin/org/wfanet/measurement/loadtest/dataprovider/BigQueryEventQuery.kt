@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.loadtest.dataprovider
 
+import com.google.cloud.Timestamp
 import com.google.cloud.bigquery.BigQuery
 import com.google.cloud.bigquery.BigQueryError
 import com.google.cloud.bigquery.FieldValueList
@@ -23,10 +24,7 @@ import com.google.cloud.bigquery.JobInfo
 import com.google.cloud.bigquery.QueryJobConfiguration
 import com.google.cloud.bigquery.QueryParameterValue
 import java.time.Instant
-import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
-import java.time.format.DateTimeFormatterBuilder
-import java.time.temporal.ChronoField
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec.EventFilter
@@ -39,7 +37,6 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.video
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
 
 /** Fulfill the query by querying the specified BigQuery table. */
@@ -103,13 +100,10 @@ class BigQueryEventQuery(
     return QueryJobConfiguration.newBuilder(query)
       .apply {
         addNamedParameter("publisher_id", QueryParameterValue.int64(publisherId))
-        addNamedParameter(
-          "start_time",
-          QueryParameterValue.timestamp(timestampFormatter.format(startTime))
-        )
+        addNamedParameter("start_time", QueryParameterValue.timestamp(startTime.epochMicros))
         addNamedParameter(
           "end_time_exclusive",
-          QueryParameterValue.timestamp(timestampFormatter.format(endTimeExclusive))
+          QueryParameterValue.timestamp(endTimeExclusive.epochMicros)
         )
       }
       .build()
@@ -141,7 +135,7 @@ class BigQueryEventQuery(
         else -> true
       }
     return testEvent {
-      time = timestampFormatter.parse(get("time").stringValue, Instant::from).toProtoTime()
+      time = Timestamp.ofTimeMicroseconds(get("time").timestampValue).toProto()
       person = person {
         vid = get("vid").longValue
         if (gender != null) {
@@ -170,24 +164,8 @@ class BigQueryEventQuery(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-
-    private val timestampFormatter: DateTimeFormatter =
-      DateTimeFormatterBuilder()
-        .parseLenient()
-        .append(DateTimeFormatter.ISO_LOCAL_DATE)
-        .appendLiteral(' ')
-        .appendValue(ChronoField.HOUR_OF_DAY, 2)
-        .appendLiteral(':')
-        .appendValue(ChronoField.MINUTE_OF_HOUR, 2)
-        .optionalStart()
-        .appendLiteral(':')
-        .appendValue(ChronoField.SECOND_OF_MINUTE, 2)
-        .optionalStart()
-        .appendFraction(ChronoField.NANO_OF_SECOND, 6, 9, true)
-        .optionalStart()
-        .appendOffset("+HHMM", "+00:00")
-        .optionalEnd()
-        .toFormatter()
-        .withZone(ZoneOffset.UTC)
   }
 }
+
+private val Instant.epochMicros: Long
+  get() = ChronoUnit.MICROS.between(Instant.EPOCH, this)
