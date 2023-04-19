@@ -12,19 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: Test Output
+name: create image
 
 on:
-  push:
-    branches: [ feature/cmm-orchestrator ]
+  workflow_dispatch:
+  workflow_call:
+    outputs:
+      image_tag:
+        description: 'Image_tag to be generated'
+        value: ${{ jobs.create-image-tag.outputs.image_tag }}
+
+env:
+  REGISTRY: ghcr.io
 
 jobs:
   create-image-tag:
-    uses: ./.github/workflows/create-image.yml
-
-  output-tag:
     runs-on: ubuntu-20.04
-    needs: create-image-tag
+    outputs:
+      image_tag: ${{ steps.get-image-tag-step.outputs.image_tag }}
     steps:
-      - run: echo ${{ needs.create-image-tag.outputs.image_tag }}
-
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Generate image tag
+        run: ./.github/workflows/export-image-tag.sh
+      - name: Output image tag
+        id: get-image-tag-step
+        run: echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
