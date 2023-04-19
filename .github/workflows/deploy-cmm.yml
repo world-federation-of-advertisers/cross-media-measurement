@@ -31,14 +31,13 @@ on:
           - qa
           - nightly
       image_tag:
-        description: "Image tag needed for configuration"
         type: string
         required: true
       kubectl_apply:
         description: "Apply the manifest to the cluster"
         required: false
         type: boolean
-    workflow_id: configure_kingdom
+
 env:
   REGISTRY: ghcr.io
   REPO_PREFIX: 'world-federation-of-advertisers/packages'
@@ -145,14 +144,4 @@ jobs:
     secrets: inherit
     with:
       image_tag: ${{ inputs.image_tag }}
-      kubectl_apply: ${{ inputs.kubectl_apply }}
-
-  configure-duchy:
-    if: inputs.terraform_apply == true
-  #  needs: [ build-kingdom-image, create-cmm-infra ]
-    uses: ./.github/workflows/configure-duchy.yml
-    secrets: inherit
-  #  with:
-  #    duchy_name: duchy-1
-  #    image_tag: "v1.0.0"
-  #    kubectl_apply: true #${{ inputs.kubectl_apply }}
+      kubectl_apply: false #${{ inputs.kubectl_apply }}

@@ -17,7 +17,6 @@ name: "Configure Kingdom"
 on:
   # TODO(wfa-siyengar): to detail the workflow_call.
   workflow_call:
-  workflow_dispatch:
     inputs:
       image_tag:
         description: "Image tag needed for configuration"
