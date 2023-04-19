@@ -25,6 +25,11 @@ on:
 env:
   REGISTRY: ghcr.io
 
+permissions:
+  contents: 'read'
+  id-token: 'write'
+  packages: 'write'
+
 jobs:
   create-image-tag:
     runs-on: ubuntu-20.04
