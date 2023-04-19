@@ -883,10 +883,11 @@ class MetricsService(
         }
       } else null
 
+    val subResults = results.subList(0, min(results.size, listMetricsPageToken.pageSize))
+
     // Only syncs pending measurements which can only be in metrics that are still running.
     val toBeSyncedInternalMeasurements: List<InternalMeasurement> =
-      results
-        .subList(0, min(results.size, listMetricsPageToken.pageSize))
+      subResults
         .filter { internalMetric -> internalMetric.state == InternalMetric.State.RUNNING }
         .flatMap { internalMetric -> internalMetric.weightedMeasurementsList }
         .map { weightedMeasurement -> weightedMeasurement.measurement }
@@ -903,14 +904,12 @@ class MetricsService(
     val internalMetrics: List<InternalMetric> =
       batchGetInternalMetrics(
         principal.resourceKey.measurementConsumerId,
-        results.subList(0, min(results.size, listMetricsPageToken.pageSize)).map { internalMetric ->
-          internalMetric.externalMetricId
-        }
+        subResults.map { internalMetric -> internalMetric.externalMetricId }
       )
 
     return listMetricsResponse {
       metrics +=
-        syncInternalMetrics(principal.resourceKey.measurementConsumerId, internalMetrics)
+        refreshInternalMetrics(principal.resourceKey.measurementConsumerId, internalMetrics)
           .map(InternalMetric::toMetric)
 
       if (nextPageToken != null) {
@@ -919,8 +918,8 @@ class MetricsService(
     }
   }
 
-  /** Syncs a list of [InternalMetric]s. */
-  private suspend fun syncInternalMetrics(
+  /** Refreshes a list of [InternalMetric]s. */
+  private suspend fun refreshInternalMetrics(
     cmmsMeasurementConsumerId: String,
     metrics: List<InternalMetric>
   ): List<InternalMetric> {
@@ -936,7 +935,7 @@ class MetricsService(
           if (measurements.all { it.state == InternalMeasurement.State.SUCCEEDED }) {
             setMetricResultRequests += setMetricResultRequest {
               externalMetricId = metric.externalMetricId
-              result = constructMetricResult(metric)
+              result = buildMetricResult(metric)
             }
           } else if (measurements.any { it.state == InternalMeasurement.State.FAILED }) {
             failedExternalMetricIds += metric.externalMetricId
@@ -988,8 +987,8 @@ class MetricsService(
     return metrics.map { metric -> latestMetricsMap.getOrDefault(metric.externalMetricId, metric) }
   }
 
-  /** Constructs an [InternalMetricResult] from the given [InternalMetric]. */
-  private fun constructMetricResult(metric: InternalMetric): InternalMetricResult {
+  /** Builds an [InternalMetricResult] from the given [InternalMetric]. */
+  private fun buildMetricResult(metric: InternalMetric): InternalMetricResult {
     return internalMetricResult {
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (metric.metricSpec.typeCase) {
