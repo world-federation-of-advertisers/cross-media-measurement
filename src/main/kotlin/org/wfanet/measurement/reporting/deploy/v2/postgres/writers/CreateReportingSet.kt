@@ -172,15 +172,13 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
         )
       }
 
-    EventGroupReader(transactionContext)
-      .getByCmmsEventGroupKey(cmmsEventGroupKeys)
-      .collect {
-        eventGroupMap[
-          ReportingSetKt.PrimitiveKt.eventGroupKey {
-            cmmsDataProviderId = it.cmmsDataProviderId
-            cmmsEventGroupId = it.cmmsEventGroupId
-          }] = it.eventGroupId
-      }
+    EventGroupReader(transactionContext).getByCmmsEventGroupKey(cmmsEventGroupKeys).collect {
+      eventGroupMap[
+        ReportingSetKt.PrimitiveKt.eventGroupKey {
+          cmmsDataProviderId = it.cmmsDataProviderId
+          cmmsEventGroupId = it.cmmsEventGroupId
+        }] = it.eventGroupId
+    }
 
     val eventGroupBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
 
@@ -309,14 +307,14 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
     when (setExpression.lhs.operandCase) {
       SetExpression.Operand.OperandCase.EXPRESSION -> {
         leftHandSetExpressionId = idGenerator.generateInternalId()
-          addSetExpressionsBindings(
-            statementBuilder,
-            leftHandSetExpressionId,
-            measurementConsumerId,
-            reportingSetId,
-            setExpression.lhs.expression,
-            reportingSetMap
-          )
+        addSetExpressionsBindings(
+          statementBuilder,
+          leftHandSetExpressionId,
+          measurementConsumerId,
+          reportingSetId,
+          setExpression.lhs.expression,
+          reportingSetMap
+        )
         leftHandReportingSetId = null
       }
       SetExpression.Operand.OperandCase.EXTERNAL_REPORTING_SET_ID -> {
@@ -336,13 +334,13 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
       SetExpression.Operand.OperandCase.EXPRESSION -> {
         rightHandSetExpressionId = idGenerator.generateInternalId()
         addSetExpressionsBindings(
-            statementBuilder,
-            rightHandSetExpressionId,
-            measurementConsumerId,
-            reportingSetId,
-            setExpression.rhs.expression,
-            reportingSetMap
-          )
+          statementBuilder,
+          rightHandSetExpressionId,
+          measurementConsumerId,
+          reportingSetId,
+          setExpression.rhs.expression,
+          reportingSetMap
+        )
         rightHandReportingSetId = null
       }
       SetExpression.Operand.OperandCase.EXTERNAL_REPORTING_SET_ID -> {

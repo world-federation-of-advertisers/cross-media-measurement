@@ -407,7 +407,8 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
                   operation = ReportingSet.SetExpression.Operation.DIFFERENCE
                   lhs =
                     ReportingSetKt.SetExpressionKt.operand {
-                      externalReportingSetId = createdInnerCompositeReportingSet.externalReportingSetId
+                      externalReportingSetId =
+                        createdInnerCompositeReportingSet.externalReportingSetId
                     }
                 }
             }
@@ -419,7 +420,8 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
                   operation = ReportingSet.SetExpression.Operation.DIFFERENCE
                   lhs =
                     ReportingSetKt.SetExpressionKt.operand {
-                      externalReportingSetId = createdInnerCompositeReportingSet2.externalReportingSetId
+                      externalReportingSetId =
+                        createdInnerCompositeReportingSet2.externalReportingSetId
                     }
                 }
             }
