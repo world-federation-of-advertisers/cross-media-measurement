@@ -144,8 +144,8 @@ jobs:
     uses: ./.github/workflows/configure-kingdom.yml
     secrets: inherit
     with:
-      image_tag: ${{ github.event.inputs.image_tag }}
-      kubectl_apply: ${{ github.event.inputs.kubectl_apply }}
+      image_tag: ${{ inputs.image_tag }}
+      kubectl_apply: ${{ inputs.kubectl_apply }}
 
   configure-duchy:
     if: inputs.terraform_apply == true
