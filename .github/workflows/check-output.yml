@@ -20,8 +20,11 @@ on:
 
 jobs:
   create-image-tag:
-    runs-on: ubuntu-20.04
     uses: ./.github/workflows/create-cmm-images.yml
+
+  output-tag:
+    runs-on: ubuntu-20.04
+    needs: create-image-tag
     steps:
-      - run: echo ${{ create-image-tag.outputs.image_tag }}
+      - run: echo ${{ needs.create-image-tag.outputs.image_tag }}
 
