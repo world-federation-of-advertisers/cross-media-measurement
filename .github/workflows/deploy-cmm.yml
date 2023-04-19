@@ -15,8 +15,6 @@
 name: Deploy CMM
 
 on:
-  push:
-    branches: [ feature/cmm-orchestrator ]
   workflow_dispatch:
     inputs:
       terraform_version:
