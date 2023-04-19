@@ -140,10 +140,10 @@ fun InternalNoiseMechanism.toNoiseMechanism(): NoiseMechanism {
   return when (this) {
     // Due to proto update, NoiseMechanism was unspecified for old Measurements in database. Use
     // GEOMETRIC as the default value.
-    InternalNoiseMechanism.UNRECOGNIZED,
     InternalNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
     InternalNoiseMechanism.GEOMETRIC -> NoiseMechanism.GEOMETRIC
     InternalNoiseMechanism.DISCRETE_GAUSSIAN -> NoiseMechanism.DISCRETE_GAUSSIAN
+    InternalNoiseMechanism.UNRECOGNIZED -> error("Unrecognized noise mechanism.")
   }
 }
 
