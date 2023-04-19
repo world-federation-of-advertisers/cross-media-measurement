@@ -38,5 +38,3 @@ resource "google_project_iam_binding" "gke_sa_iam_binding" {
     "serviceAccount:${data.google_service_account.gke_sa.email}"
   ]
 }
-
-
