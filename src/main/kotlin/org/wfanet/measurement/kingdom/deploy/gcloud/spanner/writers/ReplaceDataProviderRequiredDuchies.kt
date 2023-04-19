@@ -28,23 +28,24 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFound
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 
 class ReplaceDataProviderRequiredDuchies(
-  private val replaceDataProviderRequiredDuchiesRequest: ReplaceDataProviderRequiredDuchiesRequest
+  private val request: ReplaceDataProviderRequiredDuchiesRequest
 ) : SpannerWriter<DataProvider, DataProvider>() {
   override suspend fun TransactionScope.runTransaction(): DataProvider {
+    val externalDataProviderId = ExternalId(request.externalDataProviderId)
     val dataProviderResult =
       DataProviderReader()
         .readByExternalDataProviderId(
           transactionContext,
-          ExternalId(replaceDataProviderRequiredDuchiesRequest.externalDataProviderId)
+          externalDataProviderId
         )
         ?: throw DataProviderNotFoundException(
-          ExternalId(replaceDataProviderRequiredDuchiesRequest.externalDataProviderId)
+          externalDataProviderId
         )
 
     val dataProvider = dataProviderResult.dataProvider
     val dataProviderId = dataProviderResult.dataProviderId
     val desiredRequiredDuchyList =
-      replaceDataProviderRequiredDuchiesRequest.requiredExternalDuchyIdsList
+      request.requiredExternalDuchyIdsList
 
     // Delete old duchy list.
     transactionContext.buffer(
