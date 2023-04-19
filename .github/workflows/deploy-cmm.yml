@@ -140,7 +140,7 @@ jobs:
   configure-kingdom:
     if: inputs.terraform_apply == true
     needs: [ build-kingdom-image, create-cmm-infra ]
-    uses: ./.github/workflows/configure-kingdom
+    uses: ./.github/workflows/configure-kingdom.yml
     secrets: inherit
     with:
       image_tag: ${{ github.event.inputs.image_tag }}
