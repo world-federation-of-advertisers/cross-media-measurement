@@ -139,9 +139,39 @@ jobs:
 
   configure-kingdom:
     if: inputs.terraform_apply == true
-    needs: [ build-kingdom-image, create-cmm-infra ]
+    needs: [ build-kingdom-image, create-cmm-infra, create-image-tag ]
     uses: ./.github/workflows/configure-kingdom.yml
     secrets: inherit
     with:
-      image_tag: ${{ inputs.image_tag }}
+      image_tag: ${{ needs.create-image-tag.outputs.image_tag }}
+      kubectl_apply: false #${{ inputs.kubectl_apply }}
+
+  configure-duchy-1:
+    if: inputs.terraform_apply == true
+    needs: [ build-kingdom-image, create-cmm-infra, create-image-tag ]
+    uses: ./.github/workflows/configure-duchy.yml
+    secrets: inherit
+    with:
+      duchy_name: worker1 #{{ inputs.duchy_name }}
+      image_tag: ${{ needs.create-image-tag.outputs.image_tag }}
+      kubectl_apply: false #${{ inputs.kubectl_apply }}
+
+  configure-duchy-2:
+    if: inputs.terraform_apply == true
+    needs: [ build-kingdom-image, create-cmm-infra, create-image-tag ]
+    uses: ./.github/workflows/configure-duchy.yml
+    secrets: inherit
+    with:
+      duchy_name: worker2 #{{ inputs.duchy_name }}
+      image_tag: ${{ needs.create-image-tag.outputs.image_tag }}
+      kubectl_apply: false #${{ inputs.kubectl_apply }}
+
+  configure-aggregator:
+    if: inputs.terraform_apply == true
+    needs: [ build-kingdom-image, create-cmm-infra, create-image-tag ]
+    uses: ./.github/workflows/configure-duchy.yml
+    secrets: inherit
+    with:
+      duchy_name: aggregator #{{ inputs.duchy_name }}
+      image_tag: ${{ needs.create-image-tag.outputs.image_tag }}
       kubectl_apply: false #${{ inputs.kubectl_apply }}

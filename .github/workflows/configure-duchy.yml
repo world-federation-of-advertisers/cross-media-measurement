@@ -16,7 +16,6 @@ name: "Configure Duchy"
 
 on:
   workflow_call:
-  workflow_dispatch:
     inputs:
       image_tag:
         description: "Image tag needed for configuration"
