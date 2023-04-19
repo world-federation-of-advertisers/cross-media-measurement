@@ -41,6 +41,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotActiv
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementEtagMismatchException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurements
@@ -176,6 +177,8 @@ class SpannerMeasurementsService(
       return BatchDeleteMeasurements(request).execute(client, idGenerator)
     } catch (e: MeasurementNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "Measurement not found." }
+    } catch (e: MeasurementEtagMismatchException) {
+      e.throwStatusRuntimeException(Status.ABORTED) { "Measurement etag mismatch." }
     } catch (e: KingdomInternalException) {
       e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
@@ -203,6 +206,8 @@ class SpannerMeasurementsService(
       return BatchCancelMeasurements(request).execute(client, idGenerator)
     } catch (e: MeasurementNotFoundException) {
       e.throwStatusRuntimeException(Status.NOT_FOUND) { "Measurement not found." }
+    } catch (e: MeasurementEtagMismatchException) {
+      e.throwStatusRuntimeException(Status.ABORTED) { "Measurement etag mismatch." }
     } catch (e: KingdomInternalException) {
       e.throwStatusRuntimeException(Status.INTERNAL) { "Unexpected internal error." }
     }
