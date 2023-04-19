@@ -38,6 +38,7 @@ on:
         description: "Apply the manifest to the cluster"
         required: false
         type: boolean
+    workflow_id: configure_kingdom
 env:
   REGISTRY: ghcr.io
   REPO_PREFIX: 'world-federation-of-advertisers/packages'
