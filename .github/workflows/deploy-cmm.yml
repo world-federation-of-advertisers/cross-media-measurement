@@ -56,7 +56,7 @@ jobs:
     secrets: inherit
     with:
       image_tag: ${{ needs.create-image-tag.outputs.image_tag }}
-      kubectl_apply: false #${{ inputs.kubectl_apply }}
+      kubectl_apply: ${{ inputs.kubectl_apply }}
 
   configure-duchy-1:
     if: inputs.terraform_apply == true
@@ -64,9 +64,9 @@ jobs:
     uses: ./.github/workflows/configure-duchy.yml
     secrets: inherit
     with:
-      duchy_name: worker1 #{{ inputs.duchy_name }}
+      duchy_name: {{ inputs.duchy_name }}
       image_tag: ${{ needs.create-image-tag.outputs.image_tag }}
-      kubectl_apply: false #${{ inputs.kubectl_apply }}
+      kubectl_apply: ${{ inputs.kubectl_apply }}
 
   configure-duchy-2:
     if: inputs.terraform_apply == true
@@ -74,9 +74,9 @@ jobs:
     uses: ./.github/workflows/configure-duchy.yml
     secrets: inherit
     with:
-      duchy_name: worker2 #{{ inputs.duchy_name }}
+      duchy_name: {{ inputs.duchy_name }}
       image_tag: ${{ needs.create-image-tag.outputs.image_tag }}
-      kubectl_apply: false #${{ inputs.kubectl_apply }}
+      kubectl_apply: ${{ inputs.kubectl_apply }}
 
   configure-aggregator:
     if: inputs.terraform_apply == true
@@ -84,6 +84,6 @@ jobs:
     uses: ./.github/workflows/configure-duchy.yml
     secrets: inherit
     with:
-      duchy_name: aggregator #{{ inputs.duchy_name }}
+      duchy_name: {{ inputs.duchy_name }}
       image_tag: ${{ needs.create-image-tag.outputs.image_tag }}
-      kubectl_apply: false #${{ inputs.kubectl_apply }}
+      kubectl_apply: ${{ inputs.kubectl_apply }}
