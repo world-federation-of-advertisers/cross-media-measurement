@@ -71,3 +71,12 @@ resource "kubernetes_role_binding" "internal_server" {
     namespace = "default"
   }
 }
+
+resource "google_service_account_iam_binding" "internal_server" {
+  service_account_id = "kingdom-internal@halo-kingdom-demo.iam.gserviceaccount.com"
+  role               = "roles/iam.workloadIdentityUser"
+
+  members = [
+    "serviceAccount:halo-kingdom-demo.svc.id.goog[default/internal-server]"
+  ]
+}
