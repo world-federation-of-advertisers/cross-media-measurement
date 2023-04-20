@@ -345,12 +345,7 @@ fun DuchyMeasurementLogEntry.toSystemComputationLogEntry(
     .build()
 }
 
-/**
- * Converts an internal NoiseMechanism to a system NoiseMechanism
- *
- * Note: Due to proto update, NoiseMechanism was unspecified for old Measurements internally. Check
- * whether they are NOISE_MECHANISM_UNSPECIFIED before calling the conversion.
- */
+/** Converts an internal NoiseMechanism to a system NoiseMechanism. */
 fun InternalNoiseMechanism.toSystemNoiseMechanism(): NoiseMechanism {
   return when (this) {
     InternalNoiseMechanism.GEOMETRIC -> NoiseMechanism.GEOMETRIC

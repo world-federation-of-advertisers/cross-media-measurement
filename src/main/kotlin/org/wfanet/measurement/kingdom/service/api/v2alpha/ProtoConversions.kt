@@ -135,12 +135,7 @@ fun InternalDifferentialPrivacyParams.toDifferentialPrivacyParams(): Differentia
   }
 }
 
-/**
- * Converts an internal [InternalNoiseMechanism] to a public [NoiseMechanism].
- *
- * Note: Due to proto update, NoiseMechanism was unspecified for old Measurements internally. Check
- * whether they are NOISE_MECHANISM_UNSPECIFIED before calling the conversion.
- */
+/** Converts an internal [InternalNoiseMechanism] to a public [NoiseMechanism]. */
 fun InternalNoiseMechanism.toNoiseMechanism(): NoiseMechanism {
   return when (this) {
     InternalNoiseMechanism.GEOMETRIC -> NoiseMechanism.GEOMETRIC
