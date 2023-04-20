@@ -2965,11 +2965,9 @@ class MetricsServiceTest {
         nextPageToken =
           listMetricsPageToken {
               this.pageSize = pageSize
-              cmmsMeasurementConsumerId =
-                MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
               lastMetric = previousPageEnd {
-                cmmsMeasurementConsumerId =
-                  MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+                cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
                 externalMetricId = INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId
               }
             }
@@ -3060,11 +3058,9 @@ class MetricsServiceTest {
         pageToken =
           listMetricsPageToken {
               this.pageSize = pageSize
-              cmmsMeasurementConsumerId =
-                MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
               lastMetric = previousPageEnd {
-                cmmsMeasurementConsumerId =
-                  MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+                cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
                 externalMetricId = INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId
               }
             }
@@ -3246,11 +3242,9 @@ class MetricsServiceTest {
         pageToken =
           listMetricsPageToken {
               this.pageSize = previousPageSize
-              cmmsMeasurementConsumerId =
-                MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
               lastMetric = previousPageEnd {
-                cmmsMeasurementConsumerId =
-                  MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+                cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
                 externalMetricId = INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId
               }
             }
@@ -3349,11 +3343,9 @@ class MetricsServiceTest {
         pageToken =
           listMetricsPageToken {
               this.pageSize = previousPageSize
-              cmmsMeasurementConsumerId =
-                MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
               lastMetric = previousPageEnd {
-                cmmsMeasurementConsumerId =
-                  MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+                cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
                 externalMetricId = INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId
               }
             }
@@ -3870,8 +3862,7 @@ class MetricsServiceTest {
         listMetricsPageToken {
             cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.last().measurementConsumerId
             lastMetric = previousPageEnd {
-              cmmsMeasurementConsumerId =
-                MEASUREMENT_CONSUMERS.keys.last().measurementConsumerId
+              cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.last().measurementConsumerId
               externalMetricId = INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId
             }
           }
