@@ -109,7 +109,7 @@ import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt as InternalMetr
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineStub as InternalMetricsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2.SetMetricResultRequest
+import org.wfanet.measurement.internal.reporting.v2.SetMetricSucceedRequest
 import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchCreateMetricsRequest as internalBatchCreateMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsRequest
@@ -117,15 +117,15 @@ import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementResultsRequest
-import org.wfanet.measurement.internal.reporting.v2.batchSetMetricFailuresRequest
-import org.wfanet.measurement.internal.reporting.v2.batchSetMetricResultsRequest
+import org.wfanet.measurement.internal.reporting.v2.batchSetMetricFailRequest
+import org.wfanet.measurement.internal.reporting.v2.batchSetMetricSucceedRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest as internalCreateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.measurement as internalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.metric as internalMetric
 import org.wfanet.measurement.internal.reporting.v2.metricResult as internalMetricResult
 import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetricSpec
-import org.wfanet.measurement.internal.reporting.v2.setMetricResultRequest
+import org.wfanet.measurement.internal.reporting.v2.setMetricSucceedRequest
 import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsResponse
@@ -925,7 +925,7 @@ class MetricsService(
     cmmsMeasurementConsumerId: String,
     metrics: List<InternalMetric>
   ): List<InternalMetric> {
-    val setMetricResultRequests = mutableListOf<SetMetricResultRequest>()
+    val setMetricSucceedRequests = mutableListOf<SetMetricSucceedRequest>()
     val failedExternalMetricIds = mutableListOf<Long>()
 
     for (metric in metrics) {
@@ -934,7 +934,7 @@ class MetricsService(
         InternalMetric.State.RUNNING -> {
           val measurements = metric.weightedMeasurementsList.map { it.measurement }
           if (measurements.all { it.state == InternalMeasurement.State.SUCCEEDED }) {
-            setMetricResultRequests += setMetricResultRequest {
+            setMetricSucceedRequests += setMetricSucceedRequest {
               externalMetricId = metric.externalMetricId
               result = buildMetricResult(metric)
             }
@@ -951,14 +951,14 @@ class MetricsService(
 
     val latestMetricsMap = mutableMapOf<Long, InternalMetric>()
 
-    if (setMetricResultRequests.isNotEmpty()) {
+    if (setMetricSucceedRequests.isNotEmpty()) {
       latestMetricsMap +=
         try {
           internalMetricsStub
-            .batchSetMetricResults(
-              batchSetMetricResultsRequest {
+            .batchSetMetricSucceed(
+              batchSetMetricSucceedRequest {
                 this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-                requests += setMetricResultRequests
+                requests += setMetricSucceedRequests
               }
             )
             .metricsList
@@ -972,8 +972,8 @@ class MetricsService(
       latestMetricsMap +=
         try {
           internalMetricsStub
-            .batchSetMetricFailures(
-              batchSetMetricFailuresRequest {
+            .batchSetMetricFail(
+              batchSetMetricFailRequest {
                 this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
                 this.externalMetricIds += failedExternalMetricIds
               }
