@@ -56,7 +56,7 @@ jobs:
     secrets: inherit
     with:
       environment: qa #${{ inputs.environment }}
-      terraform_apply: true #${{ inputs.terraform_apply }}
+      terraform_apply: false #${{ inputs.terraform_apply }}
 
   configure-kingdom:
     if: inputs.terraform_apply == true
@@ -96,4 +96,3 @@ jobs:
       duchy_name: aggregator #{{ inputs.duchy_name }}
       image_tag: ${{ needs.create-image-tag.outputs.image_tag }}
       kubectl_apply: false #${{ inputs.kubectl_apply }}
-

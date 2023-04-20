@@ -32,12 +32,12 @@ resource "google_container_cluster" "worker" {
     resource_limits {
       resource_type = "cpu"
       minimum       = 1
-      maximum       = 8
+      maximum       = 2
     }
     resource_limits {
       resource_type = "memory"
       minimum       = 2
-      maximum       = 16
+      maximum       = 3
     }
   }
 }
