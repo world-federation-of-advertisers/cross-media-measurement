@@ -590,18 +590,21 @@ class MetricsService(
       internalMeasurements: List<InternalMeasurement>,
       apiAuthenticationKey: String,
       principal: MeasurementConsumerPrincipal,
-    ) {
+    ): Boolean {
       val newStateToCmmsMeasurements: Map<Measurement.State, List<Measurement>> =
         getCmmsMeasurements(internalMeasurements, apiAuthenticationKey, principal).groupBy {
           measurement ->
           measurement.state
         }
 
+      var anyUpdate = false
+
       for ((newState, measurementsList) in newStateToCmmsMeasurements) {
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
         when (newState) {
           Measurement.State.SUCCEEDED -> {
             syncSucceededInternalMeasurements(measurementsList, apiAuthenticationKey, principal)
+            anyUpdate = true
           }
           Measurement.State.AWAITING_REQUISITION_FULFILLMENT,
           Measurement.State.COMPUTING -> {} // Do nothing.
@@ -611,12 +614,15 @@ class MetricsService(
               measurementsList,
               principal.resourceKey.measurementConsumerId
             )
+            anyUpdate = true
           }
           Measurement.State.STATE_UNSPECIFIED ->
             error("The CMMS measurement state should've been set.")
           Measurement.State.UNRECOGNIZED -> error("Unrecognized CMMS measurement state.")
         }
       }
+
+      return anyUpdate
     }
 
     /**
@@ -885,7 +891,8 @@ class MetricsService(
         null
       }
 
-    val subResults = results.subList(0, min(results.size, listMetricsPageToken.pageSize))
+    val subResults: List<InternalMetric> =
+      results.subList(0, min(results.size, listMetricsPageToken.pageSize))
 
     // Only syncs pending measurements which can only be in metrics that are still running.
     val toBeSyncedInternalMeasurements: List<InternalMeasurement> =
@@ -897,17 +904,24 @@ class MetricsService(
           internalMeasurement.state == InternalMeasurement.State.PENDING
         }
 
-    measurementSupplier.syncInternalMeasurements(
-      toBeSyncedInternalMeasurements,
-      apiAuthenticationKey,
-      principal,
-    )
-
-    val internalMetrics: List<InternalMetric> =
-      batchGetInternalMetrics(
-        principal.resourceKey.measurementConsumerId,
-        subResults.map { internalMetric -> internalMetric.externalMetricId }
+    val anyMeausrementUpdated: Boolean =
+      measurementSupplier.syncInternalMeasurements(
+        toBeSyncedInternalMeasurements,
+        apiAuthenticationKey,
+        principal,
       )
+
+    // If any measurement got updated, pull the list of the up-to-date internal metrics. Otherwise,
+    // use the original list.
+    val internalMetrics: List<InternalMetric> =
+      if (anyMeausrementUpdated) {
+        batchGetInternalMetrics(
+          principal.resourceKey.measurementConsumerId,
+          subResults.map { internalMetric -> internalMetric.externalMetricId }
+        )
+      } else {
+        subResults
+      }
 
     return listMetricsResponse {
       metrics +=
