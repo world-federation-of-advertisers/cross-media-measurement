@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.kingdom.service.internal
+package org.wfanet.measurement.kingdom.batch
 
 import java.time.Clock
 import java.time.Duration
