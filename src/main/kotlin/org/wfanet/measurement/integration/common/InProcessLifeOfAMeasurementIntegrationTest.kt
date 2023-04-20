@@ -272,6 +272,8 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest {
       frontendSimulator.executeInvalidReachAndFrequency("1234")
     }
 
+  // TODO(@renjiez): Add Multi-round test given the same input to verify correctness.
+
   companion object {
     private val MC_ENTITY_CONTENT: EntityContent = createEntityContent(MC_DISPLAY_NAME)
     private val MC_ENCRYPTION_PRIVATE_KEY: TinkPrivateKeyHandle =

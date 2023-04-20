@@ -401,6 +401,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         Measurement.EXTERNAL_COMPUTATION_ID_FIELD_NUMBER,
         Measurement.CREATE_TIME_FIELD_NUMBER,
         Measurement.UPDATE_TIME_FIELD_NUMBER,
+        Measurement.ETAG_FIELD_NUMBER,
       )
       .isEqualTo(measurement.copy { state = Measurement.State.PENDING_REQUISITION_PARAMS })
   }
@@ -556,6 +557,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         Measurement.EXTERNAL_COMPUTATION_ID_FIELD_NUMBER,
         Measurement.CREATE_TIME_FIELD_NUMBER,
         Measurement.UPDATE_TIME_FIELD_NUMBER,
+        Measurement.ETAG_FIELD_NUMBER,
       )
       .isEqualTo(measurement.copy { state = Measurement.State.PENDING_REQUISITION_FULFILLMENT })
   }
@@ -902,7 +904,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     assertThat(response.updateTime.toInstant())
       .isGreaterThan(createdMeasurement.updateTime.toInstant())
     assertThat(response)
-      .ignoringFields(Measurement.UPDATE_TIME_FIELD_NUMBER)
+      .ignoringFields(Measurement.UPDATE_TIME_FIELD_NUMBER, Measurement.ETAG_FIELD_NUMBER)
       .isEqualTo(
         createdMeasurement.copy {
           state = Measurement.State.SUCCEEDED
@@ -1645,6 +1647,377 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception).hasMessageThat().contains("exceeds limit")
+  }
+  @Test
+  fun `batchDeleteMeasurements deletes Measurements when all etags match`() = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val measurement1 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+    val measurement2 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+    val deleteMeasurementRequest1 = deleteMeasurementRequest {
+      externalMeasurementId = measurement1.externalMeasurementId
+      externalMeasurementConsumerId = measurement1.externalMeasurementConsumerId
+      etag = measurement1.etag
+    }
+
+    val deleteMeasurementRequest2 = deleteMeasurementRequest {
+      externalMeasurementId = measurement2.externalMeasurementId
+      externalMeasurementConsumerId = measurement2.externalMeasurementConsumerId
+      etag = measurement2.etag
+    }
+
+    measurementsService.batchDeleteMeasurements(
+      batchDeleteMeasurementsRequest {
+        requests += listOf(deleteMeasurementRequest1, deleteMeasurementRequest2)
+      }
+    )
+
+    val measurements: List<Measurement> =
+      measurementsService
+        .streamMeasurements(
+          streamMeasurementsRequest {
+            filter = filter {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            }
+          }
+        )
+        .toList()
+
+    assertThat(measurements).isEmpty()
+  }
+
+  @Test
+  fun `batchDeleteMeasurements throws ABORTED when etags do not match`() = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val measurement1 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+
+    val deleteMeasurementRequest1 = deleteMeasurementRequest {
+      externalMeasurementId = measurement1.externalMeasurementId
+      externalMeasurementConsumerId = measurement1.externalMeasurementConsumerId
+      etag = "123"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        measurementsService.batchDeleteMeasurements(
+          batchDeleteMeasurementsRequest { requests += listOf(deleteMeasurementRequest1) }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
+    assertThat(exception).hasMessageThat().contains("Measurement etag mismatch")
+  }
+
+  @Test
+  fun `batchDeleteMeasurements does not delete any Measurements when any etags do not match`():
+    Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val measurement1 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+    val measurement2 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+
+    val deleteMeasurementRequest1 = deleteMeasurementRequest {
+      externalMeasurementId = measurement1.externalMeasurementId
+      externalMeasurementConsumerId = measurement1.externalMeasurementConsumerId
+      etag = measurement1.etag
+    }
+
+    val deleteMeasurementRequest2 = deleteMeasurementRequest {
+      externalMeasurementId = measurement2.externalMeasurementId
+      externalMeasurementConsumerId = measurement2.externalMeasurementConsumerId
+      etag = "123"
+    }
+
+    assertFailsWith<StatusRuntimeException> {
+      measurementsService.batchDeleteMeasurements(
+        batchDeleteMeasurementsRequest {
+          requests += listOf(deleteMeasurementRequest1, deleteMeasurementRequest2)
+        }
+      )
+    }
+
+    val measurements: List<Measurement> =
+      measurementsService
+        .streamMeasurements(
+          streamMeasurementsRequest {
+            filter = filter {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            }
+          }
+        )
+        .toList()
+
+    assertThat(measurements).containsExactly(measurement1, measurement2)
+  }
+
+  @Test
+  fun `batchCancelMeasurements cancels Measurements when all etags match`() = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val measurement1 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+    val measurement2 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+    val cancelMeasurementRequest1 = cancelMeasurementRequest {
+      externalMeasurementId = measurement1.externalMeasurementId
+      externalMeasurementConsumerId = measurement1.externalMeasurementConsumerId
+      etag = measurement1.etag
+    }
+
+    val cancelMeasurementRequest2 = cancelMeasurementRequest {
+      externalMeasurementId = measurement2.externalMeasurementId
+      externalMeasurementConsumerId = measurement2.externalMeasurementConsumerId
+      etag = measurement2.etag
+    }
+
+    val cancelledMeasurements =
+      measurementsService
+        .batchCancelMeasurements(
+          batchCancelMeasurementsRequest {
+            requests += listOf(cancelMeasurementRequest1, cancelMeasurementRequest2)
+          }
+        )
+        .measurementsList
+
+    val cancelledMeasurement1 =
+      measurementsService.getMeasurement(
+        getMeasurementRequest {
+          externalMeasurementConsumerId = measurement1.externalMeasurementConsumerId
+          externalMeasurementId = measurement1.externalMeasurementId
+        }
+      )
+
+    val cancelledMeasurement2 =
+      measurementsService.getMeasurement(
+        getMeasurementRequest {
+          externalMeasurementConsumerId = measurement2.externalMeasurementConsumerId
+          externalMeasurementId = measurement2.externalMeasurementId
+        }
+      )
+
+    assertThat(cancelledMeasurement1.state).isEqualTo(Measurement.State.CANCELLED)
+    assertThat(cancelledMeasurement2.state).isEqualTo(Measurement.State.CANCELLED)
+    assertThat(cancelledMeasurement1.updateTime.toInstant())
+      .isGreaterThan(measurement1.updateTime.toInstant())
+    assertThat(cancelledMeasurement2.updateTime.toInstant())
+      .isGreaterThan(measurement2.updateTime.toInstant())
+    assertThat(cancelledMeasurements)
+      .containsExactly(cancelledMeasurement1, cancelledMeasurement2)
+      .inOrder()
+  }
+
+  @Test
+  fun `batchCancelMeasurements throws ABORTED when etags do not match`() = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val measurement1 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+
+    val cancelMeasurementRequest1 = cancelMeasurementRequest {
+      externalMeasurementId = measurement1.externalMeasurementId
+      externalMeasurementConsumerId = measurement1.externalMeasurementConsumerId
+      etag = "123"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        measurementsService.batchCancelMeasurements(
+          batchCancelMeasurementsRequest { requests += listOf(cancelMeasurementRequest1) }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
+    assertThat(exception).hasMessageThat().contains("Measurement etag mismatch")
+  }
+
+  @Test
+  fun `batchCancelMeasurements does not cancel any Measurements when any etags do not match`():
+    Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val measurement1 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+    val measurement2 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+
+    val cancelMeasurementRequest1 = cancelMeasurementRequest {
+      externalMeasurementId = measurement1.externalMeasurementId
+      externalMeasurementConsumerId = measurement1.externalMeasurementConsumerId
+      etag = measurement1.etag
+    }
+
+    val cancelMeasurementRequest2 = cancelMeasurementRequest {
+      externalMeasurementId = measurement2.externalMeasurementId
+      externalMeasurementConsumerId = measurement2.externalMeasurementConsumerId
+      etag = "123"
+    }
+
+    assertFailsWith<StatusRuntimeException> {
+      measurementsService.batchCancelMeasurements(
+        batchCancelMeasurementsRequest {
+          requests += listOf(cancelMeasurementRequest1, cancelMeasurementRequest2)
+        }
+      )
+    }
+
+    val measurements: List<Measurement> =
+      measurementsService
+        .streamMeasurements(
+          streamMeasurementsRequest {
+            filter = filter {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+            }
+          }
+        )
+        .toList()
+
+    assertThat(measurements).containsExactly(measurement1, measurement2)
+  }
+
+  @Test
+  fun `streamMeasurements respects updated before time`(): Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+
+    val measurement1 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+
+    val measurement2 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+
+    val measurements: List<Measurement> =
+      measurementsService
+        .streamMeasurements(
+          streamMeasurementsRequest { filter = filter { updatedBefore = measurement2.updateTime } }
+        )
+        .toList()
+
+    assertThat(measurements).containsExactly(measurement1)
+  }
+
+  @Test
+  fun `streamMeasurements respects created before time`(): Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+
+    val measurement1 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+
+    val measurement2 =
+      measurementsService.createMeasurement(
+        MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          providedMeasurementId = PROVIDED_MEASUREMENT_ID + 2
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+        }
+      )
+
+    val measurements: List<Measurement> =
+      measurementsService
+        .streamMeasurements(
+          streamMeasurementsRequest { filter = filter { createdBefore = measurement2.createTime } }
+        )
+        .toList()
+
+    assertThat(measurements).containsExactly(measurement1)
   }
 
   companion object {

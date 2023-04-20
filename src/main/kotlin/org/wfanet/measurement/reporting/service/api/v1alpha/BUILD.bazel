@@ -32,10 +32,10 @@ kt_jvm_library(
     name = "event_groups_service",
     srcs = ["EventGroupsService.kt"],
     deps = [
-        ":encryption_key_pair_store",
         ":resource_key",
         "//imports/java/org/projectnessie/cel",
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:encryption_key_pair_store",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:principal_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:reporting_principal",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
@@ -55,7 +55,7 @@ kt_jvm_library(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:encryption_key_pair_store",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api:encryption_key_pair_store",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:principal_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:reporting_principal",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v1alpha:resource_key",
@@ -78,15 +78,6 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
-    ],
-)
-
-kt_jvm_library(
-    name = "encryption_key_pair_store",
-    srcs = ["EncryptionKeyPairStore.kt"],
-    deps = [
-        "//src/main/proto/wfa/measurement/api/v2alpha:crypto_kt_jvm_proto",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
     ],
 )
 

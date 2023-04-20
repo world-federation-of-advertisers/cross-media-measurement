@@ -92,6 +92,7 @@ import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggrega
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage.WAIT_TO_START
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.parameters
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfig
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfigKt.reachNoiseConfig
 import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsSketchParameters
 import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsV2NoiseConfig
@@ -99,6 +100,7 @@ import org.wfanet.measurement.internal.duchy.setContinuationTokenRequest
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.measurement.system.v1alpha.Computation
+import org.wfanet.measurement.system.v1alpha.Computation.MpcProtocolConfig.NoiseMechanism as SystemNoiseMechanism
 import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.liquidLegionsSketchParams
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.mpcNoise
@@ -192,6 +194,7 @@ private val MPC_PROTOCOL_CONFIG = mpcProtocolConfig {
     }
     ellipticCurveId = 415
     maximumFrequency = 10
+    noiseMechanism = SystemNoiseMechanism.GEOMETRIC
   }
 }
 
@@ -441,6 +444,7 @@ class HeraldTest {
                     epsilon = 2.1
                     delta = 2.2
                   }
+                  noiseMechanism = LiquidLegionsV2NoiseConfig.NoiseMechanism.GEOMETRIC
                 }
                 ellipticCurveId = 415
               }
@@ -523,6 +527,7 @@ class HeraldTest {
                   size = 100_000L
                 }
                 noise = liquidLegionsV2NoiseConfig {
+                  noiseMechanism = LiquidLegionsV2NoiseConfig.NoiseMechanism.GEOMETRIC
                   reachNoiseConfig = reachNoiseConfig {
                     blindHistogramNoise = duchyDifferentialPrivacyParams {
                       epsilon = 3.1

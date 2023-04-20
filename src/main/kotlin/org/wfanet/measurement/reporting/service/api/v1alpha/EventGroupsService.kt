@@ -44,6 +44,7 @@ import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptMetadata
+import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v1alpha.EventGroup
 import org.wfanet.measurement.reporting.v1alpha.EventGroupKt.eventTemplate
 import org.wfanet.measurement.reporting.v1alpha.EventGroupKt.metadata
@@ -54,6 +55,10 @@ import org.wfanet.measurement.reporting.v1alpha.eventGroup
 import org.wfanet.measurement.reporting.v1alpha.listEventGroupsResponse
 
 private const val METADATA_FIELD = "metadata.metadata"
+
+private const val MIN_PAGE_SIZE = 1
+private const val DEFAULT_PAGE_SIZE = 50
+private const val MAX_PAGE_SIZE = 1000
 
 class EventGroupsService(
   private val cmmsEventGroupsStub: EventGroupsCoroutineStub,
@@ -82,6 +87,12 @@ class EventGroupsService(
         ?: failGrpc(Status.INVALID_ARGUMENT) { "parent malformed or unspecified" }
     val dataProviderKey = CmmsDataProviderKey(parentKey.dataProviderReferenceId)
     val dataProviderName = dataProviderKey.toName()
+    val pageSize =
+      when {
+        request.pageSize < MIN_PAGE_SIZE -> DEFAULT_PAGE_SIZE
+        request.pageSize > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
+        else -> request.pageSize
+      }
 
     val cmmsListEventGroupResponse =
       try {
@@ -90,7 +101,7 @@ class EventGroupsService(
           .listEventGroups(
             cmmsListEventGroupsRequest {
               parent = dataProviderName
-              pageSize = request.pageSize
+              this.pageSize = pageSize
               pageToken = request.pageToken
               filter = filter { measurementConsumers += principalName }
             }

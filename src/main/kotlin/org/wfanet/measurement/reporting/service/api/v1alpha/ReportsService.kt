@@ -136,6 +136,7 @@ import org.wfanet.measurement.internal.reporting.setMeasurementResultRequest as 
 import org.wfanet.measurement.internal.reporting.streamReportsRequest as streamInternalReportsRequest
 import org.wfanet.measurement.internal.reporting.timeInterval as internalTimeInterval
 import org.wfanet.measurement.internal.reporting.timeIntervals as internalTimeIntervals
+import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v1alpha.CreateReportRequest
 import org.wfanet.measurement.reporting.v1alpha.GetReportRequest
 import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest

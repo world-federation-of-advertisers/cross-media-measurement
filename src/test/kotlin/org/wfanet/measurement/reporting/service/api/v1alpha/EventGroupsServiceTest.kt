@@ -65,10 +65,13 @@ import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.dataprovider.encryptMetadata
+import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v1alpha.EventGroupKt.metadata
 import org.wfanet.measurement.reporting.v1alpha.eventGroup
 import org.wfanet.measurement.reporting.v1alpha.listEventGroupsRequest
 import org.wfanet.measurement.reporting.v1alpha.listEventGroupsResponse
+
+private const val DEFAULT_PAGE_SIZE = 50
 
 private const val API_AUTHENTICATION_KEY = "nR5QPN7ptx"
 private val CONFIG = measurementConsumerConfig { apiKey = API_AUTHENTICATION_KEY }
@@ -302,7 +305,7 @@ class EventGroupsServiceTest {
 
     val expectedCmmsEventGroupsRequest = cmmsListEventGroupsRequest {
       parent = DATA_PROVIDER_NAME
-      pageSize = 0
+      pageSize = DEFAULT_PAGE_SIZE
       pageToken = PAGE_TOKEN
       filter = ListEventGroupsRequestKt.filter { measurementConsumers += MEASUREMENT_CONSUMER_NAME }
     }

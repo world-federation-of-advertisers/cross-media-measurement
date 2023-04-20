@@ -36,11 +36,13 @@ import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggrega
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.ComputationDetails.Parameters
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2.Stage
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2Kt.ComputationDetailsKt.parameters
+import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfig.NoiseMechanism
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsV2NoiseConfigKt.reachNoiseConfig
 import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsSketchParameters
 import org.wfanet.measurement.internal.duchy.protocol.liquidLegionsV2NoiseConfig
 import org.wfanet.measurement.internal.duchy.updateComputationDetailsRequest
 import org.wfanet.measurement.system.v1alpha.Computation
+import org.wfanet.measurement.system.v1alpha.Computation.MpcProtocolConfig.NoiseMechanism as SystemNoiseMechanism
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant as SystemComputationParticipant
 
 private const val MIN_REACH_EPSILON = 0.00001
@@ -278,6 +280,15 @@ object LiquidLegionsV2Starter {
       .build()
   }
 
+  private fun SystemNoiseMechanism.toInternalNoiseMechanism(): NoiseMechanism {
+    return when (this) {
+      SystemNoiseMechanism.GEOMETRIC -> NoiseMechanism.GEOMETRIC
+      SystemNoiseMechanism.DISCRETE_GAUSSIAN -> NoiseMechanism.DISCRETE_GAUSSIAN
+      SystemNoiseMechanism.UNRECOGNIZED,
+      SystemNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED -> error("Invalid system NoiseMechanism")
+    }
+  }
+
   /** Creates a liquid legions v2 `Parameters` from the system Api computation. */
   private fun Computation.toLiquidLegionsV2Parameters(): Parameters {
     require(mpcProtocolConfig.hasLiquidLegionsV2()) {
@@ -293,6 +304,7 @@ object LiquidLegionsV2Starter {
       }
       ellipticCurveId = llv2Config.ellipticCurveId
       noise = liquidLegionsV2NoiseConfig {
+        noiseMechanism = mpcProtocolConfig.liquidLegionsV2.noiseMechanism.toInternalNoiseMechanism()
         reachNoiseConfig = reachNoiseConfig {
           val mpcNoise = llv2Config.mpcNoise
           blindHistogramNoise = mpcNoise.blindedHistogramNoise.toDuchyDifferentialPrivacyParams()
@@ -302,7 +314,6 @@ object LiquidLegionsV2Starter {
           when (Version.fromString(publicApiVersion)) {
             Version.V2_ALPHA -> {
               val measurementSpec = MeasurementSpec.parseFrom(measurementSpec)
-
               @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
               when (measurementSpec.measurementTypeCase) {
                 MeasurementSpec.MeasurementTypeCase.REACH -> {
