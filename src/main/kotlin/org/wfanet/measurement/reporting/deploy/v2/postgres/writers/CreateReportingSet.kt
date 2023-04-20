@@ -183,10 +183,12 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
     val eventGroupBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
 
     cmmsEventGroupKeys.forEach {
-      eventGroupMap.computeIfAbsent(ReportingSetKt.PrimitiveKt.eventGroupKey {
-        cmmsDataProviderId = it.cmmsDataProviderId
-        cmmsEventGroupId = it.cmmsEventGroupId
-      }) {
+      eventGroupMap.computeIfAbsent(
+        ReportingSetKt.PrimitiveKt.eventGroupKey {
+          cmmsDataProviderId = it.cmmsDataProviderId
+          cmmsEventGroupId = it.cmmsEventGroupId
+        }
+      ) {
         val id = idGenerator.generateInternalId()
         eventGroupBinders.add {
           bind("$1", measurementConsumerId)
