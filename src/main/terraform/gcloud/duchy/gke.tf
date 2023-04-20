@@ -41,7 +41,7 @@ resource "google_container_cluster" "worker" {
     }
     auto_provisioning_defaults {
       disk_size = 10
-      disk_type = 'pd-standard'
+      disk_type = "pd-standard"
     }
   }
 }
