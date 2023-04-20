@@ -183,12 +183,10 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
     val eventGroupBinders = mutableListOf<BoundStatement.Binder.() -> Unit>()
 
     cmmsEventGroupKeys.forEach {
-      val primitiveReportingSetEventGroupKey =
-        ReportingSetKt.PrimitiveKt.eventGroupKey {
-          cmmsDataProviderId = it.cmmsDataProviderId
-          cmmsEventGroupId = it.cmmsEventGroupId
-        }
-      eventGroupMap.computeIfAbsent(primitiveReportingSetEventGroupKey) {
+      eventGroupMap.computeIfAbsent(ReportingSetKt.PrimitiveKt.eventGroupKey {
+        cmmsDataProviderId = it.cmmsDataProviderId
+        cmmsEventGroupId = it.cmmsEventGroupId
+      }) {
         val id = idGenerator.generateInternalId()
         eventGroupBinders.add {
           bind("$1", measurementConsumerId)
@@ -221,18 +219,11 @@ class CreateReportingSet(private val reportingSet: ReportingSet) : PostgresWrite
             VALUES ($1, $2, $3)
             """
       ) {
-        cmmsEventGroupKeys.forEach {
-          val eventGroupId: InternalId? =
-            eventGroupMap[
-              ReportingSetKt.PrimitiveKt.eventGroupKey {
-                cmmsDataProviderId = it.cmmsDataProviderId
-                cmmsEventGroupId = it.cmmsEventGroupId
-              }]
-
+        eventGroupMap.values.forEach {
           addBinding {
             bind("$1", measurementConsumerId)
             bind("$2", reportingSetId)
-            bind("$3", eventGroupId)
+            bind("$3", it)
           }
         }
       }
