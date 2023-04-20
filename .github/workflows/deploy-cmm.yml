@@ -46,8 +46,8 @@ jobs:
     uses: ./.github/workflows/create-cmm-infra.yml
     secrets: inherit
     with:
-      environment: qa #${{ inputs.environment }}
-      terraform_apply: true #${{ inputs.terraform_apply }}
+      environment: ${{ inputs.environment }}
+      terraform_apply: ${{ inputs.terraform_apply }}
 
   configure-kingdom:
     if: inputs.terraform_apply == true
