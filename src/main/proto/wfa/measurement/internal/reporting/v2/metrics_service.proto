@@ -30,6 +30,7 @@ service Metrics {
 
   rpc BatchGetMetrics(BatchGetMetricsRequest) returns (BatchGetMetricsResponse);
 
+  // Ordered by (cmms_measurement_consumer_id, external_metric_id).
   rpc StreamMetrics(StreamMetricsRequest) returns (stream Metric);
 
   rpc BatchSetMetricResults(BatchSetMetricResultsRequest)
