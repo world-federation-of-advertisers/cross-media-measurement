@@ -24,7 +24,7 @@ resource "google_container_cluster" "worker" {
   location = local.zone
   initial_node_count = local.duchy.cluster_node_count
   database_encryption {
-    key_name = "projects/${local.project}/locations/${local.zone}/keyRings/test-key-ring/cryptoKeys/k8s-secret"
+    key_name = "projects/${local.project}/locations/${local.zone}/keyRings/test-key-ring/k8s-secret"
     state = "ENCRYPTED"
   }
   cluster_autoscaling {
