@@ -44,19 +44,6 @@ resource "google_project_iam_binding" "gke_sa_iam_binding" {
   ]
 }
 
-resource "google_project_iam_member" "spanner_access" {
-  project = local.project
-  role    = "roles/spanner.databaseUser"
-  member  = "serviceAccount:${google_service_account.kingdom_internal.email}"
-}
-resource "google_spanner_database_iam_binding" "database_iam_binding" {
-  project    = local.project
-  instance   = google_spanner_instance.halo_spanner_db.name
-  database   = google_spanner_database.database.name
-  role       = "roles/spanner.databaseUser"
-  members    = [ "serviceAccount:${google_service_account.kingdom_internal.email}" ]
-}
-
 # Create Kubernetes service account
 resource "kubernetes_service_account" "internal_server" {
   metadata {
