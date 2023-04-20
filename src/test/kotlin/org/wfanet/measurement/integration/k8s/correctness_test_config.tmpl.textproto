@@ -1,0 +1,6 @@
+# proto-file: src/main/proto/wfa/measurement/integration/k8s/testing/correctness_test_config.proto
+# proto-message: CorrectnessTestConfig
+kingdom_public_api_target: "{kingdom_public_api_target}"
+kingdom_public_api_cert_host: "{kingdom_public_api_cert_host}"
+measurement_consumer: "{mc_name}"
+api_authentication_key: "{mc_api_key}"

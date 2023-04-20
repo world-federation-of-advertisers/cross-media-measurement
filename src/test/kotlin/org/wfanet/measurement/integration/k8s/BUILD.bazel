@@ -1,5 +1,7 @@
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 load("@rules_java//java:defs.bzl", "java_test")
+load("@wfa_common_jvm//build:defs.bzl", "expand_template")
+load("//build:variables.bzl", "TEST_K8S_SETTINGS")
 
 package(default_testonly = True)
 
@@ -45,6 +47,46 @@ kt_jvm_library(
     ],
 )
 
+kt_jvm_library(
+    name = "forwarded_storage_correctness_test",
+    srcs = ["ForwardedStorageCorrectnessTest.kt"],
+    deps = [
+        ":abstract_correctness_test",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/config:event_filters",
+        "//src/main/proto/wfa/measurement/integration/k8s/testing:correctness_test_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/integration/k8s/testing:forwarded_storage_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/forwarded",
+    ],
+)
+
+expand_template(
+    name = "gen_correctness_test_config",
+    out = "correctness_test_config.textproto",
+    substitutions = {
+        "{kingdom_public_api_target}": "$(kingdom_public_api_target)",
+        "{kingdom_public_api_cert_host}": "localhost",
+        "{mc_name}": TEST_K8S_SETTINGS.mc_name,
+        "{mc_api_key}": TEST_K8S_SETTINGS.mc_api_key,
+    },
+    tags = ["manual"],
+    template = "correctness_test_config.tmpl.textproto",
+)
+
+expand_template(
+    name = "gen_forwarded_storage_config",
+    out = "forwarded_storage_config.textproto",
+    substitutions = {
+        "{forwarded_storage_api_target}": "$(forwarded_storage_api_target)",
+        "{forwarded_storage_api_cert_host}": "localhost",
+    },
+    tags = ["manual"],
+    template = "forwarded_storage_config.tmpl.textproto",
+)
+
 java_test(
     name = "EmptyClusterCorrectnessTest",
     size = "enormous",
@@ -64,4 +106,16 @@ java_test(
     ],
     test_class = "org.wfanet.measurement.integration.k8s.EmptyClusterCorrectnessTest",
     runtime_deps = [":empty_cluster_correctness_test"],
+)
+
+java_test(
+    name = "ForwardedStorageCorrectnessTest",
+    timeout = "long",
+    data = [
+        ":correctness_test_config.textproto",
+        ":forwarded_storage_config.textproto",
+    ],
+    tags = ["manual"],
+    test_class = "org.wfanet.measurement.integration.k8s.ForwardedStorageCorrectnessTest",
+    runtime_deps = [":forwarded_storage_correctness_test"],
 )
