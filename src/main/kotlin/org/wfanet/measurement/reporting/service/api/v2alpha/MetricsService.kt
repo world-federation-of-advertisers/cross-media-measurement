@@ -904,7 +904,7 @@ class MetricsService(
           internalMeasurement.state == InternalMeasurement.State.PENDING
         }
 
-    val anyMeausrementUpdated: Boolean =
+    val anyMeasurementUpdated: Boolean =
       measurementSupplier.syncInternalMeasurements(
         toBeSyncedInternalMeasurements,
         apiAuthenticationKey,
@@ -914,7 +914,7 @@ class MetricsService(
     // If any measurement got updated, pull the list of the up-to-date internal metrics. Otherwise,
     // use the original list.
     val internalMetrics: List<InternalMetric> =
-      if (anyMeausrementUpdated) {
+      if (anyMeasurementUpdated) {
         batchGetInternalMetrics(
           principal.resourceKey.measurementConsumerId,
           subResults.map { internalMetric -> internalMetric.externalMetricId }
