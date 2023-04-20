@@ -687,7 +687,7 @@ class MetricsService(
       }
     }
 
-    /** Gets a map of [Measurement.State] to a list of [Measurement]s. */
+    /** Retrieves [Measurement]s from the CMMS. */
     private suspend fun getCmmsMeasurements(
       internalMeasurements: List<InternalMeasurement>,
       apiAuthenticationKey: String,
@@ -881,7 +881,9 @@ class MetricsService(
             externalMetricId = results[results.lastIndex - 1].externalMetricId
           }
         }
-      } else null
+      } else {
+        null
+      }
 
     val subResults = results.subList(0, min(results.size, listMetricsPageToken.pageSize))
 
