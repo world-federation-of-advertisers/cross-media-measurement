@@ -83,9 +83,9 @@ message ListReportsPageToken {
 
 message ListMetricsPageToken {
   int32 page_size = 1;
-  string external_measurement_consumer_id = 2;
+  string cmms_measurement_consumer_id = 2;
   message PreviousPageEnd {
-    string external_measurement_consumer_id = 1;
+    string cmms_measurement_consumer_id = 1;
     fixed64 external_metric_id = 2;
   }
   PreviousPageEnd last_metric = 3;

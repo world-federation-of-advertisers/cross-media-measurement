@@ -877,7 +877,7 @@ class MetricsService(
       if (results.size > listMetricsPageToken.pageSize) {
         listMetricsPageToken.copy {
           lastMetric = previousPageEnd {
-            externalMeasurementConsumerId = results[results.lastIndex - 1].cmmsMeasurementConsumerId
+            cmmsMeasurementConsumerId = results[results.lastIndex - 1].cmmsMeasurementConsumerId
             externalMetricId = results[results.lastIndex - 1].externalMetricId
           }
         }
@@ -1507,7 +1507,7 @@ fun ListMetricsRequest.toListMetricsPageToken(): ListMetricsPageToken {
 
   return if (pageToken.isNotBlank()) {
     ListMetricsPageToken.parseFrom(source.pageToken.base64UrlDecode()).copy {
-      grpcRequire(this.externalMeasurementConsumerId == cmmsMeasurementConsumerId) {
+      grpcRequire(this.cmmsMeasurementConsumerId == cmmsMeasurementConsumerId) {
         "Arguments must be kept the same when using a page token."
       }
 
@@ -1523,7 +1523,7 @@ fun ListMetricsRequest.toListMetricsPageToken(): ListMetricsPageToken {
           source.pageSize > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
           else -> source.pageSize
         }
-      this.externalMeasurementConsumerId = cmmsMeasurementConsumerId
+      this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
     }
   }
 }

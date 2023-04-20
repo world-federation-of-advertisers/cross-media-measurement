@@ -2965,10 +2965,10 @@ class MetricsServiceTest {
         nextPageToken =
           listMetricsPageToken {
               this.pageSize = pageSize
-              externalMeasurementConsumerId =
+              cmmsMeasurementConsumerId =
                 MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
               lastMetric = previousPageEnd {
-                externalMeasurementConsumerId =
+                cmmsMeasurementConsumerId =
                   MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
                 externalMetricId = INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId
               }
@@ -3060,10 +3060,10 @@ class MetricsServiceTest {
         pageToken =
           listMetricsPageToken {
               this.pageSize = pageSize
-              externalMeasurementConsumerId =
+              cmmsMeasurementConsumerId =
                 MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
               lastMetric = previousPageEnd {
-                externalMeasurementConsumerId =
+                cmmsMeasurementConsumerId =
                   MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
                 externalMetricId = INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId
               }
@@ -3246,10 +3246,10 @@ class MetricsServiceTest {
         pageToken =
           listMetricsPageToken {
               this.pageSize = previousPageSize
-              externalMeasurementConsumerId =
+              cmmsMeasurementConsumerId =
                 MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
               lastMetric = previousPageEnd {
-                externalMeasurementConsumerId =
+                cmmsMeasurementConsumerId =
                   MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
                 externalMetricId = INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId
               }
@@ -3349,10 +3349,10 @@ class MetricsServiceTest {
         pageToken =
           listMetricsPageToken {
               this.pageSize = previousPageSize
-              externalMeasurementConsumerId =
+              cmmsMeasurementConsumerId =
                 MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
               lastMetric = previousPageEnd {
-                externalMeasurementConsumerId =
+                cmmsMeasurementConsumerId =
                   MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
                 externalMetricId = INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId
               }
@@ -3868,9 +3868,9 @@ class MetricsServiceTest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
       pageToken =
         listMetricsPageToken {
-            externalMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.last().measurementConsumerId
+            cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.last().measurementConsumerId
             lastMetric = previousPageEnd {
-              externalMeasurementConsumerId =
+              cmmsMeasurementConsumerId =
                 MEASUREMENT_CONSUMERS.keys.last().measurementConsumerId
               externalMetricId = INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId
             }

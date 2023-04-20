@@ -375,7 +375,7 @@ fun ListMetricsPageToken.toStreamMetricsRequest(): StreamMetricsRequest {
     limit = source.pageSize + 1
     filter =
       StreamMetricsRequestKt.filter {
-        cmmsMeasurementConsumerId = source.externalMeasurementConsumerId
+        cmmsMeasurementConsumerId = source.cmmsMeasurementConsumerId
         externalMetricIdAfter = source.lastMetric.externalMetricId
       }
   }
