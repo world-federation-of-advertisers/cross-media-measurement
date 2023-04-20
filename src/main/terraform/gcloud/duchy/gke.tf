@@ -28,7 +28,17 @@ resource "google_container_cluster" "worker" {
   #  state = "ENCRYPTED"
   #}
   cluster_autoscaling {
-    enabled = true
+    enabled = local.duchy.auto_scaling
+    resource_limits {
+      resource_type = "cpu"
+      minimum       = 1
+      maximum       = 8
+    }
+    resource_limits {
+      resource_type = "memory"
+      minimum       = 2
+      maximum       = 16
+    }
   }
 }
 
@@ -51,4 +61,5 @@ resource "google_container_node_pool" "duchy_node_pool"{
       "https://www.googleapis.com/auth/cloud-platform"
     ]
   }
-}
+  }
+
