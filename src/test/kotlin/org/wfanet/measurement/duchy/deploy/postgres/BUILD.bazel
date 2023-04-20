@@ -6,9 +6,9 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.duchy.deploy.postgres.DuchySchemaTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/postgres/testing",
-        "@wfa_common_jvm//imports/java/org/junit",
-        "@wfa_common_jvm//imports/java/com/opentable/db/postgres:pg_embedded",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:embedded_postgres",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/opentable/db/postgres:pg_embedded",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:embedded_postgres",
     ],
 )
