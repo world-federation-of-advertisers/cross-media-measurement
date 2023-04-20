@@ -33,11 +33,11 @@ service Metrics {
   // Ordered by (cmms_measurement_consumer_id, external_metric_id).
   rpc StreamMetrics(StreamMetricsRequest) returns (stream Metric);
 
-  rpc BatchSetMetricResults(BatchSetMetricResultsRequest)
-      returns (BatchSetMetricResultsResponse);
+  rpc BatchSetMetricSucceed(BatchSetMetricSucceedRequest)
+      returns (BatchSetMetricSucceedResponse);
 
-  rpc BatchSetMetricFailures(BatchSetMetricFailuresRequest)
-      returns (BatchSetMetricFailuresResponse);
+  rpc BatchSetMetricFail(BatchSetMetricFailRequest)
+      returns (BatchSetMetricFailResponse);
 }
 
 message CreateMetricRequest {
@@ -81,24 +81,24 @@ message StreamMetricsRequest {
   int32 limit = 2;
 }
 
-message SetMetricResultRequest {
+message SetMetricSucceedRequest {
   fixed64 external_metric_id = 1;
   MetricResult result = 2;
 }
 
-message BatchSetMetricResultsRequest {
+message BatchSetMetricSucceedRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
   string cmms_measurement_consumer_id = 1;
 
   // Maximum is 1000.
-  repeated SetMetricResultRequest requests = 2;
+  repeated SetMetricSucceedRequest requests = 2;
 }
 
-message BatchSetMetricResultsResponse {
+message BatchSetMetricSucceedResponse {
   repeated Metric metrics = 1;
 }
 
-message BatchSetMetricFailuresRequest {
+message BatchSetMetricFailRequest {
   // `MeasurementConsumer` ID from the CMMS public API.
   string cmms_measurement_consumer_id = 1;
 
@@ -106,6 +106,6 @@ message BatchSetMetricFailuresRequest {
   repeated fixed64 external_metric_ids = 2;
 }
 
-message BatchSetMetricFailuresResponse {
+message BatchSetMetricFailResponse {
   repeated Metric metrics = 1;
 }
