@@ -129,7 +129,6 @@ import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRe
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequestKt.measurementResult
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMetricFailuresRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMetricResultsRequest
-import org.wfanet.measurement.internal.reporting.v2.BatchSetMetricResultsRequestKt.setMetricResultRequest
 import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.MeasurementKt as InternalMeasurementKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt as InternalMeasurementsGrpcKt
@@ -171,6 +170,7 @@ import org.wfanet.measurement.internal.reporting.v2.metric as internalMetric
 import org.wfanet.measurement.internal.reporting.v2.metricResult as internalMetricResult
 import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
+import org.wfanet.measurement.internal.reporting.v2.setMetricResultRequest
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeInterval as internalTimeInterval
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore

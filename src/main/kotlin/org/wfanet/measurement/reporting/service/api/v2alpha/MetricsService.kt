@@ -94,8 +94,6 @@ import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRe
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequestKt.measurementIds
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequestKt.measurementFailure
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequestKt.measurementResult
-import org.wfanet.measurement.internal.reporting.v2.BatchSetMetricResultsRequest
-import org.wfanet.measurement.internal.reporting.v2.BatchSetMetricResultsRequestKt.setMetricResultRequest
 import org.wfanet.measurement.internal.reporting.v2.CreateMetricRequest as InternalCreateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.MeasurementKt as InternalMeasurementKt
@@ -111,6 +109,7 @@ import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt as InternalMetr
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineStub as InternalMetricsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.SetMetricResultRequest
 import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchCreateMetricsRequest as internalBatchCreateMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsRequest
@@ -126,6 +125,7 @@ import org.wfanet.measurement.internal.reporting.v2.measurement as internalMeasu
 import org.wfanet.measurement.internal.reporting.v2.metric as internalMetric
 import org.wfanet.measurement.internal.reporting.v2.metricResult as internalMetricResult
 import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetricSpec
+import org.wfanet.measurement.internal.reporting.v2.setMetricResultRequest
 import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsResponse
@@ -925,8 +925,7 @@ class MetricsService(
     cmmsMeasurementConsumerId: String,
     metrics: List<InternalMetric>
   ): List<InternalMetric> {
-    val setMetricResultRequests =
-      mutableListOf<BatchSetMetricResultsRequest.SetMetricResultRequest>()
+    val setMetricResultRequests = mutableListOf<SetMetricResultRequest>()
     val failedExternalMetricIds = mutableListOf<Long>()
 
     for (metric in metrics) {
