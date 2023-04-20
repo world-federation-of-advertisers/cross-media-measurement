@@ -31,9 +31,7 @@ class DuchySchemaTest {
 
   private fun translate(row: ResultRow): String = row["table_name"]
 
-  @Test
-  fun `database is created`() {
-  }
+  @Test fun `database is created`() {}
 
   @Test
   fun `all duchy tables are created`(): Unit = runBlocking {
@@ -46,7 +44,7 @@ class DuchySchemaTest {
         "computationblobreferences",
         "computationstageattempts",
         "computationstats",
-        "heraldcontinuationtokens"
+        "heraldcontinuationtokens",
       )
 
     val resList = mutableListOf<String>()
