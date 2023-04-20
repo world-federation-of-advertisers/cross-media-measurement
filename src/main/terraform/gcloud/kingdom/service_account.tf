@@ -57,11 +57,30 @@ resource "google_spanner_database_iam_binding" "database_iam_binding" {
   members    = [ "serviceAccount:${google_service_account.kingdom_internal.email}" ]
 }
 
+# Create Kubernetes service account
 resource "kubernetes_service_account" "internal_server" {
   metadata {
     name = "internal-server"
-    annotations = {
-      "iam.gke.io/gcp-service-account" = "${google_service_account.kingdom_internal.email}"
-    }
+  }
+
+  automount_service_account_token = false
+}
+
+# Create Kubernetes role binding to grant necessary permissions to service account
+resource "kubernetes_role_binding" "internal_server" {
+  metadata {
+    name = "internal-server"
+  }
+
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "ClusterRole"
+    name      = "cluster-admin"
+  }
+
+  subject {
+    kind      = "ServiceAccount"
+    name      = kubernetes_service_account.internal_server.metadata.0.name
+    namespace = "default"
   }
 }
