@@ -39,6 +39,10 @@ resource "google_container_cluster" "worker" {
       minimum       = 2
       maximum       = 3
     }
+    auto_provisioning_defaults {
+      disk_size = 10
+      disk_type = 'pd-standard'
+    }
   }
 }
 
