@@ -15,8 +15,6 @@
 name: Deploy CMM
 
 on:
-  push:
-    branches: [ feature/cmm-orchestrator ]
   workflow_dispatch:
     inputs:
       terraform_version:
@@ -39,13 +37,6 @@ on:
 env:
   ROOT_PATH: '${{ github.workspace }}/src/main/terraform/gcloud'
   PROJECT: 'halo-cmm'
-
-# needed to inject $ACTIONS_ID_TOKEN_REQUEST_TOKEN
-# which is inturn used to log into google cloud.
-permissions:
-  contents: 'read'
-  id-token: 'write'
-  packages: 'write'
 
 jobs:
   create-image-tag:

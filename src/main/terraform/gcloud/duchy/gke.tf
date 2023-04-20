@@ -66,4 +66,3 @@ resource "google_container_node_pool" "duchy_node_pool"{
     ]
   }
   }
-
