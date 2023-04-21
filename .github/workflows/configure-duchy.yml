@@ -15,6 +15,20 @@
 name: "Configure Duchy"
 
 on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag needed for configuration"
+        type: string
+        required: true
+      duchy_name:
+        description: "The name of the Duchy to build"
+        required: true
+        type: string
+      kubectl_apply:
+        description: "Apply the manifest to the cluster"
+        required: false
+        type: boolean
   workflow_call:
     inputs:
       image_tag:

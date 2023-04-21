@@ -15,7 +15,16 @@
 name: "Configure Kingdom"
 
 on:
-  # TODO(wfa-siyengar): to detail the workflow_call.
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag needed for configuration"
+        type: string
+        required: true
+      kubectl_apply:
+        description: "Apply the manifest to the cluster"
+        required: false
+        type: boolean
   workflow_call:
     inputs:
       image_tag:
