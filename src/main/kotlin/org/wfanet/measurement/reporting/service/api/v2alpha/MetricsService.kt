@@ -699,17 +699,14 @@ class MetricsService(
       apiAuthenticationKey: String,
       principal: MeasurementConsumerPrincipal,
     ): List<Measurement> = coroutineScope {
-      val deferred = mutableListOf<Deferred<Measurement>>()
-
-      for (internalMeasurement in internalMeasurements) {
-        val measurementResourceName =
-          MeasurementKey(
-              principal.resourceKey.measurementConsumerId,
-              internalMeasurement.cmmsMeasurementId
-            )
-            .toName()
-
-        deferred.add(
+      val deferred =
+        internalMeasurements.map { internalMeasurement ->
+          val measurementResourceName =
+            MeasurementKey(
+                principal.resourceKey.measurementConsumerId,
+                internalMeasurement.cmmsMeasurementId
+              )
+              .toName()
           async {
             try {
               measurementsStub
@@ -719,8 +716,7 @@ class MetricsService(
               throw Exception("Unable to retrieve the measurement [$measurementResourceName].", e)
             }
           }
-        )
-      }
+        }
 
       deferred.awaitAll()
     }
