@@ -128,16 +128,12 @@ import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresR
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequestKt.measurementFailure
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequestKt.measurementResult
-import org.wfanet.measurement.internal.reporting.v2.BatchSetMetricFailRequest
-import org.wfanet.measurement.internal.reporting.v2.BatchSetMetricSucceedRequest
 import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.MeasurementKt as InternalMeasurementKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt as InternalMeasurementsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as InternalMeasurementsCoroutineImplBase
-import org.wfanet.measurement.internal.reporting.v2.Metric as InternalMetric
 import org.wfanet.measurement.internal.reporting.v2.MetricKt as InternalMetricKt
 import org.wfanet.measurement.internal.reporting.v2.MetricKt.weightedMeasurement
-import org.wfanet.measurement.internal.reporting.v2.MetricResultKt as InternalMetricResultKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt as InternalMetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt as InternalMetricsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineImplBase
@@ -160,18 +156,12 @@ import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsRe
 import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementResultsRequest
-import org.wfanet.measurement.internal.reporting.v2.batchSetMetricFailRequest
-import org.wfanet.measurement.internal.reporting.v2.batchSetMetricFailResponse
-import org.wfanet.measurement.internal.reporting.v2.batchSetMetricSucceedRequest
-import org.wfanet.measurement.internal.reporting.v2.batchSetMetricSucceedResponse
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest as internalCreateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.measurement as internalMeasurement
 import org.wfanet.measurement.internal.reporting.v2.metric as internalMetric
-import org.wfanet.measurement.internal.reporting.v2.metricResult as internalMetricResult
 import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
-import org.wfanet.measurement.internal.reporting.v2.setMetricSucceedRequest
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeInterval as internalTimeInterval
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
@@ -917,7 +907,6 @@ private val INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC =
           clearCmmsMeasurementId()
         }
     }
-    state = InternalMetric.State.RUNNING
   }
 
 private val INTERNAL_PENDING_INCREMENTAL_REACH_METRIC =
@@ -935,14 +924,29 @@ private val INTERNAL_PENDING_INCREMENTAL_REACH_METRIC =
 
 private val INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC =
   INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.copy {
-    state = InternalMetric.State.SUCCEEDED
-    details =
-      InternalMetricKt.details {
-        filters += this@copy.details.filtersList
-        result = internalMetricResult {
-          reach = InternalMetricResultKt.reachResult { value = INCREMENTAL_REACH_VALUE }
+    details = InternalMetricKt.details { filters += this@copy.details.filtersList }
+    weightedMeasurements.clear()
+    weightedMeasurements += weightedMeasurement {
+      weight = 1
+      measurement = INTERNAL_SUCCEEDED_UNION_ALL_REACH_MEASUREMENT
+    }
+    weightedMeasurements += weightedMeasurement {
+      weight = -1
+      measurement =
+        INTERNAL_PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.copy {
+          state = InternalMeasurement.State.SUCCEEDED
+          details =
+            InternalMeasurementKt.details {
+              result =
+                InternalMeasurementKt.result {
+                  reach =
+                    InternalMeasurementKt.ResultKt.reach {
+                      value = UNION_ALL_BUT_LAST_PUBLISHER_REACH_VALUE
+                    }
+                }
+            }
         }
-      }
+    }
   }
 
 // Internal Single publisher Metrics
@@ -988,7 +992,6 @@ private val INTERNAL_PENDING_INITIAL_SINGLE_PUBLISHER_IMPRESSION_METRIC =
       measurement =
         INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy { clearCmmsMeasurementId() }
     }
-    state = InternalMetric.State.RUNNING
   }
 
 private val INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC =
@@ -1103,24 +1106,6 @@ class MetricsServiceTest {
         internalBatchGetMetricsResponse {
           metrics += INTERNAL_PENDING_INCREMENTAL_REACH_METRIC
           metrics += INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
-        }
-      )
-    onBlocking { batchSetMetricSucceed(any()) }
-      .thenReturn(
-        batchSetMetricSucceedResponse { metrics += INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC }
-      )
-    onBlocking { batchSetMetricFail(any()) }
-      .thenReturn(
-        batchSetMetricFailResponse {
-          metrics +=
-            INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
-              state = InternalMetric.State.FAILED
-              weightedMeasurements.clear()
-              weightedMeasurements += weightedMeasurement {
-                weight = 1
-                measurement = INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
-              }
-            }
         }
       )
   }
@@ -2920,19 +2905,6 @@ class MetricsServiceTest {
       batchGetMetrics(batchGetMetricsCaptor.capture())
     }
 
-    // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricSucceed
-    val batchSetMetricSucceedCaptor: KArgumentCaptor<BatchSetMetricSucceedRequest> =
-      argumentCaptor()
-    verifyBlocking(internalMetricsMock, never()) {
-      batchSetMetricSucceed(batchSetMetricSucceedCaptor.capture())
-    }
-
-    // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricFail
-    val batchSetMetricFailCaptor: KArgumentCaptor<BatchSetMetricFailRequest> = argumentCaptor()
-    verifyBlocking(internalMetricsMock, never()) {
-      batchSetMetricFail(batchSetMetricFailCaptor.capture())
-    }
-
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
 
@@ -3013,19 +2985,6 @@ class MetricsServiceTest {
       val batchGetMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> = argumentCaptor()
       verifyBlocking(internalMetricsMock, never()) {
         batchGetMetrics(batchGetMetricsCaptor.capture())
-      }
-
-      // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricSucceed
-      val batchSetMetricSucceedCaptor: KArgumentCaptor<BatchSetMetricSucceedRequest> =
-        argumentCaptor()
-      verifyBlocking(internalMetricsMock, never()) {
-        batchSetMetricSucceed(batchSetMetricSucceedCaptor.capture())
-      }
-
-      // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricFail
-      val batchSetMetricFailCaptor: KArgumentCaptor<BatchSetMetricFailRequest> = argumentCaptor()
-      verifyBlocking(internalMetricsMock, never()) {
-        batchSetMetricFail(batchSetMetricFailCaptor.capture())
       }
 
       assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
@@ -3109,19 +3068,6 @@ class MetricsServiceTest {
         batchGetMetrics(batchGetMetricsCaptor.capture())
       }
 
-      // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricSucceed
-      val batchSetMetricSucceedCaptor: KArgumentCaptor<BatchSetMetricSucceedRequest> =
-        argumentCaptor()
-      verifyBlocking(internalMetricsMock, never()) {
-        batchSetMetricSucceed(batchSetMetricSucceedCaptor.capture())
-      }
-
-      // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricFail
-      val batchSetMetricFailCaptor: KArgumentCaptor<BatchSetMetricFailRequest> = argumentCaptor()
-      verifyBlocking(internalMetricsMock, never()) {
-        batchSetMetricFail(batchSetMetricFailCaptor.capture())
-      }
-
       assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
     }
 
@@ -3186,19 +3132,6 @@ class MetricsServiceTest {
     val batchGetMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> = argumentCaptor()
     verifyBlocking(internalMetricsMock, never()) {
       batchGetMetrics(batchGetMetricsCaptor.capture())
-    }
-
-    // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricSucceed
-    val batchSetMetricSucceedCaptor: KArgumentCaptor<BatchSetMetricSucceedRequest> =
-      argumentCaptor()
-    verifyBlocking(internalMetricsMock, never()) {
-      batchSetMetricSucceed(batchSetMetricSucceedCaptor.capture())
-    }
-
-    // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricFail
-    val batchSetMetricFailCaptor: KArgumentCaptor<BatchSetMetricFailRequest> = argumentCaptor()
-    verifyBlocking(internalMetricsMock, never()) {
-      batchSetMetricFail(batchSetMetricFailCaptor.capture())
     }
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
@@ -3283,19 +3216,6 @@ class MetricsServiceTest {
         batchGetMetrics(batchGetMetricsCaptor.capture())
       }
 
-      // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricSucceed
-      val batchSetMetricSucceedCaptor: KArgumentCaptor<BatchSetMetricSucceedRequest> =
-        argumentCaptor()
-      verifyBlocking(internalMetricsMock, never()) {
-        batchSetMetricSucceed(batchSetMetricSucceedCaptor.capture())
-      }
-
-      // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricFail
-      val batchSetMetricFailCaptor: KArgumentCaptor<BatchSetMetricFailRequest> = argumentCaptor()
-      verifyBlocking(internalMetricsMock, never()) {
-        batchSetMetricFail(batchSetMetricFailCaptor.capture())
-      }
-
       assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
     }
 
@@ -3377,19 +3297,6 @@ class MetricsServiceTest {
       val batchGetMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> = argumentCaptor()
       verifyBlocking(internalMetricsMock, never()) {
         batchGetMetrics(batchGetMetricsCaptor.capture())
-      }
-
-      // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricSucceed
-      val batchSetMetricSucceedCaptor: KArgumentCaptor<BatchSetMetricSucceedRequest> =
-        argumentCaptor()
-      verifyBlocking(internalMetricsMock, never()) {
-        batchSetMetricSucceed(batchSetMetricSucceedCaptor.capture())
-      }
-
-      // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricFail
-      val batchSetMetricFailCaptor: KArgumentCaptor<BatchSetMetricFailRequest> = argumentCaptor()
-      verifyBlocking(internalMetricsMock, never()) {
-        batchSetMetricFail(batchSetMetricFailCaptor.capture())
       }
 
       assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
@@ -3514,31 +3421,6 @@ class MetricsServiceTest {
         }
       )
 
-    // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricSucceed
-    val batchSetMetricSucceedCaptor: KArgumentCaptor<BatchSetMetricSucceedRequest> =
-      argumentCaptor()
-    verifyBlocking(internalMetricsMock, times(1)) {
-      batchSetMetricSucceed(batchSetMetricSucceedCaptor.capture())
-    }
-    val capturedBatchSetMetricSucceedRequests = batchSetMetricSucceedCaptor.allValues
-    assertThat(capturedBatchSetMetricSucceedRequests)
-      .ignoringRepeatedFieldOrder()
-      .containsExactly(
-        batchSetMetricSucceedRequest {
-          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
-          requests += setMetricSucceedRequest {
-            externalMetricId = INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.externalMetricId
-            this.result = INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.details.result
-          }
-        }
-      )
-
-    // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricFail
-    val batchSetMetricFailCaptor: KArgumentCaptor<BatchSetMetricFailRequest> = argumentCaptor()
-    verifyBlocking(internalMetricsMock, never()) {
-      batchSetMetricFail(batchSetMetricFailCaptor.capture())
-    }
-
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
   }
 
@@ -3611,19 +3493,6 @@ class MetricsServiceTest {
     val batchGetMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> = argumentCaptor()
     verifyBlocking(internalMetricsMock, never()) {
       batchGetMetrics(batchGetMetricsCaptor.capture())
-    }
-
-    // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricSucceed
-    val batchSetMetricSucceedCaptor: KArgumentCaptor<BatchSetMetricSucceedRequest> =
-      argumentCaptor()
-    verifyBlocking(internalMetricsMock, never()) {
-      batchSetMetricSucceed(batchSetMetricSucceedCaptor.capture())
-    }
-
-    // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricFail
-    val batchSetMetricFailCaptor: KArgumentCaptor<BatchSetMetricFailRequest> = argumentCaptor()
-    verifyBlocking(internalMetricsMock, never()) {
-      batchSetMetricFail(batchSetMetricFailCaptor.capture())
     }
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
@@ -3728,28 +3597,6 @@ class MetricsServiceTest {
         internalBatchGetMetricsRequest {
           cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
           externalMetricIds += INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId
-          externalMetricIds += INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
-        }
-      )
-
-    // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricSucceed
-    val batchSetMetricSucceedCaptor: KArgumentCaptor<BatchSetMetricSucceedRequest> =
-      argumentCaptor()
-    verifyBlocking(internalMetricsMock, never()) {
-      batchSetMetricSucceed(batchSetMetricSucceedCaptor.capture())
-    }
-
-    // Verify proto argument of internal MetricsCoroutineImplBase::batchSetMetricFail
-    val batchSetMetricFailCaptor: KArgumentCaptor<BatchSetMetricFailRequest> = argumentCaptor()
-    verifyBlocking(internalMetricsMock, times(1)) {
-      batchSetMetricFail(batchSetMetricFailCaptor.capture())
-    }
-    val capturedBatchSetMetricFailureRequests = batchSetMetricFailCaptor.allValues
-    assertThat(capturedBatchSetMetricFailureRequests)
-      .ignoringRepeatedFieldOrder()
-      .containsExactly(
-        batchSetMetricFailRequest {
-          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
           externalMetricIds += INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
         }
       )
