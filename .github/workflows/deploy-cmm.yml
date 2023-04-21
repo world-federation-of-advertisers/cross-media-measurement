@@ -41,6 +41,9 @@ env:
   ROOT_PATH: '${{ github.workspace }}/src/main/terraform/gcloud'
   PROJECT: 'halo-cmm'
 
+permissions:
+  packages: 'write'
+
 jobs:
   create-image-tag:
     uses: ./.github/workflows/create-cmm-images.yml
