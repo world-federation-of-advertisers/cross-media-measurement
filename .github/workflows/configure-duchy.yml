@@ -15,7 +15,7 @@
 name: "Configure Duchy"
 
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       image_tag:
         description: "Image tag needed for configuration"
@@ -29,7 +29,7 @@ on:
         description: "Apply the manifest to the cluster"
         required: false
         type: boolean
-  workflow_call:
+  workflow_dispatch:
     inputs:
       image_tag:
         description: "Image tag needed for configuration"
