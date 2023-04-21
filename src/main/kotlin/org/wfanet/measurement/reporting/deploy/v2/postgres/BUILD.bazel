@@ -12,9 +12,11 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/readers",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/writers",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:measurement_consumers_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_sets_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
     ],
 )
