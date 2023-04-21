@@ -90,3 +90,4 @@ jobs:
       duchy_name: aggregator #{{ inputs.duchy_name }}
       image_tag: ${{ needs.create-image-tag.outputs.image_tag }}
       kubectl_apply: ${{ inputs.kubectl_apply }}
+
