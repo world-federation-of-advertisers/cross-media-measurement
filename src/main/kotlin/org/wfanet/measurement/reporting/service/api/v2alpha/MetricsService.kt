@@ -585,7 +585,11 @@ class MetricsService(
       }
     }
 
-    /** Syncs [InternalMeasurement]s with the CMMS [Measurement]s. */
+    /**
+     * Syncs [InternalMeasurement]s with the CMMS [Measurement]s.
+     *
+     * @return a boolean to indicate whether any [InternalMeasurement] was updated.
+     */
     suspend fun syncInternalMeasurements(
       internalMeasurements: List<InternalMeasurement>,
       apiAuthenticationKey: String,
