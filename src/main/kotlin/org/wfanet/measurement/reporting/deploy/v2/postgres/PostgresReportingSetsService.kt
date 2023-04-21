@@ -76,22 +76,22 @@ class PostgresReportingSetsService(
     }
 
     val readContext = client.readTransaction()
-    val reportingSets = try {
-      ReportingSetReader(readContext).batchGetReportingSets(request)
-        .map { it.reportingSet }
-        .withSerializableErrorRetries()
-        .toList()
-    } finally {
-      readContext.close()
-    }
+    val reportingSets =
+      try {
+        ReportingSetReader(readContext)
+          .batchGetReportingSets(request)
+          .map { it.reportingSet }
+          .withSerializableErrorRetries()
+          .toList()
+      } finally {
+        readContext.close()
+      }
 
     if (reportingSets.size < request.externalReportingSetIdsList.size) {
       failGrpc(Status.NOT_FOUND) { "Reporting Set not found" }
     }
 
-    return batchGetReportingSetsResponse {
-      this.reportingSets += reportingSets
-    }
+    return batchGetReportingSetsResponse { this.reportingSets += reportingSets }
   }
 
   override fun streamReportingSets(request: StreamReportingSetsRequest): Flow<ReportingSet> {
@@ -102,9 +102,12 @@ class PostgresReportingSetsService(
     return flow {
       val readContext = client.readTransaction()
       try {
-        emitAll(ReportingSetReader(readContext).listReportingSets(request)
-                  .map { it.reportingSet }
-                  .withSerializableErrorRetries())
+        emitAll(
+          ReportingSetReader(readContext)
+            .listReportingSets(request)
+            .map { it.reportingSet }
+            .withSerializableErrorRetries()
+        )
       } finally {
         readContext.close()
       }

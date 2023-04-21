@@ -717,21 +717,32 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
 
     val createdReportingSet = service.createReportingSet(reportingSet)
 
-    val retrievedReportingSets = service.batchGetReportingSets(batchGetReportingSetsRequest {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      externalReportingSetIds += createdReportingSet.externalReportingSetId
-    }).reportingSetsList
+    val retrievedReportingSets =
+      service
+        .batchGetReportingSets(
+          batchGetReportingSetsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalReportingSetIds += createdReportingSet.externalReportingSetId
+          }
+        )
+        .reportingSetsList
 
-    assertThat(retrievedReportingSets).ignoringRepeatedFieldOrder().containsExactly(reportingSet.copy {
-      externalReportingSetId = createdReportingSet.externalReportingSetId
-      weightedSubsetUnions += ReportingSetKt.weightedSubsetUnion {
-        weight = 1
-        primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-          this.externalReportingSetId = createdReportingSet.externalReportingSetId
-          filters += reportingSet.filter
+    assertThat(retrievedReportingSets)
+      .ignoringRepeatedFieldOrder()
+      .containsExactly(
+        reportingSet.copy {
+          externalReportingSetId = createdReportingSet.externalReportingSetId
+          weightedSubsetUnions +=
+            ReportingSetKt.weightedSubsetUnion {
+              weight = 1
+              primitiveReportingSetBases +=
+                ReportingSetKt.primitiveReportingSetBasis {
+                  this.externalReportingSetId = createdReportingSet.externalReportingSetId
+                  filters += reportingSet.filter
+                }
+            }
         }
-      }
-    })
+      )
     assertThat(retrievedReportingSets).hasSize(1)
   }
 
@@ -829,14 +840,23 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
 
     val createdReportingSet = service.createReportingSet(compositeReportingSet)
 
-    val retrievedReportingSets = service.batchGetReportingSets(batchGetReportingSetsRequest {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      externalReportingSetIds += createdReportingSet.externalReportingSetId
-    }).reportingSetsList
+    val retrievedReportingSets =
+      service
+        .batchGetReportingSets(
+          batchGetReportingSetsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalReportingSetIds += createdReportingSet.externalReportingSetId
+          }
+        )
+        .reportingSetsList
 
-    assertThat(retrievedReportingSets).ignoringRepeatedFieldOrder().containsExactly(compositeReportingSet.copy {
-      externalReportingSetId = createdReportingSet.externalReportingSetId
-    })
+    assertThat(retrievedReportingSets)
+      .ignoringRepeatedFieldOrder()
+      .containsExactly(
+        compositeReportingSet.copy {
+          externalReportingSetId = createdReportingSet.externalReportingSetId
+        }
+      )
     assertThat(retrievedReportingSets).hasSize(1)
   }
 
@@ -934,27 +954,36 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
 
     val createdReportingSet = service.createReportingSet(compositeReportingSet)
 
-    val retrievedReportingSets = service.batchGetReportingSets(batchGetReportingSetsRequest {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      externalReportingSetIds += createdReportingSet.externalReportingSetId
-      externalReportingSetIds += createdPrimitiveReportingSet.externalReportingSetId
-    }).reportingSetsList
-
-    assertThat(retrievedReportingSets).ignoringRepeatedFieldOrder().containsExactly(
-      compositeReportingSet.copy {
-        externalReportingSetId = createdReportingSet.externalReportingSetId
-      },
-      primitiveReportingSet.copy {
-        externalReportingSetId = createdPrimitiveReportingSet.externalReportingSetId
-        weightedSubsetUnions += ReportingSetKt.weightedSubsetUnion {
-          weight = 1
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            this.externalReportingSetId = createdPrimitiveReportingSet.externalReportingSetId
-            filters += primitiveReportingSet.filter
+    val retrievedReportingSets =
+      service
+        .batchGetReportingSets(
+          batchGetReportingSetsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalReportingSetIds += createdReportingSet.externalReportingSetId
+            externalReportingSetIds += createdPrimitiveReportingSet.externalReportingSetId
           }
+        )
+        .reportingSetsList
+
+    assertThat(retrievedReportingSets)
+      .ignoringRepeatedFieldOrder()
+      .containsExactly(
+        compositeReportingSet.copy {
+          externalReportingSetId = createdReportingSet.externalReportingSetId
+        },
+        primitiveReportingSet.copy {
+          externalReportingSetId = createdPrimitiveReportingSet.externalReportingSetId
+          weightedSubsetUnions +=
+            ReportingSetKt.weightedSubsetUnion {
+              weight = 1
+              primitiveReportingSetBases +=
+                ReportingSetKt.primitiveReportingSetBasis {
+                  this.externalReportingSetId = createdPrimitiveReportingSet.externalReportingSetId
+                  filters += primitiveReportingSet.filter
+                }
+            }
         }
-      }
-    )
+      )
     assertThat(retrievedReportingSets).hasSize(2)
   }
 
@@ -984,11 +1013,13 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        service.batchGetReportingSets(batchGetReportingSetsRequest {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          externalReportingSetIds += createdReportingSet.externalReportingSetId
-          externalReportingSetIds += 1L
-        })
+        service.batchGetReportingSets(
+          batchGetReportingSetsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalReportingSetIds += createdReportingSet.externalReportingSetId
+            externalReportingSetIds += 1L
+          }
+        )
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
@@ -1002,12 +1033,14 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        service.batchGetReportingSets(batchGetReportingSetsRequest {
-          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-          for (i in 1L..10000L) {
-            externalReportingSetIds += i
+        service.batchGetReportingSets(
+          batchGetReportingSetsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            for (i in 1L..10000L) {
+              externalReportingSetIds += i
+            }
           }
-        })
+        )
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -1058,22 +1091,34 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
     val createdReportingSet = service.createReportingSet(reportingSet)
     service.createReportingSet(reportingSet2)
 
-    val retrievedReportingSets = service.streamReportingSets(streamReportingSetsRequest {
-      filter = StreamReportingSetsRequestKt.filter {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      }
-    }).toList()
+    val retrievedReportingSets =
+      service
+        .streamReportingSets(
+          streamReportingSetsRequest {
+            filter =
+              StreamReportingSetsRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              }
+          }
+        )
+        .toList()
 
-    assertThat(retrievedReportingSets).ignoringRepeatedFieldOrder().containsExactly(reportingSet.copy {
-      externalReportingSetId = createdReportingSet.externalReportingSetId
-      weightedSubsetUnions += ReportingSetKt.weightedSubsetUnion {
-        weight = 1
-        primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-          this.externalReportingSetId = createdReportingSet.externalReportingSetId
-          filters += reportingSet.filter
+    assertThat(retrievedReportingSets)
+      .ignoringRepeatedFieldOrder()
+      .containsExactly(
+        reportingSet.copy {
+          externalReportingSetId = createdReportingSet.externalReportingSetId
+          weightedSubsetUnions +=
+            ReportingSetKt.weightedSubsetUnion {
+              weight = 1
+              primitiveReportingSetBases +=
+                ReportingSetKt.primitiveReportingSetBasis {
+                  this.externalReportingSetId = createdReportingSet.externalReportingSetId
+                  filters += reportingSet.filter
+                }
+            }
         }
-      }
-    })
+      )
     assertThat(retrievedReportingSets).hasSize(1)
   }
 
@@ -1135,35 +1180,53 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
     val afterId =
       minOf(createdReportingSet.externalReportingSetId, createdReportingSet2.externalReportingSetId)
 
-    val retrievedReportingSets = service.streamReportingSets(streamReportingSetsRequest {
-      filter = StreamReportingSetsRequestKt.filter {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-        externalReportingSetIdAfter = afterId
-      }
-    }).toList()
+    val retrievedReportingSets =
+      service
+        .streamReportingSets(
+          streamReportingSetsRequest {
+            filter =
+              StreamReportingSetsRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                externalReportingSetIdAfter = afterId
+              }
+          }
+        )
+        .toList()
 
     if (createdReportingSet.externalReportingSetId == afterId) {
-      assertThat(retrievedReportingSets).ignoringRepeatedFieldOrder().containsExactly(reportingSet.copy {
-        externalReportingSetId = createdReportingSet2.externalReportingSetId
-        weightedSubsetUnions += ReportingSetKt.weightedSubsetUnion {
-          weight = 1
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            this.externalReportingSetId = createdReportingSet2.externalReportingSetId
-            filters += reportingSet.filter
+      assertThat(retrievedReportingSets)
+        .ignoringRepeatedFieldOrder()
+        .containsExactly(
+          reportingSet.copy {
+            externalReportingSetId = createdReportingSet2.externalReportingSetId
+            weightedSubsetUnions +=
+              ReportingSetKt.weightedSubsetUnion {
+                weight = 1
+                primitiveReportingSetBases +=
+                  ReportingSetKt.primitiveReportingSetBasis {
+                    this.externalReportingSetId = createdReportingSet2.externalReportingSetId
+                    filters += reportingSet.filter
+                  }
+              }
           }
-        }
-      })
+        )
     } else {
-      assertThat(retrievedReportingSets).ignoringRepeatedFieldOrder().containsExactly(reportingSet2.copy {
-        externalReportingSetId = createdReportingSet.externalReportingSetId
-        weightedSubsetUnions += ReportingSetKt.weightedSubsetUnion {
-          weight = 1
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            this.externalReportingSetId = createdReportingSet.externalReportingSetId
-            filters += reportingSet.filter
+      assertThat(retrievedReportingSets)
+        .ignoringRepeatedFieldOrder()
+        .containsExactly(
+          reportingSet2.copy {
+            externalReportingSetId = createdReportingSet.externalReportingSetId
+            weightedSubsetUnions +=
+              ReportingSetKt.weightedSubsetUnion {
+                weight = 1
+                primitiveReportingSetBases +=
+                  ReportingSetKt.primitiveReportingSetBasis {
+                    this.externalReportingSetId = createdReportingSet.externalReportingSetId
+                    filters += reportingSet.filter
+                  }
+              }
           }
-        }
-      })
+        )
     }
     assertThat(retrievedReportingSets).hasSize(1)
   }
@@ -1223,35 +1286,53 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
     val createdReportingSet = service.createReportingSet(reportingSet)
     val createdReportingSet2 = service.createReportingSet(reportingSet2)
 
-    val retrievedReportingSets = service.streamReportingSets(streamReportingSetsRequest {
-      filter = StreamReportingSetsRequestKt.filter {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      }
-      limit = 1
-    }).toList()
+    val retrievedReportingSets =
+      service
+        .streamReportingSets(
+          streamReportingSetsRequest {
+            filter =
+              StreamReportingSetsRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              }
+            limit = 1
+          }
+        )
+        .toList()
 
     if (createdReportingSet.externalReportingSetId < createdReportingSet2.externalReportingSetId) {
-      assertThat(retrievedReportingSets).ignoringRepeatedFieldOrder().containsExactly(reportingSet.copy {
-        externalReportingSetId = createdReportingSet.externalReportingSetId
-        weightedSubsetUnions += ReportingSetKt.weightedSubsetUnion {
-          weight = 1
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            this.externalReportingSetId = createdReportingSet.externalReportingSetId
-            filters += reportingSet.filter
+      assertThat(retrievedReportingSets)
+        .ignoringRepeatedFieldOrder()
+        .containsExactly(
+          reportingSet.copy {
+            externalReportingSetId = createdReportingSet.externalReportingSetId
+            weightedSubsetUnions +=
+              ReportingSetKt.weightedSubsetUnion {
+                weight = 1
+                primitiveReportingSetBases +=
+                  ReportingSetKt.primitiveReportingSetBasis {
+                    this.externalReportingSetId = createdReportingSet.externalReportingSetId
+                    filters += reportingSet.filter
+                  }
+              }
           }
-        }
-      })
+        )
     } else {
-      assertThat(retrievedReportingSets).ignoringRepeatedFieldOrder().containsExactly(reportingSet2.copy {
-        externalReportingSetId = createdReportingSet2.externalReportingSetId
-        weightedSubsetUnions += ReportingSetKt.weightedSubsetUnion {
-          weight = 1
-          primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-            this.externalReportingSetId = createdReportingSet2.externalReportingSetId
-            filters += reportingSet.filter
+      assertThat(retrievedReportingSets)
+        .ignoringRepeatedFieldOrder()
+        .containsExactly(
+          reportingSet2.copy {
+            externalReportingSetId = createdReportingSet2.externalReportingSetId
+            weightedSubsetUnions +=
+              ReportingSetKt.weightedSubsetUnion {
+                weight = 1
+                primitiveReportingSetBases +=
+                  ReportingSetKt.primitiveReportingSetBasis {
+                    this.externalReportingSetId = createdReportingSet2.externalReportingSetId
+                    filters += reportingSet.filter
+                  }
+              }
           }
-        }
-      })
+        )
     }
     assertThat(retrievedReportingSets).hasSize(1)
   }
@@ -1262,11 +1343,17 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
 
-    val retrievedReportingSets = service.streamReportingSets(streamReportingSetsRequest {
-      filter = StreamReportingSetsRequestKt.filter {
-        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      }
-    }).toList()
+    val retrievedReportingSets =
+      service
+        .streamReportingSets(
+          streamReportingSetsRequest {
+            filter =
+              StreamReportingSetsRequestKt.filter {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              }
+          }
+        )
+        .toList()
 
     assertThat(retrievedReportingSets).hasSize(0)
   }

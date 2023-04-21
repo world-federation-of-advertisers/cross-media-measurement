@@ -108,7 +108,8 @@ class ReportingSetReader(private val readContext: ReadContext) {
       LeftHandReportingSets.ExternalReportingSetId AS LeftHandExternalReportingSetId,
       RightHandSetExpressionId,
       RightHandReportingSets.ExternalReportingSetId AS RightHandExternalReportingSetId
-    """.trimIndent()
+    """
+      .trimIndent()
 
   private val baseSqlJoins: String =
     """
@@ -125,24 +126,34 @@ class ReportingSetReader(private val readContext: ReadContext) {
       AND SetExpressions.LeftHandReportingSetId = LeftHandReportingSets.ReportingSetId
     LEFT JOIN ReportingSets AS RightHandReportingSets ON SetExpressions.MeasurementConsumerId = RightHandReportingSets.MeasurementConsumerId
       AND SetExpressions.RightHandReportingSetId = RightHandReportingSets.ReportingSetId
-    """.trimIndent()
+    """
+      .trimIndent()
 
   fun batchGetReportingSets(
     request: BatchGetReportingSetsRequest,
   ): Flow<Result> {
     val sql =
-      StringBuilder(baseSqlSelect + """
+      StringBuilder(
+        baseSqlSelect +
+          """
         FROM MeasurementConsumers
           JOIN ReportingSets USING(MeasurementConsumerId)
-        """ + baseSqlJoins + """
+        """ +
+          baseSqlJoins +
+          """
         WHERE CmmsMeasurementConsumerId = $1
           AND ReportingSets.ExternalReportingSetId IN
-        """)
+        """
+      )
 
     var i = 2
     val bindingMap = mutableMapOf<Long, String>()
     val inList =
-      request.externalReportingSetIdsList.joinToString(separator = ",", prefix = "(", postfix = ")") {
+      request.externalReportingSetIdsList.joinToString(
+        separator = ",",
+        prefix = "(",
+        postfix = ")"
+      ) {
         val index = "$$i"
         bindingMap[it] = index
         i++
@@ -163,7 +174,9 @@ class ReportingSetReader(private val readContext: ReadContext) {
     request: StreamReportingSetsRequest,
   ): Flow<Result> {
     val statement =
-      boundStatement(baseSqlSelect + """
+      boundStatement(
+        baseSqlSelect +
+          """
         FROM (
           SELECT *
           FROM MeasurementConsumers
@@ -173,7 +186,8 @@ class ReportingSetReader(private val readContext: ReadContext) {
           ORDER BY ExternalReportingSetId ASC
           LIMIT $3
         ) AS ReportingSets
-      """ + baseSqlJoins
+      """ +
+          baseSqlJoins
       ) {
         bind("$1", request.filter.cmmsMeasurementConsumerId)
         bind("$2", request.filter.externalReportingSetIdAfter)
@@ -193,28 +207,29 @@ class ReportingSetReader(private val readContext: ReadContext) {
       val reportingSetInfoMap: MutableMap<InternalId, ReportingSetInfo> = mutableMapOf()
 
       val translate: Translate = { row: ResultRow ->
-          val measurementConsumerId: InternalId = row["ReportingSetsMeasurementConsumerId"]
-          val cmmsMeasurementConsumerId: String = row["CmmsMeasurementConsumerId"]
-          val reportingSetId: InternalId = row["ReportingSetId"]
-          val externalReportingSetId: ExternalId = row["RootExternalReportingSetId"]
-          val rootSetExpressionId: InternalId? = row["RootSetExpressionId"]
-          val displayName: String? = row["DisplayName"]
-          val reportingSetFilter: String? = row["ReportingSetFilter"]
-          val weightedSubsetUnionId: InternalId? = row["WeightedSubsetUnionId"]
-          val weight: Int? = row["Weight"]
-          val primitiveReportingSetBasisId: InternalId? = row["PrimitiveReportingSetBasisId"]
-          val primitiveExternalReportingSetId: ExternalId? = row["PrimitiveExternalReportingSetId"]
-          val primitiveReportingSetBasisFilter: String? = row["PrimitiveReportingSetBasisFilter"]
-          val cmmsDataProviderId: String? = row["CmmsDataProviderId"]
-          val cmmsEventGroupId: String? = row["CmmsEventGroupId"]
-          val setExpressionId: InternalId? = row["SetExpressionId"]
-          val operation: Int? = row["Operation"]
-          val leftHandSetExpressionId: InternalId? = row["LeftHandSetExpressionId"]
-          val leftHandExternalReportingSetId: ExternalId? = row["LeftHandExternalReportingSetId"]
-          val rightHandSetExpressionId: InternalId? = row["RightHandSetExpressionId"]
-          val rightHandExternalReportingSetId: ExternalId? = row["RightHandExternalReportingSetId"]
+        val measurementConsumerId: InternalId = row["ReportingSetsMeasurementConsumerId"]
+        val cmmsMeasurementConsumerId: String = row["CmmsMeasurementConsumerId"]
+        val reportingSetId: InternalId = row["ReportingSetId"]
+        val externalReportingSetId: ExternalId = row["RootExternalReportingSetId"]
+        val rootSetExpressionId: InternalId? = row["RootSetExpressionId"]
+        val displayName: String? = row["DisplayName"]
+        val reportingSetFilter: String? = row["ReportingSetFilter"]
+        val weightedSubsetUnionId: InternalId? = row["WeightedSubsetUnionId"]
+        val weight: Int? = row["Weight"]
+        val primitiveReportingSetBasisId: InternalId? = row["PrimitiveReportingSetBasisId"]
+        val primitiveExternalReportingSetId: ExternalId? = row["PrimitiveExternalReportingSetId"]
+        val primitiveReportingSetBasisFilter: String? = row["PrimitiveReportingSetBasisFilter"]
+        val cmmsDataProviderId: String? = row["CmmsDataProviderId"]
+        val cmmsEventGroupId: String? = row["CmmsEventGroupId"]
+        val setExpressionId: InternalId? = row["SetExpressionId"]
+        val operation: Int? = row["Operation"]
+        val leftHandSetExpressionId: InternalId? = row["LeftHandSetExpressionId"]
+        val leftHandExternalReportingSetId: ExternalId? = row["LeftHandExternalReportingSetId"]
+        val rightHandSetExpressionId: InternalId? = row["RightHandSetExpressionId"]
+        val rightHandExternalReportingSetId: ExternalId? = row["RightHandExternalReportingSetId"]
 
-          val reportingSetInfo = reportingSetInfoMap.computeIfAbsent(reportingSetId) {
+        val reportingSetInfo =
+          reportingSetInfoMap.computeIfAbsent(reportingSetId) {
             ReportingSetInfo(
               measurementConsumerId = measurementConsumerId,
               cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
@@ -228,46 +243,57 @@ class ReportingSetReader(private val readContext: ReadContext) {
             )
           }
 
-          if (setExpressionId != null && operation != null) {
-            reportingSetInfo.setExpressionInfoMap.computeIfAbsent(setExpressionId) {
-              SetExpressionInfo(
-                operation = SetExpression.Operation.forNumber(operation),
-                leftHandSetExpressionId = leftHandSetExpressionId,
-                leftHandExternalReportingSetId = leftHandExternalReportingSetId,
-                rightHandSetExpressionId = rightHandSetExpressionId,
-                rightHandExternalReportingSetId = rightHandExternalReportingSetId,
-              )
-            }
+        if (setExpressionId != null && operation != null) {
+          reportingSetInfo.setExpressionInfoMap.computeIfAbsent(setExpressionId) {
+            SetExpressionInfo(
+              operation = SetExpression.Operation.forNumber(operation),
+              leftHandSetExpressionId = leftHandSetExpressionId,
+              leftHandExternalReportingSetId = leftHandExternalReportingSetId,
+              rightHandSetExpressionId = rightHandSetExpressionId,
+              rightHandExternalReportingSetId = rightHandExternalReportingSetId,
+            )
           }
+        }
 
-          if (cmmsDataProviderId != null && cmmsEventGroupId != null) {
-            reportingSetInfo.cmmsEventGroupIdsSet.add(CmmsEventGroupIds(
+        if (cmmsDataProviderId != null && cmmsEventGroupId != null) {
+          reportingSetInfo.cmmsEventGroupIdsSet.add(
+            CmmsEventGroupIds(
               cmmsDataProviderId = cmmsDataProviderId,
               cmmsEventGroupId = cmmsEventGroupId,
-            ))
-          }
+            )
+          )
+        }
 
-          if (weightedSubsetUnionId != null && weight != null && primitiveReportingSetBasisId != null && primitiveExternalReportingSetId != null && primitiveReportingSetBasisFilter != null) {
-            val weightedSubsetUnionInfo = reportingSetInfo.weightedSubsetUnionInfoMap.computeIfAbsent(weightedSubsetUnionId) {
+        if (
+          weightedSubsetUnionId != null &&
+            weight != null &&
+            primitiveReportingSetBasisId != null &&
+            primitiveExternalReportingSetId != null &&
+            primitiveReportingSetBasisFilter != null
+        ) {
+          val weightedSubsetUnionInfo =
+            reportingSetInfo.weightedSubsetUnionInfoMap.computeIfAbsent(weightedSubsetUnionId) {
               WeightedSubsetUnionInfo(
                 weight = weight,
                 primitiveReportingSetBasisInfoMap = mutableMapOf(),
               )
             }
 
-            val primitiveReportingSetBasisInfo = weightedSubsetUnionInfo.primitiveReportingSetBasisInfoMap.computeIfAbsent(primitiveReportingSetBasisId) {
+          val primitiveReportingSetBasisInfo =
+            weightedSubsetUnionInfo.primitiveReportingSetBasisInfoMap.computeIfAbsent(
+              primitiveReportingSetBasisId
+            ) {
               PrimitiveReportingSetBasisInfo(
                 primitiveExternalReportingSetId = primitiveExternalReportingSetId,
                 filterSet = mutableSetOf()
               )
             }
 
-            primitiveReportingSetBasisInfo.filterSet.add(primitiveReportingSetBasisFilter)
-          }
+          primitiveReportingSetBasisInfo.filterSet.add(primitiveReportingSetBasisFilter)
         }
+      }
 
-      readContext.executeQuery(statement).consume(translate)
-        .collect { }
+      readContext.executeQuery(statement).consume(translate).collect {}
 
       reportingSetInfoMap.forEach { (reportingSetId, reportingSetInfo) ->
         emit(
@@ -285,43 +311,51 @@ class ReportingSetReader(private val readContext: ReadContext) {
               }
 
               if (reportingSetInfo.cmmsEventGroupIdsSet.size > 0) {
-                primitive = ReportingSetKt.primitive {
-                  reportingSetInfo.cmmsEventGroupIdsSet.forEach {
-                    eventGroupKeys += ReportingSetKt.PrimitiveKt.eventGroupKey {
-                      cmmsMeasurementConsumerId = reportingSetInfo.cmmsMeasurementConsumerId
-                      cmmsDataProviderId = it.cmmsDataProviderId
-                      cmmsEventGroupId = it.cmmsEventGroupId
+                primitive =
+                  ReportingSetKt.primitive {
+                    reportingSetInfo.cmmsEventGroupIdsSet.forEach {
+                      eventGroupKeys +=
+                        ReportingSetKt.PrimitiveKt.eventGroupKey {
+                          cmmsMeasurementConsumerId = reportingSetInfo.cmmsMeasurementConsumerId
+                          cmmsDataProviderId = it.cmmsDataProviderId
+                          cmmsEventGroupId = it.cmmsEventGroupId
+                        }
                     }
                   }
-                }
 
-                weightedSubsetUnions += ReportingSetKt.weightedSubsetUnion {
-                  weight = 1
-                  primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-                    this.externalReportingSetId = reportingSetInfo.externalReportingSetId.value
-                    if (reportingSetInfo.filter != null) {
-                      filters += reportingSetInfo.filter
-                    }
+                weightedSubsetUnions +=
+                  ReportingSetKt.weightedSubsetUnion {
+                    weight = 1
+                    primitiveReportingSetBases +=
+                      ReportingSetKt.primitiveReportingSetBasis {
+                        this.externalReportingSetId = reportingSetInfo.externalReportingSetId.value
+                        if (reportingSetInfo.filter != null) {
+                          filters += reportingSetInfo.filter
+                        }
+                      }
                   }
-                }
               }
 
               if (reportingSetInfo.setExpressionInfoMap.isNotEmpty()) {
-                reportingSetInfo.setExpressionInfoMap[reportingSetInfo.setExpressionId]
-                  ?.let {
-                    composite = buildSetExpression(it, reportingSetInfo.setExpressionInfoMap)
-                  }
+                reportingSetInfo.setExpressionInfoMap[reportingSetInfo.setExpressionId]?.let {
+                  composite = buildSetExpression(it, reportingSetInfo.setExpressionInfoMap)
+                }
 
-                reportingSetInfo.weightedSubsetUnionInfoMap.values.forEach { weightedSubsetUnionInfo ->
-                  weightedSubsetUnions += ReportingSetKt.weightedSubsetUnion {
-                    weight = weightedSubsetUnionInfo.weight
-                    weightedSubsetUnionInfo.primitiveReportingSetBasisInfoMap.values.forEach { primitiveReportingSetBasisInfo ->
-                      primitiveReportingSetBases += ReportingSetKt.primitiveReportingSetBasis {
-                        externalReportingSetId = primitiveReportingSetBasisInfo.primitiveExternalReportingSetId.value
-                        filters += primitiveReportingSetBasisInfo.filterSet
+                reportingSetInfo.weightedSubsetUnionInfoMap.values.forEach { weightedSubsetUnionInfo
+                  ->
+                  weightedSubsetUnions +=
+                    ReportingSetKt.weightedSubsetUnion {
+                      weight = weightedSubsetUnionInfo.weight
+                      weightedSubsetUnionInfo.primitiveReportingSetBasisInfoMap.values.forEach {
+                        primitiveReportingSetBasisInfo ->
+                        primitiveReportingSetBases +=
+                          ReportingSetKt.primitiveReportingSetBasis {
+                            externalReportingSetId =
+                              primitiveReportingSetBasisInfo.primitiveExternalReportingSetId.value
+                            filters += primitiveReportingSetBasisInfo.filterSet
+                          }
                       }
                     }
-                  }
                 }
               }
             }
@@ -331,34 +365,39 @@ class ReportingSetReader(private val readContext: ReadContext) {
     }
   }
 
-  private fun buildSetExpression(setExpressionInfo: SetExpressionInfo, setExpressionInfoMap: Map<InternalId, SetExpressionInfo>): SetExpression {
+  private fun buildSetExpression(
+    setExpressionInfo: SetExpressionInfo,
+    setExpressionInfoMap: Map<InternalId, SetExpressionInfo>
+  ): SetExpression {
     return ReportingSetKt.setExpression {
       operation = setExpressionInfo.operation
 
       if (setExpressionInfo.leftHandExternalReportingSetId != null) {
-        lhs = ReportingSetKt.SetExpressionKt.operand {
-          externalReportingSetId = setExpressionInfo.leftHandExternalReportingSetId.value
-        }
+        lhs =
+          ReportingSetKt.SetExpressionKt.operand {
+            externalReportingSetId = setExpressionInfo.leftHandExternalReportingSetId.value
+          }
       } else if (setExpressionInfo.leftHandSetExpressionId != null) {
-        setExpressionInfoMap[setExpressionInfo.leftHandSetExpressionId]
-          ?.let {
-            lhs = ReportingSetKt.SetExpressionKt.operand {
+        setExpressionInfoMap[setExpressionInfo.leftHandSetExpressionId]?.let {
+          lhs =
+            ReportingSetKt.SetExpressionKt.operand {
               expression = buildSetExpression(it, setExpressionInfoMap)
             }
-          }
+        }
       }
 
       if (setExpressionInfo.rightHandExternalReportingSetId != null) {
-        rhs = ReportingSetKt.SetExpressionKt.operand {
-          externalReportingSetId = setExpressionInfo.rightHandExternalReportingSetId.value
-        }
+        rhs =
+          ReportingSetKt.SetExpressionKt.operand {
+            externalReportingSetId = setExpressionInfo.rightHandExternalReportingSetId.value
+          }
       } else if (setExpressionInfo.rightHandSetExpressionId != null) {
-        setExpressionInfoMap[setExpressionInfo.rightHandSetExpressionId]
-          ?.let {
-            rhs = ReportingSetKt.SetExpressionKt.operand {
+        setExpressionInfoMap[setExpressionInfo.rightHandSetExpressionId]?.let {
+          rhs =
+            ReportingSetKt.SetExpressionKt.operand {
               expression = buildSetExpression(it, setExpressionInfoMap)
             }
-          }
+        }
       }
     }
   }
