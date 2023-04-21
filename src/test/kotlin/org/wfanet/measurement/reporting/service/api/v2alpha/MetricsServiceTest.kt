@@ -176,6 +176,8 @@ import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt.reachParams
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt.watchDurationParams
 import org.wfanet.measurement.reporting.v2alpha.batchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.batchCreateMetricsResponse
+import org.wfanet.measurement.reporting.v2alpha.batchGetMetricsRequest
+import org.wfanet.measurement.reporting.v2alpha.batchGetMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.getMetricRequest
@@ -312,8 +314,6 @@ private val AGGREGATOR_CERTIFICATE = certificate {
 }
 private val AGGREGATOR_ROOT_CERTIFICATE: X509Certificate =
   readCertificate(SECRETS_DIR.resolve("aggregator_root.pem"))
-
-private val INVALID_MEASUREMENT_PUBLIC_KEY_DATA = "Invalid public key".toByteStringUtf8()
 
 // Measurement consumer crypto
 
@@ -598,10 +598,6 @@ private const val UNION_ALL_REACH_VALUE = 100_000L
 private const val UNION_ALL_BUT_LAST_PUBLISHER_REACH_VALUE = 70_000L
 private const val INCREMENTAL_REACH_VALUE =
   UNION_ALL_REACH_VALUE - UNION_ALL_BUT_LAST_PUBLISHER_REACH_VALUE
-private val FREQUENCY_DISTRIBUTION = mapOf(1L to 1.0 / 6, 2L to 2.0 / 6, 3L to 3.0 / 6)
-private const val FIRST_PUBLISHER_IMPRESSION_VALUE = 100L
-private val IMPRESSION_VALUES = listOf(100L, 150L)
-private val TOTAL_IMPRESSION_VALUE = IMPRESSION_VALUES.sum()
 private val WATCH_DURATION_SECOND_LIST = listOf(100L, 200L, 300L)
 private val WATCH_DURATION_LIST = WATCH_DURATION_SECOND_LIST.map { duration { seconds = it } }
 private val TOTAL_WATCH_DURATION = duration { seconds = WATCH_DURATION_SECOND_LIST.sum() }
@@ -790,32 +786,29 @@ private val SUCCEEDED_UNION_ALL_REACH_MEASUREMENT =
   PENDING_UNION_ALL_REACH_MEASUREMENT.copy {
     state = Measurement.State.SUCCEEDED
 
-    results +=
-      MeasurementKt.resultPair {
-        val result =
-          MeasurementKt.result {
-            reach = MeasurementKt.ResultKt.reach { value = UNION_ALL_REACH_VALUE }
-          }
-        encryptedResult =
-          encryptResult(signResult(result, AGGREGATOR_SIGNING_KEY), MEASUREMENT_CONSUMER_PUBLIC_KEY)
-        certificate = AGGREGATOR_CERTIFICATE.name
-      }
+    results += resultPair {
+      val result =
+        MeasurementKt.result {
+          reach = MeasurementKt.ResultKt.reach { value = UNION_ALL_REACH_VALUE }
+        }
+      encryptedResult =
+        encryptResult(signResult(result, AGGREGATOR_SIGNING_KEY), MEASUREMENT_CONSUMER_PUBLIC_KEY)
+      certificate = AGGREGATOR_CERTIFICATE.name
+    }
   }
 private val SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT =
   PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.copy {
     state = Measurement.State.SUCCEEDED
 
-    results +=
-      MeasurementKt.resultPair {
-        val result =
-          MeasurementKt.result {
-            reach =
-              MeasurementKt.ResultKt.reach { value = UNION_ALL_BUT_LAST_PUBLISHER_REACH_VALUE }
-          }
-        encryptedResult =
-          encryptResult(signResult(result, AGGREGATOR_SIGNING_KEY), MEASUREMENT_CONSUMER_PUBLIC_KEY)
-        certificate = AGGREGATOR_CERTIFICATE.name
-      }
+    results += resultPair {
+      val result =
+        MeasurementKt.result {
+          reach = MeasurementKt.ResultKt.reach { value = UNION_ALL_BUT_LAST_PUBLISHER_REACH_VALUE }
+        }
+      encryptedResult =
+        encryptResult(signResult(result, AGGREGATOR_SIGNING_KEY), MEASUREMENT_CONSUMER_PUBLIC_KEY)
+      certificate = AGGREGATOR_CERTIFICATE.name
+    }
   }
 
 // CMMs single publisher impression measurements
@@ -942,10 +935,6 @@ private val WATCH_DURATION_METRIC_SPEC: MetricSpec = metricSpec {
 
 // Metric idempotency keys
 private const val INCREMENTAL_REACH_METRIC_IDEMPOTENCY_KEY = "TEST_INCREMENTAL_REACH_METRIC"
-private const val SINGLE_PUBLISHER_IMPRESSION_METRIC_IDEMPOTENCY_KEY =
-  "TEST_SINGLE_PUBLISHER_IMPRESSION_METRIC"
-private const val IMPRESSION_METRIC_IDEMPOTENCY_KEY = "TEST_IMPRESSION_METRIC"
-private const val WATCH_DURATION_METRIC_IDEMPOTENCY_KEY = "TEST_WATCH_DURATION_METRIC"
 
 // Internal Incremental Metrics
 private val INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC = internalMetric {
@@ -1021,7 +1010,6 @@ private val INTERNAL_PENDING_INCREMENTAL_REACH_METRIC =
 
 private val INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC =
   INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.copy {
-    details = InternalMetricKt.details { filters += this@copy.details.filtersList }
     weightedMeasurements.clear()
     weightedMeasurements += weightedMeasurement {
       weight = 1
@@ -1164,7 +1152,6 @@ private val INTERNAL_SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC =
       weight = 1
       measurement = INTERNAL_SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT
     }
-    details = InternalMetricKt.details { filters += this@copy.details.filtersList }
   }
 
 // Public Metrics
@@ -3034,7 +3021,7 @@ class MetricsServiceTest {
   }
 
   @Test
-  fun `batchCreateMetric throws exception when number of requests exceeds limit`() = runBlocking {
+  fun `batchCreateMetrics throws exception when number of requests exceeds limit`() = runBlocking {
     val request = batchCreateMetricsRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
 
@@ -4233,7 +4220,7 @@ class MetricsServiceTest {
   }
 
   @Test
-  fun `getMetric returns the metric with SUCCEEDED when measurements are SUCCEEDED`() =
+  fun `getMetric returns the metric with SUCCEEDED when measurements are updated to SUCCEEDED`() =
     runBlocking {
       whenever(internalMetricsMock.batchGetMetrics(any()))
         .thenReturn(
@@ -4344,6 +4331,387 @@ class MetricsServiceTest {
 
       assertThat(result).isEqualTo(SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC)
     }
+
+  @Test
+  fun `getMetric returns the metric with FAILED when measurements are updated to FAILED`() =
+    runBlocking {
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics += INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
+          },
+          internalBatchGetMetricsResponse {
+            metrics += INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC
+          },
+        )
+
+      val failedSinglePublisherImpressionMeasurement =
+        PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
+          state = Measurement.State.FAILED
+          failure = failure {
+            reason = Measurement.Failure.Reason.REQUISITION_REFUSED
+            message =
+              INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.details.failure.message
+          }
+        }
+
+      whenever(measurementsMock.getMeasurement(any()))
+        .thenReturn(failedSinglePublisherImpressionMeasurement)
+      whenever(internalMeasurementsMock.batchSetMeasurementFailures(any()))
+        .thenReturn(
+          batchSetCmmsMeasurementFailuresResponse {
+            measurements += INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+          }
+        )
+
+      val request = getMetricRequest { name = PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name }
+
+      val result =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+
+      // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
+      val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMetricsMock, times(2)) {
+        batchGetMetrics(batchGetInternalMetricsCaptor.capture())
+      }
+      val capturedInternalGetMetricRequests = batchGetInternalMetricsCaptor.allValues
+      assertThat(capturedInternalGetMetricRequests)
+        .containsExactly(
+          internalBatchGetMetricsRequest {
+            cmmsMeasurementConsumerId =
+              INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.cmmsMeasurementConsumerId
+            externalMetricIds +=
+              INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
+          },
+          internalBatchGetMetricsRequest {
+            cmmsMeasurementConsumerId =
+              INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.cmmsMeasurementConsumerId
+            externalMetricIds +=
+              INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
+          }
+        )
+
+      // Verify proto argument of MeasurementsCoroutineImplBase::getMeasurement
+      val getMeasurementCaptor: KArgumentCaptor<GetMeasurementRequest> = argumentCaptor()
+      verifyBlocking(measurementsMock, times(1)) { getMeasurement(getMeasurementCaptor.capture()) }
+      val capturedGetMeasurementRequests = getMeasurementCaptor.allValues
+      assertThat(capturedGetMeasurementRequests)
+        .containsExactly(
+          getMeasurementRequest { name = PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name },
+        )
+
+      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMeasurementsMock, never()) {
+        batchSetMeasurementResults(batchSetMeasurementResultsCaptor.capture())
+      }
+
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementFailures
+      val batchSetMeasurementFailuresCaptor: KArgumentCaptor<BatchSetMeasurementFailuresRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMeasurementsMock, times(1)) {
+        batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
+      }
+      assertThat(batchSetMeasurementFailuresCaptor.allValues)
+        .containsExactly(
+          batchSetMeasurementFailuresRequest {
+            cmmsMeasurementConsumerId =
+              INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementConsumerId
+            measurementFailures += measurementFailure {
+              cmmsMeasurementId =
+                INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.cmmsMeasurementId
+              this.failure = INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.details.failure
+            }
+          }
+        )
+
+      assertThat(result).isEqualTo(FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC)
+    }
+
+  @Test
+  fun `getMetric returns the metric with SUCCEEDED when measurements are already SUCCEEDED`() =
+    runBlocking {
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics += INTERNAL_SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC
+          },
+        )
+
+      val request = getMetricRequest { name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
+
+      val result =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+
+      // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
+      val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMetricsMock, times(1)) {
+        batchGetMetrics(batchGetInternalMetricsCaptor.capture())
+      }
+      val capturedInternalGetMetricRequests = batchGetInternalMetricsCaptor.allValues
+      assertThat(capturedInternalGetMetricRequests)
+        .containsExactly(
+          internalBatchGetMetricsRequest {
+            cmmsMeasurementConsumerId =
+              INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.cmmsMeasurementConsumerId
+            externalMetricIds +=
+              INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.externalMetricId
+          },
+        )
+
+      // Verify proto argument of MeasurementsCoroutineImplBase::getMeasurement
+      val getMeasurementCaptor: KArgumentCaptor<GetMeasurementRequest> = argumentCaptor()
+      verifyBlocking(measurementsMock, never()) { getMeasurement(getMeasurementCaptor.capture()) }
+
+      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMeasurementsMock, never()) {
+        batchSetMeasurementResults(batchSetMeasurementResultsCaptor.capture())
+      }
+
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementFailures
+      val batchSetMeasurementFailuresCaptor: KArgumentCaptor<BatchSetMeasurementFailuresRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMeasurementsMock, never()) {
+        batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
+      }
+
+      assertThat(result).isEqualTo(SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC)
+    }
+
+  @Test
+  fun `getMetric throws INVALID_ARGUMENT when Report name is invalid`() {
+    val request = getMetricRequest { name = "invalid_metric_name" }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `getMetric throws PERMISSION_DENIED when MeasurementConsumer's identity does not match`() {
+    val request = getMetricRequest { name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.last().name, CONFIG) {
+          runBlocking { service.getMetric(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `getMetric throws UNAUTHENTICATED when the caller is not a MeasurementConsumer`() {
+    val request = getMetricRequest { name = PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.name }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDERS.values.first().name) {
+          runBlocking { service.getMetric(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+  }
+
+  @Test
+  fun `getMetric throws FAILED_PRECONDITION when the measurement public key is not valid`() =
+    runBlocking {
+      whenever(measurementsMock.getMeasurement(any()))
+        .thenReturn(
+          SUCCEEDED_UNION_ALL_REACH_MEASUREMENT,
+          SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.copy {
+            measurementSpec =
+              signMeasurementSpec(
+                UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC.copy {
+                  measurementPublicKey =
+                    MEASUREMENT_CONSUMER_PUBLIC_KEY.copy { clearData() }.toByteString()
+                },
+                MEASUREMENT_CONSUMER_SIGNING_KEY_HANDLE
+              )
+          },
+        )
+
+      val request = getMetricRequest { name = PENDING_INCREMENTAL_REACH_METRIC.name }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+            runBlocking { service.getMetric(request) }
+          }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception)
+        .hasMessageThat()
+        .contains(SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.name)
+    }
+
+  @Test
+  fun `batchGetMetrics returns metrics with SUCCEEDED when the metric is already succeeded`() =
+    runBlocking {
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics += INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC
+            metrics += INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
+          }
+        )
+
+      val request = batchGetMetricsRequest {
+        parent = MEASUREMENT_CONSUMERS.values.first().name
+        names += SUCCEEDED_INCREMENTAL_REACH_METRIC.name
+        names += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name
+      }
+
+      val result =
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.batchGetMetrics(request) }
+        }
+
+      // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
+      val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMetricsMock, times(1)) {
+        batchGetMetrics(batchGetInternalMetricsCaptor.capture())
+      }
+      val capturedInternalGetMetricRequests = batchGetInternalMetricsCaptor.allValues
+      assertThat(capturedInternalGetMetricRequests)
+        .containsExactly(
+          internalBatchGetMetricsRequest {
+            cmmsMeasurementConsumerId =
+              INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.cmmsMeasurementConsumerId
+            externalMetricIds += INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.externalMetricId
+            externalMetricIds +=
+              INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
+          }
+        )
+
+      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMeasurementsMock, never()) {
+        batchSetMeasurementResults(batchSetMeasurementResultsCaptor.capture())
+      }
+
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementFailures
+      val batchSetMeasurementFailuresCaptor: KArgumentCaptor<BatchSetMeasurementFailuresRequest> =
+        argumentCaptor()
+      verifyBlocking(internalMeasurementsMock, never()) {
+        batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
+      }
+
+      assertThat(result)
+        .isEqualTo(
+          batchGetMetricsResponse {
+            metrics += SUCCEEDED_INCREMENTAL_REACH_METRIC
+            metrics += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
+          }
+        )
+    }
+
+  @Test
+  fun `batchGetMetrics returns metrics with RUNNING when measurements are pending`() = runBlocking {
+    val request = batchGetMetricsRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      names += PENDING_INCREMENTAL_REACH_METRIC.name
+      names += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name
+    }
+
+    val result =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+        runBlocking { service.batchGetMetrics(request) }
+      }
+
+    // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
+    val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
+      argumentCaptor()
+    verifyBlocking(internalMetricsMock, times(1)) {
+      batchGetMetrics(batchGetInternalMetricsCaptor.capture())
+    }
+    val capturedInternalGetMetricRequests = batchGetInternalMetricsCaptor.allValues
+    assertThat(capturedInternalGetMetricRequests)
+      .containsExactly(
+        internalBatchGetMetricsRequest {
+          cmmsMeasurementConsumerId =
+            INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.cmmsMeasurementConsumerId
+          externalMetricIds += INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId
+          externalMetricIds += INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.externalMetricId
+        }
+      )
+
+    // Verify proto argument of MeasurementsCoroutineImplBase::getMeasurement
+    val getMeasurementCaptor: KArgumentCaptor<GetMeasurementRequest> = argumentCaptor()
+    verifyBlocking(measurementsMock, times(3)) { getMeasurement(getMeasurementCaptor.capture()) }
+    val capturedGetMeasurementRequests = getMeasurementCaptor.allValues
+    assertThat(capturedGetMeasurementRequests)
+      .containsExactly(
+        getMeasurementRequest { name = PENDING_UNION_ALL_REACH_MEASUREMENT.name },
+        getMeasurementRequest {
+          name = PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.name
+        },
+        getMeasurementRequest { name = PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name },
+      )
+
+    // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+    val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
+      argumentCaptor()
+    verifyBlocking(internalMeasurementsMock, never()) {
+      batchSetMeasurementResults(batchSetMeasurementResultsCaptor.capture())
+    }
+
+    // Verify proto argument of internal
+    // MeasurementsCoroutineImplBase::batchSetMeasurementFailures
+    val batchSetMeasurementFailuresCaptor: KArgumentCaptor<BatchSetMeasurementFailuresRequest> =
+      argumentCaptor()
+    verifyBlocking(internalMeasurementsMock, never()) {
+      batchSetMeasurementFailures(batchSetMeasurementFailuresCaptor.capture())
+    }
+
+    assertThat(result)
+      .isEqualTo(
+        batchGetMetricsResponse {
+          metrics += PENDING_INCREMENTAL_REACH_METRIC
+          metrics += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
+        }
+      )
+  }
+
+  @Test
+  fun `batchGetMetrics throws exception when number of requests exceeds limit`() = runBlocking {
+    val request = batchGetMetricsRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      names += List(MAX_BATCH_SIZE + 1) { "metric_name" }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMERS.values.first().name, CONFIG) {
+          runBlocking { service.batchGetMetrics(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("At most $MAX_BATCH_SIZE metrics can be supported in a batch.")
+  }
 }
 
 private fun EventGroupKey.toInternal(): InternalReportingSet.Primitive.EventGroupKey {

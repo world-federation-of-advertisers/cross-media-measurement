@@ -878,7 +878,7 @@ class MetricsService(
       getInternalMetric(metricKey.cmmsMeasurementConsumerId, apiIdToExternalId(metricKey.metricId))
 
     // Early exit when the metric is at a terminal state.
-    if (determineMetricState(internalMetric) != Metric.State.RUNNING) {
+    if (internalMetric.state != Metric.State.RUNNING) {
       return internalMetric.toMetric()
     }
 
@@ -942,7 +942,7 @@ class MetricsService(
     // Only syncs pending measurements which can only be in metrics that are still running.
     val toBeSyncedInternalMeasurements: List<InternalMeasurement> =
       internalMetrics
-        .filter { internalMetric -> determineMetricState(internalMetric) == Metric.State.RUNNING }
+        .filter { internalMetric -> internalMetric.state == Metric.State.RUNNING }
         .flatMap { internalMetric -> internalMetric.weightedMeasurementsList }
         .map { weightedMeasurement -> weightedMeasurement.measurement }
         .filter { internalMeasurement ->
@@ -1073,7 +1073,12 @@ class MetricsService(
     return try {
       batchGetInternalMetrics(cmmsMeasurementConsumerId, listOf(externalMetricId)).first()
     } catch (e: StatusException) {
-      throw Exception("Unable to get metrics from the reporting database.", e)
+      val metricName =
+        MetricKey(cmmsMeasurementConsumerId, externalIdToApiId(externalMetricId)).toName()
+      throw Exception(
+        "Unable to get the metric with name = [${metricName}] from the reporting database.",
+        e
+      )
     }
   }
 
