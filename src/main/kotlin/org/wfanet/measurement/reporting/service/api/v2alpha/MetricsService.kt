@@ -875,14 +875,10 @@ class MetricsService(
     }
 
     val internalMetric: InternalMetric =
-      batchGetInternalMetrics(
-          metricKey.cmmsMeasurementConsumerId,
-          listOf(apiIdToExternalId(metricKey.metricId))
-        )
-        .first()
+      getInternalMetric(metricKey.cmmsMeasurementConsumerId, apiIdToExternalId(metricKey.metricId))
 
     // Early exit when the metric is at a terminal state.
-    if (internalMetric.state != InternalMetric.State.RUNNING) {
+    if (determineMetricState(internalMetric) != Metric.State.RUNNING) {
       return internalMetric.toMetric()
     }
 
@@ -894,18 +890,19 @@ class MetricsService(
           internalMeasurement.state == InternalMeasurement.State.PENDING
         }
 
-    measurementSupplier.syncInternalMeasurements(
-      toBeSyncedInternalMeasurements,
-      principal.config.apiKey,
-      principal,
-    )
-
-    return batchGetInternalMetrics(
-        metricKey.cmmsMeasurementConsumerId,
-        listOf(apiIdToExternalId(metricKey.metricId))
+    val anyMeasurementUpdated: Boolean =
+      measurementSupplier.syncInternalMeasurements(
+        toBeSyncedInternalMeasurements,
+        principal.config.apiKey,
+        principal,
       )
-      .first()
-      .toMetric()
+
+    return if (anyMeasurementUpdated) {
+      getInternalMetric(metricKey.cmmsMeasurementConsumerId, apiIdToExternalId(metricKey.metricId))
+        .toMetric()
+    } else {
+      internalMetric.toMetric()
+    }
   }
 
   override suspend fun batchGetMetrics(request: BatchGetMetricsRequest): BatchGetMetricsResponse {
@@ -945,23 +942,28 @@ class MetricsService(
     // Only syncs pending measurements which can only be in metrics that are still running.
     val toBeSyncedInternalMeasurements: List<InternalMeasurement> =
       internalMetrics
-        .filter { internalMetric -> internalMetric.state == InternalMetric.State.RUNNING }
+        .filter { internalMetric -> determineMetricState(internalMetric) == Metric.State.RUNNING }
         .flatMap { internalMetric -> internalMetric.weightedMeasurementsList }
         .map { weightedMeasurement -> weightedMeasurement.measurement }
         .filter { internalMeasurement ->
           internalMeasurement.state == InternalMeasurement.State.PENDING
         }
 
-    measurementSupplier.syncInternalMeasurements(
-      toBeSyncedInternalMeasurements,
-      principal.config.apiKey,
-      principal,
-    )
+    val anyMeasurementUpdated: Boolean =
+      measurementSupplier.syncInternalMeasurements(
+        toBeSyncedInternalMeasurements,
+        principal.config.apiKey,
+        principal,
+      )
 
     return batchGetMetricsResponse {
       metrics +=
-        batchGetInternalMetrics(principal.resourceKey.measurementConsumerId, externalMetricIds)
-          .map { it.toMetric() }
+        if (anyMeasurementUpdated) {
+          batchGetInternalMetrics(principal.resourceKey.measurementConsumerId, externalMetricIds)
+            .map { it.toMetric() }
+        } else {
+          internalMetrics.map { it.toMetric() }
+        }
     }
   }
   override suspend fun listMetrics(request: ListMetricsRequest): ListMetricsResponse {
@@ -1046,7 +1048,7 @@ class MetricsService(
     }
   }
 
-  /** Gets a batch of [InternalMetric]. */
+  /** Gets a batch of [InternalMetric]s. */
   private suspend fun batchGetInternalMetrics(
     cmmsMeasurementConsumerId: String,
     externalMetricIds: List<Long>,
@@ -1058,6 +1060,18 @@ class MetricsService(
 
     return try {
       internalMetricsStub.batchGetMetrics(batchGetMetricsRequest).metricsList
+    } catch (e: StatusException) {
+      throw Exception("Unable to get metrics from the reporting database.", e)
+    }
+  }
+
+  /** Gets an [InternalMetric]. */
+  private suspend fun getInternalMetric(
+    cmmsMeasurementConsumerId: String,
+    externalMetricId: Long,
+  ): InternalMetric {
+    return try {
+      batchGetInternalMetrics(cmmsMeasurementConsumerId, listOf(externalMetricId)).first()
     } catch (e: StatusException) {
       throw Exception("Unable to get metrics from the reporting database.", e)
     }
