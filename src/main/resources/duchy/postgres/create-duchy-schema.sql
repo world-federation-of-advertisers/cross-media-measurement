@@ -1,6 +1,6 @@
 -- liquibase formatted sql
 
--- Copyright 2022 The Cross-Media Measurement Authors
+-- Copyright 2023 The Cross-Media Measurement Authors
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ CREATE TABLE Computations (
   -- The current stage of the computation as known to this Node.
   -- This does not reflect the stage to all Nodes.
   --
-  -- See the protos in the wfa.measurement.protocol package
+  -- See the wfa.measurement.internal.duchy.ComputationStage proto.
   ComputationStage integer NOT NULL,
 
   -- Last time the stage was modified.
@@ -96,20 +96,18 @@ CREATE TABLE Computations (
   -- ongoing computation which do not need to be indexed by the
   -- database.
   --
-  -- See the wfa.measurement.internal.db.gcp.ComputationDetails Proto
+  -- See the wfa.measurement.internal.duchy.ComputationDetails Proto
   ComputationDetails bytea NOT NULL,
 
   -- Serialized JSON string of a proto3 protobuf with details about the
   -- ongoing computation which do not need to be indexed by the
   -- database.
   --
-  -- See the wfa.measurement.internal.db.gcp.ComputationDetails Proto
+  -- See the wfa.measurement.internal.duchy.ComputationDetails Proto
   ComputationDetailsJSON jsonb NOT NULL,
 
-  -- The time the Computation was created. Due to conflict with default value
-  -- and option `allow_commit_timestamp`, this column has to be nullable. The
-  -- application code is supposed to check whether the value is null.
-  CreationTime timestamp,
+  -- The time the Computation was created.
+  CreationTime timestamp NOT NULL,
 
   PRIMARY KEY (ComputationId)
 );
@@ -158,7 +156,13 @@ CREATE TABLE Requisitions (
   -- ComputationsService.
   --
   -- See the wfa.measurement.internal.RequisitionDetails Proto
-  RequisitionDetailsJSON text NOT NULL,
+  RequisitionDetailsJSON jsonb NOT NULL,
+
+  -- The time the Requisition was created.
+  CreationTime timestamp NOT NULL,
+
+  -- Last time the Requisition was modified.
+  UpdateTime timestamp NOT NULL,
 
   PRIMARY KEY (ComputationId, RequisitionId),
   FOREIGN KEY (ComputationId)
@@ -177,17 +181,17 @@ CREATE UNIQUE INDEX RequisitionsByExternalId ON Requisitions(
 --   the first attempt.
 CREATE TABLE ComputationStages (
   -- The local identifier of the computation.
-  ComputationId integer NOT NULL,
+  ComputationId bigint NOT NULL,
 
   -- The stage the computation was in.
   --
-  -- See the protos in the wfa.measurement.protocol package.
+  -- See the wfa.measurement.internal.duchy.ComputationStage proto.
   ComputationStage integer NOT NULL,
 
   -- The time the computation stage was created. This is strictly
   -- less than or equal to the ComputationStageAttempts.BeginTime
   -- as the stage is created at or before the time of its attempt.
-  CreationTime timestamp,
+  CreationTime timestamp NOT NULL,
 
   -- The number of the next attempt of this stage.
   --
@@ -200,26 +204,26 @@ CREATE TABLE ComputationStages (
 
   -- The stage the computation was in before entering this stage.
   --
-  -- See the wfa.measurement.internal.SketchAggregationState proto
+  -- See the wfa.measurement.internal.duchy.ComputationStage proto.
   PreviousStage integer,
 
   -- The stage the computation transitioned into after leaving the stage.
   --
-  -- See the wfa.measurement.internal.SketchAggregationState proto
+  -- See the wfa.measurement.internal.duchy.ComputationStage proto.
   FollowingStage integer,
 
   -- Serialized bytes of a proto3 protobuf with details about the
   -- computation stage which do not need to be indexed by the
   -- database.
   --
-  -- See the wfa.measurement.internal.db.gcp.ComputationStageDetails Proto
+  -- See the wfa.measurement.internal.duchy.ComputationStageDetails Proto
   Details bytea NOT NULL,
 
   -- Canonical JSON string of a proto3 protobuf with details about the
   -- the computation stage which do not need to be indexed by the
   -- database.
   --
-  -- See the wfa.measurement.internal.db.gcp.ComputationStageDetails Proto
+  -- See the wfa.measurement.internal.duchy.ComputationStageDetails Proto
   DetailsJSON jsonb NOT NULL,
 
   PRIMARY KEY (ComputationId, ComputationStage),
@@ -243,7 +247,7 @@ CREATE TABLE ComputationBlobReferences (
 
   -- The stage the computation was in.
   --
-  -- See the protos in the wfa.measurement.protocol package.
+  -- See the wfa.measurement.internal.duchy.ComputationStage proto.
   ComputationStage integer NOT NULL,
 
   -- A unique identifier for the BLOB.
@@ -257,8 +261,8 @@ CREATE TABLE ComputationBlobReferences (
   -- Says in what way the stage depends upon the referenced BLOB, i.e.
   -- is the blob an input to the stage, or is it a required output.
   --
-  -- See the wfa.measurement.internal.db.gcp.ComputationBlobDependency proto
-  DependencyType bigint NOT NULL,
+  -- See the wfa.measurement.internal.duchy.ComputationBlobDependency proto
+  DependencyType integer NOT NULL,
 
   PRIMARY KEY (ComputationId, ComputationStage, BlobId),
   FOREIGN KEY (ComputationId, ComputationStage)
@@ -276,7 +280,7 @@ CREATE TABLE ComputationStageAttempts (
 
   -- The stage the computation was in.
   --
-  -- See the protos in the wfa.measurement.protocol package.
+  -- See the wfa.measurement.internal.duchy.ComputationStage proto.
   ComputationStage integer NOT NULL,
 
   -- The attempt number for this stage for this computation.
@@ -288,7 +292,7 @@ CREATE TABLE ComputationStageAttempts (
   Attempt integer NOT NULL,
 
   -- When the attempt of the stage began.
-  BeginTime timestamp,
+  BeginTime timestamp NOT NULL,
 
   -- When the attempt finished.
   EndTime timestamp,
@@ -296,13 +300,13 @@ CREATE TABLE ComputationStageAttempts (
   -- Serialized bytes of a proto3 protobuf with details about the attempt of
   --  a computation stage which do not need to be indexed by the database.
   --
-  -- See the wfa.measurement.internal.db.gcp.ComputationStageAttemptDetails Proto
+  -- See the wfa.measurement.internal.duchy.ComputationStageAttemptDetails Proto
   Details bytea,
 
   -- Serialized bytes of a proto3 protobuf with details about the attempt of
   --  a computation stage which do not need to be indexed by the database.
   --
-  -- See the wfa.measurement.internal.db.gcp.ComputationStageAttemptDetails Proto
+  -- See the wfa.measurement.internal.duchy.ComputationStageAttemptDetails Proto
   DetailsJSON jsonb,
 
   PRIMARY KEY (ComputationId, ComputationStage, Attempt),
@@ -340,14 +344,14 @@ CREATE TABLE ComputationStats (
   MetricName text NOT NULL,
 
   -- Time when the row was inserted.
-  CreateTime timestamp,
+  CreationTime timestamp NOT NULL,
 
   -- Numerical value of the measurement.
   MetricValue bigint NOT NULL,
 
   PRIMARY KEY (ComputationId, ComputationStage, Attempt, MetricName),
   FOREIGN KEY (ComputationId, ComputationStage, Attempt)
-    REFERENCES ComputationStageAttempts(ComputationId, ComputationStage, Attempt)
+    REFERENCES ComputationStageAttempts(ComputationId, ComputationStage, Attempt) ON DELETE CASCADE
 );
 
 -- HeraldContinuationTokens
@@ -365,7 +369,7 @@ CREATE TABLE HeraldContinuationTokens (
   ContinuationToken text NOT NULL,
 
   -- Last time the ContinuationToken was modified.
-  UpdateTime timestamp,
+  UpdateTime timestamp NOT NULL,
 
   CONSTRAINT presence_set CHECK(Presence),
 

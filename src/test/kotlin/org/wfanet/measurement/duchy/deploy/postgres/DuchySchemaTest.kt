@@ -31,8 +31,6 @@ class DuchySchemaTest {
 
   private fun translate(row: ResultRow): String = row["table_name"]
 
-  @Test fun `database is created`() {}
-
   @Test
   fun `all duchy tables are created`(): Unit = runBlocking {
     val query = "SELECT table_name FROM information_schema.tables;"
