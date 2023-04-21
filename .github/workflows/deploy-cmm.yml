@@ -16,7 +16,7 @@ name: Deploy CMM
 
 on:
   push:
-    branches: [feature/create-cmm-infra]
+    branches: [feature/cmm-orchestrator]
   # TODO(wfa-mdharmalingam): trigger on release.
   workflow_dispatch:
     inputs:
