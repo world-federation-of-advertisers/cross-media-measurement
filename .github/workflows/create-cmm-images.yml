@@ -15,12 +15,12 @@
 name: Build and Push CMM Images
 
 on:
-  workflow_dispatch:
+  workflow_call:
     outputs:
       image_tag:
         description: 'Image_tag to be generated'
         value: ${{ jobs.create-image-tag.outputs.image_tag }}
-  workflow_call:
+  workflow_dispatch:
     outputs:
       image_tag:
         description: 'Image_tag to be generated'
