@@ -102,3 +102,40 @@ resource "google_storage_bucket_iam_binding" "gcs_access_iam_binding" {
     "serviceAccount:${google_service_account.gcs_access.email}"
   ]
 }
+
+# Create Kubernetes service account
+resource "kubernetes_service_account" "internal_server" {
+  metadata {
+    name = "internal-server"
+  }
+
+  automount_service_account_token = false
+}
+
+# Create Kubernetes role binding to grant necessary permissions to service account
+resource "kubernetes_role_binding" "internal_server" {
+  metadata {
+    name = "internal-server"
+  }
+
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "ClusterRole"
+    name      = "cluster-admin"
+  }
+
+  subject {
+    kind      = "ServiceAccount"
+    name      = kubernetes_service_account.internal_server.metadata.0.name
+    namespace = "default"
+  }
+}
+
+resource "google_service_account_iam_binding" "internal_server" {
+  service_account_id = "kingdom-internal@halo-duchy-demo.iam.gserviceaccount.com"
+  role               = "roles/iam.workloadIdentityUser"
+
+  members = [
+    "serviceAccount:halo-duchy-demo.svc.id.goog[default/internal-server]"
+  ]
+}
