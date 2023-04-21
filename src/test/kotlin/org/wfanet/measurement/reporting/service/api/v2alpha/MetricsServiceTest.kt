@@ -1101,7 +1101,13 @@ private val INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC =
   }
 
 private val INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_METRIC =
-  INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy { state = InternalMetric.State.FAILED }
+  INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+    weightedMeasurements.clear()
+    weightedMeasurements += weightedMeasurement {
+      weight = 1
+      measurement = INTERNAL_FAILED_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT
+    }
+  }
 
 // Internal Cross Publisher Watch Duration Metrics
 private val INTERNAL_REQUESTING_CROSS_PUBLISHER_WATCH_DURATION_METRIC = internalMetric {
@@ -1140,7 +1146,6 @@ private val INTERNAL_PENDING_INITIAL_CROSS_PUBLISHER_WATCH_DURATION_METRIC =
       weight = 1
       measurement = INTERNAL_PENDING_NOT_CREATED_UNION_ALL_WATCH_DURATION_MEASUREMENT
     }
-    state = InternalMetric.State.RUNNING
   }
 
 private val INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC =
@@ -1154,17 +1159,12 @@ private val INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC =
 
 private val INTERNAL_SUCCEEDED_CROSS_PUBLISHER_WATCH_DURATION_METRIC =
   INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.copy {
-    state = InternalMetric.State.SUCCEEDED
-    details =
-      InternalMetricKt.details {
-        filters += this@copy.details.filtersList
-        result = internalMetricResult {
-          watchDuration =
-            InternalMetricResultKt.watchDurationResult {
-              value = TOTAL_WATCH_DURATION.seconds.toDouble()
-            }
-        }
-      }
+    weightedMeasurements.clear()
+    weightedMeasurements += weightedMeasurement {
+      weight = 1
+      measurement = INTERNAL_SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT
+    }
+    details = InternalMetricKt.details { filters += this@copy.details.filtersList }
   }
 
 // Public Metrics
@@ -4172,7 +4172,11 @@ class MetricsServiceTest {
     whenever(internalMetricsMock.batchGetMetrics(any()))
       .thenReturn(
         internalBatchGetMetricsResponse { metrics += INTERNAL_PENDING_INCREMENTAL_REACH_METRIC },
-        internalBatchGetMetricsResponse { metrics += INTERNAL_PENDING_INCREMENTAL_REACH_METRIC }
+      )
+    whenever(measurementsMock.getMeasurement(any()))
+      .thenReturn(
+        PENDING_UNION_ALL_REACH_MEASUREMENT,
+        PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT,
       )
 
     val request = getMetricRequest { name = PENDING_INCREMENTAL_REACH_METRIC.name }
@@ -4185,7 +4189,7 @@ class MetricsServiceTest {
     // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
     val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
       argumentCaptor()
-    verifyBlocking(internalMetricsMock, times(2)) {
+    verifyBlocking(internalMetricsMock, times(1)) {
       batchGetMetrics(batchGetInternalMetricsCaptor.capture())
     }
     val capturedInternalGetMetricRequests = batchGetInternalMetricsCaptor.allValues
@@ -4195,12 +4199,19 @@ class MetricsServiceTest {
           cmmsMeasurementConsumerId =
             INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.cmmsMeasurementConsumerId
           externalMetricIds += INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId
-        },
-        internalBatchGetMetricsRequest {
-          cmmsMeasurementConsumerId =
-            INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.cmmsMeasurementConsumerId
-          externalMetricIds += INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.externalMetricId
         }
+      )
+
+    // Verify proto argument of MeasurementsCoroutineImplBase::getMeasurement
+    val getMeasurementCaptor: KArgumentCaptor<GetMeasurementRequest> = argumentCaptor()
+    verifyBlocking(measurementsMock, times(2)) { getMeasurement(getMeasurementCaptor.capture()) }
+    val capturedGetMeasurementRequests = getMeasurementCaptor.allValues
+    assertThat(capturedGetMeasurementRequests)
+      .containsExactly(
+        getMeasurementRequest { name = PENDING_UNION_ALL_REACH_MEASUREMENT.name },
+        getMeasurementRequest {
+          name = PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.name
+        },
       )
 
     // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
@@ -4293,6 +4304,15 @@ class MetricsServiceTest {
             externalMetricIds +=
               INTERNAL_PENDING_CROSS_PUBLISHER_WATCH_DURATION_METRIC.externalMetricId
           }
+        )
+
+      // Verify proto argument of MeasurementsCoroutineImplBase::getMeasurement
+      val getMeasurementCaptor: KArgumentCaptor<GetMeasurementRequest> = argumentCaptor()
+      verifyBlocking(measurementsMock, times(1)) { getMeasurement(getMeasurementCaptor.capture()) }
+      val capturedGetMeasurementRequests = getMeasurementCaptor.allValues
+      assertThat(capturedGetMeasurementRequests)
+        .containsExactly(
+          getMeasurementRequest { name = PENDING_UNION_ALL_WATCH_DURATION_MEASUREMENT.name },
         )
 
       // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
