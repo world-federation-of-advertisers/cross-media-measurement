@@ -26,8 +26,6 @@ env:
   REGISTRY: ghcr.io
 
 permissions:
-  contents: 'read'
-  id-token: 'write'
   packages: 'write'
 
 jobs:
