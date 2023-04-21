@@ -23,8 +23,11 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetDataProviderRequest
+import org.wfanet.measurement.internal.kingdom.ReplaceDataProviderRequiredDuchiesRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateDataProvider
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.ReplaceDataProviderRequiredDuchies
 
 // TODO(@marcopremier): Add method to update data provider required duchies list.
 class SpannerDataProvidersService(
@@ -46,5 +49,18 @@ class SpannerDataProvidersService(
       .readByExternalDataProviderId(client.singleUse(), ExternalId(request.externalDataProviderId))
       ?.dataProvider
       ?: failGrpc(Status.NOT_FOUND) { "DataProvider not found" }
+  }
+
+  override suspend fun replaceDataProviderRequiredDuchies(
+    request: ReplaceDataProviderRequiredDuchiesRequest
+  ): DataProvider {
+    grpcRequire(request.externalDataProviderId != null) {
+      "externalDataProviderId field is missing."
+    }
+    try {
+      return ReplaceDataProviderRequiredDuchies(request).execute(client, idGenerator)
+    } catch (e: DataProviderNotFoundException) {
+      e.throwStatusRuntimeException(Status.NOT_FOUND) { "DataProvider not found." }
+    }
   }
 }

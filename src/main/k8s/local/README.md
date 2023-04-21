@@ -115,6 +115,9 @@ src/main/k8s/local/resource_setup.sh \
   --output-dir=/tmp/resource-setup
 ```
 
+Note: You can stop the port forwarding at this point. Future steps involve
+restarting some Deployments, rendering the forwarding invalid.
+
 Tip: The job will output a `resource-setup.bazelrc` file with `--define` options
 that you can include in your `.bazelrc` file. You can then specify
 `--config=halo-local` to Bazel commands instead of those individual options.
@@ -255,6 +258,33 @@ browser at http://localhost:31111/:
 
 ```shell
 kubectl port-forward prometheus-pod 31111:9090
+```
+
+## Running the Correctness Test
+
+Once you have a running CMMS with EDP simulators, you can run the correctness
+test against it.
+
+You'll need access to the public API and forwarded storage servers. You can do
+this via port forwarding:
+
+```shell
+kubectl port-forward --address=localhost services/v2alpha-public-api-server 8443:8443
+```
+
+```shell
+kubectl port-forward --address=localhost services/fake-storage-server 7443:8443 &
+```
+
+Then you can run the test, substituting your own values:
+
+```shell
+bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:ForwardedStorageCorrectnessTest
+  --test_output=streamed \
+  --define=kingdom_public_api_target=localhost:8443 \
+  --define=forwarded_storage_api_target=localhost:7443 \
+  --define=mc_name=measurementConsumers/Rcn7fKd25C8 \
+  --define=mc_api_key=W9q4zad246g
 ```
 
 ## Old Guide

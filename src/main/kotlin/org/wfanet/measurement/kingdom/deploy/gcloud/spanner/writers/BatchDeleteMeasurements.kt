@@ -24,7 +24,10 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.internal.kingdom.BatchDeleteMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementEtagMismatchException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByMeasurementConsumerException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader.Companion.readEtag
 
 /**
  * Permanently deletes [Measurement]s. Operation will fail for all [Measurement]s when one is not
@@ -32,6 +35,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementR
  *
  * Throws the following [KingdomInternalException] type on [execute]:
  * * [MeasurementNotFoundByMeasurementConsumerException] when the Measurement is not found
+ * * [MeasurementEtagMismatchException] when requested etag does not match actual etag
  */
 class BatchDeleteMeasurements(
   private val requests: BatchDeleteMeasurementsRequest,
@@ -47,6 +51,15 @@ class BatchDeleteMeasurements(
           ExternalId(request.externalMeasurementConsumerId),
           ExternalId(request.externalMeasurementId)
         )
+      if (request.etag.isNotEmpty()) {
+        val actualEtag = readEtag(transactionContext, result)
+        if (actualEtag != request.etag) {
+          throw MeasurementEtagMismatchException(actualEtag, request.etag) {
+            "Requested Measurement etag ${request.etag} does not match actual measurement etag" +
+              "$actualEtag"
+          }
+        }
+      }
 
       keySet.addKey(result)
     }

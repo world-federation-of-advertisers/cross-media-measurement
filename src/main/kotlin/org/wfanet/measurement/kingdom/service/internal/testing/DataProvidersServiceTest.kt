@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.service.internal.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.timestamp
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
@@ -30,9 +31,15 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.identity.testing.FixedIdGenerator
+import org.wfanet.measurement.internal.kingdom.CertificateKt
 import org.wfanet.measurement.internal.kingdom.DataProvider
+import org.wfanet.measurement.internal.kingdom.DataProviderKt
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetDataProviderRequest
+import org.wfanet.measurement.internal.kingdom.certificate
+import org.wfanet.measurement.internal.kingdom.dataProvider
+import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
+import org.wfanet.measurement.internal.kingdom.replaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 import org.wfanet.measurement.kingdom.service.internal.testing.Population.Companion.DUCHIES
 
@@ -203,5 +210,45 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
       )
 
     assertThat(dataProviderRead).isEqualTo(createdDataProvider)
+  }
+  @Test
+  fun `replaceDataProviderRequiredDuchies succeeds`() = runBlocking {
+    val dataProvider = dataProvider {
+      certificate {
+        notValidBefore = timestamp { seconds = 12345 }
+        notValidAfter = timestamp { seconds = 23456 }
+        details = CertificateKt.details { x509Der = CERTIFICATE_DER }
+      }
+      details =
+        DataProviderKt.details {
+          apiVersion = "v2alpha"
+          publicKey = PUBLIC_KEY
+          publicKeySignature = PUBLIC_KEY_SIGNATURE
+        }
+      requiredExternalDuchyIds += DUCHIES.map { it.externalDuchyId }
+    }
+
+    val createdDataProvider = dataProvidersService.createDataProvider(dataProvider)
+    val desiredDuchyList = listOf(Population.AGGREGATOR_DUCHY.externalDuchyId)
+    val updatedDataProvider =
+      dataProvidersService.replaceDataProviderRequiredDuchies(
+        replaceDataProviderRequiredDuchiesRequest {
+          externalDataProviderId = createdDataProvider.externalDataProviderId
+          requiredExternalDuchyIds += desiredDuchyList
+        }
+      )
+
+    // Ensure DataProvider with updated duchy list is returned from function
+    assertThat(updatedDataProvider.requiredExternalDuchyIdsList).isEqualTo(desiredDuchyList)
+
+    val dataProviderRead =
+      dataProvidersService.getDataProvider(
+        getDataProviderRequest {
+          externalDataProviderId = createdDataProvider.externalDataProviderId
+        }
+      )
+
+    // Ensure changes were written to DataProviderRequiredDuchies table
+    assertThat(dataProviderRead.requiredExternalDuchyIdsList).isEqualTo(desiredDuchyList)
   }
 }

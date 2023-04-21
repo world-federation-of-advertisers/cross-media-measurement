@@ -147,6 +147,19 @@ class MeasurementStateIllegalException(
       )
 }
 
+class MeasurementEtagMismatchException(
+  val requestedMeasurementEtag: String,
+  val actualMeasurementEtag: String,
+  provideDescription: () -> String = { "Measurement etag mismatch" }
+) : KingdomInternalException(ErrorCode.MEASUREMENT_ETAG_MISMATCH, provideDescription) {
+  override val context
+    get() =
+      mapOf(
+        "actual_measurement_etag" to actualMeasurementEtag,
+        "requested_measurement_etag" to requestedMeasurementEtag
+      )
+}
+
 class CertSubjectKeyIdAlreadyExistsException(
   provideDescription: () -> String = { "Cert subject key id already exists" }
 ) : KingdomInternalException(ErrorCode.CERT_SUBJECT_KEY_ID_ALREADY_EXISTS, provideDescription) {

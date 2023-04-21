@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.Key
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.internal.kingdom.BatchCancelMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.BatchCancelMeasurementsResponse
@@ -24,9 +25,12 @@ import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryKt
 import org.wfanet.measurement.internal.kingdom.batchCancelMeasurementsResponse
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementEtagMismatchException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByMeasurementConsumerException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader.Companion.getEtag
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader.Companion.readEtag
 
 /**
  * Cancels [Measurement]s, transitioning their states to [Measurement.State.CANCELLED]. Operation
@@ -35,6 +39,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementR
  * Throws the following [KingdomInternalException] type on [execute]:
  * * [MeasurementNotFoundByMeasurementConsumerException] when a Measurement is not found
  * * [MeasurementStateIllegalException] when a Measurement state is not in pending
+ * * [MeasurementEtagMismatchException] when requested etag does not match actual etag
  */
 class BatchCancelMeasurements(
   private val requests: BatchCancelMeasurementsRequest,
@@ -79,6 +84,19 @@ class BatchCancelMeasurements(
           }
         }
       }
+      if (request.etag.isNotEmpty()) {
+        val actualEtag =
+          readEtag(
+            transactionContext,
+            Key.of(result.measurementConsumerId.value, result.measurementId.value)
+          )
+        if (actualEtag != request.etag) {
+          throw MeasurementEtagMismatchException(actualEtag, request.etag) {
+            "Requested Measurement etag ${request.etag} does not match actual measurement etag" +
+              "$actualEtag"
+          }
+        }
+      }
 
       resultsList.add(result)
     }
@@ -109,7 +127,10 @@ class BatchCancelMeasurements(
     return batchCancelMeasurementsResponse {
       measurements +=
         this@buildResult.transactionResult.measurementsList.map {
-          it.copy { updateTime = commitTimestamp.toProto() }
+          it.copy {
+            updateTime = commitTimestamp.toProto()
+            etag = getEtag(commitTimestamp)
+          }
         }
     }
   }
