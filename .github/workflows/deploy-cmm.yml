@@ -67,7 +67,7 @@ jobs:
     uses: ./.github/workflows/configure-duchy.yml
     secrets: inherit
     with:
-      duchy_name: {{ inputs.duchy_name }}
+      duchy_name: duchy-1 #{{ inputs.duchy_name }}
       image_tag: ${{ needs.create-image-tag.outputs.image_tag }}
       kubectl_apply: ${{ inputs.kubectl_apply }}
 
@@ -77,7 +77,7 @@ jobs:
     uses: ./.github/workflows/configure-duchy.yml
     secrets: inherit
     with:
-      duchy_name: {{ inputs.duchy_name }}
+      duchy_name: duchy-2 #{{ inputs.duchy_name }}
       image_tag: ${{ needs.create-image-tag.outputs.image_tag }}
       kubectl_apply: ${{ inputs.kubectl_apply }}
 
@@ -87,6 +87,6 @@ jobs:
     uses: ./.github/workflows/configure-duchy.yml
     secrets: inherit
     with:
-      duchy_name: {{ inputs.duchy_name }}
+      duchy_name: aggregator #{{ inputs.duchy_name }}
       image_tag: ${{ needs.create-image-tag.outputs.image_tag }}
       kubectl_apply: ${{ inputs.kubectl_apply }}
