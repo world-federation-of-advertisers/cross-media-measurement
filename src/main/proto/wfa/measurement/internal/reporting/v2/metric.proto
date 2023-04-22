@@ -110,17 +110,6 @@ message Metric {
 
   MetricSpec metric_spec = 6;
 
-  enum State {
-    // Default value. This value is unused.
-    STATE_UNSPECIFIED = 0;
-    // Computation is running.
-    RUNNING = 1;
-    // Completed successfully. Terminal state.
-    SUCCEEDED = 2;
-    // Completed with failure. Terminal state.
-    FAILED = 3;
-  }
-
   message WeightedMeasurement {
     int32 weight = 1;
     Measurement measurement = 2;

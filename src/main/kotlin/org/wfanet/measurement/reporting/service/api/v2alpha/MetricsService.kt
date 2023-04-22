@@ -900,7 +900,7 @@ class MetricsService(
     // Only syncs pending measurements which can only be in metrics that are still running.
     val toBeSyncedInternalMeasurements: List<InternalMeasurement> =
       subResults
-        .filter { internalMetric -> determineMetricState(internalMetric) == Metric.State.RUNNING }
+        .filter { internalMetric -> internalMetric.state == Metric.State.RUNNING }
         .flatMap { internalMetric -> internalMetric.weightedMeasurementsList }
         .map { weightedMeasurement -> weightedMeasurement.measurement }
         .filter { internalMeasurement ->
@@ -979,7 +979,7 @@ class MetricsService(
         throw Exception("Unable to create the metric in the reporting database.", e)
       }
 
-    if (determineMetricState(internalMetric) == Metric.State.RUNNING) {
+    if (internalMetric.state == Metric.State.RUNNING) {
       measurementSupplier.createCmmsMeasurements(listOf(internalMetric), principal)
     }
 
@@ -1029,7 +1029,7 @@ class MetricsService(
             }
           )
           .metricsList
-          .filter { internalMetric -> determineMetricState(internalMetric) == Metric.State.RUNNING }
+          .filter { internalMetric -> internalMetric.state == Metric.State.RUNNING }
       } catch (e: StatusException) {
         throw Exception("Unable to create the metric in the reporting database.", e)
       }
@@ -1373,23 +1373,11 @@ private fun InternalMetric.toMetric(): Metric {
     timeInterval = source.timeInterval.toTimeInterval()
     metricSpec = source.metricSpec.toMetricSpec()
     filters += source.details.filtersList
-    state = determineMetricState(source)
+    state = source.state
     createTime = source.createTime
     if (state == Metric.State.SUCCEEDED) {
       result = buildMetricResult(source)
     }
-  }
-}
-
-/** Determines the [Metric.State] based on the given [InternalMetric]. */
-private fun determineMetricState(metric: InternalMetric): Metric.State {
-  val measurementStates = metric.weightedMeasurementsList.map { it.measurement.state }
-  return if (measurementStates.all { it == InternalMeasurement.State.SUCCEEDED }) {
-    Metric.State.SUCCEEDED
-  } else if (measurementStates.any { it == InternalMeasurement.State.FAILED }) {
-    Metric.State.FAILED
-  } else {
-    Metric.State.RUNNING
   }
 }
 
@@ -1528,3 +1516,15 @@ private operator fun Duration.times(coefficient: Int): Duration {
 private operator fun Duration.plus(other: Duration): Duration {
   return Durations.add(this, other)
 }
+
+private val InternalMetric.state: Metric.State
+  get() {
+    val measurementStates = weightedMeasurementsList.map { it.measurement.state }
+    return if (measurementStates.all { it == InternalMeasurement.State.SUCCEEDED }) {
+      Metric.State.SUCCEEDED
+    } else if (measurementStates.any { it == InternalMeasurement.State.FAILED }) {
+      Metric.State.FAILED
+    } else {
+      Metric.State.RUNNING
+    }
+  }
