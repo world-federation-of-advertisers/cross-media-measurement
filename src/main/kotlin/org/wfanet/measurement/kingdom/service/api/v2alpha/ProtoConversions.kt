@@ -140,8 +140,8 @@ fun InternalNoiseMechanism.toNoiseMechanism(): NoiseMechanism {
   return when (this) {
     InternalNoiseMechanism.GEOMETRIC -> NoiseMechanism.GEOMETRIC
     InternalNoiseMechanism.DISCRETE_GAUSSIAN -> NoiseMechanism.DISCRETE_GAUSSIAN
-    InternalNoiseMechanism.UNRECOGNIZED,
-    InternalNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED -> error("Noise mechanism not specified")
+    InternalNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
+    InternalNoiseMechanism.UNRECOGNIZED -> error("invalid internal noise mechanism.")
   }
 }
 
@@ -194,7 +194,16 @@ fun InternalProtocolConfig.toProtocolConfig(
                   }
                   ellipticCurveId = source.liquidLegionsV2.ellipticCurveId
                   maximumFrequency = source.liquidLegionsV2.maximumFrequency
-                  noiseMechanism = source.liquidLegionsV2.noiseMechanism.toNoiseMechanism()
+                  // Use `GEOMETRIC` for unspecified InternalNoiseMechanism for old Measurements.
+                  noiseMechanism =
+                    if (
+                      source.liquidLegionsV2.noiseMechanism ==
+                        InternalNoiseMechanism.NOISE_MECHANISM_UNSPECIFIED
+                    ) {
+                      NoiseMechanism.GEOMETRIC
+                    } else {
+                      source.liquidLegionsV2.noiseMechanism.toNoiseMechanism()
+                    }
                 }
               }
             }

@@ -48,6 +48,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementCo
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamDataProviders
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader.Companion.getEtag
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.readDataProviderId
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWriter.TransactionScope
 
@@ -341,6 +342,7 @@ class CreateMeasurement(private val measurement: Measurement) :
     return measurement.copy {
       createTime = commitTimestamp.toProto()
       updateTime = commitTimestamp.toProto()
+      etag = getEtag(commitTimestamp)
     }
   }
 }

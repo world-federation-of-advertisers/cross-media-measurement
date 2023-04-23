@@ -170,7 +170,7 @@ message BatchCreateMetricsRequest {
       child_type: "reporting.halo-cmm.org/Metric"
     }
   ];
-  // A maximum of 100 metrics can be created in a batch.
+  // A maximum of 1000 metrics can be created in a batch.
   repeated CreateMetricRequest requests = 2
       [(google.api.field_behavior) = REQUIRED];
 }
