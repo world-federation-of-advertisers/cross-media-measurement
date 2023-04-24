@@ -298,7 +298,21 @@ class MetricsService(
           .withAuthenticationKey(principal.config.apiKey)
           .createMeasurement(createMeasurementRequest)
       } catch (e: StatusException) {
-        throw Exception("Unable to create a CMMS measurement.", e)
+        throw when (e.status.code) {
+            Status.Code.INVALID_ARGUMENT ->
+              Status.INVALID_ARGUMENT.withDescription("Required field unspecified or invalid.")
+            Status.Code.PERMISSION_DENIED ->
+              Status.PERMISSION_DENIED.withDescription(
+                "Cannot create a CMMS Measurement for another MeasurementConsumer."
+              )
+            Status.Code.FAILED_PRECONDITION ->
+              Status.FAILED_PRECONDITION.withDescription("Failed precondition.")
+            Status.Code.NOT_FOUND ->
+              Status.NOT_FOUND.withDescription("${measurementConsumer.name} is not found.")
+            else -> Status.UNKNOWN.withDescription("Unable to create a CMMS measurement.")
+          }
+          .withCause(e)
+          .asRuntimeException()
       }
     }
 
@@ -409,8 +423,8 @@ class MetricsService(
           } catch (e: StatusException) {
             throw when (e.status.code) {
                 Status.Code.NOT_FOUND ->
-                  Status.FAILED_PRECONDITION.withDescription("$dataProviderName not found")
-                else -> Status.UNKNOWN.withDescription("Unable to retrieve $dataProviderName")
+                  Status.FAILED_PRECONDITION.withDescription("$dataProviderName not found.")
+                else -> Status.UNKNOWN.withDescription("Unable to retrieve $dataProviderName.")
               }
               .withCause(e)
               .asRuntimeException()
@@ -422,7 +436,16 @@ class MetricsService(
               .withAuthenticationKey(apiAuthenticationKey)
               .getCertificate(getCertificateRequest { name = dataProvider.certificate })
           } catch (e: StatusException) {
-            throw Exception("Unable to retrieve Certificate ${dataProvider.certificate}", e)
+            throw when (e.status.code) {
+                Status.Code.NOT_FOUND ->
+                  Status.NOT_FOUND.withDescription("${dataProvider.certificate} not found.")
+                else ->
+                  Status.UNKNOWN.withDescription(
+                    "Unable to retrieve Certificate ${dataProvider.certificate}."
+                  )
+              }
+              .withCause(e)
+              .asRuntimeException()
           }
         if (
           certificate.revocationState != Certificate.RevocationState.REVOCATION_STATE_UNSPECIFIED
@@ -539,10 +562,16 @@ class MetricsService(
             getMeasurementConsumerRequest { name = principal.resourceKey.toName() }
           )
       } catch (e: StatusException) {
-        throw Exception(
-          "Unable to retrieve the measurement consumer " + "[${principal.resourceKey.toName()}].",
-          e
-        )
+        throw when (e.status.code) {
+            Status.Code.NOT_FOUND ->
+              Status.NOT_FOUND.withDescription("${principal.resourceKey.toName()} not found.")
+            else ->
+              Status.UNKNOWN.withDescription(
+                "Unable to retrieve the measurement consumer [${principal.resourceKey.toName()}]."
+              )
+          }
+          .withCause(e)
+          .asRuntimeException()
       }
     }
 
@@ -584,11 +613,19 @@ class MetricsService(
           .getCertificate(getCertificateRequest { name = principal.config.signingCertificateName })
           .x509Der
       } catch (e: StatusException) {
-        throw Exception(
-          "Unable to retrieve the signing certificate for the measurement consumer " +
-            "[$principal.config.signingCertificateName].",
-          e
-        )
+        throw when (e.status.code) {
+            Status.Code.NOT_FOUND ->
+              Status.NOT_FOUND.withDescription(
+                "${principal.config.signingCertificateName} not found."
+              )
+            else ->
+              Status.UNKNOWN.withDescription(
+                "Unable to retrieve the signing certificate " +
+                  "[${principal.config.signingCertificateName}] for the measurement consumer."
+              )
+          }
+          .withCause(e)
+          .asRuntimeException()
       }
     }
 
@@ -724,7 +761,20 @@ class MetricsService(
                 .withAuthenticationKey(apiAuthenticationKey)
                 .getMeasurement(getMeasurementRequest { name = measurementResourceName })
             } catch (e: StatusException) {
-              throw Exception("Unable to retrieve the measurement [$measurementResourceName].", e)
+              throw when (e.status.code) {
+                  Status.Code.NOT_FOUND ->
+                    Status.NOT_FOUND.withDescription("$measurementResourceName not found.")
+                  Status.Code.PERMISSION_DENIED ->
+                    Status.PERMISSION_DENIED.withDescription(
+                      "Doesn't have permission to get $measurementResourceName."
+                    )
+                  else ->
+                    Status.UNKNOWN.withDescription(
+                      "Unable to retrieve the measurement [$measurementResourceName]."
+                    )
+                }
+                .withCause(e)
+                .asRuntimeException()
             }
           }
         }
@@ -770,10 +820,17 @@ class MetricsService(
             .withAuthenticationKey(apiAuthenticationKey)
             .getCertificate(getCertificateRequest { name = measurementResultPair.certificate })
         } catch (e: StatusException) {
-          throw Exception(
-            "Unable to retrieve the certificate [${measurementResultPair.certificate}].",
-            e
-          )
+          throw when (e.status.code) {
+              Status.Code.NOT_FOUND ->
+                Status.NOT_FOUND.withDescription("${measurementResultPair.certificate} not found.")
+              else ->
+                Status.UNKNOWN.withDescription(
+                  "Unable to retrieve the certificate " +
+                    "[${measurementResultPair.certificate}] for the measurement consumer."
+                )
+            }
+            .withCause(e)
+            .asRuntimeException()
         }
 
       val signedResult =
