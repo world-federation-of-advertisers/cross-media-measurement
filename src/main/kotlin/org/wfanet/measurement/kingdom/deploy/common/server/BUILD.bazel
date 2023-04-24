@@ -21,6 +21,7 @@ kt_jvm_library(
 kt_jvm_library(
     name = "utils",
     srcs = ["Utils.kt"],
+    visibility = ["//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/job:__subpackages__"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:flags",
