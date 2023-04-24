@@ -102,6 +102,7 @@ import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.ExternalId
@@ -2737,7 +2738,7 @@ class MetricsServiceTest {
   }
 
   @Test
-  fun `createMetric throws exception when the CMMs createMeasurement throws exception`() =
+  fun `createMetric throws exception when the CMMs createMeasurement throws INVALID_ARGUMENT`() =
     runBlocking {
       whenever(measurementsMock.createMeasurement(any()))
         .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
@@ -2753,8 +2754,9 @@ class MetricsServiceTest {
             runBlocking { service.createMetric(request) }
           }
         }
-      val expectedExceptionDescription = "Unable to create a CMMS measurement."
-      assertThat(exception.message).isEqualTo(expectedExceptionDescription)
+      assertThat(exception.grpcStatusCode()).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      val expectedExceptionDescription = "Required field unspecified or invalid."
+      assertThat(exception.message).contains(expectedExceptionDescription)
     }
 
   @Test
@@ -2780,9 +2782,9 @@ class MetricsServiceTest {
     }
 
   @Test
-  fun `createMetric throws exception when getMeasurementConsumer throws exception`() = runBlocking {
+  fun `createMetric throws exception when getMeasurementConsumer throws NOT_FOUND`() = runBlocking {
     whenever(measurementConsumersMock.getMeasurementConsumer(any()))
-      .thenThrow(StatusRuntimeException(Status.INVALID_ARGUMENT))
+      .thenThrow(StatusRuntimeException(Status.NOT_FOUND))
 
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
@@ -2795,9 +2797,8 @@ class MetricsServiceTest {
           runBlocking { service.createMetric(request) }
         }
       }
-    val expectedExceptionDescription =
-      "Unable to retrieve the measurement consumer [${MEASUREMENT_CONSUMERS.values.first().name}]."
-    assertThat(exception.message).isEqualTo(expectedExceptionDescription)
+    assertThat(exception.grpcStatusCode()).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.message).contains(MEASUREMENT_CONSUMERS.values.first().name)
   }
 
   @Test
