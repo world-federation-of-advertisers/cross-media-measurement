@@ -108,7 +108,6 @@ CREATE TABLE Computations (
 -- have a non null LockExpirationTime.
 CREATE INDEX ComputationsByLockExpirationTime
   ON Computations(Protocol, LockExpirationTime ASC, UpdateTime ASC)
-  INCLUDE (ComputationStage, GlobalComputationId)
   WHERE LockExpirationTime IS NOT NULL;
 
 -- Enforce uniqueness of GlobalComputationId.
