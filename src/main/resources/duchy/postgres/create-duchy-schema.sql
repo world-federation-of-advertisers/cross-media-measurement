@@ -15,7 +15,7 @@
 -- limitations under the License.
 
 
--- changeset yuhongwang:create-duchy-schema dbms:postgresql
+-- changeset yuhongwang:1 dbms:postgresql
 
 -- Postgres database schema for the Duchy system.
 --
@@ -92,18 +92,10 @@ CREATE TABLE Computations (
   -- a NULL value in LockOwner.
   LockExpirationTime timestamp,
 
-  -- Serialized bytes of a proto3 protobuf with details about the
-  -- ongoing computation which do not need to be indexed by the
-  -- database.
-  --
-  -- See the wfa.measurement.internal.duchy.ComputationDetails Proto
+  -- Serialized wfa.measurement.internal.duchy.ComputationDetails protobuf message
   ComputationDetails bytea NOT NULL,
 
-  -- Serialized JSON string of a proto3 protobuf with details about the
-  -- ongoing computation which do not need to be indexed by the
-  -- database.
-  --
-  -- See the wfa.measurement.internal.duchy.ComputationDetails Proto
+  -- Human-readable copy of the ComputationDetails column for debugging only.
   ComputationDetailsJSON jsonb NOT NULL,
 
   -- The time the Computation was created.
@@ -112,7 +104,6 @@ CREATE TABLE Computations (
   PRIMARY KEY (ComputationId)
 );
 
-
 -- Query computations ready for work. All computations that can be worked on
 -- have a non null LockExpirationTime.
 CREATE INDEX ComputationsByLockExpirationTime
@@ -120,10 +111,7 @@ CREATE INDEX ComputationsByLockExpirationTime
   INCLUDE (ComputationStage, GlobalComputationId)
   WHERE LockExpirationTime IS NOT NULL;
 
--- Query computations by the owner of the lock.
-CREATE INDEX ComputationsByLockOwner ON Computations(LockOwner);
-
--- Enable querying by global computation id.
+-- Enforce uniqueness of GlobalComputationId.
 CREATE UNIQUE INDEX ComputationsByGlobalId ON Computations(GlobalComputationId);
 
 -- Requisitions
@@ -145,17 +133,10 @@ CREATE TABLE Requisitions (
   -- A reference to the BLOB. If empty, then the requisition is unfulfilled
   PathToBlob text,
 
-  -- Serialized bytes of a proto3 protobuf with details about the requisition.
-  -- The details are obtained from the Kingdom's ComputationsService.
-  --
-  -- See the wfa.measurement.internal.RequisitionDetails Proto
+  -- Serialized wfa.measurement.internal.RequisitionDetails protobuf message.
   RequisitionDetails bytea NOT NULL,
 
-  -- Canonical JSON string of a proto3 protobuf with details about the
-  -- requisition. The details are obtained from the Kingdom's
-  -- ComputationsService.
-  --
-  -- See the wfa.measurement.internal.RequisitionDetails Proto
+  -- Human-readable copy of the RequisitionDetails column for debugging only.
   RequisitionDetailsJSON jsonb NOT NULL,
 
   -- The time the Requisition was created.
@@ -183,9 +164,7 @@ CREATE TABLE ComputationStages (
   -- The local identifier of the computation.
   ComputationId bigint NOT NULL,
 
-  -- The stage the computation was in.
-  --
-  -- See the wfa.measurement.internal.duchy.ComputationStage proto.
+  -- Serialized wfa.measurement.internal.duchy.ComputationStage protobuf message.
   ComputationStage integer NOT NULL,
 
   -- The time the computation stage was created. This is strictly
@@ -202,28 +181,18 @@ CREATE TABLE ComputationStages (
   -- The time the computation left the stage.
   EndTime timestamp,
 
-  -- The stage the computation was in before entering this stage.
-  --
-  -- See the wfa.measurement.internal.duchy.ComputationStage proto.
+  -- Serialized wfa.measurement.internal.duchy.ComputationStage protobuf message
+  -- that stores the stage this computation was in before entering this stage.
   PreviousStage integer,
 
-  -- The stage the computation transitioned into after leaving the stage.
-  --
-  -- See the wfa.measurement.internal.duchy.ComputationStage proto.
+  -- Serialized wfa.measurement.internal.duchy.ComputationStage protobuf message
+  -- that stores the stage this computation transitioned into after leaving this stage.
   FollowingStage integer,
 
-  -- Serialized bytes of a proto3 protobuf with details about the
-  -- computation stage which do not need to be indexed by the
-  -- database.
-  --
-  -- See the wfa.measurement.internal.duchy.ComputationStageDetails Proto
+  -- Serialized wfa.measurement.internal.duchy.ComputationStageDetails protobuf message
   Details bytea NOT NULL,
 
-  -- Canonical JSON string of a proto3 protobuf with details about the
-  -- the computation stage which do not need to be indexed by the
-  -- database.
-  --
-  -- See the wfa.measurement.internal.duchy.ComputationStageDetails Proto
+  -- Human-readable copy of the Details column for debugging only.
   DetailsJSON jsonb NOT NULL,
 
   PRIMARY KEY (ComputationId, ComputationStage),
@@ -245,9 +214,7 @@ CREATE TABLE ComputationBlobReferences (
   -- The local identifier of the computation.
   ComputationId bigint NOT NULL,
 
-  -- The stage the computation was in.
-  --
-  -- See the wfa.measurement.internal.duchy.ComputationStage proto.
+  -- Serialized wfa.measurement.internal.duchy.ComputationStage protobuf message.
   ComputationStage integer NOT NULL,
 
   -- A unique identifier for the BLOB.
@@ -258,10 +225,7 @@ CREATE TABLE ComputationBlobReferences (
   -- StoredDataPrefix from the parent table.
   PathToBlob text,
 
-  -- Says in what way the stage depends upon the referenced BLOB, i.e.
-  -- is the blob an input to the stage, or is it a required output.
-  --
-  -- See the wfa.measurement.internal.duchy.ComputationBlobDependency proto
+  -- Serialized wfa.measurement.internal.duchy.ComputationBlobDependency protobuf message.
   DependencyType integer NOT NULL,
 
   PRIMARY KEY (ComputationId, ComputationStage, BlobId),
@@ -278,9 +242,7 @@ CREATE TABLE ComputationStageAttempts (
   -- The local identifier of the computation.
   ComputationId bigint NOT NULL,
 
-  -- The stage the computation was in.
-  --
-  -- See the wfa.measurement.internal.duchy.ComputationStage proto.
+  -- Serialized wfa.measurement.internal.duchy.ComputationStage protobuf message.
   ComputationStage integer NOT NULL,
 
   -- The attempt number for this stage for this computation.
@@ -297,16 +259,10 @@ CREATE TABLE ComputationStageAttempts (
   -- When the attempt finished.
   EndTime timestamp,
 
-  -- Serialized bytes of a proto3 protobuf with details about the attempt of
-  --  a computation stage which do not need to be indexed by the database.
-  --
-  -- See the wfa.measurement.internal.duchy.ComputationStageAttemptDetails Proto
+  -- Serialized wfa.measurement.internal.duchy.ComputationStageAttemptDetails protobuf message
   Details bytea,
 
-  -- Serialized bytes of a proto3 protobuf with details about the attempt of
-  --  a computation stage which do not need to be indexed by the database.
-  --
-  -- See the wfa.measurement.internal.duchy.ComputationStageAttemptDetails Proto
+  -- Human-readable copy of the Details column for debugging only.
   DetailsJSON jsonb,
 
   PRIMARY KEY (ComputationId, ComputationStage, Attempt),
@@ -320,7 +276,7 @@ CREATE TABLE ComputationStageAttempts (
 --   for metrics at various attempts of the stages of a computation at the duchy.
 --   The table is meant to allow for non-structured metrics (e.g. crypto_cpu_time_millis,
 --   computation_elapsed_time_millis, etc.) to be collected across all the stages.
---   The structure in this table is for queriability  across stages of the computation.
+--   The structure in this table is for queriability across stages of the computation.
 --   But depending on the question being asked, the consumer of this table may need
 --   to know particular names of metrics for a stage as they are not baked into the schema.
 --   These names will be consistent across stages but could differ slightly
