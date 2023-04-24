@@ -36,7 +36,7 @@ private val COMPLETED_MEASUREMENT_STATES =
 class CompletedMeasurementsDeletion(
   private val measurementsService: MeasurementsCoroutineStub,
   private val timeToLive: Duration,
-  private val dryRun: Boolean,
+  private val dryRun: Boolean = false,
 ) {
 
   fun run() {
