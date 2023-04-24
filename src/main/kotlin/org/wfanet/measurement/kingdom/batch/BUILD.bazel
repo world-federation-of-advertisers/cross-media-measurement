@@ -2,6 +2,7 @@ load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement/kingdom/batch/spanner:__subpackages__",
+    "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:__subpackages__",
 ])
 
 kt_jvm_library(

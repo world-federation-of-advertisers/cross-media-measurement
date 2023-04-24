@@ -47,6 +47,16 @@ COMMON_IMAGES = [
         repository = _PREFIX + "/kingdom/data-server",
     ),
     struct(
+        name = "kingdom_completed_measurements_deletion_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/job:completed_measurements_deletion_image",
+        repository = _PREFIX + "/kingdom/completed-measurements-deletion",
+    ),
+    struct(
+        name = "kingdom_pending_measurements_cancellation_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/job:pending_measurements_cancellation_image",
+        repository = _PREFIX + "/kingdom/pending-measurements-cancellation",
+    ),
+    struct(
         name = "kingdom_system_api_server_image",
         image = "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common/server:system_api_server_image",
         repository = _PREFIX + "/kingdom/system-api",
