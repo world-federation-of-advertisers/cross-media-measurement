@@ -41,7 +41,7 @@ private val PENDING_MEASUREMENT_STATES =
 class PendingMeasurementsCancellation(
   private val measurementsService: MeasurementsCoroutineStub,
   private val timeToLive: Duration,
-  private val dryRun: Boolean,
+  private val dryRun: Boolean = false,
 ) {
 
   fun run() {
