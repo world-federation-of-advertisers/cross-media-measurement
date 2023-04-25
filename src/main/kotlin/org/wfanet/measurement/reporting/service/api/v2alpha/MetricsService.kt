@@ -17,6 +17,9 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.Duration
+import com.google.protobuf.duration
+import com.google.protobuf.util.Durations
 import io.grpc.Status
 import io.grpc.StatusException
 import java.io.File
@@ -25,15 +28,21 @@ import java.security.SecureRandom
 import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
+import java.util.concurrent.TimeUnit
 import kotlin.coroutines.CoroutineContext
+import kotlin.math.min
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope.coroutineContext
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
 import org.jetbrains.annotations.BlockingExecutor
+import org.wfanet.measurement.api.v2.alpha.ListMetricsPageToken
+import org.wfanet.measurement.api.v2.alpha.ListMetricsPageTokenKt.previousPageEnd
+import org.wfanet.measurement.api.v2.alpha.copy
+import org.wfanet.measurement.api.v2.alpha.listMetricsPageToken
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
@@ -56,10 +65,14 @@ import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
+import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.withAuthenticationKey
+import org.wfanet.measurement.common.base64UrlDecode
+import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.hashSha256
@@ -72,14 +85,19 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
+import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.verifyEncryptionPublicKey
+import org.wfanet.measurement.consent.client.measurementconsumer.verifyResult
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequest.MeasurementIds
 import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequestKt.measurementIds
+import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementFailuresRequestKt.measurementFailure
+import org.wfanet.measurement.internal.reporting.v2.BatchSetMeasurementResultsRequestKt.measurementResult
 import org.wfanet.measurement.internal.reporting.v2.CreateMetricRequest as InternalCreateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
+import org.wfanet.measurement.internal.reporting.v2.MeasurementKt as InternalMeasurementKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.Metric as InternalMetric
 import org.wfanet.measurement.internal.reporting.v2.Metric.WeightedMeasurement
@@ -90,9 +108,13 @@ import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt as InternalMetr
 import org.wfanet.measurement.internal.reporting.v2.MetricsGrpcKt.MetricsCoroutineStub as InternalMetricsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
+import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchCreateMetricsRequest as internalBatchCreateMetricsRequest
+import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsRequest
+import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresRequest
+import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createMetricRequest as internalCreateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.measurement as internalMeasurement
@@ -102,15 +124,28 @@ import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.CreateMetricRequest
+import org.wfanet.measurement.reporting.v2alpha.ListMetricsRequest
+import org.wfanet.measurement.reporting.v2alpha.ListMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.Metric
+import org.wfanet.measurement.reporting.v2alpha.MetricResult
+import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.HistogramResultKt.bin
+import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.HistogramResultKt.binResult
+import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.histogramResult
+import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.impressionCountResult
+import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.reachResult
+import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.watchDurationResult
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineImplBase
 import org.wfanet.measurement.reporting.v2alpha.batchCreateMetricsResponse
+import org.wfanet.measurement.reporting.v2alpha.listMetricsResponse
+import org.wfanet.measurement.reporting.v2alpha.metric
+import org.wfanet.measurement.reporting.v2alpha.metricResult
 
 private const val MAX_BATCH_SIZE = 1000
 private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
+private const val NANOS_PER_SECOND = 1_000_000_000
 
 class MetricsService(
   private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
@@ -489,7 +524,7 @@ class MetricsService(
       return filters.joinToString(separator = " AND ") { filter -> "($filter)" }
     }
 
-    /** Get a [MeasurementConsumer] based on a CMMS ID. */
+    /** Gets a [MeasurementConsumer] based on a CMMS ID. */
     private suspend fun getMeasurementConsumer(
       principal: MeasurementConsumerPrincipal,
     ): MeasurementConsumer {
@@ -522,23 +557,13 @@ class MetricsService(
       }
 
       val internalReportingSetsList =
-        internalReportingSetsStub
-          .batchGetReportingSets(batchGetReportingSetsRequest)
-          .reportingSetsList
-
-      if (internalReportingSetsList.size < externalReportingSetIds.size) {
-        val missingExternalReportingSetIds = externalReportingSetIds.toMutableSet()
-        val errorMessage = StringBuilder("The following reporting set names were not found:")
-        internalReportingSetsList.forEach {
-          missingExternalReportingSetIds.remove(it.externalReportingSetId)
+        try {
+          internalReportingSetsStub
+            .batchGetReportingSets(batchGetReportingSetsRequest)
+            .reportingSetsList
+        } catch (e: StatusException) {
+          throw Exception("Unable to get reporting sets from the reporting database.", e)
         }
-        missingExternalReportingSetIds.forEach {
-          errorMessage.append(
-            " ${ReportingSetKey(cmmsMeasurementConsumerId, externalIdToApiId(it)).toName()}"
-          )
-        }
-        failGrpc(Status.NOT_FOUND) { errorMessage.toString() }
-      }
 
       return internalReportingSetsList.associateBy { it.externalReportingSetId }
     }
@@ -561,6 +586,369 @@ class MetricsService(
           e
         )
       }
+    }
+
+    /**
+     * Syncs [InternalMeasurement]s with the CMMS [Measurement]s.
+     *
+     * @return a boolean to indicate whether any [InternalMeasurement] was updated.
+     */
+    suspend fun syncInternalMeasurements(
+      internalMeasurements: List<InternalMeasurement>,
+      apiAuthenticationKey: String,
+      principal: MeasurementConsumerPrincipal,
+    ): Boolean {
+      val newStateToCmmsMeasurements: Map<Measurement.State, List<Measurement>> =
+        getCmmsMeasurements(internalMeasurements, apiAuthenticationKey, principal).groupBy {
+          measurement ->
+          measurement.state
+        }
+
+      var anyUpdate = false
+
+      for ((newState, measurementsList) in newStateToCmmsMeasurements) {
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+        when (newState) {
+          Measurement.State.SUCCEEDED -> {
+            syncSucceededInternalMeasurements(measurementsList, apiAuthenticationKey, principal)
+            anyUpdate = true
+          }
+          Measurement.State.AWAITING_REQUISITION_FULFILLMENT,
+          Measurement.State.COMPUTING -> {} // Do nothing.
+          Measurement.State.FAILED,
+          Measurement.State.CANCELLED -> {
+            syncFailedInternalMeasurements(
+              measurementsList,
+              principal.resourceKey.measurementConsumerId
+            )
+            anyUpdate = true
+          }
+          Measurement.State.STATE_UNSPECIFIED ->
+            error("The CMMS measurement state should've been set.")
+          Measurement.State.UNRECOGNIZED -> error("Unrecognized CMMS measurement state.")
+        }
+      }
+
+      return anyUpdate
+    }
+
+    /**
+     * Syncs [InternalMeasurement]s by storing the failure states of the given failed or canceled
+     * CMMS [Measurement]s.
+     */
+    private suspend fun syncFailedInternalMeasurements(
+      failedMeasurementsList: List<Measurement>,
+      cmmsMeasurementConsumerId: String,
+    ) {
+      val batchSetInternalMeasurementFailuresRequest = batchSetMeasurementFailuresRequest {
+        this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+        measurementFailures +=
+          failedMeasurementsList.map { measurement ->
+            measurementFailure {
+              cmmsMeasurementId = MeasurementKey.fromName(measurement.name)!!.measurementId
+              failure = measurement.failure.toInternal()
+            }
+          }
+      }
+
+      try {
+        internalMeasurementsStub
+          .batchSetMeasurementFailures(batchSetInternalMeasurementFailuresRequest)
+          .measurementsList
+      } catch (e: StatusException) {
+        throw Exception(
+          "Unable to set measurement failures for the measurements in the reporting database.",
+          e
+        )
+      }
+    }
+
+    /**
+     * Syncs [InternalMeasurement]s by storing the measurement results of the given succeeded CMMS
+     * [Measurement]s.
+     */
+    private suspend fun syncSucceededInternalMeasurements(
+      succeededMeasurementsList: List<Measurement>,
+      apiAuthenticationKey: String,
+      principal: MeasurementConsumerPrincipal,
+    ) {
+      val batchSetMeasurementResultsRequest = batchSetMeasurementResultsRequest {
+        cmmsMeasurementConsumerId = principal.resourceKey.measurementConsumerId
+        measurementResults +=
+          succeededMeasurementsList.map { measurement ->
+            measurementResult {
+              cmmsMeasurementId = MeasurementKey.fromName(measurement.name)!!.measurementId
+              result =
+                buildInternalMeasurementResult(
+                  measurement,
+                  apiAuthenticationKey,
+                  principal.resourceKey.toName()
+                )
+            }
+          }
+      }
+
+      try {
+        internalMeasurementsStub
+          .batchSetMeasurementResults(batchSetMeasurementResultsRequest)
+          .measurementsList
+      } catch (e: StatusException) {
+        throw Exception(
+          "Unable to set measurement results for the measurements in the reporting database.",
+          e
+        )
+      }
+    }
+
+    /** Retrieves [Measurement]s from the CMMS. */
+    private suspend fun getCmmsMeasurements(
+      internalMeasurements: List<InternalMeasurement>,
+      apiAuthenticationKey: String,
+      principal: MeasurementConsumerPrincipal,
+    ): List<Measurement> = coroutineScope {
+      val deferred =
+        internalMeasurements.map { internalMeasurement ->
+          val measurementResourceName =
+            MeasurementKey(
+                principal.resourceKey.measurementConsumerId,
+                internalMeasurement.cmmsMeasurementId
+              )
+              .toName()
+          async {
+            try {
+              measurementsStub
+                .withAuthenticationKey(apiAuthenticationKey)
+                .getMeasurement(getMeasurementRequest { name = measurementResourceName })
+            } catch (e: StatusException) {
+              throw Exception("Unable to retrieve the measurement [$measurementResourceName].", e)
+            }
+          }
+        }
+
+      deferred.awaitAll()
+    }
+
+    /** Builds an [InternalMeasurement.Result]. */
+    private suspend fun buildInternalMeasurementResult(
+      measurement: Measurement,
+      apiAuthenticationKey: String,
+      principalName: String,
+    ): InternalMeasurement.Result {
+      val measurementSpec = MeasurementSpec.parseFrom(measurement.measurementSpec.data)
+      val encryptionPrivateKeyHandle =
+        encryptionKeyPairStore.getPrivateKeyHandle(
+          principalName,
+          EncryptionPublicKey.parseFrom(measurementSpec.measurementPublicKey).data
+        )
+          ?: failGrpc(Status.FAILED_PRECONDITION) {
+            "Encryption private key not found for the measurement ${measurement.name}."
+          }
+
+      return aggregateResults(
+        measurement.resultsList
+          .map {
+            decryptMeasurementResultPair(it, encryptionPrivateKeyHandle, apiAuthenticationKey)
+          }
+          .map(Measurement.Result::toInternal)
+      )
+    }
+
+    /** Decrypts a [Measurement.ResultPair] to [Measurement.Result] */
+    private suspend fun decryptMeasurementResultPair(
+      measurementResultPair: Measurement.ResultPair,
+      encryptionPrivateKeyHandle: PrivateKeyHandle,
+      apiAuthenticationKey: String,
+    ): Measurement.Result {
+      // TODO: Cache the certificate
+      val certificate =
+        try {
+          certificatesStub
+            .withAuthenticationKey(apiAuthenticationKey)
+            .getCertificate(getCertificateRequest { name = measurementResultPair.certificate })
+        } catch (e: StatusException) {
+          throw Exception(
+            "Unable to retrieve the certificate [${measurementResultPair.certificate}].",
+            e
+          )
+        }
+
+      val signedResult =
+        decryptResult(measurementResultPair.encryptedResult, encryptionPrivateKeyHandle)
+
+      val x509Certificate: X509Certificate = readCertificate(certificate.x509Der)
+      val trustedIssuer: X509Certificate =
+        checkNotNull(trustedCertificates[checkNotNull(x509Certificate.authorityKeyIdentifier)]) {
+          "${certificate.name} not issued by trusted CA"
+        }
+
+      // TODO: Record verification failure in internal Measurement rather than having the RPC fail.
+      try {
+        verifyResult(signedResult, x509Certificate, trustedIssuer)
+      } catch (e: CertPathValidatorException) {
+        throw Exception("Certificate path for ${certificate.name} is invalid", e)
+      } catch (e: SignatureException) {
+        throw Exception("Measurement result signature is invalid", e)
+      }
+      return Measurement.Result.parseFrom(signedResult.data)
+    }
+
+    /** Aggregates a list of [InternalMeasurement.Result]s to a [InternalMeasurement.Result] */
+    private fun aggregateResults(
+      internalMeasurementResults: List<InternalMeasurement.Result>
+    ): InternalMeasurement.Result {
+      if (internalMeasurementResults.isEmpty()) {
+        error("No measurement result.")
+      }
+      var reachValue = 0L
+      var impressionValue = 0L
+      val frequencyDistribution = mutableMapOf<Long, Double>()
+      var watchDurationValue = duration {
+        seconds = 0
+        nanos = 0
+      }
+
+      // Aggregation
+      for (result in internalMeasurementResults) {
+        if (result.hasFrequency()) {
+          if (!result.hasReach()) {
+            error("Missing reach measurement in the Reach-Frequency measurement.")
+          }
+          for ((frequency, percentage) in result.frequency.relativeFrequencyDistributionMap) {
+            val previousTotalReachCount =
+              frequencyDistribution.getOrDefault(frequency, 0.0) * reachValue
+            val currentReachCount = percentage * result.reach.value
+            frequencyDistribution[frequency] =
+              (previousTotalReachCount + currentReachCount) / (reachValue + result.reach.value)
+          }
+        }
+        if (result.hasReach()) {
+          reachValue += result.reach.value
+        }
+        if (result.hasImpression()) {
+          impressionValue += result.impression.value
+        }
+        if (result.hasWatchDuration()) {
+          watchDurationValue += result.watchDuration.value
+        }
+      }
+
+      return InternalMeasurementKt.result {
+        if (internalMeasurementResults.first().hasReach()) {
+          this.reach = InternalMeasurementKt.ResultKt.reach { value = reachValue }
+        }
+        if (internalMeasurementResults.first().hasFrequency()) {
+          this.frequency =
+            InternalMeasurementKt.ResultKt.frequency {
+              relativeFrequencyDistribution.putAll(frequencyDistribution)
+            }
+        }
+        if (internalMeasurementResults.first().hasImpression()) {
+          this.impression = InternalMeasurementKt.ResultKt.impression { value = impressionValue }
+        }
+        if (internalMeasurementResults.first().hasWatchDuration()) {
+          this.watchDuration =
+            InternalMeasurementKt.ResultKt.watchDuration { value = watchDurationValue }
+        }
+      }
+    }
+  }
+
+  override suspend fun listMetrics(request: ListMetricsRequest): ListMetricsResponse {
+    val listMetricsPageToken: ListMetricsPageToken = request.toListMetricsPageToken()
+
+    val principal: ReportingPrincipal = principalFromCurrentContext
+    when (principal) {
+      is MeasurementConsumerPrincipal -> {
+        if (request.parent != principal.resourceKey.toName()) {
+          failGrpc(Status.PERMISSION_DENIED) {
+            "Cannot list Metrics belonging to other MeasurementConsumers."
+          }
+        }
+      }
+    }
+    val apiAuthenticationKey: String = principal.config.apiKey
+
+    val streamInternalMetricRequest: StreamMetricsRequest =
+      listMetricsPageToken.toStreamMetricsRequest()
+
+    val results: List<InternalMetric> =
+      try {
+        internalMetricsStub.streamMetrics(streamInternalMetricRequest).toList()
+      } catch (e: StatusException) {
+        throw Exception("Unable to list metrics from the reporting database.", e)
+      }
+
+    if (results.isEmpty()) {
+      return ListMetricsResponse.getDefaultInstance()
+    }
+
+    val nextPageToken: ListMetricsPageToken? =
+      if (results.size > listMetricsPageToken.pageSize) {
+        listMetricsPageToken.copy {
+          lastMetric = previousPageEnd {
+            cmmsMeasurementConsumerId = results[results.lastIndex - 1].cmmsMeasurementConsumerId
+            externalMetricId = results[results.lastIndex - 1].externalMetricId
+          }
+        }
+      } else {
+        null
+      }
+
+    val subResults: List<InternalMetric> =
+      results.subList(0, min(results.size, listMetricsPageToken.pageSize))
+
+    // Only syncs pending measurements which can only be in metrics that are still running.
+    val toBeSyncedInternalMeasurements: List<InternalMeasurement> =
+      subResults
+        .filter { internalMetric -> internalMetric.state == Metric.State.RUNNING }
+        .flatMap { internalMetric -> internalMetric.weightedMeasurementsList }
+        .map { weightedMeasurement -> weightedMeasurement.measurement }
+        .filter { internalMeasurement ->
+          internalMeasurement.state == InternalMeasurement.State.PENDING
+        }
+
+    val anyMeasurementUpdated: Boolean =
+      measurementSupplier.syncInternalMeasurements(
+        toBeSyncedInternalMeasurements,
+        apiAuthenticationKey,
+        principal,
+      )
+
+    // If any measurement got updated, pull the list of the up-to-date internal metrics. Otherwise,
+    // use the original list.
+    val internalMetrics: List<InternalMetric> =
+      if (anyMeasurementUpdated) {
+        batchGetInternalMetrics(
+          principal.resourceKey.measurementConsumerId,
+          subResults.map { internalMetric -> internalMetric.externalMetricId }
+        )
+      } else {
+        subResults
+      }
+
+    return listMetricsResponse {
+      metrics += internalMetrics.map(InternalMetric::toMetric)
+
+      if (nextPageToken != null) {
+        this.nextPageToken = nextPageToken.toByteString().base64UrlEncode()
+      }
+    }
+  }
+
+  /** Gets a batch of [InternalMetric]. */
+  private suspend fun batchGetInternalMetrics(
+    cmmsMeasurementConsumerId: String,
+    externalMetricIds: List<Long>,
+  ): List<InternalMetric> {
+    val batchGetMetricsRequest = batchGetMetricsRequest {
+      this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+      this.externalMetricIds += externalMetricIds
+    }
+
+    return try {
+      internalMetricsStub.batchGetMetrics(batchGetMetricsRequest).metricsList
+    } catch (e: StatusException) {
+      throw Exception("Unable to get metrics from the reporting database.", e)
     }
   }
 
@@ -591,7 +979,7 @@ class MetricsService(
         throw Exception("Unable to create the metric in the reporting database.", e)
       }
 
-    if (internalMetric.state == InternalMetric.State.RUNNING) {
+    if (internalMetric.state == Metric.State.RUNNING) {
       measurementSupplier.createCmmsMeasurements(listOf(internalMetric), principal)
     }
 
@@ -641,6 +1029,7 @@ class MetricsService(
             }
           )
           .metricsList
+          .filter { internalMetric -> internalMetric.state == Metric.State.RUNNING }
       } catch (e: StatusException) {
         throw Exception("Unable to create the metric in the reporting database.", e)
       }
@@ -926,3 +1315,216 @@ private fun buildInternalDifferentialPrivacyParams(
     delta = if (dpParams.hasDelta()) dpParams.delta else defaultDelta
   }
 }
+
+/** Converts a public [ListMetricsRequest] to a [ListMetricsPageToken]. */
+fun ListMetricsRequest.toListMetricsPageToken(): ListMetricsPageToken {
+  val source = this
+
+  grpcRequire(source.pageSize >= 0) { "Page size cannot be less than 0." }
+
+  val parentKey: MeasurementConsumerKey =
+    grpcRequireNotNull(MeasurementConsumerKey.fromName(source.parent)) {
+      "Parent is either unspecified or invalid."
+    }
+  val cmmsMeasurementConsumerId = parentKey.measurementConsumerId
+
+  val isValidPageSize =
+    source.pageSize != 0 && source.pageSize >= MIN_PAGE_SIZE && source.pageSize <= MAX_PAGE_SIZE
+
+  return if (pageToken.isNotBlank()) {
+    ListMetricsPageToken.parseFrom(source.pageToken.base64UrlDecode()).copy {
+      grpcRequire(this.cmmsMeasurementConsumerId == cmmsMeasurementConsumerId) {
+        "Arguments must be kept the same when using a page token."
+      }
+
+      if (isValidPageSize) {
+        pageSize = source.pageSize
+      }
+    }
+  } else {
+    listMetricsPageToken {
+      pageSize =
+        when {
+          source.pageSize < MIN_PAGE_SIZE -> DEFAULT_PAGE_SIZE
+          source.pageSize > MAX_PAGE_SIZE -> MAX_PAGE_SIZE
+          else -> source.pageSize
+        }
+      this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+    }
+  }
+}
+
+/** Converts an [InternalMetric] to a public [Metric]. */
+private fun InternalMetric.toMetric(): Metric {
+  val source = this
+  return metric {
+    name =
+      MetricKey(
+          cmmsMeasurementConsumerId = source.cmmsMeasurementConsumerId,
+          metricId = externalIdToApiId(source.externalMetricId)
+        )
+        .toName()
+    reportingSet =
+      ReportingSetKey(
+          source.cmmsMeasurementConsumerId,
+          externalIdToApiId(source.externalReportingSetId)
+        )
+        .toName()
+    timeInterval = source.timeInterval.toTimeInterval()
+    metricSpec = source.metricSpec.toMetricSpec()
+    filters += source.details.filtersList
+    state = source.state
+    createTime = source.createTime
+    if (state == Metric.State.SUCCEEDED) {
+      result = buildMetricResult(source)
+    }
+  }
+}
+
+/** Builds a [MetricResult] from the given [InternalMetric]. */
+private fun buildMetricResult(metric: InternalMetric): MetricResult {
+  return metricResult {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    when (metric.metricSpec.typeCase) {
+      InternalMetricSpec.TypeCase.REACH -> {
+        reach = calculateReachResults(metric.weightedMeasurementsList)
+      }
+      InternalMetricSpec.TypeCase.FREQUENCY_HISTOGRAM -> {
+        frequencyHistogram =
+          calculateFrequencyHistogramResults(
+            metric.weightedMeasurementsList,
+            metric.metricSpec.frequencyHistogram.maximumFrequencyPerUser
+          )
+      }
+      InternalMetricSpec.TypeCase.IMPRESSION_COUNT -> {
+        impressionCount = calculateImpressionResults(metric.weightedMeasurementsList)
+      }
+      InternalMetricSpec.TypeCase.WATCH_DURATION -> {
+        watchDuration = calculateWatchDurationResults(metric.weightedMeasurementsList)
+      }
+      InternalMetricSpec.TypeCase.TYPE_NOT_SET -> {
+        error { "Metric Type should've been set." }
+      }
+    }
+  }
+}
+
+/** Calculates the watch duration result by summing up [WeightedMeasurement]s. */
+private fun calculateWatchDurationResults(
+  weightedMeasurements: List<WeightedMeasurement>
+): MetricResult.WatchDurationResult {
+  return watchDurationResult {
+    val watchDuration: Duration =
+      weightedMeasurements
+        .map { weightedMeasurement ->
+          if (!weightedMeasurement.measurement.details.result.hasWatchDuration()) {
+            error("Watch duration measurement is missing.")
+          }
+          weightedMeasurement.measurement.details.result.watchDuration.value *
+            weightedMeasurement.weight
+        }
+        .reduce { sum, element -> sum + element }
+    value = watchDuration.seconds + (watchDuration.nanos.toDouble() / NANOS_PER_SECOND)
+  }
+}
+
+/** Calculates the impression result by summing up [WeightedMeasurement]s. */
+private fun calculateImpressionResults(
+  weightedMeasurements: List<WeightedMeasurement>
+): MetricResult.ImpressionCountResult {
+  return impressionCountResult {
+    value =
+      weightedMeasurements.sumOf { weightedMeasurement ->
+        if (!weightedMeasurement.measurement.details.result.hasImpression()) {
+          error("Impression measurement is missing.")
+        }
+        weightedMeasurement.measurement.details.result.impression.value * weightedMeasurement.weight
+      }
+  }
+}
+
+/** Calculates the frequency histogram result by summing up [WeightedMeasurement]s. */
+private fun calculateFrequencyHistogramResults(
+  weightedMeasurements: List<WeightedMeasurement>,
+  maximumFrequency: Int
+): MetricResult.HistogramResult {
+  val aggregatedFrequencyHistogramMap: MutableMap<Long, Double> =
+    weightedMeasurements
+      .map { weightedMeasurement ->
+        val result = weightedMeasurement.measurement.details.result
+        if (!result.hasFrequency() || !result.hasReach()) {
+          error("Reach-Frequency measurement is missing.")
+        }
+        val reach = result.reach.value
+        result.frequency.relativeFrequencyDistributionMap.mapValues { (_, rate) ->
+          rate * weightedMeasurement.weight * reach
+        }
+      }
+      .fold(mutableMapOf<Long, Double>().withDefault { 0.0 }) {
+        aggregatedFrequencyHistogramMap: MutableMap<Long, Double>,
+        weightedFrequencyHistogramMap ->
+        for ((frequency, count) in weightedFrequencyHistogramMap) {
+          aggregatedFrequencyHistogramMap[frequency] =
+            aggregatedFrequencyHistogramMap.getValue(frequency) + count
+        }
+        aggregatedFrequencyHistogramMap
+      }
+
+  // Fill the buckets that don't have any count with zeros.
+  for (frequency in (1L..maximumFrequency)) {
+    if (!aggregatedFrequencyHistogramMap.containsKey(frequency)) {
+      aggregatedFrequencyHistogramMap[frequency] = 0.0
+    }
+  }
+
+  return histogramResult {
+    bins +=
+      aggregatedFrequencyHistogramMap.map { (frequency, count) ->
+        bin {
+          label = frequency.toString()
+          binResult = binResult { value = count }
+        }
+      }
+  }
+}
+
+/** Calculates the reach result by summing up [WeightedMeasurement]s. */
+private fun calculateReachResults(
+  weightedMeasurements: List<WeightedMeasurement>
+): MetricResult.ReachResult {
+  return reachResult {
+    value =
+      weightedMeasurements.sumOf { weightedMeasurement ->
+        if (!weightedMeasurement.measurement.details.result.hasReach()) {
+          error("Reach measurement is missing.")
+        }
+        weightedMeasurement.measurement.details.result.reach.value * weightedMeasurement.weight
+      }
+  }
+}
+
+private operator fun Duration.times(weight: Int): Duration {
+  val source = this
+  return duration {
+    val weightedTotalNanos: Long =
+      (TimeUnit.SECONDS.toNanos(source.seconds) + source.nanos) * weight
+    seconds = TimeUnit.NANOSECONDS.toSeconds(weightedTotalNanos)
+    nanos = (weightedTotalNanos % NANOS_PER_SECOND).toInt()
+  }
+}
+
+private operator fun Duration.plus(other: Duration): Duration {
+  return Durations.add(this, other)
+}
+
+private val InternalMetric.state: Metric.State
+  get() {
+    val measurementStates = weightedMeasurementsList.map { it.measurement.state }
+    return if (measurementStates.all { it == InternalMeasurement.State.SUCCEEDED }) {
+      Metric.State.SUCCEEDED
+    } else if (measurementStates.any { it == InternalMeasurement.State.FAILED }) {
+      Metric.State.FAILED
+    } else {
+      Metric.State.RUNNING
+    }
+  }
