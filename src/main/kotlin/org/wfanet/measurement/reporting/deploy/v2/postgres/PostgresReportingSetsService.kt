@@ -104,7 +104,7 @@ class PostgresReportingSetsService(
       try {
         emitAll(
           ReportingSetReader(readContext)
-            .listReportingSets(request)
+            .readReportingSets(request)
             .map { it.reportingSet }
             .withSerializableErrorRetries()
         )

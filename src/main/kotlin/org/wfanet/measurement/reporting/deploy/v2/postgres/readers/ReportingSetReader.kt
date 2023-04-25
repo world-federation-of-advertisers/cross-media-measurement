@@ -170,7 +170,7 @@ class ReportingSetReader(private val readContext: ReadContext) {
     return createResultFlow(statement)
   }
 
-  fun listReportingSets(
+  fun readReportingSets(
     request: StreamReportingSetsRequest,
   ): Flow<Result> {
     val statement =
@@ -203,166 +203,176 @@ class ReportingSetReader(private val readContext: ReadContext) {
 
   private fun createResultFlow(statement: BoundStatement): Flow<Result> {
     return flow {
-      // Key is reportingSetId.
-      val reportingSetInfoMap: MutableMap<InternalId, ReportingSetInfo> = mutableMapOf()
+      val reportingSetInfoMap = buildResultMap(statement)
 
-      val translate: Translate = { row: ResultRow ->
-        val measurementConsumerId: InternalId = row["ReportingSetsMeasurementConsumerId"]
-        val cmmsMeasurementConsumerId: String = row["CmmsMeasurementConsumerId"]
-        val reportingSetId: InternalId = row["ReportingSetId"]
-        val externalReportingSetId: ExternalId = row["RootExternalReportingSetId"]
-        val rootSetExpressionId: InternalId? = row["RootSetExpressionId"]
-        val displayName: String? = row["DisplayName"]
-        val reportingSetFilter: String? = row["ReportingSetFilter"]
-        val weightedSubsetUnionId: InternalId? = row["WeightedSubsetUnionId"]
-        val weight: Int? = row["Weight"]
-        val primitiveReportingSetBasisId: InternalId? = row["PrimitiveReportingSetBasisId"]
-        val primitiveExternalReportingSetId: ExternalId? = row["PrimitiveExternalReportingSetId"]
-        val primitiveReportingSetBasisFilter: String? = row["PrimitiveReportingSetBasisFilter"]
-        val cmmsDataProviderId: String? = row["CmmsDataProviderId"]
-        val cmmsEventGroupId: String? = row["CmmsEventGroupId"]
-        val setExpressionId: InternalId? = row["SetExpressionId"]
-        val operation: Int? = row["Operation"]
-        val leftHandSetExpressionId: InternalId? = row["LeftHandSetExpressionId"]
-        val leftHandExternalReportingSetId: ExternalId? = row["LeftHandExternalReportingSetId"]
-        val rightHandSetExpressionId: InternalId? = row["RightHandSetExpressionId"]
-        val rightHandExternalReportingSetId: ExternalId? = row["RightHandExternalReportingSetId"]
+      for (entry in reportingSetInfoMap) {
+        val reportingSetId = entry.key
+        val reportingSetInfo = entry.value
 
-        val reportingSetInfo =
-          reportingSetInfoMap.computeIfAbsent(reportingSetId) {
-            ReportingSetInfo(
-              measurementConsumerId = measurementConsumerId,
-              cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
-              externalReportingSetId = externalReportingSetId,
-              displayName = displayName,
-              filter = reportingSetFilter,
-              setExpressionId = rootSetExpressionId,
-              cmmsEventGroupIdsSet = mutableSetOf(),
-              setExpressionInfoMap = mutableMapOf(),
-              weightedSubsetUnionInfoMap = mutableMapOf(),
-            )
+        val reportingSet = reportingSet {
+          cmmsMeasurementConsumerId = reportingSetInfo.cmmsMeasurementConsumerId
+          externalReportingSetId = reportingSetInfo.externalReportingSetId.value
+          if (reportingSetInfo.displayName != null) {
+            displayName = reportingSetInfo.displayName
+          }
+          if (reportingSetInfo.filter != null) {
+            filter = reportingSetInfo.filter
           }
 
-        if (setExpressionId != null && operation != null) {
-          reportingSetInfo.setExpressionInfoMap.computeIfAbsent(setExpressionId) {
-            SetExpressionInfo(
-              operation = SetExpression.Operation.forNumber(operation),
-              leftHandSetExpressionId = leftHandSetExpressionId,
-              leftHandExternalReportingSetId = leftHandExternalReportingSetId,
-              rightHandSetExpressionId = rightHandSetExpressionId,
-              rightHandExternalReportingSetId = rightHandExternalReportingSetId,
-            )
+          if (reportingSetInfo.cmmsEventGroupIdsSet.size > 0) {
+            primitive =
+              ReportingSetKt.primitive {
+                reportingSetInfo.cmmsEventGroupIdsSet.forEach {
+                  eventGroupKeys +=
+                    ReportingSetKt.PrimitiveKt.eventGroupKey {
+                      cmmsMeasurementConsumerId = reportingSetInfo.cmmsMeasurementConsumerId
+                      cmmsDataProviderId = it.cmmsDataProviderId
+                      cmmsEventGroupId = it.cmmsEventGroupId
+                    }
+                }
+              }
+
+            weightedSubsetUnions +=
+              ReportingSetKt.weightedSubsetUnion {
+                weight = 1
+                primitiveReportingSetBases +=
+                  ReportingSetKt.primitiveReportingSetBasis {
+                    this.externalReportingSetId = reportingSetInfo.externalReportingSetId.value
+                    if (reportingSetInfo.filter != null) {
+                      filters += reportingSetInfo.filter
+                    }
+                  }
+              }
+          }
+
+          if (reportingSetInfo.setExpressionInfoMap.isNotEmpty()) {
+            reportingSetInfo.setExpressionInfoMap[reportingSetInfo.setExpressionId]?.let {
+              composite = buildSetExpression(it, reportingSetInfo.setExpressionInfoMap)
+            }
+
+            reportingSetInfo.weightedSubsetUnionInfoMap.values.forEach {
+              weightedSubsetUnions +=
+                ReportingSetKt.weightedSubsetUnion {
+                  weight = it.weight
+                  it.primitiveReportingSetBasisInfoMap.values.forEach {
+                      primitiveReportingSetBasisInfo ->
+                    primitiveReportingSetBases +=
+                      ReportingSetKt.primitiveReportingSetBasis {
+                        externalReportingSetId =
+                          primitiveReportingSetBasisInfo.primitiveExternalReportingSetId.value
+                        filters += primitiveReportingSetBasisInfo.filterSet
+                      }
+                  }
+                }
+            }
           }
         }
 
-        if (cmmsDataProviderId != null && cmmsEventGroupId != null) {
-          reportingSetInfo.cmmsEventGroupIdsSet.add(
-            CmmsEventGroupIds(
-              cmmsDataProviderId = cmmsDataProviderId,
-              cmmsEventGroupId = cmmsEventGroupId,
-            )
-          )
-        }
-
-        if (
-          weightedSubsetUnionId != null &&
-            weight != null &&
-            primitiveReportingSetBasisId != null &&
-            primitiveExternalReportingSetId != null &&
-            primitiveReportingSetBasisFilter != null
-        ) {
-          val weightedSubsetUnionInfo =
-            reportingSetInfo.weightedSubsetUnionInfoMap.computeIfAbsent(weightedSubsetUnionId) {
-              WeightedSubsetUnionInfo(
-                weight = weight,
-                primitiveReportingSetBasisInfoMap = mutableMapOf(),
-              )
-            }
-
-          val primitiveReportingSetBasisInfo =
-            weightedSubsetUnionInfo.primitiveReportingSetBasisInfoMap.computeIfAbsent(
-              primitiveReportingSetBasisId
-            ) {
-              PrimitiveReportingSetBasisInfo(
-                primitiveExternalReportingSetId = primitiveExternalReportingSetId,
-                filterSet = mutableSetOf()
-              )
-            }
-
-          primitiveReportingSetBasisInfo.filterSet.add(primitiveReportingSetBasisFilter)
-        }
-      }
-
-      readContext.executeQuery(statement).consume(translate).collect {}
-
-      reportingSetInfoMap.forEach { (reportingSetId, reportingSetInfo) ->
         emit(
           Result(
             measurementConsumerId = reportingSetInfo.measurementConsumerId,
             reportingSetId = reportingSetId,
-            reportingSet {
-              cmmsMeasurementConsumerId = reportingSetInfo.cmmsMeasurementConsumerId
-              externalReportingSetId = reportingSetInfo.externalReportingSetId.value
-              if (reportingSetInfo.displayName != null) {
-                displayName = reportingSetInfo.displayName
-              }
-              if (reportingSetInfo.filter != null) {
-                filter = reportingSetInfo.filter
-              }
-
-              if (reportingSetInfo.cmmsEventGroupIdsSet.size > 0) {
-                primitive =
-                  ReportingSetKt.primitive {
-                    reportingSetInfo.cmmsEventGroupIdsSet.forEach {
-                      eventGroupKeys +=
-                        ReportingSetKt.PrimitiveKt.eventGroupKey {
-                          cmmsMeasurementConsumerId = reportingSetInfo.cmmsMeasurementConsumerId
-                          cmmsDataProviderId = it.cmmsDataProviderId
-                          cmmsEventGroupId = it.cmmsEventGroupId
-                        }
-                    }
-                  }
-
-                weightedSubsetUnions +=
-                  ReportingSetKt.weightedSubsetUnion {
-                    weight = 1
-                    primitiveReportingSetBases +=
-                      ReportingSetKt.primitiveReportingSetBasis {
-                        this.externalReportingSetId = reportingSetInfo.externalReportingSetId.value
-                        if (reportingSetInfo.filter != null) {
-                          filters += reportingSetInfo.filter
-                        }
-                      }
-                  }
-              }
-
-              if (reportingSetInfo.setExpressionInfoMap.isNotEmpty()) {
-                reportingSetInfo.setExpressionInfoMap[reportingSetInfo.setExpressionId]?.let {
-                  composite = buildSetExpression(it, reportingSetInfo.setExpressionInfoMap)
-                }
-
-                reportingSetInfo.weightedSubsetUnionInfoMap.values.forEach { weightedSubsetUnionInfo
-                  ->
-                  weightedSubsetUnions +=
-                    ReportingSetKt.weightedSubsetUnion {
-                      weight = weightedSubsetUnionInfo.weight
-                      weightedSubsetUnionInfo.primitiveReportingSetBasisInfoMap.values.forEach {
-                        primitiveReportingSetBasisInfo ->
-                        primitiveReportingSetBases +=
-                          ReportingSetKt.primitiveReportingSetBasis {
-                            externalReportingSetId =
-                              primitiveReportingSetBasisInfo.primitiveExternalReportingSetId.value
-                            filters += primitiveReportingSetBasisInfo.filterSet
-                          }
-                      }
-                    }
-                }
-              }
-            }
+            reportingSet
           )
         )
       }
     }
+  }
+
+  private suspend fun buildResultMap(statement: BoundStatement): Map<InternalId, ReportingSetInfo> {
+    // Key is reportingSetId.
+    val reportingSetInfoMap: MutableMap<InternalId, ReportingSetInfo> = mutableMapOf()
+
+    val translate: Translate = { row: ResultRow ->
+      val measurementConsumerId: InternalId = row["ReportingSetsMeasurementConsumerId"]
+      val cmmsMeasurementConsumerId: String = row["CmmsMeasurementConsumerId"]
+      val reportingSetId: InternalId = row["ReportingSetId"]
+      val externalReportingSetId: ExternalId = row["RootExternalReportingSetId"]
+      val rootSetExpressionId: InternalId? = row["RootSetExpressionId"]
+      val displayName: String? = row["DisplayName"]
+      val reportingSetFilter: String? = row["ReportingSetFilter"]
+      val weightedSubsetUnionId: InternalId? = row["WeightedSubsetUnionId"]
+      val weight: Int? = row["Weight"]
+      val primitiveReportingSetBasisId: InternalId? = row["PrimitiveReportingSetBasisId"]
+      val primitiveExternalReportingSetId: ExternalId? = row["PrimitiveExternalReportingSetId"]
+      val primitiveReportingSetBasisFilter: String? = row["PrimitiveReportingSetBasisFilter"]
+      val cmmsDataProviderId: String? = row["CmmsDataProviderId"]
+      val cmmsEventGroupId: String? = row["CmmsEventGroupId"]
+      val setExpressionId: InternalId? = row["SetExpressionId"]
+      val operation: Int? = row["Operation"]
+      val leftHandSetExpressionId: InternalId? = row["LeftHandSetExpressionId"]
+      val leftHandExternalReportingSetId: ExternalId? = row["LeftHandExternalReportingSetId"]
+      val rightHandSetExpressionId: InternalId? = row["RightHandSetExpressionId"]
+      val rightHandExternalReportingSetId: ExternalId? = row["RightHandExternalReportingSetId"]
+
+      val reportingSetInfo =
+        reportingSetInfoMap.computeIfAbsent(reportingSetId) {
+          ReportingSetInfo(
+            measurementConsumerId = measurementConsumerId,
+            cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
+            externalReportingSetId = externalReportingSetId,
+            displayName = displayName,
+            filter = reportingSetFilter,
+            setExpressionId = rootSetExpressionId,
+            cmmsEventGroupIdsSet = mutableSetOf(),
+            setExpressionInfoMap = mutableMapOf(),
+            weightedSubsetUnionInfoMap = mutableMapOf(),
+          )
+        }
+
+      if (setExpressionId != null && operation != null) {
+        reportingSetInfo.setExpressionInfoMap.computeIfAbsent(setExpressionId) {
+          SetExpressionInfo(
+            operation = SetExpression.Operation.forNumber(operation),
+            leftHandSetExpressionId = leftHandSetExpressionId,
+            leftHandExternalReportingSetId = leftHandExternalReportingSetId,
+            rightHandSetExpressionId = rightHandSetExpressionId,
+            rightHandExternalReportingSetId = rightHandExternalReportingSetId,
+          )
+        }
+      }
+
+      if (cmmsDataProviderId != null && cmmsEventGroupId != null) {
+        reportingSetInfo.cmmsEventGroupIdsSet.add(
+          CmmsEventGroupIds(
+            cmmsDataProviderId = cmmsDataProviderId,
+            cmmsEventGroupId = cmmsEventGroupId,
+          )
+        )
+      }
+
+      if (
+        weightedSubsetUnionId != null &&
+        weight != null &&
+        primitiveReportingSetBasisId != null &&
+        primitiveExternalReportingSetId != null &&
+        primitiveReportingSetBasisFilter != null
+      ) {
+        val weightedSubsetUnionInfo =
+          reportingSetInfo.weightedSubsetUnionInfoMap.computeIfAbsent(weightedSubsetUnionId) {
+            WeightedSubsetUnionInfo(
+              weight = weight,
+              primitiveReportingSetBasisInfoMap = mutableMapOf(),
+            )
+          }
+
+        val primitiveReportingSetBasisInfo =
+          weightedSubsetUnionInfo.primitiveReportingSetBasisInfoMap.computeIfAbsent(
+            primitiveReportingSetBasisId
+          ) {
+            PrimitiveReportingSetBasisInfo(
+              primitiveExternalReportingSetId = primitiveExternalReportingSetId,
+              filterSet = mutableSetOf()
+            )
+          }
+
+        primitiveReportingSetBasisInfo.filterSet.add(primitiveReportingSetBasisFilter)
+      }
+    }
+
+    readContext.executeQuery(statement).consume(translate).collect {}
+
+    return reportingSetInfoMap
   }
 
   private fun buildSetExpression(

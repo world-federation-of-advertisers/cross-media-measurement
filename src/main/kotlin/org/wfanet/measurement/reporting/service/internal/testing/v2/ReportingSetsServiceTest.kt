@@ -687,7 +687,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
   }
 
   @Test
-  fun `batchGetReportingSets succeeds when ReportingSet is primitive`() = runBlocking {
+  fun `batchGetReportingSets succeeds when ReportingSet is primitive`(): Unit = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
@@ -743,11 +743,10 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
             }
         }
       )
-    assertThat(retrievedReportingSets).hasSize(1)
   }
 
   @Test
-  fun `batchGetReportingSets succeeds when ReportingSet is composite`() = runBlocking {
+  fun `batchGetReportingSets succeeds when ReportingSet is composite`(): Unit = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
@@ -857,11 +856,11 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
           externalReportingSetId = createdReportingSet.externalReportingSetId
         }
       )
-    assertThat(retrievedReportingSets).hasSize(1)
   }
 
   @Test
-  fun `batchGetReportingSets succeeds when one is composite and one is primitive`() = runBlocking {
+  fun `batchGetReportingSets succeeds when one is composite and one is primitive`(): Unit =
+    runBlocking {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
@@ -984,7 +983,6 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
             }
         }
       )
-    assertThat(retrievedReportingSets).hasSize(2)
   }
 
   @Test
@@ -1047,7 +1045,7 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
   }
 
   @Test
-  fun `streamReportingSets filters when measurement consumer filter is set`() = runBlocking {
+  fun `streamReportingSets filters when measurement consumer filter is set`(): Unit = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
@@ -1119,11 +1117,10 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
             }
         }
       )
-    assertThat(retrievedReportingSets).hasSize(1)
   }
 
   @Test
-  fun `streamReportingSets filters when id after filter is set`() = runBlocking {
+  fun `streamReportingSets filters when id after filter is set`(): Unit = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
@@ -1228,11 +1225,10 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
           }
         )
     }
-    assertThat(retrievedReportingSets).hasSize(1)
   }
 
   @Test
-  fun `streamReportingSets limits the number of results when limit is set`() = runBlocking {
+  fun `streamReportingSets limits the number of results when limit is set`(): Unit = runBlocking {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
@@ -1334,7 +1330,6 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
           }
         )
     }
-    assertThat(retrievedReportingSets).hasSize(1)
   }
 
   @Test
