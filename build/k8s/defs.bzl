@@ -244,7 +244,10 @@ def _kustomization_file_impl(ctx):
             dir_info = src[KustomizationDirInfo]
             resources.append(_relative_path(dir_info.path, dir_path))
         else:
-            resources.append(src.files.to_list()[0].basename)
+            src_name = src.files.to_list()[0].basename
+            if not src_name.endswith(".yaml"):
+                fail("%s does not end in .yaml" % src_name)
+            resources.append(src_name)
 
     content_lines = ["resources:"] + [
         "- " + resource
@@ -263,7 +266,6 @@ _kustomization_file = rule(
     attrs = {
         "srcs": attr.label_list(
             doc = "Items to list in resources",
-            allow_files = [".yaml"],
             providers = [
                 [DefaultInfo],
                 [KustomizationDirInfo],

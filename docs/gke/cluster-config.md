@@ -100,7 +100,7 @@ the `gcloud` and `bq` CLI tools.
 ```shell
 gcloud projects add-iam-policy-binding halo-cmm-dev \
   --role=roles/bigquery.jobUser \
-  --member='serviceAccount:simulator@halo-cmm-dev.iam.gserviceaccount.com`
+  --member='serviceAccount:simulator@halo-cmm-dev.iam.gserviceaccount.com'
 ```
 
 ```shell

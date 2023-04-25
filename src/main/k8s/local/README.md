@@ -109,9 +109,10 @@ kubectl port-forward --address=localhost services/gcp-kingdom-data-server 9443:8
 Then run the tool, outputting to some directory (e.g. `/tmp/resource-setup`):
 
 ```shell
-src/main/k8s/local/resource_setup.sh \
+src/main/k8s/testing/resource_setup.sh \
   --kingdom-public-api-target=localhost:8443 \
   --kingdom-internal-api-target=localhost:9443 \
+  --bazel-config-name=halo-local \
   --output-dir=/tmp/resource-setup
 ```
 
