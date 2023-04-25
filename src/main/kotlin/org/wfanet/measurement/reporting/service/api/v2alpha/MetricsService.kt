@@ -1543,11 +1543,11 @@ fun ListMetricsRequest.toListMetricsPageToken(): ListMetricsPageToken {
   }
 }
 
-private operator fun Duration.times(coefficient: Int): Duration {
+private operator fun Duration.times(weight: Int): Duration {
   val source = this
   return duration {
     val weightedTotalNanos: Long =
-      (TimeUnit.SECONDS.toNanos(source.seconds) + source.nanos) * coefficient
+      (TimeUnit.SECONDS.toNanos(source.seconds) + source.nanos) * weight
     seconds = TimeUnit.NANOSECONDS.toSeconds(weightedTotalNanos)
     nanos = (weightedTotalNanos % NANOS_PER_SECOND).toInt()
   }
