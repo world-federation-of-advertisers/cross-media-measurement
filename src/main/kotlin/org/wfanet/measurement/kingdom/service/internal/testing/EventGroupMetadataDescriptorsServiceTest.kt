@@ -322,6 +322,166 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
       .comparingExpectedFieldsOnly()
       .containsExactly(eventGroupMetadataDescriptor2)
   }
+
+  @Test
+  fun `streamEventGroupMetadataDescriptors respects limit`(): Unit = runBlocking {
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+
+    val eventGroupMetadataDescriptor =
+      eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
+        eventGroupMetadataDescriptor {
+          this.externalDataProviderId = externalDataProviderId
+          details = DETAILS
+        }
+    )
+
+    val eventGroupMetadataDescriptor2 =
+      eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
+        eventGroupMetadataDescriptor {
+          this.externalDataProviderId = externalDataProviderId
+          details = DETAILS
+        }
+      )
+
+    val eventGroupMetadataDescriptors: List<EventGroupMetadataDescriptor> =
+      eventGroupMetadataDescriptorService
+        .streamEventGroupMetadataDescriptors(
+          streamEventGroupMetadataDescriptorsRequest {
+            filter = filter {
+              this.externalDataProviderId = externalDataProviderId
+            }
+            limit = 1
+          }
+        )
+        .toList()
+
+    if (eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId < eventGroupMetadataDescriptor2.externalEventGroupMetadataDescriptorId) {
+      assertThat(eventGroupMetadataDescriptors)
+        .containsExactly(eventGroupMetadataDescriptor)
+    } else {
+      assertThat(eventGroupMetadataDescriptors)
+        .containsExactly(eventGroupMetadataDescriptor2)
+    }
+  }
+
+  @Test
+  fun `streamEventGroupMetadataDescriptors skips results based on after Ids`(): Unit = runBlocking {
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+
+    val eventGroupMetadataDescriptor =
+      eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
+        eventGroupMetadataDescriptor {
+          this.externalDataProviderId = externalDataProviderId
+          details = DETAILS
+        }
+      )
+
+    val eventGroupMetadataDescriptor2 =
+      eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
+        eventGroupMetadataDescriptor {
+          this.externalDataProviderId = externalDataProviderId
+          details = DETAILS
+        }
+      )
+
+    val eventGroupMetadataDescriptors: List<EventGroupMetadataDescriptor> =
+      eventGroupMetadataDescriptorService
+        .streamEventGroupMetadataDescriptors(
+          streamEventGroupMetadataDescriptorsRequest {
+            filter = filter {
+              this.externalDataProviderId = externalDataProviderId
+              externalDataProviderIdAfter = externalDataProviderId
+              externalEventGroupMetadataDescriptorIdAfter = if (eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId < eventGroupMetadataDescriptor2.externalEventGroupMetadataDescriptorId) {
+                eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId
+              } else {
+                eventGroupMetadataDescriptor2.externalEventGroupMetadataDescriptorId
+              }
+            }
+            limit = 1
+          }
+        )
+        .toList()
+
+    if (eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId < eventGroupMetadataDescriptor2.externalEventGroupMetadataDescriptorId) {
+      assertThat(eventGroupMetadataDescriptors)
+        .containsExactly(eventGroupMetadataDescriptor2)
+    } else {
+      assertThat(eventGroupMetadataDescriptors)
+        .containsExactly(eventGroupMetadataDescriptor)
+    }
+  }
+
+  @Test
+  fun `streamEventGroupMetadataDescriptors fails for negative external data provider id`() =
+    runBlocking {
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        eventGroupMetadataDescriptorService.streamEventGroupMetadataDescriptors(
+          streamEventGroupMetadataDescriptorsRequest {
+            filter = filter {
+              externalDataProviderId = -1L
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("ExternalDataProviderId")
+  }
+
+  @Test
+  fun `streamEventGroupMetadataDescriptors fails for negative limit`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        eventGroupMetadataDescriptorService.streamEventGroupMetadataDescriptors(
+          streamEventGroupMetadataDescriptorsRequest {
+            limit = -1
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("Limit")
+  }
+
+  @Test
+  fun `streamEventGroupMetadataDescriptors fails for negative externalDataProviderAfterId`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupMetadataDescriptorService.streamEventGroupMetadataDescriptors(
+            streamEventGroupMetadataDescriptorsRequest {
+              filter = filter {
+                externalDataProviderIdAfter = -1L
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("After")
+    }
+
+  @Test
+  fun `streamEventGroupMetadataDescriptors fails for negative metadata descriptor after id`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupMetadataDescriptorService.streamEventGroupMetadataDescriptors(
+            streamEventGroupMetadataDescriptorsRequest {
+              filter = filter {
+                externalEventGroupMetadataDescriptorIdAfter = -1L
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("After")
+    }
 }
 
 data class EventGroupMetadataDescriptorsAndHelperServices<

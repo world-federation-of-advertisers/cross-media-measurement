@@ -25,8 +25,8 @@ option java_multiple_files = true;
 
 message ListEventGroupsPageToken {
   int32 page_size = 1;
-  int64 external_data_provider_id = 2;
-  repeated int64 external_measurement_consumer_ids = 3;
+  fixed64 external_data_provider_id = 2;
+  repeated fixed64 external_measurement_consumer_ids = 3;
   message PreviousPageEnd {
     fixed64 external_data_provider_id = 1;
     fixed64 external_event_group_id = 2;
@@ -35,9 +35,19 @@ message ListEventGroupsPageToken {
   bool show_deleted = 5;
 }
 
+message ListEventGroupMetadataDescriptorsPageToken {
+  int32 page_size = 1;
+  fixed64 external_data_provider_id = 2;
+  message PreviousPageEnd {
+    fixed64 external_data_provider_id = 1;
+    fixed64 external_event_group_metadata_descriptor_id = 2;
+  }
+  PreviousPageEnd last_event_group_metadata_Descriptor = 3;
+}
+
 message ListMeasurementsPageToken {
   int32 page_size = 1;
-  int64 external_measurement_consumer_id = 2;
+  fixed64 external_measurement_consumer_id = 2;
   repeated Measurement.State states = 3;
   message PreviousPageEnd {
     google.protobuf.Timestamp update_time = 1;
@@ -48,9 +58,9 @@ message ListMeasurementsPageToken {
 
 message ListRequisitionsPageToken {
   int32 page_size = 1;
-  int64 external_measurement_consumer_id = 2;
-  int64 external_measurement_id = 3;
-  int64 external_data_provider_id = 4;
+  fixed64 external_measurement_consumer_id = 2;
+  fixed64 external_measurement_id = 3;
+  fixed64 external_data_provider_id = 4;
   repeated Requisition.State states = 5;
   message PreviousPageEnd {
     fixed64 external_data_provider_id = 1;

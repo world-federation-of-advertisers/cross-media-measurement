@@ -53,6 +53,13 @@ message StreamEventGroupMetadataDescriptorsRequest {
   message Filter {
     fixed64 external_data_provider_id = 1;
     repeated fixed64 external_event_group_metadata_descriptor_ids = 2;
+
+    // for next page token, both after fields need to be set
+    fixed64 external_data_provider_id_after = 3;
+    fixed64 external_event_group_metadata_descriptor_id_after = 4;
   }
   Filter filter = 1;
+
+  // The maximum number of results to return.
+  int32 limit = 2;
 }
