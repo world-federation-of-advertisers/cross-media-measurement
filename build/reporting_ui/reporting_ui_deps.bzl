@@ -50,7 +50,6 @@ def load_reporting_ui_deps():
         urls = ["https://github.com/protocolbuffers/protobuf/archive/v3.21.12.tar.gz"],
     )
 
-
     http_archive(
         name = "bazel_skylib",
         sha256 = "b8a1527901774180afc798aeb28c4634bdccf19c4d98e7bdd1ce79d1fe9aaad7",
