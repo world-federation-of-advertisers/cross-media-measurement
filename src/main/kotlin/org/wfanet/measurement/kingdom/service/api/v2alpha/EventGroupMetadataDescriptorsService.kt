@@ -16,8 +16,13 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlin.math.min
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2.alpha.ListEventGroupMetadataDescriptorsPageToken
+import org.wfanet.measurement.api.v2.alpha.ListEventGroupMetadataDescriptorsPageTokenKt
+import org.wfanet.measurement.api.v2.alpha.copy
+import org.wfanet.measurement.api.v2.alpha.listEventGroupMetadataDescriptorsPageToken
 import org.wfanet.measurement.api.v2alpha.BatchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.BatchGetEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupMetadataDescriptorRequest
@@ -27,34 +32,29 @@ import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.GetEventGroupMetadataDescriptorRequest
+import org.wfanet.measurement.api.v2alpha.ListEventGroupMetadataDescriptorsRequest
+import org.wfanet.measurement.api.v2alpha.ListEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.UpdateEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
+import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.common.api.ResourceKey
+import org.wfanet.measurement.common.base64UrlDecode
+import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
+import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptor as InternalEventGroupMetadataDescriptor
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorKt.details
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.StreamEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupMetadataDescriptorsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.eventGroupMetadataDescriptor as internalEventGroupMetadataDescriptor
-import kotlin.math.min
-import org.wfanet.measurement.api.v2.alpha.ListEventGroupMetadataDescriptorsPageToken
-import org.wfanet.measurement.api.v2.alpha.ListEventGroupMetadataDescriptorsPageTokenKt
-import org.wfanet.measurement.api.v2.alpha.copy
-import org.wfanet.measurement.api.v2.alpha.listEventGroupMetadataDescriptorsPageToken
-import org.wfanet.measurement.api.v2alpha.ListEventGroupMetadataDescriptorsRequest
-import org.wfanet.measurement.api.v2alpha.ListEventGroupMetadataDescriptorsResponse
-import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsResponse
-import org.wfanet.measurement.common.base64UrlDecode
-import org.wfanet.measurement.common.base64UrlEncode
-import org.wfanet.measurement.common.grpc.grpcRequire
-import org.wfanet.measurement.internal.kingdom.StreamEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.internal.kingdom.getEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.internal.kingdom.updateEventGroupMetadataDescriptorRequest
@@ -267,7 +267,9 @@ class EventGroupMetadataDescriptorsService(
     }
   }
 
-  override suspend fun listEventGroupMetadataDescriptors(request: ListEventGroupMetadataDescriptorsRequest): ListEventGroupMetadataDescriptorsResponse {
+  override suspend fun listEventGroupMetadataDescriptors(
+    request: ListEventGroupMetadataDescriptorsRequest
+  ): ListEventGroupMetadataDescriptorsResponse {
     val listEventGroupMetadataDescriptorsPageToken =
       request.toListEventGroupMetadataDescriptorsPageToken()
 
@@ -275,7 +277,7 @@ class EventGroupMetadataDescriptorsService(
       is DataProviderPrincipal -> {
         if (
           apiIdToExternalId(principal.resourceKey.dataProviderId) !=
-          listEventGroupMetadataDescriptorsPageToken.externalDataProviderId
+            listEventGroupMetadataDescriptorsPageToken.externalDataProviderId
         ) {
           failGrpc(Status.PERMISSION_DENIED) {
             "Cannot list EventGroup Metadata Descriptors belonging to other DataProviders"
@@ -284,20 +286,25 @@ class EventGroupMetadataDescriptorsService(
       }
       is MeasurementConsumerPrincipal -> {}
       else -> {
-        failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to list EventGroup Metadata Descriptors" }
+        failGrpc(Status.PERMISSION_DENIED) {
+          "Caller does not have permission to list EventGroup Metadata Descriptors"
+        }
       }
     }
 
     val results: List<InternalEventGroupMetadataDescriptor> =
       try {
         internalEventGroupMetadataDescriptorsStub
-          .streamEventGroupMetadataDescriptors(listEventGroupMetadataDescriptorsPageToken.toStreamEventGroupMetadataDescriptorsRequest())
+          .streamEventGroupMetadataDescriptors(
+            listEventGroupMetadataDescriptorsPageToken
+              .toStreamEventGroupMetadataDescriptorsRequest()
+          )
           .toList()
       } catch (e: StatusException) {
         throw when (e.status.code) {
-          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-          else -> Status.UNKNOWN
-        }
+            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+            else -> Status.UNKNOWN
+          }
           .withCause(e)
           .asRuntimeException()
       }
@@ -336,9 +343,9 @@ private fun InternalEventGroupMetadataDescriptor.toEventGroupMetadataDescriptor(
   return eventGroupMetadataDescriptor {
     name =
       EventGroupMetadataDescriptorKey(
-        externalIdToApiId(externalDataProviderId),
-        externalIdToApiId(externalEventGroupMetadataDescriptorId)
-      )
+          externalIdToApiId(externalDataProviderId),
+          externalIdToApiId(externalEventGroupMetadataDescriptorId)
+        )
         .toName()
     descriptorSet = details.descriptorSet
   }
@@ -369,8 +376,12 @@ private fun EventGroupMetadataDescriptor.toInternal(
   }
 }
 
-/** Converts a public [ListEventGroupMetadataDescriptorsRequest] to an internal [ListEventGroupMetadataDescriptorsPageToken]. */
-private fun ListEventGroupMetadataDescriptorsRequest.toListEventGroupMetadataDescriptorsPageToken(): ListEventGroupMetadataDescriptorsPageToken {
+/**
+ * Converts a public [ListEventGroupMetadataDescriptorsRequest] to an internal
+ * [ListEventGroupMetadataDescriptorsPageToken].
+ */
+private fun ListEventGroupMetadataDescriptorsRequest.toListEventGroupMetadataDescriptorsPageToken():
+  ListEventGroupMetadataDescriptorsPageToken {
   val source = this
 
   grpcRequire(source.pageSize >= 0) { "Page size cannot be less than 0" }
@@ -411,8 +422,12 @@ private fun ListEventGroupMetadataDescriptorsRequest.toListEventGroupMetadataDes
   }
 }
 
-/** Converts an internal [ListEventGroupMetadataDescriptorsPageToken] to an internal [StreamEventGroupMetadataDescriptorsRequest]. */
-private fun ListEventGroupMetadataDescriptorsPageToken.toStreamEventGroupMetadataDescriptorsRequest(): StreamEventGroupMetadataDescriptorsRequest {
+/**
+ * Converts an internal [ListEventGroupMetadataDescriptorsPageToken] to an internal
+ * [StreamEventGroupMetadataDescriptorsRequest].
+ */
+private fun ListEventGroupMetadataDescriptorsPageToken
+  .toStreamEventGroupMetadataDescriptorsRequest(): StreamEventGroupMetadataDescriptorsRequest {
   val source = this
   return streamEventGroupMetadataDescriptorsRequest {
     // get 1 more than the actual page size for deciding whether to set page token

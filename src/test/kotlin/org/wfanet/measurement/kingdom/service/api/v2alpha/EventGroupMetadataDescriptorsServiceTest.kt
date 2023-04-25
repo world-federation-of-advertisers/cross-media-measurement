@@ -29,40 +29,40 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.stub
+import org.mockito.kotlin.verify
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2.alpha.ListEventGroupMetadataDescriptorsPageTokenKt
+import org.wfanet.measurement.api.v2.alpha.listEventGroupMetadataDescriptorsPageToken
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorKey
+import org.wfanet.measurement.api.v2alpha.ListEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.getEventGroupMetadataDescriptorRequest
+import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsRequest
+import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.api.v2alpha.updateEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
+import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptor as InternalEventGroupMetadataDescriptor
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorKt.details
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroupMetadataDescriptorsGrpcKt.EventGroupMetadataDescriptorsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.StreamEventGroupMetadataDescriptorsRequest
+import org.wfanet.measurement.internal.kingdom.StreamEventGroupMetadataDescriptorsRequestKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.eventGroupMetadataDescriptor as internalEventGroupMetadataDescriptor
 import org.wfanet.measurement.internal.kingdom.getEventGroupMetadataDescriptorRequest as internalGetEventGroupMetadataDescriptorRequest
-import org.mockito.kotlin.verify
-import org.wfanet.measurement.api.v2.alpha.ListEventGroupMetadataDescriptorsPageTokenKt
-import org.wfanet.measurement.api.v2.alpha.listEventGroupMetadataDescriptorsPageToken
-import org.wfanet.measurement.api.v2alpha.ListEventGroupMetadataDescriptorsRequest
-import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsRequest
-import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsResponse
-import org.wfanet.measurement.common.base64UrlEncode
-import org.wfanet.measurement.common.testing.captureFirst
-import org.wfanet.measurement.internal.kingdom.StreamEventGroupMetadataDescriptorsRequest
-import org.wfanet.measurement.internal.kingdom.StreamEventGroupMetadataDescriptorsRequestKt
 import org.wfanet.measurement.internal.kingdom.streamEventGroupMetadataDescriptorsRequest
 
 private const val DEFAULT_LIMIT = 50
@@ -120,9 +120,9 @@ class EventGroupMetadataDescriptorsServiceTest {
     val expected = EVENT_GROUP_METADATA_DESCRIPTOR
 
     verifyProtoArgument(
-      internalEventGroupMetadataDescriptorsMock,
-      EventGroupMetadataDescriptorsCoroutineImplBase::getEventGroupMetadataDescriptor
-    )
+        internalEventGroupMetadataDescriptorsMock,
+        EventGroupMetadataDescriptorsCoroutineImplBase::getEventGroupMetadataDescriptor
+      )
       .isEqualTo(
         internalGetEventGroupMetadataDescriptorRequest {
           externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
@@ -147,9 +147,9 @@ class EventGroupMetadataDescriptorsServiceTest {
     val expected = EVENT_GROUP_METADATA_DESCRIPTOR
 
     verifyProtoArgument(
-      internalEventGroupMetadataDescriptorsMock,
-      EventGroupMetadataDescriptorsCoroutineImplBase::getEventGroupMetadataDescriptor
-    )
+        internalEventGroupMetadataDescriptorsMock,
+        EventGroupMetadataDescriptorsCoroutineImplBase::getEventGroupMetadataDescriptor
+      )
       .isEqualTo(
         internalGetEventGroupMetadataDescriptorRequest {
           externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
@@ -204,9 +204,9 @@ class EventGroupMetadataDescriptorsServiceTest {
     val expected = EVENT_GROUP_METADATA_DESCRIPTOR
 
     verifyProtoArgument(
-      internalEventGroupMetadataDescriptorsMock,
-      EventGroupMetadataDescriptorsCoroutineImplBase::createEventGroupMetadataDescriptor
-    )
+        internalEventGroupMetadataDescriptorsMock,
+        EventGroupMetadataDescriptorsCoroutineImplBase::createEventGroupMetadataDescriptor
+      )
       .isEqualTo(
         INTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR.copy {
           clearExternalEventGroupMetadataDescriptorId()
@@ -264,9 +264,9 @@ class EventGroupMetadataDescriptorsServiceTest {
     val expected = EVENT_GROUP_METADATA_DESCRIPTOR
 
     verifyProtoArgument(
-      internalEventGroupMetadataDescriptorsMock,
-      EventGroupMetadataDescriptorsCoroutineImplBase::updateEventGroupMetadataDescriptor
-    )
+        internalEventGroupMetadataDescriptorsMock,
+        EventGroupMetadataDescriptorsCoroutineImplBase::updateEventGroupMetadataDescriptor
+      )
       .isEqualTo(
         org.wfanet.measurement.internal.kingdom.updateEventGroupMetadataDescriptorRequest {
           eventGroupMetadataDescriptor = INTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR.copy {}
@@ -426,9 +426,7 @@ class EventGroupMetadataDescriptorsServiceTest {
 
   @Test
   fun `listEventGroupMetadataDescriptors with parent uses filter with parent`() {
-    val request = listEventGroupMetadataDescriptorsRequest {
-      parent = DATA_PROVIDER_NAME
-    }
+    val request = listEventGroupMetadataDescriptorsRequest { parent = DATA_PROVIDER_NAME }
 
     val result =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
@@ -437,16 +435,14 @@ class EventGroupMetadataDescriptorsServiceTest {
 
     val expected = listEventGroupMetadataDescriptorsResponse {
       eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR
-      eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR.copy {
-        name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2
-      }
+      eventGroupMetadataDescriptors +=
+        EVENT_GROUP_METADATA_DESCRIPTOR.copy { name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2 }
     }
 
     val streamEventGroupMetadataDescriptorsRequest =
       captureFirst<StreamEventGroupMetadataDescriptorsRequest> {
-        verify(internalEventGroupMetadataDescriptorsMock).streamEventGroupMetadataDescriptors(
-          capture()
-        )
+        verify(internalEventGroupMetadataDescriptorsMock)
+          .streamEventGroupMetadataDescriptors(capture())
       }
 
     assertThat(streamEventGroupMetadataDescriptorsRequest)
@@ -466,9 +462,7 @@ class EventGroupMetadataDescriptorsServiceTest {
 
   @Test
   fun `listEventGroupMetadataDescriptors with wildcard doesn't uses filter with parent`() {
-    val request = listEventGroupMetadataDescriptorsRequest {
-      parent = "dataProviders/-"
-    }
+    val request = listEventGroupMetadataDescriptorsRequest { parent = "dataProviders/-" }
 
     val result =
       withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
@@ -477,16 +471,14 @@ class EventGroupMetadataDescriptorsServiceTest {
 
     val expected = listEventGroupMetadataDescriptorsResponse {
       eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR
-      eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR.copy {
-        name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2
-      }
+      eventGroupMetadataDescriptors +=
+        EVENT_GROUP_METADATA_DESCRIPTOR.copy { name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2 }
     }
 
     val streamEventGroupMetadataDescriptorsRequest =
       captureFirst<StreamEventGroupMetadataDescriptorsRequest> {
-        verify(internalEventGroupMetadataDescriptorsMock).streamEventGroupMetadataDescriptors(
-          capture()
-        )
+        verify(internalEventGroupMetadataDescriptorsMock)
+          .streamEventGroupMetadataDescriptors(capture())
       }
 
     assertThat(streamEventGroupMetadataDescriptorsRequest)
@@ -494,7 +486,7 @@ class EventGroupMetadataDescriptorsServiceTest {
       .isEqualTo(
         streamEventGroupMetadataDescriptorsRequest {
           limit = DEFAULT_LIMIT + 1
-          filter = StreamEventGroupMetadataDescriptorsRequestKt.filter { }
+          filter = StreamEventGroupMetadataDescriptorsRequestKt.filter {}
         }
       )
 
@@ -540,9 +532,8 @@ class EventGroupMetadataDescriptorsServiceTest {
 
     val streamEventGroupMetadataDescriptorsRequest =
       captureFirst<StreamEventGroupMetadataDescriptorsRequest> {
-        verify(internalEventGroupMetadataDescriptorsMock).streamEventGroupMetadataDescriptors(
-          capture()
-        )
+        verify(internalEventGroupMetadataDescriptorsMock)
+          .streamEventGroupMetadataDescriptors(capture())
       }
 
     assertThat(streamEventGroupMetadataDescriptorsRequest)
@@ -588,16 +579,14 @@ class EventGroupMetadataDescriptorsServiceTest {
 
     val expected = listEventGroupMetadataDescriptorsResponse {
       eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR
-      eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR.copy {
-        name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2
-      }
+      eventGroupMetadataDescriptors +=
+        EVENT_GROUP_METADATA_DESCRIPTOR.copy { name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2 }
     }
 
     val streamEventGroupMetadataDescriptorsRequest =
       captureFirst<StreamEventGroupMetadataDescriptorsRequest> {
-        verify(internalEventGroupMetadataDescriptorsMock).streamEventGroupMetadataDescriptors(
-          capture()
-        )
+        verify(internalEventGroupMetadataDescriptorsMock)
+          .streamEventGroupMetadataDescriptors(capture())
       }
 
     assertThat(streamEventGroupMetadataDescriptorsRequest)
@@ -642,16 +631,14 @@ class EventGroupMetadataDescriptorsServiceTest {
 
     val expected = listEventGroupMetadataDescriptorsResponse {
       eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR
-      eventGroupMetadataDescriptors += EVENT_GROUP_METADATA_DESCRIPTOR.copy {
-        name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2
-      }
+      eventGroupMetadataDescriptors +=
+        EVENT_GROUP_METADATA_DESCRIPTOR.copy { name = EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2 }
     }
 
     val streamEventGroupMetadataDescriptorsRequest =
       captureFirst<StreamEventGroupMetadataDescriptorsRequest> {
-        verify(internalEventGroupMetadataDescriptorsMock).streamEventGroupMetadataDescriptors(
-          capture()
-        )
+        verify(internalEventGroupMetadataDescriptorsMock)
+          .streamEventGroupMetadataDescriptors(capture())
       }
 
     assertThat(streamEventGroupMetadataDescriptorsRequest)
@@ -674,17 +661,11 @@ class EventGroupMetadataDescriptorsServiceTest {
 
   @Test
   fun `listEventGroupMetadataDescriptors throws UNAUTHENTICATED when no principal is found`() {
-    val request = listEventGroupMetadataDescriptorsRequest {
-      parent = DATA_PROVIDER_NAME
-    }
+    val request = listEventGroupMetadataDescriptorsRequest { parent = DATA_PROVIDER_NAME }
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        runBlocking {
-          service.listEventGroupMetadataDescriptors(
-            request
-          )
-        }
+        runBlocking { service.listEventGroupMetadataDescriptors(request) }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
@@ -776,15 +757,15 @@ class EventGroupMetadataDescriptorsServiceTest {
     private val EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID_2 = ExternalId(789L)
     private val EVENT_GROUP_METADATA_DESCRIPTOR_NAME =
       EventGroupMetadataDescriptorKey(
-        DATA_PROVIDER_KEY.dataProviderId,
-        EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.apiId.value
-      )
+          DATA_PROVIDER_KEY.dataProviderId,
+          EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.apiId.value
+        )
         .toName()
     private val EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2 =
       EventGroupMetadataDescriptorKey(
-        DATA_PROVIDER_KEY.dataProviderId,
-        EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID_2.apiId.value
-      )
+          DATA_PROVIDER_KEY.dataProviderId,
+          EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID_2.apiId.value
+        )
         .toName()
     private val FILE_DESCRIPTOR_SET = FileDescriptorSet.getDefaultInstance()
     private val API_VERSION = Version.V2_ALPHA

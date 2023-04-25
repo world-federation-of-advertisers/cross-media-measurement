@@ -21,7 +21,8 @@ import org.wfanet.measurement.internal.kingdom.StreamEventGroupMetadataDescripto
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupMetadataDescriptorReader
 
 class StreamEventGroupMetadataDescriptors(
-  requestFilter: StreamEventGroupMetadataDescriptorsRequest.Filter, limit: Int = 0,
+  requestFilter: StreamEventGroupMetadataDescriptorsRequest.Filter,
+  limit: Int = 0,
 ) : SimpleSpannerQuery<EventGroupMetadataDescriptorReader.Result>() {
   override val reader =
     EventGroupMetadataDescriptorReader().fillStatementBuilder {
@@ -52,7 +53,10 @@ class StreamEventGroupMetadataDescriptors(
       bind(EXTERNAL_DATA_PROVIDER_ID to filter.externalDataProviderId)
     }
 
-    if (filter.externalDataProviderIdAfter > 0L && filter.externalEventGroupMetadataDescriptorIdAfter > 0L) {
+    if (
+      filter.externalDataProviderIdAfter > 0L &&
+        filter.externalEventGroupMetadataDescriptorIdAfter > 0L
+    ) {
       conjuncts.add(
         """
           ((ExternalDataProviderId > @${EXTERNAL_DATA_PROVIDER_ID_AFTER})
@@ -62,7 +66,8 @@ class StreamEventGroupMetadataDescriptors(
           .trimIndent()
       )
       bind(EXTERNAL_DATA_PROVIDER_ID_AFTER).to(filter.externalDataProviderIdAfter)
-      bind(EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_ID_AFTER).to(filter.externalEventGroupMetadataDescriptorIdAfter)
+      bind(EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_ID_AFTER)
+        .to(filter.externalEventGroupMetadataDescriptorIdAfter)
     }
 
     if (conjuncts.isEmpty()) {
