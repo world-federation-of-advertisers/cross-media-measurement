@@ -129,8 +129,6 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
 }
 
 private fun InternalDataProvider.toDataProvider(): DataProvider {
-  println("details.apiVersion: ${details}")
-  println("API_VERSION: $API_VERSION")
   check(Version.fromString(details.apiVersion) == API_VERSION) {
     "Incompatible API version ${details.apiVersion}"
   }
