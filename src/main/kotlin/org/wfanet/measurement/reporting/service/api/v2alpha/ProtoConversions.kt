@@ -16,7 +16,9 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import org.wfanet.measurement.api.v2.alpha.ListMetricsPageToken
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec.VidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
@@ -25,11 +27,16 @@ import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.timeInterval as cmmsTimeInterval
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
+import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
+import org.wfanet.measurement.internal.reporting.v2.MeasurementKt as InternalMeasurementKt
 import org.wfanet.measurement.internal.reporting.v2.Metric as InternalMetric
 import org.wfanet.measurement.internal.reporting.v2.MetricResult as InternalMetricResult
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec as InternalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt as InternalMetricSpecKt
+import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequest
+import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.TimeInterval as InternalTimeInterval
+import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeInterval as internalTimeInterval
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricResult
@@ -310,5 +317,66 @@ fun InternalMetricSpec.WatchDurationParams.toDuration(): MeasurementSpec.Duratio
   return MeasurementSpecKt.duration {
     privacyParams = source.privacyParams.toCmmsPrivacyParams()
     maximumWatchDurationPerUser = source.maximumWatchDurationPerUser
+  }
+}
+
+/** Converts a CMM [Measurement.Failure] to an [InternalMeasurement.Failure]. */
+fun Measurement.Failure.toInternal(): InternalMeasurement.Failure {
+  val source = this
+
+  return InternalMeasurementKt.failure {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    reason =
+      when (source.reason) {
+        Measurement.Failure.Reason.REASON_UNSPECIFIED ->
+          InternalMeasurement.Failure.Reason.REASON_UNSPECIFIED
+        Measurement.Failure.Reason.CERTIFICATE_REVOKED ->
+          InternalMeasurement.Failure.Reason.CERTIFICATE_REVOKED
+        Measurement.Failure.Reason.REQUISITION_REFUSED ->
+          InternalMeasurement.Failure.Reason.REQUISITION_REFUSED
+        Measurement.Failure.Reason.COMPUTATION_PARTICIPANT_FAILED ->
+          InternalMeasurement.Failure.Reason.COMPUTATION_PARTICIPANT_FAILED
+        Measurement.Failure.Reason.UNRECOGNIZED -> InternalMeasurement.Failure.Reason.UNRECOGNIZED
+      }
+    message = source.message
+  }
+}
+
+/** Converts a CMM [Measurement.Result] to an [InternalMeasurement.Result]. */
+fun Measurement.Result.toInternal(): InternalMeasurement.Result {
+  val source = this
+
+  return InternalMeasurementKt.result {
+    if (source.hasReach()) {
+      this.reach = InternalMeasurementKt.ResultKt.reach { value = source.reach.value }
+    }
+    if (source.hasFrequency()) {
+      this.frequency =
+        InternalMeasurementKt.ResultKt.frequency {
+          relativeFrequencyDistribution.putAll(source.frequency.relativeFrequencyDistributionMap)
+        }
+    }
+    if (source.hasImpression()) {
+      this.impression =
+        InternalMeasurementKt.ResultKt.impression { value = source.impression.value }
+    }
+    if (source.hasWatchDuration()) {
+      this.watchDuration =
+        InternalMeasurementKt.ResultKt.watchDuration { value = source.watchDuration.value }
+    }
+  }
+}
+
+/** Converts a [ListMetricsPageToken] to an internal [StreamMetricsRequest]. */
+fun ListMetricsPageToken.toStreamMetricsRequest(): StreamMetricsRequest {
+  val source = this
+  return streamMetricsRequest {
+    // get 1 more than the actual page size for deciding whether to set page token
+    limit = source.pageSize + 1
+    filter =
+      StreamMetricsRequestKt.filter {
+        cmmsMeasurementConsumerId = source.cmmsMeasurementConsumerId
+        externalMetricIdAfter = source.lastMetric.externalMetricId
+      }
   }
 }
