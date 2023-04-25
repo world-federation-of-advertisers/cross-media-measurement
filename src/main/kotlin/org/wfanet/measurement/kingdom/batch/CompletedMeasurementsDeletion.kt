@@ -16,6 +16,10 @@
 
 package org.wfanet.measurement.kingdom.batch
 
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.api.metrics.LongCounter
+import io.opentelemetry.api.metrics.Meter
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
@@ -38,7 +42,13 @@ class CompletedMeasurementsDeletion(
   private val timeToLive: Duration,
   private val dryRun: Boolean = false,
 ) {
-
+  private val openTelemetry: OpenTelemetry = GlobalOpenTelemetry.get()
+  private val meter: Meter = openTelemetry.getMeter(CompletedMeasurementsDeletion::class.java.name)
+  private val completedMeasurementDeletionCounter: LongCounter =
+    meter
+      .counterBuilder("completed_measurements_deletion_total")
+      .setDescription("Total number of completed measurements deleted under retention policy")
+      .build()
   fun run() {
     if (timeToLive.toMillis() == 0L) {
       logger.warning("Time to live cannot be 0. TTL=$timeToLive")
@@ -75,6 +85,7 @@ class CompletedMeasurementsDeletion(
         measurementsService.batchDeleteMeasurements(
           batchDeleteMeasurementsRequest { requests += deleteRequests }
         )
+        completedMeasurementDeletionCounter.add(deleteRequests.size.toLong())
       }
     }
   }
