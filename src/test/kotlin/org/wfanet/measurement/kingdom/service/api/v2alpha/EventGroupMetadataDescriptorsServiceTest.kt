@@ -120,9 +120,9 @@ class EventGroupMetadataDescriptorsServiceTest {
     val expected = EVENT_GROUP_METADATA_DESCRIPTOR
 
     verifyProtoArgument(
-        internalEventGroupMetadataDescriptorsMock,
-        EventGroupMetadataDescriptorsCoroutineImplBase::getEventGroupMetadataDescriptor
-      )
+      internalEventGroupMetadataDescriptorsMock,
+      EventGroupMetadataDescriptorsCoroutineImplBase::getEventGroupMetadataDescriptor
+    )
       .isEqualTo(
         internalGetEventGroupMetadataDescriptorRequest {
           externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
@@ -147,9 +147,9 @@ class EventGroupMetadataDescriptorsServiceTest {
     val expected = EVENT_GROUP_METADATA_DESCRIPTOR
 
     verifyProtoArgument(
-        internalEventGroupMetadataDescriptorsMock,
-        EventGroupMetadataDescriptorsCoroutineImplBase::getEventGroupMetadataDescriptor
-      )
+      internalEventGroupMetadataDescriptorsMock,
+      EventGroupMetadataDescriptorsCoroutineImplBase::getEventGroupMetadataDescriptor
+    )
       .isEqualTo(
         internalGetEventGroupMetadataDescriptorRequest {
           externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
@@ -204,9 +204,9 @@ class EventGroupMetadataDescriptorsServiceTest {
     val expected = EVENT_GROUP_METADATA_DESCRIPTOR
 
     verifyProtoArgument(
-        internalEventGroupMetadataDescriptorsMock,
-        EventGroupMetadataDescriptorsCoroutineImplBase::createEventGroupMetadataDescriptor
-      )
+      internalEventGroupMetadataDescriptorsMock,
+      EventGroupMetadataDescriptorsCoroutineImplBase::createEventGroupMetadataDescriptor
+    )
       .isEqualTo(
         INTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR.copy {
           clearExternalEventGroupMetadataDescriptorId()
@@ -264,9 +264,9 @@ class EventGroupMetadataDescriptorsServiceTest {
     val expected = EVENT_GROUP_METADATA_DESCRIPTOR
 
     verifyProtoArgument(
-        internalEventGroupMetadataDescriptorsMock,
-        EventGroupMetadataDescriptorsCoroutineImplBase::updateEventGroupMetadataDescriptor
-      )
+      internalEventGroupMetadataDescriptorsMock,
+      EventGroupMetadataDescriptorsCoroutineImplBase::updateEventGroupMetadataDescriptor
+    )
       .isEqualTo(
         org.wfanet.measurement.internal.kingdom.updateEventGroupMetadataDescriptorRequest {
           eventGroupMetadataDescriptor = INTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR.copy {}
@@ -444,7 +444,9 @@ class EventGroupMetadataDescriptorsServiceTest {
 
     val streamEventGroupMetadataDescriptorsRequest =
       captureFirst<StreamEventGroupMetadataDescriptorsRequest> {
-        verify(internalEventGroupMetadataDescriptorsMock).streamEventGroupMetadataDescriptors(capture())
+        verify(internalEventGroupMetadataDescriptorsMock).streamEventGroupMetadataDescriptors(
+          capture()
+        )
       }
 
     assertThat(streamEventGroupMetadataDescriptorsRequest)
@@ -482,7 +484,9 @@ class EventGroupMetadataDescriptorsServiceTest {
 
     val streamEventGroupMetadataDescriptorsRequest =
       captureFirst<StreamEventGroupMetadataDescriptorsRequest> {
-        verify(internalEventGroupMetadataDescriptorsMock).streamEventGroupMetadataDescriptors(capture())
+        verify(internalEventGroupMetadataDescriptorsMock).streamEventGroupMetadataDescriptors(
+          capture()
+        )
       }
 
     assertThat(streamEventGroupMetadataDescriptorsRequest)
@@ -504,10 +508,12 @@ class EventGroupMetadataDescriptorsServiceTest {
       val listEventGroupMetadataDescriptorsPageToken = listEventGroupMetadataDescriptorsPageToken {
         pageSize = 1
         externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
-        lastEventGroupMetadataDescriptor = ListEventGroupMetadataDescriptorsPageTokenKt.previousPageEnd {
-          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
-          externalEventGroupMetadataDescriptorId = EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.value
-        }
+        lastEventGroupMetadataDescriptor =
+          ListEventGroupMetadataDescriptorsPageTokenKt.previousPageEnd {
+            externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
+            externalEventGroupMetadataDescriptorId =
+              EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.value
+          }
       }
       pageToken = listEventGroupMetadataDescriptorsPageToken.toByteArray().base64UrlEncode()
     }
@@ -522,17 +528,21 @@ class EventGroupMetadataDescriptorsServiceTest {
       val listEventGroupMetadataDescriptorsPageToken = listEventGroupMetadataDescriptorsPageToken {
         pageSize = 1
         externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
-        lastEventGroupMetadataDescriptor = ListEventGroupMetadataDescriptorsPageTokenKt.previousPageEnd {
-          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
-          externalEventGroupMetadataDescriptorId = EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.value
-        }
+        lastEventGroupMetadataDescriptor =
+          ListEventGroupMetadataDescriptorsPageTokenKt.previousPageEnd {
+            externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
+            externalEventGroupMetadataDescriptorId =
+              EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.value
+          }
       }
       nextPageToken = listEventGroupMetadataDescriptorsPageToken.toByteArray().base64UrlEncode()
     }
 
     val streamEventGroupMetadataDescriptorsRequest =
       captureFirst<StreamEventGroupMetadataDescriptorsRequest> {
-        verify(internalEventGroupMetadataDescriptorsMock).streamEventGroupMetadataDescriptors(capture())
+        verify(internalEventGroupMetadataDescriptorsMock).streamEventGroupMetadataDescriptors(
+          capture()
+        )
       }
 
     assertThat(streamEventGroupMetadataDescriptorsRequest)
@@ -544,7 +554,8 @@ class EventGroupMetadataDescriptorsServiceTest {
             StreamEventGroupMetadataDescriptorsRequestKt.filter {
               externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
               externalDataProviderIdAfter = DATA_PROVIDER_EXTERNAL_ID.value
-              externalEventGroupMetadataDescriptorIdAfter = EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.value
+              externalEventGroupMetadataDescriptorIdAfter =
+                EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.value
             }
         }
       )
@@ -560,10 +571,12 @@ class EventGroupMetadataDescriptorsServiceTest {
       val listEventGroupMetadataDescriptorsPageToken = listEventGroupMetadataDescriptorsPageToken {
         pageSize = 1
         externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
-        lastEventGroupMetadataDescriptor = ListEventGroupMetadataDescriptorsPageTokenKt.previousPageEnd {
-          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
-          externalEventGroupMetadataDescriptorId = EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.value
-        }
+        lastEventGroupMetadataDescriptor =
+          ListEventGroupMetadataDescriptorsPageTokenKt.previousPageEnd {
+            externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
+            externalEventGroupMetadataDescriptorId =
+              EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.value
+          }
       }
       pageToken = listEventGroupMetadataDescriptorsPageToken.toByteArray().base64UrlEncode()
     }
@@ -582,7 +595,9 @@ class EventGroupMetadataDescriptorsServiceTest {
 
     val streamEventGroupMetadataDescriptorsRequest =
       captureFirst<StreamEventGroupMetadataDescriptorsRequest> {
-        verify(internalEventGroupMetadataDescriptorsMock).streamEventGroupMetadataDescriptors(capture())
+        verify(internalEventGroupMetadataDescriptorsMock).streamEventGroupMetadataDescriptors(
+          capture()
+        )
       }
 
     assertThat(streamEventGroupMetadataDescriptorsRequest)
@@ -594,7 +609,8 @@ class EventGroupMetadataDescriptorsServiceTest {
             StreamEventGroupMetadataDescriptorsRequestKt.filter {
               externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
               externalDataProviderIdAfter = DATA_PROVIDER_EXTERNAL_ID.value
-              externalEventGroupMetadataDescriptorIdAfter = EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.value
+              externalEventGroupMetadataDescriptorIdAfter =
+                EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.value
             }
         }
       )
@@ -609,10 +625,12 @@ class EventGroupMetadataDescriptorsServiceTest {
       val listEventGroupMetadataDescriptorsPageToken = listEventGroupMetadataDescriptorsPageToken {
         pageSize = 5
         externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
-        lastEventGroupMetadataDescriptor = ListEventGroupMetadataDescriptorsPageTokenKt.previousPageEnd {
-          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
-          externalEventGroupMetadataDescriptorId = EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.value
-        }
+        lastEventGroupMetadataDescriptor =
+          ListEventGroupMetadataDescriptorsPageTokenKt.previousPageEnd {
+            externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
+            externalEventGroupMetadataDescriptorId =
+              EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.value
+          }
       }
       pageToken = listEventGroupMetadataDescriptorsPageToken.toByteArray().base64UrlEncode()
     }
@@ -631,7 +649,9 @@ class EventGroupMetadataDescriptorsServiceTest {
 
     val streamEventGroupMetadataDescriptorsRequest =
       captureFirst<StreamEventGroupMetadataDescriptorsRequest> {
-        verify(internalEventGroupMetadataDescriptorsMock).streamEventGroupMetadataDescriptors(capture())
+        verify(internalEventGroupMetadataDescriptorsMock).streamEventGroupMetadataDescriptors(
+          capture()
+        )
       }
 
     assertThat(streamEventGroupMetadataDescriptorsRequest)
@@ -643,7 +663,8 @@ class EventGroupMetadataDescriptorsServiceTest {
             StreamEventGroupMetadataDescriptorsRequestKt.filter {
               externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
               externalDataProviderIdAfter = DATA_PROVIDER_EXTERNAL_ID.value
-              externalEventGroupMetadataDescriptorIdAfter = EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.value
+              externalEventGroupMetadataDescriptorIdAfter =
+                EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.value
             }
         }
       )
@@ -658,7 +679,13 @@ class EventGroupMetadataDescriptorsServiceTest {
     }
 
     val exception =
-      assertFailsWith<StatusRuntimeException> { runBlocking { service.listEventGroupMetadataDescriptors(request) } }
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking {
+          service.listEventGroupMetadataDescriptors(
+            request
+          )
+        }
+      }
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
   }
 
@@ -680,8 +707,11 @@ class EventGroupMetadataDescriptorsServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking { service.listEventGroupMetadataDescriptors(
-            ListEventGroupMetadataDescriptorsRequest.getDefaultInstance()) }
+          runBlocking {
+            service.listEventGroupMetadataDescriptors(
+              ListEventGroupMetadataDescriptorsRequest.getDefaultInstance()
+            )
+          }
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -713,10 +743,12 @@ class EventGroupMetadataDescriptorsServiceTest {
       val listEventGroupMetadataDescriptorsPageToken = listEventGroupMetadataDescriptorsPageToken {
         pageSize = 2
         externalDataProviderId = 654
-        lastEventGroupMetadataDescriptor = ListEventGroupMetadataDescriptorsPageTokenKt.previousPageEnd {
-          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
-          externalEventGroupMetadataDescriptorId = EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.value
-        }
+        lastEventGroupMetadataDescriptor =
+          ListEventGroupMetadataDescriptorsPageTokenKt.previousPageEnd {
+            externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID.value
+            externalEventGroupMetadataDescriptorId =
+              EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.value
+          }
       }
       pageToken = listEventGroupMetadataDescriptorsPageToken.toByteArray().base64UrlEncode()
     }
@@ -744,15 +776,15 @@ class EventGroupMetadataDescriptorsServiceTest {
     private val EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID_2 = ExternalId(789L)
     private val EVENT_GROUP_METADATA_DESCRIPTOR_NAME =
       EventGroupMetadataDescriptorKey(
-          DATA_PROVIDER_KEY.dataProviderId,
-          EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.apiId.value
-        )
+        DATA_PROVIDER_KEY.dataProviderId,
+        EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID.apiId.value
+      )
         .toName()
     private val EVENT_GROUP_METADATA_DESCRIPTOR_NAME_2 =
       EventGroupMetadataDescriptorKey(
-          DATA_PROVIDER_KEY.dataProviderId,
-          EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID_2.apiId.value
-        )
+        DATA_PROVIDER_KEY.dataProviderId,
+        EVENT_GROUP_METADATA_DESCRIPTOR_EXTERNAL_ID_2.apiId.value
+      )
         .toName()
     private val FILE_DESCRIPTOR_SET = FileDescriptorSet.getDefaultInstance()
     private val API_VERSION = Version.V2_ALPHA

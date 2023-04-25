@@ -66,11 +66,11 @@ private const val WILDCARD = ResourceKey.WILDCARD_ID
 private val API_VERSION = Version.V2_ALPHA
 
 class EventGroupMetadataDescriptorsService(
-  private val internalEventGroupMetadataDescriptorsStub: EventGroupMetadataDescriptorsCoroutineStub
+  private val internalEventGroupMetadataDescriptorsStub: EventGroupMetadataDescriptorsCoroutineStub,
 ) : EventGroupMetadataDescriptorsCoroutineImplBase() {
 
   override suspend fun getEventGroupMetadataDescriptor(
-    request: GetEventGroupMetadataDescriptorRequest
+    request: GetEventGroupMetadataDescriptorRequest,
   ): EventGroupMetadataDescriptor {
     val key =
       grpcRequireNotNull(EventGroupMetadataDescriptorKey.fromName(request.name)) {
@@ -112,7 +112,7 @@ class EventGroupMetadataDescriptorsService(
   }
 
   override suspend fun createEventGroupMetadataDescriptor(
-    request: CreateEventGroupMetadataDescriptorRequest
+    request: CreateEventGroupMetadataDescriptorRequest,
   ): EventGroupMetadataDescriptor {
     val parentKey =
       grpcRequireNotNull(DataProviderKey.fromName(request.parent)) {
@@ -153,7 +153,7 @@ class EventGroupMetadataDescriptorsService(
   }
 
   override suspend fun updateEventGroupMetadataDescriptor(
-    request: UpdateEventGroupMetadataDescriptorRequest
+    request: UpdateEventGroupMetadataDescriptorRequest,
   ): EventGroupMetadataDescriptor {
     val eventGroupMetadataDescriptorKey =
       grpcRequireNotNull(
@@ -202,7 +202,7 @@ class EventGroupMetadataDescriptorsService(
   }
 
   override suspend fun batchGetEventGroupMetadataDescriptors(
-    request: BatchGetEventGroupMetadataDescriptorsRequest
+    request: BatchGetEventGroupMetadataDescriptorsRequest,
   ): BatchGetEventGroupMetadataDescriptorsResponse {
     val parentKey =
       grpcRequireNotNull(DataProviderKey.fromName(request.parent)) {
@@ -268,7 +268,8 @@ class EventGroupMetadataDescriptorsService(
   }
 
   override suspend fun listEventGroupMetadataDescriptors(request: ListEventGroupMetadataDescriptorsRequest): ListEventGroupMetadataDescriptorsResponse {
-    val listEventGroupMetadataDescriptorsPageToken = request.toListEventGroupMetadataDescriptorsPageToken()
+    val listEventGroupMetadataDescriptorsPageToken =
+      request.toListEventGroupMetadataDescriptorsPageToken()
 
     when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
       is DataProviderPrincipal -> {
@@ -313,10 +314,12 @@ class EventGroupMetadataDescriptorsService(
       if (results.size > listEventGroupMetadataDescriptorsPageToken.pageSize) {
         val pageToken =
           listEventGroupMetadataDescriptorsPageToken.copy {
-            lastEventGroupMetadataDescriptor = ListEventGroupMetadataDescriptorsPageTokenKt.previousPageEnd {
-              externalDataProviderId = results[results.lastIndex - 1].externalDataProviderId
-              externalEventGroupMetadataDescriptorId = results[results.lastIndex - 1].externalEventGroupMetadataDescriptorId
-            }
+            lastEventGroupMetadataDescriptor =
+              ListEventGroupMetadataDescriptorsPageTokenKt.previousPageEnd {
+                externalDataProviderId = results[results.lastIndex - 1].externalDataProviderId
+                externalEventGroupMetadataDescriptorId =
+                  results[results.lastIndex - 1].externalEventGroupMetadataDescriptorId
+              }
           }
         nextPageToken = pageToken.toByteArray().base64UrlEncode()
       }
@@ -333,9 +336,9 @@ private fun InternalEventGroupMetadataDescriptor.toEventGroupMetadataDescriptor(
   return eventGroupMetadataDescriptor {
     name =
       EventGroupMetadataDescriptorKey(
-          externalIdToApiId(externalDataProviderId),
-          externalIdToApiId(externalEventGroupMetadataDescriptorId)
-        )
+        externalIdToApiId(externalDataProviderId),
+        externalIdToApiId(externalEventGroupMetadataDescriptorId)
+      )
         .toName()
     descriptorSet = details.descriptorSet
   }
@@ -348,7 +351,7 @@ private fun InternalEventGroupMetadataDescriptor.toEventGroupMetadataDescriptor(
 private fun EventGroupMetadataDescriptor.toInternal(
   dataProviderId: String,
   eventGroupMetadataDescriptorId: String = "",
-  idempotencyKey: String = ""
+  idempotencyKey: String = "",
 ): InternalEventGroupMetadataDescriptor {
   return internalEventGroupMetadataDescriptor {
     externalDataProviderId = apiIdToExternalId(dataProviderId)
@@ -417,7 +420,8 @@ private fun ListEventGroupMetadataDescriptorsPageToken.toStreamEventGroupMetadat
     filter = filter {
       externalDataProviderId = source.externalDataProviderId
       externalDataProviderIdAfter = source.lastEventGroupMetadataDescriptor.externalDataProviderId
-      externalEventGroupMetadataDescriptorIdAfter = source.lastEventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId
+      externalEventGroupMetadataDescriptorIdAfter =
+        source.lastEventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId
     }
   }
 }

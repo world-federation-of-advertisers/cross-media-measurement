@@ -36,10 +36,10 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.UpdateEventG
 
 class SpannerEventGroupMetadataDescriptorsService(
   private val idGenerator: IdGenerator,
-  private val client: AsyncDatabaseClient
+  private val client: AsyncDatabaseClient,
 ) : EventGroupMetadataDescriptorsCoroutineImplBase() {
   override suspend fun createEventGroupMetadataDescriptor(
-    request: EventGroupMetadataDescriptor
+    request: EventGroupMetadataDescriptor,
   ): EventGroupMetadataDescriptor {
     try {
       return CreateEventGroupMetadataDescriptor(request).execute(client, idGenerator)
@@ -51,7 +51,7 @@ class SpannerEventGroupMetadataDescriptorsService(
   }
 
   override suspend fun getEventGroupMetadataDescriptor(
-    request: GetEventGroupMetadataDescriptorRequest
+    request: GetEventGroupMetadataDescriptorRequest,
   ): EventGroupMetadataDescriptor {
     return EventGroupMetadataDescriptorReader()
       .readByExternalIds(
@@ -64,7 +64,7 @@ class SpannerEventGroupMetadataDescriptorsService(
   }
 
   override suspend fun updateEventGroupMetadataDescriptor(
-    request: UpdateEventGroupMetadataDescriptorRequest
+    request: UpdateEventGroupMetadataDescriptorRequest,
   ): EventGroupMetadataDescriptor {
     grpcRequire(request.eventGroupMetadataDescriptor.externalDataProviderId > 0L) {
       "ExternalDataProviderId unspecified"
@@ -83,7 +83,7 @@ class SpannerEventGroupMetadataDescriptorsService(
   }
 
   override fun streamEventGroupMetadataDescriptors(
-    request: StreamEventGroupMetadataDescriptorsRequest
+    request: StreamEventGroupMetadataDescriptorsRequest,
   ): Flow<EventGroupMetadataDescriptor> {
     grpcRequire(request.filter.externalDataProviderId >= 0L) {
       "ExternalDataProviderId cannot be less than 0"
@@ -97,7 +97,10 @@ class SpannerEventGroupMetadataDescriptorsService(
       "After Ids cannot be less than 0"
     }
 
-    return StreamEventGroupMetadataDescriptors(request.filter, request.limit).execute(client.singleUse()).map {
+    return StreamEventGroupMetadataDescriptors(
+      request.filter,
+      request.limit
+    ).execute(client.singleUse()).map {
       it.eventGroupMetadataDescriptor
     }
   }

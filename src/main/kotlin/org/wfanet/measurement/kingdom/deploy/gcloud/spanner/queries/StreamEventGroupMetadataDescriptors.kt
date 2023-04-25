@@ -21,7 +21,7 @@ import org.wfanet.measurement.internal.kingdom.StreamEventGroupMetadataDescripto
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupMetadataDescriptorReader
 
 class StreamEventGroupMetadataDescriptors(
-  requestFilter: StreamEventGroupMetadataDescriptorsRequest.Filter, limit: Int = 0
+  requestFilter: StreamEventGroupMetadataDescriptorsRequest.Filter, limit: Int = 0,
 ) : SimpleSpannerQuery<EventGroupMetadataDescriptorReader.Result>() {
   override val reader =
     EventGroupMetadataDescriptorReader().fillStatementBuilder {
@@ -36,7 +36,7 @@ class StreamEventGroupMetadataDescriptors(
     }
 
   private fun Statement.Builder.appendWhereClause(
-    filter: StreamEventGroupMetadataDescriptorsRequest.Filter
+    filter: StreamEventGroupMetadataDescriptorsRequest.Filter,
   ) {
     val conjuncts = mutableListOf<String>()
     if (filter.externalEventGroupMetadataDescriptorIdsList.isNotEmpty()) {
@@ -79,6 +79,7 @@ class StreamEventGroupMetadataDescriptors(
       "externalEventGroupMetadataDescriptorIds"
     const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
     const val EXTERNAL_DATA_PROVIDER_ID_AFTER = "externalDataProviderIdAfter"
-    const val EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_ID_AFTER = "externalEventGroupMetadataDescriptorIdAfter"
+    const val EXTERNAL_EVENT_GROUP_METADATA_DESCRIPTOR_ID_AFTER =
+      "externalEventGroupMetadataDescriptorIdAfter"
   }
 }

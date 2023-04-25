@@ -52,7 +52,8 @@ private val DETAILS = details {
 
 @RunWith(JUnit4::class)
 abstract class EventGroupMetadataDescriptorsServiceTest<
-  T : EventGroupMetadataDescriptorsCoroutineImplBase> {
+  T : EventGroupMetadataDescriptorsCoroutineImplBase,
+  > {
 
   @get:Rule val duchyIdSetter = DuchyIdSetter(Population.DUCHIES)
 
@@ -66,7 +67,7 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
     private set
 
   protected abstract fun newServices(
-    idGenerator: IdGenerator
+    idGenerator: IdGenerator,
   ): EventGroupMetadataDescriptorsAndHelperServices<T>
 
   @Before
@@ -270,7 +271,7 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
 
     if (
       eventGroupMetadataDescriptor1.externalEventGroupMetadataDescriptorId <
-        eventGroupMetadataDescriptor2.externalEventGroupMetadataDescriptorId
+      eventGroupMetadataDescriptor2.externalEventGroupMetadataDescriptorId
     ) {
       assertThat(eventGroupMetadataDescriptors)
         .comparingExpectedFieldsOnly()
@@ -334,7 +335,7 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
           this.externalDataProviderId = externalDataProviderId
           details = DETAILS
         }
-    )
+      )
 
     val eventGroupMetadataDescriptor2 =
       eventGroupMetadataDescriptorService.createEventGroupMetadataDescriptor(
@@ -393,11 +394,12 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
             filter = filter {
               this.externalDataProviderId = externalDataProviderId
               externalDataProviderIdAfter = externalDataProviderId
-              externalEventGroupMetadataDescriptorIdAfter = if (eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId < eventGroupMetadataDescriptor2.externalEventGroupMetadataDescriptorId) {
-                eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId
-              } else {
-                eventGroupMetadataDescriptor2.externalEventGroupMetadataDescriptorId
-              }
+              externalEventGroupMetadataDescriptorIdAfter =
+                if (eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId < eventGroupMetadataDescriptor2.externalEventGroupMetadataDescriptorId) {
+                  eventGroupMetadataDescriptor.externalEventGroupMetadataDescriptorId
+                } else {
+                  eventGroupMetadataDescriptor2.externalEventGroupMetadataDescriptorId
+                }
             }
             limit = 1
           }
@@ -417,20 +419,20 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
   fun `streamEventGroupMetadataDescriptors fails for negative external data provider id`() =
     runBlocking {
 
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        eventGroupMetadataDescriptorService.streamEventGroupMetadataDescriptors(
-          streamEventGroupMetadataDescriptorsRequest {
-            filter = filter {
-              externalDataProviderId = -1L
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupMetadataDescriptorService.streamEventGroupMetadataDescriptors(
+            streamEventGroupMetadataDescriptorsRequest {
+              filter = filter {
+                externalDataProviderId = -1L
+              }
             }
-          }
-        )
-      }
+          )
+        }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception).hasMessageThat().contains("ExternalDataProviderId")
-  }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception).hasMessageThat().contains("ExternalDataProviderId")
+    }
 
   @Test
   fun `streamEventGroupMetadataDescriptors fails for negative limit`() = runBlocking {
@@ -485,7 +487,8 @@ abstract class EventGroupMetadataDescriptorsServiceTest<
 }
 
 data class EventGroupMetadataDescriptorsAndHelperServices<
-  T : EventGroupMetadataDescriptorsCoroutineImplBase>(
+  T : EventGroupMetadataDescriptorsCoroutineImplBase,
+  >(
   val eventGroupMetadataDescriptorService: T,
   val dataProvidersService: DataProvidersCoroutineImplBase,
 )
