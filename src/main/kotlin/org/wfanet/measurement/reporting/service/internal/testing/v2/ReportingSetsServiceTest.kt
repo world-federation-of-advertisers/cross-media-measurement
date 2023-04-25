@@ -861,129 +861,130 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
   @Test
   fun `batchGetReportingSets succeeds when one is composite and one is primitive`(): Unit =
     runBlocking {
-    measurementConsumersService.createMeasurementConsumer(
-      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
-    )
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+      )
 
-    val primitiveReportingSet = reportingSet {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      displayName = "displayName"
-      filter = "filter"
+      val primitiveReportingSet = reportingSet {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        displayName = "displayName"
+        filter = "filter"
 
-      primitive =
-        ReportingSetKt.primitive {
-          eventGroupKeys +=
-            ReportingSetKt.PrimitiveKt.eventGroupKey {
+        primitive =
+          ReportingSetKt.primitive {
+            eventGroupKeys +=
+              ReportingSetKt.PrimitiveKt.eventGroupKey {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                cmmsDataProviderId = "1235"
+                cmmsEventGroupId = "1236"
+              }
+          }
+      }
+
+      val createdPrimitiveReportingSet = service.createReportingSet(primitiveReportingSet)
+
+      val compositeReportingSet = reportingSet {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        displayName = "displayName2"
+        filter = "filter2"
+
+        composite =
+          ReportingSetKt.setExpression {
+            operation = ReportingSet.SetExpression.Operation.UNION
+            lhs =
+              ReportingSetKt.SetExpressionKt.operand {
+                expression =
+                  ReportingSetKt.setExpression {
+                    operation = ReportingSet.SetExpression.Operation.DIFFERENCE
+                    lhs =
+                      ReportingSetKt.SetExpressionKt.operand {
+                        externalReportingSetId = createdPrimitiveReportingSet.externalReportingSetId
+                      }
+                    rhs =
+                      ReportingSetKt.SetExpressionKt.operand {
+                        expression =
+                          ReportingSetKt.setExpression {
+                            operation = ReportingSet.SetExpression.Operation.INTERSECTION
+                            lhs =
+                              ReportingSetKt.SetExpressionKt.operand {
+                                externalReportingSetId =
+                                  createdPrimitiveReportingSet.externalReportingSetId
+                              }
+                          }
+                      }
+                  }
+              }
+          }
+
+        weightedSubsetUnions +=
+          ReportingSetKt.weightedSubsetUnion {
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdPrimitiveReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdPrimitiveReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            weight = 5
+          }
+
+        weightedSubsetUnions +=
+          ReportingSetKt.weightedSubsetUnion {
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdPrimitiveReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis {
+                externalReportingSetId = createdPrimitiveReportingSet.externalReportingSetId
+                filters += "filter1"
+                filters += "filter2"
+              }
+            weight = 6
+          }
+      }
+
+      val createdReportingSet = service.createReportingSet(compositeReportingSet)
+
+      val retrievedReportingSets =
+        service
+          .batchGetReportingSets(
+            batchGetReportingSetsRequest {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-              cmmsDataProviderId = "1235"
-              cmmsEventGroupId = "1236"
+              externalReportingSetIds += createdReportingSet.externalReportingSetId
+              externalReportingSetIds += createdPrimitiveReportingSet.externalReportingSetId
             }
-        }
-    }
+          )
+          .reportingSetsList
 
-    val createdPrimitiveReportingSet = service.createReportingSet(primitiveReportingSet)
-
-    val compositeReportingSet = reportingSet {
-      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-      displayName = "displayName2"
-      filter = "filter2"
-
-      composite =
-        ReportingSetKt.setExpression {
-          operation = ReportingSet.SetExpression.Operation.UNION
-          lhs =
-            ReportingSetKt.SetExpressionKt.operand {
-              expression =
-                ReportingSetKt.setExpression {
-                  operation = ReportingSet.SetExpression.Operation.DIFFERENCE
-                  lhs =
-                    ReportingSetKt.SetExpressionKt.operand {
-                      externalReportingSetId = createdPrimitiveReportingSet.externalReportingSetId
-                    }
-                  rhs =
-                    ReportingSetKt.SetExpressionKt.operand {
-                      expression =
-                        ReportingSetKt.setExpression {
-                          operation = ReportingSet.SetExpression.Operation.INTERSECTION
-                          lhs =
-                            ReportingSetKt.SetExpressionKt.operand {
-                              externalReportingSetId =
-                                createdPrimitiveReportingSet.externalReportingSetId
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-      weightedSubsetUnions +=
-        ReportingSetKt.weightedSubsetUnion {
-          primitiveReportingSetBases +=
-            ReportingSetKt.primitiveReportingSetBasis {
-              externalReportingSetId = createdPrimitiveReportingSet.externalReportingSetId
-              filters += "filter1"
-              filters += "filter2"
-            }
-          primitiveReportingSetBases +=
-            ReportingSetKt.primitiveReportingSetBasis {
-              externalReportingSetId = createdPrimitiveReportingSet.externalReportingSetId
-              filters += "filter1"
-              filters += "filter2"
-            }
-          weight = 5
-        }
-
-      weightedSubsetUnions +=
-        ReportingSetKt.weightedSubsetUnion {
-          primitiveReportingSetBases +=
-            ReportingSetKt.primitiveReportingSetBasis {
-              externalReportingSetId = createdPrimitiveReportingSet.externalReportingSetId
-              filters += "filter1"
-              filters += "filter2"
-            }
-          primitiveReportingSetBases +=
-            ReportingSetKt.primitiveReportingSetBasis {
-              externalReportingSetId = createdPrimitiveReportingSet.externalReportingSetId
-              filters += "filter1"
-              filters += "filter2"
-            }
-          weight = 6
-        }
-    }
-
-    val createdReportingSet = service.createReportingSet(compositeReportingSet)
-
-    val retrievedReportingSets =
-      service
-        .batchGetReportingSets(
-          batchGetReportingSetsRequest {
-            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            externalReportingSetIds += createdReportingSet.externalReportingSetId
-            externalReportingSetIds += createdPrimitiveReportingSet.externalReportingSetId
+      assertThat(retrievedReportingSets)
+        .ignoringRepeatedFieldOrder()
+        .containsExactly(
+          compositeReportingSet.copy {
+            externalReportingSetId = createdReportingSet.externalReportingSetId
+          },
+          primitiveReportingSet.copy {
+            externalReportingSetId = createdPrimitiveReportingSet.externalReportingSetId
+            weightedSubsetUnions +=
+              ReportingSetKt.weightedSubsetUnion {
+                weight = 1
+                primitiveReportingSetBases +=
+                  ReportingSetKt.primitiveReportingSetBasis {
+                    this.externalReportingSetId =
+                      createdPrimitiveReportingSet.externalReportingSetId
+                    filters += primitiveReportingSet.filter
+                  }
+              }
           }
         )
-        .reportingSetsList
-
-    assertThat(retrievedReportingSets)
-      .ignoringRepeatedFieldOrder()
-      .containsExactly(
-        compositeReportingSet.copy {
-          externalReportingSetId = createdReportingSet.externalReportingSetId
-        },
-        primitiveReportingSet.copy {
-          externalReportingSetId = createdPrimitiveReportingSet.externalReportingSetId
-          weightedSubsetUnions +=
-            ReportingSetKt.weightedSubsetUnion {
-              weight = 1
-              primitiveReportingSetBases +=
-                ReportingSetKt.primitiveReportingSetBasis {
-                  this.externalReportingSetId = createdPrimitiveReportingSet.externalReportingSetId
-                  filters += primitiveReportingSet.filter
-                }
-            }
-        }
-      )
-  }
+    }
 
   @Test
   fun `batchGetReportingSets throws NOT_FOUND when ReportingSet not found`() = runBlocking {

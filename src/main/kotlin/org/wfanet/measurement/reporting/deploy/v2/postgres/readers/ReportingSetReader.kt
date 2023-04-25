@@ -255,12 +255,10 @@ class ReportingSetReader(private val readContext: ReadContext) {
                 ReportingSetKt.weightedSubsetUnion {
                   weight = it.weight
                   it.primitiveReportingSetBasisInfoMap.values.forEach {
-                      primitiveReportingSetBasisInfo ->
                     primitiveReportingSetBases +=
                       ReportingSetKt.primitiveReportingSetBasis {
-                        externalReportingSetId =
-                          primitiveReportingSetBasisInfo.primitiveExternalReportingSetId.value
-                        filters += primitiveReportingSetBasisInfo.filterSet
+                        externalReportingSetId = it.primitiveExternalReportingSetId.value
+                        filters += it.filterSet
                       }
                   }
                 }
@@ -343,10 +341,10 @@ class ReportingSetReader(private val readContext: ReadContext) {
 
       if (
         weightedSubsetUnionId != null &&
-        weight != null &&
-        primitiveReportingSetBasisId != null &&
-        primitiveExternalReportingSetId != null &&
-        primitiveReportingSetBasisFilter != null
+          weight != null &&
+          primitiveReportingSetBasisId != null &&
+          primitiveExternalReportingSetId != null &&
+          primitiveReportingSetBasisFilter != null
       ) {
         val weightedSubsetUnionInfo =
           reportingSetInfo.weightedSubsetUnionInfoMap.computeIfAbsent(weightedSubsetUnionId) {
