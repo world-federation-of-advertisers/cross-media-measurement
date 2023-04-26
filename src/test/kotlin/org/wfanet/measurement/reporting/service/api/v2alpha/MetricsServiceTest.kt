@@ -710,13 +710,12 @@ private val INTERNAL_SUCCEEDED_UNION_ALL_WATCH_DURATION_MEASUREMENT =
 private val UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC = measurementSpec {
   measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.toByteString()
 
-  nonceHashes.addAll(
+  nonceHashes +=
     listOf(
       hashSha256(SECURE_RANDOM_OUTPUT_LONG),
       hashSha256(SECURE_RANDOM_OUTPUT_LONG),
       hashSha256(SECURE_RANDOM_OUTPUT_LONG)
     )
-  )
 
   reach =
     MeasurementSpecKt.reach {
@@ -861,13 +860,12 @@ private val PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT =
 private val UNION_ALL_WATCH_DURATION_MEASUREMENT_SPEC = measurementSpec {
   measurementPublicKey = MEASUREMENT_CONSUMER_PUBLIC_KEY.toByteString()
 
-  nonceHashes.addAll(
+  nonceHashes +=
     listOf(
       hashSha256(SECURE_RANDOM_OUTPUT_LONG),
       hashSha256(SECURE_RANDOM_OUTPUT_LONG),
       hashSha256(SECURE_RANDOM_OUTPUT_LONG)
     )
-  )
 
   duration =
     MeasurementSpecKt.duration {
@@ -1525,9 +1523,7 @@ class MetricsServiceTest {
         .isEqualTo(
           UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC.copy {
             nonceHashes.clear()
-            nonceHashes.addAll(
-              List(dataProvidersList.size) { hashSha256(SECURE_RANDOM_OUTPUT_LONG) }
-            )
+            nonceHashes += List(dataProvidersList.size) { hashSha256(SECURE_RANDOM_OUTPUT_LONG) }
           }
         )
 
@@ -1926,9 +1922,7 @@ class MetricsServiceTest {
         .isEqualTo(
           UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC.copy {
             nonceHashes.clear()
-            nonceHashes.addAll(
-              List(dataProvidersList.size) { hashSha256(SECURE_RANDOM_OUTPUT_LONG) }
-            )
+            nonceHashes += List(dataProvidersList.size) { hashSha256(SECURE_RANDOM_OUTPUT_LONG) }
           }
         )
 
@@ -2742,9 +2736,7 @@ class MetricsServiceTest {
           else
             UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT_SPEC.copy {
               nonceHashes.clear()
-              nonceHashes.addAll(
-                List(dataProvidersList.size) { hashSha256(SECURE_RANDOM_OUTPUT_LONG) }
-              )
+              nonceHashes += List(dataProvidersList.size) { hashSha256(SECURE_RANDOM_OUTPUT_LONG) }
             }
         )
 
