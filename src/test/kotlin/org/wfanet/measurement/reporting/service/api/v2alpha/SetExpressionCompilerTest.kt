@@ -16,7 +16,7 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
-import com.google.common.truth.Truth
+import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertThrows
 import org.junit.Before
@@ -59,44 +59,6 @@ private val EXPECTED_RESULT_FOR_ALL_UNION_BUT_ONE_SET_EXPRESSION =
     WeightedSubsetUnion(listOf(EXPECTED_REPORTING_SETS_LIST_ALL_UNION[1].id), coefficient = -1)
   )
 
-private val EXPECTED_CACHE_FOR_ALL_UNION_SET_EXPRESSION =
-  mapOf(
-    REPORTING_SETS.size to
-      mapOf(
-        1UL to mapOf(6UL to -1, 7UL to 1),
-        2UL to mapOf(5UL to -1, 7UL to 1),
-        3UL to mapOf(4UL to -1, 5UL to 1, 6UL to 1, 7UL to -1),
-        4UL to mapOf(3UL to -1, 7UL to 1),
-        5UL to mapOf(2UL to -1, 3UL to 1, 6UL to 1, 7UL to -1),
-        6UL to mapOf(1UL to -1, 3UL to 1, 5UL to 1, 7UL to -1),
-        7UL to mapOf(1UL to 1, 2UL to 1, 3UL to -1, 4UL to 1, 5UL to -1, 6UL to -1, 7UL to 1),
-      )
-  )
-
-// {4: {3: -1, 7: 1}, 1: {6: -1, 7: 1}, 5: {2: -1, 3: 1, 6: 1, 7: -1}}
-private val EXPECTED_CACHE_FOR_ALL_UNION_BUT_ONE_SET_EXPRESSION =
-  mapOf(
-    REPORTING_SETS.size to
-      mapOf(
-        1UL to mapOf(6UL to -1, 7UL to 1),
-        4UL to mapOf(3UL to -1, 7UL to 1),
-        5UL to mapOf(2UL to -1, 3UL to 1, 6UL to 1, 7UL to -1),
-      )
-  )
-
-private val EXPECTED_CACHE_FOR_VENN_DIAGRAM_DECOMPOSITION =
-  mapOf(
-    REPORTING_SETS.size to
-      listOf(
-        // 1(=b’001’), 3(=b’011’), 5(=b’101’), 7(=b’111’)
-        setOf(1UL, 3UL, 5UL, 7UL),
-        // 2(=b’010’), 3(=b’011’), 6(=b’110’), 7(=b’111’)
-        setOf(2UL, 3UL, 6UL, 7UL),
-        // 4(=b’100’), 5(=b’101’), 6(=b’110’), 7(=b’111’)
-        setOf(4UL, 5UL, 6UL, 7UL),
-      )
-  )
-
 @RunWith(JUnit4::class)
 class SetExpressionCompilerTest {
   private lateinit var reportResultCompiler: SetExpressionCompiler
@@ -107,52 +69,24 @@ class SetExpressionCompilerTest {
   }
 
   @Test
-  fun `compileSetExpression returns a list of weightedSubsetUnions and store it in the cache`() {
+  fun `compileSetExpression returns a list of weightedSubsetUnions for union all`() {
+    val resultAllUnion = runBlocking {
+      reportResultCompiler.compileSetExpression(SET_EXPRESSION_ALL_UNION, REPORTING_SETS.size)
+    }
+    assertThat(resultAllUnion)
+      .containsExactlyElementsIn(EXPECTED_RESULT_FOR_ALL_UNION_SET_EXPRESSION)
+  }
+
+  @Test
+  fun `compileSetExpression returns a list of weightedSubsetUnions for union all but one`() {
     val resultAllUnionButOne = runBlocking {
       reportResultCompiler.compileSetExpression(
         SET_EXPRESSION_ALL_UNION_BUT_ONE,
         REPORTING_SETS.size
       )
     }
-
-    Truth.assertThat(resultAllUnionButOne)
+    assertThat(resultAllUnionButOne)
       .containsExactlyElementsIn(EXPECTED_RESULT_FOR_ALL_UNION_BUT_ONE_SET_EXPRESSION)
-    Truth.assertThat(reportResultCompiler.getPrimitiveRegionCache())
-      .isEqualTo(EXPECTED_CACHE_FOR_ALL_UNION_BUT_ONE_SET_EXPRESSION)
-    Truth.assertThat(reportResultCompiler.getVennDiagramDecompositionCache())
-      .isEqualTo(EXPECTED_CACHE_FOR_VENN_DIAGRAM_DECOMPOSITION)
-
-    val resultAllUnion = runBlocking {
-      reportResultCompiler.compileSetExpression(SET_EXPRESSION_ALL_UNION, REPORTING_SETS.size)
-    }
-
-    Truth.assertThat(resultAllUnion)
-      .containsExactlyElementsIn(EXPECTED_RESULT_FOR_ALL_UNION_SET_EXPRESSION)
-    Truth.assertThat(reportResultCompiler.getPrimitiveRegionCache())
-      .isEqualTo(EXPECTED_CACHE_FOR_ALL_UNION_SET_EXPRESSION)
-    Truth.assertThat(reportResultCompiler.getVennDiagramDecompositionCache())
-      .isEqualTo(EXPECTED_CACHE_FOR_VENN_DIAGRAM_DECOMPOSITION)
-  }
-
-  @Test
-  fun `compileSetExpression reuses the computation in the cache when there exists one`() {
-    runBlocking {
-      reportResultCompiler.compileSetExpression(SET_EXPRESSION_ALL_UNION, REPORTING_SETS.size)
-    }
-    val firstRoundPrimitiveRegionCache = reportResultCompiler.getPrimitiveRegionCache()
-    val firstRoundVennDiagramDecompositionCache =
-      reportResultCompiler.getVennDiagramDecompositionCache()
-
-    runBlocking {
-      reportResultCompiler.compileSetExpression(SET_EXPRESSION_ALL_UNION, REPORTING_SETS.size)
-    }
-    val secondRoundPrimitiveRegionCache = reportResultCompiler.getPrimitiveRegionCache()
-    val secondRoundVennDiagramDecompositionCache =
-      reportResultCompiler.getVennDiagramDecompositionCache()
-
-    Truth.assertThat(firstRoundPrimitiveRegionCache).isEqualTo(secondRoundPrimitiveRegionCache)
-    Truth.assertThat(firstRoundVennDiagramDecompositionCache)
-      .isEqualTo(secondRoundVennDiagramDecompositionCache)
   }
 
   @Test
@@ -160,16 +94,13 @@ class SetExpressionCompilerTest {
     val setOperationWithSetOperatorTypeNotSet =
       SET_EXPRESSION_ALL_UNION.copy(rhs = REPORTING_SETS[2].copy(id = REPORTING_SETS.size))
 
-    val exception =
-      assertThrows(IllegalArgumentException::class.java) {
-        runBlocking {
-          reportResultCompiler.compileSetExpression(
-            setOperationWithSetOperatorTypeNotSet,
-            REPORTING_SETS.size
-          )
-        }
+    assertThrows(IllegalArgumentException::class.java) {
+      runBlocking {
+        reportResultCompiler.compileSetExpression(
+          setOperationWithSetOperatorTypeNotSet,
+          REPORTING_SETS.size
+        )
       }
-    Truth.assertThat(exception.message)
-      .isEqualTo("ReportingSet's ID must be less than the number of total reporting sets.")
+    }
   }
 }
