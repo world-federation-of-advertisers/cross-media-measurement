@@ -315,15 +315,15 @@ private class CreateRecurringExchangeCommand : Runnable {
   }
 }
 
-@Command(name = "replace-data-provider-duchies", description = ["Replaces DataProvider's duchy list"])
+@Command(
+  name = "replace-data-provider-duchies",
+  description = ["Replaces DataProvider's duchy list"]
+)
 private class ReplaceDataProviderRequiredDuchiesCommand : CreatePrincipalCommand() {
 
   @Option(
     names = ["--data-provider-id"],
-    description =
-    [
-      "The external ID of the DataProvider"
-    ],
+    description = ["The external ID of the DataProvider"],
     required = true,
   )
   private lateinit var dataProviderId: String
@@ -331,23 +331,29 @@ private class ReplaceDataProviderRequiredDuchiesCommand : CreatePrincipalCommand
   @Option(
     names = ["--required-duchies"],
     description =
-    [
-      "The set of new duchies externals IDS that that will replace the old duchy list for this DataProvider"
-    ],
+      [
+        "The set of new duchies externals IDS that that will replace the old duchy list for this DataProvider"
+      ],
     required = true,
   )
   private lateinit var requiredDuchies: List<String>
   override fun run() {
     require(dataProviderId.toLongOrNull() != null)
-    val request = ReplaceDataProviderRequiredDuchiesRequest().toBuilder().addAllRequiredExternalDuchyIds(requiredDuchies).setExternalDataProviderId(dataProviderId.toLong()).build()
+    val request =
+      ReplaceDataProviderRequiredDuchiesRequest()
+        .toBuilder()
+        .addAllRequiredExternalDuchyIds(requiredDuchies)
+        .setExternalDataProviderId(dataProviderId.toLong())
+        .build()
     val dataProvidersStub = DataProvidersCoroutineStub(parent.channel)
     val outputDataProvider =
       runBlocking(Dispatchers.IO) { dataProvidersStub.replaceDataProviderRequiredDuchies(request) }
 
-    println("Data Provider ${outputDataProvider.externalDataProviderId} duchy list replaced with ${outputDataProvider.requiredExternalDuchyIdsList}")
+    println(
+      "Data Provider ${outputDataProvider.externalDataProviderId} duchy list replaced with ${outputDataProvider.requiredExternalDuchyIdsList}"
+    )
   }
 }
-
 
 @Command(
   name = "CreateResource",
