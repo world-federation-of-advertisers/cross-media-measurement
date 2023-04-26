@@ -1,6 +1,6 @@
 load("@rules_java//java:defs.bzl", "java_binary")
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
-load("@io_bazel_rules_docker//java:image.bzl", "java_image")
+load("//src/main/docker:macros.bzl", "java_image")
 
 kt_jvm_library(
     name = "reporting_data_server",
@@ -65,7 +65,7 @@ java_binary(
 
 java_image(
     name = "v1alpha_public_api_server_image",
+    binary = ":V1AlphaPublicApiServer",
     main_class = "org.wfanet.measurement.reporting.deploy.common.server.V1AlphaPublicApiServerKt",
     visibility = ["//src:docker_image_deployment"],
-    runtime_deps = [":v1alpha_public_api_server"],
 )
