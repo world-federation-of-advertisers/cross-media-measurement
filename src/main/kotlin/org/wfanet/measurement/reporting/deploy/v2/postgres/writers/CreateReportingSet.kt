@@ -18,6 +18,7 @@ package org.wfanet.measurement.reporting.deploy.v2.postgres.writers
 
 import org.wfanet.measurement.common.db.r2dbc.BoundStatement
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
+import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
@@ -26,7 +27,6 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSet.SetExpression
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet.WeightedSubsetUnion
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.copy
-import org.wfanet.measurement.reporting.deploy.postgres.writers.PostgresWriter
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.EventGroupReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MeasurementConsumerReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader

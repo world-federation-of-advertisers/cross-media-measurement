@@ -16,6 +16,7 @@ package org.wfanet.measurement.reporting.deploy.postgres.writers
 
 import com.google.protobuf.util.Timestamps
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
+import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.internal.reporting.CreateReportRequest
 import org.wfanet.measurement.internal.reporting.CreateReportRequest.MeasurementKey
