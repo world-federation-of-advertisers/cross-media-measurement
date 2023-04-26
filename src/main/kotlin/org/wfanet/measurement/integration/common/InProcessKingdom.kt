@@ -61,6 +61,7 @@ import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationLogEntri
 import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationParticipantsService as systemComputationParticipantsService
 import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationsService as systemComputationsService
 import org.wfanet.measurement.kingdom.service.system.v1alpha.RequisitionsService as systemRequisitionsService
+import org.wfanet.measurement.loadtest.panelmatchresourcesetup.PanelMatchResourceSetup
 
 /** TestRule that starts and stops all Kingdom gRPC services. */
 class InProcessKingdom(
@@ -181,6 +182,10 @@ class InProcessKingdom(
   /** Provides a gRPC channel to the Kingdom's system API. */
   val systemApiChannel: Channel
     get() = systemApiServer.channel
+
+  /** Provides a PanelMatchResourceSetup instance with the Kingdom's internal API. */
+  val panelMatchResourceSetup: PanelMatchResourceSetup
+    get() = PanelMatchResourceSetup(internalApiChannel)
 
   /** Provides access to Account and DataProvider creation in place of the Kingdom's operator. */
   val internalAccountsClient by lazy { InternalAccountsCoroutineStub(internalApiChannel) }

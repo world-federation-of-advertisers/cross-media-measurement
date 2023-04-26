@@ -103,6 +103,40 @@ class PanelMatchResourceSetup(
     logger.info("Successfully created Recurring Exchange: $recurringExchangeName.")
   }
 
+  /** Process to create resources. */
+  suspend fun createResourcesForWorkflow(
+    exchangeSchedule: String,
+    apiVersion: String,
+    exchangeWorkflow: ExchangeWorkflow,
+    exchangeDate: Date,
+    dataProviderContent: EntityContent,
+    runId: String = LocalDate.now().toString(),
+  ): WorkflowResourceKeys {
+    logger.info("Starting with RunID: $runId ...")
+
+    val externalModelProviderId = createModelProvider()
+    val modelProviderKey = ModelProviderKey(externalIdToApiId(externalModelProviderId))
+    logger.info("Successfully created model provider: ${modelProviderKey.toName()}.")
+
+    val externalDataProviderId = createDataProvider(dataProviderContent)
+    val dataProviderKey = DataProviderKey(externalIdToApiId(externalDataProviderId))
+    logger.info("Successfully created data provider: ${dataProviderKey.toName()}.")
+
+    val externalRecurringExchangeId =
+      createRecurringExchange(
+        externalDataProvider = externalDataProviderId,
+        externalModelProvider = externalModelProviderId,
+        exchangeDate = exchangeDate,
+        exchangeSchedule = exchangeSchedule,
+        publicApiVersion = apiVersion,
+        exchangeWorkflow = exchangeWorkflow
+      )
+    val recurringExchangeKey = RecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId))
+    logger.info("Successfully created Recurring Exchange: ${recurringExchangeKey.toName()}.")
+
+    return WorkflowResourceKeys(dataProviderKey, modelProviderKey, recurringExchangeKey)
+  }
+
   /** Create an internal dataProvider, and return its corresponding public API resource name. */
   suspend fun createDataProvider(dataProviderContent: EntityContent): Long {
     val encryptionPublicKey = dataProviderContent.encryptionPublicKey
@@ -162,3 +196,9 @@ class PanelMatchResourceSetup(
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
+
+data class WorkflowResourceKeys(
+  val dataProviderKey: DataProviderKey,
+  val modelProviderKey: ModelProviderKey,
+  val recurringExchangeKey: RecurringExchangeKey
+)
