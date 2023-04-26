@@ -104,16 +104,6 @@ class SetExpressionCompiler {
   private val primitiveRegionCache: PrimitiveRegionCache = mutableMapOf()
   private val vennDiagramDecompositionCache: VennDiagramDecompositionCache = mutableMapOf()
 
-  // For unit test only.
-  fun getPrimitiveRegionCache():
-    Map<NumberReportingSets, Map<PrimitiveRegion, UnionSetCoefficientMap>> {
-    return primitiveRegionCache
-  }
-  // For unit test only.
-  fun getVennDiagramDecompositionCache(): Map<NumberReportingSets, VennDiagramDecomposition> {
-    return vennDiagramDecompositionCache
-  }
-
   /**
    * Compiles a set expression to a list of [WeightedSubsetUnion]s which will be used for the
    * cardinality computation.
