@@ -46,6 +46,7 @@ import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProviders
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ReplaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.internal.kingdom.account
 import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
@@ -313,6 +314,40 @@ private class CreateRecurringExchangeCommand : Runnable {
     println(RecurringExchangeKey(apiId).toName())
   }
 }
+
+@Command(name = "replace-data-provider-duchies", description = ["Replaces DataProvider's duchy list"])
+private class ReplaceDataProviderRequiredDuchiesCommand : CreatePrincipalCommand() {
+
+  @Option(
+    names = ["--data-provider-id"],
+    description =
+    [
+      "The external ID of the DataProvider"
+    ],
+    required = true,
+  )
+  private lateinit var dataProviderId: String
+
+  @Option(
+    names = ["--required-duchies"],
+    description =
+    [
+      "The set of new duchies externals IDS that that will replace the old duchy list for this DataProvider"
+    ],
+    required = true,
+  )
+  private lateinit var requiredDuchies: List<String>
+  override fun run() {
+    require(dataProviderId.toLongOrNull() != null)
+    val request = ReplaceDataProviderRequiredDuchiesRequest().toBuilder().addAllRequiredExternalDuchyIds(requiredDuchies).setExternalDataProviderId(dataProviderId.toLong()).build()
+    val dataProvidersStub = DataProvidersCoroutineStub(parent.channel)
+    val outputDataProvider =
+      runBlocking(Dispatchers.IO) { dataProvidersStub.replaceDataProviderRequiredDuchies(request) }
+
+    println("Data Provider ${outputDataProvider.externalDataProviderId} duchy list replaced with ${outputDataProvider.requiredExternalDuchyIdsList}")
+  }
+}
+
 
 @Command(
   name = "CreateResource",
