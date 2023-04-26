@@ -21,6 +21,7 @@ import com.google.protobuf.util.Timestamps
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
+import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.internal.reporting.Measurement
 import org.wfanet.measurement.internal.reporting.Metric
 import org.wfanet.measurement.internal.reporting.Metric.MeasurementCalculation
