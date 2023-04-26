@@ -242,10 +242,6 @@ CREATE TABLE Metrics (
   VidSamplingIntervalStart DOUBLE PRECISION NOT NULL,
   VidSamplingIntervalEnd DOUBLE PRECISION NOT NULL,
 
-  -- org.wfanet.measurement.internal.reporting.Metric.State
-  -- protobuf enum encoded as an integer.
-  State integer NOT NULL,
-
   CreateTime TIMESTAMP WITH TIME ZONE NOT NULL,
 
   -- Serialized byte string of a proto3 protobuf with details about the
