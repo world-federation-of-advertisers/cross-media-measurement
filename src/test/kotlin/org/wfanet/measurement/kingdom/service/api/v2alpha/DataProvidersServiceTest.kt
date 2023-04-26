@@ -72,7 +72,10 @@ private const val MODEL_PROVIDER_NAME = "modelProviders/AAAAAAAAAHs"
 @RunWith(JUnit4::class)
 class DataProvidersServiceTest {
   private val internalServiceMock: InternalDataProvidersService =
-    mockService() { onBlocking { getDataProvider(any()) }.thenReturn(INTERNAL_DATA_PROVIDER) }
+    mockService() {
+      onBlocking { getDataProvider(any()) }.thenReturn(INTERNAL_DATA_PROVIDER)
+      onBlocking { replaceDataProviderRequiredDuchies(any()) }.thenReturn(INTERNAL_DATA_PROVIDER)
+    }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(internalServiceMock) }
 
@@ -261,7 +264,25 @@ class DataProvidersServiceTest {
   }
 
   @Test
-  fun `replaceDataProviderRequiredDuchies throws PERMISSION_DENIED when principal with no authorization found`() {
+  fun `replaceDataProviderRequiredDuchies throws PERMISSION_DENIED when mc with no authorization found`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking {
+            service.replaceDataProviderRequiredDuchies(
+              replaceDataProviderRequiredDuchiesRequest {
+                name = DATA_PROVIDER_NAME
+                requiredExternalDuchies += DUCHIES
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `replaceDataProviderRequiredDuchies throws PERMISSION_DENIED when model provider with no authorization found`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
