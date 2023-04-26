@@ -58,7 +58,7 @@ CREATE TABLE Computations (
   -- The current stage of the computation as known to this Node.
   -- This does not reflect the stage to all Nodes.
   --
-  -- See the wfa.measurement.internal.duchy.ComputationStage proto.
+  -- Numeric value of a wfa.measurement.internal.duchy.ComputationStage protobuf enum.
   ComputationStage integer NOT NULL,
 
   -- Last time the stage was modified.
@@ -163,7 +163,7 @@ CREATE TABLE ComputationStages (
   -- The local identifier of the computation.
   ComputationId bigint NOT NULL,
 
-  -- Serialized wfa.measurement.internal.duchy.ComputationStage protobuf message.
+  -- Numeric value of a wfa.measurement.internal.duchy.ComputationStage protobuf enum.
   ComputationStage integer NOT NULL,
 
   -- The time the computation stage was created. This is strictly
@@ -213,7 +213,7 @@ CREATE TABLE ComputationBlobReferences (
   -- The local identifier of the computation.
   ComputationId bigint NOT NULL,
 
-  -- Serialized wfa.measurement.internal.duchy.ComputationStage protobuf message.
+  -- Numeric value of a wfa.measurement.internal.duchy.ComputationStage protobuf enum.
   ComputationStage integer NOT NULL,
 
   -- A unique identifier for the BLOB.
@@ -224,7 +224,7 @@ CREATE TABLE ComputationBlobReferences (
   -- StoredDataPrefix from the parent table.
   PathToBlob text,
 
-  -- Serialized wfa.measurement.internal.duchy.ComputationBlobDependency protobuf message.
+-- Numeric value of a wfa.measurement.internal.duchy.ComputationBlobDependency protobuf enum.
   DependencyType integer NOT NULL,
 
   PRIMARY KEY (ComputationId, ComputationStage, BlobId),
@@ -241,7 +241,7 @@ CREATE TABLE ComputationStageAttempts (
   -- The local identifier of the computation.
   ComputationId bigint NOT NULL,
 
-  -- Serialized wfa.measurement.internal.duchy.ComputationStage protobuf message.
+  -- Numeric value of a wfa.measurement.internal.duchy.ComputationStage protobuf enum.
   ComputationStage integer NOT NULL,
 
   -- The attempt number for this stage for this computation.
