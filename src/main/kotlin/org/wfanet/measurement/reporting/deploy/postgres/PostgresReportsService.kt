@@ -18,6 +18,8 @@ import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
+import org.wfanet.measurement.common.db.r2dbc.postgres.SerializableErrors
+import org.wfanet.measurement.common.db.r2dbc.postgres.SerializableErrors.withSerializableErrorRetries
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.internal.reporting.CreateReportRequest
 import org.wfanet.measurement.internal.reporting.GetReportByIdempotencyKeyRequest
@@ -25,7 +27,6 @@ import org.wfanet.measurement.internal.reporting.GetReportRequest
 import org.wfanet.measurement.internal.reporting.Report
 import org.wfanet.measurement.internal.reporting.ReportsGrpcKt.ReportsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.StreamReportsRequest
-import org.wfanet.measurement.reporting.deploy.postgres.SerializableErrors.withSerializableErrorRetries
 import org.wfanet.measurement.reporting.deploy.postgres.readers.ReportReader
 import org.wfanet.measurement.reporting.deploy.postgres.writers.CreateReport
 import org.wfanet.measurement.reporting.service.internal.MeasurementCalculationTimeIntervalNotFoundException
