@@ -88,29 +88,25 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
 
     val requiredDuchyList: List<String> =
       request.requiredExternalDuchiesList.map { name ->
-        val duchyKey = DuchyKey.fromName(name)
-        if (duchyKey != null) {
-          (duchyKey.duchyId)
-        } else {
-          failGrpc(Status.NOT_FOUND) { "Resource name is either unspecified or invalid" }
-        }
+        val duchyKey =
+          grpcRequireNotNull(DuchyKey.fromName(name)) { "Resource name unspecified or invalid" }
+        duchyKey.duchyId
       }
 
     when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
       is DataProviderPrincipal -> {
         if (principal.resourceKey.dataProviderId != key.dataProviderId) {
-          failGrpc(Status.PERMISSION_DENIED) { "Cannot get other DataProviders" }
+          failGrpc(Status.PERMISSION_DENIED) { "Cannot update other DataProviders" }
         }
       }
-      is MeasurementConsumerPrincipal -> {}
       else -> {
         failGrpc(Status.PERMISSION_DENIED) {
-          "Caller does not have permission to get DataProviders"
+          "Caller does not have permission to update DataProviders"
         }
       }
     }
 
-    val internalDataProvider: org.wfanet.measurement.internal.kingdom.DataProvider =
+    val internalDataProvider =
       try {
         internalClient.replaceDataProviderRequiredDuchies(
           replaceDataProviderRequiredDuchiesRequest {
