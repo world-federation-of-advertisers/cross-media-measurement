@@ -152,19 +152,19 @@ private const val MAX_PAGE_SIZE = 1000
 private const val NANOS_PER_SECOND = 1_000_000_000
 
 class MetricsService(
-  private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
-  private val internalMeasurementsStub: InternalMeasurementsCoroutineStub,
-  private val internalMetricsStub: InternalMetricsCoroutineStub,
-  private val dataProvidersStub: DataProvidersCoroutineStub,
-  private val measurementsStub: MeasurementsCoroutineStub,
-  private val certificatesStub: CertificatesCoroutineStub,
-  private val measurementConsumersStub: MeasurementConsumersCoroutineStub,
-  private val encryptionKeyPairStore: EncryptionKeyPairStore,
-  private val secureRandom: SecureRandom,
-  private val signingPrivateKeyDir: File,
-  private val trustedCertificates: Map<ByteString, X509Certificate>,
   private val metricSpecConfig: MetricSpecConfig,
-  private val coroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
+  private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
+  private val internalMetricsStub: InternalMetricsCoroutineStub,
+  internalMeasurementsStub: InternalMeasurementsCoroutineStub,
+  dataProvidersStub: DataProvidersCoroutineStub,
+  measurementsStub: MeasurementsCoroutineStub,
+  certificatesStub: CertificatesCoroutineStub,
+  measurementConsumersStub: MeasurementConsumersCoroutineStub,
+  encryptionKeyPairStore: EncryptionKeyPairStore,
+  secureRandom: SecureRandom,
+  signingPrivateKeyDir: File,
+  trustedCertificates: Map<ByteString, X509Certificate>,
+  coroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
 ) : MetricsCoroutineImplBase() {
 
   private val measurementSupplier =
