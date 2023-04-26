@@ -12,6 +12,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/readers",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:internal_exception",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:measurement_consumer_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_set_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/io/r2dbc",
         "@wfa_common_jvm//imports/java/org/postgresql:r2dbc",

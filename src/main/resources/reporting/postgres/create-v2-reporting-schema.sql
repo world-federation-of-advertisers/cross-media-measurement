@@ -121,7 +121,7 @@ CREATE TABLE WeightedSubsetUnions (
   ReportingSetId bigint NOT NULL,
   WeightedSubsetUnionId bigint NOT NULL,
 
-  Weight bigint NOT NULL,
+  Weight integer NOT NULL,
 
   PRIMARY KEY(MeasurementConsumerId, ReportingSetId, WeightedSubsetUnionId),
   FOREIGN KEY(MeasurementConsumerId, ReportingSetId)
@@ -241,10 +241,6 @@ CREATE TABLE Metrics (
 
   VidSamplingIntervalStart DOUBLE PRECISION NOT NULL,
   VidSamplingIntervalEnd DOUBLE PRECISION NOT NULL,
-
-  -- org.wfanet.measurement.internal.reporting.Metric.State
-  -- protobuf enum encoded as an integer.
-  State integer NOT NULL,
 
   CreateTime TIMESTAMP WITH TIME ZONE NOT NULL,
 

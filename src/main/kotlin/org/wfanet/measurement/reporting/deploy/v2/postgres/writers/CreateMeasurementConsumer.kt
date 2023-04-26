@@ -18,8 +18,8 @@ package org.wfanet.measurement.reporting.deploy.v2.postgres.writers
 
 import io.r2dbc.spi.R2dbcDataIntegrityViolationException
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
+import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumer
-import org.wfanet.measurement.reporting.deploy.postgres.writers.PostgresWriter
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerAlreadyExistsException
 
 /**

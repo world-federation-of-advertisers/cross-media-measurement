@@ -16,34 +16,28 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
+import org.wfanet.measurement.api.v2.alpha.ListMetricsPageToken
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec.VidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.TimeInterval as CmmsTimeInterval
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.timeInterval as cmmsTimeInterval
-import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
-import org.wfanet.measurement.internal.reporting.v2.Metric as InternalMetric
-import org.wfanet.measurement.internal.reporting.v2.MetricResult as InternalMetricResult
+import org.wfanet.measurement.internal.reporting.v2.Measurement as InternalMeasurement
+import org.wfanet.measurement.internal.reporting.v2.MeasurementKt as InternalMeasurementKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec as InternalMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt as InternalMetricSpecKt
+import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequest
+import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.TimeInterval as InternalTimeInterval
+import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeInterval as internalTimeInterval
-import org.wfanet.measurement.reporting.v2alpha.Metric
-import org.wfanet.measurement.reporting.v2alpha.MetricResult
-import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.HistogramResultKt.bin
-import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.HistogramResultKt.binResult
-import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.histogramResult
-import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.impressionCountResult
-import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.reachResult
-import org.wfanet.measurement.reporting.v2alpha.MetricResultKt.watchDurationResult
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.TimeInterval
-import org.wfanet.measurement.reporting.v2alpha.metric
-import org.wfanet.measurement.reporting.v2alpha.metricResult
 import org.wfanet.measurement.reporting.v2alpha.metricSpec
 import org.wfanet.measurement.reporting.v2alpha.timeInterval
 
@@ -101,112 +95,6 @@ fun TimeInterval.toInternal(): InternalTimeInterval {
   return internalTimeInterval {
     startTime = source.startTime
     endTime = source.endTime
-  }
-}
-
-/** Converts an [InternalMetric] to a public [Metric]. */
-fun InternalMetric.toMetric(): Metric {
-  val source = this
-  return metric {
-    name =
-      MetricKey(
-          cmmsMeasurementConsumerId = source.cmmsMeasurementConsumerId,
-          metricId = externalIdToApiId(source.externalMetricId)
-        )
-        .toName()
-    reportingSet =
-      ReportingSetKey(
-          source.cmmsMeasurementConsumerId,
-          externalIdToApiId(source.externalReportingSetId)
-        )
-        .toName()
-    timeInterval = source.timeInterval.toTimeInterval()
-    metricSpec = source.metricSpec.toMetricSpec()
-    filters += source.details.filtersList
-    state = source.state.toState()
-    createTime = source.createTime
-    if (source.details.hasResult()) {
-      result = source.details.result.toResult()
-    }
-  }
-}
-
-/** Converts an [InternalMetricResult] to a public [MetricResult]. */
-fun InternalMetricResult.toResult(): MetricResult {
-  val source = this
-
-  return metricResult {
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-    when (source.resultCase) {
-      InternalMetricResult.ResultCase.REACH -> {
-        reach = source.reach.toReachResult()
-      }
-      InternalMetricResult.ResultCase.FREQUENCY_HISTOGRAM -> {
-        frequencyHistogram = source.frequencyHistogram.toHistogramResult()
-      }
-      InternalMetricResult.ResultCase.IMPRESSION_COUNT -> {
-        impressionCount = source.impressionCount.toImpressionCountResult()
-      }
-      InternalMetricResult.ResultCase.WATCH_DURATION -> {
-        watchDuration = source.watchDuration.toWatchDurationResult()
-      }
-      InternalMetricResult.ResultCase
-        .RESULT_NOT_SET -> {} // No action if the result hasn't been set yet.
-    }
-  }
-}
-
-/**
- * Converts an [InternalMetricResult.WatchDurationResult] to a public
- * [MetricResult.WatchDurationResult].
- */
-fun InternalMetricResult.WatchDurationResult.toWatchDurationResult():
-  MetricResult.WatchDurationResult {
-  val source = this
-  return watchDurationResult { value = source.value }
-}
-
-/**
- * Converts an [InternalMetricResult.ImpressionCountResult] to a public
- * [MetricResult.ImpressionCountResult].
- */
-fun InternalMetricResult.ImpressionCountResult.toImpressionCountResult():
-  MetricResult.ImpressionCountResult {
-  val source = this
-  return impressionCountResult { value = source.value }
-}
-
-/** Converts an [InternalMetricResult.ReachResult] to a public [MetricResult.ReachResult]. */
-fun InternalMetricResult.ReachResult.toReachResult(): MetricResult.ReachResult {
-  val source = this
-  return reachResult { value = source.value }
-}
-
-/**
- * Converts an [InternalMetricResult.HistogramResult] to a public [MetricResult.HistogramResult].
- */
-fun InternalMetricResult.HistogramResult.toHistogramResult(): MetricResult.HistogramResult {
-  val source = this
-  return histogramResult {
-    bins +=
-      source.binsList.map { internalBin ->
-        bin {
-          label = internalBin.label
-          binResult = binResult { value = internalBin.binResult.value }
-        }
-      }
-  }
-}
-
-/** Converts an [InternalMetric.State] to a public [Metric.State]. */
-fun InternalMetric.State.toState(): Metric.State {
-  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-  return when (this) {
-    InternalMetric.State.RUNNING -> Metric.State.RUNNING
-    InternalMetric.State.SUCCEEDED -> Metric.State.SUCCEEDED
-    InternalMetric.State.FAILED -> Metric.State.FAILED
-    InternalMetric.State.STATE_UNSPECIFIED -> error("Metric state should've been set.")
-    InternalMetric.State.UNRECOGNIZED -> error("Unrecognized metric state.")
   }
 }
 
@@ -310,5 +198,66 @@ fun InternalMetricSpec.WatchDurationParams.toDuration(): MeasurementSpec.Duratio
   return MeasurementSpecKt.duration {
     privacyParams = source.privacyParams.toCmmsPrivacyParams()
     maximumWatchDurationPerUser = source.maximumWatchDurationPerUser
+  }
+}
+
+/** Converts a CMM [Measurement.Failure] to an [InternalMeasurement.Failure]. */
+fun Measurement.Failure.toInternal(): InternalMeasurement.Failure {
+  val source = this
+
+  return InternalMeasurementKt.failure {
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
+    reason =
+      when (source.reason) {
+        Measurement.Failure.Reason.REASON_UNSPECIFIED ->
+          InternalMeasurement.Failure.Reason.REASON_UNSPECIFIED
+        Measurement.Failure.Reason.CERTIFICATE_REVOKED ->
+          InternalMeasurement.Failure.Reason.CERTIFICATE_REVOKED
+        Measurement.Failure.Reason.REQUISITION_REFUSED ->
+          InternalMeasurement.Failure.Reason.REQUISITION_REFUSED
+        Measurement.Failure.Reason.COMPUTATION_PARTICIPANT_FAILED ->
+          InternalMeasurement.Failure.Reason.COMPUTATION_PARTICIPANT_FAILED
+        Measurement.Failure.Reason.UNRECOGNIZED -> InternalMeasurement.Failure.Reason.UNRECOGNIZED
+      }
+    message = source.message
+  }
+}
+
+/** Converts a CMM [Measurement.Result] to an [InternalMeasurement.Result]. */
+fun Measurement.Result.toInternal(): InternalMeasurement.Result {
+  val source = this
+
+  return InternalMeasurementKt.result {
+    if (source.hasReach()) {
+      this.reach = InternalMeasurementKt.ResultKt.reach { value = source.reach.value }
+    }
+    if (source.hasFrequency()) {
+      this.frequency =
+        InternalMeasurementKt.ResultKt.frequency {
+          relativeFrequencyDistribution.putAll(source.frequency.relativeFrequencyDistributionMap)
+        }
+    }
+    if (source.hasImpression()) {
+      this.impression =
+        InternalMeasurementKt.ResultKt.impression { value = source.impression.value }
+    }
+    if (source.hasWatchDuration()) {
+      this.watchDuration =
+        InternalMeasurementKt.ResultKt.watchDuration { value = source.watchDuration.value }
+    }
+  }
+}
+
+/** Converts a [ListMetricsPageToken] to an internal [StreamMetricsRequest]. */
+fun ListMetricsPageToken.toStreamMetricsRequest(): StreamMetricsRequest {
+  val source = this
+  return streamMetricsRequest {
+    // get 1 more than the actual page size for deciding whether to set page token
+    limit = source.pageSize + 1
+    filter =
+      StreamMetricsRequestKt.filter {
+        cmmsMeasurementConsumerId = source.cmmsMeasurementConsumerId
+        externalMetricIdAfter = source.lastMetric.externalMetricId
+      }
   }
 }
