@@ -16,8 +16,8 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
-import org.wfanet.measurement.api.v2.alpha.ListMetricsPageToken
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
+import org.wfanet.measurement.api.v2alpha.ListMetricsPageToken
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec.VidSamplingInterval
