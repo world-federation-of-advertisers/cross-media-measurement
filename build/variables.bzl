@@ -53,6 +53,11 @@ TEST_K8S_SETTINGS = struct(
     grafana_secret_name = "$(k8s_grafana_secret_name)",
 )
 
+GCLOUD_SETTINGS = struct(
+    project = "$(google_cloud_project)",
+    spanner_instance = "$(spanner_instance)",
+)
+
 # Settings for Kingdom Kubernetes deployments.
 KINGDOM_K8S_SETTINGS = struct(
     secret_name = "$(k8s_kingdom_secret_name)",
