@@ -45,3 +45,20 @@ kt_jvm_proto_library(
     srcs = [":forwarded_storage_config_proto"],
     deps = [":forwarded_storage_config_java_proto"],
 )
+
+proto_library(
+    name = "google_cloud_storage_config_proto",
+    srcs = ["google_cloud_storage_config.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+java_proto_library(
+    name = "google_cloud_storage_config_java_proto",
+    deps = [":google_cloud_storage_config_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "google_cloud_storage_config_kt_jvm_proto",
+    srcs = [":google_cloud_storage_config_proto"],
+    deps = [":google_cloud_storage_config_java_proto"],
+)
