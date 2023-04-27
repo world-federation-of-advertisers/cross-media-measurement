@@ -43,8 +43,6 @@ import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
-import org.wfanet.measurement.api.v2alpha.ListReportsPageToken
-import org.wfanet.measurement.api.v2alpha.ListReportsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Measurement.DataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
@@ -67,7 +65,6 @@ import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
-import org.wfanet.measurement.api.v2alpha.listReportsPageToken
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
@@ -141,6 +138,8 @@ import org.wfanet.measurement.internal.reporting.timeIntervals as internalTimeIn
 import org.wfanet.measurement.reporting.service.api.EncryptionKeyPairStore
 import org.wfanet.measurement.reporting.v1alpha.CreateReportRequest
 import org.wfanet.measurement.reporting.v1alpha.GetReportRequest
+import org.wfanet.measurement.reporting.v1alpha.ListReportsPageToken
+import org.wfanet.measurement.reporting.v1alpha.ListReportsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.reporting.v1alpha.ListReportsRequest
 import org.wfanet.measurement.reporting.v1alpha.ListReportsResponse
 import org.wfanet.measurement.reporting.v1alpha.Metric
@@ -172,6 +171,7 @@ import org.wfanet.measurement.reporting.v1alpha.ReportsGrpcKt.ReportsCoroutineIm
 import org.wfanet.measurement.reporting.v1alpha.TimeInterval
 import org.wfanet.measurement.reporting.v1alpha.TimeIntervals
 import org.wfanet.measurement.reporting.v1alpha.copy
+import org.wfanet.measurement.reporting.v1alpha.listReportsPageToken
 import org.wfanet.measurement.reporting.v1alpha.listReportsResponse
 import org.wfanet.measurement.reporting.v1alpha.metric
 import org.wfanet.measurement.reporting.v1alpha.periodicTimeInterval
