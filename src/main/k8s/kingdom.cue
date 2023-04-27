@@ -67,10 +67,10 @@ import ("strings")
 
 	_open_id_redirect_uri_flag: "--open-id-redirect-uri=https://localhost:2048"
 
-	_kingdomCompletedMeasurementsTimeToLiveFlag:            "--completed-measurements-time-to-live=\(_completedMeasurementsTimeToLive)"
-	_kingdomCompletedMeasurementsDryRunRetentionPolicyFlag: "--completed-measurements-dry-run=\(_completedMeasurementsDryRun)"
-	_kingdomPendingMeasurementsTimeToLiveFlag:              "--pending-measurements-time-to-live=\(_pendingMeasurementsTimeToLive)"
-	_kingdomPendingMeasurementsDryRunRetentionPolicyFlag:   "--pending-measurements-dry-run=\(_pendingMeasurementsDryRun)"
+	_kingdomCompletedMeasurementsTimeToLiveFlag:            "--time-to-live=\(_completedMeasurementsTimeToLive)"
+	_kingdomCompletedMeasurementsDryRunRetentionPolicyFlag: "--dry-run=\(_completedMeasurementsDryRun)"
+	_kingdomPendingMeasurementsTimeToLiveFlag:              "--time-to-live=\(_pendingMeasurementsTimeToLive)"
+	_kingdomPendingMeasurementsDryRunRetentionPolicyFlag:   "--dry-run=\(_pendingMeasurementsDryRun)"
 
 	services: [Name=_]: #GrpcService & {
 		_name:   Name
@@ -189,7 +189,7 @@ import ("strings")
 				_kingdomCompletedMeasurementsDryRunRetentionPolicyFlag,
 				_debug_verbose_grpc_client_logging_flag,
 			]
-			spec: schedule: "0 * * * *" // Every hour on the hour
+			spec: schedule: "15 * * * *" // Hourly, 15 minutes past the hour
 		}
 		"pending-measurements-cancellation": {
 			_container: args: [
@@ -202,7 +202,7 @@ import ("strings")
 				_kingdomPendingMeasurementsDryRunRetentionPolicyFlag,
 				_debug_verbose_grpc_client_logging_flag,
 			]
-			spec: schedule: "0 * * * *" // Every hour on the hour
+			spec: schedule: "45 * * * *" // Hourly, 45 minutes past the hour
 		}
 	}
 

@@ -46,8 +46,9 @@ class PendingMeasurementsCancellation(
   private val measurementsService: MeasurementsCoroutineStub,
   private val timeToLive: Duration,
   private val dryRun: Boolean = false,
-) {
+  private val clock: Clock = Clock.systemUTC(),
   private val openTelemetry: OpenTelemetry = GlobalOpenTelemetry.get()
+) {
   private val meter: Meter =
     openTelemetry.getMeter(PendingMeasurementsCancellation::class.java.name)
   private val pendingMeasurementCancellationCounter: LongCounter =
@@ -59,7 +60,7 @@ class PendingMeasurementsCancellation(
     if (timeToLive.toMillis() == 0L) {
       logger.warning("Time to live cannot be 0. TTL=$timeToLive")
     }
-    val currentTime = Clock.systemUTC().instant()
+    val currentTime = clock.instant()
     runBlocking {
       val measurementsToCancel: List<Measurement> =
         measurementsService
@@ -68,7 +69,7 @@ class PendingMeasurementsCancellation(
               filter =
                 StreamMeasurementsRequestKt.filter {
                   states += PENDING_MEASUREMENT_STATES
-                  createdBefore = currentTime.minusMillis(timeToLive.toMillis()).toProtoTime()
+                  createdBefore = currentTime.minus(timeToLive).toProtoTime()
                 }
             }
           )
@@ -84,9 +85,7 @@ class PendingMeasurementsCancellation(
         }
 
       if (dryRun) {
-        logger.info(
-          "PendingMeasurementsCancellation dry run requests marked for cancellation $cancelRequests"
-        )
+        logger.info { "Measurements that would have been cancelled: $cancelRequests" }
       } else {
         measurementsService.batchCancelMeasurements(
           batchCancelMeasurementsRequest { requests += cancelRequests }
