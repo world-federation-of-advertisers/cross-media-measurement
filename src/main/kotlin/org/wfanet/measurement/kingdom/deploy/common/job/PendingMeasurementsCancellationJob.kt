@@ -39,7 +39,7 @@ private class Flags {
     private set
 
   @CommandLine.Option(
-    names = ["--pending-measurements-time-to-live"],
+    names = ["--time-to-live"],
     defaultValue = "30d",
     description =
       [
@@ -51,7 +51,7 @@ private class Flags {
     private set
 
   @set:CommandLine.Option(
-    names = ["--pending-measurements-dry-run"],
+    names = ["--dry-run"],
     description =
       [
         "Option to print Measurements that would be cancelled instead of performing the cancellation."

@@ -39,7 +39,7 @@ private class Flags {
     private set
 
   @CommandLine.Option(
-    names = ["--completed-measurements-time-to-live"],
+    names = ["--time-to-live"],
     defaultValue = "100d",
     description =
       [
@@ -51,7 +51,7 @@ private class Flags {
     private set
 
   @set:CommandLine.Option(
-    names = ["--completed-measurements-dry-run"],
+    names = ["--dry-run"],
     description =
       [
         "Option to print the Measurements that would be deleted instead of performing the deletion."

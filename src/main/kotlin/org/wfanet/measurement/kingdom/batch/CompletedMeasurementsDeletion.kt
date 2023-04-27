@@ -41,8 +41,9 @@ class CompletedMeasurementsDeletion(
   private val measurementsService: MeasurementsCoroutineStub,
   private val timeToLive: Duration,
   private val dryRun: Boolean = false,
-) {
+  private val clock: Clock = Clock.systemUTC(),
   private val openTelemetry: OpenTelemetry = GlobalOpenTelemetry.get()
+) {
   private val meter: Meter = openTelemetry.getMeter(CompletedMeasurementsDeletion::class.java.name)
   private val completedMeasurementDeletionCounter: LongCounter =
     meter
@@ -53,7 +54,7 @@ class CompletedMeasurementsDeletion(
     if (timeToLive.toMillis() == 0L) {
       logger.warning("Time to live cannot be 0. TTL=$timeToLive")
     }
-    val currentTime = Clock.systemUTC().instant()
+    val currentTime = clock.instant()
     runBlocking {
       val measurementsToDelete: List<Measurement> =
         measurementsService
@@ -62,7 +63,7 @@ class CompletedMeasurementsDeletion(
               filter =
                 StreamMeasurementsRequestKt.filter {
                   states += COMPLETED_MEASUREMENT_STATES
-                  updatedBefore = currentTime.minusMillis(timeToLive.toMillis()).toProtoTime()
+                  updatedBefore = currentTime.minus(timeToLive).toProtoTime()
                 }
             }
           )
@@ -78,9 +79,7 @@ class CompletedMeasurementsDeletion(
         }
 
       if (dryRun) {
-        logger.info(
-          "CompletedMeasurementsDeletion dry run requests marked for deletion $deleteRequests"
-        )
+        logger.info { "Measurements that would have been deleted: $deleteRequests" }
       } else {
         measurementsService.batchDeleteMeasurements(
           batchDeleteMeasurementsRequest { requests += deleteRequests }
