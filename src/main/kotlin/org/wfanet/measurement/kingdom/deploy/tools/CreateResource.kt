@@ -46,7 +46,6 @@ import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProviders
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RecurringExchange
 import org.wfanet.measurement.internal.kingdom.RecurringExchangesGrpcKt.RecurringExchangesCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ReplaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.internal.kingdom.account
 import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.createMeasurementConsumerCreationTokenRequest
@@ -55,6 +54,7 @@ import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.modelProvider
 import org.wfanet.measurement.internal.kingdom.recurringExchange
 import org.wfanet.measurement.internal.kingdom.recurringExchangeDetails
+import org.wfanet.measurement.internal.kingdom.replaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.kingdom.deploy.common.InternalApiFlags
 import org.wfanet.measurement.kingdom.service.api.v2alpha.fillCertificateFromDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.fillFromX509
@@ -339,12 +339,10 @@ private class ReplaceDataProviderRequiredDuchiesCommand : CreatePrincipalCommand
   private lateinit var requiredDuchies: List<String>
   override fun run() {
     require(dataProviderId.toLongOrNull() != null)
-    val request =
-      ReplaceDataProviderRequiredDuchiesRequest()
-        .toBuilder()
-        .addAllRequiredExternalDuchyIds(requiredDuchies)
-        .setExternalDataProviderId(dataProviderId.toLong())
-        .build()
+    val request = replaceDataProviderRequiredDuchiesRequest {
+      externalDataProviderId = dataProviderId.toLong()
+      requiredExternalDuchyIds += requiredDuchies
+    }
     val dataProvidersStub = DataProvidersCoroutineStub(parent.channel)
     val outputDataProvider =
       runBlocking(Dispatchers.IO) { dataProvidersStub.replaceDataProviderRequiredDuchies(request) }
@@ -368,6 +366,7 @@ private class ReplaceDataProviderRequiredDuchiesCommand : CreatePrincipalCommand
       CreateModelProviderCommand::class,
       CreateRecurringExchangeCommand::class,
       CreateDuchyCertificateCommand::class,
+      ReplaceDataProviderRequiredDuchiesCommand::class,
     ]
 )
 private class CreateResource : Runnable {
