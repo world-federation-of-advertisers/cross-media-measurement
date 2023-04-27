@@ -366,7 +366,6 @@ private class ReplaceDataProviderRequiredDuchiesCommand : CreatePrincipalCommand
       CreateModelProviderCommand::class,
       CreateRecurringExchangeCommand::class,
       CreateDuchyCertificateCommand::class,
-      ReplaceDataProviderRequiredDuchiesCommand::class,
     ]
 )
 private class CreateResource : Runnable {
