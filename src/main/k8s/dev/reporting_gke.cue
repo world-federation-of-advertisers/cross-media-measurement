@@ -18,8 +18,7 @@ _reportingSecretName:         string @tag("secret_name")
 _reportingMcConfigSecretName: string @tag("mc_config_secret_name")
 
 #KingdomApiTarget: #GrpcTarget & {
-	host: "public.kingdom.dev.halo-cmm.org"
-	port: 8443
+	target: string @tag("kingdom_public_api_target")
 }
 
 // Name of K8s service account for the internal API server.
