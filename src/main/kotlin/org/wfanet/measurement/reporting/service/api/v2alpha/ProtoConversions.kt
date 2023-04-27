@@ -17,7 +17,6 @@
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import org.wfanet.measurement.api.v2alpha.DifferentialPrivacyParams
-import org.wfanet.measurement.api.v2alpha.ListMetricsPageToken
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec.VidSamplingInterval
@@ -35,6 +34,7 @@ import org.wfanet.measurement.internal.reporting.v2.StreamMetricsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.TimeInterval as InternalTimeInterval
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeInterval as internalTimeInterval
+import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageToken
 import org.wfanet.measurement.reporting.v2alpha.MetricSpec
 import org.wfanet.measurement.reporting.v2alpha.MetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.TimeInterval

@@ -19,11 +19,7 @@ package org.wfanet.measurement.reporting.service.api.v1alpha
 import io.grpc.Status
 import kotlin.math.min
 import kotlinx.coroutines.flow.toList
-import org.wfanet.measurement.api.v2alpha.ListReportingSetsPageToken
-import org.wfanet.measurement.api.v2alpha.ListReportingSetsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
-import org.wfanet.measurement.api.v2alpha.copy
-import org.wfanet.measurement.api.v2alpha.listReportingSetsPageToken
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.failGrpc
@@ -39,10 +35,14 @@ import org.wfanet.measurement.internal.reporting.StreamReportingSetsRequestKt.fi
 import org.wfanet.measurement.internal.reporting.reportingSet as internalReportingSet
 import org.wfanet.measurement.internal.reporting.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.v1alpha.CreateReportingSetRequest
+import org.wfanet.measurement.reporting.v1alpha.ListReportingSetsPageToken
+import org.wfanet.measurement.reporting.v1alpha.ListReportingSetsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.reporting.v1alpha.ListReportingSetsRequest
 import org.wfanet.measurement.reporting.v1alpha.ListReportingSetsResponse
 import org.wfanet.measurement.reporting.v1alpha.ReportingSet
 import org.wfanet.measurement.reporting.v1alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
+import org.wfanet.measurement.reporting.v1alpha.copy
+import org.wfanet.measurement.reporting.v1alpha.listReportingSetsPageToken
 import org.wfanet.measurement.reporting.v1alpha.listReportingSetsResponse
 import org.wfanet.measurement.reporting.v1alpha.reportingSet
 
