@@ -100,9 +100,7 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
         }
       }
       else -> {
-        failGrpc(Status.PERMISSION_DENIED) {
-          "Only a DataProvider can update a DataProvider"
-        }
+        failGrpc(Status.PERMISSION_DENIED) { "Only a DataProvider can update a DataProvider" }
       }
     }
 
