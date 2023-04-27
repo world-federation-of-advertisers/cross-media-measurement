@@ -101,7 +101,7 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
       }
       else -> {
         failGrpc(Status.PERMISSION_DENIED) {
-          "Caller does not have permission to update DataProviders"
+          "Only a DataProvider can update a DataProvider"
         }
       }
     }
