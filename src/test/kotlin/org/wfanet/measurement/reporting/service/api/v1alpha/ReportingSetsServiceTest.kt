@@ -30,9 +30,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.api.v2alpha.ListReportingSetsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
-import org.wfanet.measurement.api.v2alpha.listReportingSetsPageToken
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -48,10 +46,12 @@ import org.wfanet.measurement.internal.reporting.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.copy
 import org.wfanet.measurement.internal.reporting.reportingSet as internalReportingSet
 import org.wfanet.measurement.internal.reporting.streamReportingSetsRequest
+import org.wfanet.measurement.reporting.v1alpha.ListReportingSetsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.reporting.v1alpha.ListReportingSetsRequest
 import org.wfanet.measurement.reporting.v1alpha.ReportingSet
 import org.wfanet.measurement.reporting.v1alpha.copy
 import org.wfanet.measurement.reporting.v1alpha.createReportingSetRequest
+import org.wfanet.measurement.reporting.v1alpha.listReportingSetsPageToken
 import org.wfanet.measurement.reporting.v1alpha.listReportingSetsRequest
 import org.wfanet.measurement.reporting.v1alpha.listReportingSetsResponse
 import org.wfanet.measurement.reporting.v1alpha.reportingSet

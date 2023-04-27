@@ -60,7 +60,6 @@ import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.GetMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
-import org.wfanet.measurement.api.v2alpha.ListMetricsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
@@ -86,7 +85,6 @@ import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
-import org.wfanet.measurement.api.v2alpha.listMetricsPageToken
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
@@ -166,6 +164,7 @@ import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalRepo
 import org.wfanet.measurement.internal.reporting.v2.streamMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeInterval as internalTimeInterval
 import org.wfanet.measurement.reporting.service.api.InMemoryEncryptionKeyPairStore
+import org.wfanet.measurement.reporting.v2alpha.ListMetricsPageTokenKt.previousPageEnd
 import org.wfanet.measurement.reporting.v2alpha.ListMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.Metric
 import org.wfanet.measurement.reporting.v2alpha.MetricResultKt
@@ -181,6 +180,7 @@ import org.wfanet.measurement.reporting.v2alpha.batchGetMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createMetricRequest
 import org.wfanet.measurement.reporting.v2alpha.getMetricRequest
+import org.wfanet.measurement.reporting.v2alpha.listMetricsPageToken
 import org.wfanet.measurement.reporting.v2alpha.listMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.listMetricsResponse
 import org.wfanet.measurement.reporting.v2alpha.metric

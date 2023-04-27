@@ -96,6 +96,27 @@ proto_library(
     ],
 )
 
+proto_library(
+    name = "page_token_proto",
+    srcs = ["page_token.proto"],
+    deps = [],
+)
+
+java_proto_library(
+    name = "page_token_java_proto",
+    deps = [
+        ":page_token_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "page_token_kt_jvm_proto",
+    srcs = [
+        ":page_token_proto",
+    ],
+    deps = [":page_token_java_proto"],
+)
+
 # Services.
 
 proto_library(
