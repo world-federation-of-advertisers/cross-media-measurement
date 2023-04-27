@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#      http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,14 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+variable "name" {
+  description = "Name of the cluster."
+  type        = string
+  nullable    = false
+}
 
-# This is step number 3 as per document
-# https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/duchy-deployment.md
+variable "location" {
+  description = "Location of cluster."
+  type        = string
+}
 
-resource "google_storage_bucket" "static_site" {
-
-  # The name will look like dev-halo-duchy-storage
-  name          = "${local.prefix}-storage"
-  location      = local.storage.location
-  force_destroy = local.storage.force_destroy
+variable "secret_key" {
+  description = "`google_kms_crypto_key` for cluster secret encryption."
+  type = object({
+    name = string
+    id   = string
+  })
 }

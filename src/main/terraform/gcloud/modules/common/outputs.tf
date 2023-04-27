@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#      http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,16 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-# This is step number 10.a as per document
-# https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/duchy-deployment.md
-
-resource "google_compute_address" "worker_requisition_fulfillment_server" {
-  name = "worker-requisition-fulfillment-server-ip"
-  region = local.zone
+output "cluster_service_account" {
+  description = "`google_service_account` for GKE clusters."
+  value       = google_service_account.gke_cluster
 }
 
-resource "google_compute_address" "worker_computation_control_server" {
-  name = "worker-computation-control-server-ip"
-  region = local.zone
+output "cluster_secret_key" {
+  description = "`google_kms_crypto_key` for Kubernetes cluster secrets."
+  value       = google_kms_crypto_key.k8s
 }
