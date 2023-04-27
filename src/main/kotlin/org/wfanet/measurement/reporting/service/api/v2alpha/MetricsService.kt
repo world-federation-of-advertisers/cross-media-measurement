@@ -1015,6 +1015,10 @@ class MetricsService(
 
     return batchGetMetricsResponse {
       metrics +=
+        /**
+         * TODO(@riemanli): a potential improvement can be done by only getting the metrics whose
+         *   measurements are updated. Re-evaluate when a load-test is ready after deployment.
+         */
         if (anyMeasurementUpdated) {
           batchGetInternalMetrics(principal.resourceKey.measurementConsumerId, externalMetricIds)
             .map { it.toMetric() }
@@ -1084,8 +1088,13 @@ class MetricsService(
         principal,
       )
 
-    // If any measurement got updated, pull the list of the up-to-date internal metrics. Otherwise,
-    // use the original list.
+    /**
+     * If any measurement got updated, pull the list of the up-to-date internal metrics. Otherwise,
+     * use the original list.
+     *
+     * TODO(@riemanli): a potential improvement can be done by only getting the metrics whose
+     *   measurements are updated. Re-evaluate when a load-test is ready after deployment.
+     */
     val internalMetrics: List<InternalMetric> =
       if (anyMeasurementUpdated) {
         batchGetInternalMetrics(
