@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#      http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,14 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+output "cluster_service_account" {
+  description = "`google_service_account` for GKE clusters."
+  value       = google_service_account.gke_cluster
+}
 
-# This is step number 3 as per document
-# https://github.com/world-federation-of-advertisers/cross-media-measurement/blob/main/docs/gke/duchy-deployment.md
-
-resource "google_storage_bucket" "static_site" {
-
-  # The name will look like dev-halo-duchy-storage
-  name          = "${local.prefix}-storage"
-  location      = local.storage.location
-  force_destroy = local.storage.force_destroy
+output "cluster_secret_key" {
+  description = "`google_kms_crypto_key` for Kubernetes cluster secrets."
+  value       = google_kms_crypto_key.k8s
 }
