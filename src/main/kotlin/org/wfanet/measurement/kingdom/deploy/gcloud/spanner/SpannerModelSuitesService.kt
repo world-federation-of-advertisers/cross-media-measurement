@@ -10,7 +10,7 @@ import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.kingdom.GetModelSuiteRequest
 import org.wfanet.measurement.internal.kingdom.ModelSuite
-import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt
+import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamModelSuitesRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelSuites
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelSuiteReader
@@ -19,7 +19,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateModelS
 class SpannerModelSuitesService(
   private val idGenerator: IdGenerator,
   private val client: AsyncDatabaseClient
-) : ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase() {
+) : ModelSuitesCoroutineImplBase() {
 
   override suspend fun createModelSuite(request: ModelSuite): ModelSuite {
     grpcRequire(request.displayName.isNotEmpty()) {
