@@ -1,0 +1,28 @@
+load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+
+package(default_visibility = [
+    "//src/main/kotlin/org/wfanet/measurement/kingdom/batch/spanner:__subpackages__",
+    "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:__subpackages__",
+])
+
+kt_jvm_library(
+    name = "pending_measurements_cancellation",
+    srcs = ["PendingMeasurementsCancellation.kt"],
+    deps = [
+        "//imports/java/io/opentelemetry/api",
+        "//src/main/proto/wfa/measurement/internal/kingdom:measurements_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
+    name = "completed_measurements_deletion",
+    srcs = ["CompletedMeasurementsDeletion.kt"],
+    deps = [
+        "//imports/java/io/opentelemetry/api",
+        "//src/main/proto/wfa/measurement/internal/kingdom:measurements_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
