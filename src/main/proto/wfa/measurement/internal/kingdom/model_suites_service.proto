@@ -27,7 +27,6 @@ service ModelSuites {
   rpc CreateModelSuite(ModelSuite) returns (ModelSuite);
 
   rpc GetModelSuite(GetModelSuiteRequest) returns (ModelSuite);
-
   // Streams `ModelSuite`s.
   rpc StreamModelSuites(StreamModelSuitesRequest) returns (stream ModelSuite);
 }
@@ -37,8 +36,7 @@ message GetModelSuiteRequest {
 }
 
 message StreamModelSuitesRequest {
-  // Filter criteria as a conjunction of specified fields. Repeated fields are
-  // disjunctions of their items.
+  // Filter criteria as a conjunction of specified fields.
   message Filter {
     int64 external_model_provider_id = 1;
     // for next page token, both after fields need to be set
