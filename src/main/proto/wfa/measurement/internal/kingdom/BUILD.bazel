@@ -497,3 +497,24 @@ kt_jvm_grpc_proto_library(
     name = "model_suites_service_kt_jvm_grpc_proto",
     srcs = [":model_suites_service_proto"],
 )
+
+proto_and_java_proto_library(
+    name = "model_release",
+    deps = [
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "model_releases_service_proto",
+    srcs = ["model_releases_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":model_release_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "model_releases_service_kt_jvm_grpc_proto",
+    srcs = [":model_releases_service_proto"],
+)
