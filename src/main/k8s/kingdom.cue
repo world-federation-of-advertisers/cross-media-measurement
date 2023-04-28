@@ -71,6 +71,7 @@ import ("strings")
 	_kingdomCompletedMeasurementsDryRunRetentionPolicyFlag: "--dry-run=\(_completedMeasurementsDryRun)"
 	_kingdomPendingMeasurementsTimeToLiveFlag:              "--time-to-live=\(_pendingMeasurementsTimeToLive)"
 	_kingdomPendingMeasurementsDryRunRetentionPolicyFlag:   "--dry-run=\(_pendingMeasurementsDryRun)"
+	_otlpEndpoint:                                          "--otel-exporter-otlp-endpoint=\(#OpenTelemetryCollectorEndpoint)"
 
 	services: [Name=_]: #GrpcService & {
 		_name:   Name
@@ -178,7 +179,7 @@ import ("strings")
 	}
 
 	cronjobs: {
-		"completed-measurements-deletion": {
+		"completed-measurements-deletion": Cronjob={
 			_container: args: [
 				_internal_api_target_flag,
 				_internal_api_cert_host_flag,
@@ -188,10 +189,12 @@ import ("strings")
 				_kingdomCompletedMeasurementsTimeToLiveFlag,
 				_kingdomCompletedMeasurementsDryRunRetentionPolicyFlag,
 				_debug_verbose_grpc_client_logging_flag,
+				_otlpEndpoint,
+				"--otel-service-name=\(Cronjob.metadata.name)",
 			]
 			spec: schedule: "15 * * * *" // Hourly, 15 minutes past the hour
 		}
-		"pending-measurements-cancellation": {
+		"pending-measurements-cancellation": Cronjob={
 			_container: args: [
 				_internal_api_target_flag,
 				_internal_api_cert_host_flag,
@@ -201,6 +204,8 @@ import ("strings")
 				_kingdomPendingMeasurementsTimeToLiveFlag,
 				_kingdomPendingMeasurementsDryRunRetentionPolicyFlag,
 				_debug_verbose_grpc_client_logging_flag,
+				_otlpEndpoint,
+				"--otel-service-name=\(Cronjob.metadata.name)",
 			]
 			spec: schedule: "45 * * * *" // Hourly, 45 minutes past the hour
 		}

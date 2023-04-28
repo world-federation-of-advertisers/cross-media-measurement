@@ -548,7 +548,14 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			spec: {
 				backoffLimit: uint | *0
 				template: {
-					metadata: labels: app: _name + "-app"
+					metadata: {
+						labels: {
+							app: _name + "-app"
+						}
+						annotations: {
+							"instrumentation.opentelemetry.io/inject-java": string | *"true"
+						}
+					}
 					spec: #PodSpec & {
 						if _secretName != _|_ {
 							_mounts: "\(_name)-files": {

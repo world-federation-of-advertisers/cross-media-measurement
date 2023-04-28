@@ -16,6 +16,15 @@
 
 package org.wfanet.measurement.kingdom.deploy.common.job
 
+import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.exporter.otlp.metrics.OtlpGrpcMetricExporter
+import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.metrics.SdkMeterProvider
+import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
+import io.opentelemetry.sdk.resources.Resource
+import io.opentelemetry.semconv.resource.attributes.ResourceAttributes
+import java.time.Clock
 import java.time.Duration
 import kotlin.properties.Delegates
 import org.wfanet.measurement.common.commandLineMain
@@ -48,6 +57,22 @@ private class Flags {
       ],
   )
   lateinit var measurementsTimeToLive: Duration
+    private set
+
+  @CommandLine.Option(
+    names = ["--otel-exporter-otlp-endpoint"],
+    description = ["Endpoint for OpenTelemetry Collector."],
+    required = true,
+  )
+  lateinit var otelExporterOtlpEndpoint: String
+    private set
+
+  @CommandLine.Option(
+    names = ["--otel-service-name"],
+    description = ["Service name to label cronjob metrics with."],
+    required = true,
+  )
+  lateinit var otelServiceName: String
     private set
 
   @set:CommandLine.Option(
@@ -87,11 +112,35 @@ private fun run(@CommandLine.Mixin flags: Flags) {
 
   val internalMeasurementsClient = MeasurementsCoroutineStub(channel)
 
+  val otlpEndpoint = flags.otelExporterOtlpEndpoint
+  val otelServiceName = flags.otelServiceName
+  val resource: Resource =
+    Resource.getDefault()
+      .merge(Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME, otelServiceName)))
+  val meterProvider =
+    SdkMeterProvider.builder()
+      .setResource(resource)
+      .registerMetricReader(
+        PeriodicMetricReader.builder(
+          OtlpGrpcMetricExporter.builder()
+            .setTimeout(Duration.ofSeconds(30L))
+            .setEndpoint(otlpEndpoint)
+            .build()
+        )
+          .setInterval(Duration.ofSeconds(60L))
+          .build()
+      )
+      .build()
+  val openTelemetry: OpenTelemetry =
+    OpenTelemetrySdk.builder().setMeterProvider(meterProvider).build()
+
   val completedMeasurementsDeletion =
     CompletedMeasurementsDeletion(
       internalMeasurementsClient,
       flags.measurementsTimeToLive,
-      flags.dryRun
+      flags.dryRun,
+      Clock.systemUTC(),
+      openTelemetry
     )
   completedMeasurementsDeletion.run()
 }
