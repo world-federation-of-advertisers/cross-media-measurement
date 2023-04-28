@@ -56,6 +56,7 @@ import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProviders
 import org.wfanet.measurement.internal.kingdom.certificate as internalCertificate
 import org.wfanet.measurement.internal.kingdom.dataProvider as internalDataProvider
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest as internalGetDataProviderRequest
+import org.wfanet.measurement.internal.kingdom.replaceDataProviderRequiredDuchiesRequest as internalReplaceDataProviderRequiredDuchiesRequest
 
 private const val DATA_PROVIDER_ID = 123L
 private const val DATA_PROVIDER_ID_2 = 124L
@@ -209,6 +210,16 @@ class DataProvidersServiceTest {
       requiredExternalDuchyIds += DUCHIES
     }
     assertThat(dataProvider).isEqualTo(expectedDataProvider)
+    verifyProtoArgument(
+        internalServiceMock,
+        InternalDataProvidersService::replaceDataProviderRequiredDuchies
+      )
+      .isEqualTo(
+        internalReplaceDataProviderRequiredDuchiesRequest {
+          externalDataProviderId = DATA_PROVIDER_ID
+          requiredExternalDuchyIds += listOf("worker1")
+        }
+      )
   }
 
   @Test
@@ -221,6 +232,24 @@ class DataProvidersServiceTest {
               replaceDataProviderRequiredDuchiesRequest {
                 name = "foo"
                 requiredExternalDuchies += DUCHIES
+              }
+            )
+          }
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `replaceDataProviderRequiredDuchies throws INVALID_ARGUMENT when requiredExternalDuchies is invalid`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking {
+            service.replaceDataProviderRequiredDuchies(
+              replaceDataProviderRequiredDuchiesRequest {
+                name = DATA_PROVIDER_NAME
+                requiredExternalDuchies += listOf("worker1")
               }
             )
           }
@@ -264,7 +293,7 @@ class DataProvidersServiceTest {
   }
 
   @Test
-  fun `replaceDataProviderRequiredDuchies throws PERMISSION_DENIED when mc with no authorization found`() {
+  fun `replaceDataProviderRequiredDuchies throws PERMISSION_DENIED with mc caller`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
@@ -282,7 +311,7 @@ class DataProvidersServiceTest {
   }
 
   @Test
-  fun `replaceDataProviderRequiredDuchies throws PERMISSION_DENIED when model provider with no authorization found`() {
+  fun `replaceDataProviderRequiredDuchies throws PERMISSION_DENIED with model provider caller`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         withModelProviderPrincipal(MODEL_PROVIDER_NAME) {

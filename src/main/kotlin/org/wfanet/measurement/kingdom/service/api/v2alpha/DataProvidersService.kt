@@ -104,7 +104,7 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
       }
     }
 
-    val internalDataProvider =
+    val internalDataProvider: InternalDataProvider =
       try {
         internalClient.replaceDataProviderRequiredDuchies(
           replaceDataProviderRequiredDuchiesRequest {
