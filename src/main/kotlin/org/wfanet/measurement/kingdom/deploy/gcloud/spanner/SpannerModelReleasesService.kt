@@ -18,6 +18,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
@@ -26,6 +27,8 @@ import org.wfanet.measurement.internal.kingdom.GetModelReleaseRequest
 import org.wfanet.measurement.internal.kingdom.ModelRelease
 import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamModelReleasesRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelReleases
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelSuites
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelReleaseReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateModelRelease
 
@@ -46,6 +49,8 @@ class SpannerModelReleasesService(
   }
 
   override fun streamModelReleases(request: StreamModelReleasesRequest): Flow<ModelRelease> {
-    return super.streamModelReleases(request)
+    return StreamModelReleases(request.filter, request.limit).execute(client.singleUse()).map {
+      it.modelRelease
+    }
   }
 }
