@@ -552,9 +552,6 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 						labels: {
 							app: _name + "-app"
 						}
-						annotations: {
-							"instrumentation.opentelemetry.io/inject-java": string | *"true"
-						}
 					}
 					spec: #PodSpec & {
 						if _secretName != _|_ {
