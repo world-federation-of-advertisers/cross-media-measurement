@@ -12,53 +12,17 @@ load("@wfa_common_jvm//build:common_jvm_repositories.bzl", "common_jvm_repositor
 
 common_jvm_repositories()
 
-####### Reporting UI Dependencies #######
-# Don't change the order of these. There are loads that depend on previous load calls.
-# Also call common_jvm_extra_deps after this block.
-
-load("//build:reporting_ui/reporting_ui_deps.bzl", "load_reporting_ui_deps")
-load_reporting_ui_deps()
-
-load("@io_bazel_rules_kotlin//kotlin:repositories.bzl", "kotlin_repositories")
-kotlin_repositories() # if you want the default. Otherwise see custom kotlinc distribution below
-
-load("@io_bazel_rules_kotlin//kotlin:core.bzl", "kt_register_toolchains")
-kt_register_toolchains() # to use the default toolchain, otherwise see toolchains below
-
-# =============== GRPC  GATEWAY =============== #
-
-load("@bazel_skylib//:workspace.bzl", "bazel_skylib_workspace")
-
-bazel_skylib_workspace()
-
-load("@rules_proto//proto:repositories.bzl", "rules_proto_dependencies", "rules_proto_toolchains")
-
-rules_proto_dependencies()
-
-rules_proto_toolchains()
-
-load("@io_bazel_rules_go//go:deps.bzl", "go_register_toolchains", "go_rules_dependencies")
+load("//build:reporting_ui/reporting_ui_deps.bzl", "reporting_ui_repositories")
+reporting_ui_repositories()
 
 load("@bazel_gazelle//:deps.bzl", "gazelle_dependencies")
 
-# Need to leave below, it's a directive
+# Need to leave below, it's a gazelle directive
 # gazelle:repository_macro build/reporting_ui/go_repositories.bzl%go_repositories
 
 load("@com_github_grpc_ecosystem_grpc_gateway//:repositories.bzl", "go_repositories")
 
 go_repositories()
-
-load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
-
-protobuf_deps()
-
-load("@com_github_bazelbuild_buildtools//buildifier:deps.bzl", "buildifier_dependencies")
-
-buildifier_dependencies()
-
-# ============================================= #
-
-# ================= React  JS ================= #
 
 load("@build_bazel_rules_nodejs//:repositories.bzl", "build_bazel_rules_nodejs_dependencies")
 build_bazel_rules_nodejs_dependencies()
@@ -75,10 +39,6 @@ yarn_install(
     package_json = "//src/main/kotlin/org/wfanet/measurement/reporting/create-react-app:package.json",
     yarn_lock = "//src/main/kotlin/org/wfanet/measurement/reporting/create-react-app:yarn.lock",
 )
-
-# ============================================= #
-
-####### End Reporting UI Dependencies #######
 
 load("@wfa_common_jvm//build:common_jvm_deps.bzl", "common_jvm_deps")
 
@@ -113,14 +73,8 @@ MAVEN_ARTIFACTS_DICT = dict(common_jvm_maven_artifacts_dict().items() + {
     "io.kubernetes:client-java-extended": "16.0.0",
 }.items())
 
-GATEWAY_ARTIFACTS = [
-    # "com.google.jimfs:jimfs:1.1",
-    # "com.google.truth.extensions:truth-proto-extension:1.0.1",
-    # "com.google.protobuf:protobuf-kotlin:3.18.0",
-]
-
 maven_install(
-    artifacts = artifacts.dict_to_list(MAVEN_ARTIFACTS_DICT) + GATEWAY_ARTIFACTS,
+    artifacts = artifacts.dict_to_list(MAVEN_ARTIFACTS_DICT),
     excluded_artifacts = COMMON_JVM_EXCLUDED_ARTIFACTS,
     fetch_sources = True,
     generate_compat_repositories = True,
