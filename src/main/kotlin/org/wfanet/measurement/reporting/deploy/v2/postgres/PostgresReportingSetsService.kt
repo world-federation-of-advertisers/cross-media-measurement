@@ -18,7 +18,12 @@ package org.wfanet.measurement.reporting.deploy.v2.postgres
 
 import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
+import org.wfanet.measurement.common.db.r2dbc.postgres.SerializableErrors.withSerializableErrorRetries
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.internal.reporting.v2.BatchGetReportingSetsRequest
@@ -26,9 +31,13 @@ import org.wfanet.measurement.internal.reporting.v2.BatchGetReportingSetsRespons
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequest
+import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsResponse
+import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateReportingSet
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
+
+private const val MAX_BATCH_SIZE = 1000
 
 class PostgresReportingSetsService(
   private val idGenerator: IdGenerator,
@@ -62,10 +71,46 @@ class PostgresReportingSetsService(
   override suspend fun batchGetReportingSets(
     request: BatchGetReportingSetsRequest
   ): BatchGetReportingSetsResponse {
-    return super.batchGetReportingSets(request)
+    if (request.externalReportingSetIdsList.size > MAX_BATCH_SIZE) {
+      failGrpc(Status.INVALID_ARGUMENT) { "Too many Reporting Sets requested" }
+    }
+
+    val readContext = client.readTransaction()
+    val reportingSets =
+      try {
+        ReportingSetReader(readContext)
+          .batchGetReportingSets(request)
+          .map { it.reportingSet }
+          .withSerializableErrorRetries()
+          .toList()
+      } finally {
+        readContext.close()
+      }
+
+    if (reportingSets.size < request.externalReportingSetIdsList.size) {
+      failGrpc(Status.NOT_FOUND) { "Reporting Set not found" }
+    }
+
+    return batchGetReportingSetsResponse { this.reportingSets += reportingSets }
   }
 
   override fun streamReportingSets(request: StreamReportingSetsRequest): Flow<ReportingSet> {
-    return super.streamReportingSets(request)
+    if (request.filter.cmmsMeasurementConsumerId.isEmpty()) {
+      failGrpc(Status.INVALID_ARGUMENT) { "Filter is missing cmms_measurement_consumer_id" }
+    }
+
+    return flow {
+      val readContext = client.readTransaction()
+      try {
+        emitAll(
+          ReportingSetReader(readContext)
+            .readReportingSets(request)
+            .map { it.reportingSet }
+            .withSerializableErrorRetries()
+        )
+      } finally {
+        readContext.close()
+      }
+    }
   }
 }

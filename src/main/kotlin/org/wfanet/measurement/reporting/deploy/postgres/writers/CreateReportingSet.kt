@@ -17,6 +17,7 @@ package org.wfanet.measurement.reporting.deploy.postgres.writers
 import io.r2dbc.spi.R2dbcDataIntegrityViolationException
 import kotlinx.coroutines.coroutineScope
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
+import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.internal.reporting.ReportingSet

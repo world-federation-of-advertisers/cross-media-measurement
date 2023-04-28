@@ -16,6 +16,7 @@ package org.wfanet.measurement.reporting.deploy.postgres
 
 import io.grpc.Status
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
+import org.wfanet.measurement.common.db.r2dbc.postgres.SerializableErrors
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.internal.reporting.GetMeasurementRequest
 import org.wfanet.measurement.internal.reporting.Measurement

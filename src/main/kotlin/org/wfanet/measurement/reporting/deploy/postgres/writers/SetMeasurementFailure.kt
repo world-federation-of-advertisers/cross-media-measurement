@@ -15,6 +15,7 @@
 package org.wfanet.measurement.reporting.deploy.postgres.writers
 
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
+import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.internal.reporting.Measurement
 import org.wfanet.measurement.internal.reporting.Report
 import org.wfanet.measurement.internal.reporting.SetMeasurementFailureRequest

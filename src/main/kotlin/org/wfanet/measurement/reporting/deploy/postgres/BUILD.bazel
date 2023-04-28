@@ -8,7 +8,6 @@ kt_jvm_library(
         "//src/test/kotlin/org/wfanet/measurement/reporting/deploy/postgres:__pkg__",
     ],
     deps = [
-        ":serializable",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/readers",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres/writers",
         "//src/main/proto/wfa/measurement/internal/reporting:measurements_service_kt_jvm_grpc_proto",
@@ -18,17 +17,6 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc",
-    ],
-)
-
-kt_jvm_library(
-    name = "serializable",
-    srcs = ["SerializableErrors.kt"],
-    visibility = [
-        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/postgres:__subpackages__",
-    ],
-    deps = [
-        "@wfa_common_jvm//imports/java/org/postgresql:r2dbc",
-        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres",
     ],
 )
