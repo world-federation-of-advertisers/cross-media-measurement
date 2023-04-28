@@ -43,9 +43,12 @@ import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 
 private val API_VERSION = Version.V2_ALPHA
 
-/** Prepares resources for Panel Match integration tests using internal APIs. */
-// TODO(@marcopremier): Drop this class and add additional resources needed from PanelExchageClient
-// in ResourceSetup.
+/**
+ * Prepares resources for Panel Match integration tests using internal APIs.
+ *
+ * TODO(@marcopremier): Drop this class and add additional resources needed from PanelExchageClient
+ *   in ResourceSetup.
+ */
 class PanelMatchResourceSetup(
   private val dataProvidersStub: DataProvidersCoroutineStub,
   private val modelProvidersStub: ModelProvidersCoroutineStub,
