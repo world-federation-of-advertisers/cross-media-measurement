@@ -30,12 +30,14 @@ class ModelSuiteReader : SpannerReader<ModelSuiteReader.Result>() {
   override val baseSql: String =
     """
     SELECT
-      ModelSuiteId,
-      ExternalModelSuiteId,
-      DisplayName,
-      Description,
-      CreateTime
+      ModelSuites.ModelSuiteId,
+      ModelSuites.ExternalModelSuiteId,
+      ModelSuites.DisplayName,
+      ModelSuites.Description,
+      ModelSuites.CreateTime,
+      ModelProviders.ExternalModelProviderId
       FROM ModelSuites
+      JOIN ModelProviders USING (ModelProviderId)
     """
       .trimIndent()
 
