@@ -37,21 +37,21 @@ def go_repositories():
         sum = "h1:d0NfwRgPtno5B1Wa6L2DAG+KivqkdutMf1UhdNx175w=",
         version = "v1.28.1",
     )
-    
+
     go_repository(
         name = "org_golang_x_net",
         importpath = "golang.org/x/net",
         sum = "h1:L4ZwwTvKW9gr0ZMS1yrHD9GZhIuVjOBBnaKH+SPQK0Q=",
         version = "v0.6.0",
     )
-    
+
     go_repository(
         name = "org_golang_x_sys",
         importpath = "golang.org/x/sys",
         sum = "h1:MUK/U/4lj1t1oPg0HfuXDN/Z1wv31ZJ/YcPiGccS4DU=",
         version = "v0.5.0",
     )
-   
+
     go_repository(
         name = "org_golang_x_text",
         importpath = "golang.org/x/text",
