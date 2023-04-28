@@ -62,16 +62,16 @@ private class Flags {
   @CommandLine.Option(
     names = ["--otel-exporter-otlp-endpoint"],
     description = ["Endpoint for OpenTelemetry Collector."],
-    required = true,
-    )
+    required = true
+  )
   lateinit var otelExporterOtlpEndpoint: String
     private set
 
   @CommandLine.Option(
     names = ["--otel-service-name"],
     description = ["Service name to label cronjob metrics with."],
-    required = true,
-    )
+    required = true
+  )
   lateinit var otelServiceName: String
     private set
 
