@@ -36,6 +36,7 @@ import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 
 private val COMPLETED_MEASUREMENT_STATES =
   listOf(Measurement.State.SUCCEEDED, Measurement.State.FAILED, Measurement.State.CANCELLED)
+private const val MAX_BATCH_DELETE = 1000
 
 class CompletedMeasurementsDeletion(
   private val measurementsService: MeasurementsCoroutineStub,
@@ -56,7 +57,7 @@ class CompletedMeasurementsDeletion(
     }
     val currentTime = clock.instant()
     runBlocking {
-      val measurementsToDelete: List<Measurement> =
+      var measurementsToDelete: List<Measurement> =
         measurementsService
           .streamMeasurements(
             streamMeasurementsRequest {
@@ -69,22 +70,37 @@ class CompletedMeasurementsDeletion(
           )
           .toList()
 
-      val deleteRequests: List<DeleteMeasurementRequest> =
-        measurementsToDelete.map {
-          deleteMeasurementRequest {
-            externalMeasurementId = it.externalMeasurementId
-            externalMeasurementConsumerId = it.externalMeasurementConsumerId
-            etag = it.etag
-          }
-        }
-
       if (dryRun) {
-        logger.info { "Measurements that would have been deleted: $deleteRequests" }
+        logger.info { "Measurements that would have been deleted: $measurementsToDelete" }
       } else {
-        measurementsService.batchDeleteMeasurements(
-          batchDeleteMeasurementsRequest { requests += deleteRequests }
-        )
-        completedMeasurementDeletionCounter.add(deleteRequests.size.toLong())
+        while (measurementsToDelete.isNotEmpty()) {
+          val batchMeasurementsToDelete = measurementsToDelete.take(MAX_BATCH_DELETE)
+          val deleteRequests: List<DeleteMeasurementRequest> =
+            batchMeasurementsToDelete.map {
+              deleteMeasurementRequest {
+                externalMeasurementId = it.externalMeasurementId
+                externalMeasurementConsumerId = it.externalMeasurementConsumerId
+                etag = it.etag
+              }
+            }
+          measurementsService.batchDeleteMeasurements(
+            batchDeleteMeasurementsRequest { requests += deleteRequests }
+          )
+          completedMeasurementDeletionCounter.add(deleteRequests.size.toLong())
+
+          measurementsToDelete =
+            measurementsService
+              .streamMeasurements(
+                streamMeasurementsRequest {
+                  filter =
+                    StreamMeasurementsRequestKt.filter {
+                      states += COMPLETED_MEASUREMENT_STATES
+                      updatedBefore = currentTime.minus(timeToLive).toProtoTime()
+                    }
+                }
+              )
+              .toList()
+        }
       }
     }
   }

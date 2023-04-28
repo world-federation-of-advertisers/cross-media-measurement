@@ -41,6 +41,7 @@ private val PENDING_MEASUREMENT_STATES =
     Measurement.State.PENDING_REQUISITION_FULFILLMENT,
     Measurement.State.PENDING_REQUISITION_PARAMS
   )
+private const val MAX_BATCH_CANCEL = 1000
 
 class PendingMeasurementsCancellation(
   private val measurementsService: MeasurementsCoroutineStub,
@@ -62,7 +63,7 @@ class PendingMeasurementsCancellation(
     }
     val currentTime = clock.instant()
     runBlocking {
-      val measurementsToCancel: List<Measurement> =
+      var measurementsToCancel: List<Measurement> =
         measurementsService
           .streamMeasurements(
             streamMeasurementsRequest {
@@ -75,22 +76,37 @@ class PendingMeasurementsCancellation(
           )
           .toList()
 
-      val cancelRequests: List<CancelMeasurementRequest> =
-        measurementsToCancel.map {
-          cancelMeasurementRequest {
-            externalMeasurementId = it.externalMeasurementId
-            externalMeasurementConsumerId = it.externalMeasurementConsumerId
-            etag = it.etag
-          }
-        }
-
       if (dryRun) {
-        logger.info { "Measurements that would have been cancelled: $cancelRequests" }
+        logger.info { "Measurements that would have been cancelled: $measurementsToCancel" }
       } else {
-        measurementsService.batchCancelMeasurements(
-          batchCancelMeasurementsRequest { requests += cancelRequests }
-        )
-        pendingMeasurementCancellationCounter.add(cancelRequests.size.toLong())
+        while (measurementsToCancel.isNotEmpty()) {
+          val batchMeasurementsToCancel = measurementsToCancel.take(MAX_BATCH_CANCEL)
+          val cancelRequests: List<CancelMeasurementRequest> =
+            batchMeasurementsToCancel.map {
+              cancelMeasurementRequest {
+                externalMeasurementId = it.externalMeasurementId
+                externalMeasurementConsumerId = it.externalMeasurementConsumerId
+                etag = it.etag
+              }
+            }
+          measurementsService.batchCancelMeasurements(
+            batchCancelMeasurementsRequest { requests += cancelRequests }
+          )
+          pendingMeasurementCancellationCounter.add(cancelRequests.size.toLong())
+
+          measurementsToCancel =
+            measurementsService
+              .streamMeasurements(
+                streamMeasurementsRequest {
+                  filter =
+                    StreamMeasurementsRequestKt.filter {
+                      states += PENDING_MEASUREMENT_STATES
+                      createdBefore = currentTime.minus(timeToLive).toProtoTime()
+                    }
+                }
+              )
+              .toList()
+        }
       }
     }
   }
