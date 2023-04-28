@@ -43,7 +43,12 @@ import org.wfanet.measurement.loadtest.resourcesetup.EntityContent
 
 private val API_VERSION = Version.V2_ALPHA
 
-/** Prepares resources for Panel Match integration tests using internal APIs. */
+/**
+ * Prepares resources for Panel Match integration tests using internal APIs.
+ *
+ * TODO(@marcopremier): Drop this class and add additional resources needed from PanelExchageClient
+ *   in ResourceSetup.
+ */
 class PanelMatchResourceSetup(
   private val dataProvidersStub: DataProvidersCoroutineStub,
   private val modelProvidersStub: ModelProvidersCoroutineStub,
@@ -101,6 +106,40 @@ class PanelMatchResourceSetup(
     val recurringExchangeName =
       RecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId)).toName()
     logger.info("Successfully created Recurring Exchange: $recurringExchangeName.")
+  }
+
+  /** Process to create resources. */
+  suspend fun createResourcesForWorkflow(
+    exchangeSchedule: String,
+    apiVersion: String,
+    exchangeWorkflow: ExchangeWorkflow,
+    exchangeDate: Date,
+    dataProviderContent: EntityContent,
+    runId: String = LocalDate.now().toString(),
+  ): WorkflowResourceKeys {
+    logger.info("Starting with RunID: $runId ...")
+
+    val externalModelProviderId = createModelProvider()
+    val modelProviderKey = ModelProviderKey(externalIdToApiId(externalModelProviderId))
+    logger.info("Successfully created model provider: ${modelProviderKey.toName()}.")
+
+    val externalDataProviderId = createDataProvider(dataProviderContent)
+    val dataProviderKey = DataProviderKey(externalIdToApiId(externalDataProviderId))
+    logger.info("Successfully created data provider: ${dataProviderKey.toName()}.")
+
+    val externalRecurringExchangeId =
+      createRecurringExchange(
+        externalDataProvider = externalDataProviderId,
+        externalModelProvider = externalModelProviderId,
+        exchangeDate = exchangeDate,
+        exchangeSchedule = exchangeSchedule,
+        publicApiVersion = apiVersion,
+        exchangeWorkflow = exchangeWorkflow
+      )
+    val recurringExchangeKey = RecurringExchangeKey(externalIdToApiId(externalRecurringExchangeId))
+    logger.info("Successfully created Recurring Exchange: ${recurringExchangeKey.toName()}.")
+
+    return WorkflowResourceKeys(dataProviderKey, modelProviderKey, recurringExchangeKey)
   }
 
   /** Create an internal dataProvider, and return its corresponding public API resource name. */
@@ -162,3 +201,9 @@ class PanelMatchResourceSetup(
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
+
+data class WorkflowResourceKeys(
+  val dataProviderKey: DataProviderKey,
+  val modelProviderKey: ModelProviderKey,
+  val recurringExchangeKey: RecurringExchangeKey
+)
