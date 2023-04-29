@@ -249,6 +249,7 @@ proto_library(
         ":exchange_proto",
         "//src/main/proto/wfa/measurement/internal/common:provider_proto",
         "@com_google_googleapis//google/type:date_proto",
+        "@com_google_protobuf//:empty_proto",
     ],
 )
 
