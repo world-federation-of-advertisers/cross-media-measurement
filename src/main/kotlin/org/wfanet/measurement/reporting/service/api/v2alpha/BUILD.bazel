@@ -113,3 +113,11 @@ kt_jvm_library(
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
     ],
 )
+
+kt_jvm_library(
+    name = "set_expression_compiler",
+    srcs = ["SetExpressionCompiler.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
