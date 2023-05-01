@@ -15,8 +15,6 @@ common_jvm_repositories()
 load("//build:reporting_ui/reporting_ui_deps.bzl", "reporting_ui_repositories")
 reporting_ui_repositories()
 
-load("@bazel_gazelle//:deps.bzl", "gazelle_dependencies")
-
 # Need to leave below, it's a gazelle directive
 # gazelle:repository_macro build/reporting_ui/go_repositories.bzl%go_repositories
 
