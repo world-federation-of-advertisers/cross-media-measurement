@@ -54,7 +54,6 @@ import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.modelProvider
 import org.wfanet.measurement.internal.kingdom.recurringExchange
 import org.wfanet.measurement.internal.kingdom.recurringExchangeDetails
-import org.wfanet.measurement.internal.kingdom.replaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.kingdom.deploy.common.InternalApiFlags
 import org.wfanet.measurement.kingdom.service.api.v2alpha.fillCertificateFromDer
 import org.wfanet.measurement.kingdom.service.api.v2alpha.fillFromX509
@@ -312,44 +311,6 @@ private class CreateRecurringExchangeCommand : Runnable {
 
     val apiId = externalIdToApiId(outputRecurringExchange.externalRecurringExchangeId)
     println(RecurringExchangeKey(apiId).toName())
-  }
-}
-
-@Command(
-  name = "replace-data-provider-duchies",
-  description = ["Replaces DataProvider's duchy list"]
-)
-private class ReplaceDataProviderRequiredDuchiesCommand : CreatePrincipalCommand() {
-
-  @Option(
-    names = ["--data-provider-id"],
-    description = ["The external ID of the DataProvider"],
-    required = true,
-  )
-  private lateinit var dataProviderId: String
-
-  @Option(
-    names = ["--required-duchies"],
-    description =
-      [
-        "The set of new duchies externals IDS that that will replace the old duchy list for this DataProvider"
-      ],
-    required = true,
-  )
-  private lateinit var requiredDuchies: List<String>
-  override fun run() {
-    require(dataProviderId.toLongOrNull() != null)
-    val request = replaceDataProviderRequiredDuchiesRequest {
-      externalDataProviderId = dataProviderId.toLong()
-      requiredExternalDuchyIds += requiredDuchies
-    }
-    val dataProvidersStub = DataProvidersCoroutineStub(parent.channel)
-    val outputDataProvider =
-      runBlocking(Dispatchers.IO) { dataProvidersStub.replaceDataProviderRequiredDuchies(request) }
-
-    println(
-      "Data Provider ${outputDataProvider.externalDataProviderId} duchy list replaced with ${outputDataProvider.requiredExternalDuchyIdsList}"
-    )
   }
 }
 
