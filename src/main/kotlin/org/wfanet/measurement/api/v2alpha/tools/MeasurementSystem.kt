@@ -79,6 +79,7 @@ import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.publicKey
+import org.wfanet.measurement.api.v2alpha.replaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.revokeCertificateRequest
 import org.wfanet.measurement.api.v2alpha.signedData
@@ -1008,6 +1009,46 @@ class GetMeasurement : Runnable {
         printMeasurementResult(result)
       }
     }
+  }
+}
+
+@Command(
+  name = "replace-data-provider-duchies",
+  description = ["Replaces DataProvider's duchy list"]
+)
+class ReplaceDataProviderRequiredDuchiesCommand : Runnable {
+  @ParentCommand private lateinit var parentCommand: Measurements
+
+  @Option(
+    names = ["--name"],
+    description = ["API resource name of the DataProvider"],
+    required = true,
+  )
+  private lateinit var name: String
+
+  @Option(
+    names = ["--required-duchies"],
+    description =
+    [
+      "The set of new duchies externals IDS that that will replace the old duchy list for this DataProvider"
+    ],
+    required = true,
+  )
+  private lateinit var requiredDuchies: List<String>
+
+  override fun run() {
+    val request = replaceDataProviderRequiredDuchiesRequest {
+      name = name
+      requiredExternalDuchies += requiredDuchies
+    }
+    val outputDataProvider = runBlocking(parentCommand.parentCommand.rpcDispatcher) {
+      parentCommand.dataProviderStub
+        .replaceDataProviderRequiredDuchies(request)
+    }
+
+    println(
+      "Data Provider ${outputDataProvider.name} duchy list replaced with ${outputDataProvider.requiredExternalDuchyIdsList}"
+    )
   }
 }
 
