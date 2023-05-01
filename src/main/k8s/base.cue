@@ -548,7 +548,11 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 			spec: {
 				backoffLimit: uint | *0
 				template: {
-					metadata: labels: app: _name + "-app"
+					metadata: {
+						labels: {
+							app: _name + "-app"
+						}
+					}
 					spec: #PodSpec & {
 						if _secretName != _|_ {
 							_mounts: "\(_name)-files": {

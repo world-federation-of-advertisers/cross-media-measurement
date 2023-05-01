@@ -8,6 +8,7 @@ package(default_visibility = [
 kt_jvm_library(
     name = "resource_key",
     srcs = ["ResourceKey.kt"],
+    visibility = ["//visibility:public"],
 )
 
 kt_jvm_library(

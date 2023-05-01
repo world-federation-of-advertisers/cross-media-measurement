@@ -50,6 +50,7 @@ objectSets: [
 	kingdom.deployments,
 	kingdom.services,
 	kingdom.networkPolicies,
+	kingdom.cronjobs,
 ]
 
 kingdom: #Kingdom & {
