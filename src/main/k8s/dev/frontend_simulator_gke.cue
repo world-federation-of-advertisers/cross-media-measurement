@@ -32,7 +32,6 @@ frontend_simulator: #FrontendSimulator & {
 	_mc_api_authentication_key: _mc_api_key
 	_mc_secret_name:            _secret_name
 	_kingdom_public_api_target: #KingdomPublicApiTarget
-	_simulator_image:           _imageConfig.image
 	_blob_storage_flags:        _cloudStorageConfig.flags
 	job: spec: template: spec: #ServiceAccountPodSpec & {
 		serviceAccountName: #ServiceAccount
