@@ -14,8 +14,7 @@
 
 package k8s
 
-#GCloudProject:   "halo-cmm-dev"
-#SpannerInstance: "dev-instance"
+#GCloudProject: string @tag("google_cloud_project")
 
 #GCloudConfig: {
 	project: #GCloudProject
@@ -23,7 +22,7 @@ package k8s
 
 #SpannerConfig: {
 	project:      #GCloudProject
-	instance:     #SpannerInstance
+	instance:     string @tag("spanner_instance")
 	readyTimeout: "30s"
 }
 
@@ -60,8 +59,8 @@ package k8s
 
 #PostgresConfig: {
 	project:  #GCloudProject
-	instance: "dev-postgres"
-	region:   "us-central1"
+	instance: string @tag("postgres_instance")
+	region:   string @tag("postgres_region")
 }
 
 #PrometheusFrontendPort: 9090

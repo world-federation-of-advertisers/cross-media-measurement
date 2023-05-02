@@ -147,29 +147,6 @@ cue_dump(
     ],
 )
 
-cue_library(
-    name = "frontend_simulator_cue",
-    srcs = ["frontend_simulator.cue"],
-    deps = [
-        ":config_cue",
-        "//src/main/k8s:frontend_simulator",
-    ],
-)
-
-cue_dump(
-    name = "mc_frontend_simulator",
-    cue_tags = {
-        "secret_name": SECRET_NAME,
-        "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
-        "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
-        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
-        "mc_name": TEST_K8S_SETTINGS.mc_name,
-        "mc_api_key": TEST_K8S_SETTINGS.mc_api_key,
-    },
-    tags = ["manual"],
-    deps = [":frontend_simulator_cue"],
-)
-
 cue_dump(
     name = "postgres_database",
     srcs = ["postgres_database.cue"],

@@ -1,6 +1,6 @@
-load("@io_bazel_rules_docker//java:image.bzl", "java_image")
 load("@io_bazel_rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
 load("@rules_java//java:defs.bzl", "java_binary")
+load("//src/main/docker:macros.bzl", "java_image")
 
 kt_jvm_library(
     name = "postgres_reporting_data_server",
@@ -23,7 +23,7 @@ java_binary(
 
 java_image(
     name = "postgres_reporting_data_server_image",
+    binary = ":PostgresReportingDataServer",
     main_class = "org.wfanet.measurement.reporting.deploy.postgres.server.PostgresReportingDataServerKt",
     visibility = ["//src:docker_image_deployment"],
-    runtime_deps = [":postgres_reporting_data_server"],
 )
