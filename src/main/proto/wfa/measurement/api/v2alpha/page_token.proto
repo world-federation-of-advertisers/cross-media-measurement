@@ -20,8 +20,7 @@ import "google/protobuf/timestamp.proto";
 import "wfa/measurement/api/v2alpha/measurement.proto";
 import "wfa/measurement/api/v2alpha/requisition.proto";
 
-// TODO(riemanli): Fix the package version to v2alpha.
-option java_package = "org.wfanet.measurement.api.v2.alpha";
+option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
 
 message ListEventGroupsPageToken {
@@ -69,34 +68,4 @@ message ListRequisitionsPageToken {
   }
   PreviousPageEnd last_requisition = 6;
   repeated Measurement.State measurement_states = 7;
-}
-
-message ListReportingSetsPageToken {
-  int32 page_size = 1;
-  string measurement_consumer_reference_id = 2;
-  message PreviousPageEnd {
-    string measurement_consumer_reference_id = 1;
-    fixed64 external_reporting_set_id = 2;
-  }
-  PreviousPageEnd last_reporting_set = 3;
-}
-
-message ListReportsPageToken {
-  int32 page_size = 1;
-  string measurement_consumer_reference_id = 2;
-  message PreviousPageEnd {
-    string measurement_consumer_reference_id = 1;
-    fixed64 external_report_id = 2;
-  }
-  PreviousPageEnd last_report = 3;
-}
-
-message ListMetricsPageToken {
-  int32 page_size = 1;
-  string cmms_measurement_consumer_id = 2;
-  message PreviousPageEnd {
-    string cmms_measurement_consumer_id = 1;
-    fixed64 external_metric_id = 2;
-  }
-  PreviousPageEnd last_metric = 3;
 }
