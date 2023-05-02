@@ -36,3 +36,6 @@ databaseChangeLog:
 - include:
     file: create-data-provider-required-duchies-table.sql
     relativeToChangeLogFile: true
+- include:
+    file: create-vid-model-distribution-schema.sql
+    relativeToChangeLogFile: true
