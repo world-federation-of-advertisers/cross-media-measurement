@@ -16,7 +16,7 @@
 
 -- changeset jojijacob:7 dbms:cloudspanner
 
--- Cloud Spanner database schema for the Kingdom VID distribution related tables.
+-- Cloud Spanner database schema for the Kingdom VID model distribution related tables.
 --
 -- Table hierarchy:
 --   Root
