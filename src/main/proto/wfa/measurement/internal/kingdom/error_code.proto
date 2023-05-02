@@ -80,4 +80,8 @@ enum ErrorCode {
   DUCHY_NOT_ACTIVE = 27;
   /** Measurement etag requested does not match actual Measurement etag. */
   MEASUREMENT_ETAG_MISMATCH = 28;
+  /** ModelSuite resource queried could not be found. */
+  MODEL_SUITE_NOT_FOUND = 29;
+  /** ModelLine resource queried could not be found. */
+  MODEL_Line_NOT_FOUND = 30;
 }

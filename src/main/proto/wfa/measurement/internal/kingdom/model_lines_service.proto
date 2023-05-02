@@ -28,7 +28,8 @@ service ModelLines {
   // Streams `ModelLine`s.
   rpc StreamModelLines(StreamModelLinesRequest) returns (stream ModelLine);
 
-  rpc SetModelLineHoldbackModelLine(SetModelLineHoldbackModelLineRequest) returns (ModelLine);
+  rpc SetModelLineHoldbackModelLine(SetModelLineHoldbackModelLineRequest)
+      returns (ModelLine);
   // Sets the active_end_time for a `ModelLine`.
   rpc SetActiveEndTime(SetActiveEndTimeRequest) returns (ModelLine);
 }
