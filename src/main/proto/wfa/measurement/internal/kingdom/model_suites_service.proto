@@ -40,7 +40,7 @@ message StreamModelSuitesRequest {
   message Filter {
     int64 external_model_provider_id = 1;
     // for next page token, both after fields need to be set
-    google.protobuf.Timestamp created_after = 3;
+    google.protobuf.Timestamp created_after = 2;
   }
   Filter filter = 1;
 
