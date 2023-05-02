@@ -144,11 +144,27 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 #CommonTarget: {
 	host:   string
 	port:   uint32 | string
-	target: "\(host):\(port)"
+	target: string
+}
+
+#HostPortTarget: this={
+	#CommonTarget
+
+	target: "\(this.host):\(this.port)"
+}
+
+#StringTarget: this={
+	#CommonTarget
+
+	let parts = strings.Split(this.target, ":")
+	host: parts[0]
+	if len(parts) > 1 {
+		port: parts[1]
+	}
 }
 
 #ServiceTarget: {
-	#CommonTarget
+	#HostPortTarget
 
 	serviceName: string
 
@@ -157,7 +173,7 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 	port: "$(" + ServiceNameVar + "_SERVICE_PORT)"
 }
 
-#Target: #CommonTarget | *#ServiceTarget | {
+#Target: #HostPortTarget | #StringTarget | #ServiceTarget | {
 	#ServiceTarget
 
 	name:        string
@@ -165,7 +181,9 @@ objects: [ for objectSet in objectSets for object in objectSet {object}]
 }
 
 #GrpcTarget: GrpcTarget={
-	*#CommonTarget | #ServiceTarget
+	#ServiceTarget | #StringTarget | #HostPortTarget
+
+	port: _ | *443
 
 	certificateHost?: string
 

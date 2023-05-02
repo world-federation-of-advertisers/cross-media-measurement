@@ -1,5 +1,6 @@
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load("//build/k8s:defs.bzl", "k8s_apply", "kustomization_dir")
+load("@rules_pkg//pkg:pkg.bzl", "pkg_tar")
 
 package(
     default_testonly = True,
@@ -179,6 +180,11 @@ SECRET_FILES = [
 filegroup(
     name = "secret_files",
     srcs = SECRET_FILES,
+)
+
+pkg_tar(
+    name = "archive",
+    srcs = [":secret_files"],
 )
 
 write_file(

@@ -5,7 +5,7 @@ load(
 )
 load("@io_bazel_rules_docker//contrib:push-all.bzl", "docker_push")
 load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
-load(":images.bzl", "ALL_IMAGES", "ALL_LOCAL_IMAGES")
+load(":images.bzl", "ALL_GKE_IMAGES", "ALL_IMAGES", "ALL_LOCAL_IMAGES", "ALL_REPORTING_GKE_IMAGES")
 
 package(
     default_testonly = True,  #TODO: delete when InMemoryKeyStore and FakeHybridCipher are not used.
@@ -40,8 +40,76 @@ container_bundle(
     visibility = ["//visibility:private"],
 )
 
+container_bundle(
+    name = "all_gke_images",
+    images = {"{registry}/{name}:{tag}".format(
+        name = image_spec.repository,
+        registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
+        tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
+    ): image_spec.image for image_spec in ALL_GKE_IMAGES},
+    tags = ["manual"],
+    visibility = ["//visibility:private"],
+)
+
+container_bundle(
+    name = "kingdom_gke_images",
+    images = {"{registry}/{name}:{tag}".format(
+        name = image_spec.repository,
+        registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
+        tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
+    ): image_spec.image for image_spec in ALL_IMAGES if image_spec.name.startswith("kingdom_")},
+    tags = ["manual"],
+    visibility = ["//visibility:private"],
+)
+
+container_bundle(
+    name = "duchy_gke_images",
+    images = {"{registry}/{name}:{tag}".format(
+        name = image_spec.repository,
+        registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
+        tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
+    ): image_spec.image for image_spec in ALL_IMAGES if image_spec.name.startswith("duchy_")},
+    tags = ["manual"],
+    visibility = ["//visibility:private"],
+)
+
+container_bundle(
+    name = "reporting_gke_images",
+    images = {"{registry}/{name}:{tag}".format(
+        name = image_spec.repository,
+        registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
+        tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
+    ): image_spec.image for image_spec in ALL_REPORTING_GKE_IMAGES},
+    tags = ["manual"],
+    visibility = ["//visibility:private"],
+)
+
 docker_push(
     name = "push_all_local_images",
     bundle = ":all_local_images",
+    tags = ["manual"],
+)
+
+docker_push(
+    name = "push_all_gke_images",
+    bundle = ":all_gke_images",
+    tags = ["manual"],
+)
+
+docker_push(
+    name = "push_all_kingdom_gke_images",
+    bundle = ":kingdom_gke_images",
+    tags = ["manual"],
+)
+
+docker_push(
+    name = "push_all_duchy_gke_images",
+    bundle = ":duchy_gke_images",
+    tags = ["manual"],
+)
+
+docker_push(
+    name = "push_all_reporting_gke_images",
+    bundle = ":reporting_gke_images",
     tags = ["manual"],
 )

@@ -25,8 +25,8 @@ _edpResourceNames: [_edp1_name, _edp2_name, _edp3_name, _edp4_name, _edp5_name, 
 _secret_name:        string @tag("secret_name")
 _cloudStorageBucket: string @tag("cloud_storage_bucket")
 
-#KingdomPublicApiTarget: "public.kingdom.dev.halo-cmm.org:8443"
-#DuchyPublicApiTarget:   "public.worker1.dev.halo-cmm.org:8443"
+#KingdomPublicApiTarget: string @tag("kingdom_public_api_target")
+#DuchyPublicApiTarget:   string @tag("duchy_public_api_target")
 #BigQueryDataSet:        "demo"
 #BigQueryTable:          "labelled_events"
 #ServiceAccount:         "simulator"
