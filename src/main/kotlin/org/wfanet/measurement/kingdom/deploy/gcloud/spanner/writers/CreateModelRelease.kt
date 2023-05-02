@@ -16,24 +16,50 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.Key
+import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.ModelRelease
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelSuiteNotFoundException
 
 class CreateModelRelease(private val modelRelease: ModelRelease) :
   SpannerWriter<ModelRelease, ModelRelease>() {
 
   override suspend fun TransactionScope.runTransaction(): ModelRelease {
+
+    val modelProviderId: InternalId =
+      readModelSuiteId(ExternalId(modelRelease.externalModelSuiteId))
+
     val internalModelReleaseId = idGenerator.generateInternalId()
     val externalModelReleaseId = idGenerator.generateExternalId()
 
     transactionContext.bufferInsertMutation("ModelReleases") {
+      set("ModelSuiteId" to modelProviderId)
       set("ModelReleaseId" to internalModelReleaseId)
       set("ExternalModelReleaseId" to externalModelReleaseId)
     }
 
     return modelRelease.copy { this.externalModelReleaseId = externalModelReleaseId.value }
+  }
+
+  private suspend fun TransactionScope.readModelSuiteId(
+    externalModelSuiteId: ExternalId
+  ): InternalId {
+    val column = "ModelSuiteId"
+    return transactionContext
+      .readRowUsingIndex(
+        "ModelSuites",
+        "ModelSuitesByExternalId",
+        Key.of(externalModelSuiteId.value),
+        column
+      )
+      ?.let { struct -> InternalId(struct.getLong(column)) }
+      ?: throw ModelSuiteNotFoundException(externalModelSuiteId) {
+        "ModelSuite with external ID $externalModelSuiteId not found"
+      }
   }
 
   override fun ResultScope<ModelRelease>.buildResult(): ModelRelease {

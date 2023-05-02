@@ -28,7 +28,6 @@ import org.wfanet.measurement.internal.kingdom.ModelRelease
 import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamModelReleasesRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelReleases
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelSuites
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelReleaseReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateModelRelease
 

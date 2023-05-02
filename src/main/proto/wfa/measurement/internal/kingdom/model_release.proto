@@ -23,8 +23,9 @@ option java_multiple_files = true;
 
 // Proto representation of the internal ModelRelease entity type.
 message ModelRelease {
-  fixed64 external_model_release_id = 1;
+  fixed64 external_model_suite_id = 1;
+  fixed64 external_model_release_id = 2;
 
   // When the 'ModelRelease' was created.
-  google.protobuf.Timestamp create_time = 2;
+  google.protobuf.Timestamp create_time = 3;
 }
