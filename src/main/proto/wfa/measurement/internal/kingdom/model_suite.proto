@@ -23,14 +23,15 @@ option java_multiple_files = true;
 
 // Proto representation of the internal ModelSuite entity type.
 message ModelSuite {
-  fixed64 external_model_suite_id = 1;
+  fixed64 external_model_provider_id = 1;
+  fixed64 external_model_suite_id = 2;
 
   // Human-readable nickname for this ModelSuite.
-  string display_name = 2;
+  string display_name = 3;
 
   // Human-readable string to describe the usage of this model suite.
-  string description = 3;
+  string description = 4;
 
   // When the 'ModelSuite' was created.
-  google.protobuf.Timestamp create_time = 4;
+  google.protobuf.Timestamp create_time = 5;
 }

@@ -16,19 +16,28 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
+import com.google.cloud.spanner.Key
+import org.wfanet.measurement.common.identity.ExternalId
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.internal.kingdom.ModelSuite
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelProviderNotFoundException
 
 class CreateModelSuite(private val modelSuite: ModelSuite) :
   SpannerWriter<ModelSuite, ModelSuite>() {
 
   override suspend fun TransactionScope.runTransaction(): ModelSuite {
+
+    val modelProviderId: InternalId =
+      readModelProviderId(ExternalId(modelSuite.externalModelProviderId))
+
     val internalModelSuiteId = idGenerator.generateInternalId()
     val externalModelSuiteId = idGenerator.generateExternalId()
 
     transactionContext.bufferInsertMutation("ModelSuites") {
+      set("ModelProviderId" to modelProviderId)
       set("ModelSuiteId" to internalModelSuiteId)
       set("ExternalModelSuiteId" to externalModelSuiteId)
       set("DisplayName" to modelSuite.displayName)
@@ -36,6 +45,23 @@ class CreateModelSuite(private val modelSuite: ModelSuite) :
     }
 
     return modelSuite.copy { this.externalModelSuiteId = externalModelSuiteId.value }
+  }
+
+  private suspend fun TransactionScope.readModelProviderId(
+    externalModelProviderId: ExternalId
+  ): InternalId {
+    val column = "ModelProviderId"
+    return transactionContext
+      .readRowUsingIndex(
+        "ModelProviders",
+        "ModelProvidersByExternalId",
+        Key.of(externalModelProviderId.value),
+        column
+      )
+      ?.let { struct -> InternalId(struct.getLong(column)) }
+      ?: throw ModelProviderNotFoundException(externalModelProviderId) {
+        "ModelProvider with external ID $externalModelProviderId not found"
+      }
   }
 
   override fun ResultScope<ModelSuite>.buildResult(): ModelSuite {
