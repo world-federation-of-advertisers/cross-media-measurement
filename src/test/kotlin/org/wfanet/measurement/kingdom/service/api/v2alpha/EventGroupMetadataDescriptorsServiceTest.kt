@@ -31,11 +31,10 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.verify
 import org.wfanet.measurement.api.Version
-import org.wfanet.measurement.api.v2.alpha.ListEventGroupMetadataDescriptorsPageTokenKt
-import org.wfanet.measurement.api.v2.alpha.listEventGroupMetadataDescriptorsPageToken
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataDescriptorKey
+import org.wfanet.measurement.api.v2alpha.ListEventGroupMetadataDescriptorsPageTokenKt
 import org.wfanet.measurement.api.v2alpha.ListEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.batchGetEventGroupMetadataDescriptorsResponse
@@ -43,6 +42,7 @@ import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createEventGroupMetadataDescriptorRequest
 import org.wfanet.measurement.api.v2alpha.eventGroupMetadataDescriptor
 import org.wfanet.measurement.api.v2alpha.getEventGroupMetadataDescriptorRequest
+import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsPageToken
 import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupMetadataDescriptorsResponse
 import org.wfanet.measurement.api.v2alpha.updateEventGroupMetadataDescriptorRequest
