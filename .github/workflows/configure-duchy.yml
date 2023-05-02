@@ -16,69 +16,136 @@ name: "Configure Duchy"
 
 on:
   workflow_call:
-  workflow_dispatch:
     inputs:
-      image_tag:
-        description: "Image tag needed for configuration"
+      environment:
         type: string
         required: true
-      duchy_name:
-        description: "The name of the Duchy to build"
+      image-tag:
+        description: "Tag of container images"
+        type: string
         required: true
-      kubectl_apply:
-        description: "Apply the manifest to the cluster"
-        required: false
+      duchy-name:
+        description: "Name (external ID) of Duchy"
+        type: string
+        required: true
+      duchy-cert-id:
+        description: "ID of the Duchy certificate"
+        type: string
+        required: true
+      apply:
+        description: "Apply the new configuration"
         type: boolean
+        default: true
+  workflow_dispatch:
+    inputs:
+      environment:
+        required: true
+        type: choice
+        options:
+        - dev
+      image-tag:
+        description: "Tag of container images"
+        type: string
+        required: true
+      duchy-name:
+        description: "Name (external ID) of Duchy"
+        type: choice
+        options:
+        - worker1
+        - worker2
+        - aggregator
+        required: true
+      duchy-cert-id:
+        description: "ID of the Duchy certificate"
+        type: string
+        required: true
+      apply:
+        description: "Apply the new configuration"
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write
 
 env:
-  REGISTRY: ghcr.io
-  REPO_PREFIX: world-federation-of-advertisers/packages
+  KUSTOMIZATION_PATH: "k8s/cmms"
+  DUCHY_NAME: ${{ inputs.duchy-name }}
+
 jobs:
-  create_k8s_manifest:
+  update-duchy:
     runs-on: ubuntu-20.04
+    environment: ${{ inputs.environment }}
     steps:
-      # Checkout the repository to the GitHub Actions runner
-      - name: Checkout code
-        uses: actions/checkout@v2
+    - uses: actions/checkout@v2
 
-      # Install gcloud, `setup-gcloud` automatically picks up authentication from `auth`.
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1
+    # Authenticate to Google Cloud. This will export some environment
+    # variables, including GCLOUD_PROJECT.
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v1
+      with:
+        workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ vars.GKE_CONFIG_SERVICE_ACCOUNT }}
 
-      # Setup Gcloud identity federation
-      - name: "Authenticate to Google Cloud"
-        uses: "google-github-actions/auth@v1"
-        with:
-          workload_identity_provider: ${{ secrets.WFI_PROVIDER }}
-          service_account: ${{ secrets.WFI_SA }}
-          token_format: 'access_token'
+    - name: Generate archives
+      env:
+        IMAGE_TAG: ${{ inputs.image-tag }}
+        SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
+        KINGDOM_SYSTEM_API_TARGET: ${{ vars.KINGDOM_SYSTEM_API_TARGET }}
+        DUCHY_STORAGE_BUCKET: ${{ vars.DUCHY_STORAGE_BUCKET }}
+        DUCHY_CERT_ID: ${{ inputs.duchy-cert-id }}
+      run: >
+        bazelisk build 
+        "//src/main/k8s/dev:${DUCHY_NAME}_duchy.tar"
+        //src/main/k8s/testing/secretfiles:archive
+        --config ghcr
+        --define "image_tag=$IMAGE_TAG"
+        --define "google_cloud_project=$GCLOUD_PROJECT"
+        --define "spanner_instance=$SPANNER_INSTANCE"
+        --define "kingdom_system_api_target=$KINGDOM_SYSTEM_API_TARGET"
+        --define "duchy_storage_bucket=$DUCHY_STORAGE_BUCKET"
+        --define "duchy_cert_id=$DUCHY_CERT_ID"
 
-      # Update KUBECONFIG
-      - name: Update KUBECONFIG
-        run: gcloud container clusters get-credentials dev-halo-duchy-worker --zone us-central1
+    - name: Make Kustomization dir
+      run: mkdir -p "$KUSTOMIZATION_PATH"
 
-      - name: Apply secrets
-        run: |
-          bazelisk build //src/main/k8s/testing/secretfiles:kustomization.tar
-          mkdir secretfiles
-          tar -xf "$(bazelisk info bazel-bin)/src/main/k8s/testing/secretfiles/kustomization.tar" -C secretfiles
-          resource_name="$(kubectl apply -k secretfiles/src/main/k8s/testing/secretfiles/kustomization -o name)"
-          echo "SECRET_NAME=$(basename $resource_name)" >> "$GITHUB_ENV"
+    - name: Export BAZEL_BIN
+      run: echo "BAZEL_BIN=$(bazelisk info bazel-bin)" >> $GITHUB_ENV
 
-      # TODO(wfa-siyengar): add duchy as an input at high-level(QA deploy)
+    - name: Extract Kustomization archive
+      run: >
+        tar -xf "$BAZEL_BIN/src/main/k8s/dev/${DUCHY_NAME}_duchy.tar"
+        -C "$KUSTOMIZATION_PATH"
 
-      # Create k8s manifest
-      - name: Build K8s manifest
-        run: |
-          bazelisk build //src/main/k8s/dev:${{ inputs.duchy_name }}_duchy_gke \
-          --define k8s_duchy_secret_name=$SECRET_NAME \
-          --define duchy_cert_id=SVVse4xWHL0 \
-          --define duchy_storage_bucket=${{ inputs.duchy_name }}-duchy \
-          --define container_registry=${{ env.REGISTRY }} \
-          --define image_repo_prefix=${{ env.REPO_PREFIX }} \
-          --define image_tag=${{ inputs.image_tag }}
+    - name: Extract secret files archive
+      run: >
+        tar -xf "$BAZEL_BIN/src/main/k8s/testing/secretfiles/archive.tar"
+        -C "$KUSTOMIZATION_PATH/src/main/k8s/dev/${DUCHY_NAME}_duchy_secret"
 
-      # Apply manifest
-      - name: apply k8s manifest
-        if: inputs.kubectl_apply == true
-        run: kubectl apply -f bazel-bin/src/main/k8s/dev/${{ inputs.duchy_name }}.yaml
+    # Write map from configuration variable. Since it appears that GitHub
+    # configuration variables use DOS (CRLF) line endings, we convert these to
+    # Unix (LF) line endings.
+    - name: Write AKID to principal map
+      env:
+        AKID_TO_PRINCIPAL_MAP: ${{ vars.AKID_TO_PRINCIPAL_MAP }}
+      run: >
+        echo "$AKID_TO_PRINCIPAL_MAP" | sed $'s/\r$//'  >
+        "$KUSTOMIZATION_PATH/src/main/k8s/dev/config_files/authority_key_identifier_to_principal_map.textproto"
+
+    - name: Get GKE cluster credentials
+      uses: google-github-actions/get-gke-credentials@v1
+      with:
+        cluster_name: ${{ format('{0}-duchy', inputs.duchy-name) }}
+        location: ${{ vars.GCLOUD_ZONE }}
+
+    - name: Export KUSTOMIZE_PATH
+      run: echo "KUSTOMIZE_PATH=$KUSTOMIZATION_PATH/src/main/k8s/dev/${DUCHY_NAME}_duchy" >> $GITHUB_ENV
+
+    # Run kubectl diff, treating the command as succeeded even if the exit
+    # code is 1 as kubectl uses this code to indicate there's a diff.
+    - name: kubectl diff
+      id: kubectl-diff
+      run: kubectl diff -k "$KUSTOMIZE_PATH" || (( $? == 1 ))
+
+    - name: kubectl apply
+      if: ${{ inputs.apply }}
+      run: kubectl apply -k "$KUSTOMIZE_PATH"
