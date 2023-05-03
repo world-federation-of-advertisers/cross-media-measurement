@@ -17,87 +17,41 @@ name: Build and Push CMM Images
 on:
   workflow_dispatch:
   workflow_call:
+    outputs:
+      image-tag:
+        description: "Tag of container images"
+        value: ${{ jobs.push-images.outputs.image-tag }}
 
 env:
-  REGISTRY: ghcr.io
+  CONTAINER_REGISTRY: ghcr.io
 
 jobs:
-  create-image-tag:
+  push-images:
     runs-on: ubuntu-20.04
     outputs:
-      image_tag: ${{ steps.get-image-tag-step.outputs.image_tag }}
+      image-tag: ${{ steps.output-image-tag.outputs.image-tag }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-      - name: Generate image tag
+      - uses: actions/checkout@v3
+
+      - name: Export image tag
         run: ./.github/workflows/export-image-tag.sh
+
       - name: Output image tag
-        id: get-image-tag-step
-        run: echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+        id: output-image-tag
+        run: echo "image-tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-  build-kingdom-image:
-    runs-on: ubuntu-20.04
-    needs: create-image-tag
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Show Tag
-        run: echo ${{ needs.create-image-tag.outputs.image_tag }}
-
-      - name: Login to GitHub Packages
+      - name: Authenticate to GitHub Container Registry
         uses: docker/login-action@v2
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ${{ env.CONTAINER_REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ GITHUB_TOKEN }}
+          password: ${{ github.token }}
 
-      # Build Kingdom Image
-      - name: Build kingdom image
-        run: |
-          bazelisk query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
-          xargs bazelisk build -c opt --define container_registry=ghcr.io \
-          --define image_repo_prefix=world-federation-of-advertisers \
-          --platforms=//build/platforms:ubuntu_20_04_rbe \
-          --define image_tag=${{ needs.create-image-tag.outputs.image_tag }}
-
-      # Push Kingdom Image to GitHub Artifacts.
-      - name: Push Kingdom Image
-        run: |
-          bazelisk query 'filter("push_kingdom", kind("container_push", //src/main/docker:all))' |
-            xargs -n 1 bazelisk run -c opt --define container_registry=ghcr.io \
-            --define image_repo_prefix=world-federation-of-advertisers --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=${{ needs.create-image-tag.outputs.image_tag }}
-
-
-  build-duchy-image:
-    runs-on: ubuntu-20.04
-    needs: create-image-tag
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Show Tag
-        run: echo ${{ needs.create-image-tag.outputs.image_tag }}
-
-      - name: Login to GitHub Packages
-        uses: docker/login-action@v2
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ GITHUB_TOKEN }}
-
-      # Build Duchy Image
-      - name: Build Duchy image
-        run: |
-          bazelisk query 'filter("push_duchy", kind("container_push", //src/main/docker:all))' |
-          xargs bazelisk build -c opt --define container_registry=ghcr.io \
-          --define image_repo_prefix=world-federation-of-advertisers \
-          --platforms=//build/platforms:ubuntu_20_04_rbe \
-          --define image_tag=${{ needs.create-image-tag.outputs.image_tag }}
-
-      # Push Duchy Image to GitHub Artifacts.
-      - name: Push Duchy Image
-        run: |
-          bazelisk query 'filter("push_duchy", kind("container_push", //src/main/docker:all))' |
-            xargs -n 1 bazelisk run -c opt --define container_registry=ghcr.io \
-            --define image_repo_prefix=world-federation-of-advertisers --platforms=//build/platforms:ubuntu_20_04_rbe --define image_tag=${{ needs.create-image-tag.outputs.image_tag }}
+      - name: Push images
+        run: >
+          bazelisk run //src/main/docker:push_all_gke_images
+          --compilation_mode=opt
+          --platforms=//build/platforms:ubuntu_20_04
+          --define "container_registry=$CONTAINER_REGISTRY"
+          --define "image_repo_prefix=$GITHUB_REPOSITORY_OWNER"
+          --define "image_tag=$IMAGE_TAG"

@@ -30,21 +30,6 @@ cue_library(
 )
 
 cue_library(
-    name = "resource_setup",
-    srcs = ["resource_setup.cue"],
-    deps = [
-        ":base",
-        ":config",
-    ],
-)
-
-cue_library(
-    name = "panel_match_resource_setup",
-    srcs = ["panel_match_resource_setup.cue"],
-    deps = [":base"],
-)
-
-cue_library(
     name = "kingdom",
     srcs = ["kingdom.cue"],
     deps = [
@@ -57,15 +42,6 @@ cue_library(
 cue_library(
     name = "duchy",
     srcs = ["duchy.cue"],
-    deps = [
-        ":base",
-        ":config",
-    ],
-)
-
-cue_library(
-    name = "frontend_simulator",
-    srcs = ["frontend_simulator.cue"],
     deps = [
         ":base",
         ":config",

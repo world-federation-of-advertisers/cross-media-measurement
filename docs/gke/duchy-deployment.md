@@ -79,13 +79,15 @@ Duchy operator.
 
 ## Step 2. Create the database
 
-The Duchy expects its own database within your Spanner instance. You can create
-one with the `gcloud` CLI. For example, a database named
-`worker1_duchy_computations` in the `dev-instance` instance.
+The Duchy expects its own database within your Spanner instance. The `dev`
+configuration assumes that this is named `<duchy-name>_duchy_computations`.
+
+You can create a database using the `gcloud` CLI. For example with a Duchy named
+`worker1` in the `halo-cmms` instance:
 
 ```shell
 gcloud spanner databases create worker1_duchy_computations \
-  --instance=dev-instance
+  --instance=halo-cmms
 ```
 
 ## Step 3. Create the Cloud Storage Bucket
@@ -100,35 +102,24 @@ As the data in this bucket need not be exposed to the public internet, select
 
 ## Step 4. Build and push the container images
 
-The `dev` configuration uses the
-[Container Registry](https://cloud.google.com/container-registry) to store our
-docker images. Enable the Google Container Registry API in the console if you
-haven't done it. If you use other repositories, adjust the commands accordingly.
+If you aren't using pre-built release images, you can build the images yourself
+from source and push them to a container registry. For example, if you're using
+the [Google Container Registry](https://cloud.google.com/container-registry),
+you would specify `gcr.io` as your container registry and your Cloud project
+name as your image repository prefix.
 
 Assuming a project named `halo-worker1-demo` and an image tag `build-0001`, run
-the following to build the images:
+the following to build and push the images:
 
 ```shell
-bazel query 'filter("push_duchy", kind("container_push", //src/main/docker:all))' |
-  xargs bazel build -c opt --define container_registry=gcr.io \
+bazel run -c opt //src/main/docker:push_all_duchy_gke_images \
+  --define container_registry=gcr.io \
   --define image_repo_prefix=halo-worker1-demo --define image_tag=build-0001
 ```
-
-and then push them:
-
-```shell
-bazel query 'filter("push_duchy", kind("container_push", //src/main/docker:all))' |
-  xargs -n 1 bazel run -c opt --define container_registry=gcr.io \
-  --define image_repo_prefix=halo-worker1-demo --define image_tag=build-0001
-```
-
-You should see output like "Successfully pushed Docker image to
-gcr.io/halo-worker1-demo/duchy/spanner-update-schema:build-0001"
 
 Tip: If you're using [Hybrid Development](../building.md#hybrid-development) for
 containerized builds, replace `bazel build` with `tools/bazel-container build`
-and `bazel run` with `tools/bazel-container-run`. You'll also want to pass the
-`-o` option to `xargs`.
+and `bazel run` with `tools/bazel-container-run`.
 
 ## Step 5. Create the Cluster
 
@@ -178,10 +169,35 @@ service accounts. The `dev` configuration assumes that they are named
 
 See [Metrics Deployment](metrics-deployment.md).
 
-## Step 6. Create Kubernetes secrets
+## Step 6. Generate the K8s Kustomization
 
-***(Note: this step does not use any halo code, and you don't need to do it
-within the cross-media-measurement repo.)***
+Populating a cluster is generally done by applying a K8s Kustomization. You can
+use the `dev` configuration as a base to get started. The Kustomization is
+generated using Bazel rules from files written in [CUE](https://cuelang.org/).
+
+To generate the `dev` Kustomization, run the following (substituting your own
+values):
+
+```shell
+bazel build //src/main/k8s/dev:worker1_duchy.tar \
+  --define kingdom_public_api_target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
+  --define google_cloud_project=halo-kingdom-demo \
+  --define spanner_instance=halo-cmms \
+  --define duchy_cert_id=SVVse4xWHL0 \
+  --define duchy_storage_bucket=worker1-duchy \
+  --define container_registry=gcr.io \
+  --define image_repo_prefix=halo-worker1-demo --define image_tag=build-0001
+```
+
+Extract the generated archive to some directory.
+
+You can customize this generated object configuration with your own settings
+such as the number of replicas per deployment, the memory and CPU requirements
+of each container, and the JVM options of each container.
+
+## Step 7. Customize the K8s secret
+
+We use a K8s secret to hold sensitive information, such as private keys.
 
 The Duchy binaries are configured to read certificates and config files from a
 mounted Kubernetes secret volume.
@@ -234,127 +250,43 @@ files are required in a Duchy:
     -   Set the role (aggregator or non_aggregator) in the config appropriately
     -   [Example](../../src/main/k8s/testing/secretfiles/aggregator_protocols_setup_config.textproto)
 
-Put all above files in the same folder (anywhere in your local machine), and
-create a file named `kustomization.yaml` with the following content,
-substituting the appropriate version of protocols setup config:
-
-```yaml
-secretGenerator:
-- name: certs-and-configs
-  files:
-  - all_root_certs.pem
-  - worker1_tls.pem
-  - worker1_tls.key
-  - worker1_cs_cert.der
-  - worker1_cs_private.der
-  - duchy_cert_config.textproto
-  - xxx_protocols_setup_config.textproto
-```
-
-and run
-
-```shell
-kubectl apply -k <path-to-the-above-folder>
-```
-
-Now the secret is created in the `halo-cmm-worker1-demo-cluster`. You should be
-able to see the secret by running
-
-```shell
-kubectl get secrets
-```
-
-We assume the name is `certs-and-configs-abcdedf` and will use it in the
-following documents.
+Place these files into the `src/main/k8s/dev/worker1_duchy_secret/` path within
+the Kustomization directory.
 
 ### Secret files for testing
 
 There are some [secret files](../../src/main/k8s/testing/secretfiles) within the
-repository. These can be used to generate a secret for testing, but **must not**
-be used for production environments as doing so would be highly insecure.
+repository. These can be used for testing, but **must not** be used for
+production environments as doing so would be highly insecure.
+
+Generate the archive:
 
 ```shell
-bazel run //src/main/k8s/testing/secretfiles:apply_kustomization
+bazel build //src/main/k8s/testing/secretfiles:archive
 ```
 
-## Step 7. Create the configmap
+Extract the generated archive to the `src/main/k8s/dev/worker1_duchy_secret/`
+path within the Kustomization directory.
+
+## Step 8. Customize the K8s configMap
 
 Configuration that may frequently change is stored in a K8s configMap. The `dev`
 configuration uses one named `config-files` containing the file
-`authority_key_identifier_to_principal_map.textproto`. This file is initially
-empty.
+`authority_key_identifier_to_principal_map.textproto`.
 
-```shell
-kubectl create configmap config-files \
-  --from-file=authority_key_identifier_to_principal_map.textproto=/dev/null
-```
+Place this file in the `src/main/k8s/dev/config_files/` path within the
+Kustomization directory.
 
 See [Creating Resources](../operations/creating-resources.md) for information on
 this file format.
 
-## Step 8. Create the K8s manifest
+## Step 9. Apply the K8s Kustomization
 
-Deploying the Duchy to the cluster is generally done by applying a K8s manifest.
-You can use the `dev` configuration as a base to get started. The `dev` manifest
-is a YAML file that is generated from files written in
-[CUE](https://cuelang.org/) using Bazel rules.
-
-The main file for the `dev` Duchy is
-[`duchy_gke.cue`](../../src/main/k8s/dev/duchy_gke.cue). Some configuration is
-in [`config.cue`](../../src/main/k8s/dev/config.cue) You can modify these file
-to specify your own values for your Google Cloud project and Spanner instance.
-**Do not** push your modifications to the repository.
-
-For example,
-
-```
-# KingdomSystemApiTarget: "your kingdom's system API domain or subdomain:8443"
-# GloudProject: "halo-worker1-demo"
-# SpannerInstance: "halo-worker1-instance"
-# CloudStorageBucket: "halo-worker1-bucket"
-```
-
-```
-_computation_control_targets: {
-  "aggregator": "your aggregator's system API domain:8443"
-  "worker1": "your worker1's system API domain:8443"
-  "worker2": "your worker2's system API domain:8443"
-}
-```
-
-You can also modify things such as the number of replicas per deployment, the
-memory and CPU requirements of each container, and the JVM options of each
-container.
-
-To generate the YAML manifest from the CUE files, run the following
-(substituting your own values for the `--define` options):
+Use `kubectl` to apply the Kustomization. From the Kustomization directory run:
 
 ```shell
-bazel build //src/main/k8s/dev:worker1_duchy_gke \
-  --define k8s_duchy_secret_name=certs-and-configs-abcdedg \
-  --define duchy_cert_id=SVVse4xWHL0 \
-  --define duchy_storage_bucket=worker1-duchy \
-  --define container_registry=gcr.io \
-  --define image_repo_prefix=halo-worker1-demo --define image_tag=build-0001
+kubectl apply -k src/main/k8s/dev/worker1_duchy
 ```
-
-You can also do your customization to the generated YAML file rather than to the
-CUE file.
-
-Note: The `dev` configuration does not specify a tag or digest for the container
-images. You likely want to change this for a production environment.
-
-## Step 9. Apply the K8s manifest
-
-If you're using a manifest generated by the
-`//src/main/k8s/dev:worker1_duchy_gke` Bazel target, the command to apply that
-manifest is
-
-```shell
-kubectl apply -f bazel-bin/src/main/k8s/dev/worker1_duchy_gke.yaml
-```
-
-Substitute that path if you're using a different K8s manifest.
 
 Now all Duchy components should be successfully deployed to your GKE cluster.
 You can verify by running
