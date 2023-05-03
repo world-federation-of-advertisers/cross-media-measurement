@@ -35,7 +35,6 @@ import org.wfanet.panelmatch.common.singleOrNullIfEmpty
  * in the list is a string -- the decimal string representation of a bucket to select.
  *
  * For example, a [ListValue] to select buckets 10 and 14 might be:
- *
  * ```
  * values { string_value: "10" } values { string_value: "14" }
  * ```
@@ -43,7 +42,7 @@ import org.wfanet.panelmatch.common.singleOrNullIfEmpty
  * No additional data is stored in the query metadata beyond the query id.
  *
  * @param bucketsPerShard the number of buckets in each shard. If a query is trying to access a
- * bucketId equal to `bucketsPerShard`, then the query is considered a padding query.
+ *   bucketId equal to `bucketsPerShard`, then the query is considered a padding query.
  */
 class PlaintextQueryEvaluator(private val bucketsPerShard: Int) : QueryEvaluator {
   override fun executeQueries(

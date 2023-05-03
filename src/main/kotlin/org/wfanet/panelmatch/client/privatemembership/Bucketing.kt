@@ -51,7 +51,8 @@ class Bucketing(private val numShards: Int, private val numBucketsPerShard: Int)
         value = $value (unsigned: ${toUnsignedString(value)})
         quotient = $quotient (unsigned: ${toUnsignedString(quotient)})
         remainder = $remainder (unsigned: ${toUnsignedString(remainder)})
-      """.trimIndent()
+      """
+        .trimIndent()
     }
 
     // The conversion here is safe because 0 <= remainder < numBucketsPerShard and

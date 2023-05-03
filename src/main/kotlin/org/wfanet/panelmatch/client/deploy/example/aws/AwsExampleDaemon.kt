@@ -41,7 +41,7 @@ import picocli.CommandLine.Option
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider
 import software.amazon.awssdk.regions.Region
-import software.amazon.awssdk.services.s3.S3Client
+import software.amazon.awssdk.services.s3.S3AsyncClient
 
 @Command(
   name = "AwsExampleDaemon",
@@ -106,7 +106,7 @@ private class AwsExampleDaemon : ExampleDaemon() {
   }
 
   override val rootStorageClient: StorageClient by lazy {
-    S3StorageClient(S3Client.builder().region(Region.of(s3Region)).build(), s3Bucket)
+    S3StorageClient(S3AsyncClient.builder().region(Region.of(s3Region)).build(), s3Bucket)
   }
 
   /** This can be customized per deployment. */

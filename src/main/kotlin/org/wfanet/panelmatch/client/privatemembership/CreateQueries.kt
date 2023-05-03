@@ -159,8 +159,8 @@ private class CreateQueries(
    * The range [0, Int.MAX_VALUE) is partitioned into a sub-range per shard and then the queries in
    * each shard are randomly assigned distinct ids from the sub-range.
    *
-   * For example, if there are 10 shards, then queries from the first shard are assigned ids from
-   * [0, x), queries from the second shard from [x, 2 * x), where x = Int.MAX_VALUE / 10.
+   * For example, if there are 10 shards, then queries from the first shard are assigned ids
+   * from [0, x), queries from the second shard from [x, 2 * x), where x = Int.MAX_VALUE / 10.
    *
    * This is efficient because it can process each shard in parallel.
    */

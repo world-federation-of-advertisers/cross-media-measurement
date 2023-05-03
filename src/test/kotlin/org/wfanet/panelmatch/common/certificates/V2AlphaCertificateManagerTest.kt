@@ -39,10 +39,7 @@ import org.wfanet.measurement.api.v2alpha.createCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
-import org.wfanet.measurement.common.crypto.testing.FIXED_CA_CERT_PEM_FILE
-import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_CERT_PEM_FILE
-import org.wfanet.measurement.common.crypto.testing.FIXED_SERVER_KEY_FILE
-import org.wfanet.measurement.common.crypto.testing.KEY_ALGORITHM
+import org.wfanet.measurement.common.crypto.testing.TestData
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.panelmatch.common.ExchangeDateKey
@@ -54,9 +51,11 @@ import org.wfanet.panelmatch.common.testing.runBlockingTest
 private const val LOCAL_NAME = "dataProviders/someDataProviderId"
 private const val PARTNER_NAME = "modelProviders/someModelProviderId"
 
-private val ROOT_CERTIFICATE by lazy { readCertificate(FIXED_CA_CERT_PEM_FILE) }
-private val CERTIFICATE by lazy { readCertificate(FIXED_SERVER_CERT_PEM_FILE) }
-private val PRIVATE_KEY by lazy { readPrivateKey(FIXED_SERVER_KEY_FILE, KEY_ALGORITHM) }
+private val ROOT_CERTIFICATE by lazy { readCertificate(TestData.FIXED_CA_CERT_PEM_FILE) }
+private val CERTIFICATE by lazy { readCertificate(TestData.FIXED_SERVER_CERT_PEM_FILE) }
+private val PRIVATE_KEY by lazy {
+  readPrivateKey(TestData.FIXED_SERVER_KEY_FILE, CERTIFICATE.publicKey.algorithm)
+}
 
 private val DATE = LocalDate.now()
 private const val RECURRING_EXCHANGE_ID = "some-recurring-exchange-id"

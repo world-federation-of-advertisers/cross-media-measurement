@@ -18,7 +18,7 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/common/api:resource_key",
     ],
 )
 
@@ -40,7 +40,7 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/proto/google/type:date_kt_jvm_proto",
-        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/common/api:resource_key",
     ],
 )
 
@@ -63,7 +63,7 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
-        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/common/api:resource_key",
     ],
 )
 
@@ -89,7 +89,7 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
-        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/common/api:resource_key",
     ],
 )
 
@@ -122,6 +122,6 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:security_provider",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
-        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "@wfa_measurement_system//src/main/kotlin/org/wfanet/measurement/common/api:resource_key",
     ],
 )

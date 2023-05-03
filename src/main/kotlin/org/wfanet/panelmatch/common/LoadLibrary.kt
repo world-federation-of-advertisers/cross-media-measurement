@@ -23,10 +23,10 @@ import java.nio.file.Paths
  *
  * This requires that `System.getProperty("java.io.tmpdir")` is writeable.
  *
- * TODO(@efoxepstein): move to common-jvm.
- *
  * @param libraryName the base library name, i.e. without leading 'lib' or trailing '.so'
  * @param resourcePathPrefix the resource path to the directory containing the library
+ *
+ * TODO(@efoxepstein): move to common-jvm.
  */
 fun loadLibraryFromResource(libraryName: String, resourcePathPrefix: String) {
   val fullLibraryName = System.mapLibraryName(libraryName)

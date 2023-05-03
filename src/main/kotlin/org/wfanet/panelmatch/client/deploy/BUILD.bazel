@@ -44,7 +44,7 @@ kt_jvm_library(
 java_export(
     name = "maven",
     deploy_env = panel_exchange_client_maven_deploy_env(),
-    maven_coordinates = "org.wfanet:panel-exchange-client-core:${TAG_NAME}",
+    maven_coordinates = "org.wfanet:panel-exchange-client-core:$${TAG_NAME}",
     pom_template = "//deploy:pom_template.xml",
     tags = ["no-javadocs"],
     runtime_deps = [":deploy"] + panel_exchange_client_maven_runtime_deps(),

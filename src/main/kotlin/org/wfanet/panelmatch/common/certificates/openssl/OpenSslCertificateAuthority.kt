@@ -110,7 +110,8 @@ private class GenerateKeyPair(
       subjectKeyIdentifier=hash
       basicConstraints=CA:FALSE
       subjectAltName=DNS:${context.dnsName}
-      """.trimIndent()
+      """
+        .trimIndent()
     )
   }
 

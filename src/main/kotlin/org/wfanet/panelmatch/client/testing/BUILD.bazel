@@ -47,7 +47,7 @@ java_export(
     deploy_env = ["//src/main/kotlin/org/wfanet/panelmatch/client/deploy:deploy"] +
                  panel_exchange_client_maven_deploy_env() +
                  panel_exchange_client_maven_test_deploy_env(),
-    maven_coordinates = "org.wfanet:panel-exchange-client-testing:${TAG_NAME}",
+    maven_coordinates = "org.wfanet:panel-exchange-client-testing:$${TAG_NAME}",
     pom_template = "//deploy:pom_template.xml",
     tags = ["no-javadocs"],
     runtime_deps = [":testing"] +

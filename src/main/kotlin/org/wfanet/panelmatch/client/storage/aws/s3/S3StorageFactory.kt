@@ -25,7 +25,7 @@ import org.wfanet.panelmatch.common.storage.withPrefix
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
 import software.amazon.awssdk.regions.Region
-import software.amazon.awssdk.services.s3.S3Client
+import software.amazon.awssdk.services.s3.S3AsyncClient
 
 /** [StorageFactory] for [S3StorageClient]. */
 class S3StorageFactory(
@@ -46,7 +46,7 @@ class S3StorageFactory(
     }
     val builtCredentials = AwsSessionCredentials.create(accessKey, secretAccessKey, sessionToken)
     return S3StorageClient(
-        S3Client.builder()
+        S3AsyncClient.builder()
           .region(Region.of(storageDetails.aws.region))
           .credentialsProvider(StaticCredentialsProvider.create(builtCredentials))
           .build(),
@@ -57,7 +57,7 @@ class S3StorageFactory(
 
   override fun build(): StorageClient {
     return S3StorageClient(
-        S3Client.builder().region(Region.of(storageDetails.aws.region)).build(),
+        S3AsyncClient.builder().region(Region.of(storageDetails.aws.region)).build(),
         storageDetails.aws.bucket
       )
       .withPrefix(exchangeDateKey.path)
