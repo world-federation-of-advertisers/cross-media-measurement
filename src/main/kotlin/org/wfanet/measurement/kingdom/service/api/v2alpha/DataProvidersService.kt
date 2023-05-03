@@ -22,9 +22,11 @@ import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase as DataProvidersCoroutineService
+import org.wfanet.measurement.api.v2alpha.DuchyKey
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
+import org.wfanet.measurement.api.v2alpha.ReplaceDataProviderRequiredDuchiesRequest
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.signedData
@@ -35,6 +37,7 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.internal.kingdom.getDataProviderRequest
+import org.wfanet.measurement.internal.kingdom.replaceDataProviderRequiredDuchiesRequest
 
 private val API_VERSION = Version.V2_ALPHA
 
@@ -75,6 +78,48 @@ class DataProvidersService(private val internalClient: DataProvidersCoroutineStu
 
     return internalDataProvider.toDataProvider()
   }
+  override suspend fun replaceDataProviderRequiredDuchies(
+    request: ReplaceDataProviderRequiredDuchiesRequest
+  ): DataProvider {
+    val key: DataProviderKey =
+      grpcRequireNotNull(DataProviderKey.fromName(request.name)) {
+        "Resource name unspecified or invalid"
+      }
+
+    val requiredDuchyList: List<String> =
+      request.requiredExternalDuchiesList.map { name ->
+        val duchyKey =
+          grpcRequireNotNull(DuchyKey.fromName(name)) { "Resource name unspecified or invalid" }
+        duchyKey.duchyId
+      }
+
+    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
+      is DataProviderPrincipal -> {
+        if (principal.resourceKey.dataProviderId != key.dataProviderId) {
+          failGrpc(Status.PERMISSION_DENIED) { "Cannot update other DataProviders" }
+        }
+      }
+      else -> {
+        failGrpc(Status.PERMISSION_DENIED) { "Only a DataProvider can update a DataProvider" }
+      }
+    }
+
+    val internalDataProvider: InternalDataProvider =
+      try {
+        internalClient.replaceDataProviderRequiredDuchies(
+          replaceDataProviderRequiredDuchiesRequest {
+            externalDataProviderId = apiIdToExternalId(key.dataProviderId)
+            requiredExternalDuchyIds += requiredDuchyList
+          }
+        )
+      } catch (ex: StatusException) {
+        when (ex.status.code) {
+          Status.Code.NOT_FOUND -> failGrpc(Status.NOT_FOUND, ex) { "DataProvider not found" }
+          else -> failGrpc(Status.UNKNOWN, ex) { "Unknown exception." }
+        }
+      }
+    return internalDataProvider.toDataProvider()
+  }
 }
 
 private fun InternalDataProvider.toDataProvider(): DataProvider {
@@ -93,5 +138,6 @@ private fun InternalDataProvider.toDataProvider(): DataProvider {
       data = internalDataProvider.details.publicKey
       signature = internalDataProvider.details.publicKeySignature
     }
+    requiredExternalDuchyIds += internalDataProvider.requiredExternalDuchyIdsList
   }
 }
