@@ -42,6 +42,7 @@ CREATE TABLE ModelSuites (
   INTERLEAVE IN PARENT ModelProviders ON DELETE CASCADE;
 
 CREATE TABLE ModelLines (
+  ModelProviderId INT64 NOT NULL,
   ModelSuiteId INT64 NOT NULL,
   ModelLineId INT64 NOT NULL,
   ExternalModelLineId INT64 NOT NULL,
@@ -52,17 +53,28 @@ CREATE TABLE ModelLines (
 
   -- org.wfanet.measurement.internal.kingdom.ModelLine.Type
   -- protobuf name encoded as an integer.
-  Type SMALLINT NOT NULL,
+  Type INT64 NOT NULL,
 
   HoldbackModelLine INT64,
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
   UpdateTime TIMESTAMP OPTIONS (allow_commit_timestamp = true),
 
   FOREIGN KEY (HoldbackModelLine) REFERENCES ModelLines(ModelLineId),
-) PRIMARY KEY (ModelSuiteId, ModelLineId),
+) PRIMARY KEY (ModelProviderId, ModelSuiteId, ModelLineId),
+  INTERLEAVE IN PARENT ModelSuites ON DELETE CASCADE;
+
+CREATE TABLE ModelReleases (
+    ModelProviderId INT64 NOT NULL,
+    ModelSuiteId INT64 NOT NULL,
+    ModelReleaseId INT64 NOT NULL,
+    ExternalModelReleaseId INT64 NOT NULL,
+    CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
+) PRIMARY KEY (ModelProviderId, ModelSuiteId, ModelReleaseId),
   INTERLEAVE IN PARENT ModelSuites ON DELETE CASCADE;
 
 CREATE TABLE ModelRollouts (
+    ModelProviderId INT64 NOT NULL,
+    ModelSuiteId INT64 NOT NULL,
     ModelLineId INT64 NOT NULL,
     ModelRolloutId INT64 NOT NULL,
     ExternalModelRolloutId INT64 NOT NULL,
@@ -76,10 +88,12 @@ CREATE TABLE ModelRollouts (
 
     FOREIGN KEY (PreviousModelRollout) REFERENCES ModelRollouts(ModelRolloutId),
     FOREIGN KEY (ModelRelease) REFERENCES ModelReleases(ModelReleaseId),
-) PRIMARY KEY (ModelLineId, ModelRolloutId),
+) PRIMARY KEY (ModelProviderId, ModelSuiteId, ModelLineId, ModelRolloutId),
   INTERLEAVE IN PARENT ModelLines ON DELETE CASCADE;
 
 CREATE TABLE ModelOutages (
+    ModelProviderId INT64 NOT NULL,
+    ModelSuiteId INT64 NOT NULL,
     ModelLineId INT64 NOT NULL,
     ModelOutageId INT64 NOT NULL,
     ExternalModelOutageId INT64 NOT NULL,
@@ -88,21 +102,12 @@ CREATE TABLE ModelOutages (
 
     -- org.wfanet.measurement.internal.kingdom.ModelOutage.State
     -- protobuf name encoded as an integer.
-    State SMALLINT NOT NULL,
+    State INT64 NOT NULL,
 
     CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
     DeleteTime TIMESTAMP OPTIONS (allow_commit_timestamp = true),
-) PRIMARY KEY (ModelLineId, ModelOutageId),
+) PRIMARY KEY (ModelProviderId, ModelSuiteId, ModelLineId, ModelOutageId),
   INTERLEAVE IN PARENT ModelLines ON DELETE CASCADE;
-
-
-CREATE TABLE ModelReleases (
-  ModelSuiteId INT64 NOT NULL,
-  ModelReleaseId INT64 NOT NULL,
-  ExternalModelReleaseId INT64 NOT NULL,
-  CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
-) PRIMARY KEY (ModelSuiteId, ModelReleaseId),
-  INTERLEAVE IN PARENT ModelSuites ON DELETE CASCADE;
 
 CREATE TABLE ModelShards (
   DataProviderId INT64 NOT NULL,
